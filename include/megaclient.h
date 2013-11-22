@@ -19,6 +19,7 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -1050,7 +1051,7 @@ struct Node : public NodeCore, Cachable, FileFingerprint
 
 	// source tag
 	int tag;
-	
+
 	// check if node is below this node
 	bool isbelow(Node*) const;
 
@@ -1938,7 +1939,7 @@ private:
 
 	// sync debris folder in rubbish
 	static const char* const SYNCDEBRISFOLDERNAME;
-	
+
 	// notify URL for new server-client commands
 	string scnotifyurl;
 
@@ -2081,7 +2082,7 @@ public:
 
 	// transfer tslots
 	transferslot_list tslots;
-	
+
 	// FileFingerprint to node mapping
 	fingerprint_set fingerprints;
 
@@ -2126,7 +2127,7 @@ public:
 
 	// we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
 	bool syncdebrisadding;
-	
+
 	// number of newsyncdebris nodes being moved at the moment
 	int movedebrisinflight;
 
@@ -2154,7 +2155,7 @@ public:
 
 	// SyncDebris folder addition result
 	void putnodes_syncdebris_result(error,NewNode*);
-	
+
 	// sync id to handle mapping
 	syncidhandle_map syncidhandles;
 
@@ -2443,7 +2444,7 @@ class Sync
 	SymmCipher tkey;
 	string tattrstring;
 	AttrMap tattrs;
-	
+
 public:
 	MegaClient* client;
 
@@ -2478,7 +2479,7 @@ public:
 	void scan(string*, FileAccess*, LocalNode*, bool);
 
 	sync_list::iterator sync_it;
-	
+
 	Sync(MegaClient*, string*, Node*);
 	~Sync();
 };
