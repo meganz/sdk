@@ -13,4 +13,4 @@ sudo make install
 ```
 
 ### Usage
-Take a look at the sample project in doc/examples how to use Mega SDK in your applications.
+Take a look at the sample project in ```doc/example``` how to use Mega SDK in your applications.
