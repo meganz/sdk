@@ -19,7 +19,6 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
