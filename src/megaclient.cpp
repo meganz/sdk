@@ -20,6 +20,7 @@ DEALINGS IN THE SOFTWARE.
 */
 
 #include "megaclient.h"
+#include "megaclient_private.h"
 
 // FIXME: recreate filename after sync transfer completes to shortcut in-transfer rename handling
 // FIXME: generate cr element for file imports
@@ -243,7 +244,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph, nodetype t
 		// set parent linkage or queue for delayed parent linkage in case of out-of-order delivery
 		if ((p = client->nodebyhandle(ph))) setparent(p);
 		else dp->push_back(this);
-		
+
 		if (type == FILENODE) fingerprint_it = client->fingerprints.end();
 	}
 }
@@ -400,7 +401,7 @@ bool Node::serialize(string* d)
 	else d->append("\0\0\0\0\0",MegaClient::NODEHANDLE);
 
 	d->append((char*)&owner,MegaClient::USERHANDLE);
-	
+
 	d->append((char*)&clienttimestamp,sizeof(clienttimestamp));
 	d->append((char*)&ctime,sizeof(ctime));
 
@@ -1527,7 +1528,7 @@ void MegaClient::init()
 	syncadding = 0;
 	movedebrisinflight = 0;
 	syncdebrisadding = false;
-	
+
 	putmbpscap = 0;
 }
 
@@ -4196,11 +4197,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 				case MAKENAMEID2('s','u'):	// sharing user
 					su = j->gethandle(USERHANDLE);
 					break;
-					
+
 				case MAKENAMEID3('s','t','s'): 	// share timestamp
 					sts = j->getint();
 					break;
-					
+
 				default:
 					if (!j->storeobject()) return 0;
 			}
@@ -4270,7 +4271,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 				// fallback timestamps
 				if (!(ts+1)) ts = time(NULL);
 				if (!(sts+1)) sts = ts;
-				
+
 				n = new Node(this,&dp,h,ph,t,s,u,fas.c_str(),ts,ts+tmd);
 
 				n->tag = tag;
@@ -4302,7 +4303,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 						reqs[r].add(new CommandAttachFA(h,it->first.second,it->second.first,it->second.second));
 						pendingfa.erase(it++);
 					}
-					
+
 					// FIXME: only do this for in-flight FA writes
 					uhnh.insert(pair<handle,handle>(uh,h));
 				}
@@ -8232,7 +8233,7 @@ void MegaClient::syncupdate()
 					nnp->clienttimestamp = l->mtime;
 					nnp->nodekey = n->nodekey;
 					tattrs.map = n->attrs.map;
-					
+
 					app->syncupdate_remote_copy(l->sync,l->name.c_str());
 				}
 				else
@@ -8437,7 +8438,7 @@ void CommandMoveSyncDebris::procresult()
 	{
 		if (it->second == 3) ok = true;	// give up
 		else it->second++;
-		
+
 		if (ok) client->newsyncdebris.erase(it);
 	}
 
@@ -8515,7 +8516,7 @@ void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
 	delete[] nn;
 
 	syncdebrisadding = false;
-	
+
 	if (e == API_OK) movetosyncdebris(NULL);
 }
 
