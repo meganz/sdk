@@ -26,6 +26,8 @@ DEALINGS IN THE SOFTWARE.
 #define htobe64(x) (((uint64_t) htonl((uint32_t) ((x) >> 32))) | (((uint64_t) htonl((uint32_t) x)) << 32))
 #endif
 
+using namespace CryptoPP;
+
 AutoSeededRandomPool PrnGen::rng;
 
 // cryptographically strong random byte sequence
