@@ -1,0 +1,33 @@
+# library
+lib_LTLIBRARIES = src/libmega.la
+
+# flags
+src_libmega_la_CXXFLAGS = -DUSE_SQLITE -DUSE_CRYPTOPP ${LIBCURL_FLAGS} ${CRYPTO_CXXFLAGS}
+src_libmega_la_LIBADD =  ${LIBCURL_LIBS} ${CRYPTO_LIBS}
+src_libmega_la_LDFLAGS = -version-info ${VERSION_INFO}
+
+# sources
+src_libmega_la_SOURCES = src/megaclient.cpp
+src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
+src_libmega_la_SOURCES += src/db/sqlite.cpp
+
+win_src =
+posix_src =
+
+# win32 sources
+#if PLATFORM_WIN32
+#win_src += src/win32/fs.cpp
+#win_src += src/win32/console.cpp
+#win_src += src/win32/net.cpp
+#win_src += src/win32/wait.cpp
+
+# posix sources
+#else
+src_libmega_la_SOURCES += src/posix/fs.cpp
+src_libmega_la_SOURCES += src/posix/console.cpp
+src_libmega_la_SOURCES += src/posix/net.cpp
+src_libmega_la_SOURCES += src/posix/wait.cpp
+#endif
+
+#src_libmega_la_SOURCES += win_src
+#src_libmega_la_SOURCES += posix_src

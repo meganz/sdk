@@ -1,0 +1,16 @@
+AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/include/crypto -I$(top_srcdir)/include/db -I$(top_srcdir)/include/posix
+
+# applications
+EXAMPLES = examples/megacli
+
+if BUILD_EXAMPLES
+noinst_PROGRAMS = $(EXAMPLES)
+endif
+
+# depends on libmega
+$(EXAMPLES): $(top_builddir)/src/libmega.la
+
+# rules
+examples_megacli_SOURCES = examples/megacli.cpp
+examples_megacli_CXXFLAGS = $(LIBCURL_FLAGS) ${CRYPTO_CXXFLAGS} -DUSE_SQLITE -DUSE_CRYPTOPP
+examples_megacli_LDADD = ${CRYPTO_LIBS} $(LIBCURL_LIBS) $(top_builddir)/src/libmega.la
