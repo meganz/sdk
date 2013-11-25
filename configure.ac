@@ -1,10 +1,46 @@
 AC_PREREQ(2.61)
 
-AC_INIT([libmega], [0.1], [https://mega.co.nz/])
+m4_define([mega_major_version], [0])
+m4_define([mega_minor_version], [1])
+m4_define([mega_micro_version], [0])
+m4_define([mega_version],
+          [mega_major_version.mega_minor_version.mega_micro_version])
+
+# libtool interface versioning
+m4_define([mega_lt_revision], [0])
+m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
+m4_define([mega_lt_age], [0])
+
+AC_INIT([libmega], [mega_version], [https://mega.co.nz/])
 
 AM_INIT_AUTOMAKE([1.10 foreign])
 AC_CONFIG_HEADERS([config.h])
 LT_INIT([shared static win32-dll])
+
+MEGA_MAJOR_VERSION=mega_major_version
+MEGA_MINOR_VERSION=mega_minor_version
+MEGA_MICRO_VERSION=mega_micro_version
+
+AC_SUBST(MEGA_MAJOR_VERSION)
+AC_SUBST(MEGA_MINOR_VERSION)
+AC_SUBST(MEGA_MICRO_VERSION)
+
+AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
+	  [MEGA SDK major version])
+AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
+	  [MEGA SDK minor version])
+AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
+	  [MEGA SDK micro version])
+
+
+LT_CURRENT=mega_lt_current
+LT_REVISION=mega_lt_revision
+LT_AGE=mega_lt_age
+
+AC_SUBST(LT_CURRENT)
+AC_SUBST(LT_REVISION)
+AC_SUBST(LT_AGE)
+
 
 # Check programs
 AC_PROG_CXX
