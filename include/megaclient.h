@@ -19,54 +19,11 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <assert.h>
-#include <memory.h>
-#include <time.h>
-
-#ifdef _WIN32
-
-#include <windows.h>
-#define atoll _atoi64
-#define snprintf _snprintf
-#define _CRT_SECURE_NO_WARNINGS
-
-#else
-
-#include <unistd.h>
-#include <arpa/inet.h>
-
-#ifndef __MACH__
-#include <endian.h>
+#ifndef MEGA_SDK
+#error ("Do not include megaclient.h directly, please include 'mega.h' instead!")
 #endif
 
-#endif
-
-// FIXME: #define PRI*64 if missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-
-typedef int64_t m_off_t;
-
-#include <iostream>
-#include <algorithm>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
-
-using namespace std;
-
-#include "crypto/cryptopp.h"
-
-// monotonously increasing time in deciseconds
-typedef uint32_t dstime;
+#include "mega.h"
 
 // wait for events
 struct Waiter

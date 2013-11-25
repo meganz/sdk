@@ -1,9 +1,11 @@
 include_libmegadir = $(includedir)/mega
 
-libmega_headers = megaclient.h \
-        crypto/cryptopp.h \
-        db/sqlite.h \
-        db/bdb.h
+libmega_headers = \
+	mega.h \
+	megaclient.h \
+    crypto/cryptopp.h \
+    db/sqlite.h \
+    db/bdb.h
 
 
 # win32 headers
@@ -25,6 +27,6 @@ libmega_headers += \
 
 endif
 
-noinst_HEADERS = megaclient_private.h
+#noinst_HEADERS = config.h
 
 nobase_include_HEADERS = $(libmega_headers)

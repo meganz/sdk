@@ -19,11 +19,7 @@ DEALINGS IN THE SOFTWARE.
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS CurlHttpIO
 
-#include <curl/curl.h>
-#include <sys/select.h>
-
-#include "megaclient.h"
-
+#include "mega.h"
 #include "wait.h"
 
 class CurlHttpIO : public HttpIO

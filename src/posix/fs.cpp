@@ -18,26 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#define _POSIX_SOURCE
-#define _LARGE_FILES
-#define _LARGEFILE64_SOURCE
-#define _GNU_SOURCE 1
-#define _FILE_OFFSET_BITS 64
-
-#include <stdio.h>
-#include <stdarg.h>
-#include <fcntl.h>
-
-#include <sys/sendfile.h>
-#include <sys/un.h>
-#include <termios.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <utime.h>
-
-#include <curl/curl.h>
-
-#include "megaclient.h"
+#include "mega.h"
 #include "wait.h"
 #include "fs.h"
 

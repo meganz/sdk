@@ -1,42 +1,5 @@
 
-#define __STDC_FORMAT_MACROS
-
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <assert.h>
-#include <memory.h>
-#include <time.h>
-#include <inttypes.h>
-#include <endian.h>
-
-typedef int64_t m_off_t;
-
-#include <iostream>
-#include <algorithm>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
-using namespace std;
-
-
-#include <crypto/cryptopp.h>
-#include <megaclient.h>
-
-#include <db/bdb.h>
-#include <db/sqlite.h>
-
-#include <posix/fs.h>
-#include <posix/wait.h>
-#include <posix/net.h>
-#include <posix/console.h>
-
+#include <mega.h>
 
 struct LsApp : public MegaApp
 {

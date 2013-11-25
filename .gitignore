@@ -20,3 +20,5 @@ stamp-h1
 .dirstamp
 libmega.pc
 *.db
+.ycm_extra_conf.py
+*.pyc

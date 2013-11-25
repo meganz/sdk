@@ -18,8 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
-
+#include "mega.h"
 #include "cryptopp.h"
 
 #ifndef htobe64

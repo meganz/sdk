@@ -19,9 +19,7 @@ DEALINGS IN THE SOFTWARE.
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
 
-#include <glob.h>
-#include <dirent.h>
-#include <sys/inotify.h>
+#include "mega.h"
 
 struct PosixDirAccess : public DirAccess
 {
