@@ -20,8 +20,6 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
-#include "wait.h"
-
 void PosixWaiter::init(dstime ds)
 {
 	maxds = ds;

@@ -20,8 +20,6 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
-#include "sqlite.h"
-
 SqliteDbAccess::SqliteDbAccess(string* path)
 {
     if (path) dbpath = *path;

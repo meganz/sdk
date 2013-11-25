@@ -20,7 +20,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "net.h"
+#include "mega.h"
 
 extern bool debug;
 

@@ -16,6 +16,7 @@ AC_INIT([libmega], [mega_version], [https://mega.co.nz])
 AM_INIT_AUTOMAKE([1.10 foreign])
 AC_CONFIG_HEADERS([config.h])
 LT_INIT([shared static win32-dll])
+AC_CONFIG_MACRO_DIR([m4])
 
 MEGA_MAJOR_VERSION=mega_major_version
 MEGA_MINOR_VERSION=mega_minor_version
@@ -108,7 +109,6 @@ AC_ARG_ENABLE([tests],
 AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_tests" = "yes"])
 
 # output
-AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_FILES([
  Makefile
  include/Makefile

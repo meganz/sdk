@@ -10,4 +10,4 @@ Requires:
 Conflicts:
 Libs: -L${libdir} -lmega
 Libs.private: @LIBS@
-Cflags: -I${includedir} -DUSE_SQLITE -DUSE_CRYPTOPP
+Cflags: -I${includedir} -I${includedir}/mega -DUSE_SQLITE -DUSE_CRYPTOPP

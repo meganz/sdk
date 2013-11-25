@@ -1,29 +1,15 @@
-libmega_headers = \
+libmegaincludedir=$(includedir)
+
+nobase_libmegainclude_HEADERS = \
 	mega.h \
-	megaclient.h \
-    crypto/cryptopp.h \
-    db/sqlite.h \
-    db/bdb.h
-
-# win32 headers
-if PLATFORM_WIN32
-libmega_headers += \
-        win32/fs.h \
-        win32/wait.h \
-        win32/net.h \
-        win32/console.h
-
-# posix headers
-else
-libmega_headers += \
-        posix/fs.h \
-        posix/wait.h \
-        posix/net.h \
-        posix/console.h \
-        posix/megaposix.h
-
-endif
+	mega/megaclient.h \
+    mega/crypto/cryptopp.h \
+    mega/db/sqlite.h \
+    mega/db/bdb.h \
+    mega/posix/fs.h \
+    mega/posix/net.h \
+    mega/posix/wait.h \
+    mega/posix/console.h \
+    mega/posix/megaposix.h
 
 #noinst_HEADERS = config.h
-
-nobase_include_HEADERS = $(libmega_headers)

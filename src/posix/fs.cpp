@@ -19,8 +19,6 @@ DEALINGS IN THE SOFTWARE.
 */
 
 #include "mega.h"
-#include "wait.h"
-#include "fs.h"
 
 #ifdef __MACH__
 ssize_t pread(int, void *, size_t, off_t) __DARWIN_ALIAS_C(pread);

@@ -1,0 +1,11 @@
+# applications
+TESTS =
+
+if BUILD_TEST_APPS
+#noinst_PROGRAMS = $(TESTS)
+endif
+
+# depends on libmega
+#$(TESTS): $(top_builddir)/src/libmega.la
+
+# rules

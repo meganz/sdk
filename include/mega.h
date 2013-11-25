@@ -128,6 +128,8 @@ using namespace std;
 #include "posix/net.h"
 #include "db/sqlite.h"
 #include "posix/fs.h"
+#include "posix/console.h"
+#include "posix/net.h"
 
 
 #endif
