@@ -1,12 +1,9 @@
-include_libmegadir = $(includedir)/mega
-
 libmega_headers = \
 	mega.h \
 	megaclient.h \
     crypto/cryptopp.h \
     db/sqlite.h \
     db/bdb.h
-
 
 # win32 headers
 if PLATFORM_WIN32

@@ -11,7 +11,7 @@ m4_define([mega_lt_revision], [0])
 m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], [mega_version], [https://mega.co.nz/])
+AC_INIT([libmega], [mega_version], [https://mega.co.nz])
 
 AM_INIT_AUTOMAKE([1.10 foreign])
 AC_CONFIG_HEADERS([config.h])
@@ -66,12 +66,6 @@ AC_SUBST(LIBCURL_LIBS)
 
 PKG_CHECK_MODULES([CRYPTO], [libcrypto++])
 
-# examples
-AC_ARG_ENABLE([examples],
-     AS_HELP_STRING([--enable-examples build example applications]),
-	[], [enable_examples=no])
-AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
-
 # check if building for Win32
 AC_MSG_CHECKING([if building for Win32 platform])
 case "$host" in
@@ -85,15 +79,39 @@ esac
 AC_MSG_RESULT($platform_win32)
 AM_CONDITIONAL(PLATFORM_WIN32, test x$platform_win32 = xyes)
 
+# enable debug
+AC_ARG_ENABLE(debug,
+     AS_HELP_STRING(--enable-debug, enable support for running in debug mode),
+        [], [enable_debug=no])
+if test x$enable_debug = xyes; then
+    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
+else
+    CXXFLAGS="$CXXFLAGS"
+fi
 
-CXXFLAGS="-g"
+# examples
+AC_ARG_ENABLE([examples],
+     AS_HELP_STRING([--enable-examples build example applications]),
+	[], [enable_examples=no])
+AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 
+if test "x$enable_examples" = "xyes"; then
+    EXAMPLES_LDFLAGS="-lfreeimage -lreadline -ltermcap"
+    AC_SUBST(EXAMPLES_LDFLAGS)
+fi
+
+
+# tests
+AC_ARG_ENABLE([tests],
+     AS_HELP_STRING([--enable-tests, build test applications]),
+	[], [enable_tests=no])
+AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_tests" = "yes"])
+
+# output
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_FILES([
  Makefile
  include/Makefile
  libmega.pc
- tests/Makefile
 ])
-
 AC_OUTPUT

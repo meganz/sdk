@@ -7,6 +7,7 @@ CLEANFILES=
 DISTCLEANFILES=
 BUILT_SOURCES=
 include src/include.am
+include tests/include.am
 include examples/include.am
 
 SUBDIRS = include
