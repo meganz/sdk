@@ -18,7 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
+#include "mega.h"
 
 #include "crypto/cryptopp.h"
 
@@ -1625,7 +1625,7 @@ static void process_line(char* l)
 						else if (words.size() == 2)
 						{
 							int i = 0, cancel = atoi(words[1].c_str());
-							
+
 							for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
 							{
 								if (i++ == cancel)
@@ -2332,7 +2332,7 @@ void DemoApp::openfilelink_result(error e)
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, const char* fa, time_t ts, time_t tm)
 {
 	Node* n;
-	
+
 	if (client->loggedin() && (n = client->nodebyhandle(cwd)))
 	{
 		NewNode* newnode = new NewNode[1];
@@ -2347,7 +2347,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size, stri
 		newnode->nodekey.assign((char*)key,Node::FILENODEKEYLENGTH);
 
 		newnode->attrstring = *a;
-		
+
 		client->putnodes(n->nodehandle,newnode,1);
 	}
 	else cout << "Need to be logged in to import file links." << endl;
