@@ -7665,6 +7665,39 @@ void Sync::changestate(syncstate newstate)
 	}
 }
 
+// walk path and return state of the sync
+// path must not start with a separator and be relative to the sync root
+pathstate_t Sync::pathstate(string* localpath)
+{
+	const char* ptr = localpath->data();
+	const char* end = localpath->data()+localpath->size();
+	const char* nptr = ptr;
+	LocalNode* l = &localroot;
+	size_t separatorlen = client->fsaccess->localseparator.size();
+	localnode_map::iterator it;
+	string t;
+	
+	for (;;)
+	{
+		if (nptr == end || !memcmp(nptr,client->fsaccess->localseparator.data(),separatorlen))
+		{
+			t.assign(ptr,nptr-ptr);
+			
+			if ((it = l->children.find(&t)) == l->children.end()) return PATHSTATE_NOTFOUND;
+			l = it->second;
+			
+			if (nptr == end) break;
+			
+			ptr = nptr+separatorlen;
+			nptr = ptr;
+		}
+	}
+
+	if (l->node) return PATHSTATE_SYNCED;
+	if (l->transfer && l->transfer->slot) return PATHSTATE_SYNCING;
+	return PATHSTATE_PENDING;
+}
+
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, string* clocalname, nodetype ctype, LocalNode* cparent, string* clocalpath)
 {
@@ -8356,12 +8389,6 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn)
 
 	syncadding--;
 	syncactivity = true;
-}
-
-// request upload of the file identified by the supplied fingerprint
-void MegaClient::syncupload(LocalNode* l)
-{
-	startxfer(PUT,l);
 }
 
 // inject file into transfer subsystem

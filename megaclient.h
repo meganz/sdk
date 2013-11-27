@@ -2168,9 +2168,6 @@ public:
 	// create missing folders, copy/start uploading missing files
 	void syncup(LocalNode* = NULL/*, Node* = NULL*/);
 
-	// trigger syncing of local file
-	void syncupload(LocalNode*);
-
 	// sync putnodes() completion
 	void putnodes_sync_result(error, NewNode*);
 
@@ -2440,6 +2437,8 @@ struct ScanItem
 	bool deleted;
 };
 
+typedef enum { PATHSTATE_NOTFOUND, PATHSTATE_SYNCED, PATHSTATE_SYNCING, PATHSTATE_PENDING } pathstate_t;
+
 class Sync
 {
 public:
@@ -2472,6 +2471,9 @@ public:
 	// scan items in specified path and add as children of the specified LocalNode
 	void scan(string*, FileAccess*, LocalNode*, bool);
 
+	// determine status of a given path
+	pathstate_t pathstate(string*);
+	
 	// own position in session sync list
 	sync_list::iterator sync_it;
 
