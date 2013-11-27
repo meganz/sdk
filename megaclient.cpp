@@ -7684,6 +7684,7 @@ pathstate_t Sync::pathstate(string* localpath)
 			t.assign(ptr,nptr-ptr);
 			
 			if ((it = l->children.find(&t)) == l->children.end()) return PATHSTATE_NOTFOUND;
+
 			l = it->second;
 			
 			if (nptr == end) break;
@@ -7691,6 +7692,7 @@ pathstate_t Sync::pathstate(string* localpath)
 			ptr = nptr+separatorlen;
 			nptr = ptr;
 		}
+		else nptr += separatorlen;
 	}
 
 	if (l->node) return PATHSTATE_SYNCED;
