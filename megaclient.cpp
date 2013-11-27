@@ -6771,7 +6771,7 @@ void CommandConfirmSignupLink::procresult()
 // generate and configure encrypted private key, plaintext public key
 void MegaClient::setkeypair()
 {
-	Integer pubk[AsymmCipher::PUBKEY];
+	CryptoPP::Integer pubk[AsymmCipher::PUBKEY];
 
 	string privks, pubks;
 
