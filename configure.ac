@@ -1,7 +1,7 @@
 AC_PREREQ(2.61)
 
 m4_define([mega_major_version], [0])
-m4_define([mega_minor_version], [1])
+m4_define([mega_minor_version], [2])
 m4_define([mega_micro_version], [0])
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
@@ -65,20 +65,21 @@ LIBCURL_LIBS=`curl-config --libs`
 AC_SUBST(LIBCURL_FLAGS)
 AC_SUBST(LIBCURL_LIBS)
 
+#XXX: add detection of libcrypto++
 PKG_CHECK_MODULES([CRYPTO], [libcrypto++])
 
 # check if building for Win32
 AC_MSG_CHECKING([if building for Win32 platform])
 case "$host" in
   *-*-mingw*|*-*-cygwin*)
-    platform_win32=yes
+    WIN32=yes
     ;;
   *)
-    platform_win32=no
+    WIN32=no
     ;;
 esac
-AC_MSG_RESULT($platform_win32)
-AM_CONDITIONAL(PLATFORM_WIN32, test x$platform_win32 = xyes)
+AC_MSG_RESULT([WIN32])
+AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 
 # enable debug
 AC_ARG_ENABLE(debug,
