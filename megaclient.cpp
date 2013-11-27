@@ -7626,9 +7626,10 @@ int FileFingerprint::unserializefingerprint(string* d)
 }
 
 // a new sync reads the full local tree and issues all commands required to equalize both sides
-Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode)
+Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 {
 	client = cclient;
+	tag = ctag;
 	
 	localbytes = 0;
 	localnodes[FILENODE] = 0;
@@ -8192,7 +8193,6 @@ void MegaClient::syncup(LocalNode* l)
 					{
 						// recurse into directories of equal name
 						lit->second->setnode(rit->second);
-
 						syncup(lit->second);
 						continue;
 					}
@@ -8290,7 +8290,7 @@ void MegaClient::syncupdate()
 		{
 			syncadding++;
 
-			reqs[r].add(new CommandPutNodes(this,synccreate[start]->parent->node->nodehandle,NULL,nn,nnp-nn,0,PUTNODES_SYNC));
+			reqs[r].add(new CommandPutNodes(this,synccreate[start]->parent->node->nodehandle,NULL,nn,nnp-nn,synccreate[start]->sync->tag,PUTNODES_SYNC));
 			syncactivity = true;
 		}
 	}
@@ -8609,7 +8609,7 @@ void File::completed(Transfer* t, LocalNode* l)
 			if (!t->client->nodebyhandle(th)) th = t->client->rootnodes[0];
 
 			if (l) t->client->syncadding++;
-			t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,th,NULL,newnode,1,0,l ? PUTNODES_SYNC : PUTNODES_APP));
+			t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,th,NULL,newnode,1,l ? l->sync->tag : 0,l ? PUTNODES_SYNC : PUTNODES_APP));
 		}
 	}
 }
