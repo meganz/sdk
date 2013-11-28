@@ -22,3 +22,7 @@ libmega.pc
 *.db
 .ycm_extra_conf.py
 *.pyc
+api_test
+examples/megacli
+test-driver
+doc/example/lsmega

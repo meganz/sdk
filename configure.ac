@@ -78,7 +78,7 @@ case "$host" in
     WIN32=no
     ;;
 esac
-AC_MSG_RESULT([WIN32])
+AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 
 # enable debug
@@ -92,22 +92,30 @@ else
 fi
 
 # examples
+AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE([examples],
      AS_HELP_STRING([--enable-examples build example applications]),
 	[], [enable_examples=no])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
-
 if test "x$enable_examples" = "xyes"; then
-    EXAMPLES_LDFLAGS="-lfreeimage -lreadline -ltermcap"
-    AC_SUBST(EXAMPLES_LDFLAGS)
+EXAMPLES_LDFLAGS="-lfreeimage -lreadline -ltermcap"
+AC_SUBST(EXAMPLES_LDFLAGS)
 fi
-
+AC_MSG_RESULT([$enable_examples])
 
 # tests
+AC_MSG_CHECKING([if building test applications])
 AC_ARG_ENABLE([tests],
      AS_HELP_STRING([--enable-tests, build test applications]),
 	[], [enable_tests=no])
+if test x$enable_debug = xyes; then
+GTEST_FLAGS="$GTEST_FLAGS"
+GTEST_LIBS="$GTEST_LIBS"
+AC_SUBST(GTEST_FLAGS)
+AC_SUBST(GTEST_LIBS)
+fi
 AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_tests" = "yes"])
+AC_MSG_RESULT([$enable_tests])
 
 # output
 AC_CONFIG_FILES([
