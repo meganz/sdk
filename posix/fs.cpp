@@ -113,6 +113,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 		close(fd);
 	}
 
+	retry = false;
 	return false;
 }
 

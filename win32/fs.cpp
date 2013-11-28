@@ -42,7 +42,7 @@ bool WinFileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
 {
 	DWORD dwRead;
 
-	if (!SetFilePointerEx(hFile,*(LARGE_INTEGER*)&pos,NULL,FILE_BEGIN)) return 0;
+	if (!SetFilePointerEx(hFile,*(LARGE_INTEGER*)&pos,NULL,FILE_BEGIN)) return false;
 
 	dst->resize(len+pad);
 
@@ -51,17 +51,17 @@ bool WinFileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
 	if (ReadFile(hFile,(LPVOID)dst->data(),(DWORD)len,&dwRead,NULL) && dwRead == len)
 	{
 		memset((char*)dst->data()+len,0,pad);
-		return 1;
+		return true;
 	}
 
-	return 0;
+	return false;
 }
 
 bool WinFileAccess::frawread(byte* dst, unsigned len, m_off_t pos)
 {
 	DWORD dwRead;
 
-	if (!SetFilePointerEx(hFile,*(LARGE_INTEGER*)&pos,NULL,FILE_BEGIN)) return 0;
+	if (!SetFilePointerEx(hFile,*(LARGE_INTEGER*)&pos,NULL,FILE_BEGIN)) return false;
 
 	return ReadFile(hFile,(LPVOID)dst,(DWORD)len,&dwRead,NULL) && dwRead == len;
 }
@@ -70,7 +70,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 {
 	DWORD dwWritten;
 
-	if (!SetFilePointerEx(hFile,*(LARGE_INTEGER*)&pos,NULL,FILE_BEGIN)) return 0;
+	if (!SetFilePointerEx(hFile,*(LARGE_INTEGER*)&pos,NULL,FILE_BEGIN)) return false;
 
 	return WriteFile(hFile,(LPCVOID)data,(DWORD)len,&dwWritten,NULL) && dwWritten == len;
 }
@@ -102,38 +102,61 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		name->append((char*)L"\\*",5);
+cout << "CreateFileW(" << *name << ") failed w/ " << GetLastError() << endl;
+		switch (GetLastError())
+		{
+			case ERROR_ACCESS_DENIED:
+				// this could be a directory, try to enumerate...
+				name->append((char*)L"\\*",5);
 
-		hFind = FindFirstFileW((LPCWSTR)name->data(),&ffd);
-		name->resize(name->size()-5);
-	}
+				hFind = FindFirstFileW((LPCWSTR)name->data(),&ffd);
+				name->resize(name->size()-5);
 
-	if (hFind != INVALID_HANDLE_VALUE)
-	{
-		type = FOLDERNODE;
-		return 1;
-	}
+				if (hFind != INVALID_HANDLE_VALUE)
+				{
+					type = FOLDERNODE;
+					return true;
+				}
+				// fall through
+			default:
+				retry = false;
+				return false;
 
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		return 0;
+			case ERROR_TOO_MANY_OPEN_FILES:
+			case ERROR_NOT_ENOUGH_MEMORY:
+			case ERROR_OUTOFMEMORY:
+			case ERROR_WRITE_PROTECT:
+			case ERROR_LOCK_VIOLATION:
+			case ERROR_SHARING_VIOLATION:
+				// potentially transient condition, 
+				retry = true;
+				return false;
+		}
 	}
 
 	if (read)
 	{
 		BY_HANDLE_FILE_INFORMATION fi;
 
-		if (!GetFileInformationByHandle(hFile,&fi)) return 0;
+		if (!GetFileInformationByHandle(hFile,&fi))
+		{
+			retry = false;
+			return false;
+		}
 
 		size = ((m_off_t)fi.nFileSizeHigh << 32)+(m_off_t)fi.nFileSizeLow;
 
 		mtime = FileTime_to_POSIX(&fi.ftLastWriteTime);
 	}
-	else if (!GetFileSizeEx(hFile,(LARGE_INTEGER*)&size)) return 0;
+	else if (!GetFileSizeEx(hFile,(LARGE_INTEGER*)&size))
+	{
+		retry = false;
+		return false;
+	}
 
 	type = FILENODE;
 
-	return 1;
+	return true;
 }
 
 WinFileSystemAccess::WinFileSystemAccess()
@@ -490,6 +513,7 @@ bool WinFileSystemAccess::notifyfailed()
 // returns true for files that are not supposed to be synced
 bool WinFileSystemAccess::localhidden(string*, string* filename)
 {
+	// FIXME: also check GetFileAttributes() for FILE_ATTRIBUTE_HIDDEN?
 	wchar_t c = *(wchar_t*)filename->data();
 
 	return c == '.' || c == '~';
