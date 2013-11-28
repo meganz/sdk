@@ -154,6 +154,9 @@ struct FileAccess
 
 	// type of opened path
 	nodetype type;
+	
+	// if the open failed, retry indicates a potentially transient reason
+	bool retry;
 
 	// open for reading, writing or reading and writing
 	virtual bool fopen(string*, bool, bool) = 0;
@@ -532,7 +535,7 @@ public:
 	int tag;
 
 	char level;
-	char persistent;
+	bool persistent;
 
 	void cmd(const char*);
 	void notself(MegaClient*);
@@ -732,8 +735,8 @@ struct HttpReq
 	// timestamp of last data received
 	dstime lastdata;
 
-	// prevent raw data serialize for debug output
-	int binary;
+	// prevent raw data from being dumped in debug mode
+	bool binary;
 
 	HttpReq(int = 0);
 	virtual ~HttpReq();
@@ -2439,6 +2442,8 @@ struct ScanItem
 
 typedef enum { PATHSTATE_NOTFOUND, PATHSTATE_SYNCED, PATHSTATE_SYNCING, PATHSTATE_PENDING } pathstate_t;
 
+typedef deque<ScanItem> scanitem_deque;
+
 class Sync
 {
 public:
@@ -2448,7 +2453,7 @@ public:
 	LocalNode localroot;
 
 	// queued ScanItems
-	deque<ScanItem> scanstack;
+	scanitem_deque scanq;
 
 	// current state
 	syncstate state;
@@ -2456,8 +2461,8 @@ public:
 	// change state, signal to application
 	void changestate(syncstate);
 
-	// process one scanstack item
-	void procscanstack();
+	// process and remove one scanq item
+	void procscanq();
 
 	m_off_t localbytes;
 	unsigned localnodes[2];

@@ -1884,7 +1884,7 @@ void MegaClient::exec()
 
 		syncactivity = false;
 
-		// process pending scanstacks
+		// process pending scanqs
 		for (it = syncs.begin(); it != syncs.end(); )
 		{
 			// make sure that the remote synced folder still exists
@@ -1893,10 +1893,10 @@ void MegaClient::exec()
 			if ((*it)->state == SYNC_FAILED) it++;
 			else
 			{
-				// process items from the scanstack until depleted
-				if ((*it)->scanstack.size()) (*it)->procscanstack();
+				// process items from the scanq until depleted
+				if ((*it)->scanq.size()) (*it)->procscanq();
 			
-				if ((*it)->scanstack.size())
+				if ((*it)->scanq.size())
 				{
 					syncscanning = true;
 					it++;
@@ -2162,6 +2162,7 @@ Transfer::Transfer(MegaClient* cclient, direction ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+	for (file_list::iterator it = files.begin(); it != files.end(); it++) (*it)->transfer = NULL;
 	client->transfers[type].erase(transfers_it);
 	delete slot;
 }
@@ -2215,7 +2216,6 @@ handle MegaClient::getuploadhandle()
 void MegaClient::freeq(direction d)
 {
 	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++) delete it->second;
-
 	transfers[d].clear();
 }
 
@@ -2475,14 +2475,14 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 	cmd("ufa");
 	arg("s",clen);
 
-	persistent = 1;	// object will be recycled either for retry or for posting to the file attribute server
+	persistent = true;	// object will be recycled either for retry or for posting to the file attribute server
 
 	th = cth;
 	type = ctype;
 	data = cdata;
 	len = clen;
 
-	binary = 1;
+	binary = true;
 
 	tag = client->reqtag;
 }
@@ -2619,7 +2619,7 @@ void MegaClient::faf_failed(int fac)
 
 FileAttributeFetchChannel::FileAttributeFetchChannel()
 {
-	req.binary = 1;
+	req.binary = true;
 }
 
 FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int c, int ctag)
@@ -4567,7 +4567,7 @@ bool MegaClient::readusers(JSON* j)
 
 Command::Command()
 {
-	persistent = 0;
+	persistent = false;
 	level = -1;
 	canceled = false;
 }
@@ -7640,7 +7640,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 	localroot.setnode(remotenode);
 	
 	queuescan(NULL,NULL,NULL,NULL,true);
-	procscanstack();
+	procscanq();
 	
 	sync_it = client->syncs.insert(client->syncs.end(),this);
 }
@@ -7739,7 +7739,7 @@ LocalNode::~LocalNode()
 	if (sync->state >= SYNC_INITIALSCAN)
 	{
 		// eliminate queued filesystem events for direct children
-		for (deque<ScanItem>::iterator it = sync->scanstack.begin(); it != sync->scanstack.end(); it++) if ((*it).parent == this) (*it).deleted = true;
+		for (scanitem_deque::iterator it = sync->scanq.begin(); it != sync->scanq.end(); it++) if ((*it).parent == this) (*it).deleted = true;
 
 		// record deletion
 		sync->client->syncdeleted[type].insert(syncid);
@@ -7821,10 +7821,10 @@ LocalNode* Sync::queuefsrecord(string* localpath, string* localname, LocalNode* 
 
 void Sync::queuescan(string* localpath, string* localname, LocalNode* localnode, LocalNode* parent, bool fulltree)
 {
-	// FIXME: efficient copy-free push_back?
-	scanstack.resize(scanstack.size()+1);
+	// FIXME: efficient copy-free push_back? C++11 emplace()?
+	scanq.resize(scanq.size()+1);
 
-	ScanItem* si = &scanstack.back();
+	ScanItem* si = &scanq.back();
 
 	// FIXME: don't create mass copies of localpath
 	if (localpath) si->localpath = *localpath;
@@ -7836,15 +7836,15 @@ void Sync::queuescan(string* localpath, string* localname, LocalNode* localnode,
 }
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
-// must be called with a scanstack.siz() > 0
-void Sync::procscanstack()
+// must be called with a scanq.siz() > 0
+void Sync::procscanq()
 {
-	ScanItem* si = &*scanstack.begin();
+	ScanItem* si = &*scanq.begin();
 
 	// ignore deleted ScanItems
 	if (si->deleted)
 	{
-		scanstack.pop_front();
+		scanq.pop_front();
 		return;
 	}
 
@@ -7934,17 +7934,25 @@ void Sync::procscanstack()
 
 		if (changed) client->syncadded.insert(l->syncid);
 	}
-	else if (l)
+	else
 	{
-		// file gone
-		client->fsaccess->local2path(localpath,&tmpname);
-		if (l->type == FOLDERNODE) client->app->syncupdate_local_folder_deletion(this,tmpname.c_str());
-		else client->app->syncupdate_local_file_deletion(this,tmpname.c_str());
+		if (fa->retry) 
+		{
+			// fopen() signals that the failure is potentially transient - do nothing, but request a recheck
+			
+		}
+		else if (l)
+		{
+			// file gone
+			client->fsaccess->local2path(localpath,&tmpname);
+			if (l->type == FOLDERNODE) client->app->syncupdate_local_folder_deletion(this,tmpname.c_str());
+			else client->app->syncupdate_local_file_deletion(this,tmpname.c_str());
 
-		client->syncactivity = true;
+			client->syncactivity = true;
 
-		delete l;
-		l = NULL;
+			delete l;
+			l = NULL;
+		}
 	}
 
 	if (l)
@@ -7967,9 +7975,9 @@ void Sync::procscanstack()
 
 	delete fa;
 
-	scanstack.pop_front();
+	scanq.pop_front();
 	
-	if (scanstack.size()) client->syncactivity = true;
+	if (scanq.size()) client->syncactivity = true;
 }
 
 // syncids are usable to indicate putnodes()-local parent linkage
