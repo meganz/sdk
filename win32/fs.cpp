@@ -102,7 +102,6 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-cout << "CreateFileW(" << *name << ") failed w/ " << GetLastError() << endl;
 		switch (GetLastError())
 		{
 			case ERROR_ACCESS_DENIED:
