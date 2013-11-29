@@ -19,7 +19,8 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
+#include "mega.h"
+#include "config.h"
 
 // FIXME: recreate filename after sync transfer completes to shortcut in-transfer rename handling
 // FIXME: generate cr element for file imports

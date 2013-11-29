@@ -19,12 +19,9 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
+#include "mega.h"
 #include <windows.h>
 #include <shellapi.h>
-
-#include "megaclient.h"
-#include "wait.h"
-#include "fs.h"
 
 WinFileAccess::WinFileAccess()
 {

@@ -18,32 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-// FIXME: add other directory change notification providers (currently supported: Linux inotify)
-#ifdef __MACH__
-#include <sys/dirent.h>
-#endif
-
-#define _POSIX_SOURCE
-#define _LARGE_FILES
-#define _LARGEFILE64_SOURCE
-#define _GNU_SOURCE 1
-#define _FILE_OFFSET_BITS 64
-
-#include <stdio.h>
-#include <stdarg.h>
-#include <fcntl.h>
-
-#include <sys/un.h>
-#include <termios.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <utime.h>
-
-#include <curl/curl.h>
-
-#include "megaclient.h"
-#include "wait.h"
-#include "fs.h"
+#include "mega.h"
 
 /*#ifdef __MACH__
 #define _DARWIN_C_SOURCE

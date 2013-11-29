@@ -18,32 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include <sys/select.h>
-
-#define __DARWIN_C_LEVEL 199506L
-
-#ifdef __MACH__
-
-// FIXME: revisit OS X support
-#include <machine/endian.h>
-#include <strings.h>
-#include <sys/time.h>
-#define CLOCK_MONOTONIC 0
-int clock_gettime(int, struct timespec* t)
-{
-    struct timeval now;
-    int rv = gettimeofday(&now,NULL);
-    if (rv) return rv;
-    t->tv_sec  = now.tv_sec;
-    t->tv_nsec = now.tv_usec*1000;
-    return 0;
-}
-
-#endif
-
-#include "megaclient.h"
-
-#include "wait.h"
+#include "mega.h"
 
 void PosixWaiter::init(dstime ds)
 {

@@ -18,18 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
-
-#include "crypto/cryptopp.h"
-
-#include "db/bdb.h"
-#include "db/sqlite.h"
-
-#include "fs.h"
-#include "wait.h"
-#include "net.h"
-#include "console.h"
-
+#include "mega.h"
 #include "megacli.h"
 
 #define USE_VARARGS

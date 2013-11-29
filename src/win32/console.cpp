@@ -18,10 +18,9 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
+#include "mega.h"
 #include <windows.h>
 #include <conio.h>
-
-#include "megaclient.h"
 #include "console.h"
 
 #include <io.h>

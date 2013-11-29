@@ -3,6 +3,8 @@
 *.lo
 *.o
 *.obj
+*.lo
+*.pyc
 
 # Compiled Dynamic libraries
 *.so
@@ -19,3 +21,29 @@
 *.exe
 *.out
 *.app
+tests/api_test
+examples/megacli
+doc/example/lsmega
+
+# Autotool stuff
+.deps
+Makefile
+Makefile.in
+aclocal.m4
+autom4te.cache
+config.*
+configure
+depcomp
+*.swp
+m4
+install-sh
+libtool
+ltmain.sh
+missing
+.libs
+stamp-h1
+.dirstamp
+libmega.pc
+*.db
+.ycm_extra_conf.py
+test-driver

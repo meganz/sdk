@@ -18,9 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
-
-#include "cryptopp.h"
+#include "mega.h"
 
 #ifndef htobe64
 #define htobe64(x) (((uint64_t) htonl((uint32_t) ((x) >> 32))) | (((uint64_t) htonl((uint32_t) x)) << 32))

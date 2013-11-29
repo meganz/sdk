@@ -19,8 +19,6 @@ DEALINGS IN THE SOFTWARE.
 #ifndef CONSOLE_CLASS
 #define CONSOLE_CLASS PosixConsole
 
-#include <termios.h>
-
 struct PosixConsole : public Console
 {
 	tcflag_t oldlflag;

@@ -19,13 +19,7 @@ DEALINGS IN THE SOFTWARE.
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
 
-#include <glob.h>
-#include <dirent.h>
-
-#ifdef USE_INOTIFY
-#include <sys/inotify.h>
-#include <sys/sendfile.h>
-#endif
+#include "mega.h"
 
 struct PosixDirAccess : public DirAccess
 {
@@ -45,6 +39,7 @@ class PosixFileSystemAccess : public FileSystemAccess
 {
 #ifdef USE_INOTIFY
 	int notifyfd;
+	bool notifyerr;
 	char notifybuf[sizeof(struct inotify_event)+NAME_MAX+1];
 	int notifypos, notifyleft;
 

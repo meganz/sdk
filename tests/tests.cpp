@@ -1,6 +1,6 @@
 /*
 
-MEGA SDK POSIX network access layer (using cURL)
+MEGA SDK - Client Access Engine Core Logic
 
 (c) 2013 by Mega Limited, Wellsford, New Zealand
 
@@ -16,39 +16,18 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#ifndef HTTPIO_CLASS
-#define HTTPIO_CLASS CurlHttpIO
+#include "mega.h"
+#include "gtest/gtest.h"
 
-#include <curl/curl.h>
-#include <sys/select.h>
+bool debug;
 
-#include "megaclient.h"
+TEST(JSON, storeobject) {
+  string in_str("Test");
+  JSON j;
+  j.storeobject (&in_str);
+}
 
-#include "wait.h"
-
-class CurlHttpIO : public HttpIO
+int main (int argc, char *argv[])
 {
-protected:
-	CURLM* curlm;
-	CURLSH* curlsh;
-
-	static size_t write_data(void *, size_t, size_t, void *);
-
-	curl_slist* contenttypejson;
-	curl_slist* contenttypebinary;
-
-public:
-	void post(HttpReq*, const char* = 0, unsigned = 0);
-	void cancel(HttpReq*);
-
-	m_off_t postpos(void*);
-
-	bool doio(void);
-
-	void addevents(Waiter*);
-
-	CurlHttpIO();
-	~CurlHttpIO();
-};
-
-#endif
+    return RUN_ALL_TESTS();
+}

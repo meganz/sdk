@@ -18,9 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
-
-#include "sqlite.h"
+#include "mega.h"
 
 SqliteDbAccess::SqliteDbAccess(string* path)
 {
@@ -126,7 +124,7 @@ bool SqliteDbTable::get(uint32_t index, string* data)
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {
 	sqlite3_stmt *stmt;
-	
+
 	int rc = sqlite3_prepare(db,"INSERT OR REPLACE INTO statecache ( id, content ) VALUES ( ?, ? )",-1,&stmt,NULL);
 	if (rc) return false;
 

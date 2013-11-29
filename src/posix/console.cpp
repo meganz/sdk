@@ -18,8 +18,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "megaclient.h"
-#include "console.h"
+#include "mega.h"
 
 PosixConsole::PosixConsole()
 {
