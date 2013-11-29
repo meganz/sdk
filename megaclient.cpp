@@ -26,6 +26,7 @@ DEALINGS IN THE SOFTWARE.
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: Sync: recognize folder renames and use setattr() instead of potentially huge delete/putnodes sequences
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creaton load on the servers
+// FIXME: support filesystems with timestamp resolutions > 1 s (FAT)?
 
 // root URL for API access
 const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
@@ -3462,11 +3463,11 @@ void MegaClient::notifypurge(void)
 										fsaccess->rubbishlocal(&localpath);
 										syncactivity = true;
 									}
-									// FIXME: else log "not deleting because of fingerprint mismatch"
+									else app->debug_log("Sync: Not deleting local file because of mismatching fingerprint");
 								}
-								// FIXME: else log "not deleting because of size mismatch"
+								else app->debug_log("Sync: Not deleting local file because of mismatching size");
 							}
-							// FIXME: else log "not deleting because of mtime mismatch"
+							else app->debug_log("Sync: Not deleting local file because of mismatching mtime");
 						}
 
 						delete fa;
@@ -8031,15 +8032,15 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 
 	string tmpname;
 
-	// build child hash - nameclash resolution: use newest version
+	// build child hash - nameclash resolution: use newest/largest version
 	for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
 	{
 		// node must be decrypted and name defined to be considered
 		if (!(*it)->syncdeleted && !(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
 		{
-			// map name to node (overwrite only if newer)
+			// map name to node (use newest, resolve mtime/size clashes deterministically to avoid flapping)
 			npp = &nchildren[&ait->second];
-			if (!*npp || (*it)->mtime > (*npp)->mtime) *npp = *it;
+			if (!*npp || (*it)->mtime > (*npp)->mtime || ((*it)->mtime == (*npp)->mtime && (*it)->size > (*npp)->size) || ((*it)->mtime == (*npp)->mtime && (*it)->size == (*npp)->size && memcmp((*it)->crc,(*npp)->crc,sizeof (*it)->crc) > 0)) *npp = *it;
 		}
 	}
 
@@ -8175,9 +8176,9 @@ void MegaClient::syncup(LocalNode* l)
 			// node must be decrypted and name defined to be considered
 			if (!(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
 			{
-				// map name to node (overwrite only if newer)
+				// map name to node (use newest, resolve mtime/size clashes deterministically to avoid flapping)
 				npp = &nchildren[&ait->second];
-				if (!*npp || (*it)->mtime > (*npp)->mtime) *npp = *it;
+				if (!*npp || (*it)->mtime > (*npp)->mtime || ((*it)->mtime == (*npp)->mtime && (*it)->size > (*npp)->size) || ((*it)->mtime == (*npp)->mtime && (*it)->size == (*npp)->size && memcmp((*it)->crc,(*npp)->crc,sizeof (*it)->crc) > 0)) *npp = *it;
 			}
 		}
 	}
@@ -8295,6 +8296,7 @@ void MegaClient::syncupdate()
 				if (n)
 				{
 					// this is a file - copy, use original key & attributes
+					// FIXME: move instead of creating a copy if it is in rubbish to reduce node creation load
 					nnp->clienttimestamp = l->mtime;
 					nnp->nodekey = n->nodekey;
 					tattrs.map = n->attrs.map;
@@ -8322,7 +8324,6 @@ void MegaClient::syncupdate()
 			}
 			else if (l->type == FILENODE)
 			{
-				// FIXME: move if it is in rubbish to reduce node creation load
 				startxfer(PUT,l);
 				app->syncupdate_put(l->sync,l->name.c_str());
 			}
@@ -8517,8 +8518,8 @@ void MegaClient::movetosyncdebris(Node* n)
 		{
 			// check if we have today's sync debris subfolder in rubbish bin
 			handle h;
-			time_t t = time(NULL);
-			struct tm* ptm = gmtime(&t);
+			time_t ts = time(NULL);
+			struct tm* ptm = gmtime(&ts);
 			char buf[32];
 
 			sprintf(buf,"%04d-%02d-%02d",ptm->tm_year+1900,ptm->tm_mon+1,ptm->tm_mday);
@@ -8553,7 +8554,7 @@ void MegaClient::movetosyncdebris(Node* n)
 				nn->nodehandle = i;
 				nn->parenthandle = i ? 0 : UNDEF;
 
-				nn->clienttimestamp = t;
+				nn->clienttimestamp = ts;
 				nn->nodekey.resize(Node::FOLDERNODEKEYLENGTH);
 				PrnGen::genblock((byte*)nn->nodekey.data(),Node::FOLDERNODEKEYLENGTH);
 
@@ -8657,12 +8658,24 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 	{
 		if (!t->client->syncdeleted[type].count(syncid))
 		{
-			// if parent node exists, complete directly - otherwise, complete to rubbish bin for later retrieval
+			// if parent node exists, complete directly - otherwise, complete to SyncDebris or rubbish bin for later retrieval
 			syncidhandle_map::iterator it = t->client->syncidhandles.find(parent->syncid);
 
 			if (it != t->client->syncidhandles.end()) h = it->second;	// existing parent: synchronous completioh
-			else h = t->client->rootnodes[RUBBISHNODE-ROOTNODE];		// parent is still being created: complete into //bin (FIXME: complete into //bin/SyncDebris/yyyy-mm-dd instead)
+			else
+			{
+				Node* p;
 
+				// complete to //bin by default
+				h = t->client->rootnodes[RUBBISHNODE-ROOTNODE];
+				
+				if ((p = t->client->nodebyhandle(h)))
+				{
+					// or to //bin/SyncDebris, if it exists
+					if ((p = t->client->childnodebyname(p,MegaClient::SYNCDEBRISFOLDERNAME))) h = p->nodehandle;
+				}
+			}
+				
 			File::completed(t,this);
 		}
 	}

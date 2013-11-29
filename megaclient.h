@@ -1939,9 +1939,6 @@ private:
 	// root URL for API requestrs
 	static const char* const APIURL;
 
-	// sync debris folder in rubbish
-	static const char* const SYNCDEBRISFOLDERNAME;
-	
 	// notify URL for new server-client commands
 	string scnotifyurl;
 
@@ -2123,6 +2120,9 @@ public:
 
 	// generate & return upload handle
 	handle getuploadhandle();
+
+	// sync debris folder name in //bin
+	static const char* const SYNCDEBRISFOLDERNAME;
 
 	// nodes being moved to //bin/SyncDebris with move failcount
 	handlecount_map newsyncdebris;
