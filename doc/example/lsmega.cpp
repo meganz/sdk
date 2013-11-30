@@ -1,3 +1,20 @@
+/*
+
+MEGA SDK - Client Access Engine Core Logic
+
+(c) 2013 by Mega Limited, Wellsford, New Zealand
+
+Applications using the MEGA API must present a valid application key
+and comply with the the rules set forth in the Terms of Service.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+*/
 
 #include <mega.h>
 
@@ -10,39 +27,27 @@ struct LsApp : public MegaApp
     void request_error(error e);
 };
 
+// globals
 MegaClient* client;
 static handle cwd = UNDEF;
-
 bool debug;
 
 static const char* accesslevels[] = { "read-only", "read/write", "full access" };
 
-/*{{{*/
+// simple Waiter class
 struct TestWaiter : public Waiter
 {
-
 	dstime getdstime();
 
 	void init(dstime);
-	void waitfor(EventTrigger*);
 	int wait();
-
-	void wakeupby(struct EventTrigger*);
-
-    static const int XXX = 3;
-
 };
 
 void TestWaiter ::init(dstime ds)
 {
 	maxds = ds;
-
 }
 
-void TestWaiter:: wakeupby(struct EventTrigger*)
-{
-    cout << "EVENT ADDEDD !!! " << endl;
-}
 // update monotonously increasing timestamp in deciseconds
 dstime TestWaiter::getdstime()
 {
@@ -53,42 +58,43 @@ dstime TestWaiter::getdstime()
 	return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
 }
 
+// return at once, as we don't have to wait for any custom events
 int TestWaiter ::wait()
 {
 	return NEEDEXEC;
-
 }
-/*}}}*/
 
-/*{{{*/
+// this callback function is called when nodes have been updated
+// save root node handle
 void LsApp::nodes_updated(Node** n, int count)
 {
-    cout << "NODES updated !" << endl;
 	if (ISUNDEF(cwd)) cwd = client->rootnodes[0];
 }
 
+// callback for displaying debug logs
 void LsApp::debug_log(const char* message)
 {
 	cout << "DEBUG: " << message << endl;
 }
 
+// this callback function is called when we have login result (success or error)
+// TODO: check for errors
 void LsApp::login_result(error e)
 {
-
-	cout << "LOGIN: " << endl;
-
-		client->fetchnodes();
+	cout << "Logged in !" << endl;
+    // get the list of nodes
+    client->fetchnodes();
 }
 
+// this callback function is called when request-level error occurred
 void LsApp::request_error(error e)
 {
 	cout << "FATAL: Request failed  exiting" << endl;
 
 	exit(0);
 }
-/*}}}*/
 
-/*{{{*/
+// traverse tree and list nodes
 static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NULL)
 {
 	if (depth)
@@ -131,39 +137,45 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 
 	if (n->type != FILENODE) for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++) dumptree(*it,recurse,depth+1);
 }
-/*}}}*/
 
 int main (int argc, char *argv[])
 {
     static byte pwkey[SymmCipher::KEYLENGTH];
     Node* n;
 
+// enable debugging if source is compiled with -DDEBUG=1 (check Makefile)
+#ifdef DEBUG
+    debug = true;
+#else
+    debug = false;
+#endif
+
     if (!getenv ("MEGA_EMAIL") && !getenv ("MEGA_PWD")) {
         cout << "Please set both MEGA_EMAIL and MEGA_PWD env variables!" << endl;
         return 1;
     }
 
+    // create MegaClient, providing our custom MegaApp and Waiter classes
 	client = new MegaClient(new LsApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS, new DBACCESS_CLASS, "lsmega");
 
+    // get values from env
     client->pw_key (getenv ("MEGA_PWD"), pwkey);
     client->login (getenv ("MEGA_EMAIL"), pwkey);
 	cout << "Initiated login attempt..." << endl;
 
-    //client->exec();
+    // loop while we are not logged in
     while (! client->loggedin ()) {
 		client->wait();
         client->exec();
-        usleep (100);
     }
-    client->exec();
-    cout << "logged: " << client->loggedin () << endl;
 
+    // get the root node
     while (! (n = client->nodebyhandle(cwd))) {
 		client->wait();
         client->exec();
-        usleep (100);
     }
 
+    // display objects
 	dumptree(n, 1);
 
     return 0;
