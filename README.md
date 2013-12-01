@@ -28,8 +28,7 @@ The following notes are intended for building and running build
 artefacts.
 
 
-POSIX (Linux/MacOS/BSD/...)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+### POSIX (Linux/MacOS/BSD/...)
 
 Install the following development packages, if available, or download
 and compile their respective sources (given package names are for
@@ -56,8 +55,7 @@ Ensure that your terminal supports UTF-8 if you want to see and
 manipulate non-ASCII filenames.
 
 
-Windows
-^^^^^^^
+### Windows
 
 To build megaclient.exe under Windows, you'll need to following:
 
