@@ -21,9 +21,11 @@ DEALINGS IN THE SOFTWARE.
 #include <windows.h>
 #include <conio.h>
 
-#include "megaclient.h"
+#include "mega.h"
 
 #include "wait.h"
+
+namespace mega {
 
 WinWaiter::WinWaiter()
 {
@@ -88,3 +90,5 @@ int WinWaiter::wait()
 
 	return 0;
 }
+
+} // namespace

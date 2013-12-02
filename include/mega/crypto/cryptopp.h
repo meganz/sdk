@@ -20,8 +20,6 @@ DEALINGS IN THE SOFTWARE.
 #ifndef CRYPTOCRYPTOPP_H
 #define CRYPTOCRYPTOPP_H 1
 
-#include "mega.h"
-
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/integer.h>
@@ -32,6 +30,10 @@ DEALINGS IN THE SOFTWARE.
 #include <cryptopp/crc.h>
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
+
+namespace mega {
+
+using namespace std;
 
 // generic pseudo-random number generator
 class PrnGen
@@ -134,6 +136,8 @@ public:
 	void add(const byte*, unsigned);
 	void get(byte*);
 };
+
+} // namespace
 
 #endif
 #endif

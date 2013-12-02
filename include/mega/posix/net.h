@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega.h"
 #include "wait.h"
 
+namespace mega {
+
 class CurlHttpIO : public HttpIO
 {
 protected:
@@ -46,5 +48,7 @@ public:
 	CurlHttpIO();
 	~CurlHttpIO();
 };
+
+} // namespace
 
 #endif

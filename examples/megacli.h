@@ -18,6 +18,8 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
+using namespace mega;
+
 extern MegaClient* client;
 
 extern bool debug;

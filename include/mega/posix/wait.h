@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef WAIT_CLASS
 #define WAIT_CLASS PosixWaiter
 
+namespace mega {
+
 struct PosixWaiter : public Waiter
 {
 	int maxfd;
@@ -32,5 +34,7 @@ struct PosixWaiter : public Waiter
 
 	void bumpmaxfd(int);
 };
+
+} // namespace
 
 #endif

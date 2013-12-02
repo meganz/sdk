@@ -20,6 +20,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 SqliteDbAccess::SqliteDbAccess(string* path)
 {
     if (path) dbpath = *path;
@@ -174,3 +176,5 @@ void SqliteDbTable::abort()
 {
 	sqlite3_exec(db,"ROLLBACK",0,0,NULL);
 }
+
+} // namespace

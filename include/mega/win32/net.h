@@ -27,6 +27,8 @@ DEALINGS IN THE SOFTWARE.
 #include <winhttp.h>
 #include <shellapi.h>
 
+namespace mega {
+
 class WinHttpIO : public HttpIO
 {
 	CRITICAL_SECTION csHTTP;
@@ -74,5 +76,7 @@ struct WinHttpContext
 	unsigned postlen;
 	const char* postdata;
 };
+
+} // namespace
 
 #endif

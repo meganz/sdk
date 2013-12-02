@@ -20,6 +20,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 #ifndef htobe64
 #define htobe64(x) (((uint64_t) htonl((uint32_t) ((x) >> 32))) | (((uint64_t) htonl((uint32_t) x)) << 32))
 #endif
@@ -379,3 +381,5 @@ void HashCRC32::get(byte* out)
 {
 	hash.Final(out);
 }
+
+} // namespace

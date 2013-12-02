@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS WinFileSystemAccess
 
+namespace mega {
+
 struct WinDirAccess : public DirAccess
 {
 	bool ffdvalid;
@@ -119,5 +121,7 @@ public:
 	WinFileAccess();
 	~WinFileAccess();
 };
+
+} // namespace
 
 #endif

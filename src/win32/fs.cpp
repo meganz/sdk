@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include <windows.h>
 #include <shellapi.h>
 
+namespace mega {
+
 WinFileAccess::WinFileAccess()
 {
 	hFile = INVALID_HANDLE_VALUE;
@@ -124,7 +126,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 			case ERROR_WRITE_PROTECT:
 			case ERROR_LOCK_VIOLATION:
 			case ERROR_SHARING_VIOLATION:
-				// potentially transient condition, 
+				// potentially transient condition,
 				retry = true;
 				return false;
 		}
@@ -590,3 +592,5 @@ WinDirAccess::~WinDirAccess()
 {
 	if (hFind != INVALID_HANDLE_VALUE) FindClose(hFind);
 }
+
+} // namespace

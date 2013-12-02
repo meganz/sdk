@@ -42,115 +42,39 @@
                          MEGASDK_VERSION_MINOR, \
                          MEGASDK_VERSION_PATCH)
 
-// Windows specific includes
-#ifdef _WIN32
+// project types
+#include "types.h"
 
-#include <windows.h>
-#include <winsock2.h>
-#define atoll _atoi64
-#define snprintf _snprintf
-#define _CRT_SECURE_NO_WARNINGS
-#define my_socket SOCKET
-typedef int my_socket;
+// project includes
+#include "account.h"
+#include "http.h"
+#include "attrmap.h"
+#include "backofftimer.h"
+#include "base64.h"
+#include "command.h"
+#include "console.h"
+#include "fileattributefetch.h"
+#include "filefingerprint.h"
+#include "file.h"
+#include "filesystem.h"
+#include "db.h"
+#include "json.h"
+#include "pubkeyaction.h"
+#include "request.h"
+#include "serialize64.h"
+#include "share.h"
+#include "sharenodekeys.h"
+#include "treeproc.h"
+#include "user.h"
+#include "utils.h"
+#include "waiter.h"
 
-using namespace std;
-#include <iostream>
-#include <algorithm>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
-
-// Linux specific includes
-#else
-
-// XXX: posix
-//#define _POSIX_SOURCE
-#define _LARGE_FILES
-//#define _LARGEFILE64_SOURCE
-#define _GNU_SOURCE 1
-#define _FILE_OFFSET_BITS 64
-#define __DARWIN_C_LEVEL 199506L
-
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <utime.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <fcntl.h>
-#include <glob.h>
-#include <dirent.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <assert.h>
-#include <memory.h>
-#include <time.h>
-
-using namespace std;
-#include <iostream>
-#include <algorithm>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
-
-// FIXME: #define PRI*64 if missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-
-#include <sys/un.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <termios.h>
-
-#ifndef __MACH__
-#include <endian.h>
-#endif
-
-#include <sys/sendfile.h>
-#include <sys/inotify.h>
-#include <sys/select.h>
-
-#include <curl/curl.h>
-#endif // end of Linux specific includes
-
-
-typedef int64_t m_off_t;
-
-// monotonously increasing time in deciseconds
-typedef uint32_t dstime;
-
-
-#ifdef __MACH__
-
-// FIXME: revisit OS X support
-#include <machine/endian.h>
-#include <strings.h>
-#include <sys/time.h>
-#define CLOCK_MONOTONIC 0
-int clock_gettime(int, struct timespec* t)
-{
-    struct timeval now;
-    int rv = gettimeofday(&now,NULL);
-    if (rv) return rv;
-    t->tv_sec  = now.tv_sec;
-    t->tv_nsec = now.tv_usec*1000;
-    return 0;
-}
-
-#endif
-
-
-#include "crypto/cryptopp.h"
+#include "node.h"
+#include "sync.h"
+#include "transfer.h"
+#include "transferslot.h"
+#include "commands.h"
+#include "megaapp.h"
 #include "megaclient.h"
 
 // Windows specific includes
@@ -168,8 +92,6 @@ int clock_gettime(int, struct timespec* t)
 #include "posix/net.h"
 #endif
 
-
 #include "db/sqlite.h"
-
 
 #endif
