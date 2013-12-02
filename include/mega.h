@@ -131,8 +131,43 @@ int clock_gettime(int, struct timespec* t)
 #endif
 
 
-#include "crypto/cryptopp.h"
+//#include "crypto/cryptopp.h"
+
+//#include "types.h"
+
+// project includes
+
+#include "account.h"
+#include "http.h"
+#include "attrmap.h"
+#include "backofftimer.h"
+#include "base64.h"
+#include "command.h"
+#include "console.h"
+#include "fileattributefetch.h"
+#include "filefingerprint.h"
+#include "file.h"
+#include "filesystem.h"
+#include "db.h"
+#include "json.h"
+#include "pubkeyaction.h"
+#include "request.h"
+#include "serialize64.h"
+#include "share.h"
+#include "sharenodekeys.h"
+#include "treeproc.h"
+#include "user.h"
+#include "utils.h"
+#include "waiter.h"
+
+#include "node.h"
+#include "sync.h"
+#include "transfer.h"
+#include "transferslot.h"
+#include "commands.h"
+#include "megaapp.h"
 #include "megaclient.h"
+
 
 // Windows specific includes
 #ifdef _WIN32
@@ -149,8 +184,6 @@ int clock_gettime(int, struct timespec* t)
 #include "posix/net.h"
 #endif
 
-
 #include "db/sqlite.h"
-
 
 #endif
