@@ -19,6 +19,30 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGA_TYPES_H
 #define MEGA_TYPES_H 1
 
+// Windows specific includes
+#ifdef _WIN32
+
+#include <windows.h>
+#include <winsock2.h>
+#define atoll _atoi64
+#define snprintf _snprintf
+#define _CRT_SECURE_NO_WARNINGS
+#define my_socket SOCKET
+typedef int my_socket;
+
+using namespace std;
+#include <iostream>
+#include <algorithm>
+#include <string>
+#include <sstream>
+#include <map>
+#include <set>
+#include <iterator>
+#include <queue>
+#include <list>
+
+// Linux specific includes
+#else
 
 // XXX: posix
 //#define _POSIX_SOURCE
@@ -74,12 +98,32 @@ using namespace std;
 #include <sys/select.h>
 
 #include <curl/curl.h>
+#endif // end of Linux specific includes
+
 
 typedef int64_t m_off_t;
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
 
+#ifdef __MACH__
+
+// FIXME: revisit OS X support
+#include <machine/endian.h>
+#include <strings.h>
+#include <sys/time.h>
+#define CLOCK_MONOTONIC 0
+int clock_gettime(int, struct timespec* t)
+{
+    struct timeval now;
+    int rv = gettimeofday(&now,NULL);
+    if (rv) return rv;
+    t->tv_sec  = now.tv_sec;
+    t->tv_nsec = now.tv_usec*1000;
+    return 0;
+}
+
+#endif
 
 #include "crypto/cryptopp.h"
 
