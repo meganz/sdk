@@ -49,22 +49,28 @@ copyright = u'2013, Mega Limited'
 
 def get_versions():
     """
-    Grabs and returns the version and release numbers out of the C++
-    header file.
+    Grabs and returns the version and release numbers out of the autotools
+    generated C++ header file.
     """
     import re
-    header_content = open(os.path.join('..', '..', 'include', 'mega.h')).read()
-    major = re.search('#define +MEGASDK_VERSION_MAJOR +([0-9]+)',
+    header_content = open(os.path.join('..', '..', 'config.h')).read()
+    major = re.search('#define +MEGA_MAJOR_VERSION +([0-9]+)',
                       header_content)
-    minor = re.search('#define +MEGASDK_VERSION_MINOR +([0-9]+)',
+    minor = re.search('#define +MEGA_MINOR_VERSION +([0-9]+)',
                       header_content)
-    patch = re.search('#define +MEGASDK_VERSION_PATCH +([\S]+)',
+    patch = re.search('#define +MEGA_MICRO_VERSION +([\S]+)',
                       header_content)
-    version, release = 'raw_development', 'raw_development'
+    release = re.search('#define +PACKAGE_VERSION +"(.+?)"',
+                        header_content)
     if major:
         major, minor, patch = major.group(1), minor.group(1), patch.group(1)
-        release = '.'.join([major, minor, patch])
         version = '.'.join([major, minor])
+    else:
+        version = 'raw_development'
+    if release:
+        release = release.group(1)
+    else:
+        release = 'raw_development'
     return version, release
 
 # Version: The short X.Y version.
