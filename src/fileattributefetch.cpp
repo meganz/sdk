@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
 
+namespace mega {
+
 FileAttributeFetchChannel::FileAttributeFetchChannel()
 {
 	req.binary = true;
@@ -107,3 +109,4 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
 	}
 }
 
+} // namespace

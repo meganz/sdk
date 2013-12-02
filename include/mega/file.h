@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "filefingerprint.h"
 
+namespace mega {
+
 // file to be transferred
 struct File : public FileFingerprint
 {
@@ -72,5 +74,7 @@ struct SyncFileGet : public File
 	SyncFileGet(Node*, string*);
 	~SyncFileGet();
 };
+
+} // namespace
 
 #endif

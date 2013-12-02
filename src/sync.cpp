@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/megaapp.h"
 #include "mega/transfer.h"
 
+namespace mega {
+
 // a new sync reads the full local tree and issues all commands required to equalize both sides
 Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 {
@@ -302,3 +304,5 @@ void Sync::procscanq()
 
 	if (scanq.size()) client->syncactivity = true;
 }
+
+} // namespace

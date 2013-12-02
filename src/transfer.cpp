@@ -24,6 +24,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/transferslot.h"
 #include "mega/megaapp.h"
 
+namespace mega {
+
 Transfer::Transfer(MegaClient* cclient, direction ctype)
 {
 	type = ctype;
@@ -145,3 +147,4 @@ void Transfer::complete()
 	delete this;
 }
 
+} // namespace

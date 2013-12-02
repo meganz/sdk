@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include <sqlite3.h>
 
+namespace mega {
+
 class SqliteDbAccess : public DbAccess
 {
     string dbpath;
@@ -55,6 +57,8 @@ public:
 	SqliteDbTable(sqlite3*);
 	~SqliteDbTable();
 };
+
+} // namespace
 
 #endif
 #endif

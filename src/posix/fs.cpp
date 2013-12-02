@@ -20,6 +20,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 /*#ifdef __MACH__
 #define _DARWIN_C_SOURCE
 ssize_t pread(int, void *, size_t, off_t) __DARWIN_ALIAS_C(pread);
@@ -413,3 +415,5 @@ PosixDirAccess::~PosixDirAccess()
 	if (dp) closedir(dp);
 	if (globbing) globfree(&globbuf);
 }
+
+} // namespace

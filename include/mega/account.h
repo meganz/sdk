@@ -19,6 +19,9 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGA_ACCOUNT_H
 #define MEGA_ACCOUNT_H 1
 
+
+namespace mega {
+
 // account details/history
 struct AccountBalance
 {
@@ -80,5 +83,7 @@ struct AccountDetails
 	vector<AccountPurchase> purchases;
 	vector<AccountTransaction> transactions;
 };
+
+} // namespace
 
 #endif

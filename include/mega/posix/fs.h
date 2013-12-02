@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 struct PosixDirAccess : public DirAccess
 {
 	DIR* dp;
@@ -100,5 +102,7 @@ public:
 	PosixFileAccess();
 	~PosixFileAccess();
 };
+
+} // namespace
 
 #endif

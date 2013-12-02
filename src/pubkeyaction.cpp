@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/megaapp.h"
 #include "mega/command.h"
 
+namespace mega {
+
 PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int ctag)
 {
 	nn = newnodes;
@@ -102,3 +104,4 @@ PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel sa, int 
 	tag = ctag;
 }
 
+} // namespace

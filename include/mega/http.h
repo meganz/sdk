@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "types.h"
 #include "waiter.h"
 
+namespace mega {
+
 // generic host HTTP I/O interface
 struct HttpIO : public EventTrigger
 {
@@ -133,5 +135,7 @@ struct HttpReqGetFA : public HttpReq
 {
 	~HttpReqGetFA() { };
 };
+
+} // namespace
 
 #endif

@@ -28,6 +28,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/utils.h"
 #include "mega/user.h"
 
+namespace mega {
+
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, byte* cdata, unsigned clen)
 {
 	cmd("ufa");
@@ -1743,3 +1745,4 @@ void CommandMoveSyncDebris::procresult()
 	if (!--client->movedebrisinflight) client->movetosyncdebris(NULL);
 }
 
+} // namespace

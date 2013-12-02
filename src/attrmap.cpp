@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/attrmap.h"
 
+namespace mega {
+
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping or name length into account
 unsigned AttrMap::storagesize(int perrecord)
 {
@@ -156,3 +158,5 @@ void AttrMap::getjson(string* s)
 		}
 	}
 }
+
+} // namespace

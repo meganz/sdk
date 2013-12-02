@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/user.h"
 #include "mega/node.h"
 
+namespace mega {
+
 // action to be performed upon arrival of a user's public key
 class PubKeyAction
 {
@@ -65,5 +67,7 @@ public:
 
 	PubKeyActionPutNodes(NewNode*, int, int);
 };
+
+} // namespace
 
 #endif

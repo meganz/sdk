@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef CONSOLE_CLASS
 #define CONSOLE_CLASS WinConsole
 
+namespace mega {
+
 struct WinConsole : public Console
 {
 	void readpwchar(char*, int, int* pw_buf_pos, char**);
@@ -27,5 +29,7 @@ struct WinConsole : public Console
 	WinConsole();
 	~WinConsole();
 };
+
+} // namespace
 
 #endif

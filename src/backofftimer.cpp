@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/backofftimer.h"
 
+namespace mega {
+
 // timer with capped exponential backoff
 BackoffTimer::BackoffTimer()
 {
@@ -101,3 +103,4 @@ void BackoffTimer::update(dstime ds, dstime* waituntil)
 	}
 }
 
+} // namespace

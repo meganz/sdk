@@ -25,6 +25,8 @@ DEALINGS IN THE SOFTWARE.
 #include "account.h"
 #include "http.h"
 
+namespace mega {
+
 // request command component
 class Command
 {
@@ -431,5 +433,7 @@ public:
 
 	CommandEnumerateQuotaItems(MegaClient*);
 };
+
+} // namespace
 
 #endif

@@ -25,6 +25,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/megaclient.h"
 #include "mega/command.h"
 
+namespace mega {
+
 // add share node and return its index
 int ShareNodeKeys::addshare(Node* sn)
 {
@@ -101,3 +103,5 @@ void ShareNodeKeys::get(Command* c)
 		c->endarray();
 	}
 }
+
+} // namespace

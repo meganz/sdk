@@ -21,8 +21,11 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/filesystem.h"
 
+namespace mega {
+
 bool FileSystemAccess::islchex(char c)
 {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z');
 }
 
+} // namespace

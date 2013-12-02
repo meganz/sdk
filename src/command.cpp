@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/command.h"
 #include "mega/base64.h"
 
+namespace mega {
+
 Command::Command()
 {
 	persistent = false;
@@ -228,3 +230,4 @@ void Command::procresult()
 	}
 }
 
+} // namespace

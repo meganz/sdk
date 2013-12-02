@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/share.h"
 
+namespace mega {
+
 Share::Share(User* u, accesslevel a, time_t t)
 {
 	user = u;
@@ -79,3 +81,5 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel caccess, 
 	}
 	else have_auth = 0;
 }
+
+} // namespace

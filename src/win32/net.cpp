@@ -20,6 +20,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "net.h"
 
+namespace mega {
+
 extern bool debug;
 
 // HttpIO implementation using WinHTTP
@@ -295,3 +297,5 @@ bool WinHttpIO::doio()
 
 	return done;
 }
+
+} // namespace

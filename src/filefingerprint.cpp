@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/serialize64.h"
 #include "mega/base64.h"
 
+namespace mega {
+
 bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
 {
 	// size differs - cannot be equal
@@ -166,3 +168,5 @@ bool FileFingerprintCmp::operator() (const FileFingerprint* a, const FileFingerp
 	if (a->mtime > b->mtime) return false;
 	return memcmp(a->crc,b->crc,sizeof a->crc) < 0;
 }
+
+} // namespace

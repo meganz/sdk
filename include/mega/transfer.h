@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "backofftimer.h"
 #include "node.h"
 
+namespace mega {
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct Transfer : public FileFingerprint
 {
@@ -75,5 +77,6 @@ struct Transfer : public FileFingerprint
 	virtual ~Transfer();
 };
 
+} // namespace
 
 #endif

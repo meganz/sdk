@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // cr element share/node map key generator
 class ShareNodeKeys
 {
@@ -37,5 +39,7 @@ public:
 
 	void get(Command*);
 };
+
+} // namespace
 
 #endif

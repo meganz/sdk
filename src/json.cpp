@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/base64.h"
 #include "mega/megaclient.h"
 
+namespace mega {
+
 // store array or object in string s
 // reposition after object
 bool JSON::storeobject(string* s)
@@ -331,3 +333,5 @@ void JSON::begin(const char* json)
 {
 	pos = json;
 }
+
+} // namespace

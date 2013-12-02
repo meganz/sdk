@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "http.h"
 #include "node.h"
 
+namespace mega {
+
 // active transfer
 struct TransferSlot
 {
@@ -75,5 +77,7 @@ struct TransferSlot
 	TransferSlot(Transfer*);
 	~TransferSlot();
 };
+
+} // namespace
 
 #endif

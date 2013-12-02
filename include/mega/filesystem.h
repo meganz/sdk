@@ -19,13 +19,9 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-// FIXME: #define PRI*64 if missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-typedef int64_t m_off_t;
-
 #include "types.h"
 
+namespace mega {
 
 // generic host file access interface
 struct FileAccess
@@ -140,5 +136,7 @@ struct FileSystemAccess : public EventTrigger
 
 	virtual ~FileSystemAccess() { }
 };
+
+} // namespace
 
 #endif

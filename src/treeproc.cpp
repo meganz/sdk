@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/treeproc.h"
 #include "mega/megaclient.h"
 
+namespace mega {
+
 // create share keys
 TreeProcShareKeys::TreeProcShareKeys(Node* n)
 {
@@ -63,3 +65,4 @@ void TreeProcDel::proc(MegaClient* client, Node* n)
 	client->notifynode(n);
 }
 
+} // namespace

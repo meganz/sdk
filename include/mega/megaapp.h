@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+namespace mega {
+
 // callback interface
 struct MegaApp
 {
@@ -143,5 +145,7 @@ struct MegaApp
 
 	virtual ~MegaApp() { }
 };
+
+} // namespace
 
 #endif

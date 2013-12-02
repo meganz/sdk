@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/db.h"
 #include "mega/utils.h"
 
+namespace mega {
+
 DbTable::DbTable()
 {
 	nextid = 0;
@@ -62,4 +64,4 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 	return false;
 }
 
-
+} // namespace

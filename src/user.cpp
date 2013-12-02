@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/user.h"
 #include "mega/megaclient.h"
 
+namespace mega {
+
 User::User(const char* cemail)
 {
 	userhandle = UNDEF;
@@ -104,3 +106,4 @@ void User::set(visibility v, time_t ct)
 	ctime = ct;
 }
 
+} // namespace

@@ -21,9 +21,12 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/waiter.h"
 
+namespace mega {
+
 // add events to wakeup criteria
 void Waiter::wakeupby(EventTrigger* et)
 {
 	et->addevents(this);
 }
 
+} // namespace

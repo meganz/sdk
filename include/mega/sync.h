@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "megaclient.h"
 
+namespace mega {
+
 class Sync
 {
 public:
@@ -65,5 +67,7 @@ public:
 	Sync(MegaClient*, string*, Node*, int = 0);
 	~Sync();
 };
+
+} // namespace
 
 #endif

@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef WAIT_CLASS
 #define WAIT_CLASS WinWaiter
 
+namespace mega {
+
 class WinWaiter : public Waiter
 {
 	typedef ULONGLONG (WINAPI* PGTC)();
@@ -40,5 +42,7 @@ public:
 
 	WinWaiter();
 };
+
+} // namespace
 
 #endif

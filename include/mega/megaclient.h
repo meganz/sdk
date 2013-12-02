@@ -31,6 +31,8 @@ DEALINGS IN THE SOFTWARE.
 #include "http.h"
 #include "pubkeyaction.h"
 
+namespace mega {
+
 class MegaClient
 {
 public:
@@ -535,5 +537,7 @@ public:
 	MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, const char*);
 	~MegaClient();
 };
+
+} // namespace
 
 #endif

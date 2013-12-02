@@ -20,6 +20,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 PosixConsole::PosixConsole()
 {
 	// set up the console
@@ -74,3 +76,5 @@ void PosixConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, ch
 void PosixConsole::setecho(bool echo)
 {
 }
+
+} // namespace

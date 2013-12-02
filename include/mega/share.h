@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "user.h"
 #include "megaclient.h"
 
+namespace mega {
+
 // share credentials
 struct Share
 {
@@ -55,5 +57,7 @@ struct NewShare
 
 	NewShare(handle, int, handle, accesslevel, time_t, const byte*, const byte* = NULL);
 };
+
+} // namespace
 
 #endif

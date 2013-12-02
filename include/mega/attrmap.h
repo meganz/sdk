@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // maps attribute names to attribute values
 typedef map<nameid,string> attr_map;
 
@@ -43,5 +45,7 @@ struct AttrMap
 	// import raw binary serialize
 	const char* unserialize(const char*, unsigned);
 };
+
+} // namespace
 
 #endif

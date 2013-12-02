@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "sharenodekeys.h"
 #include "node.h"
 
+namespace mega {
+
 // node tree processor
 class TreeProc
 {
@@ -78,5 +80,7 @@ public:
 
 	TreeProcShareKeys(Node* = NULL);
 };
+
+} // namespace
 
 #endif

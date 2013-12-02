@@ -19,13 +19,9 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGA_BACKOFF_TIMER_H
 #define MEGA_BACKOFF_TIMER_H 1
 
-// FIXME: #define PRI*64 if missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
+#include "types.h"
 
-typedef uint32_t dstime;
-
-//#include "mega.h"
+namespace mega {
 
 // generic timer facility with exponential backoff
 class BackoffTimer
@@ -66,5 +62,7 @@ public:
 
 	BackoffTimer();
 };
+
+} // namespace
 
 #endif

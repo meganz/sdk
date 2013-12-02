@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/request.h"
 #include "mega/command.h"
 
+namespace mega {
+
 void Request::add(Command* c)
 {
 	cmds.push_back(c);
@@ -82,3 +84,4 @@ void Request::clear()
 	cmds.clear();
 }
 
+} // namespace

@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "types.h"
 #include "http.h"
 
+namespace mega {
+
 // file attribute fetching for a specific source cluster
 struct FileAttributeFetchChannel
 {
@@ -51,5 +53,7 @@ struct FileAttributeFetch
 
 	FileAttributeFetch(handle, fatype, int, int);
 };
+
+} // namespace
 
 #endif

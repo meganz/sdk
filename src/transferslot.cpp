@@ -28,6 +28,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/megaapp.h"
 #include "mega/utils.h"
 
+namespace mega {
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
 	starttime = 0;
@@ -228,3 +230,4 @@ void TransferSlot::progress()
 	for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++) (*it)->progress();
 }
 
+} // namespace

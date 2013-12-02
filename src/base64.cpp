@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/base64.h"
 
+namespace mega {
+
 // modified base64 conversion (no trailing '=' and '-_' instead of '+/')
 unsigned char Base64::to64(byte c)
 {
@@ -87,3 +89,5 @@ int Base64::btoa(const byte* b, int blen, char* a)
 
 	return p;
 }
+
+} // namespace

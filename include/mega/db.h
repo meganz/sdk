@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "filesystem.h"
 
+namespace mega {
+
 // generic host transactional database access interface
 class DbTable
 {
@@ -70,5 +72,7 @@ struct DbAccess
 
 	virtual ~DbAccess() { }
 };
+
+} // namespace
 
 #endif

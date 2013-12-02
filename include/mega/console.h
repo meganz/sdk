@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGA_CONSOLE_H
 #define MEGA_CONSOLE_H 1
 
+namespace mega {
+
 struct Console
 {
 	virtual void readpwchar(char*, int, int* pw_buf_pos, char**) = 0;
@@ -26,5 +28,7 @@ struct Console
 
 	virtual ~Console() { }
 };
+
+} // namespace
 
 #endif

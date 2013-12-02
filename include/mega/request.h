@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // API request
 class Request
 {
@@ -38,5 +40,6 @@ public:
 	void clear();
 };
 
+} // namespace
 
 #endif

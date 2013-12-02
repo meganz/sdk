@@ -20,6 +20,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 void PosixWaiter::init(dstime ds)
 {
 	maxds = ds;
@@ -80,3 +82,5 @@ int PosixWaiter::wait()
 
 	return NEEDEXEC;
 }
+
+} // namespace

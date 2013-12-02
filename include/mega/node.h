@@ -23,6 +23,8 @@ DEALINGS IN THE SOFTWARE.
 #include "file.h"
 #include "attrmap.h"
 
+namespace mega {
+
 struct NodeCore
 {
 	static const int FILENODEKEYLENGTH = 32;
@@ -201,5 +203,7 @@ struct LocalNode : public File
 
 	~LocalNode();
 };
+
+} // namespace
 
 #endif

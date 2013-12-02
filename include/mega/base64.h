@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // modified base64 encoding/decoding (unpadded, -_ instead of +/)
 class Base64
 {
@@ -31,5 +33,7 @@ public:
 	static int btoa(const byte*, int, char*);
 	static int atob(const char*, byte*, int);
 };
+
+} // namespace
 
 #endif

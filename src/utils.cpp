@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/utils.h"
 
+namespace mega {
+
 Cachable::Cachable()
 {
 	dbid = 0;
@@ -126,3 +128,4 @@ int HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
 	return s == h;
 }
 
+} // namespace

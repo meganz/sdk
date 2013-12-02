@@ -26,6 +26,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/sync.h"
 #include "mega/transfer.h"
 
+namespace mega {
+
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph, nodetype t, m_off_t s, handle u, const char* fa, time_t ts, time_t tm)
 {
 	client = cclient;
@@ -569,3 +571,5 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 		}
 	}
 }
+
+} // namespace

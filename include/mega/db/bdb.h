@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include <db_cxx.h>
 
+namespace mega {
+
 class BdbAccess : public DbAccess
 {
 	DbEnv* env;
@@ -57,6 +59,8 @@ public:
 	BdbTable(DbEnv*);
 	~BdbTable();
 };
+
+} // namespace
 
 #endif
 #endif

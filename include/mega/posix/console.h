@@ -19,6 +19,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef CONSOLE_CLASS
 #define CONSOLE_CLASS PosixConsole
 
+namespace mega {
+
 struct PosixConsole : public Console
 {
 	tcflag_t oldlflag;
@@ -31,5 +33,7 @@ struct PosixConsole : public Console
 	PosixConsole();
 	~PosixConsole();
 };
+
+} // namespace
 
 #endif

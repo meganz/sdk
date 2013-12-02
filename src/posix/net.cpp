@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega.h"
 
+namespace mega {
+
 extern bool debug;
 
 CurlHttpIO::CurlHttpIO()
@@ -171,3 +173,5 @@ size_t CurlHttpIO::write_data(void *ptr, size_t size, size_t nmemb, void *target
 
 	return size;
 }
+
+} // namespace

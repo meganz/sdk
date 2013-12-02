@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega.h"
 #include "config.h"
 
+namespace mega {
+
 // FIXME: recreate filename after sync transfer completes to shortcut in-transfer rename handling
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
@@ -37,7 +39,6 @@ const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 
 // exported link marker
 const char* const MegaClient::EXPORTEDLINK = "EXP";
-
 
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
@@ -3958,3 +3959,5 @@ void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
 
 	if (e == API_OK) movetosyncdebris(NULL);
 }
+
+} // namespace

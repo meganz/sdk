@@ -22,11 +22,7 @@ DEALINGS IN THE SOFTWARE.
 #include "types.h"
 #include "filesystem.h"
 
-// FIXME: #define PRI*64 if missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-typedef int64_t m_off_t;
-
+namespace mega {
 
 // sparse file fingerprint, including size & mtime
 struct FileFingerprint
@@ -56,5 +52,6 @@ struct FileFingerprintCmp
 
 bool operator==(FileFingerprint&, FileFingerprint&);
 
+} // namespace
 
 #endif

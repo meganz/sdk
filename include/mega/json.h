@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 //#include "mega.h"
 #include "types.h"
 
+namespace mega {
+
 // linear non-strict JSON scanner
 struct JSON
 {
@@ -56,5 +58,7 @@ struct JSON
 
 	static void unescape(string*);
 };
+
+} // namespace
 
 #endif

@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // wait for events
 struct Waiter
 {
@@ -45,5 +47,7 @@ struct Waiter
 	static const int NEEDEXEC = 1;
 	static const int HAVESTDIN = 2;
 };
+
+} // namespace
 
 #endif

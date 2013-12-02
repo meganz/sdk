@@ -21,6 +21,7 @@ DEALINGS IN THE SOFTWARE.
 
 #include "attrmap.h"
 
+namespace mega {
 
 // user/contact
 struct User : public Cachable
@@ -61,5 +62,6 @@ struct User : public Cachable
 	User(const char* = NULL);
 };
 
+} // namespace
 
 #endif

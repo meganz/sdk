@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // convert
 // XXX: endianness
 #define MAKENAMEID2(a,b) (nameid)(((a)<<8)+(b))
@@ -67,5 +69,6 @@ public:
 	~HashSignature();
 };
 
+} // namespace
 
 #endif

@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #ifndef MEGAPOSIX_H
 #define MEGAPOSIX_H
 
+namespace mega {
+
 struct PosixWaiter : public Waiter
 {
 	int maxfd;
@@ -132,6 +134,8 @@ public:
 	PosixFileAccess();
 	~PosixFileAccess();
 };
+
+} // namespace
 
 #endif
 #endif

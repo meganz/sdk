@@ -23,12 +23,14 @@ DEALINGS IN THE SOFTWARE.
 #include "megaclient.h"
 #include "bdb.h"
 
+namespace mega {
+
 // basepath is prepended to the name
 BdbAccess::BdbAccess(string* cdbpathprefix)
 {
 	if (cdbpathprefix) dbpathprefix = *cdbpathprefix;
 	else dbpathprefix = "megaclient_statecache_";	// FIXME: Unicode support for default prefix?
-	
+
 	env = NULL;
 }
 
@@ -51,7 +53,7 @@ DbTable* BdbAccess::open(FileSystemAccess* fsaccess, string* name)
 	env->set_lk_max_lockers(10000000);
 	env->set_lk_max_locks(10000000);
 	env->set_lk_max_objects(10000000);
-	
+
 	if (env->open(dbname.c_str(),DB_CREATE|DB_REGISTER|DB_INIT_TXN|DB_INIT_MPOOL|DB_INIT_LOCK|DB_RECOVER,0)) return NULL;
 
 	return new BdbTable(env);
@@ -185,3 +187,5 @@ void BdbTable::abort()
 		dbtxn = NULL;
 	}
 }
+
+} // namespace

@@ -30,7 +30,6 @@ DEALINGS IN THE SOFTWARE.
 #define my_socket SOCKET
 typedef int my_socket;
 
-using namespace std;
 #include <iostream>
 #include <algorithm>
 #include <string>
@@ -69,7 +68,6 @@ using namespace std;
 #include <memory.h>
 #include <time.h>
 
-using namespace std;
 #include <iostream>
 #include <algorithm>
 #include <string>
@@ -100,12 +98,6 @@ using namespace std;
 #include <curl/curl.h>
 #endif // end of Linux specific includes
 
-
-typedef int64_t m_off_t;
-
-// monotonously increasing time in deciseconds
-typedef uint32_t dstime;
-
 #ifdef __MACH__
 
 // FIXME: revisit OS X support
@@ -125,7 +117,18 @@ int clock_gettime(int, struct timespec* t)
 
 #endif
 
+typedef int64_t m_off_t;
+
+// monotonously increasing time in deciseconds
+typedef uint32_t dstime;
+
 #include "crypto/cryptopp.h"
+
+namespace mega {
+
+using namespace std;
+
+extern bool debug;
 
 // forward declaration
 struct AttrMap;
@@ -380,5 +383,7 @@ typedef deque<ScanItem> scanitem_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
+
+} // namespace
 
 #endif

@@ -22,6 +22,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/http.h"
 #include "mega/megaclient.h"
 
+namespace mega {
+
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
 	httpio = client->httpio;
@@ -178,3 +180,4 @@ m_off_t HttpReqUL::transferred(MegaClient* client)
 	return 0;
 }
 
+} // namespace

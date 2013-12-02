@@ -26,6 +26,8 @@ DEALINGS IN THE SOFTWARE.
 #include <io.h>
 #include <fcntl.h>
 
+namespace mega {
+
 WinConsole::WinConsole()
 {
 	// FIXME: configure for UTF8
@@ -64,3 +66,5 @@ void WinConsole::setecho(bool echo)
 	else mode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
 	SetConsoleMode(hCon,mode);
 }
+
+} // namespace

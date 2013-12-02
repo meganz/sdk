@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "types.h"
 
+namespace mega {
+
 // 64-bit int serialization/unserialization
 struct Serialize64
 {
@@ -28,5 +30,6 @@ struct Serialize64
 	static int unserialize(byte*, int, int64_t*);
 };
 
+} // namespace
 
 #endif

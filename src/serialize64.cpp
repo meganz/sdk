@@ -21,6 +21,8 @@ DEALINGS IN THE SOFTWARE.
 
 #include "mega/serialize64.h"
 
+namespace mega {
+
 int Serialize64::serialize(byte* b, int64_t v)
 {
 	int p = 0;
@@ -46,3 +48,4 @@ int Serialize64::unserialize(byte* b, int blen, int64_t* v)
 	return *b+1;
 }
 
+} // namespace

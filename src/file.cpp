@@ -26,6 +26,8 @@ DEALINGS IN THE SOFTWARE.
 #include "mega/sync.h"
 #include "mega/command.h"
 
+namespace mega {
+
 File::File()
 {
 	transfer = NULL;
@@ -144,3 +146,5 @@ void SyncFileGet::completed(Transfer* t, LocalNode* n)
 	File::completed(t,n);
 	delete this;
 }
+
+} // namespace
