@@ -1,5 +1,5 @@
 /**
- * @file megaposix.h
+ * @file mega/posix/megaposix.h
  * @brief Sample application for the gcc/POSIX environment
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

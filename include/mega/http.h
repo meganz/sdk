@@ -1,5 +1,5 @@
 /**
- * @file http.h
+ * @file mega/http.h
  * @brief Generic host HTTP I/O interfaces
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

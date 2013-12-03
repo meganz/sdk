@@ -1,5 +1,5 @@
 /**
- * @file commands.h
+ * @file mega/commands.h
  * @brief Implementation of various commands
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

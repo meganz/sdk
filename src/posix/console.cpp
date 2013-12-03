@@ -1,5 +1,5 @@
 /**
- * @file console.cpp
+ * @file posix/console.cpp
  * @brief POSIX console/terminal control
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

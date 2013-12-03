@@ -1,5 +1,5 @@
 /**
- * @file console.h
+ * @file mega/console.h
  * @brief Generic class for accessing console
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

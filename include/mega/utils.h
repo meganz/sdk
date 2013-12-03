@@ -1,5 +1,5 @@
 /**
- * @file utils.h
+ * @file mega/utils.h
  * @brief Mega SDK various utilities and helper classes
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

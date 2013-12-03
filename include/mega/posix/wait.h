@@ -1,5 +1,5 @@
 /**
- * @file wait.h
+ * @file mega/posix/wait.h
  * @brief POSIX event/timeout handling
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

@@ -1,5 +1,5 @@
 /**
- * @file base64.h
+ * @file mega/base64.h
  * @brief modified base64 encoding/decoding
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

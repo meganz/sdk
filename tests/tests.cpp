@@ -1,6 +1,6 @@
 /**
- * @file megaclient.cpp
- * @brief Client access engine core logic
+ * @file tests/tests.cpp
+ * @brief Mega SDK main test file
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
  *

@@ -1,5 +1,5 @@
 /**
- * @file lsmega.cpp
+ * @file doc/example/lsmega.cpp
  * @brief Sample application, which uses libmega
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

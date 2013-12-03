@@ -1,5 +1,5 @@
 /**
- * @file treeproc.h
+ * @file mega/treeproc.h
  * @brief Node tree processor
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

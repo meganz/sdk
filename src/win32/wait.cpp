@@ -1,5 +1,5 @@
 /**
- * @file wait.cpp
+ * @file win32/wait.cpp
  * @brief Win32 event/timeout handling
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

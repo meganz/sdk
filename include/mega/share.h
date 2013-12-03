@@ -1,5 +1,5 @@
 /**
- * @file share.h
+ * @file mega/share.h
  * @brief Classes for manipulating share credentials
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

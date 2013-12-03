@@ -1,5 +1,5 @@
 /**
- * @file user.h
+ * @file mega/user.h
  * @brief Class for manipulating user / contact data
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

@@ -1,5 +1,5 @@
 /**
- * @file filefingerprint.h
+ * @file mega/filefingerprint.h
  * @brief Sparse file fingerprint
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

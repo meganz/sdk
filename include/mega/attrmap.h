@@ -1,5 +1,5 @@
 /**
- * @file attrmap.h
+ * @file mega/attrmap.h
  * @brief Class for manipulating file attributes
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

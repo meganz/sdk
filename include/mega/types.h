@@ -1,5 +1,5 @@
 /**
- * @file types.h
+ * @file mega/types.h
  * @brief Mega SDK types and includes
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

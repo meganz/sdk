@@ -1,5 +1,5 @@
 /**
- * @file waiter.h
+ * @file mega/waiter.h
  * @brief Generic waiter interface
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

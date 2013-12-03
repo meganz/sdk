@@ -1,5 +1,5 @@
 /**
- * @file transferslot.h
+ * @file mega/transferslot.h
  * @brief Class for active transfer
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

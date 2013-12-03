@@ -1,5 +1,5 @@
 /**
- * @file filesystem.h
+ * @file mega/filesystem.h
  * @brief Generic host filesystem access interfaces
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

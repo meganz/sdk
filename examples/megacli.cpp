@@ -1,5 +1,5 @@
 /**
- * @file megaclient.cpp
+ * @file examples/megaclient.cpp
  * @brief sample application, interactive GNU Readline CLI
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
