@@ -1,14 +1,14 @@
 /**
  * @file mega.h
  * @brief Main header file for inclusion by client software.
- * 
+ *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
- * 
+ *
  * This file is part of the MEGA SDK - Client Access Engine.
- * 
+ *
  * Applications using the MEGA API must present a valid application key
  * and comply with the the rules set forth in the Terms of Service.
- * 
+ *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -25,22 +25,6 @@
 #ifndef MEGA_SDK
 #define MEGA_SDK
 #endif
-
-/// Major version for API.
-#define MEGASDK_VERSION_MAJOR 0
-/// Minor version for API.
-#define MEGASDK_VERSION_MINOR 9
-/// Patch level for API.
-#define MEGASDK_VERSION_PATCH 3
-
-/// Macro to generate compound version of API.
-#define MEGASDK_MAKE_VERSION(major, minor, patch) \
-    ((major) * 10000 + (minor) * 100 + (patch))
-/// Numeric compound version for API.
-#define MEGASDK_VERSION \
-    MEGASDK_MAKE_VERSION(MEGASDK_VERSION_MAJOR, \
-                         MEGASDK_VERSION_MINOR, \
-                         MEGASDK_VERSION_PATCH)
 
 // project types
 #include "types.h"
