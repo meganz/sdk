@@ -61,21 +61,13 @@
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 
-// Windows specific includes
-#ifdef _WIN32
-#include "mega/win32/net.h"
-#include "mega/win32/fs.h"
-#include "mega/win32/console.h"
-#include "mega/win32/net.h"
+// target-specific headers
+#include "megawait.h"
+#include "meganet.h"
+#include "megafs.h"
+#include "megaconsole.h"
 
-// Linux specific includes
-#else
-#include "mega/posix/net.h"
-#include "mega/posix/fs.h"
-#include "mega/posix/console.h"
-#include "mega/posix/net.h"
-#endif
-
-#include "mega/db/sqlite.h"
+#include "db/sqlite.h"
+#include "db/bdb.h"
 
 #endif

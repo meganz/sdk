@@ -1499,7 +1499,7 @@ bool MegaClient::sc_shares()
 
 			case EOO:
 				// we do not process share commands unless logged into a full account
-				if (!loggedin() < FULLACCOUNT) return false;
+				if (loggedin() < FULLACCOUNT) return false;
 
 				// need a share node
 				if (ISUNDEF(h)) return false;

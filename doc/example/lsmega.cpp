@@ -23,8 +23,8 @@
 
 struct LsApp : public MegaApp
 {
-	void nodes_updated(Node**, int);
-	void debug_log(const char*);
+    void nodes_updated(Node**, int);
+    void debug_log(const char*);
     void login_result(error e);
 
     void request_error(error e);
@@ -40,51 +40,51 @@ static const char* accesslevels[] = { "read-only", "read/write", "full access" }
 // simple Waiter class
 struct TestWaiter : public Waiter
 {
-	dstime getdstime();
+    dstime getdstime();
 
-	void init(dstime);
-	int wait();
+    void init(dstime);
+    int wait();
 };
 
 void TestWaiter ::init(dstime ds)
 {
-	maxds = ds;
+    maxds = ds;
 }
 
 // update monotonously increasing timestamp in deciseconds
 dstime TestWaiter::getdstime()
 {
-	timespec ts;
+    timespec ts;
 
-	clock_gettime(CLOCK_MONOTONIC,&ts);
+    clock_gettime(CLOCK_MONOTONIC,&ts);
 
-	return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
+    return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
 }
 
 // return at once, as we don't have to wait for any custom events
 int TestWaiter ::wait()
 {
-	return NEEDEXEC;
+    return NEEDEXEC;
 }
 
 // this callback function is called when nodes have been updated
 // save root node handle
 void LsApp::nodes_updated(Node** n, int count)
 {
-	if (ISUNDEF(cwd)) cwd = client->rootnodes[0];
+    if (ISUNDEF(cwd)) cwd = client->rootnodes[0];
 }
 
 // callback for displaying debug logs
 void LsApp::debug_log(const char* message)
 {
-	cout << "DEBUG: " << message << endl;
+    cout << "DEBUG: " << message << endl;
 }
 
 // this callback function is called when we have login result (success or error)
 // TODO: check for errors
 void LsApp::login_result(error e)
 {
-	cout << "Logged in !" << endl;
+    cout << "Logged in !" << endl;
     // get the list of nodes
     client->fetchnodes();
 }
@@ -92,53 +92,53 @@ void LsApp::login_result(error e)
 // this callback function is called when request-level error occurred
 void LsApp::request_error(error e)
 {
-	cout << "FATAL: Request failed  exiting" << endl;
+    cout << "FATAL: Request failed  exiting" << endl;
 
-	exit(0);
+    exit(0);
 }
 
 // traverse tree and list nodes
 static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NULL)
 {
-	if (depth)
-	{
-		if (!title && !(title = n->displayname())) title = "CRYPTO_ERROR";
+    if (depth)
+    {
+        if (!title && !(title = n->displayname())) title = "CRYPTO_ERROR";
 
-		for (int i = depth; i--; ) cout << "\t";
+        for (int i = depth; i--; ) cout << "\t";
 
-		cout << title << " (";
+        cout << title << " (";
 
-		switch (n->type)
-		{
-			case FILENODE:
-				cout << n->size;
+        switch (n->type)
+        {
+            case FILENODE:
+                cout << n->size;
 
-				const char* p;
-				if ((p = strchr(n->fileattrstring.c_str(),':'))) cout << ", has attributes " << p+1;
-				break;
+                const char* p;
+                if ((p = strchr(n->fileattrstring.c_str(),':'))) cout << ", has attributes " << p+1;
+                break;
 
-			case FOLDERNODE:
-				cout << "folder";
+            case FOLDERNODE:
+                cout << "folder";
 
-				for (share_map::iterator it = n->outshares.begin(); it != n->outshares.end(); it++)
-				{
-					if (it->first) cout << ", shared with " << it->second->user->email << ", access " << accesslevels[it->second->access];
-					else cout << ", shared as exported folder link";
-				}
+                for (share_map::iterator it = n->outshares.begin(); it != n->outshares.end(); it++)
+                {
+                    if (it->first) cout << ", shared with " << it->second->user->email << ", access " << accesslevels[it->second->access];
+                    else cout << ", shared as exported folder link";
+                }
 
-				if (n->inshare) cout << ", inbound " << accesslevels[n->inshare->access] << " share";
-				break;
+                if (n->inshare) cout << ", inbound " << accesslevels[n->inshare->access] << " share";
+                break;
 
-			default:
-				cout << "unsupported type, please upgrade";
-		}
+            default:
+                cout << "unsupported type, please upgrade";
+        }
 
-		cout << ")" << (n->removed ? " (DELETED)" : "") << endl;
+        cout << ")" << (n->removed ? " (DELETED)" : "") << endl;
 
-		if (!recurse) return;
-	}
+        if (!recurse) return;
+    }
 
-	if (n->type != FILENODE) for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++) dumptree(*it,recurse,depth+1);
+    if (n->type != FILENODE) for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++) dumptree(*it,recurse,depth+1);
 }
 
 int main (int argc, char *argv[])
@@ -159,27 +159,27 @@ int main (int argc, char *argv[])
     }
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
-	client = new MegaClient(new LsApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS, new DBACCESS_CLASS, "lsmega");
+    client = new MegaClient(new LsApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS, new DBACCESS_CLASS, "lsmega");
 
     // get values from env
     client->pw_key (getenv ("MEGA_PWD"), pwkey);
     client->login (getenv ("MEGA_EMAIL"), pwkey);
-	cout << "Initiated login attempt..." << endl;
+    cout << "Initiated login attempt..." << endl;
 
     // loop while we are not logged in
     while (! client->loggedin ()) {
-		client->wait();
+        client->wait();
         client->exec();
     }
 
     // get the root node
     while (! (n = client->nodebyhandle(cwd))) {
-		client->wait();
+        client->wait();
         client->exec();
     }
 
     // display objects
-	dumptree(n, 1);
+    dumptree(n, 1);
 
     return 0;
 }

@@ -19,12 +19,10 @@
  * program.
  */
 
-#include <windows.h>
-#include <conio.h>
-
 #include "mega.h"
+#include "megawait.h"
 
-#include "wait.h"
+#include <conio.h>
 
 namespace mega {
 

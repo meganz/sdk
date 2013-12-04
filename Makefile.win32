@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -D_WIN32=1 -g -Wall -I. -Iinclude/ -Iinclude/mega/ -Iwin32 -Idb -isystem ../cryptopp -isystem ../db/build_windows -isystem ../FreeImage/Dist -isystem ../sqlite3 -isystem ..
+CFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -Idb -isystem ../cryptopp -isystem ../db/build_windows -isystem ../FreeImage/Dist -isystem ../sqlite3 -isystem ..
 LIB=-lwinhttp -lws2_32 -L../cryptopp -lcryptopp -L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap -L../db/build_windows
 LDFLAGS=
 SOURCES=examples/megacli.cpp \
