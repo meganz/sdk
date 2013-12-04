@@ -36,4 +36,10 @@
 #define snprintf _snprintf
 #define _CRT_SECURE_NO_WARNINGS
 
+// XXX: move to auto-generated file
+#define MEGA_MAJOR_VERSION 0
+#define MEGA_MINOR_VERSION 2
+#define MEGA_MICRO_VERSION 3
+
+
 #endif
