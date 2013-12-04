@@ -252,13 +252,13 @@ int MegaClient::hexval(char c)
 void MegaClient::warn(const char* msg)
 {
 	app->debug_log(msg);
-	warned = 1;
+	warned = true;
 }
 
 // reset and return warnlevel
 bool MegaClient::warnlevel()
 {
-	return warned ? (warned = 0) | 1 : 0;
+	return warned ? (warned = false) | true : false;
 }
 
 // returns the first matching child node by UTF-8 name (does not resolve name clashes)
@@ -318,7 +318,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 	// initialize random API request sequence ID (to guard against replaying older requests)
 	for (i = sizeof reqid; i--; ) reqid[i] = 'a'+PrnGen::genuint32(26);
 
-	warned = 0;
+	warned = false;
 
 	userid = 0;
 
@@ -710,8 +710,7 @@ void MegaClient::exec()
 	}
 }
 
-// determine what to wait for and for how long, and invoke the app's blocking facility if needed
-// optional parameter: maximum number of deciseconds to wait
+// get next event time from all subsystems, then invoke the waiter if needed
 // returns true if an engine-relevant event has occurred, false otherwise
 int MegaClient::wait()
 {
@@ -766,8 +765,8 @@ bool MegaClient::abortbackoff()
 	bool r = false;
 	dstime ds = waiter->getdstime();
 
-	for (transfer_map::iterator it = transfers[GET].begin(); it != transfers[GET].end(); it++) if (it->second->bt.arm(ds)) r = 1;
-	for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++) if (it->second->bt.arm(ds)) r = 1;
+	for (transfer_map::iterator it = transfers[GET].begin(); it != transfers[GET].end(); it++) if (it->second->bt.arm(ds)) r = true;
+	for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++) if (it->second->bt.arm(ds)) r = true;
 
 	if (btcs.arm(ds)) r = true;
 

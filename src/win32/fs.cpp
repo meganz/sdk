@@ -302,13 +302,13 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 
 	return !SHFileOperationW(&fileop);
 
-	// FIXME: fall back to DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
+	// FIXME: fall back to recursive DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
 }
 
 bool WinFileSystemAccess::rmdirlocal(string* name)
 {
 	name->append("",1);
-	int r = RemoveDirectoryW((LPCWSTR)name->data());
+	int r = !!RemoveDirectoryW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
 
 	return r;
@@ -317,7 +317,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 bool WinFileSystemAccess::unlinklocal(string* name)
 {
 	name->append("",1);
-	int r = DeleteFileW((LPCWSTR)name->data());
+	int r = !!DeleteFileW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
 
 	return r;
@@ -326,7 +326,7 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 bool WinFileSystemAccess::mkdirlocal(string* name)
 {
 	name->append("",1);
-	int r = CreateDirectoryW((LPCWSTR)name->data(),NULL);
+	int r = !!CreateDirectoryW((LPCWSTR)name->data(),NULL);
 	name->resize(name->size()-1);
 
 	return r;
@@ -342,13 +342,13 @@ bool WinFileSystemAccess::setmtimelocal(string* name, time_t mtime)
 	hFile = CreateFileW((LPCWSTR)name->data(),FILE_WRITE_ATTRIBUTES,FILE_SHARE_WRITE,NULL,OPEN_EXISTING,0,NULL);
 	name->resize(name->size()-1);
 
-	if (hFile == INVALID_HANDLE_VALUE) return 0;
+	if (hFile == INVALID_HANDLE_VALUE) return false;
 
 	ll = Int32x32To64(mtime,10000000)+116444736000000000;
 	lwt.dwLowDateTime = (DWORD)ll;
 	lwt.dwHighDateTime = ll >> 32;
 
-	int r = SetFileTime(hFile,NULL,NULL,&lwt);
+	int r = !!SetFileTime(hFile,NULL,NULL,&lwt);
 
 	CloseHandle(hFile);
 
@@ -414,10 +414,7 @@ WinDirNotify::WinDirNotify(WinFileSystemAccess* cfsaccess, LocalNode* clocalnode
 
 	overlapped.hEvent = this;
 
-	active = 0;
-
-	notifybuf[0].resize(65536);
-	notifybuf[1].resize(65536);
+	for (active = sizeof notifybuf/sizeof *notifybuf; active--; ) notifybuf[active].resize(65536);
 
 	basepath.append("",1);
 	if ((hDirectory = CreateFileW((LPCWSTR)basepath.data(),FILE_LIST_DIRECTORY,FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,NULL)) != INVALID_HANDLE_VALUE) readchanges();
