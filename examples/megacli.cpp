@@ -1186,6 +1186,7 @@ static void process_line(char* l)
 				cout << "      recon" << endl;
 				cout << "      reload" << endl;
 				cout << "      logout" << endl;
+				cout << "      version" << endl;
 				cout << "      debug" << endl;
 				cout << "      quit" << endl;
 
@@ -2178,6 +2179,17 @@ static void process_line(char* l)
 
 						return;
 					}
+					else if (words[0] == "version")
+					{
+						cout << "Mega SDK version: "
+                            << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION
+                            << endl;
+
+						cwd = UNDEF;
+
+						return;
+					}
+                    break;
 			}
 
 			cout << "?Invalid command" << endl;

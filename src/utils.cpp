@@ -55,7 +55,7 @@ bool PaddedCBC::decrypt(string* data, SymmCipher* key)
 	return true;
 }
 
-// chunk's start position
+// start of chunk
 m_off_t ChunkedHash::chunkfloor(m_off_t p)
 {
 	m_off_t cp, np;
@@ -72,7 +72,7 @@ m_off_t ChunkedHash::chunkfloor(m_off_t p)
 	return ((p-cp)&-(8*SEGSIZE))+cp;
 }
 
-// chunk's end position (== start of next chunk)
+// end of chunk (== start of next chunk)
 m_off_t ChunkedHash::chunkceil(m_off_t p)
 {
 	m_off_t cp, np;

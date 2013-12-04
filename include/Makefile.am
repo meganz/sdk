@@ -7,6 +7,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/backofftimer.h \
 	mega/base64.h \
 	mega/config.h \
+	mega/console.h \
 	mega/command.h \
 	mega/commands.h \
 	mega/db.h \

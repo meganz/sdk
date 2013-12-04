@@ -1,8 +1,38 @@
 CXX=g++
-CFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -g -Wall -I. -Iinclude/ -Iinclude/mega/ -Iwin32 -Idb -isystem ../cryptopp -isystem ../db/build_windows -isystem ../FreeImage/Dist -isystem ../sqlite3 -isystem ..
+CFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -D_WIN32=1 -g -Wall -I. -Iinclude/ -Iinclude/mega/ -Iwin32 -Idb -isystem ../cryptopp -isystem ../db/build_windows -isystem ../FreeImage/Dist -isystem ../sqlite3 -isystem ..
 LIB=-lwinhttp -lws2_32 -L../cryptopp -lcryptopp -L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap -L../db/build_windows
 LDFLAGS=
-SOURCES=examples/megacli.cpp src/megaclient.cpp src/crypto/cryptopp.cpp src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/wait.cpp src/db/sqlite.cpp ../sqlite3/sqlite3.o
+SOURCES=examples/megacli.cpp \
+		src/attrmap.cpp  \
+		src/backofftimer.cpp  \
+		src/base64.cpp  \
+		src/command.cpp  \
+		src/commands.cpp  \
+		src/db.cpp  \
+		src/fileattributefetch.cpp  \
+		src/file.cpp  \
+		src/filefingerprint.cpp  \
+		src/filesystem.cpp  \
+		src/http.cpp  \
+		src/json.cpp  \
+		src/megaclient.cpp  \
+		src/node.cpp  \
+		src/pubkeyaction.cpp  \
+		src/request.cpp  \
+		src/serialize64.cpp  \
+		src/share.cpp  \
+		src/sharenodekeys.cpp  \
+		src/sync.cpp  \
+		src/transfer.cpp  \
+		src/transferslot.cpp  \
+		src/treeproc.cpp  \
+		src/user.cpp  \
+		src/utils.cpp  \
+		src/waiter.cpp  \
+		src/megaclient.cpp  \
+		src/crypto/cryptopp.cpp \
+		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/wait.cpp \
+		src/db/sqlite.cpp ../sqlite3/sqlite3.o
 OBJECTS=$(SOURCES:.cpp=.o)
 PROGS=megacli
 

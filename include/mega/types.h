@@ -25,6 +25,15 @@
 // include system dependent constants
 #include "mega/config.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <errno.h>
+#include <assert.h>
+#include <memory.h>
+#include <time.h>
+
+
 // Windows specific includes
 #ifdef _WIN32
 
@@ -36,15 +45,6 @@
 #define my_socket SOCKET
 typedef int my_socket;
 
-#include <iostream>
-#include <algorithm>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
 
 // Linux specific includes
 #else
@@ -66,28 +66,6 @@ typedef int my_socket;
 #include <glob.h>
 #include <dirent.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <assert.h>
-#include <memory.h>
-#include <time.h>
-
-#include <iostream>
-#include <algorithm>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
-
-// FIXME: #define PRI*64 if missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-
 #include <sys/un.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -103,6 +81,21 @@ typedef int my_socket;
 
 #include <curl/curl.h>
 #endif // end of Linux specific includes
+
+
+// FIXME: #define PRI*64 if missing
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
+#include <iostream>
+#include <algorithm>
+#include <string>
+#include <sstream>
+#include <map>
+#include <set>
+#include <iterator>
+#include <queue>
+#include <list>
 
 #ifdef __MACH__
 
