@@ -13,12 +13,16 @@ Building
 Usage
 -----
 
-Take a look at the sample project in `doc/example` on how to use the MEGA
-SDK in your applications.  In order to compile and link your
-application with the Mega SDK library, you can use the `pkg-config` script:
+A simple project in `doc/example` shows how to use the MEGA SDK
+in your applications.  In order to compile and link your
+application with the MEGA SDK library, you can use the `pkg-config` script:
 
-    g++ $(pkg-config --cflags libmega) -o main.o -c main.cpp
-    g++ $(pkg-config --libs libmega) -o app main.o
+    g++ $(pkg-config --cflags libmega) -o lsmega.o -c lsmega.cpp
+    g++ $(pkg-config --libs libmega) -o app lsmega.o
+
+An (almost) feature complete console-based client application can be found
+in `examples`. Similar to an FTP client, it allows you to invoke and test
+the client library's full functionality.
 
 
 Platform Dependencies
@@ -31,8 +35,8 @@ artifacts.
 ### POSIX (Linux/Darwin/BSD/...)
 
 Install the following development packages, if available, or download
-and compile their respective sources (given package names are for
-Debian and Red Hat derivatives respectively):
+and compile their respective sources (package names are for
+Debian and RedHat derivatives respectively):
 
 * Crypto++ (`libcrypto++-dev`, `cryptopp-devel`)
 * cURL (`libcurl-dev`, `curl-devel`)
