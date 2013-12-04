@@ -104,7 +104,7 @@ bool SqliteDbTable::get(uint32_t index, string* data)
 {
 	sqlite3_stmt *stmt;
 
-	int rc = sqlite3_prepare(db,"SELECT content FROM statecache WHERE ID = ?",-1,&stmt,NULL);
+	int rc = sqlite3_prepare(db,"SELECT content FROM statecache WHERE id = ?",-1,&stmt,NULL);
 
 	if (rc) return false;
 
