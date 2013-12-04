@@ -22,6 +22,9 @@
 #ifndef MEGA_TYPES_H
 #define MEGA_TYPES_H 1
 
+// include system dependent constants
+#include "mega/config.h"
+
 // Windows specific includes
 #ifdef _WIN32
 

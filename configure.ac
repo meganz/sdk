@@ -40,7 +40,7 @@ m4_define([mega_lt_age], [0])
 AC_INIT([libmega], [mega_version], [https://github.com/megaprivacy])
 
 AM_INIT_AUTOMAKE([1.10 foreign])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([include/mega/config.h])
 LT_INIT([shared static win32-dll])
 AC_CONFIG_MACRO_DIR([m4])
 
