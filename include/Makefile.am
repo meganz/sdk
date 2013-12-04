@@ -9,7 +9,6 @@ nobase_libmegainclude_HEADERS = \
     mega/posix/fs.h \
     mega/posix/net.h \
     mega/posix/wait.h \
-    mega/posix/console.h \
-    mega/posix/megaposix.h
+    mega/posix/console.h
 
 #noinst_HEADERS = config.h
