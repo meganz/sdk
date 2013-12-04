@@ -1,5 +1,5 @@
 /**
- * @file mega/win32/main.h
+ * @file mega/win32/fs.h
  * @brief Win32 filesystem/directory access/notification (UNICODE)
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
@@ -19,8 +19,8 @@
  * program.
  */
 
-#ifndef MEGAWIN32FS_H
-#define MEGAWIN32FS_H
+#ifndef FSACCESS_CLASS
+#define FSACCESS_CLASS WinFileSystemAccess
 
 namespace mega {
 
@@ -86,7 +86,7 @@ struct WinDirNotify
 
 	HANDLE hDirectory;
 
-	bool active;
+	int active;
 
 	string notifybuf[2];
 

@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "net.h"
+#include "meganet.h"
 
 namespace mega {
 

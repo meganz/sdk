@@ -24,9 +24,8 @@
 
 #include "megaclient.h"
 
-#include "wait.h"
+#include "megawait.h"
 
-#include <windows.h>
 #include <winhttp.h>
 #include <shellapi.h>
 
