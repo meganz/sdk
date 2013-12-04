@@ -40,8 +40,6 @@ WinWaiter::WinWaiter()
 		prevt = 0;
 	}
 
-	if (!pGTC) cout << "Emulating GetTickCount64()" << endl;
-
 	hWakeup[WAKEUP_CONSOLE] = GetStdHandle(STD_INPUT_HANDLE);
 
 	GetConsoleMode(hWakeup[WAKEUP_CONSOLE],&dwMode);

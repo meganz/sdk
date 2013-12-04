@@ -54,7 +54,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 	slots_it = transfer->client->tslots.end();
 }
 
-// delete slot and associated resources, but keep transfer intact
+// delete slot and associated resources, but keep transfer intact (can be reused on a new slot)
 TransferSlot::~TransferSlot()
 {
 	transfer->slot = NULL;

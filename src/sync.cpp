@@ -25,7 +25,8 @@
 
 namespace mega {
 
-// a new sync reads the full local tree and issues all commands required to equalize both sides
+// new Syncs are automatically inserted into the session's syncs list
+// a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 {
 	client = cclient;
@@ -47,7 +48,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 
 Sync::~Sync()
 {
-	// prevent mass deletion while rootlocal destructor runs
+	// prevent remote mass deletion while rootlocal destructor runs
 	state = SYNC_CANCELED;
 
 	client->syncs.erase(sync_it);

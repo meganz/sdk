@@ -25,7 +25,6 @@ namespace mega {
 
 extern bool debug;
 
-// HttpIO implementation using WinHTTP
 WinHttpIO::WinHttpIO()
 {
     // create the session handle using the default settings.
@@ -36,7 +35,7 @@ WinHttpIO::WinHttpIO()
 
 	hWakeupEvent = CreateEvent(NULL,FALSE,FALSE,NULL);
 
-	completion = 0;
+	completion = false;
 }
 
 WinHttpIO::~WinHttpIO()
