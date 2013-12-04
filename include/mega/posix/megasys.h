@@ -22,6 +22,9 @@
 #ifndef MEGA_POSIX_OS_H
 #define MEGA_POSIX_OS_H 1
 
+// platform dependent constants
+#include "mega/config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
