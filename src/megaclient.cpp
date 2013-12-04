@@ -20,7 +20,7 @@
  */
 
 #include "mega.h"
-#include "config.h"
+#include "mega/config.h"
 
 namespace mega {
 
