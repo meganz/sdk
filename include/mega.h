@@ -26,10 +26,6 @@
 #define MEGA_SDK
 #endif
 
-#define MEGA_MAJOR_VERSION 1
-#define MEGA_MINOR_VERSION 1
-#define MEGA_MICRO_VERSION 0
-
 // project types
 #include "mega/types.h"
 
