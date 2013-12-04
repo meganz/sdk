@@ -1,5 +1,5 @@
 /**
- * @file node.h
+ * @file mega/node.h
  * @brief Classes for accessing local and remote nodes
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

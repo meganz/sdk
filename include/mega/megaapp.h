@@ -1,5 +1,5 @@
 /**
- * @file megaapp.h
+ * @file mega/megaapp.h
  * @brief Mega SDK callback interface
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

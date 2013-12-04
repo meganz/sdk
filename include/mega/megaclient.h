@@ -1,5 +1,5 @@
 /**
- * @file megaclient.h
+ * @file mega/megaclient.h
  * @brief Client access engine core logic
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

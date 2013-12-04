@@ -1,5 +1,5 @@
 /**
- * @file fs.h
+ * @file mega/posix/fs.h
  * @brief POSIX filesystem/directory access/notification
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

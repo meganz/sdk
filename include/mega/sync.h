@@ -1,5 +1,5 @@
 /**
- * @file sync.h
+ * @file mega/sync.h
  * @brief Class for synchronizing local and remote trees
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

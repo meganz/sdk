@@ -1,5 +1,5 @@
 /**
- * @file net.cpp
+ * @file posix/net.cpp
  * @brief POSIX network access layer (using cURL)
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

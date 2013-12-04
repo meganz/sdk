@@ -1,5 +1,5 @@
 /**
- * @file net.h
+ * @file mega/win32/net.h
  * @brief Win32 network access layer (using WinHTTP)
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

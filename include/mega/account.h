@@ -1,5 +1,5 @@
 /**
- * @file account.h
+ * @file mega/account.h
  * @brief Classes for manipulating Account data
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

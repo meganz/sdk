@@ -1,5 +1,5 @@
 /**
- * @file db.h
+ * @file mega/db.h
  * @brief Database access interface
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

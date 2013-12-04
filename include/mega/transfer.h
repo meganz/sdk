@@ -1,5 +1,5 @@
 /**
- * @file transfer.h
+ * @file mega/transfer.h
  * @brief pending/active up/download ordered by file fingerprint
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

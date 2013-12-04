@@ -1,5 +1,5 @@
 /**
- * @file json.h
+ * @file mega/json.h
  * @brief Linear non-strict JSON scanner
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

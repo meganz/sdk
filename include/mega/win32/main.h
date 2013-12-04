@@ -1,5 +1,5 @@
 /**
- * @file main.h
+ * @file mega/win32/main.h
  * @brief Win32 filesystem/directory access/notification (UNICODE)
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

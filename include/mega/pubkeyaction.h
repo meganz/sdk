@@ -1,5 +1,5 @@
 /**
- * @file pubkeyaction.h
+ * @file mega/pubkeyaction.h
  * @brief Classes for manipulating user's public key
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

@@ -1,5 +1,5 @@
 /**
- * @file fileattributefetch.h
+ * @file mega/fileattributefetch.h
  * @brief Classes for file attributes fetching
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

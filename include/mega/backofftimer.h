@@ -1,5 +1,5 @@
 /**
- * @file backofftimer.h
+ * @file mega/backofftimer.h
  * @brief Generic timer facility with exponential backoff
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

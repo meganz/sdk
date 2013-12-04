@@ -1,5 +1,5 @@
 /**
- * @file command.h
+ * @file mega/command.h
  * @brief Request command component
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand

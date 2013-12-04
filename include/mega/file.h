@@ -1,5 +1,5 @@
 /**
- * @file file.h
+ * @file mega/file.h
  * @brief Classes for transferring files
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
