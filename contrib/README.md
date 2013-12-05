@@ -30,9 +30,11 @@ Further rules for checks can be implemented in simple Python files.
 
 ### Cppcheck
 
-Cppcheck is a static code checker for C++.  It can very easily be
-integrated into Eclipse through the `cppcheclipse` extension (from
-Eclipse Marketplace).
+Cppcheck is a static code checker for C++ (Debian/Ubuntu package
+`cppcheck`).  It can very easily be integrated into Eclipse through
+the `cppcheclipse` extension (from Eclipse Marketplace).
+
+For integration into `vim` use the file `vimcppcheck.vim` included.
 
 For manual checks:
 
@@ -40,12 +42,21 @@ Checks for the `.cpp` files can be fun as follows:
 
     cppcheck --template='{file};{line};{severity};{id};{message}' \
       --enable=style,information,performance,portability,missingInclude,unusedFunction \
-      --std=c++03 --force \
+      --std=c++03 --force --quiet \
       $(find src/ -type f -name "*.cpp")
 
 The checks for the `.h` headers can be run as follows:
 
     cppcheck --template='{file};{line};{severity};{id};{message}' \
       --enable=style,information,performance,portability,missingInclude,unusedFunction \
-      --std=c++03 --force \
+      --std=c++03 --force --quiet \
       $(find include/ -type f -name "*.h")
+
+Integrating Cppcheck into a Makefile:
+
+    cppcheck:
+        cppcheck --template='{file};{line};{severity};{id};{message}'\
+        --enable=style,information,performance,portability,missingInclude,unusedFunction \
+        --std=c++03 --force --quiet \
+        ${CHK_SOURCES}
+

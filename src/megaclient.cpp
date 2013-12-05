@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "mega/config.h"
+#include "mega.h"
 
 namespace mega {
 
