@@ -55,8 +55,30 @@ The checks for the `.h` headers can be run as follows:
 Integrating Cppcheck into a Makefile:
 
     cppcheck:
-        cppcheck --template='{file};{line};{severity};{id};{message}'\
-        --enable=style,information,performance,portability,missingInclude,unusedFunction \
-        --std=c++03 --force --quiet \
-        ${CHK_SOURCES}
+    	cppcheck --template='{file};{line};{severity};{id};{message}' \
+    	--enable=style,information,performance,portability,missingInclude,unusedFunction \
+    	--std=c++03 --force --quiet \
+    	${CHK_SOURCES}
 
+
+### Code Formatter
+
+Automatic code formatting can be performed according to our specified
+rules using the uncrustify tool (Debian/Ubuntu package `uncrustify`).
+For other platforms from here:
+
+http://uncrustify.sourceforge.net/
+
+To format a single file `<file>` into `<file>.uncrustify`:
+
+    uncrustify -c contrib/uncrustify.cfg <file>
+
+To format many files *in place*
+
+    find src/ -type f -name "*.cpp" -exec \
+        uncrustify --replace \
+        -c ~/workspace/megasdk/contrib/uncrustify.cfg {} \;
+
+*Note:* Sometimes the uncrustify tool terminates with a segmentation
+fault. In those cases there will be an empty (0 bytes) file
+`<file>.uncrustify`.  These files will need to be sorted out manually!
