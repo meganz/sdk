@@ -3,23 +3,22 @@ lib_LTLIBRARIES = src/libmega.la
 
 # CXX flags
 if WIN32
-src_libmega_la_CXXFLAGS = -D_WIN32=1 -DUSE_SQLITE -DUSE_CRYPTOPP  ${CRYPTO_CXXFLAGS}
+src_libmega_la_CXXFLAGS = -D_WIN32=1 $(CRYPTO_CXXFLAGS)
 else
-src_libmega_la_CXXFLAGS = -DUSE_SQLITE -DUSE_CRYPTOPP ${LIBCURL_FLAGS} ${CRYPTO_CXXFLAGS}
+src_libmega_la_CXXFLAGS = $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS)
 endif
-
 
 # Libs
 if WIN32
-src_libmega_la_LIBADD =  ${CRYPTO_LIBS} -lcrypto++
+src_libmega_la_LIBADD =  $(CRYPTO_LIBS) -lcrypto++
 
 else
-src_libmega_la_LIBADD =  ${LIBCURL_LIBS} ${CRYPTO_LIBS} -lcrypto++
+src_libmega_la_LIBADD =  $(LIBCURL_LIBS) $(CRYPTO_LIBS) -lcrypto++
 endif
 
 
 
-src_libmega_la_LDFLAGS = -version-info ${VERSION_INFO}
+src_libmega_la_LDFLAGS = -version-info $(VERSION_INFO)
 
 
 
