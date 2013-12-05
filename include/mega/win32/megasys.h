@@ -1,5 +1,5 @@
 /**
- * @file mega/megasys.h
+ * @file mega/win32/megasys.h
  * @brief Mega SDK platform-specific includes (Win32)
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
