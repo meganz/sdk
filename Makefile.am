@@ -22,7 +22,9 @@
 AUTOMAKE_OPTIONS=foreign 1.9 subdir-objects
 ACLOCAL_AMFLAGS=-I m4
 
-AM_CPPFLAGS=-I/usr/include -I$(top_srcdir)/include -I$(top_srcdir)/include/mega
+AM_CPPFLAGS = \
+	-I$(top_srcdir)/include
+
 
 if WIN32
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/win32
