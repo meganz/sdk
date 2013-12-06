@@ -386,6 +386,32 @@ void DemoApp::syncupdate_local_file_deletion(Sync* sync, const char* path)
 	syncstat(sync);
 }
 
+void DemoApp::syncupdate_remote_move(string* from, string* to)
+{
+	cout << "Sync - local rename/move " << *from << " -> " << *to << endl;
+}
+
+void DemoApp::syncupdate_remote_folder_addition(Node* n)
+{
+	cout << "Sync - remote folder addition detected " << n->displayname() << endl;
+}
+
+void DemoApp::syncupdate_remote_file_addition(Node* n)
+{
+	cout << "Sync - remote file addition detected " << n->displayname() << endl;
+}
+
+
+void DemoApp::syncupdate_remote_folder_deletion(Node* n)
+{
+	cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
+}
+
+void DemoApp::syncupdate_remote_file_deletion(Node* n)
+{
+	cout << "Sync - remote file deletion detected " << n->displayname() << endl;
+}
+
 void DemoApp::syncupdate_get(Sync*, const char* path)
 {
 	cout << "Sync - requesting file " << path << endl;
@@ -394,36 +420,6 @@ void DemoApp::syncupdate_get(Sync*, const char* path)
 void DemoApp::syncupdate_put(Sync*, const char* path)
 {
 	cout << "Sync - sending file " << path << endl;
-}
-
-void DemoApp::syncupdate_local_mkdir(Sync*, const char* path)
-{
-	cout << "Sync - creating local folder " << path << endl;
-}
-
-void DemoApp::syncupdate_local_unlink(Node* n)
-{
-	cout << "Sync - removing local file " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_local_rmdir(Node* n)
-{
-	cout << "Sync - removing local folder " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_unlink(Node* n)
-{
-	cout << "Sync - removing remote file " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_rmdir(Node* n)
-{
-	cout << "Sync - removing deleted remote folder " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_mkdir(Sync*, const char* name)
-{
-	cout << "Sync - creating remote folder " << name << endl;
 }
 
 void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
@@ -2577,6 +2573,7 @@ void megacli()
 				rl_replace_line(saved_line,0);
 				free(saved_line);
 			}
+
 			rl_point = saved_point;
 			rl_redisplay();
 		}

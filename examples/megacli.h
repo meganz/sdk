@@ -145,13 +145,12 @@ struct DemoApp : public MegaApp
 	void syncupdate_local_file_deletion(Sync*, const char*);
 	void syncupdate_get(Sync*, const char*);
 	void syncupdate_put(Sync*, const char*);
-	void syncupdate_local_mkdir(Sync*, const char*);
-	void syncupdate_local_unlink(Node*);
-	void syncupdate_local_rmdir(Node*);
-	void syncupdate_remote_unlink(Node*);
-	void syncupdate_remote_rmdir(Node*);
-	void syncupdate_remote_mkdir(Sync*, const char*);
+	void syncupdate_remote_file_addition(Node*);
+	void syncupdate_remote_file_deletion(Node*);
+	void syncupdate_remote_folder_addition(Node*);
+	void syncupdate_remote_folder_deletion(Node*);
 	void syncupdate_remote_copy(Sync*, const char*);
+	void syncupdate_remote_move(string*, string*);
 
 	void changepw_result(error);
 

@@ -57,7 +57,7 @@ SyncLocalOpMove::SyncLocalOpMove(MegaClient* cclient, string* cfrom, string* cto
 
 bool SyncLocalOpDel::exec()
 {
-	return client->fsaccess->rmdirlocal(&path);
+	return client->fsaccess->rubbishlocal(&path);
 }
 
 void SyncLocalOpDel::notify()

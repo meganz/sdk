@@ -1730,6 +1730,9 @@ void MegaClient::notifypurge(void)
 					if (n->parent && n->localnode && !n->parent->localnode)
 					{
 						// node was moved out of the sync tree coverage area - delete locally
+						if (n->type == FILENODE) app->syncupdate_remote_file_deletion(n);
+						else app->syncupdate_remote_folder_deletion(n);
+
 						n->localnode->getlocalpath(this,&localpath);
 						synclocalops.push_back(new SyncLocalOpDel(this,&localpath));
 					}
@@ -1760,6 +1763,9 @@ void MegaClient::notifypurge(void)
 
 							n->localnode->parent->children[&n->localnode->localname] = n->localnode;
 							n->localnode->getlocalpath(this,&newlocalpath);
+
+							// FIXME: local2name()
+							app->syncupdate_remote_move(&localpath,&newlocalpath);
 
 							synclocalops.push_back(new SyncLocalOpMove(this,&localpath,&newlocalpath));
 						}
@@ -1808,7 +1814,7 @@ void MegaClient::notifypurge(void)
 										fa = NULL;
 
 										// make sure that the file we are deleting is actually the one we want to delete
-										app->syncupdate_remote_unlink(n);
+										app->syncupdate_remote_file_deletion(n);
 										synclocalops.push_back(new SyncLocalOpDel(this,&localpath));
 									}
 									else app->debug_log("Sync: Not deleting local file because of mismatching fingerprint");
@@ -3571,9 +3577,6 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 				// create local path, add to LocalNodes and recurse
 				if (fsaccess->mkdirlocal(localpath))
 				{
-					fsaccess->local2path(localpath,&tmpname);
-					app->syncupdate_local_mkdir(l->sync,tmpname.c_str());
-
 					LocalNode* ll;
 
 					// create local folder and start notifications
@@ -3754,7 +3757,7 @@ void MegaClient::syncupdate()
 					PrnGen::genblock((byte*)nnp->nodekey.data(),Node::FOLDERNODEKEYLENGTH);
 					tattrs.map.clear();
 
-					app->syncupdate_remote_mkdir(l->sync,l->name.c_str());
+//					app->syncupdate_remote_folder_addition(l->sync,l->name.c_str());
 				}
 
 				// set new name, encrypt and attach attributes
@@ -3794,7 +3797,8 @@ void MegaClient::syncupdate()
 		{
 			if ((n = nodebyhandle(sit->second)))
 			{
-				app->syncupdate_remote_unlink(n);
+				if (n->type == FILENODE) app->syncupdate_remote_file_deletion(n);
+				else app->syncupdate_remote_folder_deletion(n);
 
 				movetosyncdebris(n);
 			}
@@ -3811,12 +3815,7 @@ void MegaClient::syncupdate()
 	{
 		if ((sit = syncidhandles.find(*it)) != syncidhandles.end())
 		{
-			if ((n = nodebyhandle(sit->second)))
-			{
-				app->syncupdate_remote_rmdir(n);
-
-				unlink(n);
-			}
+			if ((n = nodebyhandle(sit->second))) unlink(n);
 
 			syncidhandles.erase(sit);
 			syncactivity = true;
@@ -3916,7 +3915,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 // FIXME: create sync subfolder in //bin to hold the sync rubbish
 void MegaClient::movetosyncdebris(Node* n)
 {
-	if (n) newsyncdebris[n->nodehandle] = 0;
+	if (n) newsyncdebris[n->nodehandle] = 0;	// bit 0 is the "in flight" flag, bits 1+ the retry counter
 
 	if ((!n || !syncdebrisadding) && newsyncdebris.size())
 	{
@@ -3938,7 +3937,15 @@ void MegaClient::movetosyncdebris(Node* n)
 
 				if ((p = childnodebyname(p,buf)))
 				{
-					for (handlecount_map::iterator it = newsyncdebris.begin(); it != newsyncdebris.end(); it++) reqs[r].add(new CommandMoveSyncDebris(this,it->first,p));
+					for (handlecount_map::iterator it = newsyncdebris.begin(); it != newsyncdebris.end(); it++)
+					{
+						if (!(it->second & 1))
+						{
+							it->second++;
+							reqs[r].add(new CommandMoveSyncDebris(this,it->first,p));
+						}
+					}
+
 					return;
 				}
 			}

@@ -1736,7 +1736,7 @@ void CommandMoveSyncDebris::procresult()
 
 	if ((it = client->newsyncdebris.find(h)) != client->newsyncdebris.end())
 	{
-		if (it->second == 3) ok = true;	// give up
+		if (it->second >= 6) ok = true;	// give up
 		else it->second++;
 
 		if (ok) client->newsyncdebris.erase(it);
