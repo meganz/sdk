@@ -3,17 +3,17 @@ lib_LTLIBRARIES = src/libmega.la
 
 # CXX flags
 if WIN32
-src_libmega_la_CXXFLAGS = -D_WIN32=1 $(CRYPTO_CXXFLAGS)
+src_libmega_la_CXXFLAGS = -D_WIN32=1 $(CRYPTO_CXXFLAGS) $(DB_CPPFLAGS)
 else
-src_libmega_la_CXXFLAGS = $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS)
+src_libmega_la_CXXFLAGS = $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CPPFLAGS)
 endif
 
 # Libs
 if WIN32
-src_libmega_la_LIBADD =  $(CRYPTO_LIBS) -lcrypto++
+src_libmega_la_LIBADD =  $(CRYPTO_LIBS) -lcrypto++ $(DB_LDFLAGS)
 
 else
-src_libmega_la_LIBADD =  $(LIBCURL_LIBS) $(CRYPTO_LIBS) -lcrypto++
+src_libmega_la_LIBADD =  $(LIBCURL_LIBS) $(CRYPTO_LIBS) -lcrypto++ $(DB_LDFLAGS)
 endif
 
 
