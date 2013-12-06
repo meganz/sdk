@@ -2628,7 +2628,8 @@ int main()
 	NULL,
 #endif
 	"SDKSAMPLE");
-	console = new WinConsole;
+
+	console = new CONSOLE_CLASS;
 
 	megacli();
 }
