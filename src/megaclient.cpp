@@ -740,8 +740,10 @@ int MegaClient::wait()
 		// retry failed file attribute gets
 		for (fafc_map::iterator it = fafcs.begin(); it != fafcs.end(); it++) if (it->second->req.status != REQ_INFLIGHT) it->second->bt.update(ds,&nds);
 
-		// sync rescan / retrying of transiently failed local fs ops
+		// sync rescan
 		if (syncscanfailed) syncscanbt.update(ds,&nds);
+		
+		// retrying of transiently failed local sync fs ops
 		if (synclocalopretry) synclocalopretrybt.update(ds,&nds);
 	}
 
@@ -1857,7 +1859,7 @@ void MegaClient::notifypurge(void)
 		app->users_updated(&usernotify[0],t);
 		usernotify.clear();
 	}
-	
+
 	execsynclocalops();
 }
 
@@ -1870,7 +1872,7 @@ void MegaClient::execsynclocalops()
 		else if (fsaccess->transient_error)
 		{
 			synclocalopretry = true;
-			synclocalopretrybt.backoff(waiter->ds+5);	// retry the failed fs op every 500 ms
+			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
 			return;
 		}
 
