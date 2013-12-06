@@ -74,6 +74,8 @@ public:
 
 	void addevents(Waiter*);
 
+	static bool istransient(DWORD);
+	
 	WinFileSystemAccess();
 	~WinFileSystemAccess();
 };

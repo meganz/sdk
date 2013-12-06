@@ -101,35 +101,25 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		switch (GetLastError())
+		DWORD e = GetLastError();
+		
+		if (e == ERROR_ACCESS_DENIED)
 		{
-			case ERROR_ACCESS_DENIED:
-				// this could be a directory, try to enumerate...
-				name->append((char*)L"\\*",5);
+			// this could be a directory, try to enumerate...
+			name->append((char*)L"\\*",5);
 
-				hFind = FindFirstFileW((LPCWSTR)name->data(),&ffd);
-				name->resize(name->size()-5);
+			hFind = FindFirstFileW((LPCWSTR)name->data(),&ffd);
+			name->resize(name->size()-5);
 
-				if (hFind != INVALID_HANDLE_VALUE)
-				{
-					type = FOLDERNODE;
-					return true;
-				}
-				// fall through
-			default:
-				retry = false;
-				return false;
-
-			case ERROR_TOO_MANY_OPEN_FILES:
-			case ERROR_NOT_ENOUGH_MEMORY:
-			case ERROR_OUTOFMEMORY:
-			case ERROR_WRITE_PROTECT:
-			case ERROR_LOCK_VIOLATION:
-			case ERROR_SHARING_VIOLATION:
-				// potentially transient condition,
-				retry = true;
-				return false;
+			if (hFind != INVALID_HANDLE_VALUE)
+			{
+				type = FOLDERNODE;
+				return true;
+			}
 		}
+		
+		retry = WinFileSystemAccess::istransient(e);
+		return false;
 	}
 
 	if (read)
@@ -166,6 +156,17 @@ WinFileSystemAccess::WinFileSystemAccess()
 
 WinFileSystemAccess::~WinFileSystemAccess()
 {
+}
+
+bool WinFileSystemAccess::istransient(DWORD e)
+{
+	return e == ERROR_ACCESS_DENIED
+		|| e == ERROR_TOO_MANY_OPEN_FILES
+		|| e == ERROR_NOT_ENOUGH_MEMORY
+		|| e == ERROR_OUTOFMEMORY
+		|| e == ERROR_WRITE_PROTECT
+		|| e == ERROR_LOCK_VIOLATION
+		|| e == ERROR_SHARING_VIOLATION;
 }
 
 // wake up from filesystem updates
@@ -247,6 +248,7 @@ void WinFileSystemAccess::local2name(string* filename)
 	}
 }
 
+// FIXME: if a folder rename fails because the target exists, do a top-down recursive copy/delete
 bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 {
 	oldname->append("",1);
@@ -255,6 +257,8 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 	newname->resize(newname->size()-1);
 	oldname->resize(oldname->size()-1);
 
+	if (!r) transient_error = istransient(GetLastError());
+	
 	return r;
 }
 
@@ -265,6 +269,8 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname)
 	bool r = !!CopyFileW((LPCWSTR)oldname->data(),(LPCWSTR)newname->data(),FALSE);
 	newname->resize(newname->size()-1);
 	oldname->resize(oldname->size()-1);
+
+	if (!r) transient_error = istransient(GetLastError());
 
 	return r;
 }
@@ -300,8 +306,14 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 	fileop.lpszProgressTitle = NULL;
 	fileop.hNameMappings = NULL;
 
-	return !SHFileOperationW(&fileop);
+	int e = SHFileOperationW(&fileop);
+	
+	if (!e) return true;
 
+	transient_error = istransient(e);
+	
+	return false;
+	
 	// FIXME: fall back to recursive DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
 }
 
@@ -311,6 +323,8 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 	int r = !!RemoveDirectoryW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
 
+	if (!r) transient_error = istransient(GetLastError());
+	
 	return r;
 }
 
@@ -320,6 +334,8 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 	int r = !!DeleteFileW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
 
+	if (!r) transient_error = istransient(GetLastError());
+
 	return r;
 }
 
@@ -328,6 +344,8 @@ bool WinFileSystemAccess::mkdirlocal(string* name)
 	name->append("",1);
 	int r = !!CreateDirectoryW((LPCWSTR)name->data(),NULL);
 	name->resize(name->size()-1);
+
+	if (!r) transient_error = istransient(GetLastError());
 
 	return r;
 }
@@ -385,7 +403,7 @@ void WinDirNotify::process(DWORD dwBytes)
 		FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
 		// FIXME: perform GetLongPathName() here - the 8.3 short name issue still plagues Windows, apparently
-		// FIXME: prevent unnecessary copying
+		// FIXME: eliminate unnecessary copying
 		notifyq.insert(notifyq.end(),string((char*)fni->FileName,fni->FileNameLength));
 
 		if (!fni->NextEntryOffset) break;
@@ -397,11 +415,7 @@ void WinDirNotify::process(DWORD dwBytes)
 // request change notifications on the subtree under hDirectory
 void WinDirNotify::readchanges()
 {
-	if (!ReadDirectoryChangesW(hDirectory,(LPVOID)notifybuf[active].data(),notifybuf[active].size(),TRUE,FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_CREATION,&dwBytes,&overlapped,completion))
-	{
-		if (GetLastError() == ERROR_NOTIFY_ENUM_DIR) fsaccess->notifyerr = true;
-		cout << "ReadDirectoryChangesW() failed: " << GetLastError() << endl;
-	}
+	if (!ReadDirectoryChangesW(hDirectory,(LPVOID)notifybuf[active].data(),notifybuf[active].size(),TRUE,FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_CREATION,&dwBytes,&overlapped,completion)) if (GetLastError() == ERROR_NOTIFY_ENUM_DIR) fsaccess->notifyerr = true;
 }
 
 WinDirNotify::WinDirNotify(WinFileSystemAccess* cfsaccess, LocalNode* clocalnode, string* cpath)
@@ -414,7 +428,9 @@ WinDirNotify::WinDirNotify(WinFileSystemAccess* cfsaccess, LocalNode* clocalnode
 
 	overlapped.hEvent = this;
 
-	for (active = sizeof notifybuf/sizeof *notifybuf; active--; ) notifybuf[active].resize(65536);
+	active = 0;
+	notifybuf[0].resize(65536);
+	notifybuf[1].resize(65536);
 
 	basepath.append("",1);
 	if ((hDirectory = CreateFileW((LPCWSTR)basepath.data(),FILE_LIST_DIRECTORY,FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,NULL)) != INVALID_HANDLE_VALUE) readchanges();

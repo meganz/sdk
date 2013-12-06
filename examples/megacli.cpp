@@ -2181,7 +2181,7 @@ static void process_line(char* l)
 					}
 					else if (words[0] == "version")
 					{
-						cout << "Mega SDK version: "
+						cout << "MEGA SDK version: "
                             << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION
                             << endl;
 
@@ -2628,7 +2628,7 @@ int main()
 	NULL,
 #endif
 	"SDKSAMPLE");
-	console = new CONSOLE_CLASS;
+	console = new WinConsole;
 
 	megacli();
 }

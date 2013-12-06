@@ -72,6 +72,7 @@ class Request;
 struct Transfer;
 struct User;
 struct Waiter;
+class SyncLocalOp;
 
 #define EOO 0
 #define THUMBNAIL120X120 0
@@ -251,6 +252,9 @@ typedef map<handle,handle> syncidhandle_map;
 // NewNodes index to syncid mapping
 typedef map<int,handle> newnodesyncid_map;
 
+// SyncLocalOp deque
+typedef deque<SyncLocalOp*> synclocalop_deque;
+
 // for dynamic node addition requests, used by the sync subsystem
 typedef vector<struct NewNode*> newnode_vector;
 
@@ -275,7 +279,6 @@ struct StringCmp
 
 typedef map<const string*,LocalNode*,StringCmp> localnode_map;
 typedef map<const string*,Node*,StringCmp> remotenode_map;
-
 
 // FIXME: use forward_list instead
 typedef list<NewNode*> newnode_list;
