@@ -1717,7 +1717,7 @@ void MegaClient::notifypurge(void)
 		if (syncs.size())
 		{
 			attr_map::iterator ait;
-			string localpath, newlocalpath;
+			string localpath, newlocalpath, path;
 			bool is_rename, is_move;
 
 			// execute renames/moves locally
@@ -1764,10 +1764,11 @@ void MegaClient::notifypurge(void)
 							n->localnode->parent->children[&n->localnode->localname] = n->localnode;
 							n->localnode->getlocalpath(this,&newlocalpath);
 
-							// FIXME: local2name()
-							app->syncupdate_remote_move(&localpath,&newlocalpath);
-
 							synclocalops.push_back(new SyncLocalOpMove(this,&localpath,&newlocalpath));
+
+							fsaccess->local2path(&localpath,&path);
+							fsaccess->local2path(&newlocalpath,&localpath);							
+							app->syncupdate_remote_move(&path,&localpath);
 						}
 					}
 				}

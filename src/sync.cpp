@@ -297,6 +297,8 @@ void Sync::procscanq()
 			localbytes += l->size;
 		}
 		else if (changed) client->app->syncupdate_local_folder_addition(this,tmpname.c_str());
+		
+		client->syncactivity = true;
 	}
 
 	delete fa;
