@@ -79,7 +79,7 @@ public:
 
 	void addnotify(LocalNode*, string*);
 	void delnotify(LocalNode*);
-	bool notifynext(sync_list*, string*, LocalNode**);
+	bool notifynext(sync_list*, string*, LocalNode**, bool* = NULL);
 	bool notifyfailed();
 
 	void addevents(Waiter*);

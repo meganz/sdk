@@ -513,7 +513,7 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 						dn->notifyq.pop_front();
 
 						// need to scan new folders fully (no notification for contained items!)
-						*fulltreep = true;
+						if (fulltreep) *fulltreep = true;
 
 						return true;
 					}
