@@ -89,10 +89,9 @@ AC_HEADER_STDC
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h])
 
-# Check dependencies
-
-AC_SUBST(LIBCURL_FLAGS)
-AC_SUBST(LIBCURL_LIBS)
+# Checks for inotify support.
+AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
+AC_CHECK_FUNCS([inotify_init12], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
 
 #XXX: add detection of libcrypto++
 PKG_CHECK_MODULES([CRYPTO], [libcrypto++])
@@ -266,6 +265,8 @@ if test "x$WIN32" = "xno" ; then
     LIBCURL_FLAGS=`curl-config --cflags`
     LIBCURL_LIBS=`curl-config --libs`
 
+    AC_SUBST(LIBCURL_FLAGS)
+    AC_SUBST(LIBCURL_LIBS)
 fi
 
 # Debug
