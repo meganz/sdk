@@ -126,13 +126,12 @@ struct MegaApp
 	virtual void syncupdate_local_file_deletion(Sync*, const char*) { }
 	virtual void syncupdate_get(Sync*, const char*) { }
 	virtual void syncupdate_put(Sync*, const char*) { }
-	virtual void syncupdate_local_mkdir(Sync*, const char*) { }
-	virtual void syncupdate_local_unlink(Node*) { }
-	virtual void syncupdate_local_rmdir(Node*) { }
-	virtual void syncupdate_remote_unlink(Node*) { }
-	virtual void syncupdate_remote_rmdir(Node*) { }
-	virtual void syncupdate_remote_mkdir(Sync*, const char*) { }
+	virtual void syncupdate_remote_file_addition(Node*) { }
+	virtual void syncupdate_remote_file_deletion(Node*) { }
+	virtual void syncupdate_remote_folder_addition(Node*) { }
+	virtual void syncupdate_remote_folder_deletion(Node*) { }
 	virtual void syncupdate_remote_copy(Sync*, const char*) { }
+	virtual void syncupdate_remote_move(string*, string*) { }
 
 	// suggest reload due to possible race condition with other clients
 	virtual void reload(const char*) { }

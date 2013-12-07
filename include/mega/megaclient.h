@@ -390,6 +390,16 @@ public:
 	// activity flag
 	bool syncactivity;
 
+	// a local fs op has failed with a transient error
+	bool synclocalopretry;
+	BackoffTimer synclocalopretrybt;
+	
+	// pending local filesystem operations
+	synclocalop_deque synclocalops;
+	
+	// execute synclocalops, abort if a transient FS error is detected
+	void execsynclocalops();
+	
 	// rescan timer if fs notification unavailable or broken
 	bool syncscanfailed;
 	BackoffTimer syncscanbt;

@@ -10,5 +10,5 @@ $(EXAMPLES): $(top_builddir)/src/libmega.la
 
 # rules
 examples_megacli_SOURCES = examples/megacli.cpp
-examples_megacli_CXXFLAGS = $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) -DUSE_SQLITE -DUSE_CRYPTOPP
-examples_megacli_LDADD = $(EXAMPLES_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(top_builddir)/src/libmega.la
+examples_megacli_CXXFLAGS = $(FI_CPPFLAGS) $(RL_CPPFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CPPFLAGS)
+examples_megacli_LDADD = $(FI_LDFLAGS) $(RL_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(top_builddir)/src/libmega.la

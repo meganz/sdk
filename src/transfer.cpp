@@ -47,7 +47,7 @@ Transfer::~Transfer()
 // transfer attempt failed, notify all related files, collect request on whether to abort the transfer, kill transfer if unanimous
 void Transfer::failed(error e)
 {
-	bool defer;
+	bool defer = false;
 
 	bt.backoff(client->waiter->ds);
 	client->app->transfer_failed(this,e);

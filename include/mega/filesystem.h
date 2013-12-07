@@ -136,6 +136,9 @@ struct FileSystemAccess : public EventTrigger
 
 	// true if notifications were unreliable and/or a full rescan is required
 	virtual bool notifyfailed() = 0;
+	
+	// set whenever an operation fails due to a transient condition (e.g. locking violation)
+	bool transient_error;
 
 	virtual ~FileSystemAccess() { }
 };

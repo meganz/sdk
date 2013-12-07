@@ -33,12 +33,11 @@ namespace mega {
 // root URL for API access
 const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
-// //bin/SyncDebris/yyyy-mm-dd folder name
+// //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 
 // exported link marker
 const char* const MegaClient::EXPORTEDLINK = "EXP";
-
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -285,6 +284,7 @@ void MegaClient::init()
 	movedebrisinflight = 0;
 	syncdebrisadding = false;
 	syncscanfailed = false;
+	synclocalopretry = false;
 
 	putmbpscap = 0;
 }
@@ -633,8 +633,10 @@ void MegaClient::exec()
 
 	if (syncscanfailed && syncscanbt.armed(waiter->ds)) syncscanfailed = false;
 
-	// process active syncs
-	if (syncs.size() || syncactivity)
+	if (synclocalopretry && synclocalopretrybt.armed(waiter->ds)) execsynclocalops();
+	
+	// process active syncs, stop doing so while transient local fs ops are pending
+	if (!synclocalops.size() && (syncs.size() || syncactivity))
 	{
 		bool syncscanning = false;
 		sync_list::iterator it;
@@ -740,6 +742,9 @@ int MegaClient::wait()
 
 		// sync rescan
 		if (syncscanfailed) syncscanbt.update(ds,&nds);
+		
+		// retrying of transiently failed local sync fs ops
+		if (synclocalopretry) synclocalopretrybt.update(ds,&nds);
 	}
 
 	if (nds)
@@ -1584,8 +1589,6 @@ void MegaClient::sc_keys()
 				break;
 
 			case 'h':
-				h = jsonsc.gethandle();
-
 				// security feature: we only distribute node keys for our own outgoing shares
 				if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey && !n->inshare) kshares.push_back(n);
 				break;
@@ -1714,7 +1717,7 @@ void MegaClient::notifypurge(void)
 		if (syncs.size())
 		{
 			attr_map::iterator ait;
-			string localpath, newlocalpath;
+			string localpath, newlocalpath, path;
 			bool is_rename, is_move;
 
 			// execute renames/moves locally
@@ -1724,34 +1727,49 @@ void MegaClient::notifypurge(void)
 
 				if (!n->removed && n->localnode && !n->attrstring.size() && (ait = n->attrs.map.find('n')) != n->attrs.map.end())
 				{
-					// FIXME: handle moves into and out of the synced subtree (and between distinct synced subtrees)
-					is_rename = ait->second != n->localnode->name;
-					is_move = n->parent && n->localnode->parent && n->parent->localnode && n->localnode->parent != n->parent->localnode;
-
-					if (is_rename || is_move)
+					if (n->parent && n->localnode && !n->parent->localnode)
 					{
-						if (n->localnode->parent) n->localnode->parent->children.erase(&n->localnode->localname);
+						// node was moved out of the sync tree coverage area - delete locally
+						if (n->type == FILENODE) app->syncupdate_remote_file_deletion(n);
+						else app->syncupdate_remote_folder_deletion(n);
 
 						n->localnode->getlocalpath(this,&localpath);
+						synclocalops.push_back(new SyncLocalOpDel(this,&localpath));
+					}
+					else
+					{
+						is_rename = ait->second != n->localnode->name;
+						is_move = n->parent && n->localnode->parent && n->parent->localnode && n->localnode->parent != n->parent->localnode;
 
-						if (is_rename)
+						if (is_rename || is_move)
 						{
-							// file or folder was renamed
-							n->localnode->name = ait->second;
-							n->localnode->localname = ait->second;
-							fsaccess->name2local(&n->localnode->localname);
+							if (n->localnode->parent) n->localnode->parent->children.erase(&n->localnode->localname);
+
+							n->localnode->getlocalpath(this,&localpath);
+
+							if (is_rename)
+							{
+								// file or folder was renamed
+								n->localnode->name = ait->second;
+								n->localnode->localname = ait->second;
+								fsaccess->name2local(&n->localnode->localname);
+							}
+
+							if (is_move)
+							{
+								// file or folder was moved
+								n->localnode->parent = n->parent->localnode;
+							}
+
+							n->localnode->parent->children[&n->localnode->localname] = n->localnode;
+							n->localnode->getlocalpath(this,&newlocalpath);
+
+							synclocalops.push_back(new SyncLocalOpMove(this,&localpath,&newlocalpath));
+
+							fsaccess->local2path(&localpath,&path);
+							fsaccess->local2path(&newlocalpath,&localpath);							
+							app->syncupdate_remote_move(&path,&localpath);
 						}
-
-						if (is_move)
-						{
-							// file or folder was moved
-							n->localnode->parent = n->parent->localnode;
-						}
-
-						n->localnode->parent->children[&n->localnode->localname] = n->localnode;
-						n->localnode->getlocalpath(this,&newlocalpath);
-
-						if (!fsaccess->renamelocal(&localpath,&newlocalpath) && fsaccess->copylocal(&localpath,&newlocalpath)) fsaccess->unlinklocal(&localpath);
 					}
 				}
 			}
@@ -1797,9 +1815,8 @@ void MegaClient::notifypurge(void)
 										fa = NULL;
 
 										// make sure that the file we are deleting is actually the one we want to delete
-										app->syncupdate_remote_unlink(n);
-										fsaccess->rubbishlocal(&localpath);
-										syncactivity = true;
+										app->syncupdate_remote_file_deletion(n);
+										synclocalops.push_back(new SyncLocalOpDel(this,&localpath));
 									}
 									else app->debug_log("Sync: Not deleting local file because of mismatching fingerprint");
 								}
@@ -1812,9 +1829,8 @@ void MegaClient::notifypurge(void)
 					}
 					else
 					{
-						app->syncupdate_remote_rmdir(n);
-						fsaccess->rmdirlocal(&localpath);
-						syncactivity = true;
+						// FIXME: ensure that leaves are notified first
+						synclocalops.push_back(new SyncLocalOpDelDir(this,&localpath));
 					}
 				}
 			}
@@ -1850,6 +1866,28 @@ void MegaClient::notifypurge(void)
 		app->users_updated(&usernotify[0],t);
 		usernotify.clear();
 	}
+
+	execsynclocalops();
+}
+
+void MegaClient::execsynclocalops()
+{
+	while (synclocalops.size())
+	{
+		fsaccess->transient_error = 0;
+		if ((*synclocalops.begin())->exec()) (*synclocalops.begin())->notify();
+		else if (fsaccess->transient_error)
+		{
+			synclocalopretry = true;
+			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
+			return;
+		}
+
+		delete *synclocalops.begin();
+		synclocalops.pop_front();
+	}
+	
+	synclocalopretry = false;
 }
 
 // return node pointer derived from node handle
@@ -1861,7 +1899,6 @@ Node* MegaClient::nodebyhandle(handle h)
 
 	return NULL;
 }
-
 
 // server-client deletion
 void MegaClient::sc_deltree()
@@ -2351,7 +2388,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 				Node::copystring(&n->attrstring,a);
 				Node::copystring(&n->keystring,k);
 
-				if (!ISUNDEF(su)) newshares.push_back(new NewShare(h,0,su,rl,ts,buf));
+				if (!ISUNDEF(su)) newshares.push_back(new NewShare(h,0,su,rl,sts,buf));
 
 				if (source == PUTNODES_SYNC)
 				{
@@ -3541,9 +3578,6 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 				// create local path, add to LocalNodes and recurse
 				if (fsaccess->mkdirlocal(localpath))
 				{
-					fsaccess->local2path(localpath,&tmpname);
-					app->syncupdate_local_mkdir(l->sync,tmpname.c_str());
-
 					LocalNode* ll;
 
 					// create local folder and start notifications
@@ -3724,7 +3758,7 @@ void MegaClient::syncupdate()
 					PrnGen::genblock((byte*)nnp->nodekey.data(),Node::FOLDERNODEKEYLENGTH);
 					tattrs.map.clear();
 
-					app->syncupdate_remote_mkdir(l->sync,l->name.c_str());
+//					app->syncupdate_remote_folder_addition(l->sync,l->name.c_str());
 				}
 
 				// set new name, encrypt and attach attributes
@@ -3764,7 +3798,8 @@ void MegaClient::syncupdate()
 		{
 			if ((n = nodebyhandle(sit->second)))
 			{
-				app->syncupdate_remote_unlink(n);
+				if (n->type == FILENODE) app->syncupdate_remote_file_deletion(n);
+				else app->syncupdate_remote_folder_deletion(n);
 
 				movetosyncdebris(n);
 			}
@@ -3781,12 +3816,7 @@ void MegaClient::syncupdate()
 	{
 		if ((sit = syncidhandles.find(*it)) != syncidhandles.end())
 		{
-			if ((n = nodebyhandle(sit->second)))
-			{
-				app->syncupdate_remote_rmdir(n);
-
-				unlink(n);
-			}
+			if ((n = nodebyhandle(sit->second))) unlink(n);
 
 			syncidhandles.erase(sit);
 			syncactivity = true;
@@ -3886,7 +3916,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 // FIXME: create sync subfolder in //bin to hold the sync rubbish
 void MegaClient::movetosyncdebris(Node* n)
 {
-	if (n) newsyncdebris[n->nodehandle] = 0;
+	if (n) newsyncdebris[n->nodehandle] = 0;	// bit 0 is the "in flight" flag, bits 1+ the retry counter
 
 	if ((!n || !syncdebrisadding) && newsyncdebris.size())
 	{
@@ -3908,7 +3938,15 @@ void MegaClient::movetosyncdebris(Node* n)
 
 				if ((p = childnodebyname(p,buf)))
 				{
-					for (handlecount_map::iterator it = newsyncdebris.begin(); it != newsyncdebris.end(); it++) reqs[r].add(new CommandMoveSyncDebris(this,it->first,p));
+					for (handlecount_map::iterator it = newsyncdebris.begin(); it != newsyncdebris.end(); it++)
+					{
+						if (!(it->second & 1))
+						{
+							it->second++;
+							reqs[r].add(new CommandMoveSyncDebris(this,it->first,p));
+						}
+					}
+
 					return;
 				}
 			}
