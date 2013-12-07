@@ -27,52 +27,22 @@
 
 namespace mega {
 
-// local file
+// local file/folder rename/deletion
 class SyncLocalOp
 {
 protected:
 	MegaClient* client;
-
-public:
-	virtual bool exec() = 0;
-	virtual void notify() = 0;
-	
-	virtual ~SyncLocalOp() { }
-};
-							
-class SyncLocalOpMove : public SyncLocalOp
-{
-	string from;
+	nodetype type;
 	string to;
 
 public:
-	bool exec();
-	void notify();
+	string from;
 
-	SyncLocalOpMove(MegaClient*, string*, string*);
+	bool recurse(nodetype, string*, string*);
+	bool exec();
+
+	SyncLocalOp(MegaClient*, nodetype, string*, string* = NULL);
 };
-
-class SyncLocalOpDel : public SyncLocalOp
-{
-	string path;
-
-public:
-	bool exec();
-	void notify();
-	
-	SyncLocalOpDel(MegaClient*, string*);
-};
-
-class SyncLocalOpDelDir : public SyncLocalOp
-{
-	string path;
-
-public:
-	bool exec();
-	void notify();
-	
-	SyncLocalOpDelDir(MegaClient*, string*);
-};				
 
 } // namespace
 

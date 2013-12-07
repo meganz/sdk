@@ -285,6 +285,7 @@ void MegaClient::init()
 	syncdebrisadding = false;
 	syncscanfailed = false;
 	synclocalopretry = false;
+	syncstuck = false;
 
 	putmbpscap = 0;
 }
@@ -678,11 +679,12 @@ void MegaClient::exec()
 		{
 			string localname;
 			LocalNode* l;
+			bool fulltree;
 
 			// check for filesystem changes
-			while (fsaccess->notifynext(&syncs,&localname,&l))
+			while (fsaccess->notifynext(&syncs,&localname,&l,&fulltree))
 			{
-				l->sync->queuefsrecord(NULL,&localname,l,false);
+				l->sync->queuefsrecord(NULL,&localname,l,fulltree);
 				syncactivity = true;
 			}
 
@@ -1734,7 +1736,7 @@ void MegaClient::notifypurge(void)
 						else app->syncupdate_remote_folder_deletion(n);
 
 						n->localnode->getlocalpath(this,&localpath);
-						synclocalops.push_back(new SyncLocalOpDel(this,&localpath));
+						synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath));
 					}
 					else
 					{
@@ -1764,7 +1766,7 @@ void MegaClient::notifypurge(void)
 							n->localnode->parent->children[&n->localnode->localname] = n->localnode;
 							n->localnode->getlocalpath(this,&newlocalpath);
 
-							synclocalops.push_back(new SyncLocalOpMove(this,&localpath,&newlocalpath));
+							synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath,&newlocalpath));
 
 							fsaccess->local2path(&localpath,&path);
 							fsaccess->local2path(&newlocalpath,&localpath);							
@@ -1816,7 +1818,7 @@ void MegaClient::notifypurge(void)
 
 										// make sure that the file we are deleting is actually the one we want to delete
 										app->syncupdate_remote_file_deletion(n);
-										synclocalops.push_back(new SyncLocalOpDel(this,&localpath));
+										synclocalops.push_back(new SyncLocalOp(this,FILENODE,&localpath));
 									}
 									else app->debug_log("Sync: Not deleting local file because of mismatching fingerprint");
 								}
@@ -1830,7 +1832,7 @@ void MegaClient::notifypurge(void)
 					else
 					{
 						// FIXME: ensure that leaves are notified first
-						synclocalops.push_back(new SyncLocalOpDelDir(this,&localpath));
+						synclocalops.push_back(new SyncLocalOp(this,FOLDERNODE,&localpath));
 					}
 				}
 			}
@@ -1875,9 +1877,19 @@ void MegaClient::execsynclocalops()
 	while (synclocalops.size())
 	{
 		fsaccess->transient_error = 0;
-		if ((*synclocalops.begin())->exec()) (*synclocalops.begin())->notify();
-		else if (fsaccess->transient_error)
+
+		if (!(*synclocalops.begin())->exec() && fsaccess->transient_error)
 		{
+			if (!syncstuck)
+			{
+				string reason;
+
+				fsaccess->local2path(&(*synclocalops.begin())->from,&reason);
+				app->syncupdate_stuck(&reason);
+
+				syncstuck = true;
+			}
+
 			synclocalopretry = true;
 			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
 			return;
@@ -1886,8 +1898,14 @@ void MegaClient::execsynclocalops()
 		delete *synclocalops.begin();
 		synclocalops.pop_front();
 	}
-	
+
 	synclocalopretry = false;
+	
+	if (syncstuck)
+	{
+		syncstuck = false;
+		app->syncupdate_stuck(NULL);
+	}
 }
 
 // return node pointer derived from node handle
@@ -3757,8 +3775,6 @@ void MegaClient::syncupdate()
 					nnp->nodekey.resize(Node::FOLDERNODEKEYLENGTH);
 					PrnGen::genblock((byte*)nnp->nodekey.data(),Node::FOLDERNODEKEYLENGTH);
 					tattrs.map.clear();
-
-//					app->syncupdate_remote_folder_addition(l->sync,l->name.c_str());
 				}
 
 				// set new name, encrypt and attach attributes

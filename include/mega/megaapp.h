@@ -118,8 +118,9 @@ struct MegaApp
 	virtual void transfer_limit(Transfer*) { }
 	virtual void transfer_complete(Transfer*) { }
 
-	// sync updates
+	// sync status updates and events
 	virtual void syncupdate_state(Sync*, syncstate) { }
+	virtual void syncupdate_stuck(string*) { }
 	virtual void syncupdate_local_folder_addition(Sync*, const char*) { }
 	virtual void syncupdate_local_folder_deletion(Sync*, const char*) { }
 	virtual void syncupdate_local_file_addition(Sync*, const char*) { }

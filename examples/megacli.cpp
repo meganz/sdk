@@ -361,6 +361,12 @@ void DemoApp::syncupdate_state(Sync*, syncstate newstate)
 	}
 }
 
+void DemoApp::syncupdate_stuck(string* reason)
+{
+	if (reason) cout << "Sync halted: " << *reason << " temporarily in use" << endl;
+	else cout << "Sync resumed" << endl;
+}
+
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
 void DemoApp::syncupdate_local_folder_addition(Sync* sync, const char* path)
 {
@@ -400,7 +406,6 @@ void DemoApp::syncupdate_remote_file_addition(Node* n)
 {
 	cout << "Sync - remote file addition detected " << n->displayname() << endl;
 }
-
 
 void DemoApp::syncupdate_remote_folder_deletion(Node* n)
 {

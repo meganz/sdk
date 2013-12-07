@@ -390,6 +390,9 @@ public:
 	// activity flag
 	bool syncactivity;
 
+	// stuck flag (because of local filesystem locks preventing syncing from progressing)
+	bool syncstuck;
+	
 	// a local fs op has failed with a transient error
 	bool synclocalopretry;
 	BackoffTimer synclocalopretrybt;

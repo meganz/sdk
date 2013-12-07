@@ -169,6 +169,13 @@ bool WinFileSystemAccess::istransient(DWORD e)
 		|| e == ERROR_SHARING_VIOLATION;
 }
 
+bool WinFileSystemAccess::istransientorexists(DWORD e)
+{
+	target_exists = e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS;
+	
+	return istransient(e);
+}
+
 // wake up from filesystem updates
 void WinFileSystemAccess::addevents(Waiter* w)
 {
@@ -257,7 +264,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 	newname->resize(newname->size()-1);
 	oldname->resize(oldname->size()-1);
 
-	if (!r) transient_error = istransient(GetLastError());
+	if (!r) transient_error = istransientorexists(GetLastError());
 	
 	return r;
 }
@@ -270,7 +277,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname)
 	newname->resize(newname->size()-1);
 	oldname->resize(oldname->size()-1);
 
-	if (!r) transient_error = istransient(GetLastError());
+	if (!r) transient_error = istransientorexists(GetLastError());
 
 	return r;
 }
@@ -345,7 +352,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name)
 	int r = !!CreateDirectoryW((LPCWSTR)name->data(),NULL);
 	name->resize(name->size()-1);
 
-	if (!r) transient_error = istransient(GetLastError());
+	if (!r) transient_error = istransientorexists(GetLastError());
 
 	return r;
 }
@@ -453,7 +460,7 @@ void WinFileSystemAccess::delnotify(LocalNode* l)
 }
 
 // return next notified local name and corresponding parent node
-bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalNode** localnodep)
+bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalNode** localnodep, bool* fulltreep)
 {
 	WinDirNotify* dn;
 	LocalNode* l;
@@ -466,7 +473,7 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 	{
 		if ((*it)->state == SYNC_ACTIVE && (dn = (WinDirNotify*)(*it)->localroot.notifyhandle))
 		{
-			if (dn->notifyq.size())
+			while (dn->notifyq.size())
 			{
 				// find parent node of first stored notified path
 				dn->notifyq[0].append("",1);
@@ -505,9 +512,14 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 
 						dn->notifyq.pop_front();
 
+						// need to scan new folders fully (no notification for contained items!)
+						*fulltreep = true;
+
 						return true;
 					}
 				}
+
+				dn->notifyq.pop_front();
 			}
 		}
 	}
@@ -552,7 +564,8 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 	}
 	else
 	{
-		name->append("",1);
+		if (!glob) name->append((char*)L"\\*",5);
+
 		hFind = FindFirstFileW((LPCWSTR)name->data(),&ffd);
 
 		if (glob)
@@ -568,7 +581,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 			else globbase.clear();
 		}
 
-		name->resize(name->size()-1);
+		name->resize(name->size()-5);
 	}
 
 	if (!(ffdvalid = (hFind != INVALID_HANDLE_VALUE))) return false;

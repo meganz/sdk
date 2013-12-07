@@ -24,67 +24,100 @@
 
 namespace mega {
 
-bool SyncLocalOpMove::exec()
+// (recursively) rename file/folder to target name, or delete if NULL
+SyncLocalOp::SyncLocalOp(MegaClient* cclient, nodetype ctype, string* cfrom, string* cto)
 {
-	// FIXME: perform a full recursive move top to bottom
-	if (from.size())
+	client = cclient;
+	type = ctype;
+	from = *cfrom;
+	if (cto) to = *cto;
+}
+
+// rename or delete local filesystem object
+// if target exists, recursively rename or copy/delete
+// if target is temporarily locked, abort and repeat
+bool SyncLocalOp::recurse(nodetype type, string* from, string* to)
+{
+	client->fsaccess->target_exists = false;
+
+	if (to)
 	{
-		if (client->fsaccess->renamelocal(&from,&to)) return true;
+		if (client->fsaccess->renamelocal(from,to)) return true;
 
-		if (client->fsaccess->copylocal(&from,&to)) from.clear();
+		// cross-device renames have to be executed as copy-delete sequence
+		if (type == FILENODE)
+		{
+			if (!client->fsaccess->copylocal(from,to)) return false;
+			
+			if (client->fsaccess->rubbishlocal(from)) return true;
+			
+			if (client->fsaccess->unlinklocal(from)) return true;
+		}
+		else
+		{
+			if (!client->fsaccess->mkdirlocal(to) && !client->fsaccess->target_exists) return false;
+		}
 	}
-
-	// FIXME: is delayed deletion semantically desirable?
-	if (to.size())
+	else
 	{
-		if (client->fsaccess->unlinklocal(&from)) return true;
+		if (client->fsaccess->rubbishlocal(from)) return true;
+		
+		if (client->fsaccess->transient_error) return false;
+		
+		if (type == FILENODE)
+		{
+			if (client->fsaccess->unlinklocal(from)) return true;
+		}
+		else 
+		{
+			if (client->fsaccess->rmdirlocal(from)) return true;
+		}
 	}
+	
+	if (type == FOLDERNODE)
+	{
+		DirAccess* da = client->fsaccess->newdiraccess();
+		string entry;
+		nodetype entrytype;
+		size_t lfrom, lto;
+		bool allgood = true;
+		
+		if (da->dopen(from,NULL,false))
+		{
+			while (da->dnext(&entry,&entrytype))
+			{
+				lfrom = from->size();
+				from->append(client->fsaccess->localseparator);
+				from->append(entry);
+				
+				if (to)
+				{
+					lto = to->size();
+					to->append(client->fsaccess->localseparator);
+					to->append(entry);
+				}
 
+				if (!recurse(entrytype,from,to) && allgood) allgood = false;
+			
+				if (to) to->resize(lto);
+			
+				from->resize(lfrom);
+			}			
+		}
+		
+		delete da;
+
+		if (allgood && !client->fsaccess->rmdirlocal(from)) allgood = false;
+
+		return allgood;
+	}
+	
 	return false;
 }
 
-void SyncLocalOpMove::notify()
+bool SyncLocalOp::exec()
 {
-	// FIXME
-}
-
-SyncLocalOpMove::SyncLocalOpMove(MegaClient* cclient, string* cfrom, string* cto)
-{
-	client = cclient;
-	from = *cfrom;
-	to = *cto;
-}
-
-bool SyncLocalOpDel::exec()
-{
-	return client->fsaccess->rubbishlocal(&path);
-}
-
-void SyncLocalOpDel::notify()
-{
-//	client->app->syncupdate_remote_rmdir(n);
-}
-
-SyncLocalOpDel::SyncLocalOpDel(MegaClient* cclient, string* cpath)
-{
-	client = cclient;
-	path = *cpath;
-}
-
-bool SyncLocalOpDelDir::exec()
-{
-	return client->fsaccess->rmdirlocal(&path);
-}
-
-void SyncLocalOpDelDir::notify()
-{
-//	client->app->syncupdate_remote_rmdir(n);
-}
-
-SyncLocalOpDelDir::SyncLocalOpDelDir(MegaClient* cclient, string* cpath)
-{
-	client = cclient;
-	path = *cpath;
+	return recurse(type,&from,to.size() ? &to : NULL);
 }
 
 } // namespace
