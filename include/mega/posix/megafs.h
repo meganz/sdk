@@ -44,7 +44,6 @@ class PosixFileSystemAccess : public FileSystemAccess
 {
 #ifdef USE_INOTIFY
 	int notifyfd;
-	bool notifyerr;
 	char notifybuf[sizeof(struct inotify_event)+NAME_MAX+1];
 	int notifypos, notifyleft;
 
