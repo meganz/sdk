@@ -139,6 +139,7 @@ struct DemoApp : public MegaApp
 	void transfer_complete(Transfer*);
 
 	void syncupdate_state(Sync*, syncstate);
+	void syncupdate_stuck(string*);
 	void syncupdate_local_folder_addition(Sync*, const char*);
 	void syncupdate_local_folder_deletion(Sync*, const char*);
 	void syncupdate_local_file_addition(Sync*, const char*);
