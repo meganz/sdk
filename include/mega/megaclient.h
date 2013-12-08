@@ -115,10 +115,14 @@ public:
 	// move node to new parent folder
 	error rename(Node*, Node*);
 
-	// start/stop file transfer
-	bool startxfer(direction d, File* f);
+	// start/stop/pause file transfer
+	bool startxfer(direction, File*);
 	void stopxfer(File* f);
+	void pausexfers(direction, bool, bool = false);
 
+	// pause flags
+	bool xferpaused[2];
+	
 	// active syncs
 	sync_list syncs;
 

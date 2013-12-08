@@ -287,6 +287,9 @@ void MegaClient::init()
 	synclocalopretry = false;
 	syncstuck = false;
 
+	xferpaused[PUT] = false;
+	xferpaused[GET] = false;
+	
 	putmbpscap = 0;
 }
 
@@ -628,8 +631,12 @@ void MegaClient::exec()
 		dispatchmore(PUT);
 		dispatchmore(GET);
 
-		// handle active transfers
-		for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); ) (*it++)->doio(this);
+		// handle active unpaused transfers
+		for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+		{
+			if (xferpaused[(*it)->transfer->type]) it++;
+			else (*it++)->doio(this);
+		}
 	} while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed(waiter->ds)));
 
 	if (syncscanfailed && syncscanbt.armed(waiter->ds)) syncscanfailed = false;
@@ -3917,6 +3924,28 @@ void MegaClient::stopxfer(File* f)
 		}
 
 		f->transfer = NULL;
+	}
+}
+
+// pause/unpause transfers
+void MegaClient::pausexfers(direction d, bool pause, bool hard)
+{
+	xferpaused[d] = pause;
+
+	if (!pause || hard)
+	{
+		for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
+		{
+			if ((*it)->transfer->type == d)
+			{
+				if (pause)
+				{
+					if (hard) (*it++)->disconnect();
+				}
+				else (*it++)->doio(this);
+			}
+			else it++;
+		}
 	}
 }
 
