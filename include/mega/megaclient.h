@@ -86,7 +86,7 @@ public:
 	error folderaccess(const char*, const char*);
 
 	// open exported file link
-	error openfilelink(const char*);
+	error openfilelink(const char*, int);
 
 	// change login password
 	error changepw(const byte*, const byte*);

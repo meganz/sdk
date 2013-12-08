@@ -432,11 +432,49 @@ void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
 	cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
 }
 
-AppFileGet::AppFileGet(Node* n)
+// generic name filter
+// FIXME: configurable regexps
+static bool is_syncable(const char* name)
 {
-	h = n->nodehandle;
-	*(FileFingerprint*)this = *n;
-	name = n->displayname();
+	return *name != '.' && *name != '~' && strcmp(name,"Thumbs.db") && strcmp(name,"desktop.ini");
+}
+
+// determines whether remote node should be synced
+bool DemoApp::sync_syncable(Node* n)
+{
+	return is_syncable(n->displayname());
+}
+
+// determines whether local file should be synced
+bool DemoApp::sync_syncable(const char* name, string* localpath, string* localname)
+{
+	return is_syncable(name);
+}
+
+AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, time_t cmtime, string* cfilename, string* cfingerprint)
+{
+	if (n)
+	{
+		h = n->nodehandle;
+		hprivate = true;
+
+		*(FileFingerprint*)this = *n;
+		name = n->displayname();
+	}
+	else
+	{
+		h = ch;
+		memcpy(filekey,cfilekey,sizeof filekey);
+		hprivate = false;
+
+		size = csize;
+		mtime = cmtime;
+		
+		if (!cfingerprint->size() || !unserializefingerprint(cfingerprint)) memcpy(crc,filekey,sizeof crc);
+
+		name = *cfilename;
+	}
+
 	localname = name;
 	client->fsaccess->name2local(&localname);
 }
@@ -591,7 +629,7 @@ static void listtrees()
 		User* u = &uit->second;
 		Node* n;
 
-		if (u->show == VISIBLE) for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++) if ((n = client->nodebyhandle(*sit)) && n->inshare) cout << "INSHARE on " << u->email << ":" << n->displayname() << " (" << accesslevels[n->inshare->access] << ")" << endl;
+		if (u->show == VISIBLE || u->sharing.size()) for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++) if ((n = client->nodebyhandle(*sit)) && n->inshare) cout << "INSHARE on " << u->email << ":" << n->displayname() << " (" << accesslevels[n->inshare->access] << ")" << endl;
 	}
 }
 
@@ -934,9 +972,9 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		if (n->type == FILENODE) t->nodekey = n->nodekey;
 		else
 		{
-			byte buf[Node::FOLDERNODEKEYLENGTH];
+			byte buf[FOLDERNODEKEYLENGTH];
 			PrnGen::genblock(buf,sizeof buf);
-			t->nodekey.assign((char*)buf,Node::FOLDERNODEKEYLENGTH);
+			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
 		key.setkey((const byte*)t->nodekey.data(),n->type);
@@ -1159,24 +1197,26 @@ static void process_line(char* l)
 				cout << "      signup [email name|confirmationlink]" << endl;
 				cout << "      confirm" << endl;
 				cout << "      mount" << endl;
-				cout << "      ls [-R] [path]" << endl;
-				cout << "      cd [path]" << endl;
+				cout << "      ls [-R] [remotepath]" << endl;
+				cout << "      cd [remotepath]" << endl;
 				cout << "      pwd" << endl;
 				cout << "      lcd [localpath]" << endl;
-				cout << "      get path" << endl;
-				cout << "      getq [cancelslot]" << endl;
-				cout << "      put localpattern [dstpath|dstemail:]" << endl;
-				cout << "      putq [cancelslot]" << endl;
-				cout << "      getfa type [path]" << endl;
-				cout << "      mkdir path" << endl;
-				cout << "      rm path" << endl;
-				cout << "      mv srcpath dstpath" << endl;
-				cout << "      cp srcpath dstpath|dstemail:" << endl;
-				cout << "      sync [localpath dstpath|cancelslot]" << endl;
 				cout << "      import exportedfilelink#key" << endl;
-				cout << "      export path [del]" << endl;
-				cout << "      share [path [email [r|rw|full]]]" << endl;
-				cout << "      invite email [del]" << endl;
+				cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
+				cout << "      putq [cancelslot]" << endl;
+				cout << "      get remotepath" << endl;
+				cout << "      get exportedfilelink#key" << endl;
+				cout << "      getq [cancelslot]" << endl;
+				cout << "      pause [get|put] [hard] [status]" << endl;
+				cout << "      getfa type [path]" << endl;
+				cout << "      mkdir remotepath" << endl;
+				cout << "      rm remotepath" << endl;
+				cout << "      mv srcremotepath dstremotepath" << endl;
+				cout << "      cp srcpath dstpath|dstemail:" << endl;
+				cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+				cout << "      export remotepath [del]" << endl;
+				cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
+				cout << "      invite dstemail [del]" << endl;
 				cout << "      users" << endl;
 				cout << "      getua attrname [email|private]" << endl;
 				cout << "      putua attrname [del|set string|load file] [private]" << endl;
@@ -1477,6 +1517,12 @@ static void process_line(char* l)
 					{
 						if (words.size() > 1)
 						{
+							if (client->openfilelink(words[1].c_str(),0) == API_OK)
+							{
+								cout << "Checking link..." << endl;
+								return;
+							}
+
 							n = nodebypath(words[1].c_str());
 
 							if (n)
@@ -1827,7 +1873,7 @@ static void process_line(char* l)
 								{
 									SymmCipher key;
 									string attrstring;
-									byte buf[Node::FOLDERNODEKEYLENGTH];
+									byte buf[FOLDERNODEKEYLENGTH];
 									NewNode* newnode = new NewNode[1];
 
 									// set up new node as folder node
@@ -1838,8 +1884,8 @@ static void process_line(char* l)
 									newnode->parenthandle = UNDEF;
 
 									// generate fresh random key for this folder node
-									PrnGen::genblock(buf,Node::FOLDERNODEKEYLENGTH);
-									newnode->nodekey.assign((char*)buf,Node::FOLDERNODEKEYLENGTH);
+									PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
+									newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 									key.setkey(buf);
 
 									// generate fresh attribute object with the folder name
@@ -1979,6 +2025,55 @@ static void process_line(char* l)
 						}
 
 						cout << "      putua attrname [del|set string|load file] [private]" << endl;
+
+						return;
+					}
+					else if (words[0] == "pause")
+					{
+						bool getarg = false, putarg = false, hardarg = false, statusarg = false;
+						
+						for (int i = words.size(); --i; )
+						{
+							if (words[i] == "get") getarg = true;
+							if (words[i] == "put") putarg = true;
+							if (words[i] == "hard") hardarg = true;
+							if (words[i] == "status") statusarg = true;
+						}
+
+						if (statusarg)
+						{
+							if (!hardarg && !getarg && !putarg)
+							{
+								if (!client->xferpaused[GET] && !client->xferpaused[PUT])
+								{
+									cout << "Transfers not paused at the moment.";
+								}
+								else
+								{
+									if (client->xferpaused[GET]) cout << "GETs currently paused." << endl;
+									if (client->xferpaused[PUT]) cout << "PUTs currently paused." << endl;
+								}
+							}
+							else cout << "      pause [get|put] [hard] [status]" << endl;
+
+							return;
+						}
+						
+						if (!getarg && !putarg) getarg = putarg = true;
+						
+						if (getarg)
+						{
+							client->pausexfers(GET,client->xferpaused[GET] ^= true,hardarg);						
+							if (client->xferpaused[GET]) cout << "GET transfers paused. Resume using the same command." << endl;
+							else cout << "GET transfers unpaused." << endl;
+						}
+
+						if (putarg)
+						{
+							client->pausexfers(PUT,client->xferpaused[PUT] ^= true,hardarg);						
+							if (client->xferpaused[PUT]) cout << "PUT transfers paused. Resume using the same command." << endl;
+							else cout << "PUT transfers unpaused." << endl;
+						}
 
 						return;
 					}
@@ -2141,7 +2236,7 @@ static void process_line(char* l)
 					{
 						if (words.size() > 1)
 						{
-							if (client->openfilelink(words[1].c_str()) == API_OK) cout << "Opening link..." << endl;
+							if (client->openfilelink(words[1].c_str(),1) == API_OK) cout << "Opening link..." << endl;
 							else cout << "Malformed link. Format: Exported URL or fileid#filekey" << endl;
 						}
 						else cout << "      import exportedfilelink#key" << endl;
@@ -2308,7 +2403,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
 	{
 		string path;
 		char node[9];
-		char key[Node::FILENODEKEYLENGTH*4/3+3];
+		char key[FILENODEKEYLENGTH*4/3+3];
 
 		nodepath(h,&path);
 
@@ -2317,8 +2412,8 @@ void DemoApp::exportnode_result(handle h, handle ph)
 		Base64::btoa((byte*)&ph,MegaClient::NODEHANDLE,node);
 
 		// the key
-		if (n->type == FILENODE) Base64::btoa((const byte*)n->nodekey.data(),Node::FILENODEKEYLENGTH,key);
-		else if (n->sharekey) Base64::btoa(n->sharekey->key,Node::FOLDERNODEKEYLENGTH,key);
+		if (n->type == FILENODE) Base64::btoa((const byte*)n->nodekey.data(),FILENODEKEYLENGTH,key);
+		else if (n->sharekey) Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
 		else
 		{
 			cout << "No key available for exported folder" << endl;
@@ -2337,7 +2432,7 @@ void DemoApp::openfilelink_result(error e)
 }
 
 // the requested link was opened successfully - import to cwd
-void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, const char* fa, time_t ts, time_t tm)
+void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, const char* fa, time_t ts, time_t tm, int)
 {
 	Node* n;
 
@@ -2352,13 +2447,36 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size, stri
 		newnode->clienttimestamp = tm;
 		newnode->parenthandle = UNDEF;
 
-		newnode->nodekey.assign((char*)key,Node::FILENODEKEYLENGTH);
+		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
 
 		newnode->attrstring = *a;
 
 		client->putnodes(n->nodehandle,newnode,1);
 	}
 	else cout << "Need to be logged in to import file links." << endl;
+}
+
+void DemoApp::checkfile_result(handle h, error e)
+{
+	cout << "Link check failed: " << errorstring(e) << endl;
+}
+
+void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, time_t ts, time_t tm, string* filename, string* fingerprint, string* fileattrstring)
+{
+	cout << "Name: " << *filename << ", size: " << size;
+	if (fingerprint->size()) cout << ", fingerprint available";
+	if (fileattrstring->size()) cout << ", has attributes";
+	cout << endl;
+	
+	if (e) cout << "Not available: " << errorstring(e) << endl;
+	else
+	{
+		cout << "Initiating download..." << endl;
+	
+		AppFileGet* f = new AppFileGet(NULL,h,filekey,size,tm,filename,fingerprint);
+		f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(),f);
+		client->startxfer(GET,f);
+	}
 }
 
 // reload needed

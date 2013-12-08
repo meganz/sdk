@@ -157,6 +157,10 @@ typedef list<struct File*> file_list;
 // MAIL - mail message
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE, MAILNODE } nodetype;
 
+// node type key lengths
+const int FILENODEKEYLENGTH = 32;
+const int FOLDERNODEKEYLENGTH = 16;
+
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage

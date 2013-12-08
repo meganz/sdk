@@ -30,9 +30,6 @@ namespace mega {
 
 struct NodeCore
 {
-	static const int FILENODEKEYLENGTH = 32;
-	static const int FOLDERNODEKEYLENGTH = 16;
-
 	// node's own handle
 	handle nodehandle;
 

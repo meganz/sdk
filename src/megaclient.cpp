@@ -50,7 +50,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
 	sl = ptr-sk;
 
-	if (sl > 4*Node::FILENODEKEYLENGTH/3+1)
+	if (sl > 4*FILENODEKEYLENGTH/3+1)
 	{
 		// RSA-encrypted key - decrypt and update on the server to save CPU time next time
 		sl = sl/4*3+3;
@@ -830,28 +830,38 @@ bool MegaClient::dispatch(direction d)
 			{
 				// set up keys for the decryption of this file (k == NULL => private node)
 				Node* n;
-				const byte* k;
+				const byte* k = NULL;
 
 				// locate suitable template file
 				for (file_list::iterator it = nextit->second->files.begin(); it != nextit->second->files.end(); it++)
 				{
-					// FIXME: add support for exported file links
-					if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
+					if ((*it)->hprivate)
 					{
-						k = (const byte*)n->nodekey.data();
+						// the size field must be valid right away for MegaClient::moretransfers()
+						if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
+						{
+							k = (const byte*)n->nodekey.data();
+							nextit->second->size = n->size;
+						}
+					}
+					else
+					{
+						k = (*it)->filekey;
+						nextit->second->size = (*it)->size;
+					}
 
+					if (k)
+					{
 						nextit->second->key.setkey(k,FILENODE);
 						nextit->second->ctriv = *(int64_t*)(k+SymmCipher::KEYLENGTH);
 						nextit->second->metamac = *(int64_t*)(k+SymmCipher::KEYLENGTH+sizeof(int64_t));
 
 						// FIXME: re-add support for partial transfers
-
-						// the size field must be valid right away for MegaClient::moretransfers()
-						nextit->second->size = n->size;
-
 						break;
 					}
 				}
+				
+				if (!k) return false;
 			}
 
 			// set localname
@@ -871,6 +881,7 @@ bool MegaClient::dispatch(direction d)
 			if (ts->file->fopen(&nextit->second->localfilename,d == PUT,d == GET))
 			{
 				handle h = UNDEF;
+				bool hprivate;
 
 				nextit->second->pos = 0;
 
@@ -889,16 +900,17 @@ bool MegaClient::dispatch(direction d)
 						nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
 					}
 
-					for (file_list::iterator it = nextit->second->files.begin(); it != nextit->second->files.end(); it++) if (nodebyhandle((*it)->h))
+					for (file_list::iterator it = nextit->second->files.begin(); it != nextit->second->files.end(); it++) if (!(*it)->hprivate || nodebyhandle((*it)->h))
 					{
 						h = (*it)->h;
+						hprivate = (*it)->hprivate;
 						break;
 					}
 				}
 
 				// uploads always start at position 0, downloads resume at the p
 				// dispatch request for temporary source/target URL
-				reqs[r].add((ts->pendingcmd = (d == PUT) ? (Command*)new CommandPutFile(ts,putmbpscap) : (Command*)new CommandGetFile(ts,h,1)));
+				reqs[r].add((ts->pendingcmd = (d == PUT) ? (Command*)new CommandPutFile(ts,putmbpscap) : (Command*)new CommandGetFile(ts,NULL,h,hprivate)));
 
 				ts->slots_it = tslots.insert(tslots.begin(),ts);
 
@@ -3058,7 +3070,7 @@ void MegaClient::procsnk(JSON* j)
 
 				if (n && n->isbelow(sn))
 				{
-					byte keybuf[Node::FILENODEKEYLENGTH];
+					byte keybuf[FILENODEKEYLENGTH];
 
 					sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(),keybuf,n->nodekey.size());
 
@@ -3119,7 +3131,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 	Node* sn;
 	Node* n;
 	string crkeys;
-	byte keybuf[Node::FILENODEKEYLENGTH];
+	byte keybuf[FILENODEKEYLENGTH];
 	char buf[128];
 	int setkey = -1;
 
@@ -3234,11 +3246,11 @@ error MegaClient::exportnode(Node* n, int del)
 
 // open exported file link
 // formats supported: ...#!publichandle#key or publichandle#key
-error MegaClient::openfilelink(const char* link)
+error MegaClient::openfilelink(const char* link, int op)
 {
 	const char* ptr;
 	handle ph = 0;
-	byte key[Node::FILENODEKEYLENGTH];
+	byte key[FILENODEKEYLENGTH];
 
 	if ((ptr = strstr(link,"#!"))) ptr += 2;
 	else ptr = link;
@@ -3251,7 +3263,9 @@ error MegaClient::openfilelink(const char* link)
 		{
 			if (Base64::atob(ptr,key,sizeof key) == sizeof key)
 			{
-				reqs[r].add(new CommandGetPH(this,ph,key));
+				if (op) reqs[r].add(new CommandGetPH(this,ph,key,op));
+				else reqs[r].add(new CommandGetFile(NULL,key,ph,false));
+
 				return API_OK;
 			}
 		}
@@ -3782,8 +3796,8 @@ void MegaClient::syncupdate()
 				{
 					// this is a folder - create, use fresh key & attributes
 					nnp->clienttimestamp = time(NULL);
-					nnp->nodekey.resize(Node::FOLDERNODEKEYLENGTH);
-					PrnGen::genblock((byte*)nnp->nodekey.data(),Node::FOLDERNODEKEYLENGTH);
+					nnp->nodekey.resize(FOLDERNODEKEYLENGTH);
+					PrnGen::genblock((byte*)nnp->nodekey.data(),FOLDERNODEKEYLENGTH);
 					tattrs.map.clear();
 				}
 
@@ -3872,7 +3886,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn)
 }
 
 // inject file into transfer subsystem
-// file's fingerprint must be set
+// if file's fingerprint is not valid, it will be obtained from the local file (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction d, File* f)
 {
 	if (!f->transfer)
@@ -3890,6 +3904,15 @@ bool MegaClient::startxfer(direction d, File* f)
 			// if we are unable to obtain a valid file FileFingerprint, don't proceed
 			if (!f->isvalid) return false;
 		}
+else
+{
+	if (!f->isvalid)
+	{
+		// ...
+	
+	}
+
+}
 
 		Transfer* t;
 		transfer_map::iterator it = transfers[d].find(f);
@@ -4019,8 +4042,8 @@ void MegaClient::movetosyncdebris(Node* n)
 				nn->parenthandle = i ? 0 : UNDEF;
 
 				nn->clienttimestamp = ts;
-				nn->nodekey.resize(Node::FOLDERNODEKEYLENGTH);
-				PrnGen::genblock((byte*)nn->nodekey.data(),Node::FOLDERNODEKEYLENGTH);
+				nn->nodekey.resize(FOLDERNODEKEYLENGTH);
+				PrnGen::genblock((byte*)nn->nodekey.data(),FOLDERNODEKEYLENGTH);
 
 				// set new name, encrypt and attach attributes
 				tattrs.map['n'] = (i || h != UNDEF) ? buf : SYNCDEBRISFOLDERNAME;

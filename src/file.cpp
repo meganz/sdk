@@ -31,6 +31,7 @@ namespace mega {
 File::File()
 {
 	transfer = NULL;
+	hprivate = true;
 }
 
 File::~File()
@@ -68,7 +69,7 @@ void File::completed(Transfer* t, LocalNode* l)
 		memcpy(newnode->uploadtoken,t->slot->ultoken,sizeof newnode->uploadtoken);
 
 		// file's crypto key
-		newnode->nodekey.assign((char*)t->filekey,Node::FILENODEKEYLENGTH);
+		newnode->nodekey.assign((char*)t->filekey,FILENODEKEYLENGTH);
 		newnode->clienttimestamp = t->mtime;
 		newnode->type = FILENODE;
 		newnode->parenthandle = UNDEF;
