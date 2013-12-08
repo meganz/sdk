@@ -1748,7 +1748,8 @@ void MegaClient::notifypurge(void)
 
 				if (app->sync_syncable(n) && !n->removed && n->localnode && !n->attrstring.size() && (ait = n->attrs.map.find('n')) != n->attrs.map.end())
 				{
-					if (n->parent && n->localnode && !n->parent->localnode)
+					// FIXME: reliably detect out-of-tree move
+/*					if (n->parent && n->localnode && !n->parent->localnode)
 					{
 						// node was moved out of the sync tree coverage area - delete locally
 						if (n->type == FILENODE) app->syncupdate_remote_file_deletion(n);
@@ -1757,7 +1758,7 @@ void MegaClient::notifypurge(void)
 						n->localnode->getlocalpath(this,&localpath);
 						synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath));
 					}
-					else
+					else*/
 					{
 						is_rename = ait->second != n->localnode->name;
 						is_move = n->parent && n->localnode->parent && n->parent->localnode && n->localnode->parent != n->parent->localnode;
