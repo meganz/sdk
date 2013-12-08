@@ -689,7 +689,8 @@ void MegaClient::exec()
 			}
 
 			// rescan full trees in case fs notification is currently unreliable or unavailable
-			if (fsaccess->notifyfailed())
+			if (!fsaccess->notifyfailed()) syncscanfailed = false;
+			else if (syncscanbt.armed(waiter->ds))
 			{
 				unsigned totalnodes = 0;
 
@@ -699,11 +700,10 @@ void MegaClient::exec()
 					totalnodes += (*it)->localnodes[FILENODE]+(*it)->localnodes[FOLDERNODE];
 				}
 
-				// rescan periodically (interval depends on total tree size)
+				// limit rescan rate (interval depends on total tree size)
 				syncscanfailed = true;
 				syncscanbt.backoff(waiter->ds,10+totalnodes/128);
 			}
-			else syncscanfailed = false;
 
 			// FIXME: only syncup for subtrees that were actually updated to reduce CPU load
 			for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state == SYNC_ACTIVE) syncup(&(*it)->localroot);
