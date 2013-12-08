@@ -329,12 +329,6 @@ bool PosixFileSystemAccess::notifyfailed()
 	return notifyerr ? (notifyerr = false) || true : false;
 }
 
-bool PosixFileSystemAccess::localhidden(string*, string* filename)
-{
-	char c = *filename->c_str();
-	return c == '.' || c == '~';
-}
-
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {
 	return new PosixFileAccess();
