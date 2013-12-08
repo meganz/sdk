@@ -3890,6 +3890,7 @@ bool MegaClient::startxfer(direction d, File* f)
 			t = new Transfer(this,d);
 			*(FileFingerprint*)t = *(FileFingerprint*)f;
 			t->size = f->size;
+			t->tag = reqtag;
 			t->transfers_it = transfers[d].insert(pair<FileFingerprint*,Transfer*>((FileFingerprint*)t,t)).first;
 			app->transfer_added(t);
 		}
