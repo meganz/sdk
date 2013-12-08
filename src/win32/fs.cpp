@@ -533,15 +533,6 @@ bool WinFileSystemAccess::notifyfailed()
 	return notifyerr ? (notifyerr = false) || true : false;
 }
 
-// returns true for files that are not supposed to be synced
-bool WinFileSystemAccess::localhidden(string*, string* filename)
-{
-	// FIXME: also check GetFileAttributes() for FILE_ATTRIBUTE_HIDDEN?
-	wchar_t c = *(wchar_t*)filename->data();
-
-	return c == '.' || c == '~';
-}
-
 FileAccess* WinFileSystemAccess::newfileaccess()
 {
 	return new WinFileAccess();

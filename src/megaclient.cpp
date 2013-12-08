@@ -1734,7 +1734,7 @@ void MegaClient::notifypurge(void)
 			{
 				Node* n = nodenotify[i];
 
-				if (!n->removed && n->localnode && !n->attrstring.size() && (ait = n->attrs.map.find('n')) != n->attrs.map.end())
+				if (app->sync_syncable(n) && !n->removed && n->localnode && !n->attrstring.size() && (ait = n->attrs.map.find('n')) != n->attrs.map.end())
 				{
 					if (n->parent && n->localnode && !n->parent->localnode)
 					{
@@ -1789,7 +1789,7 @@ void MegaClient::notifypurge(void)
 			{
 				Node* n = nodenotify[i];
 
-				if (!n->removed)
+				if (app->sync_syncable(n) && !n->removed)
 				{
 					if (n->parent && n->parent->localnode)
 					{
@@ -1804,7 +1804,7 @@ void MegaClient::notifypurge(void)
 			{
 				Node* n = nodenotify[i];
 
-				if (n->localnode && (n->removed || (n->parent && !n->parent->localnode)))
+				if (app->sync_syncable(n) && n->localnode && (n->removed || (n->parent && !n->parent->localnode)))
 				{
 					n->localnode->getlocalpath(this,&localpath);
 
@@ -3511,7 +3511,7 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 	for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
 	{
 		// node must be decrypted and name defined to be considered
-		if (!(*it)->syncdeleted && !(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
+		if (app->sync_syncable(*it) && !(*it)->syncdeleted && !(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
 		{
 			// map name to node (use newest, resolve mtime/size clashes deterministically to avoid flapping)
 			npp = &nchildren[&ait->second];
@@ -3575,48 +3575,51 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 	// create missing local folders / FolderNodes, initiate downloads of missing local files
 	for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
 	{
-		if ((ait = rit->second->attrs.map.find('n')) != rit->second->attrs.map.end())
+		if (app->sync_syncable(rit->second))
 		{
-			size_t t = localpath->size();
-
-			localpath->append(fsaccess->localseparator);
-			localname = ait->second;
-			fsaccess->name2local(&localname);
-			localpath->append(localname);
-
-			if (rit->second->type == FILENODE)
+			if ((ait = rit->second->attrs.map.find('n')) != rit->second->attrs.map.end())
 			{
-				// start fetching this node, unless fetch is already in progress
-				// FIXME: to cover renames that occur during the download, reconstruct localname in complete()
-				if (!rit->second->syncget)
+				size_t t = localpath->size();
+
+				localpath->append(fsaccess->localseparator);
+				localname = ait->second;
+				fsaccess->name2local(&localname);
+				localpath->append(localname);
+
+				if (rit->second->type == FILENODE)
 				{
-					fsaccess->local2path(localpath,&tmpname);
-					app->syncupdate_get(l->sync,tmpname.c_str());
+					// start fetching this node, unless fetch is already in progress
+					// FIXME: to cover renames that occur during the download, reconstruct localname in complete()
+					if (!rit->second->syncget)
+					{
+						fsaccess->local2path(localpath,&tmpname);
+						app->syncupdate_get(l->sync,tmpname.c_str());
 
-					rit->second->syncget = new SyncFileGet(rit->second,localpath);
-					startxfer(GET,rit->second->syncget);
-					syncactivity = true;
+						rit->second->syncget = new SyncFileGet(rit->second,localpath);
+						startxfer(GET,rit->second->syncget);
+						syncactivity = true;
+					}
 				}
-			}
-			else
-			{
-				// create local path, add to LocalNodes and recurse
-				if (fsaccess->mkdirlocal(localpath))
+				else
 				{
-					LocalNode* ll;
+					// create local path, add to LocalNodes and recurse
+					if (fsaccess->mkdirlocal(localpath))
+					{
+						LocalNode* ll;
 
-					// create local folder and start notifications
-					ll = new LocalNode;
-					ll->init(l->sync,&ait->second,FOLDERNODE,l,localpath);
-					ll->setnode(rit->second);
+						// create local folder and start notifications
+						ll = new LocalNode;
+						ll->init(l->sync,&ait->second,FOLDERNODE,l,localpath);
+						ll->setnode(rit->second);
 
-					syncdown(ll,localpath);
+						syncdown(ll,localpath);
 
-					syncactivity = true;
+						syncactivity = true;
+					}
 				}
-			}
 
-			localpath->resize(t);
+				localpath->resize(t);
+			}
 		}
 	}
 }

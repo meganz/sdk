@@ -134,6 +134,10 @@ struct MegaApp
 	virtual void syncupdate_remote_copy(Sync*, const char*) { }
 	virtual void syncupdate_remote_move(string*, string*) { }
 
+	// sync filename filter
+	virtual bool sync_syncable(Node*) { return true; }
+	virtual bool sync_syncable(const char*, string*, string*) { return true; }
+
 	// suggest reload due to possible race condition with other clients
 	virtual void reload(const char*) { }
 
