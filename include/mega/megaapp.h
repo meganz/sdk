@@ -107,7 +107,11 @@ struct MegaApp
 
 	// exported link access result
 	virtual void openfilelink_result(error) { }
-	virtual void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, time_t, time_t) { }
+	virtual void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, time_t, time_t, int) { }
+
+	// node opening result
+	virtual void checkfile_result(handle, error) { }
+	virtual void checkfile_result(handle, error, byte*, m_off_t, time_t, time_t, string*, string*, string*) { }
 
 	// global transfer queue updates (separate signaling towards the queued objects)
 	virtual void transfer_added(Transfer*) { }
@@ -133,6 +137,10 @@ struct MegaApp
 	virtual void syncupdate_remote_folder_deletion(Node*) { }
 	virtual void syncupdate_remote_copy(Sync*, const char*) { }
 	virtual void syncupdate_remote_move(string*, string*) { }
+
+	// sync filename filter
+	virtual bool sync_syncable(Node*) { return true; }
+	virtual bool sync_syncable(const char*, string*, string*) { return true; }
 
 	// suggest reload due to possible race condition with other clients
 	virtual void reload(const char*) { }

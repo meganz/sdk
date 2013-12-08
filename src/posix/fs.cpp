@@ -232,7 +232,7 @@ bool PosixFileSystemAccess::mkdirlocal(string* name)
 {
 	bool r = !mkdir(name->c_str(),0700);
 	
-	if (!r) already_exists = errno == EEXIST;
+	if (!r) target_exists = errno == EEXIST;
 	
 	return r;
 }
@@ -304,7 +304,9 @@ bool PosixFileSystemAccess::notifynext(sync_list*, string* localname, LocalNode*
 				{
 					*localname = in->name;
 					*localnodep = it->second;
-					*fulltreep = false;
+
+					// FIXME: check if inotify requires this to be set to true (e.g. for local folder renames)
+					if (fulltreep) *fulltreep = false;
 
 					return true;
 				}
@@ -325,12 +327,6 @@ bool PosixFileSystemAccess::notifynext(sync_list*, string* localname, LocalNode*
 bool PosixFileSystemAccess::notifyfailed()
 {
 	return notifyerr ? (notifyerr = false) || true : false;
-}
-
-bool PosixFileSystemAccess::localhidden(string*, string* filename)
-{
-	char c = *filename->c_str();
-	return c == '.' || c == '~';
 }
 
 FileAccess* PosixFileSystemAccess::newfileaccess()

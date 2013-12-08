@@ -56,8 +56,6 @@ public:
 	void name2local(string*, const char* = NULL);
 	void local2name(string*);
 
-	bool localhidden(string*, string*);
-
 	bool renamelocal(string*, string*);
 	bool copylocal(string*, string*);
 	bool rubbishlocal(string*);

@@ -132,9 +132,13 @@ LocalNode* Sync::queuefsrecord(string* localpath, string* localname, LocalNode* 
 {
 	localnode_map::iterator it;
 	LocalNode* l;
+	string name;
+
+	name = *localname;
+	client->fsaccess->local2name(&name);
 
 	// check if this record is to be ignored
-	if (!client->fsaccess->localhidden(localpath,localname))
+	if (client->app->sync_syncable(name.c_str(),localpath,localname))
 	{
 		l = (it = parent->children.find(localname)) != parent->children.end() ? it->second : NULL;
 		queuescan(localpath,localname,l,parent,fulltree);

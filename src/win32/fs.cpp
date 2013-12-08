@@ -102,7 +102,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
 		DWORD e = GetLastError();
-		
+
 		if (e == ERROR_ACCESS_DENIED)
 		{
 			// this could be a directory, try to enumerate...
@@ -117,7 +117,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 				return true;
 			}
 		}
-		
+
 		retry = WinFileSystemAccess::istransient(e);
 		return false;
 	}
@@ -172,7 +172,7 @@ bool WinFileSystemAccess::istransient(DWORD e)
 bool WinFileSystemAccess::istransientorexists(DWORD e)
 {
 	target_exists = e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS;
-	
+
 	return istransient(e);
 }
 
@@ -265,7 +265,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 	oldname->resize(oldname->size()-1);
 
 	if (!r) transient_error = istransientorexists(GetLastError());
-	
+
 	return r;
 }
 
@@ -314,13 +314,13 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 	fileop.hNameMappings = NULL;
 
 	int e = SHFileOperationW(&fileop);
-	
+
 	if (!e) return true;
 
 	transient_error = istransient(e);
-	
+
 	return false;
-	
+
 	// FIXME: fall back to recursive DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
 }
 
@@ -331,7 +331,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 	name->resize(name->size()-1);
 
 	if (!r) transient_error = istransient(GetLastError());
-	
+
 	return r;
 }
 
@@ -513,7 +513,7 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 						dn->notifyq.pop_front();
 
 						// need to scan new folders fully (no notification for contained items!)
-						*fulltreep = true;
+						if (fulltreep) *fulltreep = true;
 
 						return true;
 					}
@@ -531,35 +531,6 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 bool WinFileSystemAccess::notifyfailed()
 {
 	return notifyerr ? (notifyerr = false) || true : false;
-}
-
-// returns true for files that are not supposed to be synced
-bool WinFileSystemAccess::localhidden(string*, string* filename)
-{
-	// FIXME: also check GetFileAttributes() for FILE_ATTRIBUTE_HIDDEN?
-	wchar_t c = *(wchar_t*)filename->data();
-
-	filename->append("", 1);
-	int comparation = wcscmp(L"Thumbs.db", (wchar_t*)filename->data());
-	filename->resize(filename->size()-1);
-
-	if(c == '.' || c == '~') return 1;
-	if(!comparation) return 1;
-
-	//Check hidden files
-	/*
-	if(path)
-	{
-		string fullpath = *path;
-		fullpath.append(localseparator);
-		fullpath.append(*filename);
-		fullpath.append("",1);
-		DWORD attributes = GetFileAttributesW((wchar_t*)fullpath.data());
-		if(attributes == INVALID_FILE_ATTRIBUTES) return 1;
-		if(attributes &= FILE_ATTRIBUTE_HIDDEN) return 1;
-	}
-	*/
-	return false;
 }
 
 FileAccess* WinFileSystemAccess::newfileaccess()

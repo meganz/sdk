@@ -94,7 +94,7 @@ void Transfer::complete()
 		// set FileFingerprint on source node(s) if missing
 		for (file_list::iterator it = files.begin(); it != files.end(); it++)
 		{
-			if ((n = client->nodebyhandle((*it)->h)))
+			if ((*it)->hprivate && (n = client->nodebyhandle((*it)->h)))
 			{
 				if (!n->isvalid)
 				{
