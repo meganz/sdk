@@ -61,7 +61,6 @@ struct File : public FileFingerprint
 
 	// if !hprivate, filekey and size must be valid
 	byte filekey[FILENODEKEYLENGTH];
-	m_off_t size;
 
 	// for remote file drops: uid or e-mail address of recipient
 	string targetuser;

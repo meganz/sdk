@@ -100,10 +100,9 @@ struct Node : public NodeCore, Cachable, FileFingerprint
 	// actual time this node was created (cannot be set by user)
 	time_t ctime;
 
-	// FILENODE nodes only: size, fingerprint, nonce, meta MAC, attribute string
+	// FILENODE nodes only: nonce, meta MAC, attribute string
 	int64_t ctriv;
 	int64_t metamac;
-
 	string fileattrstring;
 
 	// check presence of file attribute
