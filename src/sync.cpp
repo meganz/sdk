@@ -269,7 +269,10 @@ void Sync::procscanq(int q)
 		if (fa->retry)
 		{
 			// fopen() signals that the failure is potentially transient - do nothing, but request a recheck
-			queuescan(RETRY,localpath,NULL,l,si->parent,true);
+			localpath->resize(localpath->size()-client->fsaccess->localseparator.size()-localname->size());
+			queuescan(RETRY,localpath,localname,l,si->parent,true);
+			
+			l = NULL;	// make no changes yet
 		}
 		else if (l)
 		{
