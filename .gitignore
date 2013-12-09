@@ -24,6 +24,7 @@
 tests/api_test
 examples/megacli
 doc/example/lsmega
+examples/megasync
 
 # Autotool stuff
 .deps

@@ -54,7 +54,7 @@ Console* console;
 // thumbnail specs:
 // - largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
 // - must respect JPEG EXIF rotation tag
-// - must save at 85% quality
+// - must save at 85% quality (120*120 pixel result: ~4 KB)
 // returns result as string
 #ifdef _WIN32
 #define FreeImage_GetFileTypeX FreeImage_GetFileTypeU
@@ -205,16 +205,13 @@ AppFile::AppFile()
 	seqno = ++nextseqno;
 }
 
-// queued upload is starting - create thumbnail
+// transfer start
 void AppFilePut::start()
 {
-	//cout << "Sending " << displayname() << " (attempt #" << transfer->failcount << ")..." << endl;
 }
 
-// queued upload is starting - create thumbnail
 void AppFileGet::start()
 {
-	//cout << "Fetching " << displayname() << " (attempt #" << transfer->failcount << ")..." << endl;
 }
 
 // returns true to effect a retry, false to effect a failure
@@ -223,13 +220,16 @@ bool AppFile::failed(error e)
 	return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 10;
 }
 
+// transfer completion
 void AppFileGet::completed(Transfer*, LocalNode*)
 {
+	// (at this time, the file has already been placed in the final location)
 	delete this;
 }
 
 void AppFilePut::completed(Transfer* t, LocalNode*)
 {
+	// perform standard completion (place node in user filesystem etc.)
 	File::completed(t,NULL);
 
 	delete this;
@@ -251,7 +251,7 @@ void AppFilePut::displayname(string* dname)
 	transfer->client->fsaccess->local2name(dname);
 }
 
-// transfer progress
+// transfer progress callback
 void AppFile::progress()
 {
 }
@@ -271,12 +271,12 @@ static void displaytransferdetails(Transfer* t, const char* action)
 	cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
 }
 
-// new transfer was added
+// a new transfer was added
 void DemoApp::transfer_added(Transfer* t)
 {
 }
 
-// queued transfer was removed
+// a queued transfer was removed
 void DemoApp::transfer_removed(Transfer* t)
 {
 	displaytransferdetails(t,"removed\n");
@@ -284,7 +284,7 @@ void DemoApp::transfer_removed(Transfer* t)
 
 void DemoApp::transfer_update(Transfer* t)
 {
-	// this is handled in the prompt logic
+	// (this is handled in the prompt logic)
 }
 
 void DemoApp::transfer_failed(Transfer* t, error e)
@@ -322,7 +322,7 @@ void DemoApp::transfer_prepare(Transfer* t)
 			{
 				string thumbnail;
 
-				// (thumbnail creation should be performed in subthreads to keep the app nonblocking)
+				// (thumbnail creation should actually be performed in subthreads to keep the app nonblocking)
 				// to guard against file overwrite race conditions, production applications
 				// should use the same file handle for uploading and creating the thumbnail
 				createthumbnail(&t->localfilename,120,&thumbnail);
@@ -634,14 +634,14 @@ static void listtrees()
 }
 
 // returns node pointer determined by path relative to cwd
-// Path naming conventions:
-// path is relative to cwd
-// /path is relative to ROOT
-// //in is in INBOX
-// //bin is in RUBBISH
-// X: is user X's INBOX
-// X:SHARE is share SHARE from user X
-// : and / filename components, as well as the \, must be escaped by \.
+// path naming conventions:
+// * path is relative to cwd
+// * /path is relative to ROOT
+// * //in is in INBOX
+// * //bin is in RUBBISH
+// * X: is user X's INBOX
+// * X:SHARE is share SHARE from user X
+// * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
 static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
@@ -1212,7 +1212,7 @@ static void process_line(char* l)
 				cout << "      mkdir remotepath" << endl;
 				cout << "      rm remotepath" << endl;
 				cout << "      mv srcremotepath dstremotepath" << endl;
-				cout << "      cp srcpath dstpath|dstemail:" << endl;
+				cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
 				cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 				cout << "      export remotepath [del]" << endl;
 				cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
@@ -1279,7 +1279,7 @@ static void process_line(char* l)
 							}
 							else cout << words[1] << ": No such file or directory" << endl;
 						}
-						else cout << "      rm path" << endl;
+						else cout << "      rm remotepath" << endl;
 
 						return;
 					}
@@ -1307,6 +1307,7 @@ static void process_line(char* l)
 										if (tn->type == FILENODE)
 										{
 											cout << words[2] << ": Not a directory" << endl;
+
 											return;
 										}
 										else
@@ -1316,6 +1317,7 @@ static void process_line(char* l)
 												if (!client->checkaccess(n,RDWR))
 												{
 													cout << "Write access denied" << endl;
+
 													return;
 												}
 
@@ -1338,6 +1340,7 @@ static void process_line(char* l)
 												if (!client->checkaccess(n,RDWR))
 												{
 													cout << "Write access denied" << endl;
+
 													return;
 												}
 
@@ -1374,7 +1377,7 @@ static void process_line(char* l)
 							}
 							else cout << words[1] << ": No such file or directory" << endl;
 						}
-						else cout << "      mv srcpath dstpath" << endl;
+						else cout << "      mv srcremotepath dstremotepath" << endl;
 
 						return;
 					}
@@ -1394,6 +1397,7 @@ static void process_line(char* l)
 									if (!client->checkaccess(tn,RDWR))
 									{
 										cout << "Write access denied" << endl;
+
 										return;
 									}
 
@@ -1481,7 +1485,7 @@ static void process_line(char* l)
 							}
 							else cout << words[1] << ": No such file or directory" << endl;
 						}
-						else cout << "      cp srcpath dstpath|dstemail:" << endl;
+						else cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
 
 						return;
 					}
@@ -1494,6 +1498,7 @@ static void process_line(char* l)
 							if (!(n = nodebypath(words[1].c_str())))
 							{
 								cout << words[1] << ": No such file or directory" << endl;
+
 								return;
 							}
 						}
@@ -1549,7 +1554,7 @@ static void process_line(char* l)
 							}
 							else cout << words[1] << ": No such file or folder" << endl;
 						}
-						else cout << "      get remotefile/remotepath" << endl;
+						else cout << "      get remotepath" << endl << "      get exportedfilelink#key" << endl;
 
 						return;
 					}
@@ -1576,6 +1581,7 @@ static void process_line(char* l)
 							if (!client->loggedin() && !targetuser.size())
 							{
 								cout << "Not logged in." << endl;
+
 								return;
 							}
 
@@ -1604,7 +1610,7 @@ static void process_line(char* l)
 
 							cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size() << " file(s) in queue" << endl;
 						}
-						else cout << "      put localpattern [dstpath|dstemail:]" << endl;
+						else cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
 
 						return;
 					}
@@ -1671,7 +1677,9 @@ static void process_line(char* l)
 								if (i++ == cancel)
 								{
 									delete *it;
+
 									cout << "Sync " << cancel << " deactivated and removed." << endl;
+
 									break;
 								}
 							}
@@ -1698,7 +1706,7 @@ static void process_line(char* l)
 							}
 							else cout << "No syncs active at this time." << endl;
 						}
-						else cout << "      sync [localpath dstpath|cancelslot]" << endl;
+						else cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 
 						return;
 					}
@@ -1817,6 +1825,7 @@ static void process_line(char* l)
 											else
 											{
 												cout << "Access level must be one of r, rw or full" << endl;
+
 												return;
 											}
 										}
@@ -1825,11 +1834,13 @@ static void process_line(char* l)
 									}
 								}
 								else cout << words[1] << ": No such directory" << endl;
+
 								break;
 
 							default:
-								cout << "      share [path [email [access]]]" << endl;
+								cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
 						}
+
 						return;
 					}
 					else if (words[0] == "users")
@@ -1866,6 +1877,7 @@ static void process_line(char* l)
 								if (!client->checkaccess(n,RDWR))
 								{
 									cout << "Write access denied" << endl;
+
 									return;
 								}
 
@@ -1903,7 +1915,7 @@ static void process_line(char* l)
 							}
 							else cout << words[1] << ": Target path not found" << endl;
 						}
-						else cout << "      mkdir path" << endl;
+						else cout << "      mkdir remotepath" << endl;
 
 						return;
 					}
@@ -1971,6 +1983,7 @@ static void process_line(char* l)
 						else if (words.size() != 2)
 						{
 							cout << "      getua attrname [email|private]" << endl;
+
 							return;
 						}
 
@@ -1980,6 +1993,7 @@ static void process_line(char* l)
 							if (!(u = client->finduser(client->me)))
 							{
 								cout << "Must be logged in to query own attributes." << endl;
+
 								return;
 							}
 						}
@@ -1994,6 +2008,7 @@ static void process_line(char* l)
 						{
 							// delete attribute
 							client->putua(words[1].c_str());
+
 							return;
 						}
 						else if (words.size() > 3)
@@ -2003,6 +2018,7 @@ static void process_line(char* l)
 							if (words[2] == "del")
 							{
 								client->putua(words[1].c_str());
+
 								return;
 							}
 							else if (words[2] == "set" && (words.size() == 4 || priv))
@@ -2147,7 +2163,7 @@ static void process_line(char* l)
 
 							if ((e = client->invite(words[1].c_str(),del ? HIDDEN : VISIBLE))) cout << "Invitation failed: " << errorstring(e) << endl;
 						}
-						else cout << "      invite email [del]" << endl;
+						else cout << "      invite dstemail [del]" << endl;
 
 						return;
 					}
@@ -2228,7 +2244,7 @@ static void process_line(char* l)
 							}
 							else cout << words[1] << ": Not found" << endl;
 						}
-						else cout << "      export path [del]" << endl;
+						else cout << "      export remotepath [del]" << endl;
 
 						return;
 					}
