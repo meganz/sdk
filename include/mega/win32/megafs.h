@@ -56,8 +56,6 @@ public:
 	void name2local(string*, const char* = NULL);
 	void local2name(string*);
 
-	bool localhidden(string*, string*);
-
 	bool renamelocal(string*, string*);
 	bool copylocal(string*, string*);
 	bool rubbishlocal(string*);
@@ -69,11 +67,14 @@ public:
 
 	void addnotify(LocalNode*, string*);
 	void delnotify(LocalNode*);
-	bool notifynext(sync_list*, string*, LocalNode**);
+	bool notifynext(sync_list*, string*, LocalNode**, bool* = NULL);
 	bool notifyfailed();
 
 	void addevents(Waiter*);
 
+	static bool istransient(DWORD);
+	bool istransientorexists(DWORD);
+	
 	WinFileSystemAccess();
 	~WinFileSystemAccess();
 };

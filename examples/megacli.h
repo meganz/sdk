@@ -59,7 +59,7 @@ struct AppFileGet : public AppFile
 	void update();
 	void completed(Transfer*, LocalNode*);
 
-	AppFileGet(Node*);
+	AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, time_t = 0, string* = NULL, string* = NULL);
 	~AppFileGet();
 };
 
@@ -125,10 +125,10 @@ struct DemoApp : public MegaApp
 	void exportnode_result(handle, handle);
 
 	void openfilelink_result(error);
-	void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, time_t, time_t);
+	void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, time_t, time_t, int);
 
-	void topen_result(int, error);
-	void topen_result(int, const char*, int);
+	void checkfile_result(handle, error);
+	void checkfile_result(handle, error, byte*, m_off_t, time_t, time_t, string*, string*, string*);
 
 	void transfer_added(Transfer*);
 	void transfer_removed(Transfer*);
@@ -139,19 +139,22 @@ struct DemoApp : public MegaApp
 	void transfer_complete(Transfer*);
 
 	void syncupdate_state(Sync*, syncstate);
+	void syncupdate_stuck(string*);
 	void syncupdate_local_folder_addition(Sync*, const char*);
 	void syncupdate_local_folder_deletion(Sync*, const char*);
 	void syncupdate_local_file_addition(Sync*, const char*);
 	void syncupdate_local_file_deletion(Sync*, const char*);
 	void syncupdate_get(Sync*, const char*);
 	void syncupdate_put(Sync*, const char*);
-	void syncupdate_local_mkdir(Sync*, const char*);
-	void syncupdate_local_unlink(Node*);
-	void syncupdate_local_rmdir(Node*);
-	void syncupdate_remote_unlink(Node*);
-	void syncupdate_remote_rmdir(Node*);
-	void syncupdate_remote_mkdir(Sync*, const char*);
+	void syncupdate_remote_file_addition(Node*);
+	void syncupdate_remote_file_deletion(Node*);
+	void syncupdate_remote_folder_addition(Node*);
+	void syncupdate_remote_folder_deletion(Node*);
 	void syncupdate_remote_copy(Sync*, const char*);
+	void syncupdate_remote_move(string*, string*);
+
+	bool sync_syncable(Node*);
+	bool sync_syncable(const char*, string*, string*);
 
 	void changepw_result(error);
 

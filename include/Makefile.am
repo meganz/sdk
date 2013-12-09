@@ -26,6 +26,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/share.h \
 	mega/sharenodekeys.h \
 	mega/sync.h \
+	mega/synclocalops.h \
 	mega/transfer.h \
 	mega/transferslot.h \
 	mega/treeproc.h \

@@ -22,7 +22,9 @@
 AUTOMAKE_OPTIONS=foreign 1.9 subdir-objects
 ACLOCAL_AMFLAGS=-I m4
 
-AM_CPPFLAGS=-I/usr/include -I$(top_srcdir)/include -I$(top_srcdir)/include/mega
+AM_CPPFLAGS = \
+	-I$(top_srcdir)/include
+
 
 if WIN32
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/win32
@@ -48,3 +50,25 @@ pkgconfigdir=$(libdir)/pkgconfig
 pkgconfig_DATA=libmega.pc
 
 DISTCLEANFILES+=*~ libmega.pc
+
+if WIN32
+platform_includes=$(top_srcdir)/include/mega/win32
+else
+platform_includes=$(top_srcdir)/include/mega/posix
+endif
+
+
+CPPCHECK_CMD = cppcheck \
+	--template='{file};{line};{severity};{id};{message}' \
+	--enable=style,information,performance,portability,missingInclude,unusedFunction \
+	--std=c++03 --force \
+	--quiet \
+    -I $(top_srcdir)/include \
+	-I $(platform_includes)
+
+CPPCHECK_DIRS = \
+	"$(top_srcdir)/src" \
+    "$(top_srcdir)/examples"
+
+cppcheck:
+	$(CPPCHECK_CMD) $(CPPCHECK_DIRS)
