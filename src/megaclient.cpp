@@ -287,6 +287,8 @@ void MegaClient::init()
 	synclocalopretry = false;
 	syncstuck = false;
 
+	scanretrybt.reset();
+
 	xferpaused[PUT] = false;
 	xferpaused[GET] = false;
 	
@@ -350,7 +352,7 @@ MegaClient::~MegaClient()
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
-	waiter->getdstime();
+	dstime ds = waiter->getdstime();
 
 	do {
 		// file attribute puts (handled sequentially, newest-to-oldest)
@@ -392,13 +394,13 @@ void MegaClient::exec()
 				case REQ_FAILURE:
 					// repeat request with exponential backoff
 					curfa = newfa.end();
-					btpfa.backoff(waiter->ds);
+					btpfa.backoff(ds);
 
 				default:;
 			}
 		}
 
-		if (newfa.size() && curfa == newfa.end() && btpfa.armed(waiter->ds))
+		if (newfa.size() && curfa == newfa.end() && btpfa.armed(ds))
 		{
 			// dispatch most recent file attribute put
 			curfa = newfa.begin();
@@ -427,12 +429,12 @@ void MegaClient::exec()
 
 				case REQ_FAILURE:
 					faf_failed(it->first);
-					it->second->bt.backoff(waiter->ds);
+					it->second->bt.backoff(ds);
 
 				default:;
 			}
 
-			if (it->second->req.status != REQ_INFLIGHT && it->second->bt.armed(waiter->ds))
+			if (it->second->req.status != REQ_INFLIGHT && it->second->bt.armed(ds))
 			{
 				// no request in flight, but ready for next request - check for remaining fetches for this cluster
 				faf_map::iterator itf;
@@ -501,8 +503,8 @@ void MegaClient::exec()
 						delete pendingcs;
 						pendingcs = NULL;
 
-						btcs.backoff(waiter->ds);
-						app->notify_retry(btcs.retryin(waiter->ds));
+						btcs.backoff(ds);
+						app->notify_retry(btcs.retryin(ds));
 
 					default:;
 				}
@@ -510,7 +512,7 @@ void MegaClient::exec()
 				if (pendingcs) break;
 			}
 
-			if (btcs.armed(waiter->ds))
+			if (btcs.armed(ds))
 			{
 				if (btcs.nextset()) r ^= 1;
 
@@ -598,7 +600,7 @@ void MegaClient::exec()
 							delete pendingsc;
 							pendingsc = NULL;
 
-							btsc.backoff(waiter->ds);
+							btsc.backoff(ds);
 
 						default:;
 					}
@@ -607,7 +609,7 @@ void MegaClient::exec()
 				if (pendingsc) break;
 			}
 
-			if (*scsn && btsc.armed(waiter->ds))
+			if (*scsn && btsc.armed(ds))
 			{
 				pendingsc = new HttpReq();
 
@@ -637,17 +639,32 @@ void MegaClient::exec()
 			if (xferpaused[(*it)->transfer->type]) it++;
 			else (*it++)->doio(this);
 		}
-	} while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed(waiter->ds)));
+	} while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed(ds)));
 
-	if (syncscanfailed && syncscanbt.armed(waiter->ds)) syncscanfailed = false;
+	if (syncscanfailed && syncscanbt.armed(ds)) syncscanfailed = false;
 
-	if (synclocalopretry && synclocalopretrybt.armed(waiter->ds)) execsynclocalops();
+	if (synclocalopretry && synclocalopretrybt.armed(ds)) execsynclocalops();
+
+	int q = 0;	// main syncitem queue
+	sync_list::iterator it;
+
+	if (scanretrybt.armed(ds))
+	{
+		// do we have any scheduled retries in non-failed syncs?
+		for (it = syncs.begin(); it != syncs.end(); it++)
+		{
+			if ((*it)->scanq[1].size() && (*it)->state != SYNC_FAILED)
+			{
+				q = 1;
+				break;
+			}
+		}
+	}
 	
 	// process active syncs, stop doing so while transient local fs ops are pending
-	if (!synclocalops.size() && (syncs.size() || syncactivity))
+	if ((!synclocalops.size() && (syncs.size() || syncactivity)) || q)
 	{
 		bool syncscanning = false;
-		sync_list::iterator it;
 
 		syncactivity = false;
 
@@ -661,16 +678,16 @@ void MegaClient::exec()
 			else
 			{
 				// process items from the scanq until depleted
-				if ((*it)->scanq.size()) (*it)->procscanq();
+				if ((*it)->scanq[q].size()) (*it)->procscanq(q);
 
-				if ((*it)->scanq.size())
+				if ((*it)->scanq[q].size())
 				{
 					syncscanning = true;
 					it++;
 				}
 				else
 				{
-					if ((*it)->state == SYNC_INITIALSCAN)
+					if ((*it)->state == SYNC_INITIALSCAN && !q)
 					{
 						// initial scan of this synced folder is now complete - activate syncing
 						syncdown(&(*it)->localroot,&(*it)->localroot.localname);
@@ -680,7 +697,10 @@ void MegaClient::exec()
 				}
 			}
 		}
-
+		
+		// set retry interval for locked filesystem items once all pending items were processed
+		if (q && !syncscanning) scanretrybt.backoff(ds,2);
+		
 		// process filesystem notifications for active syncs unless node addition currently in flight
 		if (!syncscanning && !syncadding)
 		{
@@ -697,19 +717,19 @@ void MegaClient::exec()
 
 			// rescan full trees in case fs notification is currently unreliable or unavailable
 			if (!fsaccess->notifyfailed()) syncscanfailed = false;
-			else if (syncscanbt.armed(waiter->ds))
+			else if (syncscanbt.armed(ds))
 			{
 				unsigned totalnodes = 0;
 
 				for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state == SYNC_ACTIVE)
 				{
-					(*it)->queuescan(NULL,NULL,NULL,NULL,true);
+					(*it)->queuescan(0,NULL,NULL,NULL,NULL,true);
 					totalnodes += (*it)->localnodes[FILENODE]+(*it)->localnodes[FOLDERNODE];
 				}
 
 				// limit rescan rate (interval depends on total tree size)
 				syncscanfailed = true;
-				syncscanbt.backoff(waiter->ds,10+totalnodes/128);
+				syncscanbt.backoff(ds,10+totalnodes/128);
 			}
 
 			// FIXME: only syncup for subtrees that were actually updated to reduce CPU load
@@ -754,6 +774,13 @@ int MegaClient::wait()
 		
 		// retrying of transiently failed local sync fs ops
 		if (synclocalopretry) synclocalopretrybt.update(ds,&nds);
+
+		// retrying of transiently failed sync fopen()s
+		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->scanq[1].size() && (*it)->state != SYNC_FAILED)
+		{
+			scanretrybt.update(ds,&nds);
+			break;
+		}
 	}
 
 	if (nds)

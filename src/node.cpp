@@ -506,7 +506,7 @@ LocalNode::~LocalNode()
 	if (sync->state >= SYNC_INITIALSCAN)
 	{
 		// eliminate queued filesystem events for direct children
-		for (scanitem_deque::iterator it = sync->scanq.begin(); it != sync->scanq.end(); it++) if ((*it).parent == this) (*it).deleted = true;
+		for (int q = 2; q--; ) for (scanitem_deque::iterator it = sync->scanq[q].begin(); it != sync->scanq[q].end(); it++) if ((*it).parent == this) (*it).deleted = true;
 
 		// record deletion
 		sync->client->syncdeleted[type].insert(syncid);
