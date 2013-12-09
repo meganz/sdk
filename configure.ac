@@ -263,7 +263,6 @@ fi
 # ** Posix dependent libraries **
 #
 if test "x$WIN32" = "xno" ; then
-
     # check for cURL configuration script
     AC_CHECK_PROG(curl_config_prog, curl-config, yes, no)
     if test "x$curl_config_prog" != "xyes" ; then
@@ -275,6 +274,14 @@ if test "x$WIN32" = "xno" ; then
     AC_SUBST(LIBCURL_FLAGS)
     AC_SUBST(LIBCURL_LIBS)
 fi
+
+# determine platform include path
+if test "x$WIN32" = "xyes" ; then
+    platform_include="mega/win32"
+else
+    platform_include="mega/posix"
+fi
+AC_SUBST(platform_include)
 
 # Debug
 AC_ARG_ENABLE(debug,
