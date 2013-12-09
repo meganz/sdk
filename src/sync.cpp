@@ -40,8 +40,8 @@ Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 	localroot.init(this,crootpath,FOLDERNODE,NULL,crootpath);
 	localroot.setnode(remotenode);
 
-	queuescan(0,NULL,NULL,NULL,NULL,true);
-	procscanq(0);
+	queuescan(MAIN,NULL,NULL,NULL,NULL,true);
+	procscanq(MAIN);
 
 	sync_it = client->syncs.insert(client->syncs.end(),this);
 }
@@ -141,7 +141,7 @@ LocalNode* Sync::queuefsrecord(string* localpath, string* localname, LocalNode* 
 	if (client->app->sync_syncable(name.c_str(),localpath,localname))
 	{
 		l = (it = parent->children.find(localname)) != parent->children.end() ? it->second : NULL;
-		queuescan(0,localpath,localname,l,parent,fulltree);
+		queuescan(MAIN,localpath,localname,l,parent,fulltree);
 
 		return l;
 	}
@@ -269,7 +269,7 @@ void Sync::procscanq(int q)
 		if (fa->retry)
 		{
 			// fopen() signals that the failure is potentially transient - do nothing, but request a recheck
-			queuescan(1,localpath,localname,l,si->parent,true);
+			queuescan(RETRY,localpath,localname,l,si->parent,true);
 		}
 		else if (l)
 		{

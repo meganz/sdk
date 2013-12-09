@@ -645,7 +645,7 @@ void MegaClient::exec()
 
 	if (synclocalopretry && synclocalopretrybt.armed(ds)) execsynclocalops();
 
-	int q = 0;	// main syncitem queue
+	int q = Sync::MAIN;
 	sync_list::iterator it;
 
 	if (scanretrybt.armed(ds))
@@ -653,9 +653,9 @@ void MegaClient::exec()
 		// do we have any scheduled retries in non-failed syncs?
 		for (it = syncs.begin(); it != syncs.end(); it++)
 		{
-			if ((*it)->scanq[1].size() && (*it)->state != SYNC_FAILED)
+			if ((*it)->scanq[Sync::RETRY].size() && (*it)->state != SYNC_FAILED)
 			{
-				q = 1;
+				q = Sync::RETRY;
 				break;
 			}
 		}
@@ -723,7 +723,7 @@ void MegaClient::exec()
 
 				for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state == SYNC_ACTIVE)
 				{
-					(*it)->queuescan(0,NULL,NULL,NULL,NULL,true);
+					(*it)->queuescan(Sync::MAIN,NULL,NULL,NULL,NULL,true);
 					totalnodes += (*it)->localnodes[FILENODE]+(*it)->localnodes[FOLDERNODE];
 				}
 
@@ -776,7 +776,7 @@ int MegaClient::wait()
 		if (synclocalopretry) synclocalopretrybt.update(ds,&nds);
 
 		// retrying of transiently failed sync fopen()s
-		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->scanq[1].size() && (*it)->state != SYNC_FAILED)
+		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->scanq[Sync::RETRY].size() && (*it)->state != SYNC_FAILED)
 		{
 			scanretrybt.update(ds,&nds);
 			break;
