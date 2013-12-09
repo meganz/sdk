@@ -525,7 +525,7 @@ LocalNode::~LocalNode()
 	}
 }
 
-void LocalNode::getlocalpath(MegaClient* client, string* path)
+void LocalNode::getlocalpath(string* path)
 {
 	LocalNode* l = this;
 
@@ -534,13 +534,13 @@ void LocalNode::getlocalpath(MegaClient* client, string* path)
 	while (l)
 	{
 		path->insert(0,l->localname);
-		if ((l = l->parent)) path->insert(0,client->fsaccess->localseparator);
+		if ((l = l->parent)) path->insert(0,sync->client->fsaccess->localseparator);
 	}
 }
 
 void LocalNode::prepare()
 {
-	getlocalpath(transfer->client,&transfer->localfilename);
+	getlocalpath(&transfer->localfilename);
 }
 
 void LocalNode::completed(Transfer* t, LocalNode*)

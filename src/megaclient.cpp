@@ -1755,7 +1755,7 @@ void MegaClient::notifypurge(void)
 					{
 						if (n->localnode->parent) n->localnode->parent->children.erase(&n->localnode->localname);
 
-						n->localnode->getlocalpath(this,&localpath);
+						n->localnode->getlocalpath(&localpath);
 
 						if (is_rename)
 						{
@@ -1772,7 +1772,7 @@ void MegaClient::notifypurge(void)
 						}
 
 						n->localnode->parent->children[&n->localnode->localname] = n->localnode;
-						n->localnode->getlocalpath(this,&newlocalpath);
+						n->localnode->getlocalpath(&newlocalpath);
 
 						synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath,&newlocalpath));
 
@@ -1793,7 +1793,7 @@ void MegaClient::notifypurge(void)
 				{
 					if (n->parent && n->parent->localnode)
 					{
-						n->parent->localnode->getlocalpath(this,&localpath);
+						n->parent->localnode->getlocalpath(&localpath);
 						syncdown(n->parent->localnode,&localpath);
 					}
 				}
@@ -1806,7 +1806,7 @@ void MegaClient::notifypurge(void)
 
 				if (app->sync_syncable(n) && n->localnode && (n->removed || (n->parent && !n->parent->localnode)))
 				{
-					n->localnode->getlocalpath(this,&localpath);
+					n->localnode->getlocalpath(&localpath);
 
 					if (n->type == FILENODE)
 					{
