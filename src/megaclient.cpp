@@ -1748,50 +1748,37 @@ void MegaClient::notifypurge(void)
 
 				if (app->sync_syncable(n) && !n->removed && n->localnode && !n->attrstring.size() && (ait = n->attrs.map.find('n')) != n->attrs.map.end())
 				{
-					// FIXME: reliably detect out-of-tree move
-/*					if (n->parent && n->localnode && !n->parent->localnode)
+					is_rename = ait->second != n->localnode->name;
+					is_move = n->parent && n->localnode->parent && n->parent->localnode && n->localnode->parent != n->parent->localnode;
+
+					if (is_rename || is_move)
 					{
-						// node was moved out of the sync tree coverage area - delete locally
-						if (n->type == FILENODE) app->syncupdate_remote_file_deletion(n);
-						else app->syncupdate_remote_folder_deletion(n);
+						if (n->localnode->parent) n->localnode->parent->children.erase(&n->localnode->localname);
 
 						n->localnode->getlocalpath(this,&localpath);
-						synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath));
-					}
-					else*/
-					{
-						is_rename = ait->second != n->localnode->name;
-						is_move = n->parent && n->localnode->parent && n->parent->localnode && n->localnode->parent != n->parent->localnode;
 
-						if (is_rename || is_move)
+						if (is_rename)
 						{
-							if (n->localnode->parent) n->localnode->parent->children.erase(&n->localnode->localname);
-
-							n->localnode->getlocalpath(this,&localpath);
-
-							if (is_rename)
-							{
-								// file or folder was renamed
-								n->localnode->name = ait->second;
-								n->localnode->localname = ait->second;
-								fsaccess->name2local(&n->localnode->localname);
-							}
-
-							if (is_move)
-							{
-								// file or folder was moved
-								n->localnode->parent = n->parent->localnode;
-							}
-
-							n->localnode->parent->children[&n->localnode->localname] = n->localnode;
-							n->localnode->getlocalpath(this,&newlocalpath);
-
-							synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath,&newlocalpath));
-
-							fsaccess->local2path(&localpath,&path);
-							fsaccess->local2path(&newlocalpath,&localpath);							
-							app->syncupdate_remote_move(&path,&localpath);
+							// file or folder was renamed
+							n->localnode->name = ait->second;
+							n->localnode->localname = ait->second;
+							fsaccess->name2local(&n->localnode->localname);
 						}
+
+						if (is_move)
+						{
+							// file or folder was moved
+							n->localnode->parent = n->parent->localnode;
+						}
+
+						n->localnode->parent->children[&n->localnode->localname] = n->localnode;
+						n->localnode->getlocalpath(this,&newlocalpath);
+
+						synclocalops.push_back(new SyncLocalOp(this,n->type,&localpath,&newlocalpath));
+
+						fsaccess->local2path(&localpath,&path);
+						fsaccess->local2path(&newlocalpath,&localpath);							
+						app->syncupdate_remote_move(&path,&localpath);
 					}
 				}
 			}
@@ -3905,15 +3892,14 @@ bool MegaClient::startxfer(direction d, File* f)
 			// if we are unable to obtain a valid file FileFingerprint, don't proceed
 			if (!f->isvalid) return false;
 		}
-else
-{
-	if (!f->isvalid)
-	{
-		// ...
-	
-	}
-
-}
+		else
+		{
+			if (!f->isvalid)
+			{
+				// no valid fingerprint: use filekey as its replacement
+				memcpy(f->crc,f->filekey,sizeof f->crc);
+			}
+		}
 
 		Transfer* t;
 		transfer_map::iterator it = transfers[d].find(f);
