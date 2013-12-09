@@ -2,6 +2,7 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
+platform_include=@platform_include@
 
 Name: libmega
 Description: Mega SDK
@@ -10,4 +11,4 @@ Requires:
 Conflicts:
 Libs: -L${libdir} -lmega
 Libs.private: @LIBS@
-Cflags: -I${includedir} -I${includedir}/mega -DUSE_SQLITE -DUSE_CRYPTOPP
+Cflags: -I${includedir} -I${includedir}/mega -I${includedir}/${platform_include}
