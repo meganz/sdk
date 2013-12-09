@@ -21,6 +21,8 @@
 
 #include <mega.h>
 
+using namespace mega;
+
 struct LsApp : public MegaApp
 {
     void nodes_updated(Node**, int);
@@ -33,7 +35,7 @@ struct LsApp : public MegaApp
 // globals
 MegaClient* client;
 static handle cwd = UNDEF;
-bool debug;
+bool mega::debug;
 
 static const char* accesslevels[] = { "read-only", "read/write", "full access" };
 
@@ -153,7 +155,7 @@ int main (int argc, char *argv[])
     debug = false;
 #endif
 
-    if (!getenv ("MEGA_EMAIL") && !getenv ("MEGA_PWD")) {
+    if (!getenv ("MEGA_EMAIL") || !getenv ("MEGA_PWD")) {
         cout << "Please set both MEGA_EMAIL and MEGA_PWD env variables!" << endl;
         return 1;
     }
