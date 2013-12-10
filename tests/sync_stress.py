@@ -1,23 +1,22 @@
-##
-# @file tests/sync_stress.ac
-# @brief Application for stress testing syncing algorithm
-#
-# (c) 2013 by Mega Limited, Wellsford, New Zealand
-#
-# This file is part of the MEGA SDK - Client Access Engine.
-#
-# Applications using the MEGA API must present a valid application key
-# and comply with the the rules set forth in the Terms of Service.
-#
-# The MEGA SDK is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-#
-# @copyright Simplified (2-clause) BSD License.
-#
-# You should have received a copy of the license along with this
-# program.
-##
+"""
+ Application for stress testing syncing algorithm
+
+ (c) 2013 by Mega Limited, Wellsford, New Zealand
+
+ This file is part of the MEGA SDK - Client Access Engine.
+
+ Applications using the MEGA API must present a valid application key
+ and comply with the the rules set forth in the Terms of Service.
+
+ The MEGA SDK is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+ @copyright Simplified (2-clause) BSD License.
+
+ You should have received a copy of the license along with this
+ program.
+"""
 
 import sys
 import os
@@ -52,8 +51,10 @@ class Action:
     def get_random_str (self, size=10, chars = string.ascii_uppercase + string.digits):
         return ''.join (random.choice (chars) for x in range (size))
 
-# produce random data
     def fdata (self):
+        """
+        Produce random data
+        """
         a = collections.deque (self.words)
         b = collections.deque (self.seed)
         while True:
@@ -62,17 +63,21 @@ class Action:
             b.rotate (1)
 
 
-# create a file with the given length
     def create_file (self, fname, flen):
+        """
+        Create a file with the given length
+        """
         g = self.fdata ()
         fout = open (fname, 'w')
         while os.path.getsize (fname) < flen:
             fout.write (g.next())
         fout.close ()
 
-# must be the first action to be called
-# create a file / dir with a random name
     def create (self):
+        """
+        Create a file / dir with a random name
+        Must be the first action to be called
+        """
         # generate a random file / dir name
         self.base_name = self.get_random_str ()
         # set a full name
@@ -94,8 +99,10 @@ class Action:
         logging.info ('[create] [%s] %s', self.otype, self.full_name)
 
 
-# rename a file / dir
     def rename (self):
+        """
+        Rename a file / dir
+        """
         self.base_name = self.get_random_str ()
         new_name = self.base_sync_dir + "/" + self.base_name
 
@@ -107,8 +114,10 @@ class Action:
         logging.info ('[rename] [%s] %s => %s', self.otype, self.full_name, new_name)
         self.full_name = new_name
 
-# move out of sync dir
     def moveout (self):
+        """
+        Move out of sync dir
+        """
         new_name = self.tmp_dir + "/" + self.base_name
 
         try:
@@ -121,8 +130,10 @@ class Action:
         self.full_name = new_name
 
 
-# move into sync dir
     def movein (self):
+        """
+        Move into sync dir
+        """
         new_name = self.base_sync_dir + "/" + self.base_name
 
         try:
@@ -134,8 +145,10 @@ class Action:
         logging.info ('[movein] [%s] %s => %s', self.otype, self.full_name, new_name)
         self.full_name = new_name
 
-# delete file / dir
     def delete (self):
+        """
+        Delete file / dir
+        """
         if self.is_dir ():
             try:
                 shutil.rmtree (self.full_name)
@@ -152,8 +165,10 @@ class Action:
         self.full_name = ""
         self.base_name = ""
 
-# fill dir with random files
     def filldir (self):
+        """
+        fill dir with random files
+        """
         if self.is_file ():
             return
 
@@ -166,8 +181,10 @@ class Action:
         logging.info ('[filldir] [%s] created %d files', self.otype, max_files)
 
 
-# Worker class (run in a thread)
 class Worker (Thread):
+    """
+    Worker class (run in a thread)
+    """
     def __init__ (self, base_sync_dir, tmp_dir):
         Thread.__init__(self)
         self.base_sync_dir = base_sync_dir
@@ -209,7 +226,6 @@ class Worker (Thread):
                 logging.error ('Unknown command: %s', c)
 
 
-# app
 def main (num_workers, base_sync_dir, tmp_dir):
     random.seed (time.time())
 
