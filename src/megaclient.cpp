@@ -3638,7 +3638,7 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 
 						// create local folder and start notifications
 						ll = new LocalNode;
-						ll->init(l->sync,&ait->second,FOLDERNODE,l,localpath);
+						ll->init(l->sync,&localname,FOLDERNODE,l,localpath);
 						ll->setnode(rit->second);
 
 						syncdown(ll,localpath);
