@@ -177,10 +177,10 @@ class App ():
             ffname = self.local_folder_in + "/" + f["name"]
             try:
                 pass
-                shutil.rmtree (ffname)
+                os.remove (ffname)
             except:
                 self.logger.error("Failed to delete file: %s", ffname)
-                None
+                return False
 
         # give some time to sync files to remote folder
         self.logger.debug ("Sleeping ..")
@@ -214,11 +214,11 @@ class App ():
         self.local_folder_in = self.local_mount_in + "/" + rnd_folder
 
         self.logger.info ("IN folder: %s", self.local_folder_in)
-        #try:
-        #    os.makedirs (self.local_folder_in);
-        #except Exception, e:
-        #    self.logger.error("Failed to create directory: %s", self.local_folder_in)
-        #    return
+        try:
+            os.makedirs (self.local_folder_in);
+        except Exception, e:
+            self.logger.error("Failed to create directory: %s", self.local_folder_in)
+            return
 
         # create "out" folder
         #self.local_mount_out = self.work_folder + "/out"
