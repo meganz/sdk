@@ -99,41 +99,44 @@ static void createthumbnail(string* filename, unsigned size, string* result)
 		h = FreeImage_GetHeight(dib);
 	}
 
-	if (w < h)
+	if (w >= 20 && w >= 20)
 	{
-		h = h*size/w;
-		w = size;
-	}
-	else
-	{
-		w = w*size/h;
-		h = size;
-	}
+		if (w < h)
+		{
+			h = h*size/w;
+			w = size;
+		}
+		else
+		{
+			w = w*size/h;
+			h = size;
+		}
 
-	if ((tdib = FreeImage_Rescale(dib,w,h,FILTER_BILINEAR)))
-	{
-		FreeImage_Unload(dib);
-
-		dib = tdib;
-
-		if ((tdib = FreeImage_Copy(dib,(w-size)/2,(h-size)/3,size+(w-size)/2,size+(h-size)/3)))
+		if ((tdib = FreeImage_Rescale(dib,w,h,FILTER_BILINEAR)))
 		{
 			FreeImage_Unload(dib);
 
 			dib = tdib;
 
-			if ((hmem = FreeImage_OpenMemory()))
+			if ((tdib = FreeImage_Copy(dib,(w-size)/2,(h-size)/3,size+(w-size)/2,size+(h-size)/3)))
 			{
-				if (FreeImage_SaveToMemory(FIF_JPEG,dib,hmem,JPEG_BASELINE | JPEG_OPTIMIZE | 85))
+				FreeImage_Unload(dib);
+
+				dib = tdib;
+
+				if ((hmem = FreeImage_OpenMemory()))
 				{
-					BYTE* tdata;
-					DWORD tlen;
+					if (FreeImage_SaveToMemory(FIF_JPEG,dib,hmem,JPEG_BASELINE | JPEG_OPTIMIZE | 85))
+					{
+						BYTE* tdata;
+						DWORD tlen;
 
-					FreeImage_AcquireMemory(hmem,&tdata,&tlen);
-					result->assign((char*)tdata,tlen);
+						FreeImage_AcquireMemory(hmem,&tdata,&tlen);
+						result->assign((char*)tdata,tlen);
+					}
+
+					FreeImage_CloseMemory(hmem);
 				}
-
-				FreeImage_CloseMemory(hmem);
 			}
 		}
 	}
