@@ -98,10 +98,61 @@ AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sy
 
 # Checks for inotify support.
 AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
-AC_CHECK_FUNCS([inotify_init12], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
 
-#XXX: add detection of libcrypto++
-PKG_CHECK_MODULES([CRYPTO], [libcrypto++])
+#libcrypto++
+AC_MSG_CHECKING(for libcrypto++)
+cryptopp=false
+AC_ARG_WITH(cryptopp,
+  [  --with-cryptopp=PATH       base of libcrypto installation],
+  [AC_MSG_RESULT($with_cryptopp)
+   case $with_cryptopp in
+   no)
+    cryptopp=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
+        AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+            AC_MSG_ERROR([Could not find libcrypto++])
+    ])
+    cryptopp=true
+     ;;
+   *)
+    # set temp variables
+    LDFLAGS="-L$with_cryptopp/lib $LDFLAGS"
+    CPPFLAGS="-I$with_cryptopp/include $CPPFLAGS"
+
+    AC_CHECK_HEADERS(cryptopp/cryptlib.h,
+     EXT_LIB_PATH="-L$with_cryptopp/lib $EXT_LIB_PATH"
+     CRYPTO_CXXFLAGS="-L$with_cryptopp/lib"
+     CRYPTO_LDFLAGS="-I$with_cryptopp/include",
+     AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+     )
+    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+            AC_MSG_ERROR([Could not find libcrypto++])
+    ])
+
+    cryptopp=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-cryptopp not specified])
+    AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
+        AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+            AC_MSG_ERROR([Could not find libcrypto++])
+    ])
+  ])
+AC_SUBST(CRYPTO_CXXFLAGS)
+AC_SUBST(CRYPTO_LDFLAGS)
+AC_SUBST(CRYPTO_LIBS)
 AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcrypto++])
 
 # Check if building for Win32, determine Win32 API libs
@@ -144,7 +195,7 @@ AC_ARG_WITH(sqlite,
     AC_CHECK_HEADERS([sqlite3.h],, [
         AC_MSG_ERROR([sqlite3.h header not found or not usable])
     ])
-    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LDFLAGS="-lsqlite3"],[
+    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
             AC_MSG_ERROR([Could not find libsqlite3])
     ])
     sqlite=true
@@ -160,7 +211,7 @@ AC_ARG_WITH(sqlite,
      DB_CPPFLAGS="-I$with_sqlite/include",
      AC_MSG_ERROR([sqlite3.h header not found or not usable])
      )
-    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LDFLAGS="-lsqlite3"],[
+    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
             AC_MSG_ERROR([Could not find libsqlite3])
     ])
 
@@ -177,6 +228,7 @@ AC_ARG_WITH(sqlite,
 AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
 AC_SUBST(DB_CPPFLAGS)
 AC_SUBST(DB_LDFLAGS)
+AC_SUBST(DB_LIBS)
 
 # Berkeley DB
 db=false
@@ -225,6 +277,7 @@ AC_ARG_WITH(db,
 AM_CONDITIONAL(USE_DB, test "x$db = xtrue")
 AC_SUBST(DB_CPPFLAGS)
 AC_SUBST(DB_LDFLAGS)
+AC_SUBST(DB_LIBS)
 
 # check if both DB layers are selected
 if test "x$sqlite" = "xtrue" ; then
@@ -241,7 +294,7 @@ if test "x$sqlite" = "xfalse" ; then
         AC_CHECK_HEADERS([sqlite3.h],, [
             AC_MSG_ERROR([sqlite3.h header not found or not usable])
         ])
-        AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LDFLAGS="-lsqlite3"],[
+        AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
                 AC_MSG_ERROR([Could not find libsqlite3])
         ])
         sqlite=true
@@ -249,6 +302,7 @@ if test "x$sqlite" = "xfalse" ; then
         AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
         AC_SUBST(DB_CPPFLAGS)
         AC_SUBST(DB_LDFLAGS)
+        AC_SUBST(DB_LIBS)
     fi
 fi
 
@@ -290,9 +344,8 @@ AC_ARG_ENABLE(debug,
 
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
-    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
-else
-    CXXFLAGS="$CXXFLAGS"
+    AM_CXXFLAGS="${AM_CXXFLAGS} -Wall -g -ggdb3 -O0"
+    AC_SUBST([AM_CXXFLAGS])
 fi
 
 # Examples
@@ -317,7 +370,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([FreeImage.h],, [
             AC_MSG_ERROR([FreeImage.h header not found or not usable])
         ])
-        AC_CHECK_LIB([freeimage], [FreeImage_Load], [], [
+        AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
             AC_MSG_ERROR([FreeImage library is required for the sample client.])])
 
          ;;
@@ -332,7 +385,7 @@ if test "x$enable_examples" = "xyes" ; then
          FI_CPPFLAGS="-I$with_freeimage/include",
          AC_MSG_ERROR([FreeImage.h header not found or not usable])
          )
-        AC_CHECK_LIB([freeimage], [FreeImage_Load], [], [
+        AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
             AC_MSG_ERROR([FreeImage library is required for the sample client.])])
 
         #restore
@@ -345,11 +398,12 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([FreeImage.h],, [
             AC_MSG_ERROR([FreeImage.h header not found or not usable])
         ])
-        AC_CHECK_LIB([freeimage], [FreeImage_Load], [], [
+        AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
             AC_MSG_ERROR([FreeImage library is required for the sample client.])])
       ]
       )
       AC_SUBST(FI_LDFLAGS)
+      AC_SUBST(FI_LIBS)
       AC_SUBST(FI_CPPFLAGS)
 
       # ReadLine
@@ -364,7 +418,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [], [
+        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
          ;;
@@ -379,7 +433,7 @@ if test "x$enable_examples" = "xyes" ; then
          RL_CPPFLAGS="-I$with_readline/include",
          AC_MSG_ERROR([readline/readline.h header not found or not usable])
          )
-        AC_CHECK_LIB([readline], [rl_redisplay], [], [
+        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
@@ -392,11 +446,12 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [], [
+        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
       ]
       )
       AC_SUBST(RL_LDFLAGS)
+      AC_SUBST(RL_LIBS)
       AC_SUBST(RL_CPPFLAGS)
 fi
 

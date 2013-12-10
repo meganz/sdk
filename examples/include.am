@@ -11,8 +11,8 @@ $(EXAMPLES): $(top_builddir)/src/libmega.la
 # rules
 examples_megacli_SOURCES = examples/megacli.cpp
 examples_megacli_CXXFLAGS = $(FI_CPPFLAGS) $(RL_CPPFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CPPFLAGS)
-examples_megacli_LDADD = $(FI_LDFLAGS) $(RL_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(top_builddir)/src/libmega.la
+examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(top_builddir)/src/libmega.la
 
 examples_megasync_SOURCES = examples/megasync.cpp
 examples_megasync_CXXFLAGS = $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CPPFLAGS)
-examples_megasync_LDADD = $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(top_builddir)/src/libmega.la
+examples_megasync_LDADD = $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(top_builddir)/src/libmega.la
