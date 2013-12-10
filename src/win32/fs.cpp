@@ -93,6 +93,7 @@ time_t FileTime_to_POSIX(FILETIME* ft)
 // FIXME: use CreateFileW() to open the directory instead of FindFirstFileW()? How to read such a directory?
 bool WinFileAccess::fopen(string* name, bool read, bool write)
 {
+assert(!(name->size()&1));
 	name->append("",1);
 	hFile = CreateFileW((LPCWSTR)name->data(),read ? GENERIC_READ : GENERIC_WRITE,FILE_SHARE_WRITE | FILE_SHARE_READ,NULL,read ? OPEN_EXISTING : OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
 	name->resize(name->size()-1);
@@ -198,10 +199,12 @@ void WinFileSystemAccess::path2local(string* path, string* local)
 	local->resize((path->size()+1)*sizeof(wchar_t));
 
 	local->resize(sizeof(wchar_t)*(MultiByteToWideChar(CP_UTF8,0,path->c_str(),-1,(wchar_t*)local->data(),local->size()/sizeof(wchar_t)+1)-1));
+assert(!(local->size()&1));
 }
 
 void WinFileSystemAccess::local2path(string* local, string* path)
 {
+assert(!(local->size()&1));
 	path->resize((local->size()+1)*4/sizeof(wchar_t));
 
 	path->resize(WideCharToMultiByte(CP_UTF8,0,(wchar_t*)local->data(),local->size()/sizeof(wchar_t),(char*)path->data(),path->size()+1,NULL,NULL));
@@ -231,6 +234,7 @@ void WinFileSystemAccess::name2local(string* filename, const char* badchars)
 
 	// resize to actual result
 	filename->resize(sizeof(wchar_t)*(MultiByteToWideChar(CP_UTF8,0,t.c_str(),-1,(wchar_t*)filename->data(),filename->size()/sizeof(wchar_t)+1)-1));
+assert(!(filename->size()&1));
 }
 
 // unescape escaped forbidden characters
@@ -239,7 +243,7 @@ void WinFileSystemAccess::local2name(string* filename)
 {
 	char c;
 	string t = *filename;
-
+assert(!(filename->size()&1));
 	filename->resize((t.size()+1)*4/sizeof(wchar_t));
 
 	filename->resize(WideCharToMultiByte(CP_UTF8,0,(wchar_t*)t.data(),t.size()/sizeof(wchar_t),(char*)filename->data(),filename->size()+1,NULL,NULL));
@@ -257,6 +261,8 @@ void WinFileSystemAccess::local2name(string* filename)
 // FIXME: if a folder rename fails because the target exists, do a top-down recursive copy/delete
 bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 {
+assert(!(oldname->size()&1));
+assert(!(newname->size()&1));
 	oldname->append("",1);
 	newname->append("",1);
 	bool r = !!MoveFileExW((LPCWSTR)oldname->data(),(LPCWSTR)newname->data(),MOVEFILE_REPLACE_EXISTING);
@@ -270,6 +276,8 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 
 bool WinFileSystemAccess::copylocal(string* oldname, string* newname)
 {
+assert(!(oldname->size()&1));
+assert(!(newname->size()&1));
 	oldname->append("",1);
 	newname->append("",1);
 	bool r = !!CopyFileW((LPCWSTR)oldname->data(),(LPCWSTR)newname->data(),FALSE);
@@ -283,6 +291,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname)
 
 bool WinFileSystemAccess::rubbishlocal(string* name)
 {
+assert(!(name->size()&1));
 	name->append("",1);
 	string tmpname((MAX_PATH+1)*sizeof(wchar_t),0);
 
@@ -326,6 +335,7 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 
 bool WinFileSystemAccess::rmdirlocal(string* name)
 {
+assert(!(name->size()&1));
 	name->append("",1);
 	int r = !!RemoveDirectoryW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
@@ -337,6 +347,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 
 bool WinFileSystemAccess::unlinklocal(string* name)
 {
+assert(!(name->size()&1));
 	name->append("",1);
 	int r = !!DeleteFileW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
@@ -348,6 +359,7 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 
 bool WinFileSystemAccess::mkdirlocal(string* name)
 {
+assert(!(name->size()&1));
 	name->append("",1);
 	int r = !!CreateDirectoryW((LPCWSTR)name->data(),NULL);
 	name->resize(name->size()-1);
@@ -359,6 +371,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name)
 
 bool WinFileSystemAccess::setmtimelocal(string* name, time_t mtime)
 {
+assert(!(name->size()&1));
 	FILETIME lwt;
 	LONGLONG ll;
 	HANDLE hFile;
@@ -382,6 +395,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, time_t mtime)
 
 bool WinFileSystemAccess::chdirlocal(string* name)
 {
+assert(!(name->size()&1));
 	name->append("",1);
 	int r = SetCurrentDirectoryW((LPCWSTR)name->data());
 	name->resize(name->size()-1);
@@ -509,7 +523,7 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 					{
 						localname->assign((char*)wbase,(wptr-wbase)*sizeof(wchar_t));
 						*localnodep = l;
-
+assert(!(localname->size()&1));
 						dn->notifyq.pop_front();
 
 						// need to scan new folders fully (no notification for contained items!)
@@ -545,6 +559,7 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 
 bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 {
+assert(!(name->size()&1));
 	if (f)
 	{
 		if ((hFind = ((WinFileAccess*)f)->hFind) != INVALID_HANDLE_VALUE)
@@ -590,6 +605,7 @@ bool WinDirAccess::dnext(string* name, nodetype* type)
 			name->insert(0,globbase);
 
 			if (type) *type = (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+assert(!(name->size()&1));
 
 			ffdvalid = false;
 			return true;
