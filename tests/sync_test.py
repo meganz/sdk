@@ -33,19 +33,18 @@ import logging
 import subprocess
 
 class App ():
-    def __init__(self, work_folder, remote_folder):
+    def __init__(self, local_mount_in, local_mount_out, remote_folder):
         """
         work_folder: a temporary folder to place generated files
         remote_folder: a remote folder to sync
         """
-        self.work_folder = work_folder
         self.remote_folder = remote_folder
-        self.megasync_pid_in = None
-        self.megasync_pid_out = None
+        #self.megasync_pid_in = None
+        #self.megasync_pid_out = None
         self.local_folder_in = ""
         self.local_folder_out = ""
-        self.local_mount_in = ""
-        self.local_mount_out = ""
+        self.local_mount_in = local_mount_in
+        self.local_mount_out = local_mount_out
         self.nr_retries = 10
         self.l_files = []
         random.seed (time.time())
@@ -156,6 +155,7 @@ class App ():
                     break;
                 except:
                     # wait for a file
+                    self.logger.debug ("Retrying [%d/%d] ..", r + 1, self.nr_retries)
                     time.sleep(5)
             if success == False:
                 self.logger.error("Failed to CHECK file: %s", ffname)
@@ -183,6 +183,7 @@ class App ():
                 None
 
         # give some time to sync files to remote folder
+        self.logger.debug ("Sleeping ..")
         time.sleep (10)
 
         success = False
@@ -192,6 +193,7 @@ class App ():
                 try:
                     # file must be deleted
                     with open(ffname) as fil: pass
+                    self.logger.debug ("Retrying [%d/%d] ..", r + 1, self.nr_retries)
                     time.sleep (2)
                 except:
                     success = True
@@ -208,35 +210,29 @@ class App ():
         self.logger.info ("Starting ..")
         rnd_folder = self.get_random_str ()
         # create "in" folder
-        self.local_mount_in = self.work_folder + "/in"
+        #self.local_mount_in = self.work_folder + "/in"
         self.local_folder_in = self.local_mount_in + "/" + rnd_folder
 
         self.logger.info ("IN folder: %s", self.local_folder_in)
-        try:
-            os.makedirs (self.local_folder_in);
-        except Exception, e:
-            self.logger.error("Failed to create directory: %s", self.local_folder_in)
-            return
+        #try:
+        #    os.makedirs (self.local_folder_in);
+        #except Exception, e:
+        #    self.logger.error("Failed to create directory: %s", self.local_folder_in)
+        #    return
 
         # create "out" folder
-        self.local_mount_out = self.work_folder + "/out"
+        #self.local_mount_out = self.work_folder + "/out"
         self.local_folder_out = self.local_mount_out + "/" + rnd_folder
         self.logger.info ("OUT folder: %s", self.local_folder_out)
-        try:
-            os.makedirs (self.local_folder_out);
-        except Exception, e:
-            self.logger.error("Failed to create directory: %s", self.local_folder_out)
-            return
 
         # start "in" instance
-        self.megasync_pid_in = self.start_megasync (self.local_mount_in)
+        #self.megasync_pid_in = self.start_megasync (self.local_mount_in)
         # start "out" instance
-        self.megasync_pid_out = self.start_megasync (self.local_mount_out)
-
+        #self.megasync_pid_out = self.start_megasync (self.local_mount_out)
         # check both instances
-        if self.megasync_pid_in == None or self.megasync_pid_out == None:
-            self.logger.error("Failed to start megasync instance.")
-            return
+        #if self.megasync_pid_in == None or self.megasync_pid_out == None:
+        #    self.logger.error("Failed to start megasync instance.")
+        #    return
 
         #
         # run tests
@@ -251,6 +247,7 @@ class App ():
             return
 
         # wait for a bit
+        self.logger.debug ("Sleeping ..")
         time.sleep (2)
 
         self.logger.info ( "Testing files remove ...")
@@ -263,6 +260,7 @@ class App ():
             return
 
         # wait for a bit
+        self.logger.debug ("Sleeping ..")
         time.sleep (2)
 
         self.cleanup (True)
@@ -273,14 +271,14 @@ class App ():
         kill megasync instances, remove temp folders
         """
         # kill instances
-        try:
-            os.kill (self.megasync_pid_in, signal.SIGINT)
-        except Exception, e:
-            self.logger.error ("Failed to kill megasync processes !")
-        try:
-            os.kill (self.megasync_pid_out, signal.SIGINT)
-        except Exception, e:
-            self.logger.error ("Failed to kill megasync processes !")
+        #try:
+        #    os.kill (self.megasync_pid_in, signal.SIGINT)
+        #except Exception, e:
+        #    self.logger.error ("Failed to kill megasync processes !")
+        #try:
+        #    os.kill (self.megasync_pid_out, signal.SIGINT)
+        #except Exception, e:
+        #    self.logger.error ("Failed to kill megasync processes !")
 
         # remove tmp folders if no errors
         if res == True:
@@ -300,11 +298,16 @@ class App ():
 
 
 if __name__ == "__main__":
-    if len (sys.argv) < 2:
-        print "Please run as:  python " + sys.argv[0] + " [working directory] [remote folder to sync]"
-        print "set MEGA_EMAIL and MEGA_PWD environment variables"
-        print "set MEGA_DEBUG environment variable to see JSON input / output data"
+    if len (sys.argv) < 4:
+        print "Please run as:  python " + sys.argv[0] + " [upsync folder] [downsync folder] [remote folder name]"
         sys.exit (1)
 
-    app = App (sys.argv[1], sys.argv[2])
+    print ""
+    print "1) Start the first [megacli] and run:  sync " + sys.argv[1] + " "+ sys.argv[3]
+    print "2) Start the second [megacli] and run:  sync " + sys.argv[2] + " "+ sys.argv[3]
+    print "3) Wait for both folders get fully sinced"
+    print "4) Run sync_test.py"
+    print ""
+    time.sleep (1)
+    app = App (sys.argv[1], sys.argv[2], sys.argv[3])
     app.run ()
