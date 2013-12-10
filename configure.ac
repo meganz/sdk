@@ -98,7 +98,7 @@ AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sy
 
 # Checks for inotify support.
 AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
-AC_CHECK_FUNCS([inotify_init12], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
 
 #libcrypto++
 AC_MSG_CHECKING(for libcrypto++)
