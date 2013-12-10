@@ -107,7 +107,6 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 		{
 			// this could be a directory, try to enumerate...
 			name->append((char*)L"\\*",5);
-
 			hFind = FindFirstFileW((LPCWSTR)name->data(),&ffd);
 			name->resize(name->size()-5);
 
@@ -298,6 +297,7 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 		tmpname.resize(rr*sizeof(wchar_t));
 		rr = GetFullPathNameW((LPCWSTR)name->data(),rr,(LPWSTR)tmpname.data(),NULL);
 	}
+	name->resize(name->size()-1);
 
 	if (!rr) return false;
 
