@@ -30,6 +30,7 @@ import collections
 import signal
 import hashlib
 import logging
+import subprocess
 
 class App ():
     def __init__(self, work_folder, remote_folder):
@@ -107,26 +108,16 @@ class App ():
         fork and launch "megasync" application
         local_folder: local folder to sync
         """
-        try:
-            pid = os.fork ()
-        except OSError, e:
-            self.logger.error("Failed to start megasync")
-            return 0
-
         # launch megasync
-        if pid == 0:
-            base_path = os.path.join(os.path.dirname(__file__), '..')
-            bin_path = os.path.join(base_path, "examples")
-            args = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
-
-            try:
-                os.execv(args[0], args)
-            except OSError, e:
-                self.logger.error( "Failed to start megasync")
-                return 0
-        else:
-            return pid
-
+        base_path = os.path.join(os.path.dirname(__file__), '..')
+        bin_path = os.path.join(base_path, "examples")
+        args = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
+        try:
+            ch = subprocess.Popen(args, shell = False)
+        except OSError, e:
+            self.logger.error( "Failed to start megasync")
+            return None
+        return ch
 
     def test_create (self):
         """
@@ -160,7 +151,7 @@ class App ():
             # try to access the file
             for r in range (0, self.nr_retries):
                 try:
-                    with open(ffname) as f: pass
+                    with open(ffname) as fil: pass
                     success = True
                     break;
                 except:
@@ -200,7 +191,7 @@ class App ():
             for r in range (0, self.nr_retries):
                 try:
                     # file must be deleted
-                    with open(ffname) as f: pass
+                    with open(ffname) as fil: pass
                     time.sleep (2)
                 except:
                     success = True
@@ -215,9 +206,10 @@ class App ():
         prepare and run tests
         """
         self.logger.info ("Starting ..")
+        rnd_folder = self.get_random_str ()
         # create "in" folder
         self.local_mount_in = self.work_folder + "/in"
-        self.local_folder_in = self.local_mount_in + "/" + self.get_random_str ()
+        self.local_folder_in = self.local_mount_in + "/" + rnd_folder
 
         self.logger.info ("IN folder: %s", self.local_folder_in)
         try:
@@ -228,7 +220,7 @@ class App ():
 
         # create "out" folder
         self.local_mount_out = self.work_folder + "/out"
-        self.local_folder_out = self.local_mount_out + "/" + self.get_random_str ()
+        self.local_folder_out = self.local_mount_out + "/" + rnd_folder
         self.logger.info ("OUT folder: %s", self.local_folder_out)
         try:
             os.makedirs (self.local_folder_out);
@@ -242,7 +234,7 @@ class App ():
         self.megasync_pid_out = self.start_megasync (self.local_mount_out)
 
         # check both instances
-        if self.megasync_pid_in == 0 or self.megasync_pid_out == 0:
+        if self.megasync_pid_in == None or self.megasync_pid_out == None:
             self.logger.error("Failed to start megasync instance.")
             return
 
