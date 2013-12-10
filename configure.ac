@@ -344,9 +344,8 @@ AC_ARG_ENABLE(debug,
 
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
-    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
-else
-    CXXFLAGS="$CXXFLAGS"
+    AM_CXXFLAGS="${AM_CXXFLAGS} -Wall -g -ggdb3 -O0"
+    AC_SUBST([AM_CXXFLAGS])
 fi
 
 # Examples
