@@ -63,6 +63,8 @@ dstime TestWaiter::getdstime()
 // return at once, as we don't have to wait for any custom events
 int TestWaiter ::wait()
 {
+    // sleep for a tiny amount of time
+    usleep (200);
     return NEEDEXEC;
 }
 
