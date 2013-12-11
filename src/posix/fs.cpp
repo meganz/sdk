@@ -175,6 +175,12 @@ void PosixFileSystemAccess::local2name(string* filename)
 	}
 }
 
+// no legacy DOS garbage here...
+bool PosixFileSystemAccess::getsname(string*, string*)
+{
+	return false;
+}
+
 bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname)
 {
 	return !rename(oldname->c_str(),newname->c_str());

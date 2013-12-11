@@ -239,7 +239,7 @@ void WinFileSystemAccess::local2name(string* filename)
 {
 	char c;
 	string t = *filename;
-if ((filename->size()&1)) *((char*)0) = 0;
+
 	filename->resize((t.size()+1)*4/sizeof(wchar_t));
 
 	filename->resize(WideCharToMultiByte(CP_UTF8,0,(wchar_t*)t.data(),t.size()/sizeof(wchar_t),(char*)filename->data(),filename->size()+1,NULL,NULL));
@@ -252,6 +252,41 @@ if ((filename->size()&1)) *((char*)0) = 0;
 			filename->replace(i,3,&c,1);
 		}
 	}
+}
+
+// write short name of the last path component to sname
+bool WinFileSystemAccess::getsname(string* name, string* sname)
+{
+	int r, rr;
+
+	name->append("",1);
+
+	r = name->size()/sizeof(wchar_t)+1;
+
+	sname->resize(r*sizeof(wchar_t));
+	rr = GetShortPathNameW((LPCWSTR)name->data(),(LPWSTR)sname->data(),r);
+	sname->resize(rr*sizeof(wchar_t));
+
+	if (rr >= r)
+	{
+		rr = GetShortPathNameW((LPCWSTR)name->data(),(LPWSTR)sname->data(),rr);
+		sname->resize(rr*sizeof(wchar_t));
+	}
+
+	name->resize(name->size()-1);
+
+	if (!rr)
+	{
+		sname->clear();
+		return false;
+	}
+
+	// we are only interested in the path's last component
+	wchar_t* ptr;
+
+	if ((ptr = wcsrchr((wchar_t*)sname->data(),'\\')) || (ptr = wcsrchr((wchar_t*)sname->data(),':'))) sname->erase(0,(char*)ptr-sname->data()+sizeof(wchar_t));
+
+	return true;
 }
 
 // FIXME: if a folder rename fails because the target exists, do a top-down recursive copy/delete
@@ -391,8 +426,6 @@ bool WinFileSystemAccess::chdirlocal(string* name)
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
-printf("%lu %lu\n",dwErrorCode,dwBytes);
-
 	if (dwErrorCode != ERROR_OPERATION_ABORTED && dwBytes) ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
 }
 
@@ -495,7 +528,7 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 					{
 						name.assign((char*)wbase,(wptr-wbase)*sizeof(wchar_t));
 
-						if ((lit = l->children.find(&name)) != l->children.end())
+						if ((lit = l->children.find(&name)) != l->children.end() || (lit = l->schildren.find(&name)) != l->schildren.end())
 						{
 							l = lit->second;
 							wbase = wptr+1;
