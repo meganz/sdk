@@ -254,6 +254,41 @@ void WinFileSystemAccess::local2name(string* filename)
 	}
 }
 
+// write short name of the last path component to sname
+bool WinFileSystemAccess::getsname(string* name, string* sname)
+{
+	int r, rr;
+
+	name->append("",1);
+
+	r = name->size()/sizeof(wchar_t)+1;
+
+	sname->resize(r*sizeof(wchar_t));
+	rr = GetShortPathNameW((LPCWSTR)name->data(),(LPWSTR)sname->data(),r);
+	sname->resize(rr*sizeof(wchar_t));
+
+	if (rr >= r)
+	{
+		rr = GetShortPathNameW((LPCWSTR)name->data(),(LPWSTR)sname->data(),rr);
+		sname->resize(rr*sizeof(wchar_t));
+	}
+
+	name->resize(name->size()-1);
+
+	if (!rr)
+	{
+		sname->clear();
+		return false;
+	}
+
+	// we are only interested in the path's last component
+	wchar_t* ptr;
+
+	if ((ptr = wcsrchr((wchar_t*)sname->data(),'\\')) || (ptr = wcsrchr((wchar_t*)sname->data(),':'))) sname->erase(0,(char*)ptr-sname->data()+sizeof(wchar_t));
+
+	return true;
+}
+
 // FIXME: if a folder rename fails because the target exists, do a top-down recursive copy/delete
 bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 {
@@ -493,7 +528,7 @@ bool WinFileSystemAccess::notifynext(sync_list* syncs, string* localname, LocalN
 					{
 						name.assign((char*)wbase,(wptr-wbase)*sizeof(wchar_t));
 
-						if ((lit = l->children.find(&name)) != l->children.end())
+						if ((lit = l->children.find(&name)) != l->children.end() || (lit = l->schildren.find(&name)) != l->schildren.end())
 						{
 							l = lit->second;
 							wbase = wptr+1;
