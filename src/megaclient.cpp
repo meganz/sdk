@@ -28,7 +28,7 @@ namespace mega {
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: Sync: recognize folder renames and use setattr() instead of potentially huge delete/putnodes sequences
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creaton load on the servers
-// FIXME: support filesystems with timestamp resolutions > 1 s (FAT)?
+// FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
 
 // root URL for API access
 const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";

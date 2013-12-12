@@ -185,7 +185,7 @@ void TransferSlot::doio(MegaClient* client)
 
 			if (npos > transfer->size) npos = transfer->size;
 
-			if (npos > transfer->pos || !transfer->size)
+			if (npos > transfer->pos || (!transfer->size && !i))
 			{
 				if (!reqs[i]) reqs[i] = (transfer->type == PUT) ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
 
