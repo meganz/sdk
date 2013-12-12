@@ -39,12 +39,12 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], [mega_version], [https://github.com/megaprivacy])
 
-AM_INIT_AUTOMAKE([1.10 foreign silent-rules])
+AM_INIT_AUTOMAKE([1.11 foreign silent-rules])
 AC_CONFIG_HEADERS([include/mega/config.h])
 LT_INIT([shared static win32-dll])
 AC_CONFIG_MACRO_DIR([m4])
 # enable silent build
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
+m4_ifndef([AM_SILENT_RULES], [m4_define([AM_SILENT_RULES],[])])
 AM_SILENT_RULES([yes])
 
 MEGA_MAJOR_VERSION=mega_major_version
