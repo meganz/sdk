@@ -86,9 +86,11 @@ input/output correctly if run in cmd.exe.
 Filename caveats: Please prefix all paths with `\\?\` to avoid the following
 issues:
 
-- The `MAX_PATH` (260 character) length limitation, which would make it
+* The `MAX_PATH` (260 character) length limitation, which would make it
 impossible to access files in deep directory structures
 
-- Prohibited filenames (`con`/`prn`/`aux`/`clock$`/`nul`/`com1`...`com9`/`lpt1`...`lpt9`).
+* Prohibited filenames (`con`/`prn`/`aux`/`clock$`/`nul`/`com1`...`com9`/`lpt1`...`lpt9`).
 Such files and folders will still be inaccessible through e.g. Explorer!
 
+Also, disable automatic short name generation to eliminate the risk of
+clashes with existing short names.
