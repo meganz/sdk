@@ -1847,7 +1847,7 @@ void MegaClient::notifypurge(void)
 					{
 						FileAccess* fa = fsaccess->newfileaccess();
 
-						if (fa->fopen(&localpath,1,0))
+						if (fa->fopen(&localpath,true,false))
 						{
 							if (fa->mtime == n->mtime)
 							{
@@ -1898,7 +1898,7 @@ void MegaClient::notifypurge(void)
 
 				delete n;
 			}
-			else n->notified = 0;
+			else n->notified = false;
 		}
 
 		nodenotify.clear();
@@ -2991,7 +2991,7 @@ void MegaClient::notifynode(Node* n)
 {
 	if (!n->notified)
 	{
-		n->notified = 1;
+		n->notified = true;
 		nodenotify.push_back(n);
 	}
 }
