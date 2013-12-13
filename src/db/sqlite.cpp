@@ -19,6 +19,8 @@
  * program.
  */
 
+#ifdef USE_SQLITE
+
 #include "mega.h"
 
 namespace mega {
@@ -179,3 +181,5 @@ void SqliteDbTable::abort()
 }
 
 } // namespace
+
+#endif

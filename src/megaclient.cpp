@@ -293,6 +293,8 @@ void MegaClient::init()
 	xferpaused[GET] = false;
 	
 	putmbpscap = 0;
+	
+	scnotifyurl.clear();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, const char* k)
