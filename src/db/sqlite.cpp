@@ -19,10 +19,9 @@
  * program.
  */
 
-#ifdef USE_SQLITE
-
 #include "mega.h"
 
+#ifdef USE_SQLITE
 namespace mega {
 
 SqliteDbAccess::SqliteDbAccess(string* path)
