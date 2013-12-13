@@ -286,7 +286,13 @@ int main (int argc, char *argv[])
         mega::debug = true;
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
-    client = new MegaClient(new SyncApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS, new DBACCESS_CLASS, "megasync");
+    client = new MegaClient(new SyncApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS,
+#ifdef DBACCESS_CLASS
+	new DBACCESS_CLASS,
+#else
+	NULL,
+#endif
+    "megasync");
 
     // get values from env
     client->pw_key (getenv ("MEGA_PWD"), pwkey);
