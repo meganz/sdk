@@ -82,15 +82,18 @@ dstime TestWaiter::getdstime()
     clock_gettime(CLOCK_MONOTONIC,&ts);
 
     return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
-
 #endif
 }
 
 // return at once, as we don't have to wait for any custom events
 int TestWaiter ::wait()
 {
+#ifdef _WIN32
+    Sleep (200);
+#else
     // sleep for a tiny amount of time
     usleep (200);
+#endif
     return NEEDEXEC;
 }
 
