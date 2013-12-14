@@ -20,7 +20,12 @@
  */
 
 #include "mega.h"
-#include "megacli.h"
+
+#ifdef _WIN32
+#include <conio.h>
+#endif
+
+using namespace mega;
 
 struct SyncApp : public MegaApp
 {
@@ -36,6 +41,8 @@ struct TestWaiter : public Waiter
 {
     dstime getdstime();
 #ifdef _WIN32
+	typedef ULONGLONG (WINAPI* PGTC)();
+
     PGTC pGTC;
 	ULONGLONG tickhigh;
 	DWORD prevt;
