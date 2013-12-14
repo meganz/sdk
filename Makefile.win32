@@ -46,4 +46,4 @@ megacli: $(OBJECTS)
 	$(CXX) -c $(CFLAGS) $< -o $@
 
 clean:
-	rm $(OBJECTS) $(PROGS) $(PROGS:=.o)
+	-rm $(OBJECTS) $(PROGS) $(PROGS:=.o)
