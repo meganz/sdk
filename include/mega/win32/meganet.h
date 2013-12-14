@@ -26,6 +26,7 @@
 
 #include "megawait.h"
 
+#include <specstrings.h>
 #include <winhttp.h>
 #include <shellapi.h>
 
