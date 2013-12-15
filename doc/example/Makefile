@@ -6,7 +6,7 @@ OBJECTS=$(SOURCES:.cpp=.o)
 #DEBUG_FLAG=-DDEBUG=1
 DEBUG_FLAG=
 CXXFLAGS=$(DEBUG_FLAG) -Wall `pkg-config --cflags libmega libcrypto++` `curl-config --cflags`
-LDFLAGS=`pkg-config --libs libmega libcrypto++` `curl-config --libs`
+LDFLAGS=`pkg-config --libs libmega libcrypto++` `curl-config --libs` -lrt
 
 all: $(TARGET)
 
@@ -16,7 +16,7 @@ all: $(TARGET)
 
 # apps
 $(TARGET): $(OBJECTS)
-	$(CXX) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LIB)
+	$(CXX) $(CFLAGS) $^ -o $@ $(LIB) $(LDFLAGS) 
 
 clean:
 	-rm $(TARGET)
