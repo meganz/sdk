@@ -75,7 +75,7 @@ struct Transfer : public FileFingerprint
 
 	// backlink to base
 	MegaClient* client;
-
+	int tag;
 	Transfer(MegaClient*, direction);
 	virtual ~Transfer();
 };
