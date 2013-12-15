@@ -102,7 +102,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
 		DWORD e = GetLastError();
-
+		
 		if (e == ERROR_ACCESS_DENIED)
 		{
 			// this could be a directory, try to enumerate...
@@ -116,7 +116,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 				return true;
 			}
 		}
-
+		
 		retry = WinFileSystemAccess::istransient(e);
 		return false;
 	}
@@ -171,7 +171,7 @@ bool WinFileSystemAccess::istransient(DWORD e)
 bool WinFileSystemAccess::istransientorexists(DWORD e)
 {
 	target_exists = e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS;
-
+	
 	return istransient(e);
 }
 
@@ -299,7 +299,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 	oldname->resize(oldname->size()-1);
 
 	if (!r) transient_error = istransientorexists(GetLastError());
-
+	
 	return r;
 }
 
@@ -349,13 +349,13 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 	fileop.hNameMappings = NULL;
 
 	int e = SHFileOperationW(&fileop);
-
+	
 	if (!e) return true;
 
 	transient_error = istransient(e);
-
+	
 	return false;
-
+	
 	// FIXME: fall back to recursive DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
 }
 
@@ -366,7 +366,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 	name->resize(name->size()-1);
 
 	if (!r) transient_error = istransient(GetLastError());
-
+	
 	return r;
 }
 

@@ -22,7 +22,7 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS WinHttpIO
 
-#include "../megaclient.h"
+#include "mega/megaclient.h"
 
 #include "megawait.h"
 
