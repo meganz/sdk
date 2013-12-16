@@ -417,9 +417,15 @@ public:
 	// added to a synced folder
 	handle_set syncadded;
 
-	// deleted from a synced folder (split by FILENODE/FOLDERNODE)
+	// deleted from a remote synced folder (split by FILENODE/FOLDERNODE)
 	handle_set syncdeleted[2];
 
+	// vanished from a local synced folder
+	localnode_set localsyncnotseen;
+	
+	// maps local fsid to corresponding LocalNode*
+	handlelocalnode_map fsidnode;
+	
 	// overwritten in a sync'ed folder
 	syncidhandle_map syncoverwritten;
 
