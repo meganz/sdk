@@ -54,4 +54,7 @@ megasync: $(OBJECTS_COMMON) $(OBJECTS_MEGASYNC)
 	$(CXX) -c $(CFLAGS) $< -o $@
 
 clean:
-	-rm $(OBJECTS) $(PROGS) $(PROGS:=.o)
+	-rm $(OBJECTS_COMMON)
+	-rm $(OBJECTS_MEGACLI)
+	-rm $(OBJECTS_MEGASYNC)
+	-rm $(PROGS:=.exe)
