@@ -395,9 +395,20 @@ void DemoApp::syncupdate_local_file_deletion(Sync* sync, const char* path)
 	syncstat(sync);
 }
 
-void DemoApp::syncupdate_remote_move(string* from, string* to)
+void DemoApp::syncupdate_local_file_change(Sync* sync, const char* path)
+{
+	cout << "Sync - local file change detected: " << path;
+	syncstat(sync);
+}
+
+void DemoApp::syncupdate_local_move(Sync*, const char* from, const char* to)
 {
 	cout << "Sync - local rename/move " << *from << " -> " << *to << endl;
+}
+
+void DemoApp::syncupdate_remote_move(string* from, string* to)
+{
+	cout << "Sync - remote rename/move " << *from << " -> " << *to << endl;
 }
 
 void DemoApp::syncupdate_remote_folder_addition(Node* n)

@@ -29,6 +29,7 @@ namespace mega {
 // FIXME: Sync: recognize folder renames and use setattr() instead of potentially huge delete/putnodes sequences
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creaton load on the servers
 // FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
+// FIXME: set folder timestamps
 
 // root URL for API access
 const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
@@ -152,7 +153,7 @@ void MegaClient::mergenewshares(bool notify)
 					// incoming share deleted - remove tree
 					TreeProcDel td;
 					proctree(n,&td);
-					notifypurge();
+//					notifypurge();
 				}
 			}
 			else
@@ -647,17 +648,17 @@ void MegaClient::exec()
 
 	if (synclocalopretry && synclocalopretrybt.armed(ds)) execsynclocalops();
 
-	int q = Sync::MAIN;
+	int q = DirNotify::DIREVENTS;
 	sync_list::iterator it;
 
+	// do we have any scheduled retries in non-failed syncs?
 	if (scanretrybt.armed(ds))
 	{
-		// do we have any scheduled retries in non-failed syncs?
 		for (it = syncs.begin(); it != syncs.end(); it++)
 		{
-			if ((*it)->scanq[Sync::RETRY].size() && (*it)->state != SYNC_FAILED)
+			if ((*it)->dirnotify->pathq[DirNotify::RETRY].size() && (*it)->state != SYNC_FAILED)
 			{
-				q = Sync::RETRY;
+				q = DirNotify::RETRY;
 				break;
 			}
 		}
@@ -671,35 +672,70 @@ void MegaClient::exec()
 		syncactivity = false;
 
 		// process pending scanqs
-		for (it = syncs.begin(); it != syncs.end(); )
+		for (it = syncs.begin(); it != syncs.end(); it++)
 		{
-			// make sure that the remote synced folder still exists
-			if (!(*it)->localroot.node) (*it)->changestate(SYNC_FAILED);
+			Sync* sync = *it;
 
-			if ((*it)->state == SYNC_FAILED) it++;
-			else
+			// make sure that the remote synced folder still exists
+			if (!sync->localroot.node) sync->changestate(SYNC_FAILED);
+
+			if (sync->state != SYNC_FAILED)
 			{
 				// process items from the scanq until depleted
-				if ((*it)->scanq[q].size()) (*it)->procscanq(q);
+				if (sync->dirnotify->pathq[q].size())
+				{
+					sync->procscanq(q);
+					syncactivity = true;
+				}
 
-				if ((*it)->scanq[q].size())
+				if (sync->dirnotify->pathq[q].size())
 				{
 					syncscanning = true;
-					it++;
 				}
 				else
 				{
-					if ((*it)->state == SYNC_INITIALSCAN && !q)
+					if (sync->state == SYNC_INITIALSCAN && !q)
 					{
 						// initial scan of this synced folder is now complete - activate syncing
-						syncdown(&(*it)->localroot,&(*it)->localroot.localname);
-						(*it++)->changestate(SYNC_ACTIVE);
+						syncdown(&sync->localroot,&sync->localroot.localname);
+						sync->changestate(SYNC_ACTIVE);
 					}
-					else it++;
 				}
 			}
 		}
-		
+
+		// pending deletions?
+		if (localsyncnotseen.size())
+		{
+			// if all scanqs are complete, execute pending remote deletions
+			for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->dirnotify->pathq[DirNotify::DIREVENTS].size() || (*it)->dirnotify->pathq[DirNotify::RETRY].size()) break;
+
+			if (it == syncs.end())
+			{
+				for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end(); it++)
+				{
+					// we skip missing files once to cater for possible move races (may have reappeared in a section already scanned)
+					if ((*it)->notseen > 1)
+					{
+						// missed for 2 rounds: delete remotely
+						if ((*it)->type == FOLDERNODE) app->syncupdate_local_folder_deletion((*it)->sync,(*it)->name.c_str());
+						else app->syncupdate_local_file_deletion((*it)->sync,(*it)->name.c_str());
+
+						delete *it;
+						
+						// rescan from the beginning to avoid running into deleted subnodes
+						it = localsyncnotseen.begin();
+						break;
+					}
+					else if ((*it)->scanseqno != (*it)->sync->scanseqno)
+					{
+						(*it)->scanseqno = (*it)->sync->scanseqno;
+						(*it)->setnotseen((*it)->notseen+1);
+					}
+				}
+			}
+		}
+
 		// set retry interval for locked filesystem items once all pending items were processed
 		if (q && !syncscanning) scanretrybt.backoff(ds,2);
 		
@@ -707,31 +743,27 @@ void MegaClient::exec()
 		if (!syncscanning && !syncadding)
 		{
 			string localname;
-			LocalNode* l;
-			bool fulltree;
-
-			// check for filesystem changes
-			while (fsaccess->notifynext(&syncs,&localname,&l,&fulltree))
-			{
-				l->sync->queuefsrecord(NULL,&localname,l,fulltree);
-				syncactivity = true;
-			}
 
 			// rescan full trees in case fs notification is currently unreliable or unavailable
-			if (!fsaccess->notifyfailed()) syncscanfailed = false;
-			else if (syncscanbt.armed(ds))
+			if (syncscanbt.armed(ds))
 			{
+				syncscanfailed = false;
+		
 				unsigned totalnodes = 0;
 
-				for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state == SYNC_ACTIVE)
+				for (it = syncs.begin(); it != syncs.end(); it++)
 				{
-					(*it)->queuescan(Sync::MAIN,NULL,NULL,NULL,NULL,true);
-					totalnodes += (*it)->localnodes[FILENODE]+(*it)->localnodes[FOLDERNODE];
+					if ((*it)->state == SYNC_ACTIVE && ((*it)->dirnotify->failed || (*it)->dirnotify->error))
+					{
+						(*it)->dirnotify->pathq[DirNotify::DIREVENTS].push_back("");
+						totalnodes += (*it)->localnodes[FILENODE]+(*it)->localnodes[FOLDERNODE];
+						syncscanfailed = true;
+						(*it)->dirnotify->error = false;
+					}
 				}
 
 				// limit rescan rate (interval depends on total tree size)
-				syncscanfailed = true;
-				syncscanbt.backoff(ds,10+totalnodes/128);
+				if (syncscanfailed) syncscanbt.backoff(ds,10+totalnodes/128);
 			}
 
 			// FIXME: only syncup for subtrees that were actually updated to reduce CPU load
@@ -740,6 +772,9 @@ void MegaClient::exec()
 			syncupdate();
 		}
 	}
+	
+	notifypurge();
+	execsynclocalops();
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -778,7 +813,7 @@ int MegaClient::wait()
 		if (synclocalopretry) synclocalopretrybt.update(ds,&nds);
 
 		// retrying of transiently failed sync fopen()s
-		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->scanq[Sync::RETRY].size() && (*it)->state != SYNC_FAILED)
+		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->dirnotify->pathq[DirNotify::RETRY].size() && (*it)->state != SYNC_FAILED)
 		{
 			scanretrybt.update(ds,&nds);
 			break;
@@ -1122,7 +1157,7 @@ void MegaClient::procsc()
 			case EOO:
 				mergenewshares(1);
 				applykeys();
-				notifypurge();
+//				notifypurge();
 				return;
 
 			default:
@@ -1910,44 +1945,6 @@ void MegaClient::notifypurge(void)
 		app->users_updated(&usernotify[0],t);
 		usernotify.clear();
 	}
-
-	execsynclocalops();
-}
-
-void MegaClient::execsynclocalops()
-{
-	while (synclocalops.size())
-	{
-		fsaccess->transient_error = 0;
-
-		if (!(*synclocalops.begin())->exec() && fsaccess->transient_error)
-		{
-			if (!syncstuck)
-			{
-				string reason;
-
-				fsaccess->local2path(&(*synclocalops.begin())->from,&reason);
-				app->syncupdate_stuck(&reason);
-
-				syncstuck = true;
-			}
-
-			synclocalopretry = true;
-			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
-			return;
-		}
-
-		delete *synclocalops.begin();
-		synclocalops.pop_front();
-	}
-
-	synclocalopretry = false;
-	
-	if (syncstuck)
-	{
-		syncstuck = false;
-		app->syncupdate_stuck(NULL);
-	}
 }
 
 // return node pointer derived from node handle
@@ -2031,7 +2028,7 @@ error MegaClient::setattr(Node* n, const char** newattr)
 	}
 
 	notifynode(n);
-	notifypurge();
+//	notifypurge();
 
 	reqs[r].add(new CommandSetAttr(this,n));
 
@@ -2121,7 +2118,7 @@ error MegaClient::rename(Node* n, Node* p)
 	if (n->setparent(p))
 	{
 		notifynode(n);
-		notifypurge();
+//		notifypurge();
 
 		reqs[r].add(new CommandMoveNode(this,n,p));
 	}
@@ -2140,7 +2137,7 @@ error MegaClient::unlink(Node* n)
 
 	TreeProcDel td;
 	proctree(n,&td);
-	notifypurge();
+//	notifypurge();
 
 	return API_OK;
 }
@@ -3539,9 +3536,9 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 	attr_map::iterator ait;
 	Node** npp;
 
-	// UTF-8 converted local name
 	string localname;
 
+	// UTF-8 converted local name
 	string tmpname;
 
 	// build child hash - nameclash resolution: use newest/largest version
@@ -3632,7 +3629,7 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 						fsaccess->local2path(localpath,&tmpname);
 						app->syncupdate_get(l->sync,tmpname.c_str());
 
-						rit->second->syncget = new SyncFileGet(rit->second,localpath);
+						rit->second->syncget = new SyncFileGet(l->sync,rit->second,localpath);
 						startxfer(GET,rit->second->syncget);
 						syncactivity = true;
 					}
@@ -3646,7 +3643,7 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 
 						// create local folder and start notifications
 						ll = new LocalNode;
-						ll->init(l->sync,&localname,FOLDERNODE,l,localpath);
+						ll->init(l->sync,FOLDERNODE,l,localpath);
 						ll->setnode(rit->second);
 
 						syncdown(ll,localpath);
@@ -3945,7 +3942,6 @@ bool MegaClient::startxfer(direction d, File* f)
 			t = new Transfer(this,d);
 			*(FileFingerprint*)t = *(FileFingerprint*)f;
 			t->size = f->size;
-			t->tag = reqtag;
 			t->transfers_it = transfers[d].insert(pair<FileFingerprint*,Transfer*>((FileFingerprint*)t,t)).first;
 			app->transfer_added(t);
 		}
@@ -4078,6 +4074,42 @@ void MegaClient::movetosyncdebris(Node* n)
 			reqs[r].add(new CommandPutNodes(this,h == UNDEF ? rootnodes[RUBBISHNODE-ROOTNODE] : h,NULL,nn,h == UNDEF ? 2 : 1,0,PUTNODES_SYNCDEBRIS));
 			syncdebrisadding = true;
 		}
+	}
+}
+
+void MegaClient::execsynclocalops()
+{
+	while (synclocalops.size())
+	{
+		fsaccess->transient_error = 0;
+
+		if (!(*synclocalops.begin())->exec() && fsaccess->transient_error)
+		{
+			if (!syncstuck)
+			{
+				string reason;
+
+				fsaccess->local2path(&(*synclocalops.begin())->from,&reason);
+				app->syncupdate_stuck(&reason);
+
+				syncstuck = true;
+			}
+
+			synclocalopretry = true;
+			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
+			return;
+		}
+
+		delete *synclocalops.begin();
+		synclocalops.pop_front();
+	}
+
+	synclocalopretry = false;
+	
+	if (syncstuck)
+	{
+		syncstuck = false;
+		app->syncupdate_stuck(NULL);
 	}
 }
 
