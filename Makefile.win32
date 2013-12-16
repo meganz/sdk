@@ -15,7 +15,6 @@ SOURCES_COMMON=\
 		src/filesystem.cpp  \
 		src/http.cpp  \
 		src/json.cpp  \
-		src/megaclient.cpp  \
 		src/node.cpp  \
 		src/pubkeyaction.cpp  \
 		src/request.cpp  \
