@@ -149,7 +149,9 @@ void Sync::scan(string* localpath, FileAccess* fa)
 	delete da;
 }
 
-void Sync::checkpath(string* localpath)
+// check local path
+// returns new node, if any
+LocalNode* Sync::checkpath(string* localpath)
 {
 	FileAccess* fa;
 	bool newnode = false, changed = false;
@@ -268,6 +270,8 @@ void Sync::checkpath(string* localpath)
 	}
 
 	delete fa;
+	
+	return l;
 }
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
