@@ -1869,48 +1869,57 @@ void MegaClient::notifypurge(void)
 				}
 			}
 
-			// delete deleted and removed local files, leaves first
+			// execute notified deletions - topmost deleted nodes only
+			node_set topdel;
+
 			for (i = 0; i < t; i++)
 			{
 				Node* n = nodenotify[i];
+				Node* tn = NULL;
 
-				if (app->sync_syncable(n) && n->localnode && (n->removed || (n->parent && !n->parent->localnode)))
+				// find topmost deleted sync node
+				while (n && n->localnode && (n->removed || (n->parent && !n->parent->localnode)))
 				{
-					n->localnode->getlocalpath(&localpath);
+					tn = n;
+					n = n->parent;
+				}
 
-					if (n->type == FILENODE)
+				if (tn) topdel.insert(tn);
+			}
+
+			for (node_set::iterator it = topdel.begin(); it != topdel.end(); it++)
+			{
+				(*it)->localnode->getlocalpath(&localpath);
+
+				if ((*it)->type == FOLDERNODE) synclocalops.push_back(new SyncLocalOp(this,FOLDERNODE,&localpath));
+				else
+				{
+					// safeguard against overwrite races
+					FileAccess* fa = fsaccess->newfileaccess();
+
+					if (fa->fopen(&localpath,true,false))
 					{
-						FileAccess* fa = fsaccess->newfileaccess();
-
-						if (fa->fopen(&localpath,true,false))
+						if (fa->mtime == (*it)->mtime)
 						{
-							if (fa->mtime == n->mtime)
+							if (fa->size == (*it)->size)
 							{
-								if (fa->size == n->size)
+								if (!(*it)->genfingerprint(fa))
 								{
-									if (!n->genfingerprint(fa))
-									{
-										delete fa;
-										fa = NULL;
+									delete fa;
+									fa = NULL;
 
-										// make sure that the file we are deleting is actually the one we want to delete
-										app->syncupdate_remote_file_deletion(n);
-										synclocalops.push_back(new SyncLocalOp(this,FILENODE,&localpath));
-									}
-									else app->debug_log("Sync: Not deleting local file because of mismatching fingerprint");
+									// make sure that the file we are deleting is actually the one we want to delete
+									app->syncupdate_remote_file_deletion(*it);
+									synclocalops.push_back(new SyncLocalOp(this,FILENODE,&localpath));
 								}
-								else app->debug_log("Sync: Not deleting local file because of mismatching size");
+								else app->debug_log("Sync: Not deleting local file because of mismatching fingerprint");
 							}
-							else app->debug_log("Sync: Not deleting local file because of mismatching mtime");
+							else app->debug_log("Sync: Not deleting local file because of mismatching size");
 						}
+						else app->debug_log("Sync: Not deleting local file because of mismatching mtime");
+					}
 
-						delete fa;
-					}
-					else
-					{
-						// FIXME: ensure that leaves are notified first
-						synclocalops.push_back(new SyncLocalOp(this,FOLDERNODE,&localpath));
-					}
+					delete fa;
 				}
 			}
 		}
@@ -1930,6 +1939,12 @@ void MegaClient::notifypurge(void)
 				}
 
 				nodes.erase(n->nodehandle);
+
+				if (n->localnode)
+				{
+					delete n->localnode;
+					n->localnode = NULL;
+				}
 
 				delete n;
 			}
@@ -3873,6 +3888,7 @@ void MegaClient::syncupdate()
 	syncdeleted[FILENODE].clear();
 
 	// deletions that were queued while the putnodes() was still in progress
+	// FIXME: only delete topmost nodes to prevent API_EACCESS noise
 	for (handle_set::iterator it = syncdeleted[FOLDERNODE].begin(); it != syncdeleted[FOLDERNODE].end(); it++)
 	{
 		if ((sit = syncidhandles.find(*it)) != syncidhandles.end())
