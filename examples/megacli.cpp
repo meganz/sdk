@@ -1681,9 +1681,8 @@ static void process_line(char* l)
 								else
 								{
 									error e = client->addsync(&localname,n,0);
-									
+
 									if (e) cout << "Sync could not be added: " << errorstring(e) << endl;
-									else cout << "Sync active." << endl;
 								}
 							}
 							else cout << words[2] << ": Syncing requires full access to path." << endl;

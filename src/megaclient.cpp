@@ -3640,16 +3640,15 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 					// create local path, add to LocalNodes and recurse
 					if (fsaccess->mkdirlocal(localpath))
 					{
-						LocalNode* ll;
+						localpath->erase(0,l->sync->dirnotify->localbasepath.size()+fsaccess->localseparator.size());
+						LocalNode* ll = l->sync->checkpath(localpath);	// (this will re-add the prefix stripped above)
 
-						// create local folder and start notifications
-						ll = new LocalNode;
-						ll->init(l->sync,FOLDERNODE,l,localpath);
-						ll->setnode(rit->second);
-
-						syncdown(ll,localpath);
-
-						syncactivity = true;
+						if (ll)
+						{
+							ll->setnode(rit->second);
+							syncdown(ll,localpath);
+							syncactivity = true;
+						}
 					}
 				}
 
