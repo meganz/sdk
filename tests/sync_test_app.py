@@ -49,7 +49,7 @@ class SyncTestApp ():
         self.local_folder_out = os.path.join (self.local_mount_out, self.rnd_folder)
         self.work_folder = os.path.join (work_folder, self.rnd_folder)
 
-        self.nr_retries = 1
+        self.nr_retries = 10
         self.nr_files = 20
         self.sleep_sec = 10
         self.l_files = []
