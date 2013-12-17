@@ -403,7 +403,7 @@ void DemoApp::syncupdate_local_file_change(Sync* sync, const char* path)
 
 void DemoApp::syncupdate_local_move(Sync*, const char* from, const char* to)
 {
-	cout << "Sync - local rename/move " << *from << " -> " << *to << endl;
+	cout << "Sync - local rename/move " << from << " -> " << to << endl;
 }
 
 void DemoApp::syncupdate_remote_move(string* from, string* to)
@@ -1678,7 +1678,13 @@ static void process_line(char* l)
 
 								if (!n) cout << words[2] << ": Not found." << endl;
 								else if (n->type == FILENODE) cout << words[2] << ": Remote sync root must be folder." << endl;
-								else new Sync(client,&localname,n);
+								else
+								{
+									error e = client->addsync(&localname,n,0);
+									
+									if (e) cout << "Sync could not be added: " << errorstring(e) << endl;
+									else cout << "Sync active." << endl;
+								}
 							}
 							else cout << words[2] << ": Syncing requires full access to path." << endl;
 						}
