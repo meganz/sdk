@@ -23,14 +23,13 @@ import os
 import sync_test_app
 
 class SyncTestMegaCliApp (sync_test_app.SyncTestApp):
-    def __init__(self, local_mount_in, local_mount_out, remote_folder):
+    def __init__(self, local_mount_in, local_mount_out):
         """
         local_mount_in: local upsync folder
         local_mount_out: local downsync folder
-        remote_folder: a remote sync folder name
         """
         self.work_dir = os.path.join(".", "work_dir")
-        sync_test_app.SyncTestApp.__init__ (self, local_mount_in, local_mount_out, remote_folder, self.work_dir)
+        sync_test_app.SyncTestApp.__init__ (self, local_mount_in, local_mount_out, self.work_dir)
 
     def start (self):
         # try to create work dir
@@ -46,15 +45,15 @@ class SyncTestMegaCliApp (sync_test_app.SyncTestApp):
         pass
 
 if __name__ == "__main__":
-    if len (sys.argv) < 4:
-        print "Please run as:  python " + sys.argv[0] + " [upsync folder] [downsync folder] [remote folder name]"
+    if len (sys.argv) < 3:
+        print "Please run as:  python " + sys.argv[0] + " [upsync folder] [downsync folder]"
         sys.exit (1)
 
     print ""
-    print "1) Start the first [megacli] and run:  sync " + sys.argv[1] + " "+ sys.argv[3]
-    print "2) Start the second [megacli] and run:  sync " + sys.argv[2] + " "+ sys.argv[3]
+    print "1) Start the first [megacli] and run:  sync " + sys.argv[1] + " [remote folder]"
+    print "2) Start the second [megacli] and run:  sync " + sys.argv[2] + " [remote folder]"
     print "3) Wait for both folders get fully synced"
     print "4) Run sync_test.py"
     print ""
-    app = SyncTestMegaCliApp (sys.argv[1], sys.argv[2], sys.argv[3])
+    app = SyncTestMegaCliApp (sys.argv[1], sys.argv[2])
     app.run ()
