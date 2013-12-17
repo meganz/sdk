@@ -266,6 +266,9 @@ LocalNode* Sync::checkpath(string* localpath)
 		}
 		else if (l)
 		{
+			// immediately stop outgoing transfer, if any
+			if (l->transfer) client->stopxfer(l);
+			
 			client->syncactivity = true;
 
 			if (l->scanseqno != scanseqno) l->setnotseen(1);
