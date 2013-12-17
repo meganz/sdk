@@ -33,16 +33,13 @@ import logging
 import subprocess
 
 class SyncTestApp ():
-    def __init__(self, local_mount_in, local_mount_out, remote_folder, work_folder):
+    def __init__(self, local_mount_in, local_mount_out, work_folder):
         """
         local_mount_in: local upsync folder
         local_mount_out: local downsync folder
-        remote_folder: a remote sync folder name
         work_folder: a temporary out of sync folder
         """
         random.seed (time.time())
-
-        self.remote_folder = remote_folder
 
         self.local_mount_in = local_mount_in
         self.local_mount_out = local_mount_out
@@ -116,34 +113,11 @@ class SyncTestApp ():
         fout.close ()
         return md5.hexdigest()
 
-    def test_create (self):
-        """
-        create files in "in" instance and check files presence in "out" instance
-        """
-        # generate and put files into "in" folder
-        for i in range (self.nr_files):
-            strlen = random.randint (0, 20)
-            fname = self.get_random_str (size=strlen) + str (i)
-            ffname = self.local_folder_in + "/" + fname
-            # up to 10k
-            flen = random.randint (1, 1024 * 10)
-            try:
-                self.create_file (ffname, flen)
-            except Exception, e:
-                self.logger.error("Failed to create file: %s", ffname)
-                return False
-            md5_str = self.md5_for_file (ffname)
-            self.l_files.append ({"name":fname, "len":flen, "md5":md5_str})
-            self.logger.debug ("File created: %s [%s, %db]", ffname, md5_str, flen)
-
-        # give some time to sync files to remote folder
-        self.logger.debug ("Sleeping ..")
-        time.sleep (self.sleep_sec)
-
+    def check_files (self):
         # check files
         for f in self.l_files:
-            ffname = self.local_folder_out + "/" + f["name"]
-            ffname_in = self.local_folder_in + "/" + f["name"]
+            ffname = os.path.join (self.local_folder_out, f["name"])
+            ffname_in = os.path.join (self.local_folder_in, f["name"])
             success = False
 
             self.logger.debug ("Checking %s and %s", ffname_in, ffname)
@@ -167,15 +141,109 @@ class SyncTestApp ():
                 return False
         return True
 
+    def test_create (self):
+        """
+        create files in "in" instance and check files presence in "out" instance
+        """
+        # generate and put files into "in" folder
+
+        # empty files
+        for i in range (self.nr_files):
+            strlen = random.randint (0, 20)
+            fname = "e" + self.get_random_str (size=strlen) + str (i)
+            ffname = os.path.join (self.local_folder_in, fname)
+            flen = 0
+            try:
+                self.create_file (ffname, flen)
+            except Exception, e:
+                self.logger.error("Failed to create file: %s", ffname)
+                return False
+            md5_str = self.md5_for_file (ffname)
+            self.l_files.append ({"name":fname, "len":flen, "md5":md5_str, "name_orig":fname})
+            self.logger.debug ("File created: %s [%s, %db]", ffname, md5_str, flen)
+
+        # small files < 1k
+        for i in range (self.nr_files):
+            strlen = random.randint (0, 20)
+            fname = "s" + self.get_random_str (size=strlen) + str (i)
+            ffname = os.path.join (self.local_folder_in, fname)
+            flen = random.randint (1, 1*1024)
+            try:
+                self.create_file (ffname, flen)
+            except Exception, e:
+                self.logger.error("Failed to create file: %s", ffname)
+                return False
+            md5_str = self.md5_for_file (ffname)
+            self.l_files.append ({"name":fname, "len":flen, "md5":md5_str, "name_orig":fname})
+            self.logger.debug ("File created: %s [%s, %db]", ffname, md5_str, flen)
+
+        # medium files < 1mb
+        for i in range (self.nr_files):
+            strlen = random.randint (0, 20)
+            fname = "m" + self.get_random_str (size=strlen) + str (i)
+            ffname = os.path.join (self.local_folder_in, fname)
+            flen = random.randint (1, 1*1024*1024)
+            try:
+                self.create_file (ffname, flen)
+            except Exception, e:
+                self.logger.error("Failed to create file: %s", ffname)
+                return False
+            md5_str = self.md5_for_file (ffname)
+            self.l_files.append ({"name":fname, "len":flen, "md5":md5_str, "name_orig":fname})
+            self.logger.debug ("File created: %s [%s, %db]", ffname, md5_str, flen)
+
+        # large files < 40mb
+        for i in range (self.nr_files):
+            strlen = random.randint (0, 20)
+            fname = "l" + self.get_random_str (size=strlen) + str (i)
+            ffname = os.path.join (self.local_folder_in, fname)
+            flen = random.randint (1, 40*1024*1024)
+            try:
+                self.create_file (ffname, flen)
+            except Exception, e:
+                self.logger.error("Failed to create file: %s", ffname)
+                return False
+            md5_str = self.md5_for_file (ffname)
+            self.l_files.append ({"name":fname, "len":flen, "md5":md5_str, "name_orig":fname})
+            self.logger.debug ("File created: %s [%s, %db]", ffname, md5_str, flen)
+
+        # XXX: create dirs
+        # give some time to sync files to remote folder
+        self.logger.debug ("Sleeping ..")
+        time.sleep (self.sleep_sec)
+
+        res = self.check_files ()
+        return res
+
+    def test_rename (self):
+        """
+        rename objects in "in" instance and check new files in "out" instance
+        """
+
+        for f in self.l_files:
+            ffname = os.path.join (self.local_folder_in, f["name"])
+            f["name"] = "renamed_" + self.get_random_str (30)
+            try:
+                os.remove (ffname)
+            except:
+                self.logger.error("Failed to delete file: %s", ffname)
+                return False
+
+        # give some time to sync files to remote folder
+        self.logger.debug ("Sleeping ..")
+        time.sleep (10)
+
+        res = self.check_files ()
+        return res
+
     def test_remove (self):
         """
         remove files in "in" instance and check files absence in "out" instance
         """
 
         for f in self.l_files:
-            ffname = self.local_folder_in + "/" + f["name"]
+            ffname = os.path.join (self.local_folder_in, f["name"])
             try:
-                pass
                 os.remove (ffname)
             except:
                 self.logger.error("Failed to delete file: %s", ffname)
@@ -187,7 +255,7 @@ class SyncTestApp ():
 
         success = False
         for f in self.l_files:
-            ffname = self.local_folder_out + "/" + f["name"]
+            ffname = os.path.join (self.local_folder_out, f["name"])
             for r in range (0, self.nr_retries):
                 try:
                     # file must be deleted
@@ -202,6 +270,102 @@ class SyncTestApp ():
                 return False
         return True
 
+    def test_create_delete_files (self):
+        self.logger.info ("Checking if remote folders are empty ...")
+        self.l_files = []
+        # make sure remote folders are empty
+        if self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out):
+            self.logger.info ("Checking if remote folders are empty: [SUCCESS]")
+        else:
+            self.logger.info ("Checking if remote folders are empty: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        self.logger.info ("Testing files create ...")
+        res = self.test_create ()
+        if res == True:
+            self.logger.info ("Testing files create: [SUCCESS]")
+        else:
+            self.logger.info ("Testing files create: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        # wait for a bit
+        self.logger.debug ("Sleeping ..")
+        time.sleep (2)
+
+        self.logger.info ( "Testing files remove ...")
+        res = self.test_remove ()
+        if res == True:
+            self.logger.info ("Testing files remove: [SUCCESS]")
+        else:
+            self.logger.info ("Testing files remove: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        self.logger.info ("Checking if remote folders are empty ...")
+        # make sure remote folders are empty
+        if self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out):
+            self.logger.info ("Checking if remote folders are empty: [SUCCESS]")
+        else:
+            self.logger.info ("Checking if remote folders are empty: [FAILED]")
+            self.cleanup (False)
+            return False
+        return True
+
+    def test_create_rename_delete_files (self):
+        self.logger.info ("Checking if remote folders are empty ...")
+        self.l_files = []
+        # make sure remote folders are empty
+        if self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out):
+            self.logger.info ("Checking if remote folders are empty: [SUCCESS]")
+        else:
+            self.logger.info ("Checking if remote folders are empty: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        self.logger.info ("Testing files create ...")
+        res = self.test_create ()
+        if res == True:
+            self.logger.info ("Testing files create: [SUCCESS]")
+        else:
+            self.logger.info ("Testing files create: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        # wait for a bit
+        self.logger.debug ("Sleeping ..")
+        time.sleep (2)
+
+        self.logger.info ("Testing files rename ...")
+        res = self.test_rename ()
+        if res == True:
+            self.logger.info ("Testing files rename: [SUCCESS]")
+        else:
+            self.logger.info ("Testing files rename: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        self.logger.info ( "Testing files remove ...")
+        res = self.test_remove ()
+        if res == True:
+            self.logger.info ("Testing files remove: [SUCCESS]")
+        else:
+            self.logger.info ("Testing files remove: [FAILED]")
+            self.cleanup (False)
+            return False
+
+        self.logger.info ("Checking if remote folders are empty ...")
+        # make sure remote folders are empty
+        if self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out):
+            self.logger.info ("Checking if remote folders are empty: [SUCCESS]")
+        else:
+            self.logger.info ("Checking if remote folders are empty: [FAILED]")
+            self.cleanup (False)
+            return False
+        return True
+
+
 # virtual functions
     def start (self):
         raise NotImplementedError("Not Implemented !")
@@ -209,6 +373,9 @@ class SyncTestApp ():
         raise NotImplementedError("Not Implemented !")
 
     def prepare_folders (self):
+        """
+        prepare upsync, downsync and work directories
+        """
         # create "in" folder
         self.logger.info ("IN folder: %s", self.local_folder_in)
         try:
@@ -260,21 +427,9 @@ class SyncTestApp ():
         #
         # run tests
         #
-        self.logger.info ("Checking if remote folders are empty ...")
-        # make sure remote folders are empty
-        if self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out):
-            self.logger.info ("Checking if remote folders are empty: [SUCCESS]")
-        else:
-            self.logger.info ("Checking if remote folders are empty: [FAILED]")
-            self.cleanup (False)
-            return
-
-        self.logger.info ("Testing files create ...")
-        res = self.test_create ()
-        if res == True:
-            self.logger.info ("Testing files create: [SUCCESS]")
-        else:
-            self.logger.info ("Testing files create: [FAILED]")
+        res = self.test_create_delete_files ()
+        if not res:
+            self.logger.info ("Tests: [FAILED]")
             self.cleanup (False)
             return
 
@@ -282,12 +437,9 @@ class SyncTestApp ():
         self.logger.debug ("Sleeping ..")
         time.sleep (2)
 
-        self.logger.info ( "Testing files remove ...")
-        res = self.test_remove ()
-        if res == True:
-            self.logger.info ("Testing files remove: [SUCCESS]")
-        else:
-            self.logger.info ("Testing files remove: [FAILED]")
+        res = self.test_create_rename_delete_files ()
+        if not res:
+            self.logger.info ("Tests: [FAILED]")
             self.cleanup (False)
             return
 

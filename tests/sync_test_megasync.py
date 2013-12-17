@@ -36,7 +36,7 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
         self.local_mount_out = os.path.join(work_dir, "sync_out")
         self.work_dir = os.path.join(work_dir, "tmp")
 
-        sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, remote_folder, self.work_dir)
+        sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, self.work_dir)
 
     def start_megasync (self, local_folder):
         """
