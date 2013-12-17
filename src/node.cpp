@@ -605,8 +605,8 @@ LocalNode::~LocalNode()
 
 	if (sync->state >= SYNC_INITIALSCAN)
 	{
-		// record deletion
-		sync->client->syncdeleted[type].insert(syncid);
+		// record deletion unless local node already marked as removed
+		if (node && !node->removed) sync->client->syncdeleted[type].insert(syncid);
 	}
 
 	if (type == FOLDERNODE) sync->client->fsaccess->delnotify(this);

@@ -206,6 +206,8 @@ typedef map<handle,LocalNode*> handlelocalnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
+typedef set<Node*> node_set;
+
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
 typedef list<Node*> node_list;

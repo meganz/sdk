@@ -150,7 +150,9 @@ void Sync::scan(string* localpath, FileAccess* fa)
 }
 
 // check local path
-// returns new node, if any
+// path references a new FOLDERNODE: returns created node
+// path references a existing FILENODE: returns node
+// otherwise, returns NULL
 LocalNode* Sync::checkpath(string* localpath)
 {
 	FileAccess* fa;
@@ -231,6 +233,7 @@ LocalNode* Sync::checkpath(string* localpath)
 					scan(localpath,fa);
 					client->app->syncupdate_local_folder_addition(this,tmppath.c_str());
 				}
+				else l = NULL;
 			}
 			else
 			{
@@ -267,6 +270,8 @@ LocalNode* Sync::checkpath(string* localpath)
 
 			if (l->scanseqno != scanseqno) l->setnotseen(1);
 		}
+		
+		l = NULL;
 	}
 
 	delete fa;
@@ -275,14 +280,20 @@ LocalNode* Sync::checkpath(string* localpath)
 }
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
-// must be called with a dirnotify->pathq[q].size() > 0
 void Sync::procscanq(int q)
 {
-	string* localpath = &dirnotify->pathq[q].front();
+	while (dirnotify->pathq[q].size())
+	{
+		string* localpath = &dirnotify->pathq[q].front();
 
-	checkpath(localpath);
+		LocalNode* l = checkpath(localpath);
 
-	dirnotify->pathq[q].pop_front();
+		dirnotify->pathq[q].pop_front();
+		
+		// we return control to the application in case a filenode was encountered
+		// (in order to avoid lengthy blocking episodes due to multiple fingerprint calculations)
+		if (l && l->type == FILENODE) break;
+	}
 
 	if (dirnotify->pathq[q].size()) client->syncactivity = true;
 	else if (!dirnotify->pathq[!q].size()) scanseqno++;	// all queues empty: new scan sweep begins
