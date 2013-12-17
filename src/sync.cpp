@@ -41,11 +41,10 @@ Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 	localroot.init(this,FOLDERNODE,NULL,crootpath);
 	localroot.setnode(remotenode);
 
-	dirnotify = client->fsaccess->newdirnotify(crootpath);
-	dirnotify->pathq[DirNotify::DIREVENTS].resize(1);	// trigger a complete tree scan
-	procscanq(DirNotify::DIREVENTS);
-
 	sync_it = client->syncs.insert(client->syncs.end(),this);
+
+	dirnotify = client->fsaccess->newdirnotify(crootpath);
+	scan(crootpath,NULL);
 }
 
 Sync::~Sync()
@@ -154,7 +153,6 @@ void Sync::checkpath(string* localpath)
 {
 	FileAccess* fa;
 	bool newnode = false, changed = false;
-	bool fulltree = true;
 	bool isroot;
 
 	LocalNode* l;
@@ -209,9 +207,6 @@ void Sync::checkpath(string* localpath)
 
 					// unmark possible deletion
 					it->second->setnotseen(0);
-
-					// no need to recurse, as entire subtree moved along
-					fulltree = false;
 				}
 				else
 				{
@@ -227,9 +222,13 @@ void Sync::checkpath(string* localpath)
 		if (l)
 		{
 			// detect file changes or recurse into new subfolders
-			if (fa->type == FOLDERNODE)
+			if (l->type == FOLDERNODE)
 			{
-				if (fulltree) scan(localpath,fa);
+				if (newnode)
+				{
+					scan(localpath,fa);
+					client->app->syncupdate_local_folder_addition(this,tmppath.c_str());
+				}
 			}
 			else
 			{
@@ -240,11 +239,7 @@ void Sync::checkpath(string* localpath)
 					if (l->genfingerprint(fa)) changed = true;
 					if (l->size > 0) localbytes += l->size;
 					
-					if (newnode)
-					{
-						if (l->type == FILENODE) client->app->syncupdate_local_file_addition(this,tmppath.c_str());
-						else client->app->syncupdate_local_folder_addition(this,tmppath.c_str());
-					}
+					if (newnode) client->app->syncupdate_local_file_addition(this,tmppath.c_str());
 					else if (changed) client->app->syncupdate_local_file_change(this,tmppath.c_str());
 				}
 			}

@@ -664,12 +664,12 @@ void MegaClient::exec()
 		}
 	}
 	
+	syncactivity = false;
+
 	// process active syncs, stop doing so while transient local fs ops are pending
 	if ((!synclocalops.size() && (syncs.size() || syncactivity)) || q)
 	{
 		bool syncscanning = false;
-
-		syncactivity = false;
 
 		// process pending scanqs
 		for (it = syncs.begin(); it != syncs.end(); it++)
@@ -3631,6 +3631,7 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 
 						rit->second->syncget = new SyncFileGet(l->sync,rit->second,localpath);
 						startxfer(GET,rit->second->syncget);
+
 						syncactivity = true;
 					}
 				}
@@ -3842,6 +3843,7 @@ void MegaClient::syncupdate()
 			syncadding++;
 
 			reqs[r].add(new CommandPutNodes(this,synccreate[start]->parent->node->nodehandle,NULL,nn,nnp-nn,synccreate[start]->sync->tag,PUTNODES_SYNC));
+
 			syncactivity = true;
 		}
 	}
@@ -4075,6 +4077,28 @@ void MegaClient::movetosyncdebris(Node* n)
 			syncdebrisadding = true;
 		}
 	}
+}
+
+// check sync path, add sync if folder
+error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
+{
+	error e;
+	FileAccess* fa = fsaccess->newfileaccess();
+
+	if (fa->fopen(rootpath,true,false))
+	{
+		if (fa->type == FOLDERNODE)
+		{
+			new Sync(this,rootpath,remotenode,tag);
+			e = API_OK;
+		}
+		else e = API_EACCESS;	// cannot sync individual files
+	}
+	else e = fa->retry ? API_ETEMPUNAVAIL : API_ENOENT;
+
+	delete fa;
+
+	return e;
 }
 
 void MegaClient::execsynclocalops()
