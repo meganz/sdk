@@ -62,11 +62,11 @@ class SyncTestApp ():
 
         self.logger = logging.getLogger(__name__)
 
-        ch = logging.StreamHandler (sys.stdout)
+        self.ch = logging.StreamHandler (sys.stdout)
         formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
-        ch.setFormatter (formatter)
-        ch.setLevel (logging.INFO)
-        self.logger.addHandler (ch)
+        self.ch.setFormatter (formatter)
+        self.ch.setLevel (logging.INFO)
+        self.logger.addHandler (self.ch)
 
         fh = logging.FileHandler(self.log_file_name, mode='w')
         formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
@@ -180,11 +180,7 @@ class SyncTestApp ():
         # randomize list
         random.shuffle (self.l_files)
 
-        # give some time to sync files to remote folder
-        self.sync ()
-
-        res = self.check_files (self.l_files)
-        return res
+        return True
 
     def md5_for_file (self, fname, block_size=2**20):
         """
@@ -270,7 +266,7 @@ class SyncTestApp ():
             dname_in = os.path.join (self.local_folder_in, d["name"])
             success = False
 
-            self.logger.debug ("Comparing %s and %s directories", dname_in, dname)
+            self.logger.debug ("Comparing dirs: %s and %s", dname_in, dname)
 
             # try to access the dir
             for r in range (0, self.nr_retries):
@@ -299,6 +295,17 @@ class SyncTestApp ():
         create dirs
         """
         # create empty dirs
+        dname = "z"
+        ddname = os.path.join (self.local_folder_in, dname)
+        files_nr = 0
+        try:
+            l_files = self.create_dir (ddname, files_nr)
+        except Exception, e:
+            self.logger.error("Failed to create directory: %s", ddname)
+            return False
+        self.l_dirs.append ({"name":dname, "files_nr":files_nr, "name_orig":dname, "l_files":l_files})
+        self.logger.debug ("Directory created: %s [%d files]", ddname, files_nr)
+
         for i in range (self.nr_dirs):
             strlen = random.randint (0, 20)
             dname = "z" + self.get_random_str (size=strlen) + str (i)
@@ -313,11 +320,22 @@ class SyncTestApp ():
             self.logger.debug ("Directory created: %s [%d files]", ddname, files_nr)
 
         # create dirs with < 20 files
+        dname = "d"
+        ddname = os.path.join (self.local_folder_in, dname)
+        files_nr = random.randint (1, 20)
+        try:
+            l_files = self.create_dir (ddname, files_nr)
+        except Exception, e:
+            self.logger.error("Failed to create directory: %s", ddname)
+            return False
+        self.l_dirs.append ({"name":dname, "files_nr":files_nr, "name_orig":dname, "l_files":l_files})
+        self.logger.debug ("Directory created: %s [%d files]", ddname, files_nr)
+
         for i in range (self.nr_dirs):
             strlen = random.randint (0, 20)
             dname = "d" + self.get_random_str (size=strlen) + str (i)
             ddname = os.path.join (self.local_folder_in, dname)
-            files_nr = random.randint (0, 20)
+            files_nr = random.randint (1, 20)
             try:
                 l_files = self.create_dir (ddname, files_nr)
             except Exception, e:
@@ -332,11 +350,7 @@ class SyncTestApp ():
         # randomize list
         random.shuffle (self.l_dirs)
 
-        # give some time to sync files to remote folder
-        self.sync ()
-
-        res = self.check_dirs ()
-        return res
+        return True
 
     def files_rename (self):
         """
@@ -351,6 +365,8 @@ class SyncTestApp ():
             except:
                 self.logger.error("Failed to rename file: %s", ffname_src)
                 return False
+            self.logger.debug ("File renamed: %s => %s", ffname_src, ffname_dst)
+        return True
 
     def files_remove (self):
         """
@@ -364,6 +380,7 @@ class SyncTestApp ():
             except:
                 self.logger.error("Failed to delete file: %s", ffname)
                 return False
+            self.logger.debug ("File deleted: %s", ffname)
 
         # give some time to sync files to remote folder
         self.sync ()
@@ -387,7 +404,7 @@ class SyncTestApp ():
 
     def dirs_remove (self):
         """
-        remove directories in "in" instance and check files absence in "out" instance
+        remove directories in "in" instance and check directories absence in "out" instance
         """
 
         for d in self.l_dirs:
@@ -397,6 +414,7 @@ class SyncTestApp ():
             except:
                 self.logger.error("Failed to delete file: %s", dname)
                 return False
+            self.logger.debug ("Directory removed: %s", dname)
 
         # give some time to sync files to remote folder
         self.sync ()
@@ -420,18 +438,40 @@ class SyncTestApp ():
                 return False
         return True
 
-    def do_test (self, func, msg):
+    def dirs_rename (self):
+        """
+        rename directories in "in" instance and check directories new names in "out" instance
+        """
+        for d in self.l_dirs:
+            dname_src = os.path.join (self.local_folder_in, d["name"])
+            d["name"] = "renamed_" + self.get_random_str (30)
+            dname_dst = os.path.join (self.local_folder_in, d["name"])
+            try:
+                os.rename (dname_src, dname_dst)
+            except:
+                self.logger.error("Failed to rename directory: %s", dname_src)
+                return False
+            self.logger.debug ("Directory renamed: %s => %s", dname_src, dname_dst)
+
+        return True
+
+    def do_test (self, func, msg, *args):
         """
         execute test and print corresponding message
         """
         self.logger.info (msg + " ..")
-        if func:
+        sys.stdout.flush()
+        self.ch.flush ()
+        if func (*args):
             self.logger.info (msg + " [SUCCESS]")
             return True
         else:
             self.logger.error (msg + " [Failed]")
             self.cleanup (False)
             return False
+
+    def test_folders_empty (self):
+        return self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out)
 
     def test_create_delete_files (self):
         """
@@ -443,21 +483,25 @@ class SyncTestApp ():
         self.l_files = []
 
         # make sure remote folders are empty
-        if not self.do_test (self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out), "Checking if remote folders are empty"):
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
             return False
 
         # create files
-        if not self.do_test (self.create_files (), "Creating files"):
+        if not self.do_test (self.create_files, "Creating files"):
             return False
 
         self.sync ()
 
+        # comparing
+        if not self.do_test (self.check_files, "Comparing files", self.l_files):
+            return False
+
         # remove files
-        if not self.do_test (self.files_remove (), "Removing files"):
+        if not self.do_test (self.files_remove, "Removing files"):
             return False
 
         # make sure remote folders are empty
-        if not self.do_test (self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out), "Checking if remote folders are empty"):
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
             return False
 
         return True
@@ -474,36 +518,73 @@ class SyncTestApp ():
         self.l_files = []
 
         # make sure remote folders are empty
-        if not self.do_test (self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out), "Checking if remote folders are empty"):
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
             return False
 
         # create files
-        if not self.do_test (self.create_files (), "Creating files"):
-            return False
-
-        self.sync ()
-
-        # renaming
-        if not self.do_test (self.files_rename (), "Renaming files"):
+        if not self.do_test (self.create_files, "Creating files"):
             return False
 
         self.sync ()
 
         # comparing
-        if not self.do_test (self.check_files (self.l_files), "Comparing files"):
+        if not self.do_test (self.check_files, "Comparing files", self.l_files):
+            return False
+
+        # renaming
+        if not self.do_test (self.files_rename, "Renaming files"):
+            return False
+
+        self.sync ()
+
+        # comparing
+        if not self.do_test (self.check_files, "Comparing files", self.l_files):
             return False
 
         # remove files
-        if not self.do_test (self.files_remove (), "Removing files"):
+        if not self.do_test (self.files_remove, "Removing files"):
             return False
 
         # make sure remote folders are empty
-        if not self.do_test (self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out), "Checking if remote folders are empty"):
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
             return False
 
         return True
 
     def test_create_delete_dirs (self):
+        """
+        create directories with different amount of files,
+        compare directories on both sync folders,
+        remove directories, check that directories removed from the second folder
+        """
+
+        self.l_dirs = []
+
+        # make sure remote folders are empty
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
+            return False
+
+        # create dirs
+        if not self.do_test (self.create_dirs, "Creating directories"):
+            return False
+
+        self.sync ()
+
+        # comparing
+        if not self.do_test (self.check_dirs, "Comparing directories"):
+            return False
+
+        # remove files
+        if not self.do_test (self.dirs_remove, "Removing directories"):
+            return False
+
+        # make sure remote folders are empty
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
+            return False
+
+        return True
+
+    def test_create_rename_delete_dirs (self):
         """
         create directories with different amount of files,
         compare directories on both sync folders,
@@ -515,21 +596,35 @@ class SyncTestApp ():
         self.l_dirs = []
 
         # make sure remote folders are empty
-        if not self.do_test (self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out), "Checking if remote folders are empty"):
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
             return False
 
         # create dirs
-        if not self.do_test (self.create_dirs (), "Creating directories"):
+        if not self.do_test (self.create_dirs, "Creating directories"):
             return False
 
         self.sync ()
 
+        # comparing
+        if not self.do_test (self.check_dirs, "Comparing directories"):
+            return False
+
+        # rename dirs
+        if not self.do_test (self.dirs_rename, "Rename directories"):
+            return False
+
+        self.sync ()
+
+        # comparing
+        if not self.do_test (self.check_dirs, "Comparing directories"):
+            return False
+
         # remove files
-        if not self.do_test (self.dirs_remove (), "Removing directories"):
+        if not self.do_test (self.dirs_remove, "Removing directories"):
             return False
 
         # make sure remote folders are empty
-        if not self.do_test (self.test_empty (self.local_folder_in) and self.test_empty (self.local_folder_out), "Checking if remote folders are empty"):
+        if not self.do_test (self.test_folders_empty, "Checking if remote folders are empty"):
             return False
 
         return True
@@ -618,6 +713,19 @@ class SyncTestApp ():
             self.logger.info ("Test: [FAILED]")
             self.cleanup (False)
             return
+
+        self.sync ()
+
+        self.logger.info ("Launching create / rename / delete directories test.")
+        res = self.test_create_rename_delete_dirs ()
+        if not res:
+            self.logger.info ("Test: [FAILED]")
+            self.cleanup (False)
+            return
+
+        #
+        # tests done
+        #
 
         self.cleanup (True)
 
