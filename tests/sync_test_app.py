@@ -59,7 +59,7 @@ class SyncTestApp ():
         self.logger = logging.getLogger(__name__)
         ch = logging.StreamHandler(sys.stdout)
 #        ch.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('[%(asctime)s] %(message)s')
+        formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
         ch.setFormatter (formatter)
         self.logger.addHandler(ch)
         self.logger.setLevel (logging.DEBUG)
@@ -129,7 +129,7 @@ class SyncTestApp ():
                     break;
                 except:
                     # wait for a file
-                    self.logger.debug ("Retrying [%d/%d] ..", r + 1, self.nr_retries)
+                    self.logger.debug ("File %s not found! Retrying [%d/%d] ..", ffname, r + 1, self.nr_retries)
                     time.sleep(5)
             if success == False:
                 self.logger.error("Failed to CHECK file: %s", ffname)
@@ -208,6 +208,10 @@ class SyncTestApp ():
             self.logger.debug ("File created: %s [%s, %db]", ffname, md5_str, flen)
 
         # XXX: create dirs
+
+        # randomize list
+        random.shuffle (self.l_files)
+
         # give some time to sync files to remote folder
         self.logger.debug ("Sleeping ..")
         time.sleep (self.sleep_sec)

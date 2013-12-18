@@ -35,6 +35,7 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
         self.local_mount_in = os.path.join(work_dir, "sync_in")
         self.local_mount_out = os.path.join(work_dir, "sync_out")
         self.work_dir = os.path.join(work_dir, "tmp")
+        self.remote_folder = remote_folder
 
         sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, self.work_dir)
 
