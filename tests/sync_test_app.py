@@ -1,5 +1,5 @@
 """
- Application for testing syncing algorithm
+ Base class for testing syncing algorithm
 
  (c) 2013 by Mega Limited, Wellsford, New Zealand
 
@@ -352,12 +352,6 @@ class SyncTestApp ():
                 self.logger.error("Failed to rename file: %s", ffname_src)
                 return False
 
-        # give some time to sync files to remote folder
-        self.sync ()
-
-        res = self.check_files (self.l_files)
-        return res
-
     def files_remove (self):
         """
         remove files in "in" instance and check files absence in "out" instance
@@ -381,7 +375,7 @@ class SyncTestApp ():
                 try:
                     # file must be deleted
                     with open(ffname) as fil: pass
-                    self.logger.debug ("Retrying [%d/%d] ..", r + 1, self.nr_retries)
+                    self.logger.debug ("File %s is not deleted. Retrying [%d/%d] ..", ffname, r + 1, self.nr_retries)
                     self.sync ()
                 except:
                     success = True
@@ -563,13 +557,7 @@ class SyncTestApp ():
             self.logger.error("Failed to create directory: %s", self.local_folder_in)
             return False
 
-        # create "out" folder
         self.logger.info ("OUT folder: %s", self.local_folder_out)
-        try:
-            os.makedirs (self.local_folder_out);
-        except Exception, e:
-            self.logger.error("Failed to create directory: %s", self.local_folder_out)
-         #   return False
 
         # create work folder
         self.logger.info ("Work folder: %s", self.work_folder)
