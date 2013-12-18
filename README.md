@@ -94,3 +94,27 @@ Such files and folders will still be inaccessible through e.g. Explorer!
 
 Also, disable automatic short name generation to eliminate the risk of
 clashes with existing short names.
+
+
+### Filesystem syncing
+
+In this version, the sync functionality is severely limited in scope and functionality:
+
+* There is no state kept across sessions. Deletions are only executed on the
+other side if they occur while the sync is active.
+
+* There is no locking between clients accessing the same remote folder. Concurrent
+creation of identically named files and folders can result in server-side dupes.
+
+* Syncing between clients with differing filesystem naming semantics can lead to
+loss of data, e.g. when syncing a folder containing `ABC.TXT` and `abc.txt`
+with a Windows client.
+
+* No in-place versioning. Deleted remote files can be found in //bin/SyncDebris,
+deleted local files in the client machine's recycle bin.
+
+* No delta writes. Changed files are always overwritten as a whole, which means
+that it is not a good idea to sync e.g. live database tables.
+
+* No peer-to-peer syncing. Even two machines in the same local subnet will still
+sync via the remote storage infrastructure.
