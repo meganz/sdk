@@ -117,7 +117,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
 	// (race condition between GetFileAttributesEx()/FindFirstFile() possible - fixable with the current Win32 API?)
 
-	hFile = CreateFileW((LPCWSTR)name->data(),read ? GENERIC_READ : GENERIC_WRITE,FILE_SHARE_WRITE | FILE_SHARE_READ,NULL,read ? OPEN_EXISTING : OPEN_ALWAYS,((type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0) | FILE_FLAG_POSIX_SEMANTICS,NULL);
+	hFile = CreateFileW((LPCWSTR)name->data(),read ? GENERIC_READ : GENERIC_WRITE,FILE_SHARE_WRITE | FILE_SHARE_READ,NULL,read ? OPEN_EXISTING : OPEN_ALWAYS,((type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0),NULL);
 
 	name->resize(name->size()-1);
 

@@ -4012,7 +4012,11 @@ void MegaClient::pausexfers(direction d, bool pause, bool hard)
 				{
 					if (hard) (*it++)->disconnect();
 				}
-				else (*it++)->doio(this);
+				else
+				{
+					(*it)->lastdata = waiter->ds;
+					(*it++)->doio(this);
+				}
 			}
 			else it++;
 		}
