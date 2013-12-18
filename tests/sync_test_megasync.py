@@ -20,6 +20,7 @@
 
 import sys
 import os
+import time
 import subprocess
 import sync_test_app
 import platform
@@ -61,15 +62,14 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
             return None
         return ch
 
+    def sync (self):
+        time.sleep (5)
 
     def start (self):
         """
         prepare and run tests
         """
-        self.logger.info ("Starting ..")
-
         self.logger.debug ("Launching megasync instances ..")
-
         # start "in" instance
         self.megasync_ch_in = self.start_megasync (self.local_mount_in)
         # start "out" instance
