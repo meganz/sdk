@@ -96,12 +96,12 @@ Also, disable automatic short name generation to eliminate the risk of
 clashes with existing short names.
 
 
-### Filesystem syncing
+### Folder syncing
 
 In this version, the sync functionality is severely limited in scope and functionality:
 
 * There is no state kept across sessions. Deletions are only executed on the
-other side if they occur while the sync is active.
+other side if they occur while the sync is live.
 
 * There is no locking between clients accessing the same remote folder. Concurrent
 creation of identically named files and folders can result in server-side dupes.
@@ -116,5 +116,5 @@ deleted local files in the client machine's recycle bin.
 * No delta writes. Changed files are always overwritten as a whole, which means
 that it is not a good idea to sync e.g. live database tables.
 
-* No peer-to-peer syncing. Even two machines in the same local subnet will still
-sync via the remote storage infrastructure.
+* No direct peer-to-peer syncing. Even two machines in the same local subnet will
+still sync via the remote storage infrastructure.
