@@ -715,24 +715,32 @@ void MegaClient::exec()
 				for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end(); it++)
 				{
 					// we skip missing files once to cater for possible move races (may have reappeared in a section already scanned)
-					if ((*it)->notseen > 1)
-					{
-						// missed for 2 rounds: delete remotely
-						if ((*it)->type == FOLDERNODE) app->syncupdate_local_folder_deletion((*it)->sync,(*it)->name.c_str());
-						else app->syncupdate_local_file_deletion((*it)->sync,(*it)->name.c_str());
-
-						delete *it;
-						
-						// rescan from the beginning to avoid running into deleted subnodes
-						it = localsyncnotseen.begin();
-						break;
-					}
-					else if ((*it)->scanseqno != (*it)->sync->scanseqno)
+					if ((*it)->notseen < 2 && (*it)->scanseqno != (*it)->sync->scanseqno)
 					{
 						(*it)->scanseqno = (*it)->sync->scanseqno;
 						(*it)->setnotseen((*it)->notseen+1);
 					}
 				}
+			}
+		}
+
+		// delete locally missing nodes unless a putnodes operation is in progress that may be still be referencing them
+		if (!syncadding)
+		{
+			for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end(); )
+			{
+				if ((*it)->notseen > 1)
+				{
+					// missed for 2 rounds: delete remotely
+					if ((*it)->type == FOLDERNODE) app->syncupdate_local_folder_deletion((*it)->sync,(*it)->name.c_str());
+					else app->syncupdate_local_file_deletion((*it)->sync,(*it)->name.c_str());
+
+					delete *it;
+
+					// loop back from the beginning, as the deletion above is potentially recursive
+					it = localsyncnotseen.begin();
+				}
+				else it++;
 			}
 		}
 

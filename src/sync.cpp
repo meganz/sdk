@@ -271,7 +271,7 @@ LocalNode* Sync::checkpath(string* localpath)
 			
 			client->syncactivity = true;
 
-			if (l->scanseqno != scanseqno) l->setnotseen(1);
+			l->setnotseen(1);
 		}
 		
 		l = NULL;
