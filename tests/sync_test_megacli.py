@@ -20,6 +20,7 @@
 
 import sys
 import os
+import time
 import sync_test_app
 
 class SyncTestMegaCliApp (sync_test_app.SyncTestApp):
@@ -30,6 +31,9 @@ class SyncTestMegaCliApp (sync_test_app.SyncTestApp):
         """
         self.work_dir = os.path.join(".", "work_dir")
         sync_test_app.SyncTestApp.__init__ (self, local_mount_in, local_mount_out, self.work_dir)
+
+    def sync (self):
+        time.sleep (5)
 
     def start (self):
         # try to create work dir
