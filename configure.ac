@@ -456,17 +456,18 @@ if test "x$enable_examples" = "xyes" ; then
 fi
 
 # Tests
-AC_MSG_CHECKING([if building test applications])
+AC_MSG_CHECKING([if building tests])
 AC_ARG_ENABLE([tests],
      AS_HELP_STRING([--enable-tests, build test applications]),
 	[], [enable_tests=no])
-if test "x$enable_debug" = "xyes" ; then
-    GTEST_FLAGS="$GTEST_FLAGS"
-    GTEST_LIBS="$GTEST_LIBS"
-    AC_SUBST(GTEST_FLAGS)
-    AC_SUBST(GTEST_LIBS)
+if test "x$enable_tests" = "xyes" ; then
+    AC_ARG_WITH([gtest],
+        AS_HELP_STRING([--with-gtest], [specify GTest location]),
+        [AC_SUBST([GTEST_DIR],[$with_gtest])],
+        [AC_MSG_ERROR([GTest location must be specified])]
+    )
 fi
-AM_CONDITIONAL([BUILD_TEST_APPS], [test "$enable_tests" = "yes"])
+AM_CONDITIONAL([BUILD_TESTS], [test "$enable_tests" = "yes"])
 AC_MSG_RESULT([$enable_tests])
 
 # Output
