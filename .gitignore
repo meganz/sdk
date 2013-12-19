@@ -36,7 +36,6 @@ config.*
 configure
 depcomp
 *.swp
-m4
 install-sh
 libtool
 ltmain.sh

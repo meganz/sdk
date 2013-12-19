@@ -22,6 +22,8 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
+m4_include([m4/ax_prog_doxygen.m4])
+
 AC_PREREQ([2.61])
 
 # The Mega SDK version number is generated into config.h.
@@ -469,6 +471,22 @@ if test "x$enable_tests" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_TESTS], [test "$enable_tests" = "yes"])
 AC_MSG_RESULT([$enable_tests])
+
+dnl #########################################################################
+dnl Doxygen settings
+dnl #########################################################################
+
+DX_INIT_DOXYGEN($PACKAGE_NAME, doc/sphinx_doxy.cfg, doc/output)
+DX_DOXYGEN_FEATURE(ON)
+DX_DOT_FEATURE(ON)
+DX_HTML_FEATURE(ON)
+DX_CHM_FEATURE(OFF)
+DX_CHI_FEATURE(OFF)
+DX_MAN_FEATURE(OFF)
+DX_RTF_FEATURE(OFF)
+DX_XML_FEATURE(OFF)
+DX_PDF_FEATURE(OFF)
+DX_PS_FEATURE(OFF)
 
 # Output
 AC_CONFIG_FILES([
