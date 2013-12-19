@@ -2336,6 +2336,15 @@ static void process_line(char* l)
                             cout << "* fdopendir" << endl;
                         #endif
 
+                        #ifdef HAVE_SENDFILE
+                            cout << "* sendfile" << endl;
+                        #endif
+
+                        #ifdef _LARGE_FILES
+                            cout << "* _LARGE_FILES" << endl;
+                        #endif
+
+
 						cwd = UNDEF;
 
 						return;
