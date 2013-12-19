@@ -21,6 +21,8 @@
 
 #include "mega.h"
 
+
+
 namespace mega {
 
 PosixFileAccess::PosixFileAccess()
@@ -238,9 +240,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname)
 	int sfd, tfd;
 	ssize_t t = -1;
 
-#ifdef USE_INOTIFY
-#include <sys/sendfile.h>
-
+#ifdef HAVE_SENDFILE
 	// Linux-specific - kernel 2.6.33+ required
 	if ((sfd = open(oldname->c_str(),O_RDONLY|O_DIRECT)) >= 0)
 	{
