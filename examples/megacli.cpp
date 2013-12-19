@@ -483,7 +483,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, time_t
 
 		size = csize;
 		mtime = cmtime;
-		
+
 		if (!cfingerprint->size() || !unserializefingerprint(cfingerprint)) memcpy(crc,filekey,sizeof crc);
 
 		name = *cfilename;
@@ -2066,7 +2066,7 @@ static void process_line(char* l)
 					else if (words[0] == "pause")
 					{
 						bool getarg = false, putarg = false, hardarg = false, statusarg = false;
-						
+
 						for (int i = words.size(); --i; )
 						{
 							if (words[i] == "get") getarg = true;
@@ -2093,19 +2093,19 @@ static void process_line(char* l)
 
 							return;
 						}
-						
+
 						if (!getarg && !putarg) getarg = putarg = true;
-						
+
 						if (getarg)
 						{
-							client->pausexfers(GET,client->xferpaused[GET] ^= true,hardarg);						
+							client->pausexfers(GET,client->xferpaused[GET] ^= true,hardarg);
 							if (client->xferpaused[GET]) cout << "GET transfers paused. Resume using the same command." << endl;
 							else cout << "GET transfers unpaused." << endl;
 						}
 
 						if (putarg)
 						{
-							client->pausexfers(PUT,client->xferpaused[PUT] ^= true,hardarg);						
+							client->pausexfers(PUT,client->xferpaused[PUT] ^= true,hardarg);
 							if (client->xferpaused[PUT]) cout << "PUT transfers paused. Resume using the same command." << endl;
 							else cout << "PUT transfers unpaused." << endl;
 						}
@@ -2315,6 +2315,26 @@ static void process_line(char* l)
 						cout << "MEGA SDK version: "
                             << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION
                             << endl;
+                        cout << "Features enabled:" << endl;
+                        #ifdef USE_CRYPTOPP
+                            cout << "* Cryptopp" << endl;
+                        #endif
+
+                        #ifdef USE_SQLITE
+                            cout << "* SQLite" << endl;
+                        #endif
+
+                        #ifdef USE_BDB
+                            cout << "* Berkeley DB" << endl;
+                        #endif
+
+                        #ifdef USE_INOTIFY
+                            cout << "* Inotify" << endl;
+                        #endif
+
+                        #ifdef HAVE_FDOPENDIR
+                            cout << "* fdopendir" << endl;
+                        #endif
 
 						cwd = UNDEF;
 
@@ -2502,12 +2522,12 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, t
 	if (fingerprint->size()) cout << ", fingerprint available";
 	if (fileattrstring->size()) cout << ", has attributes";
 	cout << endl;
-	
+
 	if (e) cout << "Not available: " << errorstring(e) << endl;
 	else
 	{
 		cout << "Initiating download..." << endl;
-	
+
 		AppFileGet* f = new AppFileGet(NULL,h,filekey,size,tm,filename,fingerprint);
 		f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(),f);
 		client->startxfer(GET,f);
