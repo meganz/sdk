@@ -77,12 +77,6 @@ class SyncLocalOp;
 #define EOO 0
 #define THUMBNAIL120X120 0
 
-// interface enabling class to add its wakeup criteria to the waiter
-struct EventTrigger
-{
-	virtual void addevents(Waiter*) = 0;
-};
-
 // HttpReq states
 typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE } reqstatus;
 

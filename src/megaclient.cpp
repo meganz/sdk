@@ -828,19 +828,25 @@ int MegaClient::wait()
 		}
 	}
 
-	if (nds)
-	{
-		// nds is either MAX_INT (== no pending events) or > ds
-		if (nds+1) nds -= ds;
+	// immediate action required?
+	if (!nds) return Waiter::NEEDEXEC;
+	
+	// nds is either MAX_INT (== no pending events) or > ds
+	if (nds+1) nds -= ds;
 
-		waiter->init(nds);
-		waiter->wakeupby(httpio);
-		waiter->wakeupby(fsaccess);
+	waiter->init(nds);
+	
+	// set subsystem wakeup criteria
+	waiter->wakeupby(httpio);
+	waiter->wakeupby(fsaccess);
 
-		return waiter->wait();
-	}
+	int r = waiter->wait();
+	
+	// process results
+	r |= httpio->checkevents(waiter);
+	r |= fsaccess->checkevents(waiter);
 
-	return Waiter::NEEDEXEC;
+	return r;
 }
 
 
@@ -4004,6 +4010,8 @@ void MegaClient::pausexfers(direction d, bool pause, bool hard)
 
 	if (!pause || hard)
 	{
+		waiter->getdstime();
+	
 		for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
 		{
 			if ((*it)->transfer->type == d)
@@ -4111,9 +4119,10 @@ error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
 {
 	error e;
 	FileAccess* fa = fsaccess->newfileaccess();
-
+cout << "Opening " << *rootpath << endl;
 	if (fa->fopen(rootpath,true,false))
 	{
+cout << "Success" << endl;
 		if (fa->type == FOLDERNODE)
 		{
 			new Sync(this,rootpath,remotenode,tag);

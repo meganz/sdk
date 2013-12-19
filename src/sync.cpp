@@ -38,12 +38,13 @@ Sync::Sync(MegaClient* cclient, string* crootpath, Node* remotenode, int ctag)
 
 	state = SYNC_INITIALSCAN;
 
+	dirnotify = client->fsaccess->newdirnotify(crootpath);
+
 	localroot.init(this,FOLDERNODE,NULL,crootpath);
 	localroot.setnode(remotenode);
 
 	sync_it = client->syncs.insert(client->syncs.end(),this);
 
-	dirnotify = client->fsaccess->newdirnotify(crootpath);
 	scan(crootpath,NULL);
 }
 
