@@ -4115,14 +4115,40 @@ void MegaClient::movetosyncdebris(Node* n)
 }
 
 // check sync path, add sync if folder
+// disallow nested syncs (there is only one LocalNode pointer per node), return EEXIST otherwise
+// (FIXME: perform same check for local paths!)
 error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
 {
-	error e;
+	// cannot sync root node (why not?)
+	if (remotenode->type != FOLDERNODE) return API_EACCESS;
+
+	Node* n;
+
+	// any active syncs below?
+	for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+	{
+		if ((*it)->state != SYNC_FAILED)
+		{
+			n = (*it)->localroot.node;
+			
+			do {
+				if (n == remotenode) return API_EEXIST;
+			} while ((n = n->parent));
+		}
+	}
+	
+	// any active syncs above?
+	n = remotenode;
+	
+	do {
+		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state != SYNC_FAILED && n == (*it)->localroot.node) return API_EEXIST;
+	} while ((n = n->parent));
+	
 	FileAccess* fa = fsaccess->newfileaccess();
-cout << "Opening " << *rootpath << endl;
+	error e;
+
 	if (fa->fopen(rootpath,true,false))
 	{
-cout << "Success" << endl;
 		if (fa->type == FOLDERNODE)
 		{
 			new Sync(this,rootpath,remotenode,tag);
