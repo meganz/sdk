@@ -203,10 +203,14 @@ struct LocalNode : public File
 	
 	// build full local path to this node
 	void getlocalpath(string*, bool sdisable = false);
+	void getlocalsubpath(string*);
 
 	// return child node by name
 	LocalNode* childbyname(string*);
 
+	// node-specific DirNotify tag
+	handle dirnotifytag;
+	
 	void prepare();
 	void completed(Transfer*, LocalNode*);
 

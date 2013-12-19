@@ -29,12 +29,18 @@ bool FileSystemAccess::islchex(char c)
 }
 
 // default DirNotify: no notification available
-DirNotify::DirNotify(string* clocalpath)
+DirNotify::DirNotify(string* clocalbasepath)
 {
-	localbasepath = *clocalpath;
+	localbasepath = *clocalbasepath;
 	
 	failed = true;
 	error = false;
+}
+
+void DirNotify::notifypath(const char* localpath, size_t len)
+{
+	pathq[DIREVENTS].resize(pathq[DIREVENTS].size()+1);
+	pathq[DIREVENTS].back().assign(localpath,len);
 }
 
 DirNotify* FileSystemAccess::newdirnotify(string* localpath)

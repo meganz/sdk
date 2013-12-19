@@ -23,6 +23,7 @@
 #define MEGA_FILESYSTEM_H 1
 
 #include "types.h"
+#include "waiter.h"
 
 namespace mega {
 
@@ -94,6 +95,11 @@ struct DirNotify
 	
 	// base path
 	string localbasepath;
+
+	virtual void addnotify(LocalNode*, string*) { }
+	virtual void delnotify(LocalNode*) { }
+
+	void notifypath(const char*, size_t);
 	
 	DirNotify(string*);
 };

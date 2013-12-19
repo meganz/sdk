@@ -29,6 +29,8 @@ PosixFileAccess::PosixFileAccess()
 #ifndef USE_FDOPENDIR
 	dp = NULL;
 #endif
+
+	fsidvalid = false;
 }
 
 PosixFileAccess::~PosixFileAccess()
@@ -78,6 +80,8 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 			size = statbuf.st_size;
 			mtime = statbuf.st_mtime;
 			type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+			fsid = (handle)statbuf.st_ino;
+			fsidvalid = true;
 
 			return true;
 		}
@@ -94,10 +98,14 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 	localseparator = "/";
 
 #ifdef USE_INOTIFY
-	notifyfd = inotify_init1(IN_NONBLOCK);
-	notifyerr = false;
-	notifyleft = 0;
+	if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
+	{
+		notifyerr = false;
+		notifyfailed = false;
+	}
+	else
 #endif
+	notifyfailed = true;		// mark filesystem notification as unavailable
 }
 
 PosixFileSystemAccess::~PosixFileSystemAccess()
@@ -107,17 +115,62 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 #endif
 }
 
+#ifdef USE_INOTIFY
 // wake up from filesystem updates
 void PosixFileSystemAccess::addevents(Waiter* w)
 {
-#ifdef USE_INOTIFY
 	PosixWaiter* pw = (PosixWaiter*)w;
 
 	FD_SET(notifyfd,&pw->rfds);
 
 	pw->bumpmaxfd(notifyfd);
-#endif
 }
+
+int PosixFileSystemAccess::checkevents(Waiter* w)
+{
+	PosixWaiter* pw = (PosixWaiter*)w;
+	int r = 0;
+
+	if (FD_ISSET(notifyfd,&pw->rfds))
+	{
+		char buf[sizeof(struct inotify_event)+NAME_MAX+1];
+		int p, l;
+		inotify_event* in;
+		wdlocalnode_map::iterator it;
+		string localpath;
+
+		while ((l = read(notifyfd,buf,sizeof buf)) > 0)
+		{
+			for (p = 0; p < l; p += offsetof(inotify_event,name)+in->len)
+			{
+				in = (inotify_event*)(buf+p);
+
+				if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)) notifyerr = true;
+
+				if (in->mask & (IN_CREATE|IN_DELETE|IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_EXCL_UNLINK))
+				{
+					if ((in->mask & (IN_CREATE|IN_ISDIR)) != IN_CREATE)
+					{
+						it = wdnodes.find(in->wd);
+
+						if (it != wdnodes.end())
+						{
+							it->second->getlocalsubpath(&localpath);
+							localpath.append("/");
+							localpath.append(in->name);
+							it->second->sync->dirnotify->notifypath(localpath.c_str(),localpath.size());
+
+							r |= Waiter::NEEDEXEC;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	return r;
+}
+#endif
 
 // generate unique local filename in the same fs as relatedpath
 void PosixFileSystemAccess::tmpnamelocal(string* filename, string* relatedpath)
@@ -249,84 +302,29 @@ bool PosixFileSystemAccess::chdirlocal(string* name)
 	return !chdir(name->c_str());
 }
 
-void PosixFileSystemAccess::addnotify(LocalNode* l, string* path)
+PosixDirNotify::PosixDirNotify(string* localbasepath) : DirNotify(localbasepath)
 {
+}
+
 #ifdef USE_INOTIFY
+void PosixDirNotify::addnotify(LocalNode* l, string* path)
+{
 	int wd;
 
-	wd = inotify_add_watch(notifyfd,path->c_str(),IN_CREATE|IN_DELETE|IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_EXCL_UNLINK|IN_ONLYDIR);
+	wd = inotify_add_watch(fsaccess->notifyfd,path->c_str(),IN_CREATE|IN_DELETE|IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_EXCL_UNLINK|IN_ONLYDIR);
 
 	if (wd >= 0)
 	{
-		l->notifyhandle = (void*)(long)wd;
-		wdnodes[wd] = l;
+		l->dirnotifytag = (handle)wd;
+		fsaccess->wdnodes[wd] = l;
 	}
-#endif
 }
 
-void PosixFileSystemAccess::delnotify(LocalNode* l)
+void PosixDirNotify::delnotify(LocalNode* l)
 {
-#ifdef USE_INOTIFY
-	if (wdnodes.erase((int)(long)l->notifyhandle)) inotify_rm_watch(notifyfd,(int)(long)l->notifyhandle);
+	if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag)) inotify_rm_watch(fsaccess->notifyfd,(int)l->dirnotifytag);
+}
 #endif
-}
-
-// return next notified local name and corresponding parent node
-bool PosixFileSystemAccess::notifynext(sync_list*, string* localname, LocalNode** localnodep, bool* fulltreep)
-{
-#ifdef USE_INOTIFY
-	inotify_event* in;
-	wdlocalnode_map::iterator it;
-
-	for (;;)
-	{
-		if (notifyleft <= 0)
-		{
-			if ((notifyleft = read(notifyfd,notifybuf,sizeof notifybuf)) <= 0) return false;
-			notifypos = 0;
-		}
-
-		in = (inotify_event*)(notifybuf+notifypos);
-
-		notifyleft += notifypos;
-		notifypos = in->name-notifybuf+in->len;
-		notifyleft -= notifypos;
-
-		if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)) break;
-
-		if (in->mask & (IN_CREATE|IN_DELETE|IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_EXCL_UNLINK))
-		{
-			if ((in->mask & (IN_CREATE|IN_ISDIR)) != IN_CREATE)
-			{
-				it = wdnodes.find(in->wd);
-
-				if (it != wdnodes.end())
-				{
-					*localname = in->name;
-					*localnodep = it->second;
-
-					if (fulltreep) *fulltreep = true;
-
-					return true;
-				}
-				else cout << "Unknown wd handle" << endl;
-			}
-			else cout << "File creation ignored" << endl;
-		}
-		else cout << "Unknown mask: " << in->mask << endl;
-	}
-
-	cout << "Notify Overflow" << endl;
-#endif
-	notifyerr = true;
-	return false;
-}
-
-// true if notifications were unreliable and/or a full rescan is required
-bool PosixFileSystemAccess::notifyfailed()
-{
-	return notifyerr ? (notifyerr = false) || true : false;
-}
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {
@@ -336,6 +334,15 @@ FileAccess* PosixFileSystemAccess::newfileaccess()
 DirAccess* PosixFileSystemAccess::newdiraccess()
 {
 	return new PosixDirAccess();
+}
+
+DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath)
+{
+	PosixDirNotify* dirnotify = new PosixDirNotify(localpath);
+
+	dirnotify->fsaccess = this;
+	
+	return dirnotify;
 }
 
 bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
