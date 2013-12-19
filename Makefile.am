@@ -25,6 +25,7 @@ ACLOCAL_AMFLAGS=-I m4
 AM_CPPFLAGS = \
 	-I$(top_srcdir)/include
 
+include m4/aminclude.am
 
 if WIN32
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/win32
@@ -37,14 +38,17 @@ VERSION_INFO=$(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 CLEANFILES=
 DISTCLEANFILES=
 BUILT_SOURCES=
+noinst_PROGRAMS=
+
 include src/include.am
-include tests/include.am
 include examples/include.am
+include tests/include.am
 
 SUBDIRS = include
 
 EXTRA_DIST=autogen.sh
 EXTRA_DIST+=libmega.pc.in
+EXTRA_DIST+=$(DX_CONFIG)
 
 pkgconfigdir=$(libdir)/pkgconfig
 pkgconfig_DATA=libmega.pc
