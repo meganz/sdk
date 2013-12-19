@@ -2,7 +2,7 @@
 EXAMPLES = examples/megacli examples/megasync
 
 if BUILD_EXAMPLES
-noinst_PROGRAMS = $(EXAMPLES)
+noinst_PROGRAMS += $(EXAMPLES)
 endif
 
 # depends on libmega

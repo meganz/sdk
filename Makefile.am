@@ -37,9 +37,11 @@ VERSION_INFO=$(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 CLEANFILES=
 DISTCLEANFILES=
 BUILT_SOURCES=
+noinst_PROGRAMS=
+
 include src/include.am
-include tests/include.am
 include examples/include.am
+include tests/include.am
 
 SUBDIRS = include
 
