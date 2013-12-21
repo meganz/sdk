@@ -30,6 +30,7 @@ namespace mega {
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creaton load on the servers
 // FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
 // FIXME: set folder timestamps
+// FIXME: prevent synced folder from being moved into another synced folder
 
 // root URL for API access
 const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
@@ -1893,7 +1894,7 @@ void MegaClient::notifypurge(void)
 				Node* tn = NULL;
 
 				// find topmost deleted sync node
-				while (n && n->localnode && (n->removed || (n->parent && !n->parent->localnode)))
+				while (n && n->localnode && (n->removed || (n->parent && !n->parent->localnode && n != n->localnode->sync->localroot.node)))
 				{
 					tn = n;
 					n = n->parent;
@@ -4189,6 +4190,7 @@ void MegaClient::execsynclocalops()
 
 			synclocalopretry = true;
 			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
+
 			return;
 		}
 

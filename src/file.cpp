@@ -143,6 +143,26 @@ SyncFileGet::~SyncFileGet()
 	n->syncget = NULL;
 }
 
+// update localname (parent's localnode 
+void SyncFileGet::updatelocalname()
+{
+	attr_map::iterator ait;
+
+	if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
+	{
+		if (n->parent && n->parent->localnode)
+		{
+			string tmpname = ait->second;
+			
+			sync->client->fsaccess->name2local(&tmpname);
+			n->parent->localnode->getlocalpath(&localname);
+
+			localname.append(sync->client->fsaccess->localseparator);
+			localname.append(tmpname);
+		}
+	}
+}
+
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer* t, LocalNode* n)
 {
