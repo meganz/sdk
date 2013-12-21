@@ -20,6 +20,7 @@
  */
 
 #include "mega/filesystem.h"
+#include "mega/node.h"
 
 namespace mega {
 
@@ -37,10 +38,12 @@ DirNotify::DirNotify(string* clocalbasepath)
 	error = false;
 }
 
-void DirNotify::notifypath(const char* localpath, size_t len)
+// notify base LocalNode + relative path/filename
+void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len)
 {
-	pathq[DIREVENTS].resize(pathq[DIREVENTS].size()+1);
-	pathq[DIREVENTS].back().assign(localpath,len);
+	notifyq[q].resize(notifyq[q].size()+1);
+	notifyq[q].back().localnode = l;
+	notifyq[q].back().path.assign(localpath,len);
 }
 
 DirNotify* FileSystemAccess::newdirnotify(string* localpath)

@@ -533,7 +533,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 }
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* clocalpath)
+void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* clocalpath, string* cfullpath)
 {
 	sync = csync;
 	parent = NULL;
@@ -551,7 +551,7 @@ void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* cl
 	fsid_it	= sync->client->fsidnode.end();
 
 	// enable folder notification
-	if (type == FOLDERNODE) sync->dirnotify->addnotify(this,clocalpath);
+	if (type == FOLDERNODE) sync->dirnotify->addnotify(this,cfullpath);
 
 	sync->client->syncactivity = true;
 

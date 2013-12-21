@@ -2315,9 +2315,11 @@ static void process_line(char* l)
 						cout << "MEGA SDK version: "
                             << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION
                             << endl;
-                        cout << "Features enabled:" << endl;
+
+						cout << "Features enabled:" << endl;
+
                         #ifdef USE_CRYPTOPP
-                            cout << "* Cryptopp" << endl;
+                            cout << "* CryptoPP" << endl;
                         #endif
 
                         #ifdef USE_SQLITE
@@ -2329,7 +2331,7 @@ static void process_line(char* l)
                         #endif
 
                         #ifdef USE_INOTIFY
-                            cout << "* Inotify" << endl;
+                            cout << "* inotify" << endl;
                         #endif
 
                         #ifdef HAVE_FDOPENDIR
@@ -2343,7 +2345,6 @@ static void process_line(char* l)
                         #ifdef _LARGE_FILES
                             cout << "* _LARGE_FILES" << endl;
                         #endif
-
 
 						cwd = UNDEF;
 
