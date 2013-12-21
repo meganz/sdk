@@ -22,8 +22,9 @@
 #ifndef MEGA_TYPES_H
 #define MEGA_TYPES_H 1
 
+#include "megasys.h"
+
 // FIXME: #define PRI*64 is missing
-#define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
 #include <iostream>
@@ -35,8 +36,6 @@
 #include <iterator>
 #include <queue>
 #include <list>
-
-#include "megasys.h"
 
 typedef int64_t m_off_t;
 

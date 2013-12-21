@@ -21,12 +21,14 @@
 
 #include "mega.h"
 
+
+
 namespace mega {
 
 PosixFileAccess::PosixFileAccess()
 {
 	fd = -1;
-#ifndef USE_FDOPENDIR
+#ifndef HAVE_FDOPENDIR
 	dp = NULL;
 #endif
 
@@ -63,7 +65,7 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 
 bool PosixFileAccess::fopen(string* f, bool read, bool write)
 {
-#ifndef USE_FDOPENDIR
+#ifndef HAVE_FDOPENDIR
 	if ((dp = opendir(f->c_str())))
 	{
 		type = FOLDERNODE;
@@ -164,7 +166,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 			}
 		}
 	}
-	
+
 	return r;
 }
 #endif
@@ -235,9 +237,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname)
 	int sfd, tfd;
 	ssize_t t = -1;
 
-#ifdef USE_INOTIFY
-#include <sys/sendfile.h>
-
+#ifdef HAVE_SENDFILE
 	// Linux-specific - kernel 2.6.33+ required
 	if ((sfd = open(oldname->c_str(),O_RDONLY|O_DIRECT)) >= 0)
 	{
@@ -281,9 +281,9 @@ bool PosixFileSystemAccess::rmdirlocal(string* name)
 bool PosixFileSystemAccess::mkdirlocal(string* name)
 {
 	bool r = !mkdir(name->c_str(),0700);
-	
+
 	if (!r) target_exists = errno == EEXIST;
-	
+
 	return r;
 }
 
@@ -338,7 +338,7 @@ DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath)
 	PosixDirNotify* dirnotify = new PosixDirNotify(localpath);
 
 	dirnotify->fsaccess = this;
-	
+
 	return dirnotify;
 }
 
@@ -356,7 +356,7 @@ bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
 
 	if (f)
 	{
-#ifdef USE_FDOPENDIR
+#ifdef HAVE_FDOPENDIR
 		dp = fdopendir(((PosixFileAccess*)f)->fd);
 		((PosixFileAccess*)f)->fd = -1;
 #else

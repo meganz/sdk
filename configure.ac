@@ -96,11 +96,36 @@ AC_LANG_CPLUSPLUS
 AC_STDC_HEADERS
 AC_HEADER_STDC
 AC_HEADER_STDBOOL
+
+AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C++])
+AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
+AC_DEFINE(__STDC_LIMIT_MACROS, [], [Force definition of limit macros for C++])
+
+# Define _GNU_SOURCE
+AC_DEFINE([_GNU_SOURCE], [1], [use GNU extensions])
+
+# Define _FILE_OFFSET_BITS and _LARGE_FILES if necessary
+AC_SYS_LARGEFILE
+
+AC_DEFINE(_GNU_SOURCE)
+
+# Add 64-bits file support on some hosts
+AC_DEFINE([_FILE_OFFSET_BITS], [64],
+          [Define to 64 for large file support on some hosts])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_CHECK_SIZEOF([uint64_t])
+AC_STRUCT_TM
+AC_TYPE_OFF_T
+AC_TYPE_SIZE_T
+
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h])
 
 # Checks for inotify support.
 AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
 AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+
+AC_CHECK_FUNCS(fdopendir sendfile clock_gettime select)
 
 #libcrypto++
 AC_MSG_CHECKING(for libcrypto++)
@@ -124,7 +149,7 @@ AC_ARG_WITH(cryptopp,
    *)
     # set temp variables
     LDFLAGS="-L$with_cryptopp/lib $LDFLAGS"
-    CPPFLAGS="-I$with_cryptopp/include $CPPFLAGS"
+    CXXFLAGS="-I$with_cryptopp/include $CXXFLAGS"
 
     AC_CHECK_HEADERS(cryptopp/cryptlib.h,
      EXT_LIB_PATH="-L$with_cryptopp/lib $EXT_LIB_PATH"
@@ -140,7 +165,7 @@ AC_ARG_WITH(cryptopp,
 
     #restore
     LDFLAGS=$SAVE_LDFLAGS
-    CPPFLAGS=$SAVE_CPPFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
     ;;
    esac
   ],
@@ -181,7 +206,7 @@ AC_SUBST(LIBS_EXTRA)
 # ** DB layer **
 #
 SAVE_LDFLAGS=$LDFLAGS
-SAVE_CPPFLAGS=$CPPFLAGS
+SAVE_CXXFLAGS=$CXXFLAGS
 
 # SQLite3
 sqlite=false
@@ -205,12 +230,12 @@ AC_ARG_WITH(sqlite,
    *)
     # set temp variables
     LDFLAGS="-L$with_sqlite/lib $LDFLAGS"
-    CPPFLAGS="-I$with_sqlite/include $CPPFLAGS"
+    CXXFLAGS="-I$with_sqlite/include $CXXFLAGS"
 
     AC_CHECK_HEADERS(sqlite3.h,
      EXT_LIB_PATH="-L$with_sqlite/lib $EXT_LIB_PATH"
      DB_LDFLAGS="-L$with_sqlite/lib"
-     DB_CPPFLAGS="-I$with_sqlite/include",
+     DB_CXXFLAGS="-I$with_sqlite/include",
      AC_MSG_ERROR([sqlite3.h header not found or not usable])
      )
     AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
@@ -221,14 +246,14 @@ AC_ARG_WITH(sqlite,
 
     #restore
     LDFLAGS=$SAVE_LDFLAGS
-    CPPFLAGS=$SAVE_CPPFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
     ;;
    esac
   ],
   [AC_MSG_RESULT([--with-sqlite not specified])]
   )
 AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
-AC_SUBST(DB_CPPFLAGS)
+AC_SUBST(DB_CXXFLAGS)
 AC_SUBST(DB_LDFLAGS)
 AC_SUBST(DB_LIBS)
 
@@ -255,12 +280,12 @@ AC_ARG_WITH(db,
    *)
     # set temp variables
     LDFLAGS="-L$with_db/lib $LDFLAGS"
-    CPPFLAGS="-I$with_db/include $CPPFLAGS"
+    CXXFLAGS="-I$with_db/include $CXXFLAGS"
 
     AC_CHECK_HEADERS(db_cxx.h,
      EXT_LIB_PATH="-L$with_db/lib $EXT_LIB_PATH"
      DB_LDFLAGS="-L$with_db/lib"
-     DB_CPPFLAGS="-I$with_db/include",
+     DB_CXXFLAGS="-I$with_db/include",
      AC_MSG_ERROR([db_cxx.h header not found or not usable])
      )
     AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
@@ -270,14 +295,14 @@ AC_ARG_WITH(db,
 
     #restore
     LDFLAGS=$SAVE_LDFLAGS
-    CPPFLAGS=$SAVE_CPPFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
     ;;
    esac
   ],
   [AC_MSG_RESULT([--with-db not specified])]
   )
 AM_CONDITIONAL(USE_DB, test "x$db = xtrue")
-AC_SUBST(DB_CPPFLAGS)
+AC_SUBST(DB_CXXFLAGS)
 AC_SUBST(DB_LDFLAGS)
 AC_SUBST(DB_LIBS)
 
@@ -302,7 +327,7 @@ if test "x$sqlite" = "xfalse" ; then
         sqlite=true
 
         AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
-        AC_SUBST(DB_CPPFLAGS)
+        AC_SUBST(DB_CXXFLAGS)
         AC_SUBST(DB_LDFLAGS)
         AC_SUBST(DB_LIBS)
     fi
@@ -379,12 +404,12 @@ if test "x$enable_examples" = "xyes" ; then
        *)
         # set temp variables
         LDFLAGS="-L$with_freeimage/lib $LDFLAGS"
-        CPPFLAGS="-I$with_freeimage/include $CPPFLAGS"
+        CXXFLAGS="-I$with_freeimage/include $CXXFLAGS"
 
         AC_CHECK_HEADERS([FreeImage.h],
          EXT_LIB_PATH="-L$with_freeimage/lib $EXT_LIB_PATH"
          FI_LDFLAGS="-L$with_freeimage/lib"
-         FI_CPPFLAGS="-I$with_freeimage/include",
+         FI_CXXFLAGS="-I$with_freeimage/include",
          AC_MSG_ERROR([FreeImage.h header not found or not usable])
          )
         AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
@@ -392,7 +417,7 @@ if test "x$enable_examples" = "xyes" ; then
 
         #restore
         LDFLAGS=$SAVE_LDFLAGS
-        CPPFLAGS=$SAVE_CPPFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
         ;;
        esac
       ],
@@ -406,7 +431,7 @@ if test "x$enable_examples" = "xyes" ; then
       )
       AC_SUBST(FI_LDFLAGS)
       AC_SUBST(FI_LIBS)
-      AC_SUBST(FI_CPPFLAGS)
+      AC_SUBST(FI_CXXFLAGS)
 
       # ReadLine
     AC_MSG_CHECKING(for Readline)
@@ -427,12 +452,12 @@ if test "x$enable_examples" = "xyes" ; then
        *)
         # set temp variables
         LDFLAGS="-L$with_readline/lib $LDFLAGS"
-        CPPFLAGS="-I$with_readline/include $CPPFLAGS"
+        CXXFLAGS="-I$with_readline/include $CXXFLAGS"
 
         AC_CHECK_HEADERS([readline/readline.h],
          EXT_LIB_PATH="-L$with_readline/lib $EXT_LIB_PATH"
          RL_LDFLAGS="-L$with_readline/lib"
-         RL_CPPFLAGS="-I$with_readline/include",
+         RL_CXXFLAGS="-I$with_readline/include",
          AC_MSG_ERROR([readline/readline.h header not found or not usable])
          )
         AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
@@ -440,7 +465,7 @@ if test "x$enable_examples" = "xyes" ; then
 
         #restore
         LDFLAGS=$SAVE_LDFLAGS
-        CPPFLAGS=$SAVE_CPPFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
         ;;
        esac
       ],
@@ -454,7 +479,7 @@ if test "x$enable_examples" = "xyes" ; then
       )
       AC_SUBST(RL_LDFLAGS)
       AC_SUBST(RL_LIBS)
-      AC_SUBST(RL_CPPFLAGS)
+      AC_SUBST(RL_CXXFLAGS)
 fi
 
 # Tests
