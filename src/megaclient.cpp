@@ -656,7 +656,7 @@ void MegaClient::exec()
 	{
 		for (it = syncs.begin(); it != syncs.end(); it++)
 		{
-			if ((*it)->dirnotify->pathq[DirNotify::RETRY].size() && (*it)->state != SYNC_FAILED)
+			if ((*it)->dirnotify->notifyq[DirNotify::RETRY].size() && (*it)->state != SYNC_FAILED)
 			{
 				q = DirNotify::RETRY;
 				break;
@@ -682,13 +682,13 @@ void MegaClient::exec()
 			if (sync->state != SYNC_FAILED)
 			{
 				// process items from the scanq until depleted
-				if (sync->dirnotify->pathq[q].size())
+				if (sync->dirnotify->notifyq[q].size())
 				{
 					sync->procscanq(q);
 					syncactivity = true;
 				}
 
-				if (sync->dirnotify->pathq[q].size())
+				if (sync->dirnotify->notifyq[q].size())
 				{
 					syncscanning = true;
 				}
@@ -708,7 +708,7 @@ void MegaClient::exec()
 		if (localsyncnotseen.size())
 		{
 			// if all scanqs are complete, execute pending remote deletions
-			for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->dirnotify->pathq[DirNotify::DIREVENTS].size() || (*it)->dirnotify->pathq[DirNotify::RETRY].size()) break;
+			for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size() || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()) break;
 
 			if (it == syncs.end())
 			{
@@ -719,6 +719,7 @@ void MegaClient::exec()
 					{
 						(*it)->scanseqno = (*it)->sync->scanseqno;
 						(*it)->setnotseen((*it)->notseen+1);
+						syncactivity = true;
 					}
 				}
 			}
@@ -763,7 +764,7 @@ void MegaClient::exec()
 				{
 					if ((*it)->state == SYNC_ACTIVE && ((*it)->dirnotify->failed || (*it)->dirnotify->error))
 					{
-						(*it)->dirnotify->pathq[DirNotify::DIREVENTS].push_back("");
+						(*it)->dirnotify->notify(DirNotify::DIREVENTS,NULL,"",0);
 						totalnodes += (*it)->localnodes[FILENODE]+(*it)->localnodes[FOLDERNODE];
 						syncscanfailed = true;
 						(*it)->dirnotify->error = false;
@@ -821,7 +822,7 @@ int MegaClient::wait()
 		if (synclocalopretry) synclocalopretrybt.update(ds,&nds);
 
 		// retrying of transiently failed sync fopen()s
-		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->dirnotify->pathq[DirNotify::RETRY].size() && (*it)->state != SYNC_FAILED)
+		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) if ((*it)->dirnotify->notifyq[DirNotify::RETRY].size() && (*it)->state != SYNC_FAILED)
 		{
 			scanretrybt.update(ds,&nds);
 			break;
@@ -3669,8 +3670,7 @@ void MegaClient::syncdown(LocalNode* l, string* localpath)
 					// create local path, add to LocalNodes and recurse
 					if (fsaccess->mkdirlocal(localpath))
 					{
-						localpath->erase(0,l->sync->dirnotify->localbasepath.size()+fsaccess->localseparator.size());
-						LocalNode* ll = l->sync->checkpath(localpath);	// (this will re-add the prefix stripped above)
+						LocalNode* ll = l->sync->checkpath(l,localpath);
 
 						if (ll)
 						{
@@ -4151,8 +4151,14 @@ error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
 	{
 		if (fa->type == FOLDERNODE)
 		{
-			new Sync(this,rootpath,remotenode,tag);
-			e = API_OK;
+			Sync* sync = new Sync(this,rootpath,remotenode,tag);
+			
+			if (sync->scan(rootpath,fa)) e = API_OK;
+			else
+			{
+				delete sync;
+				e = API_ENOENT;
+			}
 		}
 		else e = API_EACCESS;	// cannot sync individual files
 	}
