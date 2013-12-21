@@ -1,6 +1,6 @@
 /**
- * @file mega/posix/megawait.h
- * @brief POSIX event/timeout handling
+ * @file mega/win32/megaconsolewaiter.h
+ * @brief Win32 event/timeout handling, listens for console input
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
  *
@@ -19,27 +19,20 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
+#ifndef CONSOLE_WAIT_CLASS
+#define CONSOLE_WAIT_CLASS WinConsoleWaiter
 
-#include "mega/waiter.h"
+#include "megawait.h"
 
 namespace mega {
 
-struct PosixWaiter : public Waiter
+class WinConsoleWaiter : public WinWaiter
 {
-	int maxfd;
-	fd_set rfds, wfds, efds;
+public:
 
-	dstime getdstime();
+    int wait();
 
-	void init(dstime);
-	void waitfor(EventTrigger*);
-	int wait();
-
-    int monitor_fds ();
-
-	void bumpmaxfd(int);
+	WinConsoleWaiter();
 };
 
 } // namespace

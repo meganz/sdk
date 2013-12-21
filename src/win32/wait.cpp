@@ -19,17 +19,12 @@
  * program.
  */
 
-#include "mega.h"
 #include "megawait.h"
-
-#include <conio.h>
 
 namespace mega {
 
 WinWaiter::WinWaiter()
 {
-	DWORD dwMode;
-
 	pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),"GetTickCount64");
 
 	if (!pGTC)
@@ -37,12 +32,6 @@ WinWaiter::WinWaiter()
 		tickhigh = 0;
 		prevt = 0;
 	}
-
-	hWakeup[WAKEUP_CONSOLE] = GetStdHandle(STD_INPUT_HANDLE);
-
-	GetConsoleMode(hWakeup[WAKEUP_CONSOLE],&dwMode);
-	SetConsoleMode(hWakeup[WAKEUP_CONSOLE],dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
-	FlushConsoleInputBuffer(hWakeup[WAKEUP_CONSOLE]);
 }
 
 void WinWaiter::init(dstime ds)
@@ -76,14 +65,6 @@ int WinWaiter::wait()
 	if (pcsHTTP) EnterCriticalSection(pcsHTTP);
 
 	if (dwWaitResult == WAIT_OBJECT_0 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
-
-	// FIXME: improve this gruesome nonblocking console read-simulating kludge
-	if (_kbhit()) return HAVESTDIN;
-
-	// this assumes that the user isn't typing too fast
-	INPUT_RECORD ir[1024];
-	DWORD dwNum;
-	ReadConsoleInput(hWakeup[WAKEUP_CONSOLE],ir,1024,&dwNum);
 
 	return 0;
 }

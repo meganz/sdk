@@ -67,6 +67,7 @@
 #include "meganet.h"
 #include "megafs.h"
 #include "megaconsole.h"
+#include "megaconsolewaiter.h"
 
 #include "mega/db/sqlite.h"
 #include "mega/db/bdb.h"

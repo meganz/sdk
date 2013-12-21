@@ -19,27 +19,16 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
+#ifndef CONSOLE_WAIT_CLASS
+#define CONSOLE_WAIT_CLASS PosixConsoleWaiter
 
-#include "mega/waiter.h"
+#include "megawait.h"
 
 namespace mega {
 
-struct PosixWaiter : public Waiter
+struct PosixConsoleWaiter : public PosixWaiter
 {
-	int maxfd;
-	fd_set rfds, wfds, efds;
-
-	dstime getdstime();
-
-	void init(dstime);
-	void waitfor(EventTrigger*);
 	int wait();
-
-    int monitor_fds ();
-
-	void bumpmaxfd(int);
 };
 
 } // namespace
