@@ -297,7 +297,13 @@ typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
 
 typedef enum { PATHSTATE_NOTFOUND, PATHSTATE_SYNCED, PATHSTATE_SYNCING, PATHSTATE_PENDING } pathstate_t;
 
-typedef deque<string> string_deque;
+struct Notification
+{
+	string path;
+	LocalNode* localnode;
+};
+
+typedef deque<Notification> notify_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;

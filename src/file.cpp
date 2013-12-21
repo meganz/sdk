@@ -143,11 +143,10 @@ SyncFileGet::~SyncFileGet()
 	n->syncget = NULL;
 }
 
-// add corresponding LocalNode, then self-destruct
+// add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer* t, LocalNode* n)
 {
-	localname.erase(0,sync->dirnotify->localbasepath.size()+sync->client->fsaccess->localseparator.size());
-	sync->checkpath(&localname);
+	sync->checkpath(NULL,&localname);
 	delete this;
 }
 

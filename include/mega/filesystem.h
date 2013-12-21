@@ -82,25 +82,26 @@ struct DirAccess
 // generic filesystem change notification
 struct DirNotify
 {
-	enum { DIREVENTS, RETRY, NUMQUEUES };
+	typedef enum { DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
 
-	// pathq[DIREVENTS] is fed with filesystem change paths, pathq[RETRY] receives paths with transient errors that need to be retried
-	string_deque pathq[NUMQUEUES];
+	// notifyq[DIREVENTS] is fed with filesystem changes
+	// notifyq[RETRY] receives transient errors that need to be retried
+	notify_deque notifyq[NUMQUEUES];
 	
 	// set if no notification available on this platform or a permanent failure occurred
 	bool failed;
 	
 	// set if a temporary error occurred
 	bool error;
-	
+
 	// base path
 	string localbasepath;
 
 	virtual void addnotify(LocalNode*, string*) { }
 	virtual void delnotify(LocalNode*) { }
 
-	void notifypath(const char*, size_t);
-	
+	void notify(notifyqueue, LocalNode*, const char*, size_t);
+
 	DirNotify(string*);
 };
 

@@ -126,6 +126,7 @@ void PosixFileSystemAccess::addevents(Waiter* w)
 	pw->bumpmaxfd(notifyfd);
 }
 
+// read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
 	PosixWaiter* pw = (PosixWaiter*)w;
@@ -155,11 +156,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
 						if (it != wdnodes.end())
 						{
-							it->second->getlocalsubpath(&localpath);
-							localpath.append("/");
-							localpath.append(in->name);
-							it->second->sync->dirnotify->notifypath(localpath.c_str(),localpath.size());
-
+							it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,it->second,in->name,strlen(in->name));
 							r |= Waiter::NEEDEXEC;
 						}
 					}

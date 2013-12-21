@@ -222,7 +222,7 @@ struct LocalNode : public File
 
 	void setnameparent(LocalNode*, string*);
 	
-	void init(Sync*, nodetype, LocalNode*, string*);
+	void init(Sync*, nodetype, LocalNode*, string*, string*);
 
 	~LocalNode();
 };
