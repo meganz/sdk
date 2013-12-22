@@ -78,7 +78,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 	{
 		// tiny file: read verbatim, NUL pad
 		fa->frawread((byte*)crc,size,0);
-		memset((byte*)crc+size,0,sizeof crc-size);
+		memset((byte*)newcrc+size,0,sizeof crc-size);
 	}
 	else if (size <= MAXFULL)
 	{
@@ -99,7 +99,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
 			crc32.add(buf+begin,end-begin);
 			crc32.get((byte*)&crcval);
-			crc[i] = htonl(crcval);
+			newcrc[i] = htonl(crcval);
 		}
 	}
 	else
@@ -123,7 +123,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 			}
 
 			crc32.get((byte*)&crcval);
-			crc[i] = htonl(crcval);
+			newcrc[i] = htonl(crcval);
 		}
 	}
 
