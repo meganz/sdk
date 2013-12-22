@@ -82,7 +82,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 	}
 	else if (size <= MAXFULL)
 	{
-		// small file: full coverage, four CRC32s, incremental
+		// small file: full coverage, four full CRC32s
 		HashCRC32 crc32;
 		byte buf[MAXFULL];
 
@@ -104,12 +104,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 	}
 	else
 	{
-		// large file: sparse coverage, four sparse CRC32s, incremental
+		// large file: sparse coverage, four sparse CRC32s
 		HashCRC32 crc32;
 		byte block[4*sizeof crc];
-		unsigned blocks = size/(sizeof block*sizeof crc/sizeof *crc);
-
-		if (blocks > 32) blocks = 32;
+		const unsigned blocks = MAXFULL/(sizeof block*sizeof crc/sizeof *crc);
 
 		for (unsigned i = 0; i < sizeof crc/sizeof *crc; i++)
 		{
