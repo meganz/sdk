@@ -236,16 +236,18 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 	{
 		if (!isroot)
 		{
-			// has the file or directory been overwritten since the last scan?
 			if (l)
 			{
-				if ((fa->fsidvalid && l->fsid_it != client->fsidnode.end() && l->fsid != fa->fsid) || l->type != fa->type)
+				// has the file been overwritten since the last scan?
+				// (we tolerate overwritten folders, because we do a content scan anyway)
+				if (fa->type == FILENODE && (fa->fsidvalid && l->fsid_it != client->fsidnode.end() && l->fsid != fa->fsid))
 				{
 					l->setnotseen(l->notseen+1);
 					l = NULL;
 				}
 				else
 				{
+					if (fa->fsidvalid) l->setfsid(fa->fsid);
 					l->setnotseen(0);
 					l->scanseqno = scanseqno;
 				}
