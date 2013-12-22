@@ -229,7 +229,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 		client->fsaccess->local2path(&tmppath,&path);
 	}
 
-	// attempt to open/type this file, bail if unsuccessful
+	// attempt to open/type this file
 	fa = client->fsaccess->newfileaccess();
 
 	if (fa->fopen(localname ? localpath : &tmppath,true,false))
