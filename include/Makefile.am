@@ -43,7 +43,7 @@ nobase_libmegainclude_HEADERS += \
 	mega/win32/megasys.h \
     mega/win32/megafs.h \
     mega/win32/meganet.h \
-    mega/win32/megawait.h \
+    mega/win32/megawaiter.h \
     mega/win32/megaconsole.h \
     mega/win32/megaconsolewaiter.h
 else
@@ -51,7 +51,7 @@ nobase_libmegainclude_HEADERS += \
 	mega/posix/megasys.h \
     mega/posix/megafs.h \
     mega/posix/meganet.h \
-    mega/posix/megawait.h \
+    mega/posix/megawaiter.h \
     mega/posix/megaconsole.h \
     mega/posix/megaconsolewaiter.h
 endif
