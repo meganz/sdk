@@ -33,8 +33,22 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
         """
         self.megasync_ch_in = None
         self.megasync_ch_out = None
+
         self.local_mount_in = os.path.join(work_dir, "sync_in")
         self.local_mount_out = os.path.join(work_dir, "sync_out")
+
+        try:
+            os.makedirs (self.local_mount_in);
+        except Exception, e:
+            self.logger.error("Failed to create directory: %s", self.local_mount_in)
+            return None
+
+        try:
+            os.makedirs (self.local_mount_out);
+        except Exception, e:
+            self.logger.error("Failed to create directory: %s", self.local_mount_out)
+            return None
+
         self.work_dir = os.path.join(work_dir, "tmp")
         self.remote_folder = remote_folder
 
