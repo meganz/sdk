@@ -22,7 +22,7 @@
 #ifndef CONSOLE_WAIT_CLASS
 #define CONSOLE_WAIT_CLASS WinConsoleWaiter
 
-#include "megawait.h"
+#include "megawaiter.h"
 
 namespace mega {
 

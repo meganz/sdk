@@ -32,7 +32,7 @@ int PosixConsoleWaiter::wait()
 	// wake up upon user input
 	FD_SET(STDIN_FILENO,&rfds);
 
-    numfd = monitor_fds ();
+    numfd = select ();
 
 	// timeout or error
 	if (numfd <= 0) return NEEDEXEC;

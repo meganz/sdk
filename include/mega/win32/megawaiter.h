@@ -1,5 +1,5 @@
 /**
- * @file mega/win32/megawait.h
+ * @file mega/win32/megawaiter.h
  * @brief Win32 event/timeout handling
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
@@ -40,7 +40,6 @@ public:
 	dstime getdstime();
 
 	void init(dstime);
-	void waitfor(EventTrigger*);
 	int wait();
 
 	WinWaiter();

@@ -1,6 +1,6 @@
 /**
- * @file mega/posix/megawait.h
- * @brief POSIX event/timeout handling
+ * @file mega/posix/megaconsolewaiter.h
+ * @brief Posix event/timeout handling, listens for stdin input
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
  *
@@ -22,7 +22,7 @@
 #ifndef CONSOLE_WAIT_CLASS
 #define CONSOLE_WAIT_CLASS PosixConsoleWaiter
 
-#include "megawait.h"
+#include "megawaiter.h"
 
 namespace mega {
 

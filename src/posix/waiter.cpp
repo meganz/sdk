@@ -52,7 +52,7 @@ void PosixWaiter::bumpmaxfd(int fd)
 
 // monitor file descriptors
 // return value from select ()
-int PosixWaiter::monitor_fds ()
+int PosixWaiter::select ()
 {
 	timeval tv;
 
@@ -69,12 +69,8 @@ int PosixWaiter::monitor_fds ()
 		tv.tv_usec = 100000;
     }
 
-	return select(maxfd+1,&rfds,&wfds,&efds,&tv);
+    return ::select(maxfd+1,&rfds,&wfds,&efds,&tv);
 }
-
-#ifndef FD_COPY
-#define FD_COPY(s, d) (memcpy ((d), (s), sizeof (fd_set)))
-#endif
 
 // wait for supplied events (sockets, filesystem changes), plus timeout + application events
 // maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
@@ -83,8 +79,7 @@ int PosixWaiter::wait()
 {
     int numfd;
 
-    numfd = monitor_fds ();
-    FD_COPY (&rfds, NULL);
+    numfd = select ();
 
 	// timeout or error
 	if (numfd <= 0) return NEEDEXEC;

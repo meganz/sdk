@@ -63,7 +63,7 @@
 #include "mega/megaclient.h"
 
 // target-specific headers
-#include "megawait.h"
+#include "megawaiter.h"
 #include "meganet.h"
 #include "megafs.h"
 #include "megaconsole.h"
