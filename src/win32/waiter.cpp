@@ -61,12 +61,35 @@ int WinWaiter::wait()
 {
 	// only allow interaction of asynccallback() with the main process while waiting (because WinHTTP is threaded)
 	if (pcsHTTP) LeaveCriticalSection(pcsHTTP);
-	DWORD dwWaitResult = WaitForMultipleObjectsEx(sizeof hWakeup/sizeof *hWakeup,hWakeup,FALSE,maxds*100,TRUE);
+	DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(),FALSE,maxds*100,TRUE);
 	if (pcsHTTP) EnterCriticalSection(pcsHTTP);
 
 	if (dwWaitResult == WAIT_OBJECT_0 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
 
 	return 0;
+}
+
+// add handle to the list
+// return true if handle added
+bool WinWaiter::addhandle(HANDLE handle)
+{
+    if (handles.end() != find(handles.begin(), handles.end(), handle))
+        return false;
+
+    handles.push_back(handle);
+
+    return true;
+}
+
+// removes handle from the list
+void WinWaiter::delhandle(HANDLE handle)
+{
+    vector<HANDLE>::iterator it = find(handles.begin(), handles.end(), handle);
+
+    if (handles.end() == it)
+        return;
+
+    handles.erase (it);
 }
 
 } // namespace

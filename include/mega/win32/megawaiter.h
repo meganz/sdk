@@ -31,9 +31,9 @@ class WinWaiter : public Waiter
 	ULONGLONG tickhigh;
 	DWORD prevt;
 
+    vector<HANDLE> handles;
+
 public:
-	enum { WAKEUP_HTTP, WAKEUP_CONSOLE };
-	HANDLE hWakeup[2];
 	PCRITICAL_SECTION pcsHTTP;
 	unsigned pendingfsevents;
 
@@ -41,6 +41,9 @@ public:
 
 	void init(dstime);
 	int wait();
+
+    bool addhandle(HANDLE handle);
+    void delhandle(HANDLE handle);
 
 	WinWaiter();
 };

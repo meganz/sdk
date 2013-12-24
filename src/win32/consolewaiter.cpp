@@ -27,11 +27,12 @@ namespace mega {
 WinConsoleWaiter::WinConsoleWaiter()
 {
 	DWORD dwMode;
-	hWakeup[WAKEUP_CONSOLE] = GetStdHandle(STD_INPUT_HANDLE);
+    h_input = GetStdHandle(STD_INPUT_HANDLE);
+    addhandle (h_input);
 
-	GetConsoleMode(hWakeup[WAKEUP_CONSOLE],&dwMode);
-	SetConsoleMode(hWakeup[WAKEUP_CONSOLE],dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
-	FlushConsoleInputBuffer(hWakeup[WAKEUP_CONSOLE]);
+	GetConsoleMode(h_input,&dwMode);
+	SetConsoleMode(h_input,dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
+	FlushConsoleInputBuffer(h_input);
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
@@ -47,7 +48,7 @@ int WinConsoleWaiter::wait()
 	// this assumes that the user isn't typing too fast
 	INPUT_RECORD ir[1024];
 	DWORD dwNum;
-	ReadConsoleInput(hWakeup[WAKEUP_CONSOLE],ir,1024,&dwNum);
+	ReadConsoleInput(h_input,ir,1024,&dwNum);
 
 	return 0;
 }
