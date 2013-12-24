@@ -38,6 +38,7 @@ struct PosixWaiter : public Waiter
 	void bumpmaxfd(int);
 
     int select ();
+    void fdset (fd_set *read_fd_set, fd_set *write_fd_set, fd_set *exc_fd_set, int *max_fd);
 };
 
 } // namespace

@@ -87,4 +87,13 @@ int PosixWaiter::wait()
 	return NEEDEXEC;
 }
 
+// set Mega SDK fd_sets which an application could use to select() or poll()
+void PosixWaiter::fdset (fd_set *read_fd_set, fd_set *write_fd_set, fd_set *exc_fd_set, int *max_fd)
+{
+    FD_COPY (&rfds, read_fd_set);
+    FD_COPY (&wfds, write_fd_set);
+    FD_COPY (&efds, exc_fd_set);
+    *max_fd = maxfd;
+}
+
 } // namespace
