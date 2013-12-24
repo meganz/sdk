@@ -46,9 +46,11 @@ include tests/include.am
 
 SUBDIRS = include
 
-EXTRA_DIST=autogen.sh
-EXTRA_DIST+=libmega.pc.in
-EXTRA_DIST+=$(DX_CONFIG)
+EXTRA_DIST = autogen.sh
+EXTRA_DIST += libmega.pc.in
+EXTRA_DIST += $(DX_CONFIG)
+EXTRA_DIST += m4/ax_prog_doxygen.m4
+EXTRA_DIST += m4/aminclude.am
 
 pkgconfigdir=$(libdir)/pkgconfig
 pkgconfig_DATA=libmega.pc
@@ -60,7 +62,6 @@ platform_includes=$(top_srcdir)/include/mega/win32
 else
 platform_includes=$(top_srcdir)/include/mega/posix
 endif
-
 
 CPPCHECK_CMD = cppcheck \
 	--template='{file};{line};{severity};{id};{message}' \
@@ -76,3 +77,7 @@ CPPCHECK_DIRS = \
 
 cppcheck:
 	$(CPPCHECK_CMD) $(CPPCHECK_DIRS)
+
+MOSTLYCLEANFILES = $(DX_CLEANFILES)
+
+doc: doxygen-run

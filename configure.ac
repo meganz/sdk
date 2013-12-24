@@ -127,6 +127,9 @@ AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])
 
 AC_CHECK_FUNCS(fdopendir sendfile clock_gettime select)
 
+# Check for particular functions
+AC_FUNC_MALLOC
+
 #libcrypto++
 AC_MSG_CHECKING(for libcrypto++)
 cryptopp=false
@@ -501,7 +504,7 @@ dnl #########################################################################
 dnl Doxygen settings
 dnl #########################################################################
 
-DX_INIT_DOXYGEN($PACKAGE_NAME, doc/sphinx_doxy.cfg, doc/output)
+DX_INIT_DOXYGEN($PACKAGE_NAME, doc/sphinx_doxy.cfg, doc/api)
 DX_DOXYGEN_FEATURE(ON)
 DX_DOT_FEATURE(ON)
 DX_HTML_FEATURE(ON)
