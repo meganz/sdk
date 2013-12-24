@@ -107,11 +107,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 		if (!GetFileAttributesExW((LPCWSTR)name->data(),GetFileExInfoStandard,(LPVOID)&fad))
 		{
 			name->resize(name->size()-1);
-			
 			retry = WinFileSystemAccess::istransient(GetLastError());
 			return false;
 		}
-		
+
 		type = (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
 	}
 
@@ -276,6 +275,7 @@ bool WinFileSystemAccess::getsname(string* name, string* sname)
 
 	sname->resize(r*sizeof(wchar_t));
 	rr = GetShortPathNameW((LPCWSTR)name->data(),(LPWSTR)sname->data(),r);
+
 	sname->resize(rr*sizeof(wchar_t));
 
 	if (rr >= r)
@@ -310,7 +310,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
 	oldname->resize(oldname->size()-1);
 
 	if (!r) transient_error = istransientorexists(GetLastError());
-	
+
 	return r;
 }
 
