@@ -32,7 +32,6 @@ namespace mega {
 // FIXME: set folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
 // FIXME: high-load notifications stall under Win32
-// FIXME: delete nodes that are moved outside of the synced folder
 // FIXME: properly retry temporarily locked filesystem item reads
 // FIXME: replace move with copy/delete if cross-device or source locked
 
@@ -2901,11 +2900,21 @@ void MegaClient::getua(User* u, const char* an, int p)
 // queue node for notification
 void MegaClient::notifynode(Node* n)
 {
-	// is this a synced node that is not a sync root, or a new node in a synced folder?
-	// FIXME: aggregate subtrees!
-	if (n->localnode && n->localnode->parent) n->localnode->parent->enqremote(n->removed ? SYNCREMOTEDELETED : SYNCREMOTEAFFECTED);
+	// is this a synced node that was moved to a non-synced location? queue for deletion from LocalNodes.
+	if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
+	{
+		n->localnode->parent->enqremote(SYNCREMOTEDELETED);
+		n->localnode->node = NULL;
+		n->localnode = NULL;
+	}
+	else
+	{
+		// is this a synced node that is not a sync root, or a new node in a synced folder?
+		// FIXME: aggregate subtrees!
+		if (n->localnode && n->localnode->parent) n->localnode->parent->enqremote(n->removed ? SYNCREMOTEDELETED : SYNCREMOTEAFFECTED);
 
-	if (n->parent && n->parent->localnode && (!n->localnode || n->localnode->parent != n->parent->localnode)) n->parent->localnode->enqremote(n->removed ? SYNCREMOTEDELETED : SYNCREMOTEAFFECTED);
+		if (n->parent && n->parent->localnode && (!n->localnode || n->localnode->parent != n->parent->localnode)) n->parent->localnode->enqremote(n->removed ? SYNCREMOTEDELETED : SYNCREMOTEAFFECTED);
+	}
 
 	if (!n->notified)
 	{
@@ -4082,43 +4091,6 @@ error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
 
 	return e;
 }
-
-/*void MegaClient::execsynclocalops()
-{
-	while (synclocalops.size())
-	{
-		fsaccess->transient_error = 0;
-
-		if (!(*synclocalops.begin())->exec() && fsaccess->transient_error)
-		{
-			if (!syncstuck)
-			{
-				string reason;
-
-				fsaccess->local2path(&(*synclocalops.begin())->from,&reason);
-				app->syncupdate_stuck(&reason);
-
-				syncstuck = true;
-			}
-
-			synclocalopretry = true;
-			synclocalopretrybt.backoff(waiter->ds,5);	// retry the failed fs op every 500 ms
-
-			return;
-		}
-
-		delete *synclocalops.begin();
-		synclocalops.pop_front();
-	}
-
-	synclocalopretry = false;
-	
-	if (syncstuck)
-	{
-		syncstuck = false;
-		app->syncupdate_stuck(NULL);
-	}
-}*/
 
 void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
 {
