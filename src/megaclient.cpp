@@ -665,8 +665,11 @@ void MegaClient::exec()
 				LocalNode* l = syncremoteq[r].front();
 				syncremoteq[r].pop_front();
 				
-				l->getlocalpath(&localpath);
-				syncdown(l,&localpath,r != SYNCREMOTEAFFECTED);
+				if (l->node)
+				{
+					l->getlocalpath(&localpath);
+					syncdown(l,&localpath,r != SYNCREMOTEAFFECTED);
+				}
 			}
 
 			break;
@@ -1849,16 +1852,6 @@ void MegaClient::notifypurge(void)
 		}
 
 		nodenotify.clear();
-
-		// FIXME: only syncdown() affected subtrees
-/*		for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
-		{
-			if ((*it)->state == SYNC_ACTIVE)
-			{
-				localpath = (*it)->localroot.localname;
-				syncdown(&(*it)->localroot,&localpath);
-			}
-		}*/
 	}
 
 	// users are never deleted
