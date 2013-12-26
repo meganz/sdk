@@ -24,11 +24,7 @@
 
 #include "mega/megaclient.h"
 
-#include "megawait.h"
-
-#include <specstrings.h>
-#include <winhttp.h>
-#include <shellapi.h>
+#include "megawaiter.h"
 
 namespace mega {
 

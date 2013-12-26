@@ -31,7 +31,7 @@ SOURCES_COMMON=\
 		src/waiter.cpp  \
 		src/megaclient.cpp  \
 		src/crypto/cryptopp.cpp \
-		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/wait.cpp src/win32/consolewaiter.cpp \
+		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/waiter.cpp src/win32/consolewaiter.cpp \
 		src/db/sqlite.cpp ../sqlite3/sqlite3.o
 SOURCES_MEGACLI=examples/megacli.cpp
 SOURCES_MEGASYNC=examples/megasync.cpp

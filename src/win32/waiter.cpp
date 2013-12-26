@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "megawait.h"
+#include "megawaiter.h"
 
 namespace mega {
 
