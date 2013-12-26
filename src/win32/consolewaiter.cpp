@@ -20,7 +20,6 @@
  */
 
 #include "megaconsolewaiter.h"
-#include <conio.h>
 
 namespace mega {
 

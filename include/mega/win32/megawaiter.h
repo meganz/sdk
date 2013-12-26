@@ -22,6 +22,8 @@
 #ifndef WAIT_CLASS
 #define WAIT_CLASS WinWaiter
 
+#include "mega.h"
+
 namespace mega {
 
 class WinWaiter : public Waiter
