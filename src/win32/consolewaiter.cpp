@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "megaconsolewaiter.h"
 
 namespace mega {
@@ -52,3 +53,4 @@ int WinConsoleWaiter::wait()
 	return 0;
 }
 
+} // namespace
