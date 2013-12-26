@@ -74,8 +74,6 @@ struct User;
 struct Waiter;
 class SyncLocalOp;
 
-class WinWaiter;
-
 #define EOO 0
 #define THUMBNAIL120X120 0
 
