@@ -22,7 +22,6 @@ SOURCES_COMMON=\
 		src/share.cpp  \
 		src/sharenodekeys.cpp  \
 		src/sync.cpp  \
-		src/synclocalops.cpp  \
 		src/transfer.cpp  \
 		src/transferslot.cpp  \
 		src/treeproc.cpp  \
