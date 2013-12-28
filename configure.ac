@@ -82,6 +82,10 @@ AC_TYPE_UINT64_T
 
 # Check programs
 AC_PROG_CXX
+if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
+  AC_MSG_ERROR([C++ compiler not found !])
+fi
+
 AC_PROG_LIBTOOL
 AM_SANITY_CHECK
 
