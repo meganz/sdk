@@ -443,29 +443,33 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
-	if (dwErrorCode != ERROR_OPERATION_ABORTED && dwBytes) ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
+	if (dwErrorCode != ERROR_OPERATION_ABORTED) ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
 }
 
 void WinDirNotify::process(DWORD dwBytes)
 {
-	assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION,FileName)+sizeof(wchar_t));
-
-	char* ptr = (char*)notifybuf[active].data();
-
-	active ^= 1;
-
-	readchanges();
-
-	// we trust the OS to always return conformant data
-	for (;;)
+	if (!dwBytes) readchanges();	// Windows sometimes passes empty notifications - simply restart
+	else
 	{
-		FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
+		assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION,FileName)+sizeof(wchar_t));
 
-		notify(DIREVENTS,localrootnode,(char*)fni->FileName,fni->FileNameLength);
+		char* ptr = (char*)notifybuf[active].data();
 
-		if (!fni->NextEntryOffset) break;
+		active ^= 1;
 
-		ptr += fni->NextEntryOffset;
+		readchanges();
+
+		// we trust the OS to always return conformant data
+		for (;;)
+		{
+			FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
+
+			notify(DIREVENTS,localrootnode,(char*)fni->FileName,fni->FileNameLength);
+
+			if (!fni->NextEntryOffset) break;
+
+			ptr += fni->NextEntryOffset;
+		}
 	}
 }
 
