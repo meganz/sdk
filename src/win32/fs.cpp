@@ -565,7 +565,7 @@ bool WinDirAccess::dnext(string* name, nodetype* type)
 {
 	for (;;)
 	{
-		if (ffdvalid && !(ffd.dwFileAttributes & (FILE_ATTRIBUTE_TEMPORARY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_HIDDEN || FILE_ATTRIBUTE_HIDDEN)) && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || *ffd.cFileName != '.' || (ffd.cFileName[1] && (ffd.cFileName[1] != '.' || ffd.cFileName[2]))))
+		if (ffdvalid && !(ffd.dwFileAttributes & (FILE_ATTRIBUTE_TEMPORARY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_HIDDEN)) && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || *ffd.cFileName != '.' || (ffd.cFileName[1] && (ffd.cFileName[1] != '.' || ffd.cFileName[2]))))
 		{
 			name->assign((char*)ffd.cFileName,sizeof(wchar_t)*wcslen(ffd.cFileName));
 			name->insert(0,globbase);
