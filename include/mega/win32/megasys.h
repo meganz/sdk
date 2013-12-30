@@ -34,8 +34,8 @@
 #include <time.h>
 
 #include <specstrings.h>
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 #include <winhttp.h>
 #include <shellapi.h>
 
