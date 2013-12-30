@@ -20,16 +20,12 @@
  */
 
 #include "mega.h"
-#include "megawait.h"
-
-#include <conio.h>
+#include "megawaiter.h"
 
 namespace mega {
 
 WinWaiter::WinWaiter()
 {
-	DWORD dwMode;
-
 	pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),"GetTickCount64");
 
 	if (!pGTC)
@@ -37,12 +33,6 @@ WinWaiter::WinWaiter()
 		tickhigh = 0;
 		prevt = 0;
 	}
-
-	hWakeup[WAKEUP_CONSOLE] = GetStdHandle(STD_INPUT_HANDLE);
-
-	GetConsoleMode(hWakeup[WAKEUP_CONSOLE],&dwMode);
-	SetConsoleMode(hWakeup[WAKEUP_CONSOLE],dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
-	FlushConsoleInputBuffer(hWakeup[WAKEUP_CONSOLE]);
 }
 
 void WinWaiter::init(dstime ds)
@@ -72,20 +62,35 @@ int WinWaiter::wait()
 {
 	// only allow interaction of asynccallback() with the main process while waiting (because WinHTTP is threaded)
 	if (pcsHTTP) LeaveCriticalSection(pcsHTTP);
-	DWORD dwWaitResult = WaitForMultipleObjectsEx(sizeof hWakeup/sizeof *hWakeup,hWakeup,FALSE,maxds*100,TRUE);
+	DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(),FALSE,maxds*100,TRUE);
 	if (pcsHTTP) EnterCriticalSection(pcsHTTP);
 
 	if (dwWaitResult == WAIT_OBJECT_0 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
 
-	// FIXME: improve this gruesome nonblocking console read-simulating kludge
-	if (_kbhit()) return HAVESTDIN;
-
-	// this assumes that the user isn't typing too fast
-	INPUT_RECORD ir[1024];
-	DWORD dwNum;
-	ReadConsoleInput(hWakeup[WAKEUP_CONSOLE],ir,1024,&dwNum);
-
 	return 0;
+}
+
+// add handle to the list
+// return true if handle added
+bool WinWaiter::addhandle(HANDLE handle)
+{
+    if (handles.end() != find(handles.begin(), handles.end(), handle))
+        return false;
+
+    handles.push_back(handle);
+
+    return true;
+}
+
+// removes handle from the list
+void WinWaiter::delhandle(HANDLE handle)
+{
+    vector<HANDLE>::iterator it = find(handles.begin(), handles.end(), handle);
+
+    if (handles.end() == it)
+        return;
+
+    handles.erase (it);
 }
 
 } // namespace
