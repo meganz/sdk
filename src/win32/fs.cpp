@@ -441,29 +441,38 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
-	if (dwErrorCode != ERROR_OPERATION_ABORTED && dwBytes) ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
+	if (dwErrorCode != ERROR_OPERATION_ABORTED) ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
 }
 
 void WinDirNotify::process(DWORD dwBytes)
 {
-	assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION,FileName)+sizeof(wchar_t));
-
-	char* ptr = (char*)notifybuf[active].data();
-
-	active ^= 1;
-
-	readchanges();
-
-	// we trust the OS to always return conformant data
-	for (;;)
+	if (!dwBytes)
 	{
-		FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
+		// empty notification: re-read all trees
+		readchanges();
+		error = true;
+	}
+	else
+	{
+		assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION,FileName)+sizeof(wchar_t));
 
-		notify(DIREVENTS,localrootnode,(char*)fni->FileName,fni->FileNameLength);
+		char* ptr = (char*)notifybuf[active].data();
 
-		if (!fni->NextEntryOffset) break;
+		active ^= 1;
 
-		ptr += fni->NextEntryOffset;
+		readchanges();
+
+		// we trust the OS to always return conformant data
+		for (;;)
+		{
+			FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
+
+			notify(DIREVENTS,localrootnode,(char*)fni->FileName,fni->FileNameLength);
+
+			if (!fni->NextEntryOffset) break;
+
+			ptr += fni->NextEntryOffset;
+		}
 	}
 }
 
@@ -485,11 +494,11 @@ WinDirNotify::WinDirNotify(string* localbasepath) : DirNotify(localbasepath)
 	overlapped.hEvent = this;
 
 	active = 0;
-	notifybuf[0].resize(32768);
-	notifybuf[1].resize(32768);
+	notifybuf[0].resize(65534);
+	notifybuf[1].resize(65534);
 
 	localbasepath->append("",1);
-	if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),FILE_LIST_DIRECTORY,FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,NULL)) != INVALID_HANDLE_VALUE) readchanges();
+	if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),FILE_LIST_DIRECTORY,FILE_SHARE_READ | FILE_SHARE_WRITE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,NULL)) != INVALID_HANDLE_VALUE) readchanges();
 	localbasepath->resize(localbasepath->size()-1);
 }
 

@@ -31,8 +31,6 @@ namespace mega {
 // FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
 // FIXME: set folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
-// FIXME: high-load notifications stall under Win32
-// FIXME: properly retry temporarily locked filesystem item reads
 // FIXME: replace move with copy/delete if cross-device or source locked
 
 // root URL for API access
@@ -674,7 +672,7 @@ void MegaClient::exec()
 			break;
 		}
 	}
-	
+
 	sync_list::iterator it;
 
 	// process active syncs, stop doing so while transient local fs ops are pending
@@ -742,7 +740,7 @@ void MegaClient::exec()
 		}
 
 		// delete locally missing nodes unless a putnodes operation is in progress that may be still be referencing them
-		if (!syncadding)
+		if (!synccreate.size() && !syncadding)
 		{
 			for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end(); )
 			{
@@ -1029,8 +1027,7 @@ handle MegaClient::getuploadhandle()
 // clear transfer queue
 void MegaClient::freeq(direction d)
 {
-	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++) delete it->second;
-	transfers[d].clear();
+	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); ) delete (it++)->second;
 }
 
 // time at which next undispatched transfer retry occurs
@@ -3451,6 +3448,54 @@ handle MegaClient::nextsyncid()
 	return currsyncid;
 }
 
+// recursively stop all transfers
+void MegaClient::stopxfers(LocalNode* l)
+{
+	if (l->type != FILENODE) for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); it++) stopxfers(it->second);
+
+	stopxfer(l);
+}
+
+// close all open PUT transfers to make it more likely for renames to succeed under Windows
+void MegaClient::suspendputs()
+{
+	for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+	{
+		if ((*it)->transfer->type == PUT)
+		{
+			delete (*it)->file;
+			(*it)->file = NULL;
+		}
+	}
+}
+
+// recreate filenames of active PUT transfers
+void MegaClient::updateputs()
+{
+	for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+	{
+		if ((*it)->transfer->type == PUT)
+		{
+			if ((*it)->transfer->files.size()) (*it)->transfer->files.front()->prepare();
+		}
+	}
+}
+
+// open PUT transfer files
+void MegaClient::resumeputs()
+{
+	for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+	{
+		if ((*it)->transfer->type == PUT)
+		{
+			(*it)->file = fsaccess->newfileaccess();
+			
+			// FIXME: handle failures
+			(*it)->file->fopen(&(*it)->transfer->localfilename,true,false);
+		}
+	}
+}
+
 // downward sync - recursively scan for tree differences and execute them locally
 // this is first called after the local node tree is complete
 // actions taken:
@@ -3459,11 +3504,11 @@ handle MegaClient::nextsyncid()
 // * attempt to execute renames, moves and deletions (deletions require rubbish == true)
 void MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
+	// only use for LocalNodes with a corresponding and properly linked Node
+	if (l->type != FOLDERNODE || !l->node || l->node->parent->localnode != l->parent) return;
+
 	remotenode_map nchildren;
 	remotenode_map::iterator rit;
-
-	// only use for LocalNodes with a corresponding and properly linked Node
-	assert(l->type == FOLDERNODE && l->node && l->node->parent->localnode == l->parent);
 
 	// build array of sync-relevant (in case of clashes, the newest alias wins) remote children by name
 	attr_map::iterator ait;
@@ -3496,7 +3541,14 @@ void MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 		// do we have a corresponding remote child?
 		if (rit == nchildren.end())
 		{
-			if (rubbish && !fsaccess->rubbishlocal(localpath) && fsaccess->transient_error) l->enqremote(SYNCREMOTEDELETED);
+			if (rubbish)
+			{
+				// recursively cancel all dangling transfers before deletion
+				stopxfers(lit->second);
+
+				// attempt deletion and re-queue for retry in case of a transient failure
+				if (!fsaccess->rubbishlocal(localpath) && fsaccess->transient_error) l->enqremote(SYNCREMOTEDELETED);
+			}
 		}
 		else
 		{
@@ -3556,16 +3608,23 @@ void MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 					if (rit->second->localnode->parent)
 					{
 						string curpath;
-						
+	
+						// some operating systems prevent folders from being renamed
+						// while files are open for reading, so temporarily close the running PUT transfers
+						suspendputs();
+
 						rit->second->localnode->getlocalpath(&curpath);
 						
 						if (fsaccess->renamelocal(&curpath,localpath))
 						{
 							// update LocalNode tree to reflect the move/rename
 							rit->second->localnode->setnameparent(l,localpath);
+							updateputs();	// update filenames
 							syncactivity = true;
 						}
 						else if (fsaccess->transient_error) l->enqremote(SYNCREMOTEAFFECTED);	// schedule retry
+
+						resumeputs();
 					}
 				}
 				else
@@ -3790,11 +3849,15 @@ void MegaClient::syncupdate()
 		if (nnp == nn) delete[] nn;
 		else
 		{
-			syncadding++;
+			// add nodes unless parent node has been deleted
+			if (synccreate[start]->parent->node)
+			{
+				syncadding++;
 
-			reqs[r].add(new CommandPutNodes(this,synccreate[start]->parent->node->nodehandle,NULL,nn,nnp-nn,synccreate[start]->sync->tag,PUTNODES_SYNC));
+				reqs[r].add(new CommandPutNodes(this,synccreate[start]->parent->node->nodehandle,NULL,nn,nnp-nn,synccreate[start]->sync->tag,PUTNODES_SYNC));
 
-			syncactivity = true;
+				syncactivity = true;
+			}
 		}
 	}
 
@@ -3912,15 +3975,12 @@ void MegaClient::stopxfer(File* f)
 {
 	if (f->transfer)
 	{
+		// last file for this transfer removed
+		app->transfer_removed(f->transfer);
+
 		f->transfer->files.erase(f->file_it);
 
-		if (!f->transfer->files.size())
-		{
-			// last file for this transfer removed
-			app->transfer_removed(f->transfer);
-
-			delete f->transfer;
-		}
+		if (!f->transfer->files.size()) delete f->transfer;
 
 		f->transfer = NULL;
 	}
