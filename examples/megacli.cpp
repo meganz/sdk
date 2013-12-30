@@ -50,6 +50,16 @@ static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[S
 // local console
 Console* console;
 
+// check if this is a supported image format by filename (reduces likelihood of FreeImage getting confused and crashing)
+static bool supportedimageformatextension(string* name)
+{
+	size_t p = name->find_last_of('.');
+	
+	if (!(p+1)) return false;
+
+	return !!strstr(".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm.jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari.arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw.nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga.xbm.xpm.jp2.j2k.jpf.jpx",name->c_str()+p);
+}
+
 // attempt to create a size*size JPEG thumbnail using FreeImage
 // thumbnail specs:
 // - largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
@@ -323,21 +333,24 @@ void DemoApp::transfer_prepare(Transfer* t)
 		{
 			if (!t->uploadhandle)
 			{
-				string thumbnail;
-
-				// (thumbnail creation should actually be performed in subthreads to keep the app nonblocking)
-				// to guard against file overwrite race conditions, production applications
-				// should use the same file handle for uploading and creating the thumbnail
-				createthumbnail(&t->localfilename,120,&thumbnail);
-
-				if (thumbnail.size())
+				if (supportedimageformatextension(&t->files.front()->name))
 				{
-					cout << "Image detected and thumbnail extracted, size " << thumbnail.size() << " bytes" << endl;
+					string thumbnail;
 
-					// (store the file attribute data - it will be attached to the file
-					// immediately if the upload has already completed; otherwise, once
-					// the upload completes)
-					client->putfa(t,THUMBNAIL120X120,(const byte*)thumbnail.data(),thumbnail.size());
+					// (thumbnail creation should actually be performed in subthreads to keep the app nonblocking)
+					// to guard against file overwrite race conditions, production applications
+					// should use the same file handle for uploading and creating the thumbnail
+					createthumbnail(&t->localfilename,120,&thumbnail);
+
+					if (thumbnail.size())
+					{
+						cout << "Image detected and thumbnail extracted, size " << thumbnail.size() << " bytes" << endl;
+
+						// (store the file attribute data - it will be attached to the file
+						// immediately if the upload has already completed; otherwise, once
+						// the upload completes)
+						client->putfa(t,THUMBNAIL120X120,(const byte*)thumbnail.data(),thumbnail.size());
+					}
 				}
 			}
 		}
