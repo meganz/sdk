@@ -58,7 +58,8 @@ int PosixWaiter::select ()
 
 	if (maxds+1)
 	{
-		dstime us = 1000000/10*(maxds + 1);
+        // XXX: review if maxds could take 0
+		dstime us = 1000000/10*maxds;
 
 		tv.tv_sec = us/1000000;
 		tv.tv_usec = us-tv.tv_sec*1000000;
