@@ -20,8 +20,6 @@
  */
 
 #include "mega.h"
-#include <windows.h>
-#include <shellapi.h>
 
 namespace mega {
 
@@ -121,7 +119,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 	name->resize(name->size()-1);
 
 	// FIXME: verify that keeping the directory opened quashes the possibility of a race condition between CreateFile() and FindFirstFile()
-	
+
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
 		retry = WinFileSystemAccess::istransient(GetLastError());
@@ -145,7 +143,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 			retry = WinFileSystemAccess::istransient(GetLastError());
 			return false;
 		}
-		
+
 		CloseHandle(hFile);
 		hFile = INVALID_HANDLE_VALUE;
 		retry = false;
@@ -181,7 +179,7 @@ bool WinFileSystemAccess::istransient(DWORD e)
 bool WinFileSystemAccess::istransientorexists(DWORD e)
 {
 	target_exists = e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS;
-	
+
 	return istransient(e);
 }
 
@@ -360,13 +358,13 @@ bool WinFileSystemAccess::rubbishlocal(string* name)
 	fileop.hNameMappings = NULL;
 
 	int e = SHFileOperationW(&fileop);
-	
+
 	if (!e) return true;
 
 	transient_error = istransient(e);
-	
+
 	return false;
-	
+
 	// FIXME: fall back to recursive DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
 }
 
@@ -377,7 +375,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 	name->resize(name->size()-1);
 
 	if (!r) transient_error = istransient(GetLastError());
-	
+
 	return r;
 }
 

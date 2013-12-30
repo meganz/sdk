@@ -66,7 +66,7 @@ void WinHttpIO::addevents(Waiter* w)
 {
 	WinWaiter* pw = (WinWaiter*)w;
 
-	pw->hWakeup[WinWaiter::WAKEUP_HTTP] = hWakeupEvent;
+    pw->addhandle(hWakeupEvent);
 	pw->pcsHTTP = &csHTTP;
 }
 

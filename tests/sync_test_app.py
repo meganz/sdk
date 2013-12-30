@@ -274,12 +274,16 @@ class SyncTestApp ():
                     if os.path.isdir (dname):
                         success = True
                         break;
+                    else:
+                        # wait for a dir
+                        self.logger.debug ("Directory %s not found! Retrying [%d/%d] ..", dname, r + 1, self.nr_retries)
+                        self.sync ()
                 except:
                     # wait for a dir
                     self.logger.debug ("Directory %s not found! Retrying [%d/%d] ..", dname, r + 1, self.nr_retries)
                     self.sync ()
             if success == False:
-                self.logger.error("Failed to access directories: %s and ", dname_in, dname)
+                self.logger.error("Failed to access directories: %s and ", dname)
                 return False
 
             # check files
@@ -653,6 +657,24 @@ class SyncTestApp ():
             return False
 
         self.logger.info ("OUT folder: %s", self.local_folder_out)
+        success = False
+        # try to access the dir
+        for r in range (0, self.nr_retries):
+            try:
+                if os.path.isdir (self.local_folder_out):
+                    success = True
+                    break;
+                else:
+                    # wait for a dir
+                    self.logger.debug ("Directory %s not found! Retrying [%d/%d] ..", self.local_folder_out, r + 1, self.nr_retries)
+                    self.sync ()
+            except:
+                # wait for a dir
+                self.logger.debug ("Directory %s not found! Retrying [%d/%d] ..", self.local_folder_out, r + 1, self.nr_retries)
+                self.sync ()
+        if success == False:
+            self.logger.error("Failed to access directory: %s", self.local_folder_out)
+            return False
 
         # create work folder
         self.logger.info ("Work folder: %s", self.work_folder)

@@ -36,73 +36,10 @@ struct SyncApp : public MegaApp
     void request_error(error e);
 };
 
-// simple Waiter class
-struct TestWaiter : public Waiter
-{
-    dstime getdstime();
-#ifdef _WIN32
-	typedef ULONGLONG (WINAPI* PGTC)();
-
-    PGTC pGTC;
-	ULONGLONG tickhigh;
-	DWORD prevt;
-#endif
-
-    void init(dstime);
-    int wait();
-};
-
 // globals
 MegaClient* client;
 static handle cwd = UNDEF;
 bool mega::debug;
-
-void TestWaiter ::init(dstime ds)
-{
-    maxds = ds;
-#ifdef _WIN32
-	pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),"GetTickCount64");
-    if (!pGTC) {
-        tickhigh = 0;
-	    prevt = 0;
-    }
-#endif
-}
-
-// update monotonously increasing timestamp in deciseconds
-dstime TestWaiter::getdstime()
-{
-#ifdef _WIN32
-	if (pGTC) return ds = pGTC()/100;
-	else
-	{
-		// emulate GetTickCount64() on XP
-		DWORD t = GetTickCount();
-
-		if (t < prevt) tickhigh += 0x100000000;
-		prevt = t;
-
-		return ds = (t+tickhigh)/100;
-	}
-#else
-    timespec ts;
-    clock_gettime(CLOCK_MONOTONIC,&ts);
-
-    return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
-#endif
-}
-
-// return at once, as we don't have to wait for any custom events
-int TestWaiter ::wait()
-{
-#ifdef _WIN32
-    Sleep (200);
-#else
-    // sleep for a tiny amount of time
-    usleep (200);
-#endif
-    return NEEDEXEC;
-}
 
 // this callback function is called when nodes have been updated
 // save root node handle
@@ -322,7 +259,7 @@ int main (int argc, char *argv[])
         mega::debug = true;
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
-    client = new MegaClient(new SyncApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS,
+    client = new MegaClient(new SyncApp, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
 #ifdef DBACCESS_CLASS
 	new DBACCESS_CLASS,
 #else
