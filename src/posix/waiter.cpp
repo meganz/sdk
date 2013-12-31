@@ -25,44 +25,44 @@ namespace mega {
 
 void PosixWaiter::init(dstime ds)
 {
-	maxds = ds;
+    maxds = ds;
 
-	maxfd = -1;
+    maxfd = -1;
 
-	FD_ZERO(&rfds);
-	FD_ZERO(&wfds);
-	FD_ZERO(&efds);
+    FD_ZERO(&rfds);
+    FD_ZERO(&wfds);
+    FD_ZERO(&efds);
 }
 
 // update monotonously increasing timestamp in deciseconds
 dstime PosixWaiter::getdstime()
 {
-	timespec ts;
+    timespec ts;
 
-	clock_gettime(CLOCK_MONOTONIC,&ts);
+    clock_gettime(CLOCK_MONOTONIC,&ts);
 
-	return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
+    return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
 }
 
 // update maxfd for select()
 void PosixWaiter::bumpmaxfd(int fd)
 {
-	if (fd > maxfd) maxfd = fd;
+    if (fd > maxfd) maxfd = fd;
 }
 
 // monitor file descriptors
 // return value from select ()
 int PosixWaiter::select ()
 {
-	timeval tv;
+    timeval tv;
 
-	if (maxds+1)
-	{
+    if (maxds+1)
+    {
         // XXX: review if maxds could take 0
-		dstime us = 1000000/10*maxds;
+        dstime us = 1000000/10*maxds;
 
-		tv.tv_sec = us/1000000;
-		tv.tv_usec = us-tv.tv_sec*1000000;
+        tv.tv_sec = us/1000000;
+        tv.tv_usec = us-tv.tv_sec*1000000;
 
     // special case when there are no pending events
     } else {
