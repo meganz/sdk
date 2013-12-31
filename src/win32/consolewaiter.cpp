@@ -39,8 +39,13 @@ WinConsoleWaiter::WinConsoleWaiter()
 // ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
 int WinConsoleWaiter::wait()
 {
-    // call for parent
-    WinWaiter::wait ();
+	int r;
+
+    // aggregated wait
+    r = WinWaiter::wait();
+
+	// is it a network- or filesystem-triggered wakeup?
+	if (r) return r;
 
 	// FIXME: improve this gruesome nonblocking console read-simulating kludge
 	if (_kbhit()) return HAVESTDIN;

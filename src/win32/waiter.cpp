@@ -58,6 +58,7 @@ dstime WinWaiter::getdstime()
 
 // wait for events (socket, I/O completion, timeout + application events)
 // ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
+// (this assumes that the second call to addhandle() was coming from the network layer)
 int WinWaiter::wait()
 {
 	// only allow interaction of asynccallback() with the main process while waiting (because WinHTTP is threaded)
@@ -65,7 +66,7 @@ int WinWaiter::wait()
 	DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(),FALSE,maxds*100,TRUE);
 	if (pcsHTTP) EnterCriticalSection(pcsHTTP);
 
-	if (dwWaitResult == WAIT_OBJECT_0 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
+	if (dwWaitResult == WAIT_OBJECT_0+1 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
 
 	return 0;
 }
