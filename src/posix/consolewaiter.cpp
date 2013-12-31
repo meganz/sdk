@@ -35,7 +35,7 @@ int PosixConsoleWaiter::wait()
     numfd = select ();
 
 	// timeout or error
-	if (numfd <= 0) return NEEDEXEC;
+	if (numfd <= 0) return HAVESTDIN;
 
 	// application's own event processing:
 	// user interaction from stdin?
