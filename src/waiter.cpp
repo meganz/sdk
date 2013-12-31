@@ -24,9 +24,9 @@
 namespace mega {
 
 // add events to wakeup criteria
-void Waiter::wakeupby(EventTrigger* et)
+void Waiter::wakeupby(EventTrigger* et, int flags)
 {
-	et->addevents(this);
+	et->addevents(this,flags);
 }
 
 } // namespace

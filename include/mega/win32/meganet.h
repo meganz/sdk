@@ -52,7 +52,7 @@ public:
 
 	bool doio(void);
 
-	void addevents(Waiter*);
+	void addevents(Waiter*, int);
 
 	void entercs();
 	void leavecs();

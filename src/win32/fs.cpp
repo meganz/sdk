@@ -184,7 +184,7 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
 }
 
 // wake up from filesystem updates
-void WinFileSystemAccess::addevents(Waiter* w)
+void WinFileSystemAccess::addevents(Waiter* w, int)
 {
 	// overlapped completion wakes up WaitForMultipleObjectsEx()
 	((WinWaiter*)w)->pendingfsevents = pendingevents;

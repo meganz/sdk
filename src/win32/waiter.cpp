@@ -61,37 +61,30 @@ dstime WinWaiter::getdstime()
 // (this assumes that the second call to addhandle() was coming from the network layer)
 int WinWaiter::wait()
 {
+	int r = 0;
+
 	// only allow interaction of asynccallback() with the main process while waiting (because WinHTTP is threaded)
 	if (pcsHTTP) LeaveCriticalSection(pcsHTTP);
 	DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(),FALSE,maxds*100,TRUE);
 	if (pcsHTTP) EnterCriticalSection(pcsHTTP);
 
-	if (dwWaitResult == WAIT_OBJECT_0+1 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
+	if (dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) r = NEEDEXEC;
+	else if (dwWaitResult >= WAIT_OBJECT_0 && dwWaitResult < WAIT_OBJECT_0+flags.size()) r = flags[dwWaitResult-WAIT_OBJECT_0];
 
-	return 0;
+	handles.clear();
+	flags.clear();
+	
+	return r;
 }
 
-// add handle to the list
+// add handle to the list - must not be called twice with the same handle
 // return true if handle added
-bool WinWaiter::addhandle(HANDLE handle)
+bool WinWaiter::addhandle(HANDLE handle, int flag)
 {
-    if (handles.end() != find(handles.begin(), handles.end(), handle))
-        return false;
-
     handles.push_back(handle);
+	flags.push_back(flag);
 
     return true;
-}
-
-// removes handle from the list
-void WinWaiter::delhandle(HANDLE handle)
-{
-    vector<HANDLE>::iterator it = find(handles.begin(), handles.end(), handle);
-
-    if (handles.end() == it)
-        return;
-
-    handles.erase (it);
 }
 
 } // namespace

@@ -846,8 +846,8 @@ int MegaClient::wait()
 	waiter->init(nds);
 	
 	// set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
-	waiter->wakeupby(httpio);
-	waiter->wakeupby(fsaccess);
+	waiter->wakeupby(httpio,Waiter::NEEDEXEC);
+	waiter->wakeupby(fsaccess,Waiter::NEEDEXEC);
 
 	int r = waiter->wait();
 

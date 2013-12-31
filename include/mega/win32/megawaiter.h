@@ -32,6 +32,7 @@ class WinWaiter : public Waiter
 	DWORD prevt;
 
     vector<HANDLE> handles;
+	vector<int> flags;
 
 public:
 	PCRITICAL_SECTION pcsHTTP;
@@ -42,8 +43,7 @@ public:
 	void init(dstime);
 	int wait();
 
-    bool addhandle(HANDLE handle);
-    void delhandle(HANDLE handle);
+    bool addhandle(HANDLE handle, int);
 
 	WinWaiter();
 };
