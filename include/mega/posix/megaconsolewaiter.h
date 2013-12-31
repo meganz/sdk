@@ -1,6 +1,6 @@
 /**
- * @file mega/win32/megawait.h
- * @brief Win32 event/timeout handling
+ * @file mega/posix/megaconsolewaiter.h
+ * @brief Posix event/timeout handling, listens for stdin input
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
  *
@@ -19,31 +19,16 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS WinWaiter
+#ifndef CONSOLE_WAIT_CLASS
+#define CONSOLE_WAIT_CLASS PosixConsoleWaiter
+
+#include "megawaiter.h"
 
 namespace mega {
 
-class WinWaiter : public Waiter
+struct PosixConsoleWaiter : public PosixWaiter
 {
-	typedef ULONGLONG (WINAPI* PGTC)();
-	PGTC pGTC;
-	ULONGLONG tickhigh;
-	DWORD prevt;
-
-public:
-	enum { WAKEUP_HTTP, WAKEUP_CONSOLE };
-	HANDLE hWakeup[2];
-	PCRITICAL_SECTION pcsHTTP;
-	unsigned pendingfsevents;
-
-	dstime getdstime();
-
-	void init(dstime);
-	void waitfor(EventTrigger*);
 	int wait();
-
-	WinWaiter();
 };
 
 } // namespace

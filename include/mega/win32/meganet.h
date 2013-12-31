@@ -24,11 +24,7 @@
 
 #include "mega/megaclient.h"
 
-#include "megawait.h"
-
-#include <specstrings.h>
-#include <winhttp.h>
-#include <shellapi.h>
+#include "megawaiter.h"
 
 namespace mega {
 
@@ -56,7 +52,7 @@ public:
 
 	bool doio(void);
 
-	void addevents(Waiter*);
+	void addevents(Waiter*, int);
 
 	void entercs();
 	void leavecs();

@@ -1,5 +1,5 @@
 /**
- * @file mega/posix/megawait.h
+ * @file mega/posix/megawaiter.h
  * @brief POSIX event/timeout handling
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
@@ -22,6 +22,8 @@
 #ifndef WAIT_CLASS
 #define WAIT_CLASS PosixWaiter
 
+#include "mega/waiter.h"
+
 namespace mega {
 
 struct PosixWaiter : public Waiter
@@ -32,10 +34,11 @@ struct PosixWaiter : public Waiter
 	dstime getdstime();
 
 	void init(dstime);
-	void waitfor(EventTrigger*);
 	int wait();
-
 	void bumpmaxfd(int);
+
+    int select ();
+    void fdset (fd_set *read_fd_set, fd_set *write_fd_set, fd_set *exc_fd_set, int *max_fd);
 };
 
 } // namespace

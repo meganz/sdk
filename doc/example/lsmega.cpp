@@ -39,36 +39,6 @@ bool mega::debug;
 
 static const char* accesslevels[] = { "read-only", "read/write", "full access" };
 
-// simple Waiter class
-struct TestWaiter : public Waiter
-{
-    dstime getdstime();
-
-    void init(dstime);
-    int wait();
-};
-
-void TestWaiter ::init(dstime ds)
-{
-    maxds = ds;
-}
-
-// update monotonously increasing timestamp in deciseconds
-dstime TestWaiter::getdstime()
-{
-    timespec ts;
-
-    clock_gettime(CLOCK_MONOTONIC,&ts);
-
-    return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
-}
-
-// return at once, as we don't have to wait for any custom events
-int TestWaiter ::wait()
-{
-    return NEEDEXEC;
-}
-
 // this callback function is called when nodes have been updated
 // save root node handle
 void LsApp::nodes_updated(Node** n, int count)
@@ -161,7 +131,7 @@ int main (int argc, char *argv[])
     }
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
-    client = new MegaClient(new LsApp, new TestWaiter, new HTTPIO_CLASS, new FSACCESS_CLASS, new DBACCESS_CLASS, "lsmega");
+    client = new MegaClient(new LsApp, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS, new DBACCESS_CLASS, "lsmega");
 
     // get values from env
     client->pw_key (getenv ("MEGA_PWD"), pwkey);

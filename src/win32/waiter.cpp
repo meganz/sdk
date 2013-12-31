@@ -20,16 +20,12 @@
  */
 
 #include "mega.h"
-#include "megawait.h"
-
-#include <conio.h>
+#include "megawaiter.h"
 
 namespace mega {
 
 WinWaiter::WinWaiter()
 {
-	DWORD dwMode;
-
 	pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),"GetTickCount64");
 
 	if (!pGTC)
@@ -37,12 +33,6 @@ WinWaiter::WinWaiter()
 		tickhigh = 0;
 		prevt = 0;
 	}
-
-	hWakeup[WAKEUP_CONSOLE] = GetStdHandle(STD_INPUT_HANDLE);
-
-	GetConsoleMode(hWakeup[WAKEUP_CONSOLE],&dwMode);
-	SetConsoleMode(hWakeup[WAKEUP_CONSOLE],dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
-	FlushConsoleInputBuffer(hWakeup[WAKEUP_CONSOLE]);
 }
 
 void WinWaiter::init(dstime ds)
@@ -68,24 +58,33 @@ dstime WinWaiter::getdstime()
 
 // wait for events (socket, I/O completion, timeout + application events)
 // ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
+// (this assumes that the second call to addhandle() was coming from the network layer)
 int WinWaiter::wait()
 {
+	int r = 0;
+
 	// only allow interaction of asynccallback() with the main process while waiting (because WinHTTP is threaded)
 	if (pcsHTTP) LeaveCriticalSection(pcsHTTP);
-	DWORD dwWaitResult = WaitForMultipleObjectsEx(sizeof hWakeup/sizeof *hWakeup,hWakeup,FALSE,maxds*100,TRUE);
+	DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(),FALSE,maxds*100,TRUE);
 	if (pcsHTTP) EnterCriticalSection(pcsHTTP);
 
-	if (dwWaitResult == WAIT_OBJECT_0 || dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) return NEEDEXEC;
+	if (dwWaitResult == WAIT_TIMEOUT || dwWaitResult == WAIT_IO_COMPLETION) r = NEEDEXEC;
+	else if (dwWaitResult >= WAIT_OBJECT_0 && dwWaitResult < WAIT_OBJECT_0+flags.size()) r = flags[dwWaitResult-WAIT_OBJECT_0];
 
-	// FIXME: improve this gruesome nonblocking console read-simulating kludge
-	if (_kbhit()) return HAVESTDIN;
+	handles.clear();
+	flags.clear();
+	
+	return r;
+}
 
-	// this assumes that the user isn't typing too fast
-	INPUT_RECORD ir[1024];
-	DWORD dwNum;
-	ReadConsoleInput(hWakeup[WAKEUP_CONSOLE],ir,1024,&dwNum);
+// add handle to the list - must not be called twice with the same handle
+// return true if handle added
+bool WinWaiter::addhandle(HANDLE handle, int flag)
+{
+    handles.push_back(handle);
+	flags.push_back(flag);
 
-	return 0;
+    return true;
 }
 
 } // namespace
