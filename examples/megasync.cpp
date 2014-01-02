@@ -29,8 +29,8 @@ using namespace mega;
 
 class SyncApp : public MegaApp
 {
-    string remote_folder;
     string local_folder;
+    string remote_folder;
     handle cwd;
     bool initial_fetch;
 
