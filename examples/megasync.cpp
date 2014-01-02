@@ -429,10 +429,10 @@ int main (int argc, char *argv[])
     }
 
     // if MEGA_DEBUG env variable is set
-    if (getenv ("MEGA_DEBUG") {
-        if !strcmp (getenv ("MEGA_DEBUG"), "1")) {
+    if (getenv ("MEGA_DEBUG")) {
+        if (!strcmp (getenv ("MEGA_DEBUG"), "1")) {
             app->debug = true;
-        } else if !strcmp (getenv ("MEGA_DEBUG"), "2")) {
+        } else if (!strcmp (getenv ("MEGA_DEBUG"), "2")) {
             app->debug = true;
             mega::debug = true;
         }
