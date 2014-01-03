@@ -508,7 +508,7 @@ dnl #########################################################################
 dnl Doxygen settings
 dnl #########################################################################
 
-DX_INIT_DOXYGEN($PACKAGE_NAME, doc/sphinx_doxy.cfg, doc/api)
+DX_INIT_DOXYGEN($PACKAGE_NAME, doc/Doxyfile, doc/api)
 DX_DOXYGEN_FEATURE(ON)
 DX_DOT_FEATURE(ON)
 DX_HTML_FEATURE(ON)

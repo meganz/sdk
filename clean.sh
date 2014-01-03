@@ -30,7 +30,7 @@ src/db/.deps src/db/.dirstamp
 src/posix/.deps src/posix/.dirstamp
 src/win32/.deps src/win32/.dirstamp
 tests/.deps tests/.dirstamp
-doc/api
+doc/api doc/sphinx_api doc/_build
 "
 for file in $TARGETS
 do
