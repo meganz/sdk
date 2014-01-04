@@ -3505,7 +3505,7 @@ void MegaClient::resumeputs()
 void MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
 	// only use for LocalNodes with a corresponding and properly linked Node
-	if (l->type != FOLDERNODE || !l->node || l->node->parent->localnode != l->parent) return;
+	if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent)) return;
 
 	remotenode_map nchildren;
 	remotenode_map::iterator rit;
@@ -4107,7 +4107,7 @@ void MegaClient::movetosyncdebris(Node* n)
 error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
 {
 	// cannot sync root node (why not?)
-	if (remotenode->type != FOLDERNODE) return API_EACCESS;
+	if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE) return API_EACCESS;
 
 	Node* n;
 
