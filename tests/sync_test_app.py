@@ -29,7 +29,6 @@ import logging
 import collections
 import signal
 import hashlib
-import logging
 import subprocess
 
 class SyncTestApp ():
