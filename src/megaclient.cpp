@@ -300,12 +300,15 @@ void MegaClient::init()
 	
 	putmbpscap = 0;
 	
+	reqtag = 0;
+	
 	scnotifyurl.clear();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, const char* k)
 {
 	sctable = NULL;
+	syncscanstate = false;
 
 	init();
 
@@ -343,7 +346,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 	currsyncid = 0;
 	syncactivity = false;
-	syncscanstate = false;
 
 	snprintf(appkey,sizeof appkey,"&ak=%s",k);
 }
