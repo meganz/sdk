@@ -464,15 +464,9 @@ public:
 	// recursively cancel transfers in a subtree
 	void stopxfers(LocalNode*);
 
-	// close all files currently open for a PUT transfer
-	void suspendputs();
-	
 	// update paths of all PUT transfers
 	void updateputs();
 	
-	// reopen files for PUT transfers
-	void resumeputs();
-
 	// determine if all transfer slots are full
 	bool slotavail();
 
