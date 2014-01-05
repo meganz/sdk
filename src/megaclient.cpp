@@ -272,6 +272,12 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
 
 void MegaClient::init()
 {
+	if (syncscanstate)
+	{
+		app->syncupdate_scanning(false);
+		syncscanstate = false;
+	}
+
 	for (int i = sizeof rootnodes/sizeof *rootnodes; i--; ) rootnodes[i] = UNDEF;
 
 	pendingcs = NULL;
@@ -288,7 +294,6 @@ void MegaClient::init()
 	syncdebrisadding = false;
 	syncscanfailed = false;
 	syncfslockretry = false;
-	syncstuck = false;
 
 	xferpaused[PUT] = false;
 	xferpaused[GET] = false;
@@ -338,6 +343,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 	currsyncid = 0;
 	syncactivity = false;
+	syncscanstate = false;
 
 	snprintf(appkey,sizeof appkey,"&ak=%s",k);
 }
@@ -682,8 +688,9 @@ void MegaClient::exec()
 		int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS;
 
 		syncfslockretry = false;
+		unsigned totalpending = 0;
 
-		// process pending scanqs
+		// process pending notifyqs
 		for (it = syncs.begin(); it != syncs.end(); it++)
 		{
 			Sync* sync = *it;
@@ -693,7 +700,7 @@ void MegaClient::exec()
 
 			if (sync->state != SYNC_FAILED)
 			{
-				// process items from the scanq until depleted
+				// process items from the notifyq until depleted
 				if (sync->dirnotify->notifyq[q].size())
 				{
 					sync->procscanq(q);
@@ -712,6 +719,28 @@ void MegaClient::exec()
 				}
 
 				if (sync->dirnotify->notifyq[DirNotify::RETRY].size()) syncfslockretry = true;
+				
+				if (q == DirNotify::DIREVENTS) totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+			}
+		}
+		
+		if (q == DirNotify::DIREVENTS)
+		{
+			if (totalpending < 4)
+			{
+				if (syncscanstate)
+				{
+					app->syncupdate_scanning(false);
+					syncscanstate = false;
+				}
+			}
+			else if (totalpending > 10)
+			{
+				if (!syncscanstate)
+				{
+					app->syncupdate_scanning(true);
+					syncscanstate = true;
+				}
 			}
 		}
 

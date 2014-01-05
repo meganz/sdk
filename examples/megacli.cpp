@@ -381,10 +381,10 @@ void DemoApp::syncupdate_state(Sync*, syncstate newstate)
 	}
 }
 
-void DemoApp::syncupdate_stuck(string* reason)
+void DemoApp::syncupdate_scanning(bool active)
 {
-	if (reason) cout << "Sync halted: " << *reason << " temporarily in use" << endl;
-	else cout << "Sync resumed" << endl;
+	if (active) cout << "Sync - scanning files and folders" << endl;
+	else cout << "Sync - scan completed" << endl;
 }
 
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself

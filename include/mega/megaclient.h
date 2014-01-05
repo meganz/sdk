@@ -397,8 +397,8 @@ public:
 	// activity flag
 	bool syncactivity;
 
-	// stuck flag (because of local filesystem locks preventing syncing from progressing)
-	bool syncstuck;
+	// app scanstate flag
+	bool syncscanstate;
 	
 	// retry accessing temporarily locked filesystem items
 	bool syncfslockretry;
