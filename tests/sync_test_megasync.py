@@ -22,8 +22,9 @@ import sys
 import os
 import time
 import subprocess
-import sync_test_app
 import platform
+import logging
+import sync_test_app
 
 class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
     def __init__(self, work_dir, remote_folder):
@@ -36,23 +37,25 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
 
         self.local_mount_in = os.path.join(work_dir, "sync_in")
         self.local_mount_out = os.path.join(work_dir, "sync_out")
+        
+        self.work_dir = os.path.join(work_dir, "tmp")
+        self.remote_folder = remote_folder
+        
+        # init base class
+        sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, self.work_dir)
 
         try:
             os.makedirs (self.local_mount_in);
         except Exception, e:
             self.logger.error("Failed to create directory: %s", self.local_mount_in)
-            return None
+            exit (1)
 
         try:
             os.makedirs (self.local_mount_out);
         except Exception, e:
             self.logger.error("Failed to create directory: %s", self.local_mount_out)
-            return None
+            exit (1)
 
-        self.work_dir = os.path.join(work_dir, "tmp")
-        self.remote_folder = remote_folder
-
-        sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, self.work_dir)
 
     def start_megasync (self, local_folder):
         """

@@ -31,8 +31,6 @@ extern void term_init();
 extern void term_restore();
 extern void term_echo(int);
 
-//extern int globenqueue(const char*, const char*, handle, const char*);
-
 extern void read_pw_char(char*, int, int*, char**);
 
 typedef list<struct AppFile*> appfile_list;
@@ -139,7 +137,7 @@ struct DemoApp : public MegaApp
 	void transfer_complete(Transfer*);
 
 	void syncupdate_state(Sync*, syncstate);
-	void syncupdate_stuck(string*);
+	void syncupdate_scanning(bool);
 	void syncupdate_local_folder_addition(Sync*, const char*);
 	void syncupdate_local_folder_deletion(Sync*, const char*);
 	void syncupdate_local_file_addition(Sync*, const char*);
