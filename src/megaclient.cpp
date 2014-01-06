@@ -155,7 +155,6 @@ void MegaClient::mergenewshares(bool notify)
 					// incoming share deleted - remove tree
 					TreeProcDel td;
 					proctree(n,&td);
-//					notifypurge();
 				}
 			}
 			else
@@ -300,8 +299,6 @@ void MegaClient::init()
 	
 	putmbpscap = 0;
 	
-	reqtag = 0;
-	
 	scnotifyurl.clear();
 }
 
@@ -346,6 +343,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 	currsyncid = 0;
 	syncactivity = false;
+	reqtag = 0;
 
 	snprintf(appkey,sizeof appkey,"&ak=%s",k);
 }
@@ -1210,7 +1208,6 @@ void MegaClient::procsc()
 			case EOO:
 				mergenewshares(1);
 				applykeys();
-//				notifypurge();
 				return;
 
 			default:
@@ -1970,7 +1967,6 @@ error MegaClient::setattr(Node* n, const char** newattr)
 	}
 
 	notifynode(n);
-//	notifypurge();
 
 	reqs[r].add(new CommandSetAttr(this,n));
 
@@ -2060,7 +2056,6 @@ error MegaClient::rename(Node* n, Node* p)
 	if (n->setparent(p))
 	{
 		notifynode(n);
-//		notifypurge();
 
 		reqs[r].add(new CommandMoveNode(this,n,p));
 	}
@@ -2079,7 +2074,6 @@ error MegaClient::unlink(Node* n)
 
 	TreeProcDel td;
 	proctree(n,&td);
-//	notifypurge();
 
 	return API_OK;
 }
