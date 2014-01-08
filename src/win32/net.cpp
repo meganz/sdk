@@ -23,7 +23,7 @@
 
 namespace mega {
 
-extern bool debug;
+bool debug;
 
 WinHttpIO::WinHttpIO()
 {
