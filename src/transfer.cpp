@@ -136,6 +136,7 @@ void Transfer::complete()
 	else
 	{
 		// files must not change during a PUT transfer
+cout << "checkin fingerprint..." << endl;
 		if (genfingerprint(slot->file,true)) return failed(API_EREAD);
 	}
 
