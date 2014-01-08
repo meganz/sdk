@@ -359,7 +359,6 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname)
 
 bool WinFileSystemAccess::rubbishlocal(string* name)
 {
-cout << "DEL " << *name << endl;
 	name->append("",1);
 	string tmpname((MAX_PATH+1)*sizeof(wchar_t),0);
 
