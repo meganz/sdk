@@ -3998,7 +3998,7 @@ void MegaClient::movetosyncdebris(Node* n)
 		}
 		else h = UNDEF;
 
-		newsyncdebris.insert(n->nodehandle);
+		if (n) newsyncdebris.insert(n->nodehandle);
 
 		if (!syncdebrisadding)
 		{
