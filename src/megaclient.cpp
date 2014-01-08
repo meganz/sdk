@@ -3436,9 +3436,7 @@ void MegaClient::purgenodesusersabortsc()
 	syncs.clear();
 
 	newsyncdebris.clear();
-
 	syncadded.clear();
-//	syncidhandles.clear();
 
 	for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++) delete it->second;
 	nodes.clear();
