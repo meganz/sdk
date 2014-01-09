@@ -293,7 +293,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 					if (fa->mtime != l->mtime || fa->size != l->size)
 					{
 						if (fa->fsidvalid && l->fsid != fa->fsid) l->setfsid(fa->fsid);
-					
+
 						m_off_t dsize = l->size;
 						if (l->genfingerprint(fa)) localbytes -= dsize-l->size;
 
