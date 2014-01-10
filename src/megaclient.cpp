@@ -289,6 +289,7 @@ void MegaClient::init()
 	me = UNDEF;
 
 	syncadding = 0;
+	syncadded = false;
 	syncdebrisadding = false;
 	syncscanfailed = false;
 	syncfslockretry = false;
@@ -652,8 +653,10 @@ void MegaClient::exec()
 	} while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed(ds)));
 
 	// syncops indicates that a sync-relevant tree update may be pending
-	bool syncops = !!nodenotify.size();
+	bool syncops = syncadded || !!nodenotify.size();
 	sync_list::iterator it;
+
+	if (syncadded) syncadded = false;
 
 	if (!syncops)
 	{
@@ -680,32 +683,13 @@ void MegaClient::exec()
 	}
 	
 	// file change timeouts
-	if (syncnagleretry && syncnaglebt.armed(ds)) syncnagleretry = false;
+	if (syncnagleretry && syncnaglebt.armed(ds))
+	{
+		syncnagleretry = false;
+		syncops = true;
+	}
 
 	syncactivity = false;
-
-	if (!syncdownretry && syncops)
-	{
-		bool success = true;
-		string localpath;
-		
-		for (it = syncs.begin(); it != syncs.end(); it++)
-		{
-			// make sure that the remote synced folder still exists
-			if (!(*it)->localroot.node) (*it)->changestate(SYNC_FAILED);
-			else
-			{
-				localpath = (*it)->localroot.localname;
-				if ((*it)->state == SYNC_ACTIVE && !syncdown(&(*it)->localroot,&localpath,true) && success) success = false;
-			}
-		}
-		
-		if (!success)
-		{
-			syncdownretry = true;
-			syncdownbt.backoff(ds,50);
-		}
-	}
 
 	// halt all syncing while the local filesystem is pending a lock-blocked operation
 	// FIXME: indicate by callback
@@ -742,6 +726,30 @@ void MegaClient::exec()
 					if (q == DirNotify::DIREVENTS) totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
 				}
 			}
+
+			if (syncops)
+			{
+				bool success = true;
+				string localpath;
+				
+				for (it = syncs.begin(); it != syncs.end(); it++)
+				{
+					// make sure that the remote synced folder still exists
+					if (!(*it)->localroot.node) (*it)->changestate(SYNC_FAILED);
+					else
+					{
+						localpath = (*it)->localroot.localname;
+						if ((*it)->state == SYNC_ACTIVE && !syncdown(&(*it)->localroot,&localpath,true) && success) success = false;
+					}
+				}
+				
+				if (!success)
+				{
+					syncdownretry = true;
+					syncdownbt.backoff(ds,50);
+				}
+			}
+
 
 			if (q == DirNotify::DIREVENTS)
 			{
@@ -4164,6 +4172,8 @@ error MegaClient::addsync(string* rootpath, Node* remotenode, int tag)
 				delete sync;
 				e = API_ENOENT;
 			}
+
+			syncadded = true;
 		}
 		else e = API_EACCESS;	// cannot sync individual files
 	}
