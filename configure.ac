@@ -361,6 +361,14 @@ if test "x$WIN32" = "xno" ; then
 
     AC_SUBST(LIBCURL_FLAGS)
     AC_SUBST(LIBCURL_LIBS)
+
+    AC_MSG_CHECKING(for Curl compiled with c-ares support)
+    adns=`curl-config --features | grep AsynchDNS`
+    if test "x$adns" != "xAsynchDNS" ; then
+        AC_MSG_RESULT([no])
+        AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
+    fi
+    AC_MSG_RESULT([yes])
 fi
 
 # determine platform include path
