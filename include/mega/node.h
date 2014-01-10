@@ -200,6 +200,9 @@ struct LocalNode : public File
 	
 	// was actively deleted
 	bool deleted;
+	
+	// timer to delay upload start
+	dstime nagleds;
 
 	// number of iterations since last seen
 	int notseen;
@@ -211,7 +214,8 @@ struct LocalNode : public File
 //	syncremote remoteq;
 //	localnode_list::iterator remoteq_it;
 //	void enqremote(syncremote);
-
+	void bumpnagleds();
+	
 	// build full local path to this node
 	void getlocalpath(string*, bool sdisable = false);
 	void getlocalsubpath(string*);
