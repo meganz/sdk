@@ -27,7 +27,7 @@ namespace mega {
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: Sync: recognize folder renames and use setattr() instead of potentially huge delete/putnodes sequences
-// FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creaton load on the servers
+// FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
 // FIXME: set folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
@@ -293,6 +293,7 @@ void MegaClient::init()
 	syncscanfailed = false;
 	syncfslockretry = false;
 	syncdownretry = false;
+	syncnagleretry = false;
 
 	xferpaused[PUT] = false;
 	xferpaused[GET] = false;
@@ -656,6 +657,8 @@ void MegaClient::exec()
 
 	if (syncdownretry && syncdownbt.armed(ds)) syncdownretry = false;
 	
+	if (syncnagleretry && syncnaglebt.armed(ds)) syncnagleretry = false;
+	
 	syncactivity = false;
 
 	sync_list::iterator it;
@@ -807,9 +810,17 @@ void MegaClient::exec()
 				}
 
 				// FIXME: only syncup for subtrees that were actually updated to reduce CPU load
-				for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state == SYNC_ACTIVE) syncup(&(*it)->localroot);
+				dstime nds = ~0;
 
-				syncupdate();
+				for (it = syncs.begin(); it != syncs.end(); it++) if ((*it)->state == SYNC_ACTIVE) syncup(&(*it)->localroot,&nds);
+
+				if (nds+1)
+				{
+					syncnaglebt.backoff(ds,nds-ds);
+					syncnagleretry = true;
+				}
+
+				if (synccreate.size()) syncupdate();
 			}
 		}
 	}
@@ -852,6 +863,9 @@ int MegaClient::wait()
 
 		// retrying of transiently failed syncdown() updates
 		if (syncdownretry) syncdownbt.update(ds,&nds);
+
+		// triggering of Nagle-delayed sync PUTs
+		if (syncnagleretry) syncnaglebt.update(ds,&nds);
 	}
 
 	// immediate action required?
@@ -3429,7 +3443,6 @@ void MegaClient::purgenodesusersabortsc()
 	syncs.clear();
 
 	newsyncdebris.clear();
-	syncadded.clear();
 
 	for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++) delete it->second;
 	nodes.clear();
@@ -3515,12 +3528,14 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 	// remove remote items that exist locally from hash, recurse into existing folders
 	for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end(); )
 	{
-		rit = nchildren.find(&lit->second->name);
+		LocalNode* ll = lit->second;
+
+		rit = nchildren.find(&ll->name);
 
 		size_t t = localpath->size();
 
 		localpath->append(fsaccess->localseparator);
-		localpath->append(lit->second->localname);
+		localpath->append(ll->localname);
 
 		// do we have a corresponding remote child?
 		if (rit != nchildren.end())
@@ -3530,20 +3545,20 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 			// local: file, remote: folder - ignore
 			// local: folder, remote: folder - recurse
 			// local: file, remote: file - overwrite if newer
-			if (lit->second->type != rit->second->type)
+			if (ll->type != rit->second->type)
 			{
 				// folder/file clash: do nothing (rather than attempting to second-guess the user)
 				nchildren.erase(rit);
 			}
-			else if (lit->second->type == FILENODE)
+			else if (ll->type == FILENODE)
 			{
 				// file on both sides - do not overwrite if local version older or identical
-				if (lit->second->mtime > rit->second->mtime)
+				if (ll->mtime > rit->second->mtime)
 				{
 					// local version is older
 					nchildren.erase(rit);
 				}
-				else if (*lit->second == *(FileFingerprint*)rit->second)
+				else if (*ll == *(FileFingerprint*)rit->second)
 				{
 					// both files are identical
 					nchildren.erase(rit);
@@ -3552,17 +3567,17 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 			else
 			{
 				// recurse into directories of equal name
-				lit->second->setnode(rit->second);
-				if (!syncdown(lit->second,localpath,rubbish) && success) success = false;
+				ll->setnode(rit->second);
+				if (!syncdown(ll,localpath,rubbish) && success) success = false;
 				nchildren.erase(rit);
 			}
 
 			lit++;
 		}
-		else if (rubbish && lit->second->deleted)	// no corresponding remote node: delete local item
+		else if (rubbish && ll->deleted)	// no corresponding remote node: delete local item
 		{
 			// recursively cancel all dangling transfers before deletion
-			stopxfers(lit->second);
+			stopxfers(ll);
 
 			// attempt deletion and re-queue for retry in case of a transient failure
 			if (fsaccess->rubbishlocal(localpath)) delete lit++->second;
@@ -3658,8 +3673,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // mark additional nodes to to rubbished (those overwritten) by accumulating their nodehandles in rubbish.
 // nodes to be added are stored in synccreate. - with nodehandle set to parent if attached to an existing node
 // l and n are assumed to be folders and existing on both sides or scheduled for creation
-void MegaClient::syncup(LocalNode* l)
+void MegaClient::syncup(LocalNode* l, dstime* nds)
 {
+	dstime ds = waiter->ds;
 	remotenode_map nchildren;
 	remotenode_map::iterator rit;
 
@@ -3690,62 +3706,98 @@ void MegaClient::syncup(LocalNode* l)
 	// check for elements that need to be created, deleted or updated on the remote side
 	for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end(); lit++)
 	{
+		LocalNode* ll = lit->second;
+		
 		localname = *lit->first;
 		fsaccess->local2name(&localname);
 		rit = nchildren.find(&localname);
 
-		// local node must be new and not deleted to be considered
-		if (syncadded.count(lit->second->syncid))
+		// do we have a corresponding remote child?
+		if (rit != nchildren.end())
 		{
-			// do we have a corresponding remote child?
-			if (rit != nchildren.end())
+			// corresponding remote node exists
+			// local: folder, remote: file - ignore
+			// local: file, remote: folder - ignore
+			// local: folder, remote: folder - recurse
+			// local: file, remote: file - overwrite if newer
+			if (ll->type != rit->second->type)
 			{
-				// corresponding remote node exists
-				// local: folder, remote: file - ignore
-				// local: file, remote: folder - ignore
-				// local: folder, remote: folder - recurse
-				// local: file, remote: file - overwrite if newer
-				if (lit->second->type != rit->second->type)
-				{
-					// folder/file clash - do nothing rather than attempting to second-guess the user
-					continue;
-				}
-
-				// file on both sides - do not overwrite if local version older or identical
-				if (lit->second->type == FILENODE)
-				{
-					if (lit->second->size == rit->second->size)
-					{
-						// check if file is likely to be identical
-						if (lit->second->mtime < rit->second->mtime)
-						{
-							// do not overwrite more recent remote file
-							continue;
-						}
-
-						if (rit->second->isvalid ? (*lit->second == *(FileFingerprint*)rit->second) : (lit->second->mtime == rit->second->mtime))
-						{
-							// files have the same size and the same mtime (or the same fingerprint, if available): no action needed
-							lit->second->setnode(rit->second);
-							continue;
-						}
-					}
-				}
-				else
-				{
-					// recurse into directories of equal name
-					lit->second->setnode(rit->second);
-					syncup(lit->second);
-					continue;
-				}
+				// folder/file clash - do nothing rather than attempting to second-guess the user
+				continue;
 			}
 
-			// create remote folder or send file
-			synccreate.push_back(lit->second);
-			syncactivity = true;
+			// file on both sides - do not overwrite if local version older or identical
+			if (ll->type == FILENODE)
+			{
+				if (ll->size == rit->second->size)
+				{
+					// check if file is likely to be identical
+					if (ll->mtime < rit->second->mtime)
+					{
+						// do not overwrite more recent remote file
+						continue;
+					}
+
+					if (rit->second->isvalid ? (*ll == *(FileFingerprint*)rit->second) : (ll->mtime == rit->second->mtime))
+					{
+						// files have the same size and the same mtime (or the same fingerprint, if available): no action needed
+						ll->setnode(rit->second);
+						continue;
+					}
+				}
+			}
+			else
+			{
+				// recurse into directories of equal name
+				ll->setnode(rit->second);
+				syncup(ll,nds);
+				continue;
+			}
 		}
 
-		if (lit->second->type == FOLDERNODE) syncup(lit->second);
+		if (ll->type == FILENODE)
+		{
+			if (ll->transfer) continue;
+
+			if (ds < ll->nagleds)
+			{
+				if (ll->nagleds < *nds) *nds = ll->nagleds;
+				continue;
+			}
+			else
+			{
+				string localname;
+				bool t;
+				FileAccess* fa = fsaccess->newfileaccess();
+
+				ll->getlocalpath(&localname);
+
+				if (!(t = fa->fopen(&localname,true,false)) || fa->size != ll->size || fa->mtime != ll->mtime)
+				{
+					if (t)
+					{
+						ll->sync->localbytes -= ll->size;
+						ll->size = fa->size;
+						ll->mtime = fa->mtime;
+						ll->sync->localbytes += ll->size;
+					}
+
+					delete fa;
+
+					ll->bumpnagleds();
+					if (ll->nagleds < *nds) *nds = ll->nagleds;
+					continue;
+				}
+
+				delete fa;
+			}
+		}
+
+		// create remote folder or send file
+		synccreate.push_back(ll);
+		syncactivity = true;
+
+		if (ll->type == FOLDERNODE) syncup(ll,nds);
 	}
 }
 
@@ -3753,9 +3805,6 @@ void MegaClient::syncup(LocalNode* l)
 // skip if a sync-related putnodes() is currently in progress
 void MegaClient::syncupdate()
 {
-	// only one outstanding node update at a time
-	if (!syncadded.size()) return;
-
 	// split synccreate[] in separate subtrees and send off to putnodes() for creation on the server
 	unsigned i, start, end;
 	SymmCipher tkey;
@@ -3843,7 +3892,6 @@ void MegaClient::syncupdate()
 	}
 
 	synccreate.clear();
-	syncadded.clear();
 }
 
 void MegaClient::putnodes_sync_result(error e, NewNode* nn)

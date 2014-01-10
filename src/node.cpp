@@ -540,6 +540,12 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 	}
 }
 
+// delay uploads by 1.1 s to prevent server flooding while a file is still being written
+void LocalNode::bumpnagleds()
+{
+	nagleds = sync->client->waiter->ds+11;
+}
+
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* clocalpath, string* cfullpath)
 {
@@ -554,6 +560,8 @@ void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* cl
 	type = ctype;
 	syncid = sync->client->nextsyncid();
 
+	bumpnagleds();
+	
 	if (cparent) setnameparent(cparent,cfullpath);
 	else localname = *cfullpath;
 

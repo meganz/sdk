@@ -404,17 +404,18 @@ public:
 	// retry of transiently failed local filesystem ops
 	bool syncdownretry;
 	BackoffTimer syncdownbt;
+	
+	// sync PUT Nagle timer
+	bool syncnagleretry;
+	BackoffTimer syncnaglebt;
 
 	// rescan timer if fs notification unavailable or broken
 	bool syncscanfailed;
 	BackoffTimer syncscanbt;
 
-	// added to a synced folder
-	handle_set syncadded;
-
 	// vanished from a local synced folder
 	localnode_set localsyncnotseen;
-	
+
 	// maps local fsid to corresponding LocalNode*
 	handlelocalnode_map fsidnode;
 	
@@ -435,7 +436,7 @@ public:
 	void syncupdate();
 
 	// create missing folders, copy/start uploading missing files
-	void syncup(LocalNode* = NULL/*, Node* = NULL*/);
+	void syncup(LocalNode*, dstime*);
 
 	// sync putnodes() completion
 	void putnodes_sync_result(error, NewNode*);
