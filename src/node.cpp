@@ -472,14 +472,6 @@ bool Node::isbelow(Node* p) const
 	}
 }
 
-// enqueue in master queue for a class of remote operations
-/*void LocalNode::enqremote(syncremote r)
-{
-	if (remoteq >= SYNCREMOTEAFFECTED) sync->client->syncremoteq[r].erase(remoteq_it);
-
-	if (r >= SYNCREMOTEAFFECTED) remoteq_it = sync->client->syncremoteq[r].insert(sync->client->syncremoteq[r].end(),this);
-}*/
-
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // clocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.

@@ -274,7 +274,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 								client->app->syncupdate_local_move(this,it->second->name.c_str(),path.c_str());
 
 								// immediately delete existing LocalNode and replace with moved one
-cout << "Deleting overwritten l=" << l << endl;
 								delete l;
 
 								// (in case of a move, this synchronously updates l->parent and l->node->parent)
