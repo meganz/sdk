@@ -653,7 +653,7 @@ void MegaClient::exec()
 	} while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed(ds)));
 
 	// syncops indicates that a sync-relevant tree update may be pending
-	bool syncops = syncadded || !!nodenotify.size();
+	bool syncops = syncadded;
 	sync_list::iterator it;
 
 	if (syncadded) syncadded = false;
@@ -749,7 +749,6 @@ void MegaClient::exec()
 					syncdownbt.backoff(ds,50);
 				}
 			}
-
 
 			if (q == DirNotify::DIREVENTS)
 			{
@@ -1915,6 +1914,8 @@ void MegaClient::notifypurge(void)
 		}
 
 		nodenotify.clear();
+		
+		syncadded = true;
 	}
 
 	// users are never deleted
@@ -3851,7 +3852,6 @@ void MegaClient::syncupdate()
 	NewNode* nn;
 	NewNode* nnp;
 	LocalNode* l;
-	string tmpname;
 
 	for (start = 0; start < synccreate.size(); start = end)
 	{
@@ -3908,8 +3908,13 @@ void MegaClient::syncupdate()
 			}
 			else if (l->type == FILENODE)
 			{
+				string tmppath, tmplocalpath;
+
 				startxfer(PUT,l);
-				app->syncupdate_put(l->sync,l->name.c_str());
+				
+				l->getlocalpath(&tmplocalpath,true);
+				fsaccess->local2path(&tmplocalpath,&tmppath);
+				app->syncupdate_put(l->sync,tmppath.c_str());
 			}
 		}
 
