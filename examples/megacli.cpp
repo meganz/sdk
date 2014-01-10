@@ -1327,7 +1327,7 @@ static void process_line(char* l)
 								// we have four situations:
 								// 1. target path does not exist - fail
 								// 2. target node exists and is folder - move
-								// 3. target node exists and is file - delete and rename
+								// 3. target node exists and is file - delete and rename (unless same)
 								// 4. target path exists, but filename does not - rename
 								if ((tn = nodebypath(words[2].c_str(),NULL,&newname)))
 								{
@@ -1381,10 +1381,13 @@ static void process_line(char* l)
 
 												if (e) cout << "Rename failed (" << errorstring(e) << ")" << endl;
 
-												// ...delete target...
-												e = client->unlink(tn);
+												if (n != tn)
+												{
+													// ...delete target...
+													e = client->unlink(tn);
 
-												if (e) cout << "Remove failed (" << errorstring(e) << ")" << endl;
+													if (e) cout << "Remove failed (" << errorstring(e) << ")" << endl;
+												}
 											}
 
 											// ...and set target to original target's parent

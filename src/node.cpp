@@ -97,7 +97,11 @@ Node::~Node()
 	delete sharekey;
 
 	// sync: remove reference from local filesystem node
-	if (localnode) localnode->node = NULL;
+	if (localnode)
+	{
+		localnode->deleted = true;
+		localnode->node = NULL;
+	}
 
 	// in case this node is currently being transferred for syncing: abort transfer
 	delete syncget;
@@ -469,12 +473,12 @@ bool Node::isbelow(Node* p) const
 }
 
 // enqueue in master queue for a class of remote operations
-void LocalNode::enqremote(syncremote r)
+/*void LocalNode::enqremote(syncremote r)
 {
 	if (remoteq >= SYNCREMOTEAFFECTED) sync->client->syncremoteq[r].erase(remoteq_it);
 
 	if (r >= SYNCREMOTEAFFECTED) remoteq_it = sync->client->syncremoteq[r].insert(sync->client->syncremoteq[r].end(),this);
-}
+}*/
 
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // clocalpath must be a full path and must not point to an empty string.
@@ -551,7 +555,7 @@ void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* cl
 	parent = NULL;
 	node = NULL;
 	notseen = 0;
-	remoteq = SYNCREMOTENOTSET;
+	deleted = false;
 	syncxfer = true;
 	newnode = NULL;
 
@@ -577,6 +581,8 @@ void LocalNode::init(Sync* csync, nodetype ctype, LocalNode* cparent, string* cl
 void LocalNode::setnode(Node* cnode)
 {
 	if (node && node != cnode) node->localnode = NULL;
+
+	deleted = false;
 
 	node = cnode;
 	node->localnode = this;
@@ -637,9 +643,6 @@ LocalNode::~LocalNode()
 	// remove parent association
 	if (parent) setnameparent(NULL,NULL);
 
-	// remove from remoteq
-	enqremote(SYNCREMOTENOTSET);
-	
 	for (localnode_map::iterator it = children.begin(); it != children.end(); ) delete it++->second;
 
 	if (node)

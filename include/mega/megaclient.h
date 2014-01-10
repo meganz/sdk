@@ -401,12 +401,9 @@ public:
 	bool syncfslockretry;
 	BackoffTimer syncfslockretrybt;
 	
-	// remote ops affecting a LocalNode
-	localnode_list syncremoteq[SYNCREMOTENUM];
-	BackoffTimer syncremoteretrybt;
-
-	// enqueue syncdown() operation of type AFFECTED or DELETED
-	void syncremoteadd(syncremote, LocalNode*);
+	// retry of transiently failed local filesystem ops
+	bool syncdownretry;
+	BackoffTimer syncdownbt;
 
 	// rescan timer if fs notification unavailable or broken
 	bool syncscanfailed;
@@ -444,7 +441,7 @@ public:
 	void putnodes_sync_result(error, NewNode*);
 
 	// start downloading/copy missing files, create missing directories
-	void syncdown(LocalNode*, string*, bool);
+	bool syncdown(LocalNode*, string*, bool);
 
 	// move node to //bin/SyncDebris/yyyy-mm-dd/
 	void movetosyncdebris(Node*);
