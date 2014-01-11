@@ -33,8 +33,6 @@ using namespace mega;
 
 MegaClient* client;
 
-bool mega::debug = false;
-
 // login e-mail address
 static string login;
 
@@ -2134,9 +2132,7 @@ static void process_line(char* l)
 					}
 					else if (words[0] == "debug")
 					{
-                        mega::debug = !mega::debug;
-
-						cout << "Debug mode " << (mega::debug ? "on" : "off") << endl;
+						cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
 
 						return;
 					}
