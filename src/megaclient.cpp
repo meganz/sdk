@@ -4015,11 +4015,11 @@ void MegaClient::stopxfer(File* f)
 {
 	if (f->transfer)
 	{
-		// last file for this transfer removed
 		app->transfer_removed(f->transfer);
 
 		f->transfer->files.erase(f->file_it);
 
+		// last file for this transfer removed? shut down transfer.
 		if (!f->transfer->files.size()) delete f->transfer;
 
 		f->transfer = NULL;
@@ -4084,7 +4084,7 @@ void MegaClient::movetosyncdebris(Node* n)
 	
 	if ((p = nodebyhandle(rootnodes[RUBBISHNODE-ROOTNODE])))
 	{
-		// check if we have today's sync debris subfolder in rubbish bin
+		// check if we already have today's sync debris subfolder in rubbish bin
 		handle h;
 		time_t ts = time(NULL);
 		struct tm* ptm = gmtime(&ts);
