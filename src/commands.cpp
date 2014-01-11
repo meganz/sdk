@@ -249,7 +249,7 @@ void CommandGetFile::procresult()
 	string fileattrstring;
 	string filenamestring;
 	string filefingerprint;
-
+debug = 1;
 	for (;;)
 	{
 		switch (client->json.getnameid())
