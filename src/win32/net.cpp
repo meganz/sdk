@@ -23,8 +23,6 @@
 
 namespace mega {
 
-bool debug;
-
 WinHttpIO::WinHttpIO()
 {
     // create the session handle using the default settings.
