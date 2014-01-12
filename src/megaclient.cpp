@@ -927,15 +927,20 @@ int MegaClient::wait()
 	return r;
 }
 
-
-// reset all backoff timers
+// reset all backoff timers and transfer retry counters
 bool MegaClient::abortbackoff()
 {
 	bool r = false;
 	dstime ds = waiter->getdstime();
 
-	for (transfer_map::iterator it = transfers[GET].begin(); it != transfers[GET].end(); it++) if (it->second->bt.arm(ds)) r = true;
-	for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++) if (it->second->bt.arm(ds)) r = true;
+	for (int d = GET; d == GET || d == PUT; d += PUT-GET)
+	{
+		for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+		{
+			it->second->failcount = 0;
+			if (it->second->bt.arm(ds)) r = true;
+		}
+	}
 
 	if (btcs.arm(ds)) r = true;
 
@@ -3761,6 +3766,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 	for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end(); lit++)
 	{
 		LocalNode* ll = lit->second;
+		
+		if (ll->deleted) continue;
 		
 		localname = *lit->first;
 		fsaccess->local2name(&localname);
