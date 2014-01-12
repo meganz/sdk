@@ -937,8 +937,11 @@ bool MegaClient::abortbackoff()
 	{
 		for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
 		{
-			it->second->failcount = 0;
-			if (it->second->bt.arm(ds)) r = true;
+			if (it->second->failcount)
+			{
+				it->second->failcount = 0;
+				if (it->second->bt.arm(ds)) r = true;
+			}
 		}
 	}
 
