@@ -273,6 +273,8 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
 
 void MegaClient::init()
 {
+	noinetds = 0;
+
 	if (syncscanstate)
 	{
 		app->syncupdate_scanning(false);
@@ -366,6 +368,12 @@ MegaClient::~MegaClient()
 void MegaClient::exec()
 {
 	dstime ds = waiter->getdstime();
+
+	if (httpio->inetisback())
+	{
+		app->debug_log("Internet connectivity returned - resetting all backoff timers");
+		abortbackoff();
+	}
 
 	do {
 		// file attribute puts (handled sequentially, newest-to-oldest)
