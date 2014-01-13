@@ -327,7 +327,8 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 	if (t->type == GET)
 	{
-		client->fsaccess->tmpnamelocal(&t->localfilename);
+		// only set localfilename if the engine has not already done so
+		if (!t->localfilename.size()) client->fsaccess->tmpnamelocal(&t->localfilename);
 	}
 	else
 	{
@@ -1698,7 +1699,7 @@ static void process_line(char* l)
 								else if (n->type == FILENODE) cout << words[2] << ": Remote sync root must be folder." << endl;
 								else
 								{
-									error e = client->addsync(&localname,n,0);
+									error e = client->addsync(&localname,"Debris",NULL,n,0);
 
 									if (e) cout << "Sync could not be added: " << errorstring(e) << endl;
 								}

@@ -286,7 +286,7 @@ void SyncApp::fetchnodes_result (error e)
                 cout << remote_folder << ": Remote sync root must be folder." << endl;
                 exit (1);
             } else {
-                error e = client->addsync(&localname,n,0);
+				error e = client->addsync(&localname,"Debris",NULL,n,0);
                 if (e) {
                     cout << "Sync could not be added! " << endl;
                     exit (1);
@@ -441,11 +441,11 @@ int main (int argc, char *argv[])
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
-#ifdef DBACCESS_CLASS
-	new DBACCESS_CLASS,
-#else
+//#ifdef DBACCESS_CLASS
+//	new DBACCESS_CLASS,
+//#else
 	NULL,
-#endif
+//#endif
     "megasync");
 
     // get values from env
