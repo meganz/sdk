@@ -468,7 +468,7 @@ bool Sync::movetolocaldebris(string* localpath)
 		localdebris.append(client->fsaccess->localseparator);
 		localdebris.append(localday);
 		
-		if (i > -3) client->fsaccess->mkdirlocal(&localdebris);
+		if (i > -3) client->fsaccess->mkdirlocal(&localdebris,true);
 
 		localdebris.append(client->fsaccess->localseparator);
 		localdebris.append(*localpath,client->fsaccess->lastpartlocal(localpath),string::npos);

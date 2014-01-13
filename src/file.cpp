@@ -151,11 +151,9 @@ void SyncFileGet::prepare()
 	if (!transfer->localfilename.size())
 	{
 		string tmpname;
-		static unsigned tmpindex;
-		char buf[128];
 
 		transfer->localfilename = sync->localdebris;
-		sync->client->fsaccess->mkdirlocal(&transfer->localfilename);
+		sync->client->fsaccess->mkdirlocal(&transfer->localfilename,true);
 		transfer->localfilename.append(sync->client->fsaccess->localseparator);
 		
 		tmpname = "TMP";
@@ -164,9 +162,7 @@ void SyncFileGet::prepare()
 		transfer->localfilename.append(tmpname);
 		sync->client->fsaccess->mkdirlocal(&transfer->localfilename);
 
-		sprintf(buf,".getxfer.%lu.%u.mega",GetCurrentProcessId(),tmpindex++);
-		tmpname = buf;
-		sync->client->fsaccess->name2local(&tmpname);
+		sync->client->fsaccess->tmpnamelocal(&tmpname);
 		transfer->localfilename.append(sync->client->fsaccess->localseparator);
 		transfer->localfilename.append(tmpname);
 	}

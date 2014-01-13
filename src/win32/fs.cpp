@@ -223,14 +223,14 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
 }
 
 // generate unique local filename in the same fs as relatedpath
-void WinFileSystemAccess::tmpnamelocal(string* filename, string* relatedpath)
+void WinFileSystemAccess::tmpnamelocal(string* localname)
 {
 	static unsigned tmpindex;
-	char buf[256];
+	char buf[128];
 
-	sprintf(buf,".tmp.%lu.%u.mega",GetCurrentProcessId(),tmpindex++);
-	*filename = buf;
-	name2local(filename);
+	sprintf(buf,".getxfer.%lu.%u.mega",GetCurrentProcessId(),tmpindex++);
+	*localname = buf;
+	name2local(localname);
 }
 
 void WinFileSystemAccess::path2local(string* path, string* local)
@@ -379,14 +379,16 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 	return r;
 }
 
-bool WinFileSystemAccess::mkdirlocal(string* name)
+bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 {
 	name->append("",1);
 	int r = !!CreateDirectoryW((LPCWSTR)name->data(),NULL);
-	name->resize(name->size()-1);
 
 	if (!r) transient_error = istransientorexists(GetLastError());
+	else if (hidden) SetFileAttributesW((LPCWSTR)name->data(),FILE_ATTRIBUTE_HIDDEN);
 
+	name->resize(name->size()-1);
+	
 	return r;
 }
 
@@ -483,7 +485,7 @@ void WinDirNotify::readchanges()
 	}
 }
 
-WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
+WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath,ignore)
 {
 	ZeroMemory(&overlapped,sizeof(overlapped));
 

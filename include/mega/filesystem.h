@@ -158,7 +158,7 @@ struct FileSystemAccess : public EventTrigger
 	virtual void local2name(string*) = 0;
 
 	// generate local temporary file name
-	virtual void tmpnamelocal(string*, string* = NULL) = 0;
+	virtual void tmpnamelocal(string*) = 0;
 
 	// obtain local secondary name
 	virtual bool getsname(string*, string*) = 0;
@@ -175,8 +175,8 @@ struct FileSystemAccess : public EventTrigger
 	// delete empty directory
 	virtual bool rmdirlocal(string*) = 0;
 
-	// create directory
-	virtual bool mkdirlocal(string*) = 0;
+	// create directory, optionally hidden
+	virtual bool mkdirlocal(string*, bool = false) = 0;
 
 	// set mtime
 	virtual bool setmtimelocal(string*, time_t) = 0;

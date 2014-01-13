@@ -48,7 +48,7 @@ public:
 	DirAccess* newdiraccess();
 	DirNotify* newdirnotify(string*, string*);
 
-	void tmpnamelocal(string*, string* = NULL);
+	void tmpnamelocal(string*);
 
 	void path2local(string*, string*);
 	void local2path(string*, string*);
@@ -62,7 +62,7 @@ public:
 	bool copylocal(string*, string*);
 	bool unlinklocal(string*);
 	bool rmdirlocal(string*);
-	bool mkdirlocal(string*);
+	bool mkdirlocal(string*, bool);
 	bool setmtimelocal(string*, time_t);
 	bool chdirlocal(string*);
 	size_t lastpartlocal(string*);

@@ -151,6 +151,7 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 }
 
 // read all pending inotify events and queue them for processing
+// FIXME: ignore sync-specific debris folder
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
 	PosixWaiter* pw = (PosixWaiter*)w;
@@ -194,9 +195,13 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #endif
 
 // generate unique local filename in the same fs as relatedpath
-void PosixFileSystemAccess::tmpnamelocal(string* filename, string* relatedpath)
+void PosixFileSystemAccess::tmpnamelocal(string* filename)
 {
-	*filename = tmpnam(NULL);
+	static unsigned tmpindex;
+	char buf[128];
+
+	sprintf(buf,".getxfer.%lu.%u.mega",getpid(),tmpindex++);
+	*localname = buf;
 }
 
 void PosixFileSystemAccess::path2local(string* local, string* path)
@@ -321,7 +326,7 @@ bool PosixFileSystemAccess::chdirlocal(string* name)
 	return !chdir(name->c_str());
 }
 
-PosixDirNotify::PosixDirNotify(string* localbasepath) : DirNotify(localbasepath)
+PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath,ignore)
 {
 }
 
