@@ -331,11 +331,11 @@ bool WinFileSystemAccess::getsname(string* name, string* sname)
 }
 
 // FIXME: if a folder rename fails because the target exists, do a top-down recursive copy/delete
-bool WinFileSystemAccess::renamelocal(string* oldname, string* newname)
+bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool replace)
 {
 	oldname->append("",1);
 	newname->append("",1);
-	bool r = !!MoveFileExW((LPCWSTR)oldname->data(),(LPCWSTR)newname->data(),MOVEFILE_REPLACE_EXISTING);
+	bool r = !!MoveFileExW((LPCWSTR)oldname->data(),(LPCWSTR)newname->data(),replace ? MOVEFILE_REPLACE_EXISTING : 0);
 	newname->resize(newname->size()-1);
 	oldname->resize(oldname->size()-1);
 
@@ -355,50 +355,6 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname)
 	if (!r) transient_error = istransientorexists(GetLastError());
 
 	return r;
-}
-
-// (unfortunately, SHFileOperationW() does not support UNC paths)
-bool WinFileSystemAccess::rubbishlocal(string* name)
-{
-	name->append("",1);
-	string tmpname((MAX_PATH+1)*sizeof(wchar_t),0);
-
-	int r, rr;
-
-	r = tmpname.size()/sizeof(wchar_t);
-
-	rr = GetFullPathNameW((LPCWSTR)name->data(),r,(LPWSTR)tmpname.data(),NULL);
-
-	if (rr >= r)
-	{
-		tmpname.resize(rr*sizeof(wchar_t));
-		rr = GetFullPathNameW((LPCWSTR)name->data(),rr,(LPWSTR)tmpname.data(),NULL);
-	}
-	name->resize(name->size()-1);
-
-	if (!rr) return false;
-
-	tmpname.append("\0\0",3);
-
-	SHFILEOPSTRUCTW fileop;
-	fileop.hwnd = NULL;
-	fileop.wFunc = FO_DELETE;
-	fileop.pFrom = (LPCWSTR)tmpname.data();
-	fileop.pTo = NULL;
-	fileop.fFlags = FOF_NOCONFIRMATION|FOF_SILENT|FOF_ALLOWUNDO|FOF_NOERRORUI|FOF_NOCONFIRMMKDIR;
-	fileop.fAnyOperationsAborted = FALSE;
-	fileop.lpszProgressTitle = NULL;
-	fileop.hNameMappings = NULL;
-
-	int e = SHFileOperationW(&fileop);
-
-	if (!e) return true;
-
-	transient_error = istransient(e);
-
-	return false;
-
-	// FIXME: fall back to recursive DeleteFile()/RemoveDirectory() if SHFileOperation() fails, e.g. because of excessive path length
 }
 
 bool WinFileSystemAccess::rmdirlocal(string* name)
@@ -466,6 +422,13 @@ bool WinFileSystemAccess::chdirlocal(string* name)
 	return r;
 }
 
+size_t WinFileSystemAccess::lastpartlocal(string* name)
+{
+	for (size_t i = name->size()/sizeof(wchar_t); i--; ) if (((wchar_t*)name->data())[i] == '\\' || ((wchar_t*)name->data())[i] == ':') return (i+1)*sizeof(wchar_t);
+
+	return 0;
+}
+
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, string*)
 {
@@ -500,7 +463,7 @@ void WinDirNotify::process(DWORD dwBytes)
 		{
 			FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
-			notify(DIREVENTS,localrootnode,(char*)fni->FileName,fni->FileNameLength);
+			if (fni->FileNameLength < ignore.size() || memcmp((char*)fni->FileName,ignore.data(),ignore.size()) || (fni->FileNameLength > ignore.size() && memcmp((char*)fni->FileName+ignore.size(),(char*)L"\\",sizeof(wchar_t)))) notify(DIREVENTS,localrootnode,(char*)fni->FileName,fni->FileNameLength);
 
 			if (!fni->NextEntryOffset) break;
 
@@ -520,7 +483,7 @@ void WinDirNotify::readchanges()
 	}
 }
 
-WinDirNotify::WinDirNotify(string* localbasepath) : DirNotify(localbasepath)
+WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 	ZeroMemory(&overlapped,sizeof(overlapped));
 
@@ -550,9 +513,9 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 	return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(string* clocalpath)
+DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
-	return new WinDirNotify(clocalpath);
+	return new WinDirNotify(localpath, ignore);
 }
 
 bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)

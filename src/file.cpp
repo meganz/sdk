@@ -145,7 +145,34 @@ SyncFileGet::~SyncFileGet()
 	n->syncget = NULL;
 }
 
-// update localname (parent's localnode 
+// create sync-specific temp download directory and set unique filename
+void SyncFileGet::prepare()
+{
+	if (!transfer->localfilename.size())
+	{
+		string tmpname;
+		static unsigned tmpindex;
+		char buf[128];
+
+		transfer->localfilename = sync->localdebris;
+		sync->client->fsaccess->mkdirlocal(&transfer->localfilename);
+		transfer->localfilename.append(sync->client->fsaccess->localseparator);
+		
+		tmpname = "TMP";
+		sync->client->fsaccess->name2local(&tmpname);
+		transfer->localfilename.append(sync->client->fsaccess->localseparator);
+		transfer->localfilename.append(tmpname);
+		sync->client->fsaccess->mkdirlocal(&transfer->localfilename);
+
+		sprintf(buf,".getxfer.%lu.%u.mega",GetCurrentProcessId(),tmpindex++);
+		tmpname = buf;
+		sync->client->fsaccess->name2local(&tmpname);
+		transfer->localfilename.append(sync->client->fsaccess->localseparator);
+		transfer->localfilename.append(tmpname);
+	}
+}
+
+// update localname (parent's localnode)
 void SyncFileGet::updatelocalname()
 {
 	attr_map::iterator ait;

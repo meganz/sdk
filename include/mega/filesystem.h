@@ -121,7 +121,10 @@ struct DirNotify
 
 	void notify(notifyqueue, LocalNode*, const char*, size_t);
 
-	DirNotify(string*);
+	// ignore this
+	string ignore;
+
+	DirNotify(string*, string*);
 };
 
 // generic host filesystem access interface
@@ -137,7 +140,7 @@ struct FileSystemAccess : public EventTrigger
 	virtual DirAccess* newdiraccess() = 0;
 
 	// instantiate DirNotify object (default to periodic scanning handler if no notification configured) with given root path
-	virtual DirNotify* newdirnotify(string*);
+	virtual DirNotify* newdirnotify(string*, string*);
 
 	// check if character is lowercase hex ASCII
 	bool islchex(char);
@@ -161,13 +164,10 @@ struct FileSystemAccess : public EventTrigger
 	virtual bool getsname(string*, string*) = 0;
 	
 	// rename file, overwrite target
-	virtual bool renamelocal(string*, string*) = 0;
+	virtual bool renamelocal(string*, string*, bool = true) = 0;
 
 	// copy file, overwrite target
 	virtual bool copylocal(string*, string*) = 0;
-
-	// move file or folder tree to OS-managed local rubbish bin
-	virtual bool rubbishlocal(string*) = 0;
 
 	// delete file
 	virtual bool unlinklocal(string*) = 0;
@@ -183,6 +183,9 @@ struct FileSystemAccess : public EventTrigger
 
 	// change working directory
 	virtual bool chdirlocal(string*) = 0;
+
+	// locate byte offset of last path component
+	virtual size_t lastpartlocal(string*) = 0;
 
 	// add notification (has to be called for all directories in tree for full crossplatform support)
 	virtual void addnotify(LocalNode*, string*) { }
