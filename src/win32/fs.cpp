@@ -385,7 +385,11 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 	int r = !!CreateDirectoryW((LPCWSTR)name->data(),NULL);
 
 	if (!r) transient_error = istransientorexists(GetLastError());
-	else if (hidden) SetFileAttributesW((LPCWSTR)name->data(),FILE_ATTRIBUTE_HIDDEN);
+	else if (hidden)
+	{
+		DWORD a = GetFileAttributesW((LPCWSTR)name->data());
+		if (a != INVALID_FILE_ATTRIBUTES) SetFileAttributesW((LPCWSTR)name->data(),a | FILE_ATTRIBUTE_HIDDEN);
+	}
 
 	name->resize(name->size()-1);
 	
@@ -517,7 +521,7 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 
 DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
-	return new WinDirNotify(localpath, ignore);
+	return new WinDirNotify(localpath,ignore);
 }
 
 bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)

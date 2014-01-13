@@ -195,7 +195,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #endif
 
 // generate unique local filename in the same fs as relatedpath
-void PosixFileSystemAccess::tmpnamelocal(string* filename)
+void PosixFileSystemAccess::tmpnamelocal(string* localname)
 {
 	static unsigned tmpindex;
 	char buf[128];
@@ -254,7 +254,7 @@ bool PosixFileSystemAccess::getsname(string*, string*)
 	return false;
 }
 
-bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname)
+bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
 {
 	return !rename(oldname->c_str(),newname->c_str());
 }
@@ -305,7 +305,7 @@ bool PosixFileSystemAccess::rmdirlocal(string* name)
 	return !rmdir(name->c_str());
 }
 
-bool PosixFileSystemAccess::mkdirlocal(string* name)
+bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
 {
 	bool r = !mkdir(name->c_str(),0700);
 
@@ -324,6 +324,15 @@ bool PosixFileSystemAccess::setmtimelocal(string* name, time_t mtime)
 bool PosixFileSystemAccess::chdirlocal(string* name)
 {
 	return !chdir(name->c_str());
+}
+
+size_t PosixFileSystemAccess::lastpartlocal(string* localname)
+{
+	const char* ptr = localname->data();
+
+	if ((ptr = strrchr(ptr,'/'))) return ptr-localname->data();
+	
+	return 0;
 }
 
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath,ignore)
@@ -360,9 +369,9 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
 	return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath)
+DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
-	PosixDirNotify* dirnotify = new PosixDirNotify(localpath);
+	PosixDirNotify* dirnotify = new PosixDirNotify(localpath,ignore);
 
 	dirnotify->fsaccess = this;
 

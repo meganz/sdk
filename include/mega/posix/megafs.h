@@ -54,7 +54,7 @@ public:
 
 	FileAccess* newfileaccess();
 	DirAccess* newdiraccess();
-	DirNotify* newdirnotify(string*);
+	DirNotify* newdirnotify(string*, string*);
 
 	void tmpnamelocal(string*);
 
@@ -66,7 +66,7 @@ public:
 
 	bool getsname(string*, string*);
 
-	bool renamelocal(string*, string*);
+	bool renamelocal(string*, string*, bool);
 	bool copylocal(string*, string*);
 	bool rubbishlocal(string*);
 	bool unlinklocal(string*);
@@ -74,6 +74,7 @@ public:
 	bool mkdirlocal(string*, bool);
 	bool setmtimelocal(string*, time_t);
 	bool chdirlocal(string*);
+	size_t lastpartlocal(string*);
 
 	void addevents(Waiter*, int);
 	int checkevents(Waiter*);
