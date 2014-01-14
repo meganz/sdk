@@ -3652,15 +3652,34 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 		}
 		else if (rubbish && ll->deleted)	// no corresponding remote node: delete local item
 		{
-			// recursively cancel all dangling transfers before deletion
-			stopxfers(ll);
-
-			// attempt deletion and re-queue for retry in case of a transient failure
-			if (l->sync->movetolocaldebris(localpath)) delete lit++->second;
-			else if (success && fsaccess->transient_error)
+			if (ll->type == FILENODE)
 			{
-				success = false;
-				lit++;
+				// only delete the file if it is unchanged
+				string tmplocalpath;
+				
+				ll->getlocalpath(&tmplocalpath);
+				
+				FileAccess* fa = fsaccess->newfileaccess();
+
+				if (fa->fopen(&tmplocalpath,true,false))
+				{
+					FileFingerprint fp;
+					fp.genfingerprint(fa);
+					if (!(fp == *(FileFingerprint*)ll)) ll->deleted = false;
+				}
+				
+				delete fa;
+			}
+	
+			if (ll->deleted)
+			{
+				// attempt deletion and re-queue for retry in case of a transient failure
+				if (l->sync->movetolocaldebris(localpath)) delete lit++->second;
+				else if (success && fsaccess->transient_error)
+				{
+					success = false;
+					lit++;
+				}
 			}
 		}
 		else lit++;

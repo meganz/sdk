@@ -329,6 +329,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
 						client->stopxfer(l);
 						l->bumpnagleds();
+						l->deleted = false;
 
 						client->syncactivity = true;
 						
@@ -394,7 +395,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
 					if (l->genfingerprint(fa))
 					{
-
 						changed = true;
 						l->bumpnagleds();
 						l->deleted = 0;
