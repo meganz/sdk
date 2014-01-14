@@ -886,9 +886,11 @@ int MegaClient::wait()
 	else
 	{
 		// next retry of a failed transfer
-		nds = nexttransferretry(PUT,~(dstime)0);
-		nds = nexttransferretry(GET,nds);
-
+		nds = ~(dstime)0;
+	
+		nexttransferretry(PUT,&nds,ds);
+		nexttransferretry(GET,&nds,ds);
+		
 		// retry failed client-server requests
 		if (!pendingcs) btcs.update(ds,&nds);
 
@@ -916,7 +918,7 @@ int MegaClient::wait()
 
 	// immediate action required?
 	if (!nds) return Waiter::NEEDEXEC;
-	
+
 	// nds is either MAX_INT (== no pending events) or > ds
 	if (nds+1) nds -= ds;
 
@@ -1117,15 +1119,13 @@ void MegaClient::freeq(direction d)
 	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); ) delete (it++)->second;
 }
 
-// time at which next undispatched transfer retry occurs
-dstime MegaClient::nexttransferretry(direction d, dstime dsmin)
+// determine next scheduled transfer retry
+void MegaClient::nexttransferretry(direction d, dstime* dsmin, dstime ds)
 {
 	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
 	{
-		if (!it->second->slot && it->second->bt.nextset() && it->second->bt.nextset() < dsmin) dsmin = it->second->bt.nextset();
+		if (!it->second->slot && it->second->bt.nextset() && it->second->bt.nextset() >= ds && it->second->bt.nextset() < *dsmin) *dsmin = it->second->bt.nextset();
 	}
-
-	return dsmin;
 }
 
 // disconnect all HTTP connections (slows down operations, but is semantically neutral)
