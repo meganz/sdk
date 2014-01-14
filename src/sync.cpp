@@ -33,6 +33,8 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris, string* 
 	client = cclient;
 	tag = ctag;
 
+	tmpfa = NULL;
+	
 	localbytes = 0;
 	localnodes[FILENODE] = 0;
 	localnodes[FOLDERNODE] = 0;
@@ -65,6 +67,9 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris, string* 
 
 Sync::~Sync()
 {
+	// unlock tmp folder
+	delete tmpfa;
+
 	// prevent remote mass deletion while rootlocal destructor runs
 	state = SYNC_CANCELED;
 
