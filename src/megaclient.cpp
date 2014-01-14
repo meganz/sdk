@@ -703,7 +703,7 @@ void MegaClient::exec()
 
 	// halt all syncing while the local filesystem is pending a lock-blocked operation
 	// FIXME: indicate by callback
-	if (!syncdownretry)
+	if (!syncdownretry && !syncadding)
 	{
 		// process active syncs, stop doing so while transient local fs ops are pending
 		if (syncs.size() || syncactivity)
@@ -805,7 +805,7 @@ void MegaClient::exec()
 			}
 
 			// delete locally missing nodes unless a putnodes operation is in progress that may be still be referencing them
-			if (!synccreate.size() && !syncadding)
+			if (!synccreate.size())
 			{
 				for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end(); )
 				{
@@ -826,7 +826,7 @@ void MegaClient::exec()
 			}
 
 			// process filesystem notifications for active syncs unless node addition currently in flight
-			if (!syncscanning && !syncadding)
+			if (!syncscanning)
 			{
 				string localname;
 
@@ -3597,7 +3597,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 	// build child hash - nameclash resolution: use newest/largest version
 	for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
 	{
-		// node must be decrypted and name defined to be considered
+		// node must be syncable, alive, decrypted and have its name defined to be considered
 		if (app->sync_syncable(*it) && !(*it)->syncdeleted && !(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()) addchild(&nchildren,&ait->second,*it,&strings);
 	}
 
@@ -3770,8 +3770,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 		// corresponding remote node present: build child hash - nameclash resolution: use newest version
 		for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
 		{
-			// node must be decrypted and name defined to be considered
-			if (!(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()) addchild(&nchildren,&ait->second,*it,&strings);
+			// node must be alive, decrypted and name defined to be considered
+			if (!(*it)->syncdeleted && !(*it)->attrstring.size() && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()) addchild(&nchildren,&ait->second,*it,&strings);
 		}
 	}
 
@@ -3902,9 +3902,6 @@ void MegaClient::syncupdate()
 			n = NULL;
 			l = synccreate[i];
 
-			// rubbish existing node in case of an overwrite
-			if (l->node) movetosyncdebris(l->node);
-
 			if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
 			{
 				// create remote folder or copy file if it already exists
@@ -3917,6 +3914,9 @@ void MegaClient::syncupdate()
 
 				if (n)
 				{
+					// overwriting an existing remote node? send it to SyncDebris.
+					if (l->node) movetosyncdebris(l->node);
+
 					// this is a file - copy, use original key & attributes
 					// FIXME: move instead of creating a copy if it is in rubbish to reduce node creation load
 					nnp->clienttimestamp = l->mtime;
@@ -3944,6 +3944,7 @@ void MegaClient::syncupdate()
 			}
 			else if (l->type == FILENODE)
 			{
+				// the overwrite will happen upon PUT completion
 				string tmppath, tmplocalpath;
 
 				startxfer(PUT,l);
