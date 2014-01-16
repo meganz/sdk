@@ -980,7 +980,7 @@ bool MegaClient::abortbackoff()
 
 // this will dispatch the next queued transfer unless one is already in progress and force isn't set
 // returns true if dispatch occurred, false otherwise
-bool MegaClient::dispatch(direction d)
+bool MegaClient::dispatch(direction_t d)
 {
 	// do we have any transfer tslots available?
 	if (!slotavail()) return false;
@@ -1126,13 +1126,13 @@ handle MegaClient::getuploadhandle()
 }
 
 // clear transfer queue
-void MegaClient::freeq(direction d)
+void MegaClient::freeq(direction_t d)
 {
 	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); ) delete (it++)->second;
 }
 
 // determine next scheduled transfer retry
-void MegaClient::nexttransferretry(direction d, dstime* dsmin, dstime ds)
+void MegaClient::nexttransferretry(direction_t d, dstime* dsmin, dstime ds)
 {
 	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
 	{
@@ -1499,7 +1499,7 @@ bool MegaClient::slotavail()
 
 // returns 1 if more transfers of the requested type can be dispatched (back-to-back overlap pipelining)
 // FIXME: support overlapped partial reads (and support partial reads in the first place)
-bool MegaClient::moretransfers(direction d)
+bool MegaClient::moretransfers(direction_t d)
 {
 	m_off_t c = 0, r = 0;
 	dstime t = 0;
@@ -1536,7 +1536,7 @@ bool MegaClient::moretransfers(direction d)
 	return false;
 }
 
-void MegaClient::dispatchmore(direction d)
+void MegaClient::dispatchmore(direction_t d)
 {
 	// keep pipeline full by dispatching additional queued transfers, if appropriate and available
 	while (moretransfers(d) && dispatch(d));
@@ -1667,7 +1667,7 @@ bool MegaClient::sc_shares()
 	byte ha[SymmCipher::BLOCKSIZE];
 	byte sharekey[SymmCipher::BLOCKSIZE];
 	int have_ha = 0;
-	accesslevel r = ACCESS_UNKNOWN;
+	accesslevel_t r = ACCESS_UNKNOWN;
 	time_t ts = 0;
 	int outbound;
 
@@ -1696,7 +1696,7 @@ bool MegaClient::sc_shares()
 				break;
 
 			case 'r':	// share access level
-				r = (accesslevel)jsonsc.getint();
+				r = (accesslevel_t)jsonsc.getint();
 				break;
 
 			case MAKENAMEID2('t','s'):	// share timestamp
@@ -2065,7 +2065,7 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
-int MegaClient::checkaccess(Node* n, accesslevel a)
+int MegaClient::checkaccess(Node* n, accesslevel_t a)
 {
 	// folder link access is always read-only - ignore login status during initial tree fetch
 	if (a < OWNERPRELOGIN && !loggedin()) return a == RDONLY;
@@ -2293,7 +2293,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, int tag)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int tag)
 {
 	if (!j->enterarray()) return 0;
 
@@ -2305,12 +2305,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 	{
 		handle h = UNDEF, ph = UNDEF;
 		handle u = 0, su = UNDEF;
-		nodetype t = TYPE_UNKNOWN;
+		nodetype_t t = TYPE_UNKNOWN;
 		const char* a = NULL;
 		const char* k = NULL;
 		const char* fa = NULL;
 		const char *sk = NULL;
-		accesslevel rl = ACCESS_UNKNOWN;
+		accesslevel_t rl = ACCESS_UNKNOWN;
 		m_off_t s = ~(m_off_t)0;
 		time_t ts = -1, tmd = 0, sts = -1;
 		nameid name;
@@ -2332,7 +2332,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 					break;
 
 				case 't':	// type
-					t = (nodetype)j->getint();
+					t = (nodetype_t)j->getint();
 					break;
 
 				case 'a':	// attributes
@@ -2361,7 +2361,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource source, NewNode* nn, in
 
 					// inbound share attributes
 				case 'r':	// share access level
-					rl = (accesslevel)j->getint();
+					rl = (accesslevel_t)j->getint();
 					break;
 
 				case MAKENAMEID2('s','k'):	// share key
@@ -2588,7 +2588,7 @@ void MegaClient::readoutshareelement(JSON* j)
 {
 	handle h = UNDEF;
 	handle uh = UNDEF;
-	accesslevel r = ACCESS_UNKNOWN;
+	accesslevel_t r = ACCESS_UNKNOWN;
 	time_t ts = 0;
 
 	for (;;)
@@ -2604,7 +2604,7 @@ void MegaClient::readoutshareelement(JSON* j)
 				break;
 
 			case 'r':			// access
-				r = (accesslevel)j->getint();
+				r = (accesslevel_t)j->getint();
 				break;
 
 			case MAKENAMEID2('t','s'):		// timestamp
@@ -2669,7 +2669,7 @@ bool MegaClient::readusers(JSON* j)
 	while (j->enterobject())
 	{
 		handle uh = 0;
-		visibility v = VISIBILITY_UNKNOWN;	// new share objects do not override existing visibility
+		visibility_t v = VISIBILITY_UNKNOWN;	// new share objects do not override existing visibility
 		time_t ts = 0;
 		const char* m = NULL;
 		nameid name;
@@ -2683,7 +2683,7 @@ bool MegaClient::readusers(JSON* j)
 					break;
 
 				case 'c': 	// visibility
-					v = (visibility)j->getint();
+					v = (visibility_t)j->getint();
 					break;
 
 				case 'm':	// attributes
@@ -2921,7 +2921,7 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel a)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
 {
 	queuepubkeyreq(finduser(user,1),new PubKeyActionCreateShare(n->nodehandle,a,reqtag));
 }
@@ -2951,7 +2951,7 @@ void MegaClient::purchase_checkout(int gateway)
 }
 
 // add new contact (by e-mail address)
-error MegaClient::invite(const char* email, visibility show)
+error MegaClient::invite(const char* email, visibility_t show)
 {
 	if (!strchr(email,'@')) return API_EARGS;
 
@@ -3322,7 +3322,7 @@ error MegaClient::openfilelink(const char* link, int op)
 	return API_EARGS;
 }
 
-sessiontype MegaClient::loggedin()
+sessiontype_t MegaClient::loggedin()
 {
 	if (ISUNDEF(me)) return NOTLOGGEDIN;
 
@@ -3934,6 +3934,8 @@ void MegaClient::syncupdate()
 			n = NULL;
 			l = synccreate[i];
 
+			l->treestate(TREESTATE_PENDING);
+
 			if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
 			{
 				// create remote folder or copy file if it already exists
@@ -4015,7 +4017,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn)
 
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction d, File* f)
+bool MegaClient::startxfer(direction_t d, File* f)
 {
 	if (!f->transfer)
 	{
@@ -4080,7 +4082,7 @@ void MegaClient::stopxfer(File* f)
 }
 
 // pause/unpause transfers
-void MegaClient::pausexfers(direction d, bool pause, bool hard)
+void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 {
 	xferpaused[d] = pause;
 

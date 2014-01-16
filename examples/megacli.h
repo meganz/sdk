@@ -101,7 +101,7 @@ struct DemoApp : public MegaApp
 
 	void fetchnodes_result(error);
 
-	void putnodes_result(error, targettype, NewNode*);
+	void putnodes_result(error, targettype_t, NewNode*);
 
 	void share_result(error);
 	void share_result(int, error);
@@ -136,7 +136,7 @@ struct DemoApp : public MegaApp
 	void transfer_limit(Transfer*);
 	void transfer_complete(Transfer*);
 
-	void syncupdate_state(Sync*, syncstate);
+	void syncupdate_state(Sync*, syncstate_t);
 	void syncupdate_scanning(bool);
 	void syncupdate_local_folder_addition(Sync*, const char*);
 	void syncupdate_local_folder_deletion(Sync*, const char*);
@@ -152,6 +152,7 @@ struct DemoApp : public MegaApp
 	void syncupdate_remote_folder_deletion(Node*);
 	void syncupdate_remote_copy(Sync*, const char*);
 	void syncupdate_remote_move(string*, string*);
+	void syncupdate_treestate(LocalNode*);
 
 	bool sync_syncable(Node*);
 	bool sync_syncable(const char*, string*, string*);

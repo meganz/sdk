@@ -198,6 +198,15 @@ void SyncFileGet::prepare()
 		transfer->localfilename.append(sync->client->fsaccess->localseparator);
 		transfer->localfilename.append(tmpname);
 	}
+	
+	if (n->localnode) n->localnode->treestate(TREESTATE_SYNCING);
+}
+
+bool SyncFileGet::failed(error e)
+{
+	if (n->localnode) n->localnode->treestate(TREESTATE_PENDING);
+
+	return File::failed(e);
 }
 
 // update localname (parent's localnode)
