@@ -40,7 +40,7 @@ class SyncApp : public MegaApp
 	void fetchnodes_result (error e);
 
     void request_error(error e);
-	void syncupdate_state(Sync*, syncstate);
+	void syncupdate_state(Sync*, syncstate_t);
 
 	void syncupdate_stuck(string*);
 	void syncupdate_local_folder_addition(Sync*, const char*);
@@ -57,6 +57,7 @@ class SyncApp : public MegaApp
 	void syncupdate_remote_folder_deletion(Node*);
 	void syncupdate_remote_copy(Sync*, const char*);
 	void syncupdate_remote_move(string*, string*);
+	void syncupdate_treestate(LocalNode*);
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
 public:
@@ -308,7 +309,7 @@ void SyncApp::request_error(error e)
     exit (1);
 }
 
-void SyncApp::syncupdate_state(Sync*, syncstate state)
+void SyncApp::syncupdate_state(Sync*, syncstate_t state)
 {
     if (state == SYNC_CANCELED || state == SYNC_FAILED) {
         cout << "FATAL: Sync failed !" << endl;
@@ -408,6 +409,30 @@ void SyncApp::syncupdate_remote_copy(Sync*, const char* name)
     if (debug)
 	cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
 }
+
+static const char* treestatename(treestate_t ts)
+{
+	switch (ts)
+	{
+		case TREESTATE_NONE:
+			return "None/Undefined";
+		case TREESTATE_SYNCED:
+			return "Synced";
+		case TREESTATE_PENDING:
+			return "Pending";
+		case TREESTATE_SYNCING:
+			return "Syncing";
+	}
+
+	return "UNKNOWN";
+}
+
+void SyncApp::syncupdate_treestate(LocalNode* l)
+{
+    if (debug)
+	cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
+}
+
 
 //
 int main (int argc, char *argv[])
