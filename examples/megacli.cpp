@@ -365,7 +365,7 @@ static void syncstat(Sync* sync)
 	cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(Sync*, syncstate newstate)
+void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
 {
 	switch (newstate)
 	{
@@ -460,6 +460,28 @@ void DemoApp::syncupdate_put(Sync*, const char* path)
 void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
 {
 	cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
+}
+
+static const char* treestatename(treestate_t ts)
+{
+	switch (ts)
+	{
+		case TREESTATE_NONE:
+			return "None/Undefined";
+		case TREESTATE_SYNCED:
+			return "Synced";
+		case TREESTATE_PENDING:
+			return "Pending";
+		case TREESTATE_SYNCING:
+			return "Syncing";
+	}
+	
+	return "UNKNOWN";
+}
+
+void DemoApp::syncupdate_treestate(LocalNode* l)
+{
+	cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
 }
 
 // generic name filter
@@ -558,7 +580,7 @@ void DemoApp::fetchnodes_result(error e)
 	if (e) cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-void DemoApp::putnodes_result(error e, targettype t, NewNode* nn)
+void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
 {
 	if (t == USER_HANDLE)
 	{
@@ -1033,7 +1055,7 @@ int loadfile(string* name, string* data)
 	return 0;
 }
 
-void xferq(direction d, int cancel)
+void xferq(direction_t d, int cancel)
 {
 	string name;
 
@@ -1602,7 +1624,7 @@ static void process_line(char* l)
 							int total = 0;
 							string localname;
 							string name;
-							nodetype type;
+							nodetype_t type;
 
 							if (words.size() > 2)
 							{
@@ -1853,7 +1875,7 @@ static void process_line(char* l)
 									if (words.size() == 2) listnodeshares(n);
 									else
 									{
-										accesslevel a = ACCESS_UNKNOWN;
+										accesslevel_t a = ACCESS_UNKNOWN;
 
 										if (words.size() > 3)
 										{
@@ -2747,7 +2769,7 @@ void megacli()
 				unsigned xferrate[2] = { 0 };
 				dstime ds = client->waiter->getdstime();
 
-				for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++) xferrate[(*it)->transfer->type] += (*it)->progressreported*10/(1024*(ds-(*it)->starttime+1));
+				for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++) if ((*it)->fa) xferrate[(*it)->transfer->type] += (*it)->progressreported*10/(1024*(ds-(*it)->starttime+1));
 
 				strcpy(dynamicprompt,"MEGA");
 
