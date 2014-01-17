@@ -642,7 +642,6 @@ void LocalNode::setnode(Node* cnode)
 
 	node = cnode;
 	node->localnode = this;
-	node->localnode->treestate(TREESTATE_SYNCED);
 }
 
 void LocalNode::setnotseen(int newnotseen)

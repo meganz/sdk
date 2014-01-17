@@ -25,15 +25,14 @@ namespace mega {
 
 bool debug;
 
-// FIXME: recreate filename after sync transfer completes to shortcut in-transfer rename handling
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
-// FIXME: Sync: recognize folder renames and use setattr() instead of potentially huge delete/putnodes sequences
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
 // FIXME: set folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
-// FIXME: replace move with copy/delete if cross-device or source locked
+// FIXME: treestate semantics
+// FIXME: disallow ~Sync triggerd by the application, implement delsync() instead
 
 // root URL for API access
 const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
@@ -3863,6 +3862,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 					{
 						// files have the same size and the same mtime (or the same fingerprint, if available): no action needed
 						ll->setnode(rit->second);
+						ll->treestate(TREESTATE_SYNCED);
 						continue;
 					}
 				}
