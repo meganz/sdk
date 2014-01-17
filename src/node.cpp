@@ -708,8 +708,6 @@ LocalNode::~LocalNode()
 		if (sync->state < SYNC_INITIALSCAN) node->localnode = NULL;
 		else sync->client->movetosyncdebris(node);
 	}
-	
-	treestate();
 }
 
 void LocalNode::getlocalpath(string* path, bool sdisable)

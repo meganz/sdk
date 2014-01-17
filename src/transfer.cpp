@@ -115,7 +115,7 @@ void Transfer::complete()
 		// in case they have changed during the upload
 		for (file_list::iterator it = files.begin(); it != files.end(); it++) (*it)->updatelocalname();
 
-		string* renamedto = NULL;
+		string tmplocalname;
 		bool transient_error, success;
 
 		// place file in all target locations - use up to one renames, copy operations for the rest
@@ -125,11 +125,11 @@ void Transfer::complete()
 			transient_error = false;
 			success = false;
 
-			if (!renamedto)
+			if (!tmplocalname.size())
 			{
 				if (client->fsaccess->renamelocal(&localfilename,&(*it)->localname))
 				{
-					renamedto = &(*it)->localname;
+					tmplocalname = (*it)->localname;
 					success = true;
 				}
 				else
@@ -140,7 +140,7 @@ void Transfer::complete()
 
 			if (!success)
 			{
-				if (client->fsaccess->copylocal(renamedto ? renamedto : &localfilename,&(*it)->localname))
+				if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename,&(*it)->localname))
 				{
 					success = true;
 				}
@@ -164,7 +164,7 @@ void Transfer::complete()
 			else it++;
 		}
 
-		if (!renamedto && !files.size()) client->fsaccess->unlinklocal(&localfilename);
+		if (!tmplocalname.size() && !files.size()) client->fsaccess->unlinklocal(&localfilename);
 	}
 	else
 	{

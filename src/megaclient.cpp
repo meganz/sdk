@@ -3692,12 +3692,18 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 				// attempt deletion and re-queue for retry in case of a transient failure
 				ll->treestate(TREESTATE_SYNCING);
 
-				if (l->sync->movetolocaldebris(localpath)) delete lit++->second;
+				if (l->sync->movetolocaldebris(localpath))
+				{
+					delete lit++->second;
+					l->treestate();
+				}
 				else if (success && fsaccess->transient_error)
 				{
 					success = false;
 					lit++;
 				}
+				
+				
 			}
 		}
 		else lit++;
