@@ -2769,7 +2769,7 @@ void megacli()
 				unsigned xferrate[2] = { 0 };
 				dstime ds = client->waiter->getdstime();
 
-				for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++) xferrate[(*it)->transfer->type] += (*it)->progressreported*10/(1024*(ds-(*it)->starttime+1));
+				for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++) if ((*it)->fa) xferrate[(*it)->transfer->type] += (*it)->progressreported*10/(1024*(ds-(*it)->starttime+1));
 
 				strcpy(dynamicprompt,"MEGA");
 

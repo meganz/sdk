@@ -1066,7 +1066,7 @@ bool MegaClient::dispatch(direction_t d)
 			ts = new TransferSlot(nextit->second);
 
 			// try to open file (PUT transfers: open in nonblocking mode)
-			if (d == PUT ? ts->file->fopen(&nextit->second->localfilename) : ts->file->fopen(&nextit->second->localfilename,false,true))
+			if (d == PUT ? ts->fa->fopen(&nextit->second->localfilename) : ts->fa->fopen(&nextit->second->localfilename,false,true))
 			{
 				handle h = UNDEF;
 				bool hprivate;
@@ -1076,7 +1076,7 @@ bool MegaClient::dispatch(direction_t d)
 				// always (re)start upload from scratch
 				if (d == PUT)
 				{
-					nextit->second->size = ts->file->size;
+					nextit->second->size = ts->fa->size;
 					nextit->second->chunkmacs.clear();
 				}
 				else
@@ -1132,11 +1132,12 @@ void MegaClient::freeq(direction_t d)
 }
 
 // determine next scheduled transfer retry
+// FIXME: make this an ordered set and only check the first element instead of scanning the full map!
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin, dstime ds)
 {
 	for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
 	{
-		if (!it->second->slot && it->second->bt.nextset() && it->second->bt.nextset() >= ds && it->second->bt.nextset() < *dsmin) *dsmin = it->second->bt.nextset();
+		if ((!it->second->slot || !it->second->slot->fa) && it->second->bt.nextset() && it->second->bt.nextset() >= ds && it->second->bt.nextset() < *dsmin) *dsmin = it->second->bt.nextset();
 	}
 }
 
@@ -3729,12 +3730,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
 						if (fsaccess->renamelocal(&curpath,localpath))
 						{
-							rit->second->localnode->treestate(TREESTATE_SYNCED);
-
 							// update LocalNode tree to reflect the move/rename
 							rit->second->localnode->setnameparent(l,localpath);
 							updateputs();	// update filenames so that PUT transfers can continue seamlessly
 							syncactivity = true;
+
+							rit->second->localnode->treestate(TREESTATE_SYNCED);
 						}
 						else if (success && fsaccess->transient_error) success = false;	// schedule retry
 					}
@@ -4262,7 +4263,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 	else e = fa->retry ? API_ETEMPUNAVAIL : API_ENOENT;
 
 	delete fa;
-	
+
 	return e;
 }
 

@@ -761,7 +761,7 @@ void LocalNode::prepare()
 	getlocalpath(&transfer->localfilename,true);
 
 	// is this transfer in progress? update file's filename.
-	if (transfer->slot && transfer->slot->file->localname.size()) transfer->slot->file->updatelocalname(&transfer->localfilename);
+	if (transfer->slot && transfer->slot->fa->localname.size()) transfer->slot->fa->updatelocalname(&transfer->localfilename);
 	
 	treestate(TREESTATE_SYNCING);
 }
