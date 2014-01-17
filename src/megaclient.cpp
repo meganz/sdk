@@ -3687,6 +3687,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 			if (ll->deleted)
 			{
 				// attempt deletion and re-queue for retry in case of a transient failure
+				ll->treestate(TREESTATE_SYNCING);
+
 				if (l->sync->movetolocaldebris(localpath)) delete lit++->second;
 				else if (success && fsaccess->transient_error)
 				{
@@ -3723,8 +3725,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
 						rit->second->localnode->getlocalpath(&curpath);
 
+						rit->second->localnode->treestate(TREESTATE_SYNCING);
+
 						if (fsaccess->renamelocal(&curpath,localpath))
 						{
+							rit->second->localnode->treestate(TREESTATE_SYNCED);
+
 							// update LocalNode tree to reflect the move/rename
 							rit->second->localnode->setnameparent(l,localpath);
 							updateputs();	// update filenames so that PUT transfers can continue seamlessly
