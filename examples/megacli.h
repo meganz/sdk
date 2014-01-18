@@ -144,6 +144,7 @@ struct DemoApp : public MegaApp
 	void syncupdate_local_file_deletion(Sync*, const char*);
 	void syncupdate_local_file_change(Sync*, const char*);
 	void syncupdate_local_move(Sync*, const char*, const char*);
+	void syncupdate_local_lockretry(bool);
 	void syncupdate_get(Sync*, const char*);
 	void syncupdate_put(Sync*, const char*);
 	void syncupdate_remote_file_addition(Node*);

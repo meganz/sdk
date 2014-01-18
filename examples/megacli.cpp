@@ -422,6 +422,12 @@ void DemoApp::syncupdate_local_move(Sync*, const char* from, const char* to)
 	cout << "Sync - local rename/move " << from << " -> " << to << endl;
 }
 
+void DemoApp::syncupdate_local_lockretry(bool locked)
+{
+	if (locked) cout << "Sync - waiting for local filesystem lock" << endl;
+	else cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
+}
+
 void DemoApp::syncupdate_remote_move(string* from, string* to)
 {
 	cout << "Sync - remote rename/move " << *from << " -> " << *to << endl;
