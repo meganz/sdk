@@ -728,11 +728,12 @@ void MegaClient::exec()
 				unsigned totalpending = 0;
 
 				// process pending notifyqs
-				for (it = syncs.begin(); it != syncs.end(); it++)
+				for (it = syncs.begin(); it != syncs.end(); )
 				{
-					Sync* sync = *it;
+					Sync* sync = *it++;
 
-					if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
+					if (sync->state == SYNC_CANCELED) delete sync;
+					else if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
 					{
 						// process items from the notifyq until depleted
 						if (sync->dirnotify->notifyq[q].size())
@@ -4273,6 +4274,14 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 	delete fa;
 
 	return e;
+}
+
+// we cannot delete the Sync object directly, as it might have pending operations on it
+void MegaClient::delsync(Sync* sync)
+{
+	sync->state = SYNC_CANCELED;
+	
+	syncactivity = true;
 }
 
 void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)

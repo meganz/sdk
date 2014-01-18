@@ -165,8 +165,9 @@ public:
 	// export node link or remove existing exported link for this node
 	error exportnode(Node*, int);
 
-	// add sync
+	// add/delete sync
 	error addsync(string*, const char*, string*, Node*, int);
+	void delsync(Sync*);
 
 	// close all open HTTP connections
 	void disconnect();
