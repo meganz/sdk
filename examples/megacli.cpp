@@ -422,6 +422,12 @@ void DemoApp::syncupdate_local_move(Sync*, const char* from, const char* to)
 	cout << "Sync - local rename/move " << from << " -> " << to << endl;
 }
 
+void DemoApp::syncupdate_local_lockretry(bool locked)
+{
+	if (locked) cout << "Sync - waiting for local filesystem lock" << endl;
+	else cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
+}
+
 void DemoApp::syncupdate_remote_move(string* from, string* to)
 {
 	cout << "Sync - remote rename/move " << *from << " -> " << *to << endl;
@@ -1734,12 +1740,11 @@ static void process_line(char* l)
 
 							for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
 							{
-								if (i++ == cancel)
+								if ((*it)->state > SYNC_CANCELED && i++ == cancel)
 								{
-									delete *it;
+									client->delsync(*it);
 
 									cout << "Sync " << cancel << " deactivated and removed." << endl;
-
 									break;
 								}
 							}
@@ -1753,14 +1758,17 @@ static void process_line(char* l)
 
 								for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
 								{
-									static const char* syncstatenames[] = { "Initial scan, please wait", "Active", "Failed" };
-
-									if ((*it)->localroot.node)
+									if ((*it)->state > SYNC_CANCELED)
 									{
-										nodepath((*it)->localroot.node->nodehandle,&remotepath);
-										client->fsaccess->local2path(&(*it)->localroot.localname,&localpath);
+										static const char* syncstatenames[] = { "Initial scan, please wait", "Active", "Failed" };
 
-										cout << i++ << ": " << localpath << " to " << remotepath << " - " << syncstatenames[(*it)->state] << ", " << (*it)->localbytes << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and " << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
+										if ((*it)->localroot.node)
+										{
+											nodepath((*it)->localroot.node->nodehandle,&remotepath);
+											client->fsaccess->local2path(&(*it)->localroot.localname,&localpath);
+
+											cout << i++ << ": " << localpath << " to " << remotepath << " - " << syncstatenames[(*it)->state] << ", " << (*it)->localbytes << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and " << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
+										}
 									}
 								}
 							}
