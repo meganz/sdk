@@ -3779,8 +3779,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 							fsaccess->local2path(localpath,&localname);
 							app->syncupdate_get(l->sync,localname.c_str());
 
-							rit->second->localnode->treestate(TREESTATE_PENDING);
-
 							rit->second->syncget = new SyncFileGet(l->sync,rit->second,localpath);
 							startxfer(GET,rit->second->syncget);
 							syncactivity = true;
