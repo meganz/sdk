@@ -123,7 +123,7 @@ AC_STRUCT_TM
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 
-AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h])
+AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
 
 # Checks for inotify support.
 AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
@@ -133,61 +133,6 @@ AC_CHECK_FUNCS(fdopendir sendfile clock_gettime select)
 
 # Check for particular functions
 AC_FUNC_MALLOC
-
-#libcrypto++
-AC_MSG_CHECKING(for libcrypto++)
-cryptopp=false
-AC_ARG_WITH(cryptopp,
-  [  --with-cryptopp=PATH       base of libcrypto installation],
-  [AC_MSG_RESULT($with_cryptopp)
-   case $with_cryptopp in
-   no)
-    cryptopp=false
-     ;;
-   yes)
-    AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
-        AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
-    ])
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
-            AC_MSG_ERROR([Could not find libcrypto++])
-    ])
-    cryptopp=true
-     ;;
-   *)
-    # set temp variables
-    LDFLAGS="-L$with_cryptopp/lib $LDFLAGS"
-    CXXFLAGS="-I$with_cryptopp/include $CXXFLAGS"
-
-    AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-     EXT_LIB_PATH="-L$with_cryptopp/lib $EXT_LIB_PATH"
-     CRYPTO_CXXFLAGS="-L$with_cryptopp/lib"
-     CRYPTO_LDFLAGS="-I$with_cryptopp/include",
-     AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
-     )
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
-            AC_MSG_ERROR([Could not find libcrypto++])
-    ])
-
-    cryptopp=true
-
-    #restore
-    LDFLAGS=$SAVE_LDFLAGS
-    CXXFLAGS=$SAVE_CXXFLAGS
-    ;;
-   esac
-  ],
-  [AC_MSG_RESULT([--with-cryptopp not specified])
-    AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
-        AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
-    ])
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
-            AC_MSG_ERROR([Could not find libcrypto++])
-    ])
-  ])
-AC_SUBST(CRYPTO_CXXFLAGS)
-AC_SUBST(CRYPTO_LDFLAGS)
-AC_SUBST(CRYPTO_LIBS)
-AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcrypto++])
 
 # Check if building for Win32, determine Win32 API libs
 AC_MSG_CHECKING([if building for Win32 platform])
@@ -209,11 +154,92 @@ AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
 
+SAVE_LDFLAGS=$LDFLAGS
+SAVE_CXXFLAGS=$CXXFLAGS
+SAVE_CPPFLAGS=$CPPFLAGS
+
+#libcrypto++
+CRYPTO_LIBS="-lcrypto++"
+AC_MSG_CHECKING(for libcrypto++)
+cryptopp=false
+AC_ARG_WITH(cryptopp,
+  [  --with-cryptopp=PATH       base of libcrypto installation],
+  [AC_MSG_RESULT($with_cryptopp)
+   case $with_cryptopp in
+   no)
+    cryptopp=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
+        AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+            AC_MSG_ERROR([Could not find libcrypto++])
+    ])
+    cryptopp=true
+     ;;
+   *)
+
+if test "x$WIN32" = "xyes" ; then
+    # set temp variables
+    LDFLAGS="-L$with_cryptopp/cryptopp $LDFLAGS"
+    CXXFLAGS="-I$with_cryptopp $CXXFLAGS"
+    CPPFLAGS="-I$with_cryptopp $CPPFLAGS"
+
+    AC_CHECK_HEADERS(cryptopp/cryptlib.h,
+     EXT_LIB_PATH="-L$with_cryptopp $EXT_LIB_PATH"
+     CRYPTO_CXXFLAGS="-I$with_cryptopp"
+     CRYPTO_CPPFLAGS="-I$with_cryptopp"
+     CRYPTO_LDFLAGS="-L$with_cryptopp/cryptopp",
+     AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+     )
+    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
+            AC_MSG_ERROR([Could not find cryptopp.lib])
+    ])
+
+else
+    # set temp variables
+    LDFLAGS="-L$with_cryptopp/lib $LDFLAGS"
+    CXXFLAGS="-I$with_cryptopp/include $CXXFLAGS"
+    CPPFLAGS="-I$with_cryptopp/include $CPPFLAGS"
+
+    AC_CHECK_HEADERS(cryptopp/cryptlib.h,
+     EXT_LIB_PATH="-L$with_cryptopp/lib $EXT_LIB_PATH"
+     CRYPTO_CXXFLAGS="-L$with_cryptopp/include"
+     CRYPTO_CPPFLAGS="-L$with_cryptopp/include"
+     CRYPTO_LDFLAGS="-L$with_cryptopp/lib",
+     AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+     )
+    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+            AC_MSG_ERROR([Could not find libcrypto++])
+    ])
+fi
+    cryptopp=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-cryptopp not specified])
+    AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
+        AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+            AC_MSG_ERROR([Could not find libcrypto++])
+    ])
+  ])
+AC_SUBST(CRYPTO_CXXFLAGS)
+AC_SUBST(CRYPTO_CPPFLAGS)
+AC_SUBST(CRYPTO_LDFLAGS)
+AC_SUBST(CRYPTO_LIBS)
+AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcrypto++])
+
 #
 # ** DB layer **
 #
-SAVE_LDFLAGS=$LDFLAGS
-SAVE_CXXFLAGS=$CXXFLAGS
 
 # SQLite3
 sqlite=false
@@ -235,25 +261,44 @@ AC_ARG_WITH(sqlite,
     sqlite=true
      ;;
    *)
+
+if test "x$WIN32" = "xyes" ; then
+    # set temp variables
+    LDFLAGS="-L$with_sqlite $LDFLAGS"
+    CXXFLAGS="-I$with_sqlite $CXXFLAGS"
+    CPPFLAGS="-I$with_sqlite $CPPFLAGS"
+
+    AC_CHECK_HEADERS(sqlite3.h, [
+     EXT_LIB_PATH="-L$with_sqlite $EXT_LIB_PATH"
+     DB_LDFLAGS="-L$with_sqlite"
+     DB_CXXFLAGS="-I$with_sqlite"
+     DB_CPPFLAGS="-I$with_sqlite"],
+     AC_MSG_ERROR([sqlite3.h header not found or not usable])
+     )
+    SQLITE3_PATH=$with_sqlite
+    AC_SUBST(SQLITE3_PATH)
+else
     # set temp variables
     LDFLAGS="-L$with_sqlite/lib $LDFLAGS"
     CXXFLAGS="-I$with_sqlite/include $CXXFLAGS"
 
-    AC_CHECK_HEADERS(sqlite3.h,
+    AC_CHECK_HEADERS(sqlite3.h,[
      EXT_LIB_PATH="-L$with_sqlite/lib $EXT_LIB_PATH"
      DB_LDFLAGS="-L$with_sqlite/lib"
-     DB_CXXFLAGS="-I$with_sqlite/include",
+     DB_CXXFLAGS="-I$with_sqlite/include"
+     DB_CXXFLAGS="-I$with_sqlite/include"],
      AC_MSG_ERROR([sqlite3.h header not found or not usable])
      )
     AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
             AC_MSG_ERROR([Could not find libsqlite3])
     ])
-
+fi
     sqlite=true
 
     #restore
     LDFLAGS=$SAVE_LDFLAGS
     CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
     ;;
    esac
   ],
@@ -261,6 +306,7 @@ AC_ARG_WITH(sqlite,
   )
 AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
 AC_SUBST(DB_CXXFLAGS)
+AC_SUBST(DB_CPPFLAGS)
 AC_SUBST(DB_LDFLAGS)
 AC_SUBST(DB_LIBS)
 
@@ -417,22 +463,46 @@ if test "x$enable_examples" = "xyes" ; then
 
          ;;
        *)
+
+if test "x$WIN32" = "xyes" ; then
+        # set temp variables
+        LDFLAGS="-L$with_freeimage/Dist $LDFLAGS"
+        LDADD="-L$with_freeimage/Dist $LDADD"
+        CXXFLAGS="-I$with_freeimage/Dist $CXXFLAGS"
+        CPPFLAGS="-I$with_freeimage/Dist $CPPFLAGS"
+
+        AC_CHECK_HEADERS([FreeImage.h], [
+         EXT_LIB_PATH="-L$with_freeimage/Dist $EXT_LIB_PATH"
+         FI_LDFLAGS="-L$with_freeimage/Dist"
+         FI_LDADD="-L$with_freeimage/Dist"
+         FI_CXXFLAGS="-I$with_freeimage/Dist"
+         FI_CPPFLAGS="-I$with_freeimage/Dist"
+         ], [
+         AC_MSG_ERROR([FreeImage.h header not found or not usable])
+        ])
+
+        FI_LIBS="-lfreeimage"
+else
         # set temp variables
         LDFLAGS="-L$with_freeimage/lib $LDFLAGS"
         CXXFLAGS="-I$with_freeimage/include $CXXFLAGS"
+        CPPFLAGS="-I$with_freeimage/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS([FreeImage.h],
+        AC_CHECK_HEADERS([FreeImage.h],[
          EXT_LIB_PATH="-L$with_freeimage/lib $EXT_LIB_PATH"
          FI_LDFLAGS="-L$with_freeimage/lib"
-         FI_CXXFLAGS="-I$with_freeimage/include",
+         FI_CXXFLAGS="-I$with_freeimage/include"
+         FI_CPPFLAGS="-I$with_freeimage/include"],
          AC_MSG_ERROR([FreeImage.h header not found or not usable])
          )
+
         AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
             AC_MSG_ERROR([FreeImage library is required for the sample client.])])
-
+fi
         #restore
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
         ;;
        esac
       ],
@@ -447,11 +517,12 @@ if test "x$enable_examples" = "xyes" ; then
       AC_SUBST(FI_LDFLAGS)
       AC_SUBST(FI_LIBS)
       AC_SUBST(FI_CXXFLAGS)
+      AC_SUBST(FI_CPPFLAGS)
 
       # ReadLine
     AC_MSG_CHECKING(for Readline)
-    AC_ARG_WITH(redline,
-      [  --with-redline=PATH       base of Readline installation],
+    AC_ARG_WITH(readline,
+      [  --with-readline=PATH       base of Readline installation],
       [AC_MSG_RESULT($with_redline)
        case $with_readline in
        no)
@@ -465,22 +536,38 @@ if test "x$enable_examples" = "xyes" ; then
 
          ;;
        *)
+
+if test "x$WIN32" = "xyes" ; then
+        # set temp variables
+        LDFLAGS="-L$with_readline/readline $LDFLAGS"
+        CXXFLAGS="-I$with_readline $CXXFLAGS"
+        CPPFLAGS="-I$with_readline $CPPFLAGS"
+
+        AC_CHECK_HEADERS([readline/readline.h], [
+         EXT_LIB_PATH="-L$with_readline/readline $EXT_LIB_PATH"
+         RL_LDFLAGS="-L$with_readline/readline"
+         RL_CXXFLAGS="-I$with_readline"],
+         AC_MSG_ERROR([readline/readline.h header not found or not usable])
+        )
+        RL_LIBS="-lreadline"
+else
         # set temp variables
         LDFLAGS="-L$with_readline/lib $LDFLAGS"
         CXXFLAGS="-I$with_readline/include $CXXFLAGS"
-
-        AC_CHECK_HEADERS([readline/readline.h],
+        CPPFLAGS="-I$with_readline/include $CPPFLAGS"
+        AC_CHECK_HEADERS([readline/readline.h], [
          EXT_LIB_PATH="-L$with_readline/lib $EXT_LIB_PATH"
          RL_LDFLAGS="-L$with_readline/lib"
-         RL_CXXFLAGS="-I$with_readline/include",
+         RL_CXXFLAGS="-I$with_readline/include"],
          AC_MSG_ERROR([readline/readline.h header not found or not usable])
          )
         AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
-
+fi
         #restore
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
         ;;
        esac
       ],
@@ -495,6 +582,56 @@ if test "x$enable_examples" = "xyes" ; then
       AC_SUBST(RL_LDFLAGS)
       AC_SUBST(RL_LIBS)
       AC_SUBST(RL_CXXFLAGS)
+
+    if test "x$WIN32" = "xyes" ; then
+        AC_MSG_CHECKING(for termcap)
+        AC_ARG_WITH(termcap,
+          [  --with-termcap=PATH       base of termcap installation],
+          [AC_MSG_RESULT($with_termcap)
+           case $with_termcap in
+           no)
+             ;;
+           *)
+            EXT_LIB_PATH="-L$with_termcap $EXT_LIB_PATH"
+            TERMCAP_LDFLAGS="-L$with_termcap"
+            TERMCAP_LIBS="-ltermcap"
+            TERMCAP_CXXFLAGS="-I$with_termcap"
+            TERMCAP_CPPFLAGS="-I$with_termcap"
+            ;;
+           esac
+          ],
+            AC_MSG_ERROR([termcap.h header not found or not usable])
+          )
+          AC_SUBST(TERMCAP_LDFLAGS)
+          AC_SUBST(TERMCAP_LIBS)
+          AC_SUBST(TERMCAP_CXXFLAGS)
+          AC_SUBST(TERMCAP_CPPFLAGS)
+    fi
+fi
+
+if test "x$WIN32" = "xyes" ; then
+    AC_MSG_CHECKING(for WinHTTP)
+    AC_ARG_WITH(winhttp,
+      [  --with-winhttp=PATH       base of WinHTTP installation],
+      [AC_MSG_RESULT($with_winhttp)
+       case $with_winhttp in
+       no)
+         ;;
+       *)
+        EXT_LIB_PATH="-L$with_winhttp $EXT_LIB_PATH"
+        WINHTTP_LDFLAGS="-L$with_winhttp"
+        WINHTTP_LIBS="-lwinhttp"
+        WINHTTP_CXXFLAGS="-I$with_winhttp"
+        WINHTTP_CPPFLAGS="-I$with_winhttp"
+        ;;
+       esac
+      ],
+        AC_MSG_ERROR([WinHTTP.h header not found or not usable])
+      )
+      AC_SUBST(WINHTTP_LDFLAGS)
+      AC_SUBST(WINHTTP_LIBS)
+      AC_SUBST(WINHTTP_CXXFLAGS)
+      AC_SUBST(WINHTTP_CPPFLAGS)
 fi
 
 # Tests
