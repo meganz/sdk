@@ -67,7 +67,7 @@ public:
 
 // globals
 MegaClient* client;
-bool mega::debug = false;
+//bool mega::debug = false;
 
 
 // returns node pointer determined by path relative to cwd
@@ -461,8 +461,7 @@ int main (int argc, char *argv[])
             app->debug = true;
             mega::debug = true;
         }
-    } else
-        mega::debug = false;
+    } 
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
