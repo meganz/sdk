@@ -4234,7 +4234,7 @@ void MegaClient::execmovetosyncdebris()
 	{
 		n = *it;
 	
-		if (n->syncdeleted == SYNCDEL_DELETED || n->syncdeleted == SYNCDEL_BIN)
+		if (n->syncdeleted == SYNCDEL_DELETED || n->syncdeleted == SYNCDEL_BIN || n->syncdeleted == SYNCDEL_DEBRIS)
 		{
 			while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
 
@@ -4257,16 +4257,13 @@ void MegaClient::execmovetosyncdebris()
 			}
 			else it++;
 		}
-		else
+		else if (n->syncdeleted == SYNCDEL_DEBRISDAY)
 		{
-			if (n->syncdeleted == SYNCDEL_DEBRIS || n->syncdeleted == SYNCDEL_DEBRISDAY)
-			{
-				n->syncdeleted = SYNCDEL_NONE;
-				n->todebris_it = todebris.end();
-				todebris.erase(it++);
-			}
-			else it++;
+			n->syncdeleted = SYNCDEL_NONE;
+			n->todebris_it = todebris.end();
+			todebris.erase(it++);
 		}
+		else it++;
 	}
 
 	if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding)
