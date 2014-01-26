@@ -4228,7 +4228,7 @@ void MegaClient::execmovetosyncdebris()
 
 	// in order to reduce the API load, we move
 	// - SYNCDEL_DELETED nodes to any available target
-	// - SYNCDEL_BIN nodes to SYNCDEL_DEBRISDAY only
+	// - SYNCDEL_BIN/SYNCDEL_DEBRIS nodes to SYNCDEL_DEBRISDAY
 	// (move top-level nodes only)
 	for (it = todebris.begin(); it != todebris.end(); )
 	{
@@ -4242,7 +4242,7 @@ void MegaClient::execmovetosyncdebris()
 			{
 				n = *it;
 		
-				if (n->syncdeleted == SYNCDEL_DELETED || (n->syncdeleted == SYNCDEL_BIN && target == SYNCDEL_DEBRISDAY))
+				if (n->syncdeleted == SYNCDEL_DELETED || ((n->syncdeleted == SYNCDEL_BIN || n->syncdeleted == SYNCDEL_DEBRIS) && target == SYNCDEL_DEBRISDAY))
 				{
 					n->syncdeleted = SYNCDEL_INFLIGHT;
 					rename(n,tn,target);
