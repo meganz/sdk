@@ -67,8 +67,6 @@ public:
 
 // globals
 MegaClient* client;
-//bool mega::debug = false;
-
 
 // returns node pointer determined by path relative to cwd
 // Path naming conventions:
@@ -459,9 +457,8 @@ int main (int argc, char *argv[])
             app->debug = true;
         } else if (!strcmp (getenv ("MEGA_DEBUG"), "2")) {
             app->debug = true;
-            mega::debug = true;
         }
-    } 
+    }
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
