@@ -50,6 +50,8 @@ public:
 
 	void addevents(Waiter*, int);
 
+	void setuseragent(string*);
+	
 	CurlHttpIO();
 	~CurlHttpIO();
 };
