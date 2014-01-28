@@ -31,12 +31,19 @@
 #endif
 
 #ifndef MEGA_API
-#define MEGA_API
+ #define MEGA_API
 #endif
 
-// FIXME: #define PRI*64 is missing
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
+// inttypes.h is not present in Microsoft Visual Studio
+#ifdef _MSC_VER
+ #define PRIu32       "I32u"
+ #define PRIu64       "I64u"
+ #define PRId64       "I64d"
+#else
+ // FIXME: #define PRI*64 is missing
+ #define __STDC_FORMAT_MACROS
+ #include <inttypes.h>
+#endif
 
 #include <iostream>
 #include <algorithm>
