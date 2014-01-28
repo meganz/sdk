@@ -335,6 +335,20 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname)
 	return 0;
 }
 
+void PosixFileSystemAcccess::osversion(string* u)
+{
+	utsname uts;
+	
+	if (!uname(&uts))
+	{
+		useragent.append(uts.sysname);
+		useragent.append(" ");
+		useragent.append(uts.release);
+		useragent.append(" ");
+		useragent.append(uts.machine);
+	}
+}
+
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath,ignore)
 {
 }
