@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include <sys/utsname.h>
 
 namespace mega {
 
@@ -335,17 +336,17 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname)
 	return 0;
 }
 
-void PosixFileSystemAcccess::osversion(string* u)
+void PosixFileSystemAccess::osversion(string* u)
 {
 	utsname uts;
 	
 	if (!uname(&uts))
 	{
-		useragent.append(uts.sysname);
-		useragent.append(" ");
-		useragent.append(uts.release);
-		useragent.append(" ");
-		useragent.append(uts.machine);
+		u->append(uts.sysname);
+		u->append(" ");
+		u->append(uts.release);
+		u->append(" ");
+		u->append(uts.machine);
 	}
 }
 
