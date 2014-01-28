@@ -22,6 +22,18 @@
 #ifndef MEGA_TYPES_H
 #define MEGA_TYPES_H 1
 
+#ifdef _MSC_VER
+#if MEGA_LINKED_AS_SHARED_LIBRARY
+ #define MEGA_API __declspec(dllimport)
+#elif MEGA_CREATE_SHARED_LIBRARY
+ #define MEGA_API __declspec(dllexport)
+#endif
+#endif
+
+#ifndef MEGA_API
+#define MEGA_API
+#endif
+
 // FIXME: #define PRI*64 is missing
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
