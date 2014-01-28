@@ -43,13 +43,13 @@ public:
 	void proc(MegaClient*, Node*);
 };
 
-class MEGA_API TreeProcListOutShares : public TreeProc
+class TreeProcListOutShares : public TreeProc
 {
 public:
 	void proc(MegaClient*, Node*);
 };
 
-class MEGA_API TreeProcCopy : public TreeProc
+class TreeProcCopy : public TreeProc
 {
 public:
 	NewNode* nn;
