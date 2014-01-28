@@ -470,7 +470,7 @@ int main (int argc, char *argv[])
 //#else
 	NULL,
 //#endif
-    "megasync");
+    "megasync", "megaclisync");
 
     // get values from env
     client->pw_key (getenv ("MEGA_PWD"), pwkey);
