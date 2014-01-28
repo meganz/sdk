@@ -652,7 +652,8 @@ void DemoApp::getua_result(byte* data, unsigned l)
 
 void DemoApp::notify_retry(dstime dsdelta)
 {
-	cout << "API request failed, retrying in " << dsdelta*100 << " ms - Use 'retry' to retry immediately..." << endl;
+	if (dsdelta) cout << "API request failed, retrying in " << dsdelta*100 << " ms - Use 'retry' to retry immediately..." << endl;
+	else cout << "Retried API request completed" << endl;
 }
 
 static void store_line(char*);
