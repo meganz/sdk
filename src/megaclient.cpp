@@ -3608,7 +3608,7 @@ void MegaClient::updateputs()
 
 // add child to nchildren hash (deterministically prefer newer/larger versions of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, vector<string>* strings)
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings)
 {
 	Node** npp;
 
@@ -3643,7 +3643,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 	// only use for LocalNodes with a corresponding and properly linked Node
 	if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent)) return true;
 
-	vector<string> strings;
+	list<string> strings;
 	remotenode_map nchildren;
 	remotenode_map::iterator rit;
 
@@ -3843,7 +3843,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 	dstime ds = waiter->ds;
 	bool insync = true;
 
-	vector<string> strings;
+	list<string> strings;
 	remotenode_map nchildren;
 	remotenode_map::iterator rit;
 
