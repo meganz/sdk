@@ -22,8 +22,12 @@ https://code.google.com/p/nsiqcppstyle/
 
 Checks can simply be run using the given list of checks as following:
 
-    nsiqcppstyle -f contrib/nsiq_filefilter.txt src/
-    nsiqcppstyle -f contrib/nsiq_filefilter.txt include/
+    nsiqcppstyle -f contrib/nsiq_filefilter.txt .
+
+Or to integrate it into Jenkins CI (see also
+https://code.google.com/p/nsiqcppstyle/wiki/HudsonIntegration):
+
+    nsiqcppstyle --ci --output=xml -f contrib/nsiq_filefilter.txt .
 
 A URL with further information on the different checks used is given
 at the top of the file configuration file `nsiq_filefilter.txt`.

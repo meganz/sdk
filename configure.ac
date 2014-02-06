@@ -203,7 +203,7 @@ if test "x$WIN32" = "xyes" ; then
 
 else
     # set temp variables
-    LDFLAGS="-L$with_cryptopp/lib $LDFLAGS"
+    LDFLAGS="-L$with_cryptopp/lib $LDFLAGS -pthread"
     CXXFLAGS="-I$with_cryptopp/include $CXXFLAGS"
     CPPFLAGS="-I$with_cryptopp/include $CPPFLAGS"
 
