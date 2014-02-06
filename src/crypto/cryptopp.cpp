@@ -393,7 +393,7 @@ class RSAPrimeSelector : public PrimeSelector
 public:
     RSAPrimeSelector(const Integer &e) : m_e(e) { }
 
-    bool IsAcceptable(const Integer &candidate) const
+    bool IsAcceptable(const Integer &candidate) const // NS (suppress style error)
     {
         return RelativelyPrime(m_e, candidate - Integer::One());
     }

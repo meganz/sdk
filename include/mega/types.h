@@ -36,9 +36,9 @@
 
 // inttypes.h is not present in Microsoft Visual Studio
 #ifdef _MSC_VER
- #define PRIu32       "I32u"
- #define PRIu64       "I64u"
- #define PRId64       "I64d"
+ #define PRIu32       "I32u" // NS (suppress style error)
+ #define PRIu64       "I64u" // NS (suppress style error)
+ #define PRId64       "I64d" // NS (suppress style error)
 #else
 // FIXME: #define PRI*64 is missing
  #define __STDC_FORMAT_MACROS

@@ -138,7 +138,9 @@ PosixFileSystemAccess::PosixFileSystemAccess()
     }
     else
 #endif
-    notifyfailed = true;        // mark filesystem notification as unavailable
+    {
+        notifyfailed = true;        // mark filesystem notification as unavailable
+    }
 }
 
 PosixFileSystemAccess::~PosixFileSystemAccess()

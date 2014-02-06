@@ -64,7 +64,9 @@ void PosixConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, ch
     if (read(STDIN_FILENO, &c, 1) == 1)
     {
         if (c == 8 && *pw_buf_pos)
+        {
             (*pw_buf_pos)--;
+        }
         else if (c == 13)
         {
             *line = (char*) malloc(*pw_buf_pos + 1);
@@ -72,7 +74,9 @@ void PosixConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, ch
             (*line)[*pw_buf_pos] = 0;
         }
         else if (*pw_buf_pos < pw_buf_size)
+        {
             pw_buf[(*pw_buf_pos)++] = c;
+        }
     }
 }
 

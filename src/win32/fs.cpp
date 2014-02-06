@@ -66,7 +66,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL) && dwWritten == len;
 }
 
-time_t FileTime_to_POSIX(FILETIME* ft)
+time_t FileTime_to_POSIX(FILETIME* ft) // NS (suppress style error)
 {
     // takes the last modified date
     LARGE_INTEGER date;
