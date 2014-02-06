@@ -22,7 +22,6 @@
 #include "mega.h"
 
 namespace mega {
-
 void PosixWaiter::init(dstime ds)
 {
     maxds = ds;
@@ -39,15 +38,18 @@ dstime PosixWaiter::getdstime()
 {
     timespec ts;
 
-    clock_gettime(CLOCK_MONOTONIC,&ts);
+    clock_gettime(CLOCK_MONOTONIC, &ts);
 
-    return ds = ts.tv_sec*10+ts.tv_nsec/100000000;
+    return ds = ts.tv_sec * 10 + ts.tv_nsec / 100000000;
 }
 
 // update maxfd for select()
 void PosixWaiter::bumpmaxfd(int fd)
 {
-    if (fd > maxfd) maxfd = fd;
+    if (fd > maxfd)
+    {
+        maxfd = fd;
+    }
 }
 
 // monitor file descriptors
@@ -56,39 +58,44 @@ int PosixWaiter::select()
 {
     timeval tv;
 
-    if (maxds+1)
+    if (maxds + 1)
     {
-        dstime us = 1000000/10*maxds;
+        dstime us = 1000000 / 10 * maxds;
 
-        tv.tv_sec = us/1000000;
-        tv.tv_usec = us-tv.tv_sec*1000000;
-     }
+        tv.tv_sec = us / 1000000;
+        tv.tv_usec = us - tv.tv_sec * 1000000;
+    }
 
-    return ::select(maxfd+1,&rfds,&wfds,&efds,maxds+1 ? &tv : NULL);
+    return ::select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 }
 
-// wait for supplied events (sockets, filesystem changes), plus timeout + application events
-// maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
-// returns application-specific bitmask. bit 0 set indicates that exec() needs to be called.
+// wait for supplied events (sockets, filesystem changes), plus timeout +
+// application events
+// maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if
+// no timeout scheduled)
+// returns application-specific bitmask. bit 0 set indicates that exec() needs
+// to be called.
 int PosixWaiter::wait()
 {
-	int numfd;
+    int numfd;
 
-	numfd = select();
+    numfd = select();
 
-	// timeout or error
-	if (numfd <= 0) return NEEDEXEC;
+    // timeout or error
+    if (numfd <= 0)
+    {
+        return NEEDEXEC;
+    }
 
-	return NEEDEXEC;
+    return NEEDEXEC;
 }
 
 // set MEGA SDK fd_sets which an application could use to select() or poll()
 void PosixWaiter::fdset(fd_set* read_fd_set, fd_set* write_fd_set, fd_set* exc_fd_set, int* max_fd)
 {
-    FD_COPY(&rfds,read_fd_set);
-    FD_COPY(&wfds,write_fd_set);
-    FD_COPY(&efds,exc_fd_set);
+    FD_COPY(&rfds, read_fd_set);
+    FD_COPY(&wfds, write_fd_set);
+    FD_COPY(&efds, exc_fd_set);
     *max_fd = maxfd;
 }
-
 } // namespace
