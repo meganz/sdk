@@ -47,7 +47,9 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client, int fac, const char
         if (it->second->fac == fac)
         {
             req.out->reserve(client->fafs.size() * sizeof( handle ));   //
+                                                                        //
                                                                         // prevent
+                                                                        //
                                                                         // reallocations
 
             it->second->dispatched = 1;

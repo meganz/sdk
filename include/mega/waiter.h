@@ -25,6 +25,7 @@
 #include "types.h"
 
 namespace mega {
+
 // interface enabling a class to add its wakeup criteria to the waiter
 struct MEGA_API EventTrigger
 {
@@ -32,7 +33,8 @@ struct MEGA_API EventTrigger
     virtual void addevents(Waiter*, int) = 0;
 
     // process events after wakeup
-    virtual int checkevents(Waiter*) {
+    virtual int checkevents(Waiter*)
+    {
         return 0;
     }
 };

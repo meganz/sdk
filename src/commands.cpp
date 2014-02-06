@@ -1596,11 +1596,17 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):      //
+                                                                           //
                                                                            // percentage
+                                                                           //
                                                                            // of
+                                                                           //
                                                                            // transfer
+                                                                           //
                                                                            // allocated
+                                                                           //
                                                                            // for
+                                                                           //
                                                                            // serving
                 details->srv_ratio = client->json.getfloat();
                 break;
@@ -1627,7 +1633,9 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):      //
+                                                                      //
                                                                       // account
+                                                                      //
                                                                       // balances
                 if (client->json.enterarray())
                 {

@@ -4374,7 +4374,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         {
             case CACHEDSCSN:
                 if (data.size() != sizeof cachedscsn /*|| *(handle*)data.data()
-                                                      *!= cachedscsn*/                         )
+                                                      *!= cachedscsn*/
+                    )
                 {
                     return false;
                 }
@@ -4742,7 +4743,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         else if (success && fsaccess->transient_error)
                         {
                             success = false;                                            //
+                                                                                        //
                                                                                         // schedule
+                                                                                        //
                                                                                         // retry
                         }
                     }

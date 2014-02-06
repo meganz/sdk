@@ -574,6 +574,7 @@ void WinDirNotify::readchanges()
         if (GetLastError() == ERROR_NOTIFY_ENUM_DIR)
         {
             error = true;                                           //
+                                                                    //
                                                                     // notification
                                                                     // buffer
                                                                     // overflow

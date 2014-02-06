@@ -27,6 +27,7 @@
 #include "http.h"
 
 namespace mega {
+
 // file attribute fetching for a specific source cluster
 struct MEGA_API FileAttributeFetchChannel
 {
