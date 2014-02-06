@@ -2136,6 +2136,8 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 // purge and rebuild node/user tree
 void CommandFetchNodes::procresult()
 {
+    client->fetchingnodes = false;
+
     if (client->json.isnumeric())
     {
         return client->app->fetchnodes_result((error)client->json.getint());

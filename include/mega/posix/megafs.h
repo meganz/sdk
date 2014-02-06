@@ -22,10 +22,16 @@
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
 
+#ifdef  __APPLE__
+// Apple calls it sendfile, but it isn't
+#undef HAVE_SENDFILE
+#define O_DIRECT 0
+#endif
+
 #include "mega.h"
 
 namespace mega {
-struct PosixDirAccess : public DirAccess
+struct MEGA_API PosixDirAccess : public DirAccess
 {
     DIR* dp;
     bool globbing;
@@ -39,17 +45,16 @@ struct PosixDirAccess : public DirAccess
     virtual ~PosixDirAccess();
 };
 
-class PosixFileSystemAccess : public FileSystemAccess
+class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
 #ifdef USE_INOTIFY
     int notifyfd;
 
-    bool notifyerr, notifyfailed;
-
     typedef map<int, LocalNode*> wdlocalnode_map;
     wdlocalnode_map wdnodes;
 #endif
+    bool notifyerr, notifyfailed;
 
     FileAccess* newfileaccess();
     DirAccess* newdiraccess();
@@ -84,7 +89,7 @@ public:
     ~PosixFileSystemAccess();
 };
 
-class PosixFileAccess : public FileAccess
+class MEGA_API PosixFileAccess : public FileAccess
 {
 public:
     int fd;
@@ -108,7 +113,7 @@ public:
     ~PosixFileAccess();
 };
 
-class PosixDirNotify : public DirNotify
+class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
     PosixFileSystemAccess* fsaccess;

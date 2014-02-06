@@ -23,7 +23,6 @@
 #define HTTPIO_CLASS CurlHttpIO
 
 #include "mega.h"
-#include "wait.h"
 
 namespace mega {
 

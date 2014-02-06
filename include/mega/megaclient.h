@@ -22,7 +22,6 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include "types.h"
 #include "json.h"
 #include "db.h"
 #include "filefingerprint.h"
@@ -378,6 +377,9 @@ public:
 
     // minimum number of bytes in transit for upload/download pipelining
     static const int MINPIPELINE = 65536;
+
+    // initial state load in progress?
+    bool fetchingnodes;
 
     // server-client request sequence number
     char scsn[12];

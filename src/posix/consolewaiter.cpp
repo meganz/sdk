@@ -29,6 +29,7 @@ int PosixConsoleWaiter::wait()
     // application's own wakeup criteria:
     // wake up upon user input
     FD_SET(STDIN_FILENO, &rfds);
+    bumpmaxfd(STDIN_FILENO);
 
     numfd = select();
 

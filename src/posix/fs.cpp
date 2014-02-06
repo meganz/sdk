@@ -153,23 +153,25 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 #endif
 }
 
-#ifdef USE_INOTIFY
 // wake up from filesystem updates
 void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 {
+#ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
 
     FD_SET(notifyfd, &pw->rfds);
 
     pw->bumpmaxfd(notifyfd);
+#endif
 }
 
 // read all pending inotify events and queue them for processing
 // FIXME: ignore sync-specific debris folder
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
-    PosixWaiter* pw = (PosixWaiter*)w;
     int r = 0;
+#ifdef USE_INOTIFY
+    PosixWaiter* pw = (PosixWaiter*)w;
 
     if (FD_ISSET(notifyfd, &pw->rfds))
     {
@@ -209,10 +211,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             }
         }
     }
-
+#endif
     return r;
 }
-#endif
 
 // generate unique local filename in the same fs as relatedpath
 void PosixFileSystemAccess::tmpnamelocal(string* localname)
@@ -386,9 +387,9 @@ void PosixFileSystemAccess::osversion(string* u)
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {}
 
-#ifdef USE_INOTIFY
 void PosixDirNotify::addnotify(LocalNode* l, string* path)
 {
+#ifdef USE_INOTIFY
     int wd;
 
     wd = inotify_add_watch(fsaccess->notifyfd, path->c_str(),
@@ -400,16 +401,18 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
         l->dirnotifytag = (handle)wd;
         fsaccess->wdnodes[wd] = l;
     }
+#endif
 }
 
 void PosixDirNotify::delnotify(LocalNode* l)
 {
+#ifdef USE_INOTIFY
     if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
     {
         inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
     }
-}
 #endif
+}
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {

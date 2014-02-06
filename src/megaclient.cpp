@@ -325,6 +325,7 @@ void MegaClient::init()
 {
     warned = false;
     csretrying = false;
+    fetchingnodes = false;
 
     noinetds = 0;
 
@@ -596,7 +597,7 @@ void MegaClient::exec()
                         break;
 
                     case REQ_SUCCESS:
-                        if (pendingcs->in != "-3")
+                        if (pendingcs->in != "-3" && pendingcs->in != "-4")
                         {
                             if (*pendingcs->in.c_str() == '[')
                             {
@@ -4480,10 +4481,11 @@ void MegaClient::fetchnodes()
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
     }
-    else
+    else if (!fetchingnodes)
     {
         // clear everything in case this is a reload
         purgenodesusersabortsc();
+	fetchingnodes = true;
         reqs[r].add(new CommandFetchNodes(this));
     }
 }
