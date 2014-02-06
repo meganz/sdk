@@ -2309,35 +2309,38 @@ static void process_line(char* l)
                         switch (words.size())
                         {
                             case 1:		// list all shares (incoming and outgoing)
-                                TreeProcListOutShares listoutshares;
-                                Node* n;
-
-                                cout << "Shared folders:" << endl;
-
-                                for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
                                 {
-                                    if ((n = client->nodebyhandle(client->rootnodes[i])))
-                                    {
-                                        client->proctree(n, &listoutshares);
-                                    }
-                                }
-
-                                for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
-                                {
-                                    User* u = &uit->second;
+                                    TreeProcListOutShares listoutshares;
                                     Node* n;
 
-                                    if (u->show == VISIBLE && u->sharing.size())
-                                    {
-                                        cout << "From " << u->email << ":" << endl;
+                                    cout << "Shared folders:" << endl;
 
-                                        for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end();
-                                                sit++)
+                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
+                                    {
+                                        if ((n = client->nodebyhandle(client->rootnodes[i])))
                                         {
-                                            if ((n = client->nodebyhandle(*sit)))
+                                            client->proctree(n, &listoutshares);
+                                        }
+                                    }
+
+                                    for (user_map::iterator uit = client->users.begin();
+                                         uit != client->users.end(); uit++)
+                                    {
+                                        User* u = &uit->second;
+                                        Node* n;
+
+                                        if (u->show == VISIBLE && u->sharing.size())
+                                        {
+                                            cout << "From " << u->email << ":" << endl;
+
+                                            for (handle_set::iterator sit = u->sharing.begin();
+                                                 sit != u->sharing.end(); sit++)
                                             {
-                                                cout << "\t" << n->displayname() << " ("
-                                                     << accesslevels[n->inshare->access] << ")" << endl;
+                                                if ((n = client->nodebyhandle(*sit)))
+                                                {
+                                                    cout << "\t" << n->displayname() << " ("
+                                                         << accesslevels[n->inshare->access] << ")" << endl;
+                                                }
                                             }
                                         }
                                     }
