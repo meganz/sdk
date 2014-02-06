@@ -78,7 +78,7 @@ int Base64::atob(const char* a, byte* b, int blen)
 
     c[3] = 0;
 
-    for (;; )
+    for (; ; )
     {
         for (i = 0; i < 4; i++)
         {
@@ -112,7 +112,7 @@ int Base64::btoa(const byte* b, int blen, char* a)
 {
     int p = 0;
 
-    for (;; )
+    for (; ; )
     {
         if (blen <= 0)
         {

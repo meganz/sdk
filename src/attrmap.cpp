@@ -121,7 +121,8 @@ void AttrMap::getjson(string* s)
             s->append("\":\"");
 
             // JSON-escape value
-            pptr = ptr = it->second.c_str();
+            pptr = it->second.c_str();
+            ptr = it->second.c_str();
 
             for (int i = it->second.size(); i-- >= 0; ptr++)
             {

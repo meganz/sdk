@@ -121,7 +121,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                if (!fa->frawread(block, sizeof block, ( size - sizeof block ) * ( i * blocks + j ) / ( sizeof crc / sizeof *crc * blocks - 1 )))
+                if (!fa->frawread(block, sizeof block,
+                                  ( size - sizeof block )
+                                  * ( i * blocks + j )
+                                  / ( sizeof crc / sizeof *crc * blocks - 1 )))
                 {
                     size = -1;
                     return true;

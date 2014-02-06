@@ -43,10 +43,18 @@ void WinHttpIO::setuseragent(string* useragent)
     string wuseragent;
 
     wuseragent.resize(( useragent->size() + 1 ) * sizeof( wchar_t ));
-    wuseragent.resize(sizeof( wchar_t ) * ( MultiByteToWideChar(CP_UTF8, 0, useragent->c_str(), -1, (wchar_t*)wuseragent.data(), wuseragent.size() / sizeof( wchar_t ) + 1) - 1 ));
+    wuseragent.resize(sizeof( wchar_t )
+                      * ( MultiByteToWideChar(CP_UTF8, 0, useragent->c_str(),
+                                              -1, (wchar_t*)wuseragent.data(),
+                                              wuseragent.size() / sizeof( wchar_t ) + 1)
+                          - 1 ));
 
     // create the session handle using the default settings.
-    hSession = WinHttpOpen((LPCWSTR)wuseragent.data(), WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
+    hSession = WinHttpOpen((LPCWSTR)wuseragent.data(),
+                           WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                           WINHTTP_NO_PROXY_NAME,
+                           WINHTTP_NO_PROXY_BYPASS,
+                           WINHTTP_FLAG_ASYNC);
 }
 
 // trigger wakeup
@@ -76,7 +84,10 @@ void WinHttpIO::addevents(Waiter* cwaiter, int flags)
 }
 
 // handle WinHTTP callbacks (which can be in a worker thread context)
-VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext, DWORD dwInternetStatus, LPVOID lpvStatusInformation, DWORD dwStatusInformationLength)
+VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
+                                       DWORD dwInternetStatus,
+                                       LPVOID lpvStatusInformation,
+                                       DWORD dwStatusInformationLength)
 {
     WinHttpContext* httpctx = (WinHttpContext*)dwContext;
     WinHttpIO* httpio = (WinHttpIO*)httpctx->httpio;
@@ -156,7 +167,12 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             DWORD statusCode = 0;
             DWORD statusCodeSize = sizeof( statusCode );
 
-            if (!WinHttpQueryHeaders(((WinHttpContext*)req->httpiohandle )->hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX))
+            if (!WinHttpQueryHeaders(((WinHttpContext*)req->httpiohandle )->hRequest,
+                                     WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                                     WINHTTP_HEADER_NAME_BY_INDEX,
+                                     &statusCode,
+                                     &statusCodeSize,
+                                     WINHTTP_NO_HEADER_INDEX))
             {
                 httpio->cancel(req);
                 httpio->httpevent();
@@ -258,27 +274,53 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->req = req;
     req->httpiohandle = (void*)httpctx;
 
-    if (MultiByteToWideChar(CP_UTF8, 0, req->posturl.c_str(), -1, szURL, sizeof szURL / sizeof *szURL) && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
+    if (MultiByteToWideChar(CP_UTF8, 0, req->posturl.c_str(), -1, szURL,
+                            sizeof szURL / sizeof *szURL)
+            && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
     {
         if (( httpctx->hConnect = WinHttpConnect(hSession, szHost, urlComp.nPort, 0)))
         {
-            httpctx->hRequest = WinHttpOpenRequest(httpctx->hConnect, L"POST", urlComp.lpszUrlPath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, ( urlComp.nScheme == INTERNET_SCHEME_HTTPS ) ? WINHTTP_FLAG_SECURE : 0);
+            httpctx->hRequest = WinHttpOpenRequest(httpctx->hConnect, L"POST",
+                                                   urlComp.lpszUrlPath, NULL,
+                                                   WINHTTP_NO_REFERER,
+                                                   WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                                   ( urlComp.nScheme == INTERNET_SCHEME_HTTPS )
+                                                   ? WINHTTP_FLAG_SECURE
+                                                   : 0);
 
             if (httpctx->hRequest)
             {
                 WinHttpSetTimeouts(httpctx->hRequest, 0, 20000, 20000, 1800000);
 
-                WinHttpSetStatusCallback(httpctx->hRequest, asynccallback, WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE | WINHTTP_CALLBACK_FLAG_READ_COMPLETE | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE | WINHTTP_CALLBACK_FLAG_HANDLES, 0);
+                WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,
+                                         WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE
+                                         | WINHTTP_CALLBACK_FLAG_READ_COMPLETE
+                                         | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
+                                         | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
+                                         | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
+                                         | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
+                                         | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
+                                         | WINHTTP_CALLBACK_FLAG_HANDLES,
+                                         0);
 
-                LPCWSTR pwszHeaders = req->type == REQ_JSON ? L"Content-Type: application/json" : L"Content-Type: application/octet-stream";
+                LPCWSTR pwszHeaders = ( req->type == REQ_JSON )
+                                      ? L"Content-Type: application/json"
+                                      : L"Content-Type: application/octet-stream";
 
                 // data is sent in HTTP_POST_CHUNK_SIZE instalments to ensure
                 // semi-smooth UI progress info
                 httpctx->postlen = data ? len : req->out->size();
                 httpctx->postdata = data ? data : req->out->data();
-                httpctx->postpos = ( httpctx->postlen < HTTP_POST_CHUNK_SIZE ) ? httpctx->postlen : HTTP_POST_CHUNK_SIZE;
+                httpctx->postpos = ( httpctx->postlen < HTTP_POST_CHUNK_SIZE )
+                                   ? httpctx->postlen
+                                   : HTTP_POST_CHUNK_SIZE;
 
-                if (WinHttpSendRequest(httpctx->hRequest, pwszHeaders, wcslen(pwszHeaders), (LPVOID)httpctx->postdata, httpctx->postpos, httpctx->postlen, (DWORD_PTR)httpctx))
+                if (WinHttpSendRequest(httpctx->hRequest, pwszHeaders,
+                                       wcslen(pwszHeaders),
+                                       (LPVOID)httpctx->postdata,
+                                       httpctx->postpos,
+                                       httpctx->postlen,
+                                       (DWORD_PTR)httpctx))
                 {
                     req->status = REQ_INFLIGHT;
                     return;

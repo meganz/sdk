@@ -164,7 +164,8 @@ void Transfer::complete()
 
             if (!success)
             {
-                if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename, &( *it )->localname))
+                if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename,
+                                               &( *it )->localname))
                 {
                     success = true;
                 }

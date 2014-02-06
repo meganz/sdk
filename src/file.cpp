@@ -113,7 +113,11 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 t->client->syncadding++;
             }
-            t->client->reqs[t->client->r].add(new CommandPutNodes(t->client, th, NULL, newnode, 1, l ? l->sync->tag : t->tag, l ? PUTNODES_SYNC : PUTNODES_APP));
+            t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,
+                                                                  th, NULL,
+                                                                  newnode, 1,
+                                                                  l ? l->sync->tag : t->tag,
+                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
         }
     }
 }

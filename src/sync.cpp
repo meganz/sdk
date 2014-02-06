@@ -27,7 +27,8 @@
 namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
 // a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris, string* clocaldebris, Node* remotenode, int ctag)
+Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
+           string* clocaldebris, Node* remotenode, int ctag)
 {
     client = cclient;
     tag = ctag;
@@ -114,7 +115,10 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (memcmp(ptr, localroot.localname.data(), localroot.localname.size()) || memcmp(ptr + localroot.localname.size(), client->fsaccess->localseparator.data(), separatorlen))
+        if (memcmp(ptr, localroot.localname.data(), localroot.localname.size())
+            || memcmp(ptr + localroot.localname.size(),
+                      client->fsaccess->localseparator.data(),
+                      separatorlen))
         {
             if (parent)
             {
@@ -131,7 +135,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     localnode_map::iterator it;
     string t;
 
-    for (;; )
+    for (; ; )
     {
         if (( nptr == end ) || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen))
         {
@@ -141,7 +145,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
             }
 
             t.assign(ptr, nptr - ptr);
-            if ((( it = l->children.find(&t)) == l->children.end()) && (( it = l->schildren.find(&t)) == l->schildren.end()))
+            if ((( it = l->children.find(&t)) == l->children.end())
+                && (( it = l->schildren.find(&t)) == l->schildren.end()))
             {
                 // no full match: store residual path, return NULL with the
                 // matching component LocalNode in parent
@@ -212,7 +217,12 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 localpath->append(localname);
 
                 // skip the sync's debris folder
-                if (( localpath->size() < localdebris.size()) || memcmp(localpath->data(), localdebris.data(), localdebris.size()) || (( localpath->size() != localdebris.size()) && memcmp(localpath->data() + localdebris.size(), client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size())))
+                if (( localpath->size() < localdebris.size())
+                    || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+                    || (( localpath->size() != localdebris.size())
+                        && memcmp(localpath->data() + localdebris.size(),
+                                  client->fsaccess->localseparator.data(),
+                                  client->fsaccess->localseparator.size())))
                 {
                     // new or existing record: place scan result in
                     // notification queue
@@ -292,7 +302,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
-        isroot = l == &localroot && !newname.size();
+        isroot = (l == &localroot && !newname.size());
 
         client->fsaccess->local2path(&tmppath, &path);
     }

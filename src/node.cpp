@@ -29,7 +29,9 @@
 #include "mega/transferslot.h"
 
 namespace mega {
-Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph, nodetype_t t, m_off_t s, handle u, const char* fa, time_t ts, time_t tm)
+Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
+           nodetype_t t, m_off_t s, handle u, const char* fa, time_t ts,
+           time_t tm)
 {
     client = cclient;
 
@@ -272,7 +274,11 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     if (numshares)
     {
         // read inshare or outshares
-        while (Share::unserialize(client, ( numshares > 0 ) ? -1 : 0, h, skey, &ptr, end) && numshares > 0 && --numshares)
+        while (Share::unserialize(client,
+                                  ( numshares > 0 ) ? -1 : 0,
+                                  h, skey, &ptr, end)
+               && numshares > 0
+               && --numshares)
         {}
     }
 
@@ -595,7 +601,11 @@ bool Node::applykey()
 
     byte key[FILENODEKEYLENGTH];
 
-    if (client->decryptkey(k, key, ( type == FILENODE ) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0, sc, 0, nodehandle))
+    if (client->decryptkey(k, key,
+                           ( type == FILENODE )
+                               ? FILENODEKEYLENGTH + 0
+                               : FOLDERNODEKEYLENGTH + 0,
+                           sc, 0, nodehandle))
     {
         keystring.clear();
         setkey(key);
@@ -660,7 +670,7 @@ bool Node::isbelow(Node* p) const
 {
     const Node* n = this;
 
-    for (;; )
+    for (; ; )
     {
         if (!n)
         {
@@ -699,7 +709,9 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
         for (p = newlocalpath->size(); p -= sync->client->fsaccess->localseparator.size(); )
         {
-            if (!memcmp(newlocalpath->data() + p, sync->client->fsaccess->localseparator.data(), sync->client->fsaccess->localseparator.size()))
+            if (!memcmp(newlocalpath->data() + p,
+                        sync->client->fsaccess->localseparator.data(),
+                        sync->client->fsaccess->localseparator.size()))
             {
                 p += sync->client->fsaccess->localseparator.size();
                 break;
@@ -707,7 +719,8 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
 
         // has the name changed?
-        if (( localname.size() != newlocalpath->size() - p ) || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
+        if (( localname.size() != newlocalpath->size() - p )
+                || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
         {
             // set new name
             localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);
@@ -772,7 +785,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     syncxfer = true;
     newnode = NULL;
 
-    ts = dts = TREESTATE_NONE;
+    ts = TREESTATE_NONE;
+    dts = TREESTATE_NONE;
 
     type = ctype;
     syncid = sync->client->nextsyncid();
@@ -937,7 +951,7 @@ LocalNode::~LocalNode()
 
     for (localnode_map::iterator it = children.begin(); it != children.end(); )
     {
-        delete it++->second;
+        delete it++->second; // NS (suppress style error)
     }
 
     if (node)
@@ -992,7 +1006,7 @@ void LocalNode::getlocalsubpath(string* path)
 
     path->erase();
 
-    for (;; )
+    for (; ; )
     {
         path->insert(0, l->localname);
 

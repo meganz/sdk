@@ -190,7 +190,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     notifyerr = true;
                 }
 
-                if (in->mask & ( IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK ))
+                if (in->mask & ( IN_CREATE | IN_DELETE | IN_MOVED_FROM
+                                 | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK ))
                 {
                     if (( in->mask & ( IN_CREATE | IN_ISDIR )) != IN_CREATE)
                     {
@@ -198,7 +199,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                         if (it != wdnodes.end())
                         {
-                            it->second->sync->dirnotify->notify(DirNotify::DIREVENTS, it->second, in->name, strlen(in->name));
+                            it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                it->second, in->name,
+                                                                strlen(in->name));
                             r |= Waiter::NEEDEXEC;
                         }
                     }
@@ -336,7 +339,7 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
 
     if (!r)
     {
-        target_exists = errno == EEXIST;
+        target_exists = (errno == EEXIST);
     }
 
     return r;
@@ -388,7 +391,9 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
 {
     int wd;
 
-    wd = inotify_add_watch(fsaccess->notifyfd, path->c_str(), IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK | IN_ONLYDIR);
+    wd = inotify_add_watch(fsaccess->notifyfd, path->c_str(),
+                           IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO
+                           | IN_CLOSE_WRITE | IN_EXCL_UNLINK | IN_ONLYDIR);
 
     if (wd >= 0)
     {
@@ -485,7 +490,11 @@ bool PosixDirAccess::dnext(string* name, nodetype_t* type)
 
     while (( d = readdir(dp)))
     {
-        if ((( d->d_type == DT_DIR ) || ( d->d_type == DT_REG )) && (( d->d_type != DT_DIR ) || ( *d->d_name != '.' ) || ( d->d_name[1] && (( d->d_name[1] != '.' ) || d->d_name[2] ))))
+        if ((( d->d_type == DT_DIR )
+                || ( d->d_type == DT_REG ))
+                && (( d->d_type != DT_DIR )
+                        || ( *d->d_name != '.' )
+                        || ( d->d_name[1] && (( d->d_name[1] != '.' ) || d->d_name[2] ))))
         {
             *name = d->d_name;
             if (type)

@@ -1093,7 +1093,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
             title = "CRYPTO_ERROR";
         }
 
-        for (int i = depth; i--;)
+        for (int i = depth; i--; )
         {
             cout << "\t";
         }
@@ -1323,7 +1323,7 @@ void xferq(direction_t d, int cancel)
 {
     string name;
 
-    for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end();)
+    for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
         {
@@ -1503,7 +1503,7 @@ static void process_line(char* l)
             char* wptr;
 
             // split line into words with quoting and escaping
-            for (;;)
+            for (; ; )
             {
                 // skip leading blank space
                 while (*ptr > 0 && *ptr <= ' ')
@@ -1523,7 +1523,7 @@ static void process_line(char* l)
                     wptr = ptr;
                     words.push_back(string());
 
-                    for (;;)
+                    for (; ; )
                     {
                         if (*ptr == '"' || *ptr == '\\' || !*ptr)
                         {
@@ -2645,7 +2645,7 @@ static void process_line(char* l)
                     {
                         bool getarg = false, putarg = false, hardarg = false, statusarg = false;
 
-                        for (int i = words.size(); --i;)
+                        for (int i = words.size(); --i; )
                         {
                             if (words[i] == "get")
                             {
@@ -2695,7 +2695,8 @@ static void process_line(char* l)
 
                         if (!getarg && !putarg)
                         {
-                            getarg = putarg = true;
+                            getarg = true;
+                            putarg = true;
                         }
 
                         if (getarg)
@@ -2850,7 +2851,10 @@ static void process_line(char* l)
 
                             byte* c = new byte[len];
                             len = Base64::atob(ptr, c, len);
-                            client->querysignuplink(c, len);// we first just query the supplied signup link, then collect and verify the password, then confirm the account
+                            // we first just query the supplied signup link,
+                            // then collect and verify the password,
+                            // then confirm the account
+                            client->querysignuplink(c, len);
                             delete[] c;
                         }
                         else if (words.size() == 3)
@@ -3497,7 +3501,7 @@ void megacli()
 
     rl_save_prompt();
 
-    for (;;)
+    for (; ; )
     {
         if (prompt == COMMAND)
         {
@@ -3560,7 +3564,7 @@ void megacli()
         }
 
         // command editing loop - exits when a line is submitted or the engine requires the CPU
-        for (;;)
+        for (; ; )
         {
             int w = client->wait();
 

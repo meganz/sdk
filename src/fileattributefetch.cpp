@@ -103,7 +103,9 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
             if (( n = client->nodebyhandle(it->second->nodehandle)))
             {
                 fapos = *(uint32_t*)( fadata + h + sizeof( handle ));
-                falen = (( h + sizeof( handle ) + sizeof( uint32_t ) < bod ) ? *(uint32_t*)( fadata + h + 2 * sizeof( handle ) + sizeof( uint32_t )) : data->size()) - fapos;
+                falen = (( h + sizeof( handle ) + sizeof( uint32_t ) < bod )
+                         ? *(uint32_t*)( fadata + h + 2 * sizeof( handle ) + sizeof( uint32_t ))
+                         : data->size()) - fapos;
 
                 if (!( falen & ( SymmCipher::BLOCKSIZE - 1 )))
                 {

@@ -158,7 +158,9 @@ m_off_t HttpReq::transferred(MegaClient*)
 }
 
 // prepare file chunk download
-bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key, chunkmac_map* macs, uint64_t ctriv, m_off_t pos, m_off_t npos)
+bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
+                        chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
+                        m_off_t npos)
 {
     char urlbuf[256];
 
@@ -184,7 +186,8 @@ bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key, ch
 }
 
 // decrypt, mac and write downloaded chunk
-void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs, uint64_t ctriv, m_off_t startpos, m_off_t endpos)
+void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
+                         uint64_t ctriv, m_off_t startpos, m_off_t endpos)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
@@ -195,7 +198,8 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs, ui
 
     if (endpos == -1)
     {
-        skip = prune = 0;
+        skip = 0;
+        prune = 0;
     }
     else
     {
@@ -224,7 +228,9 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs, ui
 }
 
 // prepare chunk for uploading: mac and encrypt
-bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key, chunkmac_map* macs, uint64_t ctriv, m_off_t pos, m_off_t npos)
+bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
+                        chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
+                        m_off_t npos)
 {
     size = (unsigned)( npos - pos );
 

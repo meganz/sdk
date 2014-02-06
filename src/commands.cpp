@@ -63,7 +63,7 @@ void HttpReqCommandPutFA::procresult()
     {
         const char* p = NULL;
 
-        for (;; )
+        for (; ; )
         {
             switch (client->json.getnameid())
             {
@@ -119,7 +119,7 @@ void CommandGetFA::procresult()
 
     const char* p = NULL;
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -205,7 +205,7 @@ void CommandPutFile::procresult()
         return tslot->transfer->failed((error)client->json.getint());
     }
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -289,7 +289,7 @@ void CommandGetFile::procresult()
     string filenamestring;
     string filefingerprint;
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -359,13 +359,14 @@ void CommandGetFile::procresult()
 
                     key.setkey(filekey, FILENODE);
 
-                    if (( buf = Node::decryptattr(tslot ? &tslot->transfer->key : &key, at, eos ? eos - at : strlen(at))))
+                    if ((buf = Node::decryptattr(tslot ? &tslot->transfer->key : &key,
+                                                 at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
 
                         json.begin((char*)buf + 5);
 
-                        for (;; )
+                        for (; ; )
                         {
                             switch (json.getnameid())
                             {
@@ -407,7 +408,10 @@ void CommandGetFile::procresult()
                                     }
                                     else
                                     {
-                                        return client->app->checkfile_result(ph, e, filekey, s, ts, tm, &filenamestring, &filefingerprint, &fileattrstring);
+                                        return client->app->checkfile_result(ph, e, filekey, s, ts, tm,
+                                                                             &filenamestring,
+                                                                             &filefingerprint,
+                                                                             &fileattrstring);
                                     }
 
                                 default:
@@ -485,7 +489,9 @@ void CommandSetAttr::procresult()
 
 // (the result is not processed directly - we rely on the server-client
 // response)
-CommandPutNodes::CommandPutNodes(MegaClient* client, handle th, const char* userhandle, NewNode* newnodes, int numnodes, int ctag, putsource_t csource)
+CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
+                                 const char* userhandle, NewNode* newnodes,
+                                 int numnodes, int ctag, putsource_t csource)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -617,7 +623,7 @@ void CommandPutNodes::procresult()
 
     e = API_EINTERNAL;
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -774,7 +780,7 @@ void CommandLogin::procresult()
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0;
     handle me = UNDEF;
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -983,7 +989,7 @@ bool CommandSetShare::procuserresult(MegaClient* client)
         handle uh = UNDEF;
         const char* m = NULL;
 
-        for (;; )
+        for (; ; )
         {
             switch (client->json.getnameid())
             {
@@ -1022,7 +1028,7 @@ void CommandSetShare::procresult()
         return client->app->share_result((error)client->json.getint());
     }
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -1147,14 +1153,19 @@ void CommandEnumerateQuotaItems::procresult()
             }
         }
 
-        client->app->enumeratequotaitems_result(product, prolevel, gbstorage, gbtransfer, months, amount, currency.c_str());
+        client->app->enumeratequotaitems_result(product, prolevel, gbstorage,
+                                                gbtransfer, months, amount,
+                                                currency.c_str());
         client->json.leavearray();
     }
 
     client->app->enumeratequotaitems_result(API_OK);
 }
 
-CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* chan, int itemclass, handle item, unsigned price, char* curreny, unsigned tax, char* country, char* affiliate)
+CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* chan, int itemclass,
+                                               handle item, unsigned price,
+                                               char* curreny, unsigned tax,
+                                               char* country, char* affiliate)
 {
     cmd("uts");
 
@@ -1404,7 +1415,7 @@ void CommandPubKeyRequest::procresult()
         // FIXME: handle users without public key / unregistered users
     }
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -1512,7 +1523,7 @@ void CommandGetUserQuota::procresult()
 
     details->transfer_limit = 0;
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -1837,7 +1848,7 @@ void CommandGetPH::procresult()
     time_t ts = 0, tm = 0;
     string a, fa;
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -1905,7 +1916,10 @@ void CommandSetMasterKey::procresult()
     }
 }
 
-CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client, const byte* key, const byte* cpw, const byte* ssc)
+CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
+                                                             const byte* key,
+                                                             const byte* cpw,
+                                                             const byte* ssc)
 {
     memcpy(pw, cpw, sizeof pw);
 
@@ -1950,7 +1964,7 @@ void CommandResumeEphemeralSession::procresult()
         return client->app->ephemeral_result((error)client->json.getint());
     }
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {
@@ -2041,20 +2055,31 @@ void CommandQuerySignupLink::procresult()
         return client->app->querysignuplink_result((error)client->json.getint());
     }
 
-    if (client->json.storebinary(&name) && client->json.storebinary(&email) && ( uh = client->json.gethandle(MegaClient::USERHANDLE)) && ( kc = client->json.getvalue()) && ( pwcheck = client->json.getvalue()))
+    if (client->json.storebinary(&name) && client->json.storebinary(&email)
+        && ( uh = client->json.gethandle(MegaClient::USERHANDLE))
+        && ( kc = client->json.getvalue()) && ( pwcheck = client->json.getvalue()))
     {
-        if (!ISUNDEF(uh) && ( Base64::atob(pwcheck, pwcheckbuf, sizeof pwcheckbuf) == sizeof pwcheckbuf ) && ( Base64::atob(kc, kcbuf, sizeof kcbuf) == sizeof kcbuf ))
+        if (!ISUNDEF(uh)
+            && ( Base64::atob(pwcheck, pwcheckbuf, sizeof pwcheckbuf) == sizeof pwcheckbuf )
+            && ( Base64::atob(kc, kcbuf, sizeof kcbuf) == sizeof kcbuf ))
         {
             client->json.leavearray();
 
-            return client->app->querysignuplink_result(uh, name.c_str(), email.c_str(), pwcheckbuf, kcbuf, (const byte*)confirmcode.data(), confirmcode.size());
+            return client->app->querysignuplink_result(uh, name.c_str(),
+                                                       email.c_str(),
+                                                       pwcheckbuf, kcbuf,
+                                                       (const byte*)confirmcode.data(),
+                                                       confirmcode.size());
         }
     }
 
     client->app->querysignuplink_result(API_EINTERNAL);
 }
 
-CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client, const byte* code, unsigned len, uint64_t emailhash)
+CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
+                                                   const byte* code,
+                                                   unsigned len,
+                                                   uint64_t emailhash)
 {
     cmd("up");
     arg("c",  code,              len);
@@ -2075,7 +2100,9 @@ void CommandConfirmSignupLink::procresult()
     client->app->confirmsignuplink_result(API_OK);
 }
 
-CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk, unsigned privklen, const byte* pubk, unsigned pubklen)
+CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
+                                     unsigned privklen, const byte* pubk,
+                                     unsigned pubklen)
 {
     cmd("up");
     arg("privk", privk, privklen);
@@ -2114,7 +2141,7 @@ void CommandFetchNodes::procresult()
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {

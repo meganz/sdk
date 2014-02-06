@@ -163,7 +163,8 @@ void TransferSlot::doio(MegaClient* client)
                         {
                             if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN * 4 / 3)
                             {
-                                if (Base64::atob(reqs[i]->in.data(), ultoken, NewNode::UPLOADTOKENLEN + 1) == NewNode::UPLOADTOKENLEN)
+                                if (Base64::atob(reqs[i]->in.data(), ultoken, NewNode::UPLOADTOKENLEN + 1)
+                                    == NewNode::UPLOADTOKENLEN)
                                 {
                                     memcpy(transfer->filekey, transfer->key.key, sizeof transfer->key.key);
                                     ((int64_t*)transfer->filekey )[2] = transfer->ctriv;
@@ -245,7 +246,9 @@ void TransferSlot::doio(MegaClient* client)
                     reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
                 }
 
-                if (reqs[i]->prepare(fa, tempurl.c_str(), &transfer->key, &transfer->chunkmacs, transfer->ctriv, transfer->pos, npos))
+                if (reqs[i]->prepare(fa, tempurl.c_str(), &transfer->key,
+                                     &transfer->chunkmacs, transfer->ctriv,
+                                     transfer->pos, npos))
                 {
                     reqs[i]->status = REQ_PREPARED;
                     transfer->pos = npos;

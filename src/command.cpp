@@ -195,7 +195,7 @@ void Command::element(const byte* data, int len)
 // open object
 void Command::openobject()
 {
-    levels[(int)++level] = 0;
+    levels[(int) ++level] = 0;
 }
 
 // close object
@@ -225,7 +225,7 @@ void Command::procresult()
         return;
     }
 
-    for (;; )
+    for (; ; )
     {
         switch (client->json.getnameid())
         {

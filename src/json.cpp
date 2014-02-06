@@ -43,7 +43,7 @@ bool JSON::storeobject(string* s)
 
     ptr = pos;
 
-    for (;; )
+    for (; ; )
     {
         if (( *ptr == '[' ) || ( *ptr == '{' ))
         {
@@ -364,13 +364,18 @@ bool JSON::enterobject()
 // leave object (skip remainder)
 bool JSON::leaveobject()
 {
-    for (;; )
+    for (; ; )
     {
         if (( *pos == ':' ) || ( *pos == ',' ))
         {
             pos++;
         }
-        else if (( *pos == '"' ) || (( *pos >= '0' ) && ( *pos <= '9' )) || ( *pos == '-' ) || ( *pos == '[' ) || ( *pos == '{' ))
+        else if (( *pos == '"' )
+                || (( *pos >= '0' )
+                        && ( *pos <= '9' ))
+                        || ( *pos == '-' )
+                        || ( *pos == '[' )
+                        || ( *pos == '{' ))
         {
             storeobject();
         }

@@ -249,8 +249,12 @@ int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
 
 static void rsadecrypt(Integer* key, Integer* m)
 {
-    Integer xp = a_exp_b_mod_c(*m % key[AsymmCipher::PRIV_P], key[AsymmCipher::PRIV_D] % ( key[AsymmCipher::PRIV_P] - Integer::One()), key[AsymmCipher::PRIV_P]);
-    Integer xq = a_exp_b_mod_c(*m % key[AsymmCipher::PRIV_Q], key[AsymmCipher::PRIV_D] % ( key[AsymmCipher::PRIV_Q] - Integer::One()), key[AsymmCipher::PRIV_Q]);
+    Integer xp = a_exp_b_mod_c(*m % key[AsymmCipher::PRIV_P],
+                               key[AsymmCipher::PRIV_D] % ( key[AsymmCipher::PRIV_P] - Integer::One()),
+                               key[AsymmCipher::PRIV_P]);
+    Integer xq = a_exp_b_mod_c(*m % key[AsymmCipher::PRIV_Q],
+                               key[AsymmCipher::PRIV_D] % ( key[AsymmCipher::PRIV_Q] - Integer::One()),
+                               key[AsymmCipher::PRIV_Q]);
 
     if (xp > xq)
     {
@@ -405,7 +409,9 @@ void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
     pubk[PUB_E] = 17;
 
     RSAPrimeSelector selector(pubk[PUB_E]);
-    AlgorithmParameters primeParam = MakeParametersForTwoPrimesOfEqualSize(size) (Name::PointerToPrimeSelector(), selector.GetSelectorPointer());
+    AlgorithmParameters primeParam
+            = MakeParametersForTwoPrimesOfEqualSize(size)
+                (Name::PointerToPrimeSelector(), selector.GetSelectorPointer());
 
     privk[PRIV_P].GenerateRandom(PrnGen::rng, primeParam);
     privk[PRIV_Q].GenerateRandom(PrnGen::rng, primeParam);
