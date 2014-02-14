@@ -167,7 +167,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             DWORD statusCode = 0;
             DWORD statusCodeSize = sizeof( statusCode );
 
-            if (!WinHttpQueryHeaders(((WinHttpContext*)req->httpiohandle )->hRequest,
+            if (!WinHttpQueryHeaders(httpctx->hRequest,
                                      WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                                      WINHTTP_HEADER_NAME_BY_INDEX,
                                      &statusCode,
@@ -181,7 +181,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 req->httpstatus = statusCode;
 
-                if (!WinHttpQueryDataAvailable(((WinHttpContext*)req->httpiohandle )->hRequest, NULL))
+                if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
                 {
                     httpio->cancel(req);
                     httpio->httpevent();
@@ -290,7 +290,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
             if (httpctx->hRequest)
             {
-                WinHttpSetTimeouts(httpctx->hRequest, 0, 20000, 20000, 1800000);
+                WinHttpSetTimeouts(httpctx->hRequest, 0, 20000, 20000, 300000);
 
                 WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,
                                          WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE
