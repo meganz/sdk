@@ -202,7 +202,7 @@ void MegaClient::mergenewshares(bool notify)
 
                             if (notify)
                             {
-                                    notifynode(n);
+                                notifynode(n);
                             }
                         }
                     }
@@ -1458,8 +1458,6 @@ bool MegaClient::dispatch(direction_t d)
                     }
                 }
 
-                // uploads always start at position 0, downloads resume at the
-                // p
                 // dispatch request for temporary source/target URL
                 reqs[r].add(( ts->pendingcmd = ( d == PUT )
                         ? (Command*)new CommandPutFile(ts, putmbpscap)
