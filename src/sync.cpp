@@ -135,7 +135,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     localnode_map::iterator it;
     string t;
 
-    for (; ; )
+    for (;;)
     {
         if (( nptr == end ) || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen))
         {

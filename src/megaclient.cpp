@@ -905,7 +905,7 @@ void MegaClient::exec()
 
                 if (!syncfsopsfailed)
                 {
-                    // no retrying local operations: process pending notifyqs
+                    // not retrying local operations: process pending notifyqs
                     for (it = syncs.begin(); it != syncs.end(); )
                     {
                         Sync* sync = *it++;
@@ -3708,21 +3708,29 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
-// sharekey distribution request - walk array consisting of node/user handles
+// sharekey distribution request - walk array consisting of {node,user+}+ handle tuples
 // and submit public key requests
 void MegaClient::procsr(JSON* j)
 {
     User* u;
-    handle sh, uh;
+    handle sh = UNDEF, uh = UNDEF;
 
     if (!j->enterarray())
     {
         return;
     }
 
-    while (!ISUNDEF(sh = j->gethandle()) && !ISUNDEF(uh = j->gethandle()))
+    for (;;)
     {
-        if (nodebyhandle(sh) && ( u = finduser(uh)))
+		if (ISUNDEF(sh) && ISUNDEF(sh = j->gethandle())) break;
+
+        if (ISUNDEF(uh = j->gethandle(USERHANDLE)))
+        {
+            sh = UNDEF;
+            continue;
+        }
+
+        if (nodebyhandle(sh) && (u = finduser(uh)))
         {
             queuepubkeyreq(u, new PubKeyActionSendShareKey(sh));
         }
