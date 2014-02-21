@@ -2150,7 +2150,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    error e = client->addsync(&localname, "Debris", NULL, n, 0);
+                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
 
                                     if (e)
                                     {

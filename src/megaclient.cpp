@@ -58,8 +58,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
     if (sl > 4 * FILENODEKEYLENGTH / 3 + 1)
     {
-        // RSA-encrypted key - decrypt and update on the server to save CPU
-        // time next time
+        // RSA-encrypted key - decrypt and update on the server to save space & client CPU time
         sl = sl / 4 * 3 + 3;
 
         if (sl > 4096)
@@ -4639,11 +4638,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
     {
         // node must be syncable, alive, decrypted and have its name defined to
-        // be considered
-        if (app->sync_syncable(*it)
+        // be considered - also, prevent clashes with the local debris folder
+        if ((app->sync_syncable(*it)
                 && (( *it )->syncdeleted == SYNCDEL_NONE )
                 && !( *it )->attrstring.size()
                 && (( ait = ( *it )->attrs.map.find('n')) != ( *it )->attrs.map.end()))
+			&& (l->parent || l->sync->debris != ait->second))
         {
             addchild(&nchildren, &ait->second, *it, &strings);
         }
