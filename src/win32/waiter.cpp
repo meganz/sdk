@@ -23,6 +23,8 @@
 #include "megawaiter.h"
 
 namespace mega {
+dstime Waiter::ds;
+
 WinWaiter::WinWaiter()
 {
     pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
@@ -32,11 +34,6 @@ WinWaiter::WinWaiter()
         tickhigh = 0;
         prevt = 0;
     }
-}
-
-void WinWaiter::init(dstime ds)
-{
-    maxds = ds;
 }
 
 // update monotonously increasing timestamp in deciseconds

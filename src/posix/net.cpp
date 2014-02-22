@@ -168,6 +168,9 @@ bool CurlHttpIO::doio()
                 }
 
                 req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
+                
+                httpio->inetstatus(req->status);
+                
                 done = true;
             }
             else

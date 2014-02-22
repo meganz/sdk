@@ -40,7 +40,7 @@ int clock_gettime(int, struct timespec* t)
 namespace mega {
 void PosixWaiter::init(dstime ds)
 {
-    maxds = ds;
+    Waiter::init(ds);
 
     maxfd = -1;
 

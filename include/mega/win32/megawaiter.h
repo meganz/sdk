@@ -39,7 +39,6 @@ public:
 
     dstime getdstime();
 
-    void init(dstime);
     int wait();
 
     bool addhandle(HANDLE handle, int);
