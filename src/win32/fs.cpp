@@ -565,6 +565,9 @@ void WinDirNotify::process(DWORD dwBytes)
 
         readchanges();
 
+        // ensure accuracy of the notification timestamps
+        Waiter::bumpds();
+
         // we trust the OS to always return conformant data
         for (;;)
         {

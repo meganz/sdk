@@ -442,7 +442,7 @@ MegaClient::~MegaClient()
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
-    waiter->getdstime();
+    waiter->bumpds();
 
     if (httpio->inetisback())
     {
@@ -1161,7 +1161,7 @@ int MegaClient::wait()
     dstime nds;
 
     // get current dstime and clear wait events
-    waiter->getdstime();
+    waiter->bumpds();
 
     // sync directory scans in progress? don't wait.
     if (syncactivity)
@@ -1261,7 +1261,7 @@ bool MegaClient::abortbackoff()
 {
     bool r = false;
 
-    waiter->getdstime();
+    waiter->bumpds();
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
@@ -1318,9 +1318,7 @@ bool MegaClient::dispatch(direction_t d)
     transfer_map::iterator nextit;
     TransferSlot *ts = NULL;
 
-    waiter->getdstime();
-
-    for (; ; )
+    for (;;)
     {
         nextit = transfers[d].end();
 
@@ -2047,8 +2045,7 @@ void MegaClient::dispatchmore(direction_t d)
 {
     // keep pipeline full by dispatching additional queued transfers, if
     // appropriate and available
-    while (moretransfers(d) && dispatch(d))
-    {}
+    while (moretransfers(d) && dispatch(d));
 }
 
 // server-client node update processing
@@ -5253,7 +5250,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 
     if (!pause || hard)
     {
-        waiter->getdstime();
+        waiter->bumpds();
 
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
         {

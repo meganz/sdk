@@ -45,11 +45,11 @@ struct MEGA_API Waiter
     // current time (processwide)
     static dstime ds;
 
+    // set ds to current time
+    static void bumpds();
+
     // wait ceiling
     dstime maxds;
-
-    // current time in deciseconds
-    virtual dstime getdstime() = 0;
 
     // begin waiting cycle with timeout
     virtual void init(dstime);

@@ -25,19 +25,12 @@
 namespace mega {
 class MEGA_API WinWaiter : public Waiter
 {
-    typedef ULONGLONG ( WINAPI * PGTC )();
-    PGTC pGTC;
-    ULONGLONG tickhigh;
-    DWORD prevt;
-
     vector<HANDLE> handles;
     vector<int> flags;
 
 public:
     PCRITICAL_SECTION pcsHTTP;
     unsigned pendingfsevents;
-
-    dstime getdstime();
 
     int wait();
 

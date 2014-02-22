@@ -25,9 +25,15 @@
 namespace mega {
 dstime Waiter::ds;
 
+typedef ULONGLONG ( WINAPI * PGTC )();
+
+static PGTC pGTC;
+static ULONGLONG tickhigh;
+static DWORD prevt;
+
 WinWaiter::WinWaiter()
 {
-    pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
+    if (!pGTC) pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
 
     if (!pGTC)
     {
@@ -37,11 +43,12 @@ WinWaiter::WinWaiter()
 }
 
 // update monotonously increasing timestamp in deciseconds
-dstime WinWaiter::getdstime()
+// FIXME: restore thread safety for applications using multiple MegaClient objects
+void Waiter::bumpds()
 {
     if (pGTC)
     {
-        return ds = pGTC() / 100;
+        ds = pGTC() / 100;
     }
     else
     {
@@ -52,9 +59,10 @@ dstime WinWaiter::getdstime()
         {
             tickhigh += 0x100000000;
         }
+
         prevt = t;
 
-        return ds = ( t + tickhigh ) / 100;
+        ds = ( t + tickhigh ) / 100;
     }
 }
 
@@ -73,7 +81,9 @@ int WinWaiter::wait()
     {
         LeaveCriticalSection(pcsHTTP);
     }
+
     DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
+
     if (pcsHTTP)
     {
         EnterCriticalSection(pcsHTTP);

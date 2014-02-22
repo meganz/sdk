@@ -353,7 +353,7 @@ void DemoApp::transfer_complete(Transfer* t)
 {
     displaytransferdetails(t, "completed, ");
 
-    cout << t->slot->progressreported * 10 / (1024 * (client->waiter->ds - t->slot->starttime + 1)) << " KB/s" << endl;
+    cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
 }
 
 // transfer about to start - make final preparations (determine localfilename, create thumbnail for image upload)
@@ -3504,7 +3504,7 @@ void megacli()
 
     rl_save_prompt();
 
-    for (; ; )
+    for (;;)
     {
         if (prompt == COMMAND)
         {
@@ -3512,14 +3512,14 @@ void megacli()
             if (client->tslots.size())
             {
                 unsigned xferrate[2] = { 0 };
-                dstime ds = client->waiter->getdstime();
+                Waiter::bumpds();
 
                 for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
                 {
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type] += (*it)->progressreported * 10
-                                / (1024 * (ds - (*it)->starttime + 1));
+                                / (1024 * (Waiter::ds - (*it)->starttime + 1));
                     }
                 }
 
