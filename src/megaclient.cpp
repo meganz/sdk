@@ -882,7 +882,8 @@ void MegaClient::exec()
 
         if (syncfslockretry && syncfslockretrybt.armed())
         {
-            syncfslockretrybt.backoff(5);
+
+            syncfslockretrybt.backoff(1);
         }
 
         syncactivity = false;
@@ -897,48 +898,60 @@ void MegaClient::exec()
             if (syncs.size() || syncactivity)
             {
                 bool syncscanning = false;
-                int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS;
-
-                syncfslockretry = false;
                 unsigned totalpending = 0;
 
-                if (!syncfsopsfailed)
+                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
-                    // not retrying local operations: process pending notifyqs
-                    for (it = syncs.begin(); it != syncs.end(); )
+                    syncfslockretry = false;
+
+                    if (!syncfsopsfailed)
                     {
-                        Sync* sync = *it++;
-
-                        if (sync->state == SYNC_CANCELED)
+                        // not retrying local operations: process pending notifyqs
+                        for (it = syncs.begin(); it != syncs.end(); )
                         {
-                            delete sync;
-                        }
-                        else if (( sync->state == SYNC_INITIALSCAN ) || ( sync->state == SYNC_ACTIVE ))
-                        {
-                            // process items from the notifyq until depleted
-                            if (sync->dirnotify->notifyq[q].size())
-                            {
-                                sync->procscanq(q);
-                                syncops = true;
-                            }
+                            Sync* sync = *it++;
 
-                            if (sync->dirnotify->notifyq[q].size())
+                            if (sync->state == SYNC_CANCELED)
                             {
-                                syncscanning = true;
+                                delete sync;
                             }
-                            else if (( sync->state == SYNC_INITIALSCAN ) && ( q == DirNotify::DIREVENTS ))
+                            else if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
                             {
-                                sync->changestate(SYNC_ACTIVE);
-                            }
+                                // process items from the notifyq until depleted
+                                if (sync->dirnotify->notifyq[q].size())
+                                {
+                                    // only start syncing 500 ms after a notification was triggered -
+                                    // this accomodates software saving files in a convoluted manner
+                                    if (sync->state == SYNC_ACTIVE
+                                        && q == DirNotify::DIREVENTS
+                                        && Waiter::ds - sync->dirnotify->notifyq[DirNotify::DIREVENTS].front().timestamp < 5)
+                                    {
+                                        syncfslockretry = true;
+                                        continue;
+                                    }
 
-                            if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
-                            {
-                                syncfslockretry = true;
-                            }
+                                    sync->procscanq(q);
+                                    syncops = true;
+                                }
 
-                            if (q == DirNotify::DIREVENTS)
-                            {
-                                totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+                                if (sync->dirnotify->notifyq[q].size())
+                                {
+                                    syncscanning = true;
+                                }
+                                else if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS)
+                                {
+                                    sync->changestate(SYNC_ACTIVE);
+                                }
+
+                                if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                                {
+                                    syncfslockretry = true;
+                                }
+
+                                if (q == DirNotify::DIREVENTS)
+                                {
+                                    totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+                                }
                             }
                         }
                     }
@@ -989,23 +1002,20 @@ void MegaClient::exec()
                     }
                 }
 
-                if (q == DirNotify::DIREVENTS)
+                if (totalpending < 4)
                 {
-                    if (totalpending < 4)
+                    if (syncscanstate)
                     {
-                        if (syncscanstate)
-                        {
-                            app->syncupdate_scanning(false);
-                            syncscanstate = false;
-                        }
+                        app->syncupdate_scanning(false);
+                        syncscanstate = false;
                     }
-                    else if (totalpending > 10)
+                }
+                else if (totalpending > 10)
+                {
+                    if (!syncscanstate)
                     {
-                        if (!syncscanstate)
-                        {
-                            app->syncupdate_scanning(true);
-                            syncscanstate = true;
-                        }
+                        app->syncupdate_scanning(true);
+                        syncscanstate = true;
                     }
                 }
 
