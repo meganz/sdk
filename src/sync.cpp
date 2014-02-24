@@ -533,9 +533,9 @@ void Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
 
-    while (t-- && (sync->state != SYNC_ACTIVE
+    while (t-- && (state != SYNC_ACTIVE
                    || q != DirNotify::DIREVENTS
-                   || Waiter::ds - sync->dirnotify->notifyq[DirNotify::DIREVENTS].front().timestamp > 4))
+                   || Waiter::ds - dirnotify->notifyq[DirNotify::DIREVENTS].front().timestamp > 4))
     {
         LocalNode* l = checkpath(dirnotify->notifyq[q].front().localnode, &dirnotify->notifyq[q].front().path);
         dirnotify->notifyq[q].pop_front();
