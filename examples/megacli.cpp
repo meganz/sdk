@@ -3355,6 +3355,15 @@ void DemoApp::nodes_updated(Node** n, int count)
     }
 }
 
+// nodes now (almost) current, i.e. no server-client notifications pending
+void DemoApp::nodes_current()
+{
+    if (mega::debug)
+    {
+           cout << "Nodes current." << endl;
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
 {
     // FIXME: implement
