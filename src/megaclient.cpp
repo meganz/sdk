@@ -1626,9 +1626,10 @@ void MegaClient::procsc()
                 if (fetchednodes)
                 {
                     // at this stage, we have processed all pending server-client requests
+                    fetchednodes = false;
+
                     // (NULL vector: "notify all nodes")
                     app->nodes_updated(NULL, nodes.size());
-                    fetchednodes = false;
                 }
             
                 if (!jsonsc.storeobject(&scnotifyurl))
@@ -2527,7 +2528,10 @@ void MegaClient::notifypurge(void)
 
         applykeys();
 
-        app->nodes_updated(&nodenotify[0], t);
+        if (!fetchednodes)
+        {
+            app->nodes_updated(&nodenotify[0], t);
+        }
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
@@ -4497,8 +4501,8 @@ void MegaClient::fetchnodes()
         restag = reqtag;
 
         syncsup = false;
+        fetchednodes = true;
         app->fetchnodes_result(API_OK);
-        app->nodes_updated(NULL, nodes.size());
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
     }
