@@ -1623,6 +1623,14 @@ void MegaClient::procsc()
         switch (jsonsc.getnameid())
         {
             case 'w':
+                if (fetchednodes)
+                {
+                    // at this stage, we have processed all pending server-client requests
+                    // (NULL vector: "notify all nodes")
+                    app->nodes_updated(NULL, nodes.size());
+                    fetchednodes = false;
+                }
+            
                 if (!jsonsc.storeobject(&scnotifyurl))
                 {
                     return;

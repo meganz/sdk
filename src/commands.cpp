@@ -2214,8 +2214,7 @@ void CommandFetchNodes::procresult()
                 client->app->fetchnodes_result(API_OK);
                 client->initsc();
 
-                // NULL vector: "notify all nodes"
-                client->app->nodes_updated(NULL, client->nodes.size());
+                client->fetchednodes = true;
                 return;
 
             default:
