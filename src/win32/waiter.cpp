@@ -82,7 +82,7 @@ int WinWaiter::wait()
         LeaveCriticalSection(pcsHTTP);
     }
 
-    DWORD dwWaitResult = ::WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
+    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
 
     if (pcsHTTP)
     {
