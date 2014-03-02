@@ -815,7 +815,7 @@ void MegaClient::exec()
 
             if (!xferpaused[( *it )->transfer->type] && (!( *it )->retrying || ( *it )->retrybt.armed()))
             {
-                ( *it++ )->doio(this);
+                ( *it )->doio(this);
             }
         }
 
