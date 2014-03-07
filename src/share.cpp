@@ -48,9 +48,9 @@ bool Share::unserialize(MegaClient* client, int direction, handle h,
         return 0;
     }
 
-    client->newshares.push_back(new NewShare(h, direction, *(handle*)*ptr,
+    client->newshares.push_back(new NewShare(h, direction, MemAccess::get<handle>(*ptr),
                                              (accesslevel_t)( *ptr )[sizeof( handle ) + sizeof( time_t )],
-                                             *(time_t*)( *ptr + sizeof( handle )), key));
+                                             MemAccess::get<time_t>( *ptr + sizeof( handle )), key));
 
     *ptr += sizeof( handle ) + sizeof( time_t ) + 2;
 

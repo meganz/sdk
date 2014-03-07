@@ -171,7 +171,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         return NULL;
     }
 
-    s = *(m_off_t*)ptr;
+    s = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof s;
 
     if (( s < 0 ) && ( s >= -MAILNODE ))
@@ -199,10 +199,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
     ptr += MegaClient::USERHANDLE;
 
-    tm = *(time_t*)ptr;
+    tm = MemAccess::get<time_t>(ptr);
     ptr += sizeof tm;
 
-    ts = *(time_t*)ptr;
+    ts = MemAccess::get<time_t>(ptr);
     ptr += sizeof ts;
 
     if (( t == FILENODE ) || ( t == FOLDERNODE ))
@@ -220,7 +220,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if (t == FILENODE)
     {
-        ll = *(unsigned short*)ptr;
+        ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
         if (( ptr + ll > end ) || ptr[ll])
         {
@@ -236,9 +236,9 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     for (i = 8; i--; )
     {
-        if (ptr + *(unsigned char*)ptr < end)
+        if (ptr + (unsigned char)*ptr < end)
         {
-            ptr += *(unsigned char*)ptr + 1;
+            ptr += (unsigned char)*ptr + 1;
         }
     }
 
@@ -247,7 +247,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         return NULL;
     }
 
-    short numshares = *(short*)ptr;
+    short numshares = MemAccess::get<short>(ptr);
     ptr += sizeof( numshares );
 
     if (numshares)
@@ -256,6 +256,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         {
             return 0;
         }
+
         skey = (const byte*)ptr;
         ptr += SymmCipher::KEYLENGTH;
     }
@@ -278,8 +279,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                                   ( numshares > 0 ) ? -1 : 0,
                                   h, skey, &ptr, end)
                && numshares > 0
-               && --numshares)
-        {}
+               && --numshares);
     }
 
     ptr = n->attrs.unserialize(ptr, end - ptr);

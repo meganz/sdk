@@ -1413,7 +1413,7 @@ static void process_line(char* l)
                 SymmCipher pwcipher(pwkey);
                 pwcipher.ecb_decrypt(signuppwchallenge);
 
-                if (*(uint64_t*) (signuppwchallenge + 4))
+                if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
                 {
                     cout << endl << "Incorrect password, please try again." << endl;
                 }

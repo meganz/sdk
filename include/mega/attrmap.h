@@ -22,7 +22,7 @@
 #ifndef MEGA_ATTRMAP_H
 #define MEGA_ATTRMAP_H 1
 
-#include "mega/types.h"
+#include "mega/utils.h"
 
 namespace mega {
 

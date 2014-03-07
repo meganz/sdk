@@ -148,7 +148,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
 
     byte ctr[BLOCKSIZE], tmp[BLOCKSIZE];
 
-    *(uint64_t*)ctr = ctriv;
+    MemAccess::set<int64_t>(ctr,ctriv);
     setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
 
     memcpy(mac,                ctr, sizeof ctriv);
