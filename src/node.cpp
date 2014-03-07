@@ -236,9 +236,9 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     for (i = 8; i--; )
     {
-        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
+        if (ptr + (unsigned char)*ptr < end)
         {
-            ptr += MemAccess::get<unsigned char>(ptr) + 1;
+            ptr += (unsigned char)*ptr + 1;
         }
     }
 
@@ -256,6 +256,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         {
             return 0;
         }
+
         skey = (const byte*)ptr;
         ptr += SymmCipher::KEYLENGTH;
     }
@@ -278,8 +279,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                                   ( numshares > 0 ) ? -1 : 0,
                                   h, skey, &ptr, end)
                && numshares > 0
-               && --numshares)
-        {}
+               && --numshares);
     }
 
     ptr = n->attrs.unserialize(ptr, end - ptr);
