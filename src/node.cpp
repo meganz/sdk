@@ -236,9 +236,9 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     for (i = 8; i--; )
     {
-        if (ptr + MemAccess::get<unsigned short>(ptr) < end)
+        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
-            ptr += MemAccess::get<unsigned short>(ptr) + 1;
+            ptr += MemAccess::get<unsigned char>(ptr) + 1;
         }
     }
 
