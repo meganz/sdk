@@ -79,13 +79,13 @@ User* User::unserialize(MegaClient* client, string* d)
         return NULL;
     }
 
-    uh = *(handle*)ptr;
+    uh = MemAccess::get<handle>(ptr);
     ptr += sizeof uh;
 
-    ts = *(time_t*)ptr;
+    ts = MemAccess::get<time_t>(ptr);
     ptr += sizeof ts;
 
-    v = *(visibility_t*)ptr;
+    v = MemAccess::get<visibility_t>(ptr);
     ptr += sizeof v;
 
     l = *ptr++;
@@ -97,9 +97,9 @@ User* User::unserialize(MegaClient* client, string* d)
 
     for (i = 8; i--; )
     {
-        if (ptr + *(unsigned char*)ptr < end)
+        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
-            ptr += *(unsigned char*)ptr + 1;
+            ptr += MemAccess::get<unsigned char>(ptr) + 1;
         }
     }
 

@@ -125,7 +125,7 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
-    return *(int64_t*)mac;
+    return MemAccess::get<int64_t>((const char*)mac);
 }
 
 // file transfer state machine

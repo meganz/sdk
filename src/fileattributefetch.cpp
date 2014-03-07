@@ -46,14 +46,11 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client, int fac, const char
     {
         if (it->second->fac == fac)
         {
-            req.out->reserve(client->fafs.size() * sizeof( handle ));   //
-                                                                        //
-                                                                        // prevent
-                                                                        //
-                                                                        // reallocations
+            // prevent reallocations
+            req.out->reserve(client->fafs.size() * sizeof(handle));
 
             it->second->dispatched = 1;
-            req.out->append((char*)&it->first, sizeof( handle ));
+            req.out->append((char*)&it->first, sizeof(handle));
         }
     }
 
@@ -74,7 +71,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
         return client->faf_failed(fac);
     }
 
-    uint32_t bod = *(uint32_t*)( data->data() + sizeof( handle ));
+    uint32_t bod = MemAccess::get<uint32_t>(data->data() + sizeof(handle));
 
     if (bod > data->size())
     {
@@ -91,7 +88,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
 
     for (unsigned h = 0; h < bod; h += sizeof( handle ) + sizeof( uint32_t ))
     {
-        fah = *(handle*)( fadata + h );
+        fah = MemAccess::get<handle>(fadata + h);
 
         it = client->fafs.find(fah);
 
@@ -102,9 +99,9 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
             // locate related node (could have been deleted)
             if (( n = client->nodebyhandle(it->second->nodehandle)))
             {
-                fapos = *(uint32_t*)( fadata + h + sizeof( handle ));
+                fapos = MemAccess::get<uint32_t>( fadata + h + sizeof( handle ));
                 falen = (( h + sizeof( handle ) + sizeof( uint32_t ) < bod )
-                         ? *(uint32_t*)( fadata + h + 2 * sizeof( handle ) + sizeof( uint32_t ))
+                         ? MemAccess::get<uint32_t>( fadata + h + 2 * sizeof( handle ) + sizeof( uint32_t ))
                          : data->size()) - fapos;
 
                 if (!( falen & ( SymmCipher::BLOCKSIZE - 1 )))

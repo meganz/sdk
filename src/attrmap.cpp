@@ -88,7 +88,7 @@ const char* AttrMap::unserialize(const char* ptr, unsigned len)
             id = ( id << 8 ) + (unsigned char)*ptr++;
         }
 
-        ll = *(short*)ptr;
+        ll = MemAccess::get<short>(ptr);
         ptr += sizeof ll;
         map[id].assign(ptr, ll);
         ptr += ll;

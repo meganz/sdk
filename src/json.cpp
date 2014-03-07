@@ -234,7 +234,7 @@ handle JSON::gethandle(int size)
     // no endianness issues
     if (storebinary(buf, sizeof buf) == size)
     {
-        return *(handle*)buf;
+        return MemAccess::get<handle>((const char*)buf);
     }
 
     return UNDEF;
