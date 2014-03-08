@@ -2,7 +2,7 @@
  * @file posix/wait.cpp
  * @brief POSIX event/timeout handling
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -84,7 +84,7 @@ int PosixWaiter::select()
         tv.tv_usec = us - tv.tv_sec * 1000000;
     }
 
-    return ::select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
+    return select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 }
 
 // wait for supplied events (sockets, filesystem changes), plus timeout +

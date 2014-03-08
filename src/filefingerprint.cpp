@@ -2,7 +2,7 @@
  * @file filefingerprint.cpp
  * @brief Sparse file fingerprint
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -102,8 +102,8 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
         for (unsigned i = 0; i < sizeof crc / sizeof *crc; i++)
         {
-            int begin = i * size / ( sizeof crc / sizeof *crc );
-            int end = ( i + 1 ) * size / ( sizeof crc / sizeof *crc );
+            int begin = i * size / (sizeof crc / sizeof *crc);
+            int end = (i + 1) * size / (sizeof crc / sizeof *crc);
 
             crc32.add(buf + begin, end - begin);
             crc32.get((byte*)&crcval);
@@ -115,16 +115,16 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         // large file: sparse coverage, four sparse CRC32s
         HashCRC32 crc32;
         byte block[4 * sizeof crc];
-        const unsigned blocks = MAXFULL / ( sizeof block * sizeof crc / sizeof *crc );
+        const unsigned blocks = MAXFULL / (sizeof block * sizeof crc / sizeof *crc);
 
         for (unsigned i = 0; i < sizeof crc / sizeof *crc; i++)
         {
             for (unsigned j = 0; j < blocks; j++)
             {
                 if (!fa->frawread(block, sizeof block,
-                                  ( size - sizeof block )
-                                  * ( i * blocks + j )
-                                  / ( sizeof crc / sizeof *crc * blocks - 1 )))
+                                  (size - sizeof block)
+                                  * (i * blocks + j)
+                                  / (sizeof crc / sizeof *crc * blocks - 1)))
                 {
                     size = -1;
                     return true;
@@ -162,7 +162,7 @@ void FileFingerprint::serializefingerprint(string* d)
     memcpy(buf, crc, sizeof crc);
     l = Serialize64::serialize(buf + sizeof crc, mtime);
 
-    d->resize(( sizeof crc + l ) * 4 / 3 + 4);
+    d->resize((sizeof crc + l) * 4 / 3 + 4);
     d->resize(Base64::btoa(buf, sizeof crc + l, (char*)d->c_str()));
 }
 
@@ -173,10 +173,11 @@ int FileFingerprint::unserializefingerprint(string* d)
     unsigned l;
     uint64_t t;
 
-    if (( l = Base64::atob(d->c_str(), buf, sizeof buf)) < sizeof crc + 1)
+    if ((l = Base64::atob(d->c_str(), buf, sizeof buf)) < sizeof crc + 1)
     {
         return 0;
     }
+
     if (Serialize64::unserialize(buf + sizeof crc, l - sizeof crc, &t) < 0)
     {
         return 0;
