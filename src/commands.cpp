@@ -63,7 +63,7 @@ void HttpReqCommandPutFA::procresult()
     {
         const char* p = NULL;
 
-        for (; ;)
+        for (;;)
         {
             switch (client->json.getnameid())
             {
@@ -119,7 +119,7 @@ void CommandGetFA::procresult()
 
     const char* p = NULL;
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -223,7 +223,7 @@ void CommandPutFile::procresult()
         return tslot->transfer->failed((error)client->json.getint());
     }
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -308,7 +308,7 @@ void CommandGetFile::procresult()
     string filenamestring;
     string filefingerprint;
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -385,7 +385,7 @@ void CommandGetFile::procresult()
 
                         json.begin((char*)buf + 5);
 
-                        for (; ;)
+                        for (;;)
                         {
                             switch (json.getnameid())
                             {
@@ -642,7 +642,7 @@ void CommandPutNodes::procresult()
 
     e = API_EINTERNAL;
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -799,7 +799,7 @@ void CommandLogin::procresult()
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0;
     handle me = UNDEF;
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -1009,7 +1009,7 @@ bool CommandSetShare::procuserresult(MegaClient* client)
         handle uh = UNDEF;
         const char* m = NULL;
 
-        for (; ;)
+        for (;;)
         {
             switch (client->json.getnameid())
             {
@@ -1048,7 +1048,7 @@ void CommandSetShare::procresult()
         return client->app->share_result((error)client->json.getint());
     }
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -1435,7 +1435,7 @@ void CommandPubKeyRequest::procresult()
         // FIXME: handle users without public key / unregistered users
     }
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -1543,7 +1543,7 @@ void CommandGetUserQuota::procresult()
 
     details->transfer_limit = 0;
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -1854,7 +1854,7 @@ void CommandGetPH::procresult()
     time_t ts = 0, tm = 0;
     string a, fa;
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {
@@ -1970,7 +1970,7 @@ void CommandResumeEphemeralSession::procresult()
         return client->app->ephemeral_result((error)client->json.getint());
     }
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {

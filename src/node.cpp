@@ -1013,7 +1013,7 @@ void LocalNode::getlocalsubpath(string* path)
 
     path->erase();
 
-    for (; ;)
+    for (;;)
     {
         path->insert(0, l->localname);
 
