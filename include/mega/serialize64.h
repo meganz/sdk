@@ -28,8 +28,8 @@ namespace mega {
 // 64-bit int serialization/unserialization
 struct MEGA_API Serialize64
 {
-    static int serialize(byte *, int64_t);
-    static int unserialize(byte*, int, int64_t*);
+    static int serialize(byte *, uint64_t);
+    static int unserialize(byte*, int, uint64_t*);
 };
 } // namespace
 

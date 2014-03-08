@@ -159,7 +159,7 @@ void FileFingerprint::serializefingerprint(string* d)
     byte buf[sizeof crc + 1 + sizeof mtime];
     int l;
 
-        memcpy(buf, crc, sizeof crc);
+    memcpy(buf, crc, sizeof crc);
     l = Serialize64::serialize(buf + sizeof crc, mtime);
 
     d->resize(( sizeof crc + l ) * 4 / 3 + 4);
@@ -171,7 +171,7 @@ int FileFingerprint::unserializefingerprint(string* d)
 {
     byte buf[sizeof crc + sizeof mtime + 1];
     unsigned l;
-    int64_t t;
+    uint64_t t;
 
     if (( l = Base64::atob(d->c_str(), buf, sizeof buf)) < sizeof crc + 1)
     {
@@ -182,9 +182,9 @@ int FileFingerprint::unserializefingerprint(string* d)
         return 0;
     }
 
-        memcpy(crc, buf, sizeof crc);
+    memcpy(crc, buf, sizeof crc);
 
-    mtime = t;
+    mtime = (time_t)t;
 
     isvalid = true;
 
@@ -197,18 +197,22 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     {
         return true;
     }
+
     if (a->size > b->size)
     {
         return false;
     }
+
     if (a->mtime < b->mtime)
     {
         return true;
     }
+
     if (a->mtime > b->mtime)
     {
         return false;
     }
+
     return memcmp(a->crc, b->crc, sizeof a->crc) < 0;
 }
 } // namespace
