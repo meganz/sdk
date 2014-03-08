@@ -84,7 +84,7 @@ int PosixWaiter::select()
         tv.tv_usec = us - tv.tv_sec * 1000000;
     }
 
-    return select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
+    return ::select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 }
 
 // wait for supplied events (sockets, filesystem changes), plus timeout +
