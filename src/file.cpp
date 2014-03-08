@@ -49,10 +49,12 @@ void File::prepare()
 }
 
 void File::start()
-{}
+{
+}
 
 void File::progress()
-{}
+{
+}
 
 void File::completed(Transfer* t, LocalNode* l)
 {
@@ -75,7 +77,7 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 
-        if (( newnode->localnode = l ))
+        if ((newnode->localnode = l))
         {
             newnode->syncid = l->syncid;
         }
@@ -113,6 +115,7 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 t->client->syncadding++;
             }
+
             t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,
