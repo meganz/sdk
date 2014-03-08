@@ -74,10 +74,13 @@ time_t FileTime_to_POSIX(FILETIME* ft)
     date.LowPart = ft->dwLowDateTime;
 
     // remove the diff between 1970 and 1601 and convert back from 100-nanoseconds to seconds
-    int64_t t = (date.QuadPart - 11644473600000 * 10000) / 10000000;
+    int64_t t = date.QuadPart - 11644473600000 * 10000;
 
     // clamp
-    if (t < 0) t = 0;
+    if (t < 0) return 0;
+    
+    t /= 10000000;
+    
     if (t > (uint32_t)-1) t = (uint32_t)-1;
 
     return t;

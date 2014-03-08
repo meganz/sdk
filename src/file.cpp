@@ -2,7 +2,7 @@
  * @file file.cpp
  * @brief Classes for transferring files
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -142,7 +142,7 @@ void File::displayname(string* dname)
     {
         Node* n;
 
-        if (( n = transfer->client->nodebyhandle(h)))
+        if ((n = transfer->client->nodebyhandle(h)))
         {
             *dname = n->displayname();
         }
@@ -186,7 +186,7 @@ void SyncFileGet::prepare()
         {
             sync->tmpfa = sync->client->fsaccess->newfileaccess();
 
-            for (i = 3; i--; )
+            for (i = 3; i--;)
             {
                 transfer->localfilename = sync->localdebris;
                 sync->client->fsaccess->mkdirlocal(&transfer->localfilename, true);
@@ -253,7 +253,7 @@ void SyncFileGet::updatelocalname()
 {
     attr_map::iterator ait;
 
-    if (( ait = n->attrs.map.find('n')) != n->attrs.map.end())
+    if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
     {
         if (n->parent && n->parent->localnode)
         {
