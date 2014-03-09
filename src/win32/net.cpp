@@ -133,6 +133,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 }
 
                 req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
+                httpio->success = true;
                 httpio->httpevent();
             }
             else
