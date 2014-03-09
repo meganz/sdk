@@ -225,7 +225,6 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_FAILURE:
-cout << "REQ_FAILURE" << endl;
                     if (reqs[i]->httpstatus == 509)
                     {
                         client->app->transfer_limit(transfer);
@@ -236,7 +235,6 @@ cout << "REQ_FAILURE" << endl;
                     else
                     {
                         errorcount++;
-cout << "errorcount=" << errorcount << endl;
                         reqs[i]->status = REQ_PREPARED;
                     }
 
