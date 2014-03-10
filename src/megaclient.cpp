@@ -5546,6 +5546,14 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         }
     } while ((n = n->parent));
 
+    if (rootpath->size() >= fsaccess->localseparator.size()
+        && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
+                   fsaccess->localseparator.data(),
+                   fsaccess->localseparator.size()))
+    {
+        rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
+    }
+    
     FileAccess* fa = fsaccess->newfileaccess();
     error e;
 
