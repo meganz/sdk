@@ -2,7 +2,7 @@
  * @file examples/megasync.cpp
  * @brief sample daemon, which synchronizes local and remote folders
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
