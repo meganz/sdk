@@ -2,7 +2,7 @@
 # @file Makefile.win32
 # @brief compilation rules to build Mega SDK dll and apps on MinGW
 #
-# (c) 2013 by Mega Limited, Wellsford, New Zealand
+# (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
 #
 # This file is part of the MEGA SDK - Client Access Engine.
 #
@@ -45,7 +45,7 @@ CXX=g++
 CC=gcc
 
 # common compilation flags for all apps
-CXXFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -isystem ../cryptopp -isystem ../db/build_windows -Idb  -isystem .. -isystem ../sqlite3 
+CXXFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -isystem ../cryptopp -isystem ../db/build_windows -Idb  -isystem .. -isystem ../sqlite3
 # megacli specific compilation flags
 
 MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
@@ -53,7 +53,7 @@ MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
 # common linked libraries for all apps
 LIB=-lwinhttp -lws2_32 -L../cryptopp -lcryptopp -L../db/build_windows -L../
 # megacli specific linked libraries
-MEGACLI_LIB=-L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap 
+MEGACLI_LIB=-L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap
 
 LDFLAGS=
 
@@ -112,7 +112,7 @@ megacli: $(MEGACLI_OBJ)
 	$(CXX) $(LDFLAGS) $^ -o $@ $(MEGACLI_LIB) -L. -lmega
 
 megasync:  $(MEGASYNC_OBJ)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@ $(LIB) -L. -lmega 
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@ $(LIB) -L. -lmega
 
 $(SQLITE_SRC):
 	$(CC) -c $< -o $@

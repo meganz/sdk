@@ -1,7 +1,7 @@
 """
  Application for testing syncing algorithm
 
- (c) 2013 by Mega Limited, Wellsford, New Zealand
+ (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
 
  This file is part of the MEGA SDK - Client Access Engine.
 
@@ -37,10 +37,10 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
 
         self.local_mount_in = os.path.join(work_dir, "sync_in")
         self.local_mount_out = os.path.join(work_dir, "sync_out")
-        
+
         self.work_dir = os.path.join(work_dir, "tmp")
         self.remote_folder = remote_folder
-        
+
         # init base class
         sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, self.work_dir)
 
