@@ -214,7 +214,7 @@ else
      CRYPTO_LDFLAGS="-L$with_cryptopp/lib",
      AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
      )
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
             AC_MSG_ERROR([Could not find libcryptopp])
     ])
 fi
@@ -231,7 +231,7 @@ fi
     AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
         AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
     ])
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
+    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
             AC_MSG_ERROR([Could not find libcryptopp])
     ])
   ])
