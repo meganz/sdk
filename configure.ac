@@ -402,7 +402,27 @@ fi
 #
 if test "x$WIN32" = "xno" ; then
     # check for cURL configuration script
-    AC_CHECK_PROG(curl_config_prog, curl-config, yes, no)
+    AC_ARG_WITH([curl-conf],
+      [  --with-curl-conf=PATH       path to curl-config script],
+      [
+       case $with_curl_conf in
+       no)
+         AC_MSG_ERROR([Please specify path to curl-config script!])
+         ;;
+       yes)
+        curl_config_path=$PATH
+         ;;
+       *)
+        curl_config_path=$with_curl_conf
+     ;;
+       esac
+      ],
+      [
+        curl_config_path=$PATH
+      ]
+    )
+
+    AC_CHECK_PROG(curl_config_prog, curl-config, yes, no, [$curl_config_path])
     if test "x$curl_config_prog" != "xyes" ; then
         AC_MSG_ERROR([Unable to find libcurl configuration program curl-config in the path.])
     fi
