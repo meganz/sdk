@@ -64,6 +64,9 @@ AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
 AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
 	  [MEGA SDK micro version.])
 
+# FIXME
+AC_DEFINE(USE_FREEIMAGE,1,"FIXME")
+
 LT_CURRENT=mega_lt_current
 LT_REVISION=mega_lt_revision
 LT_AGE=mega_lt_age
