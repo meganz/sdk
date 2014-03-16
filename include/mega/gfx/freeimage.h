@@ -26,8 +26,6 @@
 #include <FreeImage.h>
 
 namespace mega {
-using namespace std;
-
 // bitmap graphics processor
 class MEGA_API GfxProcFreeImage : public GfxProc
 {

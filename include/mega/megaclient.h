@@ -207,6 +207,9 @@ private:
     HttpReq* pendingsc;
     BackoffTimer btsc;
 
+    // badhost report
+    HttpReq* badhostcs;
+
     // root URL for API requestrs
     static const char* const APIURL;
 
@@ -522,7 +525,8 @@ public:
     void faf_failed(int);
 
     // transfer chunk failed
-    void setchunkfailed();
+    void setchunkfailed(string*);
+    string badhosts;
     
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0);

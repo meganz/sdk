@@ -415,6 +415,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     currsyncid = 0;
     reqtag = 0;
 
+    badhostcs = NULL;
+
     scsn[sizeof scsn - 1] = 0;
 
     snprintf(appkey, sizeof appkey, "&ak=%s", k);
@@ -818,6 +820,16 @@ void MegaClient::exec()
             break;
         }
 
+        if (badhostcs)
+        {
+            if (badhostcs->status == REQ_FAILURE || badhostcs->status == REQ_SUCCESS)
+            {
+                delete badhostcs->out;
+                delete badhostcs;
+                badhostcs = NULL;
+            }
+        }
+
         // fill transfer slots from the queue
         dispatchmore(PUT);
         dispatchmore(GET);
@@ -1175,9 +1187,19 @@ void MegaClient::exec()
                 }
             }
         }
-    }
+    } while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
 
-    while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
+    if (!badhostcs && badhosts.size())
+    {
+        // report hosts affected by failed requests
+        badhostcs = new HttpReq();
+        badhostcs->posturl = APIURL;
+        badhostcs->posturl.append("pf?h");
+        badhostcs->out = new string(badhosts);
+        badhostcs->type = REQ_JSON;
+        badhostcs->post(this);
+        badhosts.clear();
+    }
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -5598,15 +5620,29 @@ void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
     syncdebrisadding = false;
 }
 
-// a chunk transfer request failed
-void MegaClient::setchunkfailed()
+// a chunk transfer request failed: record failed protocol & host
+void MegaClient::setchunkfailed(string* url)
 {
-    if (!chunkfailed)
+    if (!chunkfailed && url->size() > 19)
     {
         chunkfailed = true;
         httpio->success = false;
 
-        // FIXME: perform dummy API request
+        // record protocol and hostname
+        if (badhosts.size())
+        {
+            badhosts.append(",");
+        }
+
+        const char* ptr = url->c_str()+4;
+
+        if (*ptr == 's')
+        {
+            badhosts.append("S");
+            ptr++;
+        }
+        
+        badhosts.append(ptr+6,7);
     }
 }
 
