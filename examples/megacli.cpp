@@ -27,8 +27,6 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#include <FreeImage.h>
-
 using namespace mega;
 
 MegaClient* client;
@@ -47,146 +45,6 @@ static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[S
 
 // local console
 Console* console;
-
-// check if this is a supported image format by filename (reduces likelihood of FreeImage getting confused and crashing)
-static bool supportedimageformatextension(string* name)
-{
-    size_t p = name->find_last_of('.');
-
-    if (!(p + 1))
-    {
-        return false;
-    }
-
-    char* ptr =
-            strstr((char*) ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm.jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari.arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw.nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga.xbm.xpm.jp2.j2k.jpf.jpx.",
-                   name->c_str() + p);
-
-    if (!ptr)
-    {
-        return false;
-    }
-
-    return ptr[name->size() - p] == '.';
-}
-
-// attempt to create a size*size JPEG thumbnail using FreeImage
-// thumbnail specs:
-// - largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
-// - must respect JPEG EXIF rotation tag
-// - must save at 85% quality (120*120 pixel result: ~4 KB)
-// returns result as string
-#ifdef _WIN32
-#define FreeImage_GetFileTypeX FreeImage_GetFileTypeU
-#define FreeImage_LoadX FreeImage_LoadU
-typedef const wchar_t freeimage_filename_char_t;
-#else
-#define FreeImage_GetFileTypeX FreeImage_GetFileType
-#define FreeImage_LoadX FreeImage_Load
-typedef const char freeimage_filename_char_t;
-#endif
-
-static void createthumbnail(string* filename, unsigned size, string* result)
-{
-    FIBITMAP* dib;
-    FIBITMAP* tdib;
-    FIMEMORY* hmem;
-    int w, h;
-
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*) filename->data());
-
-    if (fif == FIF_UNKNOWN)
-    {
-        return;
-    }
-
-    if (fif == FIF_JPEG)
-    {
-        // load JPEG (scale & EXIF-rotate)
-        FITAG *tag;
-
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) filename->data(),
-                                    JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
-        {
-            return;
-        }
-
-        if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGWidth", &tag))
-        {
-            w = atoi((char*) FreeImage_GetTagValue(tag));
-        }
-        else
-        {
-            w = FreeImage_GetWidth(dib);
-        }
-
-        if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGHeight", &tag))
-        {
-            h = atoi((char*) FreeImage_GetTagValue(tag));
-        }
-        else
-        {
-            h = FreeImage_GetHeight(dib);
-        }
-    }
-    else
-    {
-        // load all other image types - for RAW formats, rely on embedded preview
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) filename->data(),
-                                    (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
-        {
-            return;
-        }
-
-        w = FreeImage_GetWidth(dib);
-        h = FreeImage_GetHeight(dib);
-    }
-
-    if (w >= 20 && w >= 20)
-    {
-        if (w < h)
-        {
-            h = h * size / w;
-            w = size;
-        }
-        else
-        {
-            w = w * size / h;
-            h = size;
-        }
-
-        if ((tdib = FreeImage_Rescale(dib, w, h, FILTER_BILINEAR)))
-        {
-            FreeImage_Unload(dib);
-
-            dib = tdib;
-
-            if ((tdib = FreeImage_Copy(dib, (w - size) / 2, (h - size) / 3, size + (w - size) / 2,
-                                       size + (h - size) / 3)))
-            {
-                FreeImage_Unload(dib);
-
-                dib = tdib;
-
-                if ((hmem = FreeImage_OpenMemory()))
-                {
-                    if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem, JPEG_BASELINE | JPEG_OPTIMIZE | 85))
-                    {
-                        BYTE* tdata;
-                        DWORD tlen;
-
-                        FreeImage_AcquireMemory(hmem, &tdata, &tlen);
-                        result->assign((char*) tdata, tlen);
-                    }
-
-                    FreeImage_CloseMemory(hmem);
-                }
-            }
-        }
-    }
-
-    FreeImage_Unload(dib);
-}
 
 static const char* accesslevels[] =
 { "read-only", "read/write", "full access" };
@@ -367,34 +225,6 @@ void DemoApp::transfer_prepare(Transfer* t)
         if (!t->localfilename.size())
         {
             client->fsaccess->tmpnamelocal(&t->localfilename);
-        }
-    }
-    else
-    {
-        if (t->localfilename.size())
-        {
-            if (!t->uploadhandle)
-            {
-                if (supportedimageformatextension(&t->files.front()->name))
-                {
-                    string thumbnail;
-
-                    // (thumbnail creation should actually be performed in subthreads to keep the app nonblocking)
-                    // to guard against file overwrite race conditions, production applications
-                    // should use the same file handle for uploading and creating the thumbnail
-                    createthumbnail(&t->localfilename, 120, &thumbnail);
-
-                    if (thumbnail.size())
-                    {
-                        cout << "Image detected and thumbnail extracted, size " << thumbnail.size() << " bytes" << endl;
-
-                        // (store the file attribute data - it will be attached to the file
-                        // immediately if the upload has already completed; otherwise, once
-                        // the upload completes)
-                        client->putfa(t, THUMBNAIL120X120, (const byte*) thumbnail.data(), thumbnail.size());
-                    }
-                }
-            }
         }
     }
 }
@@ -862,8 +692,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     Node* nn;
 
     // split path by / or :
-    do
-    {
+    do {
         if (!l)
         {
             if (*ptr >= 0)
@@ -946,6 +775,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 *user = c[0];
             }
+
             return NULL;
         }
 
@@ -3628,6 +3458,11 @@ int main()
                             new HTTPIO_CLASS, new FSACCESS_CLASS,
 #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS,
+#else
+                            NULL,
+#endif
+#ifdef GFX_CLASS
+                            new GFX_CLASS,
 #else
                             NULL,
 #endif

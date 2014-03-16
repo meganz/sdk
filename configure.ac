@@ -72,7 +72,6 @@ AC_SUBST(LT_CURRENT)
 AC_SUBST(LT_REVISION)
 AC_SUBST(LT_AGE)
 
-
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 AC_TYPE_UINT8_T
@@ -162,9 +161,9 @@ SAVE_LDFLAGS=$LDFLAGS
 SAVE_CXXFLAGS=$CXXFLAGS
 SAVE_CPPFLAGS=$CPPFLAGS
 
-#libcrypto++
-CRYPTO_LIBS="-lcrypto++"
-AC_MSG_CHECKING(for libcrypto++)
+#libcryptopp
+CRYPTO_LIBS="-lcryptopp"
+AC_MSG_CHECKING(for libcryptopp)
 cryptopp=false
 AC_ARG_WITH(cryptopp,
   [  --with-cryptopp=PATH       base of libcrypto installation],
@@ -177,8 +176,8 @@ AC_ARG_WITH(cryptopp,
     AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
         AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
     ])
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
-            AC_MSG_ERROR([Could not find libcrypto++])
+    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
+            AC_MSG_ERROR([Could not find libcryptopp])
     ])
     cryptopp=true
      ;;
@@ -214,8 +213,8 @@ else
      CRYPTO_LDFLAGS="-L$with_cryptopp/lib",
      AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
      )
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
-            AC_MSG_ERROR([Could not find libcrypto++])
+    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
+            AC_MSG_ERROR([Could not find libcryptopp])
     ])
 fi
     cryptopp=true
@@ -231,15 +230,15 @@ fi
     AC_CHECK_HEADERS([cryptopp/cryptlib.h],, [
         AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
     ])
-    AC_CHECK_LIB(crypto++, [main], [CRYPTO_LIBS="-lcrypto++"],[
-            AC_MSG_ERROR([Could not find libcrypto++])
+    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
+            AC_MSG_ERROR([Could not find libcryptopp])
     ])
   ])
 AC_SUBST(CRYPTO_CXXFLAGS)
 AC_SUBST(CRYPTO_CPPFLAGS)
 AC_SUBST(CRYPTO_LDFLAGS)
 AC_SUBST(CRYPTO_LIBS)
-AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcrypto++])
+AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
 
 #
 # ** DB layer **
@@ -402,7 +401,27 @@ fi
 #
 if test "x$WIN32" = "xno" ; then
     # check for cURL configuration script
-    AC_CHECK_PROG(curl_config_prog, curl-config, yes, no)
+    AC_ARG_WITH([curl-conf],
+      [  --with-curl-conf=PATH       path to curl-config script],
+      [
+       case $with_curl_conf in
+       no)
+         AC_MSG_ERROR([Please specify path to curl-config script!])
+         ;;
+       yes)
+        curl_config_path=$PATH
+         ;;
+       *)
+        curl_config_path=$with_curl_conf
+     ;;
+       esac
+      ],
+      [
+        curl_config_path=$PATH
+      ]
+    )
+
+    AC_CHECK_PROG(curl_config_prog, curl-config, yes, no, [$curl_config_path])
     if test "x$curl_config_prog" != "xyes" ; then
         AC_MSG_ERROR([Unable to find libcurl configuration program curl-config in the path.])
     fi
@@ -522,6 +541,7 @@ fi
       AC_SUBST(FI_LIBS)
       AC_SUBST(FI_CXXFLAGS)
       AC_SUBST(FI_CPPFLAGS)
+      AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
 
       # ReadLine
     AC_MSG_CHECKING(for Readline)

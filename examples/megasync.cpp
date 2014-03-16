@@ -589,6 +589,7 @@ int main(int argc, char *argv[])
 //#else
         NULL,
 //#endif
+        NULL,
         "megasync", "megaclisync");
 
     // get values from env
