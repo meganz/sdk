@@ -20,7 +20,7 @@
  */
 
 #include "mega.h"
-#include "gfx.h"
+#include "mega/gfx.h"
 
 namespace mega {
 const int GfxProc::dimensions[][2] = {
