@@ -85,6 +85,8 @@ COMMON_SRC=\
 		src/waiter.cpp  \
 		src/megaclient.cpp  \
 		src/crypto/cryptopp.cpp \
+		src/gfx.cpp \
+		src/gfx/freeimage.cpp \
 		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/waiter.cpp src/win32/consolewaiter.cpp \
 		src/db/sqlite.cpp
 
