@@ -825,6 +825,7 @@ void MegaClient::exec()
 
         if (badhostcs)
         {
+cout << "badhostcs ACTIVE, status == " << badhostcs->status << endl;
             if (badhostcs->status == REQ_FAILURE || badhostcs->status == REQ_SUCCESS)
             {
                 delete badhostcs->out;
