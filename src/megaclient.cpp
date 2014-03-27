@@ -2157,7 +2157,7 @@ void MegaClient::sc_updatenode()
                         if (a)
                         {
                             Node::copystring(&n->attrstring, a);
-                            n->changed.fileattrstring = true;
+                            n->changed.attrs = true;
                         }
 
                         if (tm + 1)
