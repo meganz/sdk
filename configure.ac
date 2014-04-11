@@ -288,7 +288,6 @@ AC_ARG_WITH(sqlite,
         )
     fi
 
-
     sqlite=true
 
     #restore
