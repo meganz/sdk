@@ -184,14 +184,14 @@ AC_ARG_WITH(cryptopp,
    *)
 
     # set temp variables
-    LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp $LDFLAGS -pthread"
+    LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp/cryptopp $LDFLAGS -pthread"
     CXXFLAGS="-I$with_cryptopp/include -I$with_cryptopp $CXXFLAGS"
     CPPFLAGS="-I$with_cryptopp/include -I$with_cryptopp $CPPFLAGS"
 
     AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-     EXT_LIB_PATH="-L$with_cryptopp/lib -L$with_cryptopp $EXT_LIB_PATH"
+     EXT_LIB_PATH="-L$with_cryptopp/lib -L$with_cryptopp/cryptopp $EXT_LIB_PATH"
      CRYPTO_CXXFLAGS="-L$with_cryptopp/include -L$with_cryptopp"
-     CRYPTO_CPPFLAGS="-L$with_cryptopp/include -L$with_cryptopp"
+     CRYPTO_CPPFLAGS="-L$with_cryptopp/include -L$with_cryptopp/cryptopp"
      CRYPTO_LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp",
      AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
      )
