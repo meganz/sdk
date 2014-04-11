@@ -184,7 +184,7 @@ AC_ARG_WITH(cryptopp,
    *)
 
     # set temp variables
-    LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp/cryptopp $LDFLAGS -pthread"
+    LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp/cryptopp $LDFLAGS"
     CXXFLAGS="-I$with_cryptopp/include -I$with_cryptopp $CXXFLAGS"
     CPPFLAGS="-I$with_cryptopp/include -I$with_cryptopp $CPPFLAGS"
 
