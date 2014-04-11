@@ -190,8 +190,8 @@ AC_ARG_WITH(cryptopp,
 
     AC_CHECK_HEADERS(cryptopp/cryptlib.h,
      EXT_LIB_PATH="-L$with_cryptopp/lib -L$with_cryptopp/cryptopp $EXT_LIB_PATH"
-     CRYPTO_CXXFLAGS="-L$with_cryptopp/include -L$with_cryptopp"
-     CRYPTO_CPPFLAGS="-L$with_cryptopp/include -L$with_cryptopp/cryptopp"
+     CRYPTO_CXXFLAGS="-I$with_cryptopp/include -I$with_cryptopp"
+     CRYPTO_CPPFLAGS="-I$with_cryptopp/include -I$with_cryptopp/cryptopp"
      CRYPTO_LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp",
      AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
      )
@@ -255,7 +255,7 @@ AC_ARG_WITH(sqlite,
      EXT_LIB_PATH="-L$with_sqlite/lib -L$with_sqlite $EXT_LIB_PATH"
      DB_LDFLAGS="-L$with_sqlite/lib -L$with_sqlite"
      DB_CXXFLAGS="-I$with_sqlite/include -I$with_sqlite"
-     DB_CXXFLAGS="-I$with_sqlite/include -I$with_sqlite"],
+     DB_CPPFLAGS="-I$with_sqlite/include -I$with_sqlite"],
      AC_MSG_ERROR([sqlite3.h header not found or not usable])
      )
 
