@@ -392,44 +392,71 @@ fi
 # ** Posix dependent libraries **
 #
 if test "x$WIN32" = "xno" ; then
-    # check for cURL configuration script
-    AC_ARG_WITH([curl-conf],
-      [  --with-curl-conf=PATH       path to curl-config script],
+    # check for cURL library
+    AC_MSG_CHECKING(for cURL)
+    AC_ARG_WITH([curl],
+      [  --with-curl=PATH       path to curl],
       [
-       case $with_curl_conf in
+       case $with_curl in
        no)
-         AC_MSG_ERROR([Please specify path to curl-config script!])
+         AC_MSG_ERROR([Please specify path to curl!])
          ;;
        yes)
-        curl_config_path=$PATH
+            AC_CHECK_HEADERS([curl/curl.h],, [
+                AC_MSG_ERROR([curl.h header not found or not usable])
+            ])
+            AC_CHECK_LIB(curl, [main], [DB_LIBS="-lcurl"],[
+                    AC_MSG_ERROR([Could not find libcurl!])
+            ])
+
+            AC_MSG_CHECKING(for Curl compiled with c-ares support)
+            adns=`curl-config --features | grep AsynchDNS`
+            if test "x$adns" != "xAsynchDNS" ; then
+                AC_MSG_RESULT([no])
+                AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
+            fi
+            AC_MSG_RESULT([yes])
          ;;
        *)
-        curl_config_path=$with_curl_conf
+
+        # determine if library is installed
+        LDFLAGS="-L$with_curl/lib $LDFLAGS"
+        CXXFLAGS="-I$with_curl/include $CXXFLAGS"
+
+        AC_CHECK_HEADERS([curl/curl.h],[
+         LIBCURL_LIBS="-L$with_curl/lib"
+         LIBCURL_FLAGS="-I$with_curl/include"],
+         AC_MSG_ERROR([curl.h header not found or not usable])
+        )
+
+        AC_CHECK_LIB(curl, [main], [DB_LIBS="-lcurl"],[
+            AC_MSG_ERROR([Could not find libcurl!])
+        ])
+
+        AC_SUBST(LIBCURL_FLAGS)
+        AC_SUBST(LIBCURL_LIBS)
+
+        # XXX: check for c-ares support !
      ;;
        esac
       ],
       [
-        curl_config_path=$PATH
+        AC_CHECK_HEADERS([curl/curl.h],, [
+            AC_MSG_ERROR([curl.h header not found or not usable])
+        ])
+        AC_CHECK_LIB(curl, [main], [DB_LIBS="-lcurl"],[
+                AC_MSG_ERROR([Could not find libcurl!])
+        ])
+
+        AC_MSG_CHECKING(for Curl compiled with c-ares support)
+        adns=`curl-config --features | grep AsynchDNS`
+        if test "x$adns" != "xAsynchDNS" ; then
+            AC_MSG_RESULT([no])
+            AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
+        fi
+        AC_MSG_RESULT([yes])
       ]
     )
-
-    AC_CHECK_PROG(curl_config_prog, curl-config, yes, no, [$curl_config_path])
-    if test "x$curl_config_prog" != "xyes" ; then
-        AC_MSG_ERROR([Unable to find libcurl configuration program curl-config in the path.])
-    fi
-    LIBCURL_FLAGS=`curl-config --cflags`
-    LIBCURL_LIBS=`curl-config --libs`
-
-    AC_SUBST(LIBCURL_FLAGS)
-    AC_SUBST(LIBCURL_LIBS)
-
-    AC_MSG_CHECKING(for Curl compiled with c-ares support)
-    adns=`curl-config --features | grep AsynchDNS`
-    if test "x$adns" != "xAsynchDNS" ; then
-        AC_MSG_RESULT([no])
-        AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
-    fi
-    AC_MSG_RESULT([yes])
 fi
 
 # determine platform include path
