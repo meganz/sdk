@@ -771,6 +771,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
         parent->treestate();
     }
+
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still
@@ -783,13 +784,14 @@ void LocalNode::bumpnagleds()
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* clocalpath, string* cfullpath)
 {
-    sync = csync;
-    parent = NULL;
-    node = NULL;
-    notseen = 0;
-    deleted = false;
-    syncxfer = true;
-    newnode = NULL;
+    sync        = csync;
+    parent      = NULL;
+    node        = NULL;
+    notseen     = 0;
+    deleted     = false;
+    syncxfer    = true;
+    newnode     = NULL;
+    parent_dbid = 0;
 
     ts = TREESTATE_NONE;
     dts = TREESTATE_NONE;
@@ -827,6 +829,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
 {
+
     if (newts != TREESTATE_NONE)
     {
         ts = newts;
@@ -858,6 +861,7 @@ void LocalNode::treestate(treestate_t newts)
 
         parent->treestate();
     }
+
 }
 
 void LocalNode::setnode(Node* cnode)
@@ -871,7 +875,9 @@ void LocalNode::setnode(Node* cnode)
     deleted = false;
 
     node = cnode;
-    node->localnode = this;
+    if( node ) {
+        node->localnode = this;
+    }
 }
 
 void LocalNode::setnotseen(int newnotseen)
@@ -922,10 +928,16 @@ void LocalNode::setfsid(handle newfsid)
         fsid_it->second->fsid_it = sync->client->fsidnode.end();
         fsid_it->second = this;
     }
+
 }
 
 LocalNode::~LocalNode()
 {
+
+    if( SYNC_ACTIVE == sync->state || SYNC_INITIALSCAN == sync->state ) {
+        sync->addToDeleteQueue( this );
+    }
+
     setnotseen(0);
 
     if (newnode)
@@ -1078,4 +1090,166 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 
     File::completed(t, this);
 }
+
+bool LocalNode::serialize( string* sr ) {
+
+    m_off_t sType = type ? -type : size;
+    m_off_t sSize = size;
+    int32_t pdbid = ( parent ? parent->dbid : 0 );
+
+    handle dummynode = 0;
+    string sFingerPrint;
+
+    unsigned short  sFingerPrintLength,
+                    sTs
+    ;
+    unsigned int    localNameLength,
+                    nameLength
+    ;
+
+    switch( ts ) {
+        case TREESTATE_NONE     : sTs = 0; break;
+        case TREESTATE_PENDING  : sTs = 1; break;
+        case TREESTATE_SYNCED   : sTs = 2; break;
+        case TREESTATE_SYNCING  : sTs = 3; break;
+    }
+
+    sr->append( (char*)&sType,  sizeof(sType) );
+    sr->append( (char*)&sSize,  sizeof(sSize) );     // serializefingerprint does not serializes size
+    sr->append( (char*)&fsid,   sizeof(handle) );
+    sr->append( (char*)&sTs,     sizeof(sTs) );
+
+    if( node ) {
+        sr->append( (char*)&node->nodehandle, sizeof(handle) );
+    } else {
+        sr->append( (char*)&dummynode, sizeof(handle) );
+    }
+
+    // Used to restore LocalNode tree
+    sr->append( (char*)&pdbid, sizeof(int32_t) );
+
+    serializefingerprint( &sFingerPrint );
+    sFingerPrintLength = sFingerPrint.size() + 1;
+    sr->append( (char*)&sFingerPrintLength, sizeof(sFingerPrintLength) );
+    sr->append( sFingerPrint.c_str(), sFingerPrintLength );
+
+    localNameLength = localname.size() + 1;
+    sr->append( (char*)&localNameLength, sizeof(localNameLength) );
+    sr->append( localname.c_str(), localNameLength );
+
+    nameLength = name.size() + 1;
+    sr->append( (char*)&nameLength, sizeof(nameLength) );
+    sr->append( name.c_str(), nameLength );
+
+    return true;
+}
+
+LocalNode* LocalNode::unserialize( Sync* sync, string* sData) {
+
+    LocalNode*  lnode   = NULL;
+    const char* ptr     = sData->data();
+    const char* end     = ptr + sData->size();
+
+    m_off_t     usType;
+    handle      uNodeId;
+
+    unsigned short  uFingerPrintLength,
+                    uSts;
+
+    const char* uLocalName;
+    const char* uSerializedFingerprint;
+    const char* uName;
+
+    string gFingerPrint;
+
+    unsigned int    uLocalNameLength,
+                    uNameLength
+    ;
+
+    // +4 => at least 1 byte for fingerprint, name, fullpath and localName
+    if( ptr + ( 2 * sizeof(m_off_t) + sizeof(int32_t) + ( 2 * sizeof(handle) )
+                + 2 * sizeof(unsigned short) + 3 * sizeof(unsigned int) + 4 ) > end )  {
+        return NULL;
+    }
+
+    lnode = new LocalNode();
+
+    usType = MemAccess::get<m_off_t>(ptr);
+    ptr  += sizeof(usType);
+    if ( (usType < 0) && (usType >= -MAILNODE) ) {
+        lnode->type = (nodetype_t)-usType;
+    } else {
+        lnode->type = FILENODE;
+    }
+
+    lnode->size = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(lnode->size);
+
+    lnode->fsid = 0;
+    memcpy( (char*)&(lnode->fsid), ptr, sizeof(handle) );
+    ptr += sizeof(handle);
+
+    uSts = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(uSts);
+    switch( uSts ) {
+        case 0 : lnode->ts = TREESTATE_NONE;    break;
+        case 1 : lnode->ts = TREESTATE_PENDING; break;
+        case 2 : lnode->ts = TREESTATE_SYNCED;  break;
+        case 3 : lnode->ts = TREESTATE_SYNCING; break;
+        default: lnode->ts = TREESTATE_NONE;    break;
+    }
+
+    uNodeId = 0;
+    memcpy( (char*)&uNodeId, ptr, sizeof(handle) );
+    ptr += sizeof(handle);
+
+    lnode->parent_dbid = MemAccess::get<int32_t>(ptr);
+    ptr   += sizeof(int32_t);
+
+    uFingerPrintLength = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(uFingerPrintLength);
+    if ( ptr + uFingerPrintLength > end ) {
+        return NULL;
+    }
+    uSerializedFingerprint = ptr;
+    ptr += uFingerPrintLength;
+
+    uLocalNameLength = MemAccess::get<unsigned int>(ptr);
+    ptr += sizeof(uLocalNameLength);
+    if( ptr + uLocalNameLength > end ) {
+        return NULL;
+    }
+    uLocalName = ptr;
+    ptr += uLocalNameLength;
+
+    uNameLength = MemAccess::get<unsigned int>(ptr);
+    ptr += sizeof(uNameLength);
+    if( ptr + uNameLength > end ) {
+        return NULL;
+    }
+    uName = ptr;
+    ptr += uNameLength;
+
+    //Using assign for compatibility with UTF16 strings
+    lnode->localname.assign(uLocalName,  uLocalNameLength-1);
+
+    if( uNameLength > 1 ) {
+        lnode->name.assign(uName, uNameLength-1);
+    }
+
+    gFingerPrint.assign(uSerializedFingerprint, uFingerPrintLength-1);
+    if( uFingerPrintLength > 1 && 0 == lnode->unserializefingerprint( &gFingerPrint ) ) {
+        delete lnode;
+        return NULL;
+    }
+
+    // Restores node if existing
+    Node* nnode = NULL;
+    if( uNodeId )
+        nnode = sync->client->nodebyhandle( uNodeId );
+    lnode->node = nnode;
+
+    return lnode;
+}
+
 } // namespace
