@@ -258,9 +258,6 @@ AC_ARG_WITH(sqlite,
      DB_CXXFLAGS="-I$with_sqlite/include -I$with_sqlite"],
      AC_MSG_ERROR([sqlite3.h header not found or not usable])
      )
-    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
-            AC_MSG_ERROR([Could not find libsqlite3])
-    ])
 
     sqlite=true
 
