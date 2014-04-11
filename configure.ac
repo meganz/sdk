@@ -183,40 +183,22 @@ AC_ARG_WITH(cryptopp,
      ;;
    *)
 
-if test "x$WIN32" = "xyes" ; then
     # set temp variables
-    LDFLAGS="-L$with_cryptopp/cryptopp $LDFLAGS"
-    CXXFLAGS="-I$with_cryptopp $CXXFLAGS"
-    CPPFLAGS="-I$with_cryptopp $CPPFLAGS"
+    LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp $LDFLAGS -pthread"
+    CXXFLAGS="-I$with_cryptopp/include -I$with_cryptopp $CXXFLAGS"
+    CPPFLAGS="-I$with_cryptopp/include -I$with_cryptopp $CPPFLAGS"
 
     AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-     EXT_LIB_PATH="-L$with_cryptopp $EXT_LIB_PATH"
-     CRYPTO_CXXFLAGS="-I$with_cryptopp"
-     CRYPTO_CPPFLAGS="-I$with_cryptopp"
-     CRYPTO_LDFLAGS="-L$with_cryptopp/cryptopp",
-     AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
-     )
-    AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
-            AC_MSG_ERROR([Could not find cryptopp.lib])
-    ])
-
-else
-    # set temp variables
-    LDFLAGS="-L$with_cryptopp/lib $LDFLAGS -pthread"
-    CXXFLAGS="-I$with_cryptopp/include $CXXFLAGS"
-    CPPFLAGS="-I$with_cryptopp/include $CPPFLAGS"
-
-    AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-     EXT_LIB_PATH="-L$with_cryptopp/lib $EXT_LIB_PATH"
-     CRYPTO_CXXFLAGS="-L$with_cryptopp/include"
-     CRYPTO_CPPFLAGS="-L$with_cryptopp/include"
-     CRYPTO_LDFLAGS="-L$with_cryptopp/lib",
+     EXT_LIB_PATH="-L$with_cryptopp/lib -L$with_cryptopp $EXT_LIB_PATH"
+     CRYPTO_CXXFLAGS="-L$with_cryptopp/include -L$with_cryptopp"
+     CRYPTO_CPPFLAGS="-L$with_cryptopp/include -L$with_cryptopp"
+     CRYPTO_LDFLAGS="-L$with_cryptopp/lib -L$with_cryptopp",
      AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
      )
     AC_CHECK_LIB(cryptopp, [main], [CRYPTO_LIBS="-lcryptopp"],[
             AC_MSG_ERROR([Could not find libcryptopp])
     ])
-fi
+
     cryptopp=true
 
     #restore
@@ -265,37 +247,21 @@ AC_ARG_WITH(sqlite,
      ;;
    *)
 
-if test "x$WIN32" = "xyes" ; then
     # set temp variables
-    LDFLAGS="-L$with_sqlite $LDFLAGS"
-    CXXFLAGS="-I$with_sqlite $CXXFLAGS"
-    CPPFLAGS="-I$with_sqlite $CPPFLAGS"
-
-    AC_CHECK_HEADERS(sqlite3.h, [
-     EXT_LIB_PATH="-L$with_sqlite $EXT_LIB_PATH"
-     DB_LDFLAGS="-L$with_sqlite"
-     DB_CXXFLAGS="-I$with_sqlite"
-     DB_CPPFLAGS="-I$with_sqlite"],
-     AC_MSG_ERROR([sqlite3.h header not found or not usable])
-     )
-    SQLITE3_PATH=$with_sqlite
-    AC_SUBST(SQLITE3_PATH)
-else
-    # set temp variables
-    LDFLAGS="-L$with_sqlite/lib $LDFLAGS"
-    CXXFLAGS="-I$with_sqlite/include $CXXFLAGS"
+    LDFLAGS="-L$with_sqlite/lib -L$with_sqlite $LDFLAGS"
+    CXXFLAGS="-I$with_sqlite/include -I$with_sqlite $CXXFLAGS"
 
     AC_CHECK_HEADERS(sqlite3.h,[
-     EXT_LIB_PATH="-L$with_sqlite/lib $EXT_LIB_PATH"
-     DB_LDFLAGS="-L$with_sqlite/lib"
-     DB_CXXFLAGS="-I$with_sqlite/include"
-     DB_CXXFLAGS="-I$with_sqlite/include"],
+     EXT_LIB_PATH="-L$with_sqlite/lib -L$with_sqlite $EXT_LIB_PATH"
+     DB_LDFLAGS="-L$with_sqlite/lib -L$with_sqlite"
+     DB_CXXFLAGS="-I$with_sqlite/include -I$with_sqlite"
+     DB_CXXFLAGS="-I$with_sqlite/include -I$with_sqlite"],
      AC_MSG_ERROR([sqlite3.h header not found or not usable])
      )
     AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
             AC_MSG_ERROR([Could not find libsqlite3])
     ])
-fi
+
     sqlite=true
 
     #restore
@@ -467,82 +433,63 @@ AC_ARG_ENABLE([examples],
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
+# FreeImage
+AC_MSG_CHECKING(for FreeImage)
+AC_ARG_WITH(freeimage,
+  [  --with-freeimage=PATH       base of FreeImage installation],
+  [AC_MSG_RESULT($with_freeimage)
+   case $with_freeimage in
+   no)
+     ;;
+   yes)
+    AC_CHECK_HEADERS([FreeImage.h],, [
+        AC_MSG_ERROR([FreeImage.h header not found or not usable])
+    ])
+    AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
+        AC_MSG_ERROR([FreeImage library is required for the sample client.])])
+
+     ;;
+   *)
+
+    # set temp variables
+    LDFLAGS="-L$with_freeimage/lib -L$with_freeimage $LDFLAGS"
+    CXXFLAGS="-I$with_freeimage/include -I$with_freeimage $CXXFLAGS"
+    CPPFLAGS="-I$with_freeimage/include -I$with_freeimage $CPPFLAGS"
+
+    AC_CHECK_HEADERS([FreeImage.h],[
+     EXT_LIB_PATH="-L$with_freeimage/lib -L$with_freeimage $EXT_LIB_PATH"
+     FI_LDFLAGS="-L$with_freeimage/lib -L$with_freeimage"
+     FI_CXXFLAGS="-I$with_freeimage/include -I$with_freeimage"
+     FI_CPPFLAGS="-I$with_freeimage/include -I$with_freeimage"],
+     AC_MSG_ERROR([FreeImage.h header not found or not usable])
+     )
+
+    AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
+        AC_MSG_ERROR([FreeImage library is required for the sample client.])])
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-freeimage not specified])
+    AC_CHECK_HEADERS([FreeImage.h],, [
+        AC_MSG_ERROR([FreeImage.h header not found or not usable])
+    ])
+    AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
+        AC_MSG_ERROR([FreeImage library is required for the sample client.])])
+  ]
+  )
+  AC_SUBST(FI_LDFLAGS)
+  AC_SUBST(FI_LIBS)
+  AC_SUBST(FI_CXXFLAGS)
+  AC_SUBST(FI_CPPFLAGS)
+  AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
+
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then
-    # FreeImage
-    AC_MSG_CHECKING(for FreeImage)
-    AC_ARG_WITH(freeimage,
-      [  --with-freeimage=PATH       base of FreeImage installation],
-      [AC_MSG_RESULT($with_freeimage)
-       case $with_freeimage in
-       no)
-         ;;
-       yes)
-        AC_CHECK_HEADERS([FreeImage.h],, [
-            AC_MSG_ERROR([FreeImage.h header not found or not usable])
-        ])
-        AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
-            AC_MSG_ERROR([FreeImage library is required for the sample client.])])
-
-         ;;
-       *)
-
-if test "x$WIN32" = "xyes" ; then
-        # set temp variables
-        LDFLAGS="-L$with_freeimage/Dist $LDFLAGS"
-        LDADD="-L$with_freeimage/Dist $LDADD"
-        CXXFLAGS="-I$with_freeimage/Dist $CXXFLAGS"
-        CPPFLAGS="-I$with_freeimage/Dist $CPPFLAGS"
-
-        AC_CHECK_HEADERS([FreeImage.h], [
-         EXT_LIB_PATH="-L$with_freeimage/Dist $EXT_LIB_PATH"
-         FI_LDFLAGS="-L$with_freeimage/Dist"
-         FI_LDADD="-L$with_freeimage/Dist"
-         FI_CXXFLAGS="-I$with_freeimage/Dist"
-         FI_CPPFLAGS="-I$with_freeimage/Dist"
-         ], [
-         AC_MSG_ERROR([FreeImage.h header not found or not usable])
-        ])
-
-        FI_LIBS="-lfreeimage"
-else
-        # set temp variables
-        LDFLAGS="-L$with_freeimage/lib $LDFLAGS"
-        CXXFLAGS="-I$with_freeimage/include $CXXFLAGS"
-        CPPFLAGS="-I$with_freeimage/include $CPPFLAGS"
-
-        AC_CHECK_HEADERS([FreeImage.h],[
-         EXT_LIB_PATH="-L$with_freeimage/lib $EXT_LIB_PATH"
-         FI_LDFLAGS="-L$with_freeimage/lib"
-         FI_CXXFLAGS="-I$with_freeimage/include"
-         FI_CPPFLAGS="-I$with_freeimage/include"],
-         AC_MSG_ERROR([FreeImage.h header not found or not usable])
-         )
-
-        AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
-            AC_MSG_ERROR([FreeImage library is required for the sample client.])])
-fi
-        #restore
-        LDFLAGS=$SAVE_LDFLAGS
-        CXXFLAGS=$SAVE_CXXFLAGS
-        CPPFLAGS=$SAVE_CPPFLAGS
-        ;;
-       esac
-      ],
-      [AC_MSG_RESULT([--with-freeimage not specified])
-        AC_CHECK_HEADERS([FreeImage.h],, [
-            AC_MSG_ERROR([FreeImage.h header not found or not usable])
-        ])
-        AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
-            AC_MSG_ERROR([FreeImage library is required for the sample client.])])
-      ]
-      )
-      AC_SUBST(FI_LDFLAGS)
-      AC_SUBST(FI_LIBS)
-      AC_SUBST(FI_CXXFLAGS)
-      AC_SUBST(FI_CPPFLAGS)
-      AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
-
       # ReadLine
     AC_MSG_CHECKING(for Readline)
     AC_ARG_WITH(readline,
@@ -561,33 +508,18 @@ fi
          ;;
        *)
 
-if test "x$WIN32" = "xyes" ; then
         # set temp variables
-        LDFLAGS="-L$with_readline/readline $LDFLAGS"
-        CXXFLAGS="-I$with_readline $CXXFLAGS"
-        CPPFLAGS="-I$with_readline $CPPFLAGS"
-
+        LDFLAGS="-L$with_readline/lib -L$with_readline $LDFLAGS"
+        CXXFLAGS="-I$with_readline/include -I$with_readline $CXXFLAGS"
+        CPPFLAGS="-I$with_readline/include -I$with_readline $CPPFLAGS"
         AC_CHECK_HEADERS([readline/readline.h], [
-         EXT_LIB_PATH="-L$with_readline/readline $EXT_LIB_PATH"
-         RL_LDFLAGS="-L$with_readline/readline"
-         RL_CXXFLAGS="-I$with_readline"],
-         AC_MSG_ERROR([readline/readline.h header not found or not usable])
-        )
-        RL_LIBS="-lreadline"
-else
-        # set temp variables
-        LDFLAGS="-L$with_readline/lib $LDFLAGS"
-        CXXFLAGS="-I$with_readline/include $CXXFLAGS"
-        CPPFLAGS="-I$with_readline/include $CPPFLAGS"
-        AC_CHECK_HEADERS([readline/readline.h], [
-         EXT_LIB_PATH="-L$with_readline/lib $EXT_LIB_PATH"
-         RL_LDFLAGS="-L$with_readline/lib"
-         RL_CXXFLAGS="-I$with_readline/include"],
+         EXT_LIB_PATH="-L$with_readline/lib -L$with_readline $EXT_LIB_PATH"
+         RL_LDFLAGS="-L$with_readline/lib -L$with_readline"
+         RL_CXXFLAGS="-I$with_readline/include -I$with_readline"],
          AC_MSG_ERROR([readline/readline.h header not found or not usable])
          )
         AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
-fi
         #restore
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
