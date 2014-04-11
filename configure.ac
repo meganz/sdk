@@ -449,15 +449,15 @@ AC_ARG_WITH(freeimage,
    *)
 
     # set temp variables
-    LDFLAGS="-L$with_freeimage/lib -L$with_freeimage $LDFLAGS"
-    CXXFLAGS="-I$with_freeimage/include -I$with_freeimage $CXXFLAGS"
-    CPPFLAGS="-I$with_freeimage/include -I$with_freeimage $CPPFLAGS"
+    LDFLAGS="-L$with_freeimage/lib -L$with_freeimage/Dist $LDFLAGS"
+    CXXFLAGS="-I$with_freeimage/include -I$with_freeimage/Dist $CXXFLAGS"
+    CPPFLAGS="-I$with_freeimage/include -I$with_freeimage/Dist $CPPFLAGS"
 
     AC_CHECK_HEADERS([FreeImage.h],[
-     EXT_LIB_PATH="-L$with_freeimage/lib -L$with_freeimage $EXT_LIB_PATH"
-     FI_LDFLAGS="-L$with_freeimage/lib -L$with_freeimage"
-     FI_CXXFLAGS="-I$with_freeimage/include -I$with_freeimage"
-     FI_CPPFLAGS="-I$with_freeimage/include -I$with_freeimage"],
+     EXT_LIB_PATH="-L$with_freeimage/lib -L$with_freeimage/Dist $EXT_LIB_PATH"
+     FI_LDFLAGS="-L$with_freeimage/lib -L$with_freeimage/Dist"
+     FI_CXXFLAGS="-I$with_freeimage/include -I$with_freeimage/Dist"
+     FI_CPPFLAGS="-I$with_freeimage/include -I$with_freeimage/Dist"],
      AC_MSG_ERROR([FreeImage.h header not found or not usable])
      )
 
