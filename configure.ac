@@ -260,16 +260,34 @@ AC_ARG_WITH(sqlite,
      ;;
    *)
 
-    # set temp variables
-    LDFLAGS="-L$with_sqlite/lib -L$with_sqlite $LDFLAGS"
-    CXXFLAGS="-I$with_sqlite/include -I$with_sqlite $CXXFLAGS"
+    # determine if library is installed
+    if test -d "$with_sqlite/lib"; then
+        LDFLAGS="-L$with_sqlite/lib $LDFLAGS"
+        CXXFLAGS="-I$with_sqlite/include $CXXFLAGS"
 
-    AC_CHECK_HEADERS(sqlite3.h,[
-     DB_LDFLAGS="-L$with_sqlite/lib -L$with_sqlite"
-     DB_CXXFLAGS="-I$with_sqlite/include -I$with_sqlite"
-     DB_CPPFLAGS="-I$with_sqlite/include -I$with_sqlite"],
-     AC_MSG_ERROR([sqlite3.h header not found or not usable])
-     )
+        AC_CHECK_HEADERS(sqlite3.h,[
+         DB_LDFLAGS="-L$with_sqlite/lib"
+         DB_CXXFLAGS="-I$with_sqlite/include"
+         DB_CPPFLAGS="-I$with_sqlite/include"],
+         AC_MSG_ERROR([sqlite3.h header not found or not usable])
+        )
+
+        # use sqlite3 library
+        AC_CHECK_LIB(sqlite3, [main], [DB_LIBS="-lsqlite3"],[
+                AC_MSG_ERROR([Could not find libsqlite3])
+        ])
+    else
+        LDFLAGS="-L$with_sqlite $LDFLAGS"
+        CXXFLAGS="-I$with_sqlite $CXXFLAGS"
+
+        AC_CHECK_HEADERS(sqlite3.h,[
+         DB_LDFLAGS="-L$with_sqlite"
+         DB_CXXFLAGS="-I$with_sqlite"
+         DB_CPPFLAGS="-I$with_sqlite"],
+         AC_MSG_ERROR([sqlite3.h header not found or not usable])
+        )
+    fi
+
 
     sqlite=true
 
