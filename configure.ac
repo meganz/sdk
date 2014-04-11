@@ -201,9 +201,9 @@ AC_ARG_WITH(cryptopp,
         CPPFLAGS="-I$with_cryptopp $CPPFLAGS"
 
         AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-         CRYPTO_CXXFLAGS="-I$with_cryptopp"
+         CRYPTO_CXXFLAGS="-I$with_cryptopp/cryptopp"
          CRYPTO_CPPFLAGS="-I$with_cryptopp/cryptopp"
-         CRYPTO_LDFLAGS="-L$with_cryptopp",
+         CRYPTO_LDFLAGS="-L$with_cryptopp/cryptopp",
          AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
          )
     fi
@@ -567,6 +567,9 @@ if test "x$enable_examples" = "xyes" ; then
              AC_MSG_ERROR([readline/readline.h header not found or not usable])
             )
         fi
+
+        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+            AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
         LDFLAGS=$SAVE_LDFLAGS
