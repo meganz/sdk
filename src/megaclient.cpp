@@ -323,12 +323,12 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
 
 void MegaClient::init()
 {
-    warned = false;
-    csretrying = false;
-    fetchingnodes = false;
-    chunkfailed = false;
-
-    noinetds = 0;
+    warned          = false;
+    csretrying      = false;
+    fetchingnodes   = false;
+    chunkfailed     = false;
+    noinetds        = 0;
+    current_email   = "";
 
     if (syncscanstate)
     {
@@ -986,6 +986,8 @@ void MegaClient::exec()
                                     totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
                                 }
                             }
+
+
                         }
                     }
                 }
@@ -1012,6 +1014,7 @@ void MegaClient::exec()
                                 success = false;
                             }
                         }
+
                     }
 
                     if (!success)
@@ -1096,19 +1099,20 @@ void MegaClient::exec()
                 {
                     for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end();)
                     {
-                        if ((*it)->notseen > 1)
+                        LocalNode* nsNode = *it;
+                        if ( nsNode->notseen > 1 )
                         {
                             // missed for 2 rounds: delete remotely
-                            if ((*it)->type == FOLDERNODE)
+                            if ( nsNode->type == FOLDERNODE)
                             {
-                                app->syncupdate_local_folder_deletion((*it)->sync, (*it)->name.c_str());
+                                app->syncupdate_local_folder_deletion(nsNode->sync, nsNode->name.c_str());
                             }
                             else
                             {
-                                app->syncupdate_local_file_deletion((*it)->sync, (*it)->name.c_str());
+                                app->syncupdate_local_file_deletion(nsNode->sync, nsNode->name.c_str());
                             }
 
-                            delete *it;
+                            delete nsNode;
                             syncops = true;
 
                             // loop back from the beginning, as the deletion
@@ -1168,6 +1172,11 @@ void MegaClient::exec()
                             if ((*it)->state == SYNC_ACTIVE)
                             {
                                 syncup(&(*it)->localroot, &nds);
+
+                                //LocalNode->node could change in syncup
+                                //At least, this is required to save Localnode <-> Node
+                                //associations in the first execution.
+                                (*it)->cachenodes();
                             }
                         }
 
@@ -1614,6 +1623,7 @@ void MegaClient::disconnect()
     {
         it->second->req.disconnect();
     }
+
 }
 
 void MegaClient::logout()
@@ -1832,6 +1842,7 @@ void MegaClient::initsc()
 
         finalizesc(complete);
     }
+
 }
 
 // erase and and fill user's local state cache
@@ -1890,6 +1901,7 @@ void MegaClient::updatesc()
 
         finalizesc(complete);
     }
+
 }
 
 // commit or purge local state cache
@@ -1898,6 +1910,7 @@ void MegaClient::finalizesc(bool complete)
     if (complete)
     {
         sctable->commit();
+        Base64::atob(scsn, (byte*)&cachedscsn, sizeof cachedscsn);
     }
     else
     {
@@ -1909,6 +1922,7 @@ void MegaClient::finalizesc(bool complete)
         delete sctable;
         sctable = NULL;
     }
+
 }
 
 // notify the application of the request failure and remove records no longer needed
@@ -2561,9 +2575,15 @@ void MegaClient::notifypurge(void)
     int i, t;
     string localpath;
 
-    if (nodenotify.size() || usernotify.size())
+    handle tscsn = cachedscsn;
+    if(*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
+    if (nodenotify.size() || usernotify.size() || (cachedscsn != tscsn))
     {
         updatesc();
+
+        //LocalNode <-> Node associations could be changed.
+        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            (*it)->cachenodes();
     }
 
     if ((t = nodenotify.size()))
@@ -3271,6 +3291,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         nn[i].localnode->setnode(n);
                         nn[i].localnode->newnode = NULL;
                         nn[i].localnode->treestate(TREESTATE_SYNCED);
+                        // Updates cache with the new node associated
+                        nn[i].localnode->sync->addToInsertQueue( nn[i].localnode );
                     }
                 }
 
@@ -4372,6 +4394,8 @@ sessiontype_t MegaClient::loggedin()
         return EPHEMERALACCOUNT;
     }
 
+    current_email = u->email;
+
     if (!asymkey.isvalid())
     {
         return CONFIRMEDACCOUNT;
@@ -4789,6 +4813,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (!syncdown(ll, localpath, rubbish) && success)
                 {
                     success = false;
+                } else {
+                    // Updates cache entry with the new node
+                    ll->sync->addToInsertQueue( ll );
                 }
 
                 nchildren.erase(rit);
@@ -4928,6 +4955,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                                 if (!syncdown(ll, localpath, rubbish) && success)
                                 {
                                     success = false;
+                                } else {
+                                    ll->sync->addToInsertQueue( ll );
                                 }
                             }
                         }
@@ -5037,6 +5066,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         // same fingerprint, if available): no action needed
                         ll->setnode(rit->second);
                         ll->treestate(TREESTATE_SYNCED);
+                        ll->sync->addToInsertQueue( ll );
                         continue;
                     }
                 }
@@ -5117,6 +5147,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         l->treestate(TREESTATE_SYNCED);
     }
+
 }
 
 // execute updates stored in synccreate[]
@@ -5237,6 +5268,7 @@ void MegaClient::syncupdate()
     }
 
     synccreate.clear();
+
 }
 
 void MegaClient::putnodes_sync_result(error e, NewNode* nn)
