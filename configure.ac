@@ -256,6 +256,7 @@ AC_ARG_WITH(sqlite,
     AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
             AC_MSG_ERROR([Could not find libsqlite3])
     ])
+    AC_SUBST(DB_LIBS)
     sqlite=true
      ;;
    *)
@@ -276,6 +277,7 @@ AC_ARG_WITH(sqlite,
         AC_CHECK_LIB(sqlite3, [main], [DB_LIBS="-lsqlite3"],[
                 AC_MSG_ERROR([Could not find libsqlite3])
         ])
+        AC_SUBST(DB_LIBS)
     else
         LDFLAGS="-L$with_sqlite $LDFLAGS"
         CXXFLAGS="-I$with_sqlite $CXXFLAGS"
@@ -303,7 +305,6 @@ AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
 AC_SUBST(DB_CXXFLAGS)
 AC_SUBST(DB_CPPFLAGS)
 AC_SUBST(DB_LDFLAGS)
-AC_SUBST(DB_LIBS)
 
 # Berkeley DB
 db=false
@@ -323,6 +324,7 @@ AC_ARG_WITH(db,
     AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
             AC_MSG_ERROR([Could not find libdb_cxx])
     ])
+    AC_SUBST(DB_LIBS)
     db=true
      ;;
    *)
@@ -338,6 +340,7 @@ AC_ARG_WITH(db,
     AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
             AC_MSG_ERROR([Could not find libdb_cxx])
     ])
+    AC_SUBST(DB_LIBS)
     db=true
 
     #restore
@@ -351,7 +354,6 @@ AC_ARG_WITH(db,
 AM_CONDITIONAL(USE_DB, test "x$db = xtrue")
 AC_SUBST(DB_CXXFLAGS)
 AC_SUBST(DB_LDFLAGS)
-AC_SUBST(DB_LIBS)
 
 # check if both DB layers are selected
 if test "x$sqlite" = "xtrue" ; then
@@ -374,8 +376,6 @@ if test "x$sqlite" = "xfalse" ; then
         sqlite=true
 
         AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
-        AC_SUBST(DB_CXXFLAGS)
-        AC_SUBST(DB_LDFLAGS)
         AC_SUBST(DB_LIBS)
     fi
 fi
@@ -404,9 +404,11 @@ if test "x$WIN32" = "xno" ; then
             AC_CHECK_HEADERS([curl/curl.h],, [
                 AC_MSG_ERROR([curl.h header not found or not usable])
             ])
-            AC_CHECK_LIB(curl, [main], [DB_LIBS="-lcurl"],[
+            AC_CHECK_LIB(curl, [main], [LIBCURL_LIBS="-lcurl"],[
                     AC_MSG_ERROR([Could not find libcurl!])
             ])
+
+            AC_SUBST(LIBCURL_LIBS)
 
             AC_MSG_CHECKING(for Curl compiled with c-ares support)
             adns=`curl-config --features | grep AsynchDNS`
@@ -428,7 +430,7 @@ if test "x$WIN32" = "xno" ; then
          AC_MSG_ERROR([curl.h header not found or not usable])
         )
 
-        AC_CHECK_LIB(curl, [main], [DB_LIBS="-lcurl"],[
+        AC_CHECK_LIB(curl, [main], [LIBCURL_LIBS="-lcurl"],[
             AC_MSG_ERROR([Could not find libcurl!])
         ])
 
@@ -443,9 +445,11 @@ if test "x$WIN32" = "xno" ; then
         AC_CHECK_HEADERS([curl/curl.h],, [
             AC_MSG_ERROR([curl.h header not found or not usable])
         ])
-        AC_CHECK_LIB(curl, [main], [DB_LIBS="-lcurl"],[
+        AC_CHECK_LIB(curl, [main], [LIBCURL_LIBS="-lcurl"],[
                 AC_MSG_ERROR([Could not find libcurl!])
         ])
+
+        AC_SUBST(LIBCURL_LIBS)
 
         AC_MSG_CHECKING(for Curl compiled with c-ares support)
         adns=`curl-config --features | grep AsynchDNS`
