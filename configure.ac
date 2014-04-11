@@ -461,9 +461,6 @@ AC_ARG_WITH(freeimage,
      AC_MSG_ERROR([FreeImage.h header not found or not usable])
      )
 
-    AC_CHECK_LIB([freeimage], [FreeImage_Load], [FI_LIBS="-lfreeimage"], [
-        AC_MSG_ERROR([FreeImage library is required for the sample client.])])
-
     #restore
     LDFLAGS=$SAVE_LDFLAGS
     CXXFLAGS=$SAVE_CXXFLAGS
@@ -515,8 +512,6 @@ if test "x$enable_examples" = "xyes" ; then
          RL_CXXFLAGS="-I$with_readline/include -I$with_readline"],
          AC_MSG_ERROR([readline/readline.h header not found or not usable])
          )
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
-            AC_MSG_ERROR([readline library is required for the sample client.])])
         #restore
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
