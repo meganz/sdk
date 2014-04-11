@@ -27,6 +27,7 @@ m4/libtool.m4 m4/lt~obsolete.m4  m4/ltoptions.m4  m4/ltsugar.m4  m4/ltversion.m4
 src/.deps src/.dirstamp
 src/crypto/.deps src/crypto/.dirstamp
 src/db/.deps src/db/.dirstamp
+src/.libs
 src/posix/.deps src/posix/.dirstamp
 src/win32/.deps src/win32/.dirstamp
 tests/.deps tests/.dirstamp
