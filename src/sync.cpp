@@ -488,42 +488,34 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
     {
-        // Tries to load local nodes from cache
-        if( SYNC_INITIALSCAN == state ) {
-            LocalNode* tmpL = NULL;
-
-            //Fixed extraction of file names (compatible with UTF16)
+        // match cached LocalNode state during initial scan to prevent re-fingerprinting
+        if (state == SYNC_INITIALSCAN)
+        {
+            // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
             string fname = string( localname ? *localpath : tmppath,
                                    lastpart,
                                    (localname ? *localpath : tmppath).size()-lastpart );
 
-            if( parent ) {
-                tmpL = parent->childbyname( &fname );
-            } else {
-                tmpL = localroot.childbyname( &fname );
-            }
+            LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
 
-            if( tmpL
-                && ( FOLDERNODE == tmpL->type || FILENODE == tmpL->type )
-                // fsid changes => ignore cache
-                && fa->fsid == tmpL->fsid
-            ) {
-
-                l           = tmpL;
-                l->deleted  = false;
+            if (cl && fa->fsid == cl->fsid)
+            {
+                // node found and same file
+                l = cl;
+                l->deleted = false;
                 l->setnotseen(0);
 
-                if( FOLDERNODE == l->type
-                        || ( FILENODE == l->type
-                             && fa->size == l->size
-                             && fa->mtime == l->mtime
-                           )
-                ) {
+                // if it's a file, size and mtime must match to qualify
+                if (l->type != FILENODE ||
+                   (l->size == fa->size
+                 && l->mtime == fa->mtime))
+                {
                     l->scanseqno = scanseqno;
-                    localbytes  += l->size;
+                    localbytes += l->size;
 
-                    if( FOLDERNODE == l->type ) {
+                    if (l->type == FOLDERNODE)
+                    {
                         scan(localname ? localpath : &tmppath, fa);
                     }
 
@@ -531,7 +523,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     return l;
                 }
             }
-
         }
 
         if (!isroot)
