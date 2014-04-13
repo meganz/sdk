@@ -1222,6 +1222,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     memcpy(l->crc, ptr, sizeof crc);
     l->mtime = mtime;
+    l->isvalid = 1;
 
     l->node = sync->client->nodebyhandle(h);
 
