@@ -39,7 +39,7 @@ struct MEGA_API FileAccess
     m_off_t size;
 
     // mtime of a file opened for reading
-    time_t mtime;
+    m_time_t mtime;
 
     // local filesystem record id (survives renames & moves)
     handle fsid;
@@ -78,7 +78,7 @@ struct MEGA_API FileAccess
 
     // system-specific raw read/open/close
     virtual bool sysread(byte *, unsigned, m_off_t) = 0;
-    virtual bool sysstat(time_t*, m_off_t*) = 0;
+    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
     virtual bool sysopen() = 0;
     virtual void sysclose() = 0;
 
@@ -169,7 +169,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool renamelocal(string*, string*, bool = true) = 0;
 
     // copy file, overwrite target, set mtime
-    virtual bool copylocal(string*, string*, time_t) = 0;
+    virtual bool copylocal(string*, string*, m_time_t) = 0;
 
     // delete file
     virtual bool unlinklocal(string*) = 0;
@@ -180,8 +180,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // create directory, optionally hidden
     virtual bool mkdirlocal(string*, bool = false) = 0;
 
+    static void captimestamp(m_time_t*);
+    
     // set mtime
-    virtual bool setmtimelocal(string *, time_t) = 0;
+    virtual bool setmtimelocal(string *, m_time_t) = 0;
 
     // change working directory
     virtual bool chdirlocal(string*) = 0;

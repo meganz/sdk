@@ -99,7 +99,7 @@ public:
     ~Sync();
 
 protected :
-    bool loadFromCache();
+    bool readstatecache();
 
 };
 } // namespace

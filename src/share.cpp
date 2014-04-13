@@ -22,7 +22,7 @@
 #include "mega/share.h"
 
 namespace mega {
-Share::Share(User* u, accesslevel_t a, time_t t)
+Share::Share(User* u, accesslevel_t a, m_time_t t)
 {
     user = u;
     access = a;
@@ -43,21 +43,21 @@ void Share::serialize(string* d)
 bool Share::unserialize(MegaClient* client, int direction, handle h,
                         const byte* key, const char** ptr, const char* end)
 {
-    if (*ptr + sizeof(handle) + sizeof(time_t) + 2 > end)
+    if (*ptr + sizeof(handle) + sizeof(m_time_t) + 2 > end)
     {
         return 0;
     }
 
     client->newshares.push_back(new NewShare(h, direction, MemAccess::get<handle>(*ptr),
-                                             (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(time_t)],
-                                             MemAccess::get<time_t>(*ptr + sizeof(handle)), key));
+                                             (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],
+                                             MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key));
 
-    *ptr += sizeof(handle) + sizeof(time_t) + 2;
+    *ptr += sizeof(handle) + sizeof(m_time_t) + 2;
 
     return true;
 }
 
-void Share::update(accesslevel_t a, time_t t)
+void Share::update(accesslevel_t a, m_time_t t)
 {
     access = a;
     ts = t;
@@ -65,7 +65,7 @@ void Share::update(accesslevel_t a, time_t t)
 
 // coutgoing: < 0 - don't authenticate, > 0 - authenticate using handle auth
 NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess,
-                   time_t cts, const byte* ckey, const byte* cauth)
+                   m_time_t cts, const byte* ckey, const byte* cauth)
 {
     h = ch;
     outgoing = coutgoing;

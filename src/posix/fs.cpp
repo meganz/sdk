@@ -41,7 +41,7 @@ PosixFileAccess::~PosixFileAccess()
     }
 }
 
-bool PosixFileAccess::sysstat(time_t* mtime, m_off_t* size)
+bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
     struct stat statbuf;
 
@@ -54,6 +54,9 @@ bool PosixFileAccess::sysstat(time_t* mtime, m_off_t* size)
 
         *size = statbuf.st_size;
         *mtime = statbuf.st_mtime;
+
+        FileSystemAccess::captimestamp(mtime);
+
         return true;
     }
 
@@ -128,6 +131,8 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
             fsid = (handle)statbuf.st_ino;
             fsidvalid = true;
+
+            FileSystemAccess::captimestamp(&mtime);
 
             return true;
         }
@@ -297,7 +302,7 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
     return !rename(oldname->c_str(), newname->c_str());
 }
 
-bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, time_t mtime)
+bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t mtime)
 {
     int sfd, tfd;
     ssize_t t = -1;
@@ -360,7 +365,7 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
     return r;
 }
 
-bool PosixFileSystemAccess::setmtimelocal(string* name, time_t mtime)
+bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
 {
     struct utimbuf times = { mtime, mtime };
 
@@ -399,7 +404,8 @@ void PosixFileSystemAccess::osversion(string* u)
 }
 
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
-{}
+{
+}
 
 void PosixDirNotify::addnotify(LocalNode* l, string* path)
 {

@@ -30,7 +30,7 @@ namespace mega {
 struct MEGA_API FileFingerprint
 {
     m_off_t size;
-    time_t mtime;
+    m_time_t mtime;
     int32_t crc[4];
 
     static const int MAXFULL = 8192;

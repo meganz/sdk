@@ -58,6 +58,8 @@
 
 typedef int64_t m_off_t;
 
+typedef int64_t m_time_t;
+
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
 
@@ -242,6 +244,8 @@ typedef map<handle, LocalNode*> handlelocalnode_map;
 typedef list<LocalNode*> localnode_list;
 
 typedef set<LocalNode*> localnode_set;
+
+typedef map<int32_t, LocalNode*> idlocalnode_map;
 
 typedef set<Node*> node_set;
 

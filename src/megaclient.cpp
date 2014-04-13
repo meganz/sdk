@@ -2132,7 +2132,7 @@ void MegaClient::sc_updatenode()
     handle h = UNDEF;
     handle u = 0;
     const char* a = NULL;
-    time_t ts = -1, tm = -1;
+    m_time_t ts = -1, tm = -1;
 
     for (;;)
     {
@@ -2280,7 +2280,7 @@ bool MegaClient::sc_shares()
     byte sharekey[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
     accesslevel_t r = ACCESS_UNKNOWN;
-    time_t ts = 0;
+    m_time_t ts = 0;
     int outbound;
 
     for (;;)
@@ -3082,7 +3082,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         const char *sk = NULL;
         accesslevel_t rl = ACCESS_UNKNOWN;
         m_off_t s = ~(m_off_t)0;
-        time_t ts = -1, tmd = 0, sts = -1;
+        m_time_t ts = -1, tmd = 0, sts = -1;
         nameid name;
 
         while ((name = j->getnameid()) != EOO)
@@ -3444,7 +3444,7 @@ void MegaClient::readoutshareelement(JSON* j)
     handle h = UNDEF;
     handle uh = UNDEF;
     accesslevel_t r = ACCESS_UNKNOWN;
-    time_t ts = 0;
+    m_time_t ts = 0;
 
     for (;;)
     {
@@ -3538,7 +3538,7 @@ bool MegaClient::readusers(JSON* j)
     {
         handle uh = 0;
         visibility_t v = VISIBILITY_UNKNOWN;    // new share objects do not override existing visibility
-        time_t ts = 0;
+        m_time_t ts = 0;
         const char* m = NULL;
         nameid name;
 
@@ -5122,10 +5122,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     delete fa;
 
                     ll->bumpnagleds();
+
                     if (ll->nagleds < *nds)
                     {
                         *nds = ll->nagleds;
                     }
+
                     continue;
                 }
 

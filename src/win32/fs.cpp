@@ -66,7 +66,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL) && dwWritten == len;
 }
 
-time_t FileTime_to_POSIX(FILETIME* ft)
+m_time_t FileTime_to_POSIX(FILETIME* ft)
 {
     LARGE_INTEGER date;
 
@@ -80,13 +80,13 @@ time_t FileTime_to_POSIX(FILETIME* ft)
     if (t < 0) return 0;
     
     t /= 10000000;
-    
-    if (t > (uint32_t)-1) t = (uint32_t)-1;
 
+    FileSystemAccess::captimestamp(&t);
+    
     return t;
 }
 
-bool WinFileAccess::sysstat(time_t* mtime, m_off_t* size)
+bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
@@ -436,7 +436,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
     return r;
 }
 
-bool WinFileSystemAccess::copylocal(string* oldname, string* newname, time_t)
+bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
 {
     oldname->append("", 1);
     newname->append("", 1);
@@ -504,7 +504,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(string* name, time_t mtime)
+bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
 {
     FILETIME lwt;
     LONGLONG ll;

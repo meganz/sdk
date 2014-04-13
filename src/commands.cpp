@@ -212,6 +212,7 @@ void CommandPutFile::procresult()
     {
         tslot->pendingcmd = NULL;
     }
+
     if (canceled)
     {
         return;
@@ -540,19 +541,21 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         switch (nn[i].source)
         {
             case NEW_NODE:
-                    arg("h", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
+                arg("h", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_PUBLIC:
-                    arg("ph", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
+                arg("ph", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_UPLOAD:
-                    arg("h", nn[i].uploadtoken, sizeof nn->uploadtoken);
+                arg("h", nn[i].uploadtoken, sizeof nn->uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
+
                 client->pendingattrstring(nn[i].uploadhandle, &s);
+
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);

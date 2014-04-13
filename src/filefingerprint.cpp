@@ -33,7 +33,7 @@ bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
     }
 
 #ifndef __ANDROID__
-    //mtime check disabled on Android due to this bug:
+    // mtime check disabled on Android due to this bug:
     // https://code.google.com/p/android/issues/detail?id=18624
 
     // mtime differs - cannot be equal
@@ -190,7 +190,7 @@ int FileFingerprint::unserializefingerprint(string* d)
 
     memcpy(crc, buf, sizeof crc);
 
-    mtime = (time_t)t;
+    mtime = t;
 
     isvalid = true;
 

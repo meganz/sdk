@@ -40,11 +40,15 @@ bool User::serialize(string* d)
 {
     unsigned char l;
     attr_map::iterator it;
+    time_t ts;
 
     d->reserve(d->size() + 100 + attrs.storagesize(10));
 
     d->append((char*)&userhandle, sizeof userhandle);
-    d->append((char*)&ctime, sizeof ctime);
+    
+    // FIXME: use m_time_t & Serialize64 instead
+    ts = ctime;
+    d->append((char*)&ts, sizeof ts);
     d->append((char*)&show, sizeof show);
 
     l = email.size();
@@ -83,6 +87,7 @@ User* User::unserialize(MegaClient* client, string* d)
     uh = MemAccess::get<handle>(ptr);
     ptr += sizeof uh;
 
+    // FIXME: use m_time_t & Serialize64
     ts = MemAccess::get<time_t>(ptr);
     ptr += sizeof ts;
 
@@ -131,7 +136,7 @@ User* User::unserialize(MegaClient* client, string* d)
 }
 
 // update user attributes
-void User::set(visibility_t v, time_t ct)
+void User::set(visibility_t v, m_time_t ct)
 {
     show = v;
     ctime = ct;

@@ -48,7 +48,7 @@ struct MEGA_API User : public Cachable
     handle_set sharing;
 
     // contact establishment timestamp
-    time_t ctime;
+    m_time_t ctime;
 
     // user's public key
     AsymmCipher pubk;
@@ -57,7 +57,7 @@ struct MEGA_API User : public Cachable
     // actions to take after arrival of the public key
     deque<class PubKeyAction*> pkrs;
 
-    void set(visibility_t, time_t);
+    void set(visibility_t, m_time_t);
 
     bool serialize(string*);
     static User* unserialize(class MegaClient *, string*);

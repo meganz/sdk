@@ -23,6 +23,7 @@
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
 #include "mega/share.h"
+#include "mega/serialize64.h"
 #include "mega/base64.h"
 #include "mega/sync.h"
 #include "mega/transfer.h"
@@ -30,8 +31,8 @@
 
 namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
-           nodetype_t t, m_off_t s, handle u, const char* fa, time_t ts,
-           time_t tm)
+           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts,
+           m_time_t tm)
 {
     client = cclient;
 
@@ -158,8 +159,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     handle u;
     const byte* k = NULL;
     const char* fa;
-    time_t tm;
-    time_t ts;
+    m_time_t tm;
+    m_time_t ts;
     const byte* skey;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -175,7 +176,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     s = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof s;
 
-    if ((s < 0) && (s >= -MAILNODE))
+    if (s < 0 && s >= -MAILNODE)
     {
         t = (nodetype_t)-s;
     }
@@ -200,11 +201,12 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
     ptr += MegaClient::USERHANDLE;
 
-    tm = MemAccess::get<time_t>(ptr);
-    ptr += sizeof tm;
+    // FIME: use m_time_t / Serialize64 instead
+    tm = (uint32_t)MemAccess::get<time_t>(ptr);
+    ptr += sizeof(time_t);
 
-    ts = MemAccess::get<time_t>(ptr);
-    ptr += sizeof ts;
+    ts = (uint32_t)MemAccess::get<time_t>(ptr);
+    ptr += sizeof(time_t);
 
     if ((t == FILENODE) || (t == FOLDERNODE))
     {
@@ -351,8 +353,12 @@ bool Node::serialize(string* d)
 
     d->append((char*)&owner, MegaClient::USERHANDLE);
 
-    d->append((char*)&clienttimestamp, sizeof(clienttimestamp));
-    d->append((char*)&ctime, sizeof(ctime));
+    // FIXME: use Serialize64, store ts and ts-clienttimestamp for a more compact representation
+    time_t ts = clienttimestamp;
+    d->append((char*)&ts, sizeof(ts));
+    
+    ts = ctime;
+    d->append((char*)&ts, sizeof(ts));
 
     d->append(nodekey);
 
@@ -699,6 +705,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     {
         // remove existing child linkage
         parent->children.erase(&localname);
+
         if (slocalname.size())
         {
             parent->schildren.erase(&slocalname);
@@ -933,9 +940,9 @@ void LocalNode::setfsid(handle newfsid)
 
 LocalNode::~LocalNode()
 {
-
-    if( SYNC_ACTIVE == sync->state || SYNC_INITIALSCAN == sync->state ) {
-        sync->addToDeleteQueue( this );
+    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+    {
+        sync->addToDeleteQueue(this);
     }
 
     setnotseen(0);
@@ -1091,165 +1098,134 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     File::completed(t, this);
 }
 
-bool LocalNode::serialize( string* sr ) {
+// serialize/unserialize the following LocalNode properties:
+// - type/size
+// - fsid
+// - parent LocalNode's dbid
+// - corresponding Node handle
+// - local name
+// - fingerprint crc/mtime (filenodes only)
+bool LocalNode::serialize(string* d)
+{
+    m_off_t s = type ? -type : size;
 
-    m_off_t sType = type ? -type : size;
-    m_off_t sSize = size;
-    int32_t pdbid = ( parent ? parent->dbid : 0 );
+    d->append((const char*)&s, sizeof s);
 
-    handle dummynode = 0;
-    string sFingerPrint;
+    d->append((const char*)&fsid, sizeof fsid);
+    
+    uint32_t id = parent ? parent->dbid : 0;
+    
+    d->append((const char*)&id, sizeof id);
+    
+    handle h = node ? node->nodehandle : UNDEF;
 
-    unsigned short  sFingerPrintLength,
-                    sTs
-    ;
-    unsigned int    localNameLength,
-                    nameLength
-    ;
+    d->append((const char*)&h, MegaClient::NODEHANDLE);
+    
+    unsigned short ll = localname.size();
+    
+    d->append((char*)&ll, sizeof ll);
+    d->append(localname.data(), ll);
 
-    switch( ts ) {
-        case TREESTATE_NONE     : sTs = 0; break;
-        case TREESTATE_PENDING  : sTs = 1; break;
-        case TREESTATE_SYNCED   : sTs = 2; break;
-        case TREESTATE_SYNCING  : sTs = 3; break;
+    if (type == FILENODE)
+    {
+        d->append((const char*)crc, sizeof crc);
+        
+        byte buf[sizeof mtime+1];
+        
+        d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
-
-    sr->append( (char*)&sType,  sizeof(sType) );
-    sr->append( (char*)&sSize,  sizeof(sSize) );     // serializefingerprint does not serializes size
-    sr->append( (char*)&fsid,   sizeof(handle) );
-    sr->append( (char*)&sTs,     sizeof(sTs) );
-
-    if( node ) {
-        sr->append( (char*)&node->nodehandle, sizeof(handle) );
-    } else {
-        sr->append( (char*)&dummynode, sizeof(handle) );
-    }
-
-    // Used to restore LocalNode tree
-    sr->append( (char*)&pdbid, sizeof(int32_t) );
-
-    serializefingerprint( &sFingerPrint );
-    sFingerPrintLength = sFingerPrint.size() + 1;
-    sr->append( (char*)&sFingerPrintLength, sizeof(sFingerPrintLength) );
-    sr->append( sFingerPrint.c_str(), sFingerPrintLength );
-
-    localNameLength = localname.size() + 1;
-    sr->append( (char*)&localNameLength, sizeof(localNameLength) );
-    sr->append( localname.c_str(), localNameLength );
-
-    nameLength = name.size() + 1;
-    sr->append( (char*)&nameLength, sizeof(nameLength) );
-    sr->append( name.c_str(), nameLength );
 
     return true;
 }
 
-LocalNode* LocalNode::unserialize( Sync* sync, string* sData) {
-
-    LocalNode*  lnode   = NULL;
-    const char* ptr     = sData->data();
-    const char* end     = ptr + sData->size();
-
-    m_off_t     usType;
-    handle      uNodeId;
-
-    unsigned short  uFingerPrintLength,
-                    uSts;
-
-    const char* uLocalName;
-    const char* uSerializedFingerprint;
-    const char* uName;
-
-    string gFingerPrint;
-
-    unsigned int    uLocalNameLength,
-                    uNameLength
-    ;
-
-    // +4 => at least 1 byte for fingerprint, name, fullpath and localName
-    if( ptr + ( 2 * sizeof(m_off_t) + sizeof(int32_t) + ( 2 * sizeof(handle) )
-                + 2 * sizeof(unsigned short) + 3 * sizeof(unsigned int) + 4 ) > end )  {
+LocalNode* LocalNode::unserialize(Sync* sync, string* d)
+{
+    if (d->size() < sizeof(m_off_t)         // type/size combo
+                  + sizeof fsid             // fsid
+                  + sizeof(uint32_t)        // parent dbid
+                  + MegaClient::NODEHANDLE  // handle
+                  + sizeof(short))          // localname length
+    {
+        sync->client->app->debug_log("LocalNode unserialization failed - short data");
         return NULL;
     }
 
-    lnode = new LocalNode();
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
 
-    usType = MemAccess::get<m_off_t>(ptr);
-    ptr  += sizeof(usType);
-    if ( (usType < 0) && (usType >= -MAILNODE) ) {
-        lnode->type = (nodetype_t)-usType;
-    } else {
-        lnode->type = FILENODE;
+    nodetype_t type;
+    m_off_t size = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(m_off_t);
+
+    if (size < 0 && size >= -FOLDERNODE)
+    {
+        // will any compiler optimize this to a const assignment?
+        type = (nodetype_t)-size;
+        size = 0;
+    }
+    else
+    {
+        type = FILENODE;
     }
 
-    lnode->size = MemAccess::get<m_off_t>(ptr);
-    ptr += sizeof(lnode->size);
+    handle fsid = MemAccess::get<handle>(ptr);
+    ptr += sizeof fsid;
+    
+    uint32_t parent_dbid = MemAccess::get<uint32_t>(ptr);
+    ptr += sizeof parent_dbid;
 
-    lnode->fsid = 0;
-    memcpy( (char*)&(lnode->fsid), ptr, sizeof(handle) );
-    ptr += sizeof(handle);
+    handle h = 0;
+    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+    
+    unsigned short localnamelen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof localnamelen;
 
-    uSts = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(uSts);
-    switch( uSts ) {
-        case 0 : lnode->ts = TREESTATE_NONE;    break;
-        case 1 : lnode->ts = TREESTATE_PENDING; break;
-        case 2 : lnode->ts = TREESTATE_SYNCED;  break;
-        case 3 : lnode->ts = TREESTATE_SYNCING; break;
-        default: lnode->ts = TREESTATE_NONE;    break;
-    }
-
-    uNodeId = 0;
-    memcpy( (char*)&uNodeId, ptr, sizeof(handle) );
-    ptr += sizeof(handle);
-
-    lnode->parent_dbid = MemAccess::get<int32_t>(ptr);
-    ptr   += sizeof(int32_t);
-
-    uFingerPrintLength = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(uFingerPrintLength);
-    if ( ptr + uFingerPrintLength > end ) {
-        return NULL;
-    }
-    uSerializedFingerprint = ptr;
-    ptr += uFingerPrintLength;
-
-    uLocalNameLength = MemAccess::get<unsigned int>(ptr);
-    ptr += sizeof(uLocalNameLength);
-    if( ptr + uLocalNameLength > end ) {
-        return NULL;
-    }
-    uLocalName = ptr;
-    ptr += uLocalNameLength;
-
-    uNameLength = MemAccess::get<unsigned int>(ptr);
-    ptr += sizeof(uNameLength);
-    if( ptr + uNameLength > end ) {
-        return NULL;
-    }
-    uName = ptr;
-    ptr += uNameLength;
-
-    //Using assign for compatibility with UTF16 strings
-    lnode->localname.assign(uLocalName,  uLocalNameLength-1);
-
-    if( uNameLength > 1 ) {
-        lnode->name.assign(uName, uNameLength-1);
-    }
-
-    gFingerPrint.assign(uSerializedFingerprint, uFingerPrintLength-1);
-    if( uFingerPrintLength > 1 && 0 == lnode->unserializefingerprint( &gFingerPrint ) ) {
-        delete lnode;
+    if (ptr + localnamelen > end)
+    {
+        sync->client->app->debug_log("LocalNode unserialization failed - name too long");
         return NULL;
     }
 
-    // Restores node if existing
-    Node* nnode = NULL;
-    if( uNodeId )
-        nnode = sync->client->nodebyhandle( uNodeId );
-    lnode->node = nnode;
+    const char* localname = ptr;
+    ptr += localnamelen;
+    
+    uint64_t mtime;
+    
+    if (type == FILENODE)
+    {
+        if (ptr + sizeof crc > end + 1)
+        {
+            sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
+            return NULL;
+        }
 
-    return lnode;
+        if (!Serialize64::unserialize((byte*)ptr + sizeof crc, end - ptr - sizeof crc, &mtime))
+        {
+            sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
+            return NULL;
+        }
+    }
+    
+    LocalNode* l = new LocalNode();
+
+    l->type = type;
+    l->size = size;
+
+    l->parent_dbid = parent_dbid;
+    
+    l->fsid = fsid;
+    
+    l->localname.assign(localname, localnamelen);
+    l->name.assign(localname, localnamelen);
+    sync->client->fsaccess->local2name(&l->name);
+
+    memcpy(l->crc, ptr, sizeof crc);
+    l->mtime = mtime;
+
+    l->node = sync->client->nodebyhandle(h);
+
+    return l;
 }
 
 } // namespace

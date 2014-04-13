@@ -73,12 +73,12 @@ public:
     bool getsname(string*, string*);
 
     bool renamelocal(string*, string*, bool);
-    bool copylocal(string*, string*, time_t);
+    bool copylocal(string*, string*, m_time_t);
     bool rubbishlocal(string*);
     bool unlinklocal(string*);
     bool rmdirlocal(string*);
     bool mkdirlocal(string*, bool);
-    bool setmtimelocal(string *, time_t);
+    bool setmtimelocal(string *, m_time_t);
     bool chdirlocal(string*);
     size_t lastpartlocal(string*);
 
@@ -107,7 +107,7 @@ public:
     bool fwrite(const byte *, unsigned, m_off_t);
 
     bool sysread(byte *, unsigned, m_off_t);
-    bool sysstat(time_t*, m_off_t*);
+    bool sysstat(m_time_t*, m_off_t*);
     bool sysopen();
     void sysclose();
 

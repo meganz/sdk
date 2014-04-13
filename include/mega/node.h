@@ -42,7 +42,7 @@ struct MEGA_API NodeCore
     string nodekey;
 
     // new node's client-controlled timestamp (should be last modification)
-    time_t clienttimestamp;
+    m_time_t clienttimestamp;
 
     // node attributes
     string attrstring;
@@ -100,7 +100,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     handle owner;
 
     // actual time this node was created (cannot be set by user)
-    time_t ctime;
+    m_time_t ctime;
 
     // FILENODE nodes only: nonce, meta MAC, attribute string
     int64_t ctriv;
@@ -178,7 +178,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, time_t, time_t);
+    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, m_time_t);
     ~Node();
 };
 

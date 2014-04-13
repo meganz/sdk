@@ -3288,7 +3288,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
         for (vector<AccountPurchase>::iterator it = ad->purchases.begin(); it != ad->purchases.end(); it++)
         {
-            strftime(timebuf, sizeof timebuf, "%c", localtime(&it->timestamp));
+            time_t ts = it->timestamp;
+            strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
             printf("\tID: %.11s Time: %s Amount: %.3s %.02f Payment method: %d\n", it->handle, timebuf, it->currency,
                    it->amount, it->method);
         }
@@ -3300,7 +3301,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
         for (vector<AccountTransaction>::iterator it = ad->transactions.begin(); it != ad->transactions.end(); it++)
         {
-            strftime(timebuf, sizeof timebuf, "%c", localtime(&it->timestamp));
+            time_t ts = it->timestamp;
+            strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
             printf("\tID: %.11s Time: %s Delta: %.3s %.02f\n", it->handle, timebuf, it->currency, it->delta);
         }
     }
@@ -3311,8 +3313,10 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
         for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
         {
-            strftime(timebuf, sizeof timebuf, "%c", localtime(&it->timestamp));
-            strftime(timebuf2, sizeof timebuf, "%c", localtime(&it->mru));
+            time_t ts = it->timestamp;
+            strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+            ts = it->mru;
+            strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
             printf("\tSession start: %s Most recent activity: %s IP: %s Country: %.2s User-Agent: %s\n", timebuf,
                    timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
         }

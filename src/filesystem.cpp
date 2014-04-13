@@ -23,6 +23,13 @@
 #include "mega/node.h"
 
 namespace mega {
+void FileSystemAccess::captimestamp(m_time_t* t)
+{
+    // FIXME: remove upper bound before the year 2100 and upgrade server-side timestamps to BIGINT
+    if (*t > (uint32_t)-1) *t = (uint32_t)-1;
+    else if (*t < 0) *t = 0;
+}
+
 bool FileSystemAccess::islchex(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z');
@@ -69,7 +76,7 @@ bool FileAccess::openf()
         return true;
     }
 
-    time_t curr_mtime;
+    m_time_t curr_mtime;
     m_off_t curr_size;
 
     if (!sysstat(&curr_mtime, &curr_size) || (curr_mtime != mtime) || (curr_size != size))

@@ -66,15 +66,10 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     localroot.init(this, FOLDERNODE, NULL, crootpath, crootpath);
     localroot.setnode(remotenode);
 
-    //client->current_email isn't valid until loggedin is called
-    //It's not called if the MEGA filesystem is loaded from the local storage
-    //so I call it here
+    // obtain client->current_email
     client->loggedin();
 
     // state cache table
-    // I use currentmail_localid+remoteid instead of using the local path
-    // because this name is used by SQLite to create a file and paths contain
-    // non valid characters for file names.
     char local_id[12];
     FileAccess *fas = client->fsaccess->newfileaccess();
     fas->fopen(crootpath, true, false);
@@ -84,15 +79,12 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     char remote_id[12];
     Base64::btoa((byte *)&remotenode->nodehandle, MegaClient::NODEHANDLE, remote_id);
 
-    dbname = client->current_email + "_" + local_id + remote_id;
+    dbname = client->current_email + "_" + local_id + remote_id + "v2";
 
-    //dbaccess doesn't use local names, it uses UTF8 (see megaclient.cpp:3628)
-    //client->fsaccess->name2local( &dbname );
-    statecachetable = client->dbaccess->open( client->fsaccess, &dbname );
-
+    statecachetable = client->dbaccess->open(client->fsaccess, &dbname);
     sync_it = client->syncs.insert(client->syncs.end(), this);
 
-    loadFromCache();
+    readstatecache();
 }
 
 Sync::~Sync()
@@ -120,63 +112,76 @@ Sync::~Sync()
     client->syncactivity = true;
 }
 
-bool Sync::loadFromCache() {
-
-    if( NULL != statecachetable && SYNC_INITIALSCAN == state ) {
+bool Sync::readstatecache()
+{
+    if (statecachetable && state == SYNC_INITIALSCAN)
+    {
+        string cachedata;
+        idlocalnode_map tempMap;
+        uint32_t cid;
+        LocalNode* l;
 
         statecachetable->rewind();
-        string cachedata;
-        map<int32_t, LocalNode*> tempMap;
-        uint32_t cid;
 
-        // Loads all cached nodes
-        while( statecachetable->next( &cid, &cachedata, &client->key ) ) {
-            LocalNode* cur = LocalNode::unserialize(this, &cachedata);
-            if( cur ) {
-                cur->dbid           = cid;
-                tempMap[cur->dbid]  = cur;
+        // bulk-load cached nodes into tempMap
+        while (statecachetable->next(&cid, &cachedata, &client->key))
+        {
+            if ((l = LocalNode::unserialize(this, &cachedata)))
+            {
+                l->dbid = cid;
+                tempMap[cid] = l;
             }
         }
 
-        // Restores parent relationship between nodes
-        for( map<int32_t, LocalNode*>::iterator it = tempMap.begin(); it != tempMap.end(); ++it ) {
-            LocalNode* cur = it->second;
-            LocalNode* pNode = NULL;
+        // restore parent relationship between nodes
+        // (the order in the DB is not guaranteed to be top-down)
+        for (idlocalnode_map::iterator it = tempMap.begin(); it != tempMap.end(); it++)
+        {
+            LocalNode* p = NULL;
 
-            if(cur->parent_dbid)
+            l = it->second;
+
+            if (l->parent_dbid)
             {
-                map<int32_t, LocalNode*>::iterator pit = tempMap.find(cur->parent_dbid);
-                if((pit != tempMap.end()) && (pit->second != cur))
-                    pNode = pit->second;
+                idlocalnode_map::iterator pit = tempMap.find(l->parent_dbid);
+
+                if ((pit != tempMap.end()) && (pit->second != l))
+                {
+                    p = pit->second;
+                }
+                else
+                {
+                    // FIXME: discard cached local state here
+                }
             }
-            else pNode = &localroot;
+            else p = &localroot;
 
-            if(pNode) //Adding nodes without a parent breaks filesystem notifications
+            if (p) // adding nodes without a parent breaks filesystem notifications
             {
-                Node *node = cur->node;
-                int32_t pdbid = cur->parent_dbid;
-                treestate_t ts = cur->ts;
-                handle fsid = cur->fsid;
-                m_off_t size = cur->size;
+                Node *node = l->node;
+                int32_t pdbid = l->parent_dbid;
+                treestate_t ts = l->ts;
+                handle fsid = l->fsid;
+                m_off_t size = l->size;
 
                 string tmppath;
-                pNode->getlocalpath(&tmppath, true);
+                p->getlocalpath(&tmppath, true);
                 tmppath.append(client->fsaccess->localseparator);
-                tmppath.append(cur->localname);
+                tmppath.append(l->localname);
 
-                //Clear localname to force newnode = true in setnameparent
-                //otherwise, setnameparent could trigger node moves
-                cur->localname.clear();
+                // clear localname to force newnode = true in setnameparent
+                // otherwise, setnameparent could trigger node moves
+                l->localname.clear();
 
-                cur->init(this, cur->type, pNode, NULL, &tmppath);
-                cur->parent_dbid = pdbid;
-                cur->size = size;
-                cur->setfsid(fsid);
-                cur->setnode(node);
-                cur->treestate(ts);
+                l->init(this, l->type, p, NULL, &tmppath);
+                l->parent_dbid = pdbid;
+                l->size = size;
+                l->setfsid(fsid);
+                l->setnode(node);
+                l->treestate(ts);
             }
 
-            cur->setnotseen(1);
+            l->setnotseen(1);
         }
 
         return true;
@@ -185,40 +190,55 @@ bool Sync::loadFromCache() {
     return false;
 }
 
-void Sync::addToDeleteQueue( LocalNode* toDelete ) {
-    if( SYNC_CANCELED == state ) {
+// remove LocalNode from DB cache
+void Sync::addToDeleteQueue(LocalNode* l)
+{
+    if (state == SYNC_CANCELED)
+    {
         return;
     }
-    insertq.remove( toDelete );
-    if( toDelete->dbid ) {
-        deleteq.push_back(toDelete->dbid);
+
+    insertq.remove(l);
+
+    if (l->dbid)
+    {
+        deleteq.push_back(l->dbid);
     }
 }
 
-void Sync::addToInsertQueue( LocalNode* toInsert ) {
-    if( SYNC_CANCELED == state ) {
+// insert LocalNode into DB cache
+void Sync::addToInsertQueue(LocalNode* l)
+{
+    if (state == SYNC_CANCELED)
+    {
         return;
     }
-    if( toInsert->dbid ) {
-        deleteq.remove( toInsert->dbid );
+
+    if (l->dbid)
+    {
+        deleteq.remove(l->dbid);
     }
-    insertq.push_back(toInsert);
+
+    insertq.push_back(l);
 }
 
-void Sync::cachenodes() {
+void Sync::cachenodes()
+{
     if( statecachetable && (SYNC_ACTIVE == state) && ( deleteq.size() || insertq.size() ) ) {
 
         statecachetable->begin();
 
-        // Process delete queue
-        while( deleteq.size() ) {
+        // deletions
+        while (deleteq.size())
+        {
             int32_t dbid = deleteq.front();
             statecachetable->del(dbid);
             deleteq.pop_front();
         }
 
-        // Process insert queue
-        while( insertq.size() ) {
+        // additions
+        while (insertq.size())
+        {
             LocalNode* cur = insertq.front();
             statecachetable->put( MegaClient::CACHEDLOCALNODE, cur, &client->key );
             insertq.pop_front();
@@ -308,6 +328,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
                 {
                     rpath->clear();
                 }
+
                 return l;
             }
 
@@ -363,6 +384,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 					{
 						localpath->append(client->fsaccess->localseparator);
 					}
+
 					localpath->append(localname);
 
 					// skip the sync's debris folder

@@ -33,7 +33,7 @@ struct MEGA_API AccountBalance
 
 struct MEGA_API AccountSession
 {
-    time_t timestamp, mru;
+    m_time_t timestamp, mru;
     string useragent;
     string ip;
     char country[3];
@@ -42,7 +42,7 @@ struct MEGA_API AccountSession
 
 struct MEGA_API AccountPurchase
 {
-    time_t timestamp;
+    m_time_t timestamp;
     char handle[12];
     char currency[4];
     double amount;
@@ -51,7 +51,7 @@ struct MEGA_API AccountPurchase
 
 struct MEGA_API AccountTransaction
 {
-    time_t timestamp;
+    m_time_t timestamp;
     char handle[12];
     char currency[4];
     double delta;
@@ -63,7 +63,7 @@ struct MEGA_API AccountDetails
     int pro_level;
     char subscription_type;
 
-    time_t pro_until;
+    m_time_t pro_until;
 
     // quota related to the session account
     m_off_t storage_used, storage_max;
@@ -72,8 +72,8 @@ struct MEGA_API AccountDetails
     double srv_ratio;
 
     // transfer history pertaining to requesting IP address
-    time_t transfer_hist_starttime;     // transfer history start timestamp
-    time_t transfer_hist_interval;      // timespan that a single transfer
+    m_time_t transfer_hist_starttime;     // transfer history start timestamp
+    m_time_t transfer_hist_interval;      // timespan that a single transfer
                                         // window record covers
     vector<m_off_t> transfer_hist;      // transfer window - oldest to newest,
                                         // bytes consumed per twrtime interval
