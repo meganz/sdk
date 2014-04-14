@@ -1141,7 +1141,7 @@ bool LocalNode::serialize(string* d)
 LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
-                  + sizeof fsid             // fsid
+                  + sizeof handle           // fsid
                   + sizeof(uint32_t)        // parent dbid
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length
@@ -1194,13 +1194,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     
     if (type == FILENODE)
     {
-        if (ptr + sizeof crc > end + 1)
+        if (ptr + (4*sizeof int32_t) > end + 1)
         {
             sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
             return NULL;
         }
 
-        if (!Serialize64::unserialize((byte*)ptr + sizeof crc, end - ptr - sizeof crc, &mtime))
+        if (!Serialize64::unserialize((byte*)ptr + (4*sizeof int32_t), end - ptr - (4*sizeof int32_t), &mtime))
         {
             sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
             return NULL;
@@ -1220,7 +1220,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
-    memcpy(l->crc, ptr, sizeof crc);
+    memcpy(l->crc, ptr, sizeof l->crc);
     l->mtime = mtime;
     l->isvalid = 1;
 
