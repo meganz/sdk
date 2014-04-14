@@ -356,7 +356,7 @@ bool Node::serialize(string* d)
     // FIXME: use Serialize64, store ts and ts-clienttimestamp for a more compact representation
     time_t ts = clienttimestamp;
     d->append((char*)&ts, sizeof(ts));
-    
+
     ts = ctime;
     d->append((char*)&ts, sizeof(ts));
 
@@ -1112,26 +1112,26 @@ bool LocalNode::serialize(string* d)
     d->append((const char*)&s, sizeof s);
 
     d->append((const char*)&fsid, sizeof fsid);
-    
+
     uint32_t id = parent ? parent->dbid : 0;
-    
+
     d->append((const char*)&id, sizeof id);
-    
+
     handle h = node ? node->nodehandle : UNDEF;
 
     d->append((const char*)&h, MegaClient::NODEHANDLE);
-    
+
     unsigned short ll = localname.size();
-    
+
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
 
     if (type == FILENODE)
     {
         d->append((const char*)crc, sizeof crc);
-        
+
         byte buf[sizeof mtime+1];
-        
+
         d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
 
@@ -1141,7 +1141,7 @@ bool LocalNode::serialize(string* d)
 LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
-                  + sizeof handle           // fsid
+                  + sizeof(handle)           // fsid
                   + sizeof(uint32_t)        // parent dbid
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length
@@ -1170,14 +1170,14 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     handle fsid = MemAccess::get<handle>(ptr);
     ptr += sizeof fsid;
-    
+
     uint32_t parent_dbid = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof parent_dbid;
 
     handle h = 0;
     memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
     ptr += MegaClient::NODEHANDLE;
-    
+
     unsigned short localnamelen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof localnamelen;
 
@@ -1189,33 +1189,32 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
-    
     uint64_t mtime;
-    
+
     if (type == FILENODE)
     {
-        if (ptr + (4*sizeof int32_t) > end + 1)
+        if (ptr + (4*sizeof(int32_t)) > end + 1)
         {
             sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
             return NULL;
         }
 
-        if (!Serialize64::unserialize((byte*)ptr + (4*sizeof int32_t), end - ptr - (4*sizeof int32_t), &mtime))
+        if (!Serialize64::unserialize((byte*)ptr + (4*sizeof(int32_t)), end - ptr - (4*sizeof(int32_t)), &mtime))
         {
             sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
             return NULL;
         }
     }
-    
+
     LocalNode* l = new LocalNode();
 
     l->type = type;
     l->size = size;
 
     l->parent_dbid = parent_dbid;
-    
+
     l->fsid = fsid;
-    
+
     l->localname.assign(localname, localnamelen);
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
