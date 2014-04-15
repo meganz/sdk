@@ -502,6 +502,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                  && l->mtime == fa->mtime))
                 {
                     l->scanseqno = scanseqno;
+
                     localbytes += l->size;
 
                     if (l->type == FOLDERNODE)
