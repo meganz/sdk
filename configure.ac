@@ -411,8 +411,10 @@ if test "x$WIN32" = "xno" ; then
             AC_SUBST(LIBCURL_LIBS)
 
             AC_MSG_CHECKING(for Curl compiled with c-ares support)
-            adns=`curl-config --features | grep AsynchDNS`
-            if test "x$adns" != "xAsynchDNS" ; then
+            if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
+            then
+                AC_MSG_RESULT([yes])
+            else
                 AC_MSG_RESULT([no])
                 AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
             fi
@@ -452,12 +454,13 @@ if test "x$WIN32" = "xno" ; then
         AC_SUBST(LIBCURL_LIBS)
 
         AC_MSG_CHECKING(for Curl compiled with c-ares support)
-        adns=`curl-config --features | grep AsynchDNS`
-        if test "x$adns" != "xAsynchDNS" ; then
+        if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
+        then
+            AC_MSG_RESULT([yes])
+        else
             AC_MSG_RESULT([no])
             AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
         fi
-        AC_MSG_RESULT([yes])
       ]
     )
 fi
