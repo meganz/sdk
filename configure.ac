@@ -490,12 +490,14 @@ AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
 # FreeImage
+freeimage=false
 AC_MSG_CHECKING(for FreeImage)
 AC_ARG_WITH(freeimage,
   [  --with-freeimage=PATH       base of FreeImage installation],
   [AC_MSG_RESULT($with_freeimage)
    case $with_freeimage in
    no)
+     freeimage=false
      ;;
    yes)
     AC_CHECK_HEADERS([FreeImage.h],, [
@@ -504,6 +506,7 @@ AC_ARG_WITH(freeimage,
     AC_CHECK_LIB([freeimage], [main], [FI_LIBS="-lfreeimage"], [
         AC_MSG_ERROR([FreeImage library is not found!])])
 
+     freeimage=true
      ;;
    *)
 
@@ -540,6 +543,7 @@ AC_ARG_WITH(freeimage,
     LDFLAGS=$SAVE_LDFLAGS
     CXXFLAGS=$SAVE_CXXFLAGS
     CPPFLAGS=$SAVE_CPPFLAGS
+    freeimage=true
     ;;
    esac
   ],
@@ -549,13 +553,17 @@ AC_ARG_WITH(freeimage,
     ])
     AC_CHECK_LIB([freeimage], [main], [FI_LIBS="-lfreeimage"], [
         AC_MSG_ERROR([FreeImage library is not found!])])
+
+     freeimage=true
   ]
   )
   AC_SUBST(FI_LDFLAGS)
   AC_SUBST(FI_LIBS)
   AC_SUBST(FI_CXXFLAGS)
   AC_SUBST(FI_CPPFLAGS)
-  AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
+  if test "x$freeimage" = "xtrue" ; then
+    AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
+  fi
 
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then
