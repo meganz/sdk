@@ -245,7 +245,7 @@ typedef list<LocalNode*> localnode_list;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef map<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
 typedef set<Node*> node_set;
 

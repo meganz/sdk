@@ -917,7 +917,6 @@ void MegaClient::exec()
 
         if (syncfslockretry && syncfslockretrybt.armed())
         {
-
             syncfslockretrybt.backoff(1);
         }
 
@@ -978,6 +977,7 @@ void MegaClient::exec()
 
                                 if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
                                 {
+                                    syncfslockretrybt.backoff(1);
                                     syncfslockretry = true;
                                 }
 
@@ -1087,6 +1087,7 @@ void MegaClient::exec()
                             {
                                 (*it)->scanseqno = (*it)->sync->scanseqno;
                                 (*it)->setnotseen((*it)->notseen + 1);
+
                                 syncactivity = true;
                             }
                         }
@@ -1271,7 +1272,7 @@ int MegaClient::wait()
                 it->second->bt.update(&nds);
             }
         }
-        
+
         // sync rescan
         if (syncscanfailed)
         {
@@ -3291,8 +3292,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         nn[i].localnode->setnode(n);
                         nn[i].localnode->newnode = NULL;
                         nn[i].localnode->treestate(TREESTATE_SYNCED);
-                        // Updates cache with the new node associated
-                        nn[i].localnode->sync->addToInsertQueue( nn[i].localnode );
+
+                        // updates cache with the new node associated
+                        nn[i].localnode->sync->statecacheadd(nn[i].localnode);
                     }
                 }
 
@@ -4763,8 +4765,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         }
     }
 
-    // remove remote items that exist locally from hash, recurse into existing
-    // folders
+    // remove remote items that exist locally from hash, recurse into existing folders
     for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end();)
     {
         LocalNode* ll = lit->second;
@@ -4813,9 +4814,11 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (!syncdown(ll, localpath, rubbish) && success)
                 {
                     success = false;
-                } else {
+                }
+                else
+                {
                     // Updates cache entry with the new node
-                    ll->sync->addToInsertQueue( ll );
+                    ll->sync->statecacheadd(ll);
                 }
 
                 nchildren.erase(rit);
@@ -4851,16 +4854,15 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
             if (ll->deleted)
             {
-                // attempt deletion and re-queue for retry in case of a
-                // transient failure
+                // attempt deletion and re-queue for retry in case of a transient failure
                 ll->treestate(TREESTATE_SYNCING);
 
-                if (l->sync->movetolocaldebris(localpath))
+                if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
                 {
                     delete lit++->second;
                     l->treestate();
                 }
-                else if (success && fsaccess->transient_error)
+                else
                 {
                     success = false;
                     lit++;
@@ -4906,9 +4908,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         {
                             // update LocalNode tree to reflect the move/rename
                             rit->second->localnode->setnameparent(l, localpath);
-                            updateputs();   // update filenames so that PUT
-                                            // transfers can continue
-                                            // seamlessly
+
+                            // update filenames so that PUT transfers can continue seamlessly
+                            updateputs();
+
                             syncactivity = true;
 
                             rit->second->localnode->treestate(TREESTATE_SYNCED);
@@ -4926,8 +4929,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     // LocalNode
                     if (rit->second->type == FILENODE)
                     {
-                        // start fetching this node, unless fetch is already in
-                        // progress
+                        // start fetching this node, unless fetch is already in progress
                         // FIXME: to cover renames that occur during the
                         // download, reconstruct localname in complete()
                         if (!rit->second->syncget)
@@ -4937,6 +4939,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             startxfer(GET, rit->second->syncget);
+
                             syncactivity = true;
                         }
                     }
@@ -4955,8 +4958,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                                 if (!syncdown(ll, localpath, rubbish) && success)
                                 {
                                     success = false;
-                                } else {
-                                    ll->sync->addToInsertQueue( ll );
+                                }
+                                else
+                                {
+                                    ll->sync->statecacheadd(ll);
                                 }
                             }
                         }
@@ -4996,7 +5001,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
     // UTF-8 converted local name
     string localname;
-
     string tmpname;
 
     if (l->node)
@@ -5066,7 +5070,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         // same fingerprint, if available): no action needed
                         ll->setnode(rit->second);
                         ll->treestate(TREESTATE_SYNCED);
-                        ll->sync->addToInsertQueue( ll );
+                        ll->sync->statecacheadd(ll);
                         continue;
                     }
                 }
@@ -5137,11 +5141,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
         // create remote folder or send file
         synccreate.push_back(ll);
+
         syncactivity = true;
 
         if (ll->type == FOLDERNODE)
         {
-                syncup(ll, nds);
+            syncup(ll, nds);
         }
     }
 
@@ -5278,6 +5283,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn)
     delete[] nn;
 
     syncadding--;
+
     syncactivity = true;
 }
 

@@ -258,7 +258,7 @@ struct MEGA_API LocalNode : public File, Cachable
 
     void setnameparent(LocalNode*, string*);
 
-    void init(Sync*, nodetype_t, LocalNode*, string*, string*);
+    void init(Sync*, nodetype_t, LocalNode*, string*);
 
     virtual bool serialize(string*);
     static LocalNode* unserialize( Sync* sync, string* sData );

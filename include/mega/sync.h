@@ -42,12 +42,15 @@ public:
     // insertion/update queue
     set<LocalNode*> insertq;
 
-    // Adds an entry to the delete queue - removes it from insertq
-    void addToDeleteQueue(LocalNode* toDelete);
+    // adds an entry to the delete queue - removes it from insertq
+    void statecachedel(LocalNode*);
 
-    // Adds an entry to the insert queue - removes it from deleteq
-    void addToInsertQueue( LocalNode* toInsert );
+    // adds an entry to the insert queue - removes it from deleteq
+    void statecacheadd(LocalNode*);
 
+    // recursively add children
+    void addstatecachechildren(uint32_t, idlocalnode_map*, string*, LocalNode*, int);
+    
     // Caches all synchronized LocalNode
     void cachenodes();
 

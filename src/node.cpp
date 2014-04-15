@@ -695,7 +695,7 @@ bool Node::isbelow(Node* p) const
 }
 
 // set, change or remove LocalNode's parent and name/localname/slocalname.
-// clocalpath must be a full path and must not point to an empty string.
+// newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
@@ -717,7 +717,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         // extract name component from localpath, check for rename unless newnode
         int p;
 
-        for (p = newlocalpath->size(); p -= sync->client->fsaccess->localseparator.size();)
+        for (p = newlocalpath->size(); p -= sync->client->fsaccess->localseparator.size(); )
         {
             if (!memcmp(newlocalpath->data() + p,
                         sync->client->fsaccess->localseparator.data(),
@@ -789,15 +789,15 @@ void LocalNode::bumpnagleds()
 }
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* clocalpath, string* cfullpath)
+void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* cfullpath)
 {
-    sync        = csync;
-    parent      = NULL;
-    node        = NULL;
-    notseen     = 0;
-    deleted     = false;
-    syncxfer    = true;
-    newnode     = NULL;
+    sync = csync;
+    parent = NULL;
+    node = NULL;
+    notseen = 0;
+    deleted = false;
+    syncxfer = true;
+    newnode = NULL;
     parent_dbid = 0;
 
     ts = TREESTATE_NONE;
@@ -942,7 +942,7 @@ LocalNode::~LocalNode()
 {
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
-        sync->addToDeleteQueue(this);
+        sync->statecachedel(this);
     }
 
     setnotseen(0);
