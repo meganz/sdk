@@ -160,25 +160,42 @@ bool Sync::readstatecache()
             {
                 Node *node = l->node;
                 int32_t pdbid = l->parent_dbid;
-                treestate_t ts = l->ts;
                 handle fsid = l->fsid;
                 m_off_t size = l->size;
 
                 string tmppath;
-                p->getlocalpath(&tmppath, true);
-                tmppath.append(client->fsaccess->localseparator);
-                tmppath.append(l->localname);
+                LocalNode *ll = p;
+                while(ll && (ll != &localroot))
+                {
+                    tmppath.insert(0, ll->localname);
+                    if (ll->parent_dbid)
+                    {
+                        idlocalnode_map::iterator pit = tempMap.find(ll->parent_dbid);
+                        if ((pit != tempMap.end()) && (pit->second != ll))
+                            ll = pit->second;
+                        else
+                            ll = NULL;
+                    }
+                    else ll = &localroot;
 
-                // clear localname to force newnode = true in setnameparent
-                // otherwise, setnameparent could trigger node moves
-                l->localname.clear();
+                    if (ll) tmppath.insert(0, client->fsaccess->localseparator);
+                }
 
-                l->init(this, l->type, p, NULL, &tmppath);
-                l->parent_dbid = pdbid;
-                l->size = size;
-                l->setfsid(fsid);
-                l->setnode(node);
-                l->treestate(ts);
+                if(ll)
+                {
+                    tmppath.append(client->fsaccess->localseparator);
+                    tmppath.append(l->localname);
+
+                    // clear localname to force newnode = true in setnameparent
+                    // otherwise, setnameparent could trigger node moves
+                    l->localname.clear();
+
+                    l->init(this, l->type, p, NULL, &tmppath);
+                    l->parent_dbid = pdbid;
+                    l->size = size;
+                    l->setfsid(fsid);
+                    l->setnode(node);
+                }
             }
 
             l->setnotseen(1);
@@ -198,11 +215,11 @@ void Sync::addToDeleteQueue(LocalNode* l)
         return;
     }
 
-    insertq.remove(l);
+    insertq.erase(l);
 
     if (l->dbid)
     {
-        deleteq.push_back(l->dbid);
+        deleteq.insert(l->dbid);
     }
 }
 
@@ -216,10 +233,10 @@ void Sync::addToInsertQueue(LocalNode* l)
 
     if (l->dbid)
     {
-        deleteq.remove(l->dbid);
+        deleteq.erase(l->dbid);
     }
 
-    insertq.push_back(l);
+    insertq.insert(l);
 }
 
 void Sync::cachenodes()
@@ -229,20 +246,14 @@ void Sync::cachenodes()
         statecachetable->begin();
 
         // deletions
-        while (deleteq.size())
-        {
-            int32_t dbid = deleteq.front();
-            statecachetable->del(dbid);
-            deleteq.pop_front();
-        }
+        for(set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
+            statecachetable->del(*it);
+        deleteq.clear();
 
         // additions
-        while (insertq.size())
-        {
-            LocalNode* cur = insertq.front();
-            statecachetable->put( MegaClient::CACHEDLOCALNODE, cur, &client->key );
-            insertq.pop_front();
-        }
+        for(set<LocalNode *>::iterator it = insertq.begin(); it != insertq.end(); it++)
+            statecachetable->put( MegaClient::CACHEDLOCALNODE, *it, &client->key );
+        insertq.clear();
 
         statecachetable->commit();
     }

@@ -1224,6 +1224,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->isvalid = 1;
 
     l->node = sync->client->nodebyhandle(h);
+    l->parent = NULL;
+    l->sync = sync;
 
     return l;
 }

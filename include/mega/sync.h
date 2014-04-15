@@ -37,10 +37,10 @@ public:
     syncstate_t state;
 
     // deletion queue
-    list<int32_t> deleteq;
+    set<int32_t> deleteq;
 
     // insertion/update queue
-    list<LocalNode*> insertq;
+    set<LocalNode*> insertq;
 
     // Adds an entry to the delete queue - removes it from insertq
     void addToDeleteQueue(LocalNode* toDelete);
