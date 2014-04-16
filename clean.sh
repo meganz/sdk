@@ -19,7 +19,7 @@
 # You should have received a copy of the license along with this
 # program.
 ##
-TARGETS="aclocal.m4 autom4te.cache config.guess config.log config.status config.sub configure depcomp install-sh libmega.pc libtool ltmain.sh Makefile Makefile.in missing stamp-h1 test-driver texput.log .deps clean
+TARGETS="aclocal.m4 autom4te.cache config.guess config.log config.status config.sub configure depcomp install-sh libmega.pc libtool ltmain.sh Makefile Makefile.in missing stamp-h1 test-driver texput.log .deps clean compile
 examples/.deps examples/.dirstamp
 include/Makefile include/Makefile.in
 include/mega/config.h include/mega/config.h.in include/mega/stamp-h1
