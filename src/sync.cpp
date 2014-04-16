@@ -805,7 +805,7 @@ bool Sync::movetolocaldebris(string* localpath)
     {
         if ((i == -2) || (i > 95))
         {
-            client->fsaccess->mkdirlocal(&localdebris);
+            client->fsaccess->mkdirlocal(&localdebris, true);
         }
 
         sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
