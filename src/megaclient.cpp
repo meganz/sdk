@@ -1014,7 +1014,6 @@ void MegaClient::exec()
                                 success = false;
                             }
                         }
-
                     }
 
                     if (!success)

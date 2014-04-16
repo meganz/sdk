@@ -218,22 +218,34 @@ void Sync::cachenodes()
         statecachetable->begin();
 
         // deletions
-        for(set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
+        for (set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
         {
             statecachetable->del(*it);
         }
 
         deleteq.clear();
 
-        // additions
-        for(set<LocalNode *>::iterator it = insertq.begin(); it != insertq.end(); it++)
-        {
-            statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &client->key);
-        }
+        // additions - we iterate until completion or until we get stuck 
+        bool added;
+        
+        do {
+            added = false;
 
-        insertq.clear();
+            for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
+            {
+                if ((*it)->parent->dbid || (*it)->parent == &localroot)
+                {
+                    statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &client->key);
+                    insertq.erase(it++);
+                    added = true;
+                }
+                else it++;
+            }
+        } while (added);
 
         statecachetable->commit();
+
+        if (insertq.size()) client->app->debug_log("LocalNode caching did not complete");
     }
 }
 
