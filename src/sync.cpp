@@ -80,7 +80,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
     dbname = client->current_email + "_" + local_id + remote_id + "v2";
 
-    statecachetable = client->dbaccess->open(client->fsaccess, &dbname);
+    statecachetable = client->dbaccess ? client->dbaccess->open(client->fsaccess, &dbname) : NULL;
     sync_it = client->syncs.insert(client->syncs.end(), this);
 
     readstatecache();
