@@ -23,8 +23,6 @@ using namespace mega;
 
 extern MegaClient* client;
 
-extern bool debug;
-
 extern void megacli();
 
 extern void term_init();

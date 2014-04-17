@@ -379,15 +379,20 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     init();
 
-    a->client = this;
-    g->client = this;
+    if ((app = a))
+    {
+         a->client = this;
+    }
 
-    app = a;
     waiter = w;
     httpio = h;
     fsaccess = f;
     dbaccess = d;
-    gfx = g;
+
+    if ((gfx = g))
+    {
+         g->client = this;
+    }
 
     slotit = tslots.end();
 

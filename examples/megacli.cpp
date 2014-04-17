@@ -3133,7 +3133,7 @@ void DemoApp::reload(const char* reason)
 // reload initiated
 void DemoApp::clearing()
 {
-    if (mega::debug)
+    if (debug)
     {
         cout << "Clearing all nodes/users..." << endl;
     }
@@ -3141,7 +3141,7 @@ void DemoApp::clearing()
 
 void DemoApp::debug_log(const char* message)
 {
-    if (mega::debug)
+    if (debug)
     {
         cout << "DEBUG: " << message << endl;
     }
@@ -3188,7 +3188,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 // nodes now (almost) current, i.e. no server-client notifications pending
 void DemoApp::nodes_current()
 {
-    if (mega::debug)
+    if (debug)
     {
            cout << "Nodes current." << endl;
     }
