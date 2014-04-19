@@ -92,7 +92,7 @@ bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 #ifndef __ANDROID__
     return pread(fd, (char*)dst, len, pos) == len;
 #else
-    lseek64(fd, pos, SEEK_SET);
+    lseek(fd, pos, SEEK_SET);
     return read(fd, (char*)dst, len) == len;
 #endif
 }
@@ -102,28 +102,47 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #ifndef __ANDROID__
     return pwrite(fd, data, len, pos) == len;
 #else
-    lseek64(fd, pos, SEEK_SET);
+    lseek(fd, pos, SEEK_SET);
     return write(fd, data, len) == len;
 #endif
 }
 
 bool PosixFileAccess::fopen(string* f, bool read, bool write)
 {
+    struct stat statbuf;
+
+	assert(sizeof(statbuf.st_mtime) == 8);
+	
+    retry = false;
+
 #ifndef HAVE_FDOPENDIR
+	// workaround for the very unfortunate platforms that do not implement fdopendir() (MacOS...)
+	// (FIXME: can this be done without a rename race condition?)
     if ((dp = opendir(f->c_str())))
     {
-        type = FOLDERNODE;
-        return true;
+		// stat & check if the directory is still a directory...
+		if (stat(f->c_str(), &statbuf) || !S_ISDIR(statbuf.st_mode)) return false;
+
+		size = 0;
+		mtime = statbuf.st_mtime;
+		type = FOLDERNODE;
+		fsid = (handle)statbuf.st_ino;
+		fsidvalid = true;
+
+		FileSystemAccess::captimestamp(&mtime);
+
+		return true;
     }
+	
+	if (errno != ENOTDIR) return false;
 #endif
 
     if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY, 0600)) >= 0)
     {
-        struct stat statbuf;
 #ifndef __ANDROID__
         if (!fstat(fd, &statbuf))
 #else
-        if (!fstat64(fd, &statbuf))
+        if (!fstat(fd, &statbuf))
 #endif
         {
             size = statbuf.st_size;
@@ -140,12 +159,13 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
         close(fd);
     }
 
-    retry = false;
     return false;
 }
 
 PosixFileSystemAccess::PosixFileSystemAccess()
 {
+	assert(sizeof(off_t) == 8);
+
     localseparator = "/";
 
 #ifdef USE_INOTIFY
@@ -383,7 +403,7 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname)
 
     if ((ptr = strrchr(ptr, '/')))
     {
-        return ptr - localname->data();
+        return ptr - localname->data() + 1;
     }
 
     return 0;
