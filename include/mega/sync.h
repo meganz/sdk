@@ -36,6 +36,9 @@ public:
     // current state
     syncstate_t state;
 
+	// are we conducting a full tree scan? (during initialization and if event notification failed)
+	bool fullscan;
+	
     // deletion queue
     set<int32_t> deleteq;
 

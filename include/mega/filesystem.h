@@ -180,6 +180,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // create directory, optionally hidden
     virtual bool mkdirlocal(string*, bool = false) = 0;
 
+	// make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);
     
     // set mtime

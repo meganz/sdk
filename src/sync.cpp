@@ -44,6 +44,8 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
     state = SYNC_INITIALSCAN;
 
+	fullscan = true;
+	
     if (cdebris)
     {
         debris = cdebris;
@@ -256,6 +258,7 @@ void Sync::changestate(syncstate_t newstate)
         client->app->syncupdate_state(this, newstate);
 
         state = newstate;
+		fullscan = false;
     }
 }
 
@@ -490,8 +493,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
     {
-        // match cached LocalNode state during initial scan to prevent re-fingerprinting
-        if (state == SYNC_INITIALSCAN)
+        // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
+		// (just compare the fsids, sizes and mtimes to detect changes)
+        if (fullscan)
         {
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
@@ -537,8 +541,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                 if (fa->type == FILENODE)
                 {
-                    // has the file been overwritten or changed since the last
-                    // scan?
+                    // has the file been overwritten or changed since the last scan?
                     // or did the size or mtime change?
                     if (fa->fsidvalid)
                     {
@@ -631,8 +634,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     // and l->node->parent)
                     it->second->setnameparent(parent, localname ? localpath : &tmppath);
 
-                    // make sure that active PUTs receive their updated
-                    // filenames
+                    // make sure that active PUTs receive their updated filenames
                     client->updateputs();
 
                     statecacheadd(it->second);
@@ -640,8 +642,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     // unmark possible deletion
                     it->second->setnotseen(0);
 
-                    // Immediately scans folder to avoid fake deletion of children
-                    if( SYNC_INITIALSCAN == state ) {
+                    // immediately scan folder to detect deviations from cached state
+                    if (fullscan)
+					{
                         scan(localname ? localpath : &tmppath, fa);
                     }
                 }
