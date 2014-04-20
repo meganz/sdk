@@ -881,9 +881,9 @@ void LocalNode::setnode(Node* cnode)
     deleted = false;
 
     node = cnode;
-    
+
 	if (node)
-	{
+    {
         node->localnode = this;
     }
 }
@@ -898,7 +898,7 @@ void LocalNode::setnotseen(int newnotseen)
         }
 
         notseen = 0;
-		scanseqno = sync->scanseqno;
+        scanseqno = sync->scanseqno;
     }
     else
     {
@@ -945,15 +945,15 @@ LocalNode::~LocalNode()
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);
-		
-		if (type == FOLDERNODE)
-		{
-			sync->client->app->syncupdate_local_folder_deletion(sync, name.c_str());
-		}
-		else
-		{
-			sync->client->app->syncupdate_local_file_deletion(sync, name.c_str());
-		}
+
+        if (type == FOLDERNODE)
+        {
+            sync->client->app->syncupdate_local_folder_deletion(sync, name.c_str());
+        }
+        else
+        {
+            sync->client->app->syncupdate_local_file_deletion(sync, name.c_str());
+        }
     }
 
     setnotseen(0);

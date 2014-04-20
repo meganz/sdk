@@ -173,9 +173,9 @@ bool Sync::readstatecache()
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
         addstatecachechildren(0, &tmap, &localroot.localname, &localroot, 100);
 
-		// trigger a single-pass full scan to identify deleted nodes
-		fullscan = true;
-		scanseqno++;
+        // trigger a single-pass full scan to identify deleted nodes
+        fullscan = true;
+        scanseqno++;
 		
         return true;
     }
@@ -506,7 +506,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                    lastpart,
                                    (localname ? *localpath : tmppath).size()-lastpart);
 
-			LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
+            LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
 
             if (cl && fa->fsid == cl->fsid)
             {
@@ -689,7 +689,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 if (isroot)
                 {
-					// root node cannot be a file
+                    // root node cannot be a file
                     changestate(SYNC_FAILED);
                 }
                 else 
@@ -751,8 +751,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
             client->syncactivity = true;
 
-			// in fullscan mode, missing files are handled in bulk in deletemissing()
-			// rather than through setnotseen()
+            // in fullscan mode, missing files are handled in bulk in deletemissing()
+            // rather than through setnotseen()
             if (!fullscan) l->setnotseen(1);
         }
 
@@ -800,18 +800,18 @@ void Sync::procscanq(int q)
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
 void Sync::deletemissing(LocalNode* l)
 {
-	for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
-	{
-		if (scanseqno-it->second->scanseqno > 1)
-		{
-			delete it++->second;
-		}
-		else
-		{
-			deletemissing(it->second);
-			it++;
-		}
-	}
+    for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
+    {
+        if (scanseqno-it->second->scanseqno > 1)
+        {
+            delete it++->second;
+        }
+        else
+        {
+            deletemissing(it->second);
+            it++;
+        }
+    }
 }
 
 bool Sync::movetolocaldebris(string* localpath)
