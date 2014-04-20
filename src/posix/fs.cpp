@@ -26,6 +26,7 @@ namespace mega {
 PosixFileAccess::PosixFileAccess()
 {
     fd = -1;
+
 #ifndef HAVE_FDOPENDIR
     dp = NULL;
 #endif
@@ -117,7 +118,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 
 #ifndef HAVE_FDOPENDIR
 	// workaround for the very unfortunate platforms that do not implement fdopendir() (MacOS...)
-	// (FIXME: can this be done without a rename race condition?)
+	// (FIXME: can this be done without intruducing a race condition?)
     if ((dp = opendir(f->c_str())))
     {
 		// stat & check if the directory is still a directory...
@@ -139,11 +140,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 
     if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY, 0600)) >= 0)
     {
-#ifndef __ANDROID__
         if (!fstat(fd, &statbuf))
-#else
-        if (!fstat(fd, &statbuf))
-#endif
         {
             size = statbuf.st_size;
             mtime = statbuf.st_mtime;
@@ -208,6 +205,7 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
+
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
 

@@ -184,7 +184,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 
 struct MEGA_API LocalNode : public File, Cachable
 {
-    class Sync * sync;
+    class Sync* sync;
 
     // parent linkage
     LocalNode* parent;

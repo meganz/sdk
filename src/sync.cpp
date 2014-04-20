@@ -143,8 +143,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         l->setfsid(fsid);
         l->setnode(node);
 
-        l->setnotseen(1);
-
         if (maxdepth) addstatecachechildren(l->dbid, tmap, path, l, maxdepth - 1);
     }
 
@@ -172,9 +170,13 @@ bool Sync::readstatecache()
             }
         }
 
-        // recursively build LocalNode tree
+        // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
         addstatecachechildren(0, &tmap, &localroot.localname, &localroot, 100);
 
+		// trigger a single-pass full scan to identify deleted nodes
+		fullscan = true;
+		scanseqno++;
+		
         return true;
     }
 
@@ -499,11 +501,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         {
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
-            string fname = string( localname ? *localpath : tmppath,
-                                   lastpart,
-                                   (localname ? *localpath : tmppath).size()-lastpart );
 
-            LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
+            string fname(localname ? *localpath : tmppath,
+                                   lastpart,
+                                   (localname ? *localpath : tmppath).size()-lastpart);
+
+			LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
 
             if (cl && fa->fsid == cl->fsid)
             {
@@ -513,9 +516,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 l->setnotseen(0);
 
                 // if it's a file, size and mtime must match to qualify
-                if (l->type != FILENODE ||
-                   (l->size == fa->size
-                 && l->mtime == fa->mtime))
+                if (l->type != FILENODE || (l->size == fa->size && l->mtime == fa->mtime))
                 {
                     l->scanseqno = scanseqno;
 
@@ -565,7 +566,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                 // updates l->parent and l->node->parent)
                                 it->second->setnameparent(parent, localname ? localpath : &tmppath);
 
-                                // unmark possible deletion
+                                // mark as seen / undo possible deletion
                                 it->second->setnotseen(0);
 
                                 statecacheadd(it->second);
@@ -581,7 +582,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     }
 
                     // no fsid change detected or overwrite with unknown file:
-                    if ((fa->mtime != l->mtime) || (fa->size != l->size))
+                    if (fa->mtime != l->mtime || fa->size != l->size)
                     {
                         if (fa->fsidvalid && (l->fsid != fa->fsid))
                         {
@@ -688,8 +689,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 if (isroot)
                 {
-                    changestate(SYNC_FAILED);           // root node cannot be
-                                                        // a file
+					// root node cannot be a file
+                    changestate(SYNC_FAILED);
                 }
                 else 
                 {
@@ -749,7 +750,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             }
 
             client->syncactivity = true;
-            l->setnotseen(1);
+
+			// in fullscan mode, missing files are handled in bulk in deletemissing()
+			// rather than through setnotseen()
+            if (!fullscan) l->setnotseen(1);
         }
 
         l = NULL;
@@ -790,9 +794,24 @@ void Sync::procscanq(int q)
     else if (!dirnotify->notifyq[!q].size())
     {
         cachenodes();
-        scanseqno++;    // all queues empty: new scan sweep begins
     }
+}
 
+// delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
+void Sync::deletemissing(LocalNode* l)
+{
+	for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
+	{
+		if (scanseqno-it->second->scanseqno > 1)
+		{
+			delete it++->second;
+		}
+		else
+		{
+			deletemissing(it->second);
+			it++;
+		}
+	}
 }
 
 bool Sync::movetolocaldebris(string* localpath)

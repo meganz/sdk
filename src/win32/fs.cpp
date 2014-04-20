@@ -627,7 +627,7 @@ void WinDirNotify::process(DWORD dwBytes)
 // request change notifications on the subtree under hDirectory
 void WinDirNotify::readchanges()
 {
-    if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
+    if (0 && ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
                               notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
                               | FILE_NOTIFY_CHANGE_DIR_NAME
@@ -647,7 +647,7 @@ void WinDirNotify::readchanges()
         }
         else
         {
-            // permanent failure
+            // permanent failure - switch to scanning mode
             failed = true;
         }
     }

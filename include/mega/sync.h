@@ -66,6 +66,9 @@ public:
     // process and remove one directory notification queue item from *notify
     void procscanq(int);
 
+	// recursively look for vanished child nodes and delete them
+	void deletemissing(LocalNode*);
+	
     // scan specific path
     LocalNode* checkpath(LocalNode*, string*, string* = NULL);
 

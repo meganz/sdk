@@ -883,43 +883,6 @@ void MegaClient::exec()
             }
         }
 
-        if (!syncops)
-        {
-			// we have no sync-related operations pending - trigger processing if at least one
-			// filesystem item is notified or initiate a full rescan if there has been a
-			// even notification failure
-            for (it = syncs.begin(); it != syncs.end(); it++)
-            {
-				Sync* sync = *it;
-
-                if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
-				{
-                    if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                           || sync->dirnotify->notifyq[DirNotify::RETRY].size())
-					{
-						syncops = true;
-						break;
-					}
-					else
-					{
-						// if the directory events notification subsystem is permanently unavailable or
-						// has signaled a temporary error, initiate a full rescan
-						if (sync->state == SYNC_ACTIVE)
-						{
-							sync->fullscan = false;
-
-							if (sync->dirnotify->failed || sync->dirnotify->error)
-							{
-								sync->scan(&sync->localroot.localname, NULL);
-								sync->dirnotify->error = false;
-								sync->fullscan = true;
-							}
-						}
-					}
-				}
-            }
-        }
-
         notifypurge();
 
         // rescan everything
@@ -1000,6 +963,12 @@ void MegaClient::exec()
                                 else if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS)
                                 {
                                     sync->changestate(SYNC_ACTIVE);
+
+									// scan for items that were deleted while the sync was stopped
+									// FIXME: defer this until RETRY queue is processed
+									sync->scanseqno++;
+									sync->deletemissing(&sync->localroot);
+									sync->cachenodes();
                                 }
 
                                 if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
@@ -1013,8 +982,6 @@ void MegaClient::exec()
                                     totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
                                 }
                             }
-
-
                         }
                     }
                 }
@@ -1088,105 +1055,97 @@ void MegaClient::exec()
                     syncfslockretrybt.backoff(2);
                 }
 
-                // do we have pending local deletions? (don't process while
-                // we're still retrying failed fs locks or completing local ops!)
-                if (localsyncnotseen.size() && !syncfslockretry)
+                // execution of notified deletions - these are held in localsyncnotseen and
+				// kept pending until all creations (that might reference them for the purpose of
+				// copying) have completed and all notification queues have run empty (to ensure
+				// that moves are not executed as deletions+additions.
+                if (localsyncnotseen.size() && !synccreate.size())
                 {
-                    // if all scanqs are complete, execute pending remote deletions
+                    // if all non-fullscan scanqs are empty...
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
-                        if ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                            || (*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                        if (!(*it)->fullscan && ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                            || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()))
                         {
                             break;
                         }
                     }
 
-                    if (it == syncs.end())
-                    {
-                        for (localnode_set::iterator it = localsyncnotseen.begin();
-                             it != localsyncnotseen.end(); it++)
-                        {
-                            // we skip missing files once to cater for possible
-                            // move races (may have reappeared in a section already scanned)
-                            if (((*it)->notseen < 2) && ((*it)->scanseqno != (*it)->sync->scanseqno))
-                            {
-                                (*it)->scanseqno = (*it)->sync->scanseqno;
-                                (*it)->setnotseen((*it)->notseen + 1);
-
-                                syncactivity = true;
-                            }
-                        }
-                    }
-                }
-
-                // delete locally missing nodes unless a putnodes operation is
-                // in progress that may be still be referencing them
-                if (!synccreate.size())
-                {
-                    for (localnode_set::iterator it = localsyncnotseen.begin(); it != localsyncnotseen.end(); )
-                    {
-                        LocalNode* nsNode = *it;
-                        if ( nsNode->notseen > 1 )
-                        {
-                            // missed for 2 rounds: delete remotely
-                            if ( nsNode->type == FOLDERNODE)
-                            {
-                                app->syncupdate_local_folder_deletion(nsNode->sync, nsNode->name.c_str());
-                            }
-                            else
-                            {
-                                app->syncupdate_local_file_deletion(nsNode->sync, nsNode->name.c_str());
-                            }
-
-                            delete nsNode;
-                            syncops = true;
-
-                            // loop back from the beginning, as the deletion
-                            // above is potentially recursive
-                            it = localsyncnotseen.begin();
-                        }
-                        else
-                        {
-                            it++;
-                        }
-                    }
+					if (it == syncs.end())
+					{
+						// ... execute all pending deletions
+						localnode_set::iterator it;
+						
+						while (localsyncnotseen.size())
+						{
+							delete *localsyncnotseen.begin();
+							syncops = true;
+						}
+					}
                 }
 
                 // process filesystem notifications for active syncs unless we
                 // are retrying local fs writes
                 if (!syncscanning && !syncfsopsfailed)
                 {
-                    string localname;
+					unsigned totalnodes = 0;
 
-                    // rescan full trees in case fs notification is currently
-                    // unreliable or unavailable
-                    if (syncscanbt.armed())
-                    {
-                        unsigned totalnodes = 0;
+					syncscanfailed = false;
 
-                        syncscanfailed = false;
+					// we have no sync-related operations pending - trigger processing if at least one
+					// filesystem item is notified or initiate a full rescan if there has been a
+					// even notification failure
+					for (it = syncs.begin(); it != syncs.end(); it++)
+					{
+						Sync* sync = *it;
 
-                        for (it = syncs.begin(); it != syncs.end(); it++)
-                        {
-                            if (((*it)->state == SYNC_ACTIVE)
-                                && ((*it)->dirnotify->failed
-                                      || (*it)->dirnotify->error))
-                            {
-                                (*it)->dirnotify->notify(DirNotify::DIREVENTS, NULL, "", 0);
-                                totalnodes += (*it)->localnodes[FILENODE] + (*it)->localnodes[FOLDERNODE];
-                                syncscanfailed = true;
-                                (*it)->dirnotify->error = false;
-                            }
-                        }
+						totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
 
-                        // limit rescan rate (interval depends on total tree
-                        // size)
-                        if (syncscanfailed)
-                        {
-                            syncscanbt.backoff(10 + totalnodes / 128);
-                        }
-                    }
+						if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
+						{
+							if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+								   || sync->dirnotify->notifyq[DirNotify::RETRY].size())
+							{
+								syncops = true;
+								break;
+							}
+							else
+							{
+								if (sync->fullscan)
+								{
+									// recursively delete all LocalNodes that were deleted (not moved or renamed!)
+									sync->deletemissing(&sync->localroot);
+									sync->cachenodes();
+								}
+
+								// if the directory events notification subsystem is permanently unavailable or
+								// has signaled a temporary error, initiate a full rescan
+								if (sync->state == SYNC_ACTIVE)
+								{
+									sync->fullscan = false;
+
+									if (sync->dirnotify->failed || sync->dirnotify->error)
+									{
+										syncscanfailed = true;
+
+										sync->scan(&sync->localroot.localname, NULL);
+										sync->dirnotify->error = false;
+
+										sync->fullscan = true;
+										sync->scanseqno++;
+
+										syncscanbt.backoff(10 + totalnodes / 128);								
+									}
+								}
+							}
+						}
+					}
+
+					// limit rescan rate (interval depends on total tree size)
+					if (syncscanfailed)
+					{
+						syncscanbt.backoff(10 + totalnodes / 128);
+					}
 
                     if (syncops)
                     {
@@ -1200,9 +1159,7 @@ void MegaClient::exec()
                             {
                                 syncup(&(*it)->localroot, &nds);
 
-                                //LocalNode->node could change in syncup
-                                //At least, this is required to save Localnode <-> Node
-                                //associations in the first execution.
+                                // update possible changes in the LocalNode->Node association
                                 (*it)->cachenodes();
                             }
                         }
@@ -2608,9 +2565,11 @@ void MegaClient::notifypurge(void)
     {
         updatesc();
 
-        //LocalNode <-> Node associations could be changed.
+        // update LocalNode <-> Node associations
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+		{
             (*it)->cachenodes();
+		}
     }
 
     if ((t = nodenotify.size()))

@@ -778,7 +778,6 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
         parent->treestate();
     }
-
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still
@@ -860,7 +859,7 @@ void LocalNode::treestate(treestate_t newts)
                 break;
             }
 
-            if ((it->second->ts == TREESTATE_PENDING) && (parent->ts == TREESTATE_SYNCED))
+            if (it->second->ts == TREESTATE_PENDING && parent->ts == TREESTATE_SYNCED)
             {
                 parent->ts = TREESTATE_PENDING;
             }
@@ -882,7 +881,9 @@ void LocalNode::setnode(Node* cnode)
     deleted = false;
 
     node = cnode;
-    if( node ) {
+    
+	if (node)
+	{
         node->localnode = this;
     }
 }
@@ -897,6 +898,7 @@ void LocalNode::setnotseen(int newnotseen)
         }
 
         notseen = 0;
+		scanseqno = sync->scanseqno;
     }
     else
     {
@@ -943,6 +945,15 @@ LocalNode::~LocalNode()
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);
+		
+		if (type == FOLDERNODE)
+		{
+			sync->client->app->syncupdate_local_folder_deletion(sync, name.c_str());
+		}
+		else
+		{
+			sync->client->app->syncupdate_local_file_deletion(sync, name.c_str());
+		}
     }
 
     setnotseen(0);
