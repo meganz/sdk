@@ -112,30 +112,31 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 {
     struct stat statbuf;
 
-	assert(sizeof(statbuf.st_mtime) == 8);
-	
     retry = false;
 
 #ifndef HAVE_FDOPENDIR
-	// workaround for the very unfortunate platforms that do not implement fdopendir() (MacOS...)
-	// (FIXME: can this be done without intruducing a race condition?)
-    if ((dp = opendir(f->c_str())))
+    if (!write)
     {
-		// stat & check if the directory is still a directory...
-		if (stat(f->c_str(), &statbuf) || !S_ISDIR(statbuf.st_mode)) return false;
+        // workaround for the very unfortunate platforms that do not implement fdopendir() (MacOS...)
+        // (FIXME: can this be done without intruducing a race condition?)
+        if ((dp = opendir(f->c_str())))
+        {
+            // stat & check if the directory is still a directory...
+            if (stat(f->c_str(), &statbuf) || !S_ISDIR(statbuf.st_mode)) return false;
 
-		size = 0;
-		mtime = statbuf.st_mtime;
-		type = FOLDERNODE;
-		fsid = (handle)statbuf.st_ino;
-		fsidvalid = true;
+            size = 0;
+            mtime = statbuf.st_mtime;
+            type = FOLDERNODE;
+            fsid = (handle)statbuf.st_ino;
+            fsidvalid = true;
 
-		FileSystemAccess::captimestamp(&mtime);
+            FileSystemAccess::captimestamp(&mtime);
 
-		return true;
+            return true;
+        }
+        
+        if (errno != ENOTDIR) return false;
     }
-	
-	if (errno != ENOTDIR) return false;
 #endif
 
     if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY, 0600)) >= 0)
