@@ -606,10 +606,13 @@ void WinDirNotify::process(DWORD dwBytes)
         {
             FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
-            if ((fni->FileNameLength < ignore.size())
+            // skip the local debris folder
+            // also, we skip the old name in case of renames
+            if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
+                    && ((fni->FileNameLength < ignore.size())
                     || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
                     || ((fni->FileNameLength > ignore.size())
-                            && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t))))
+                            && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
             {
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }

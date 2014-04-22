@@ -236,7 +236,7 @@ struct MEGA_API LocalNode : public File, Cachable
 
     // if delage > 0, own iterator inside MegaClient::localsyncnotseen
     localnode_set::iterator notseen_it;
-    
+
     // build full local path to this node
     void getlocalpath(string*, bool sdisable = false);
     void getlocalsubpath(string*);

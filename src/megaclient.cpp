@@ -4726,7 +4726,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     {
         return true;
     }
-    
+
     list<string> strings;
     remotenode_map nchildren;
     remotenode_map::iterator rit;

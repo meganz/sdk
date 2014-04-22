@@ -821,7 +821,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 
     // mark fsid as not valid
     fsid_it = sync->client->fsidnode.end();
-    
+
     // enable folder notification
     if (type == FOLDERNODE)
     {
