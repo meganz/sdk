@@ -937,7 +937,7 @@ void MegaClient::exec()
                             {
                                 delete sync;
                             }
-                            else if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
+                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
                                 // process items from the notifyq until depleted
                                 if (sync->dirnotify->notifyq[q].size())
@@ -952,8 +952,14 @@ void MegaClient::exec()
                                         continue;
                                     }
 
-                                    sync->procscanq(q);
                                     syncops = true;
+
+                                    if (sync->procscanq(q))
+                                    {
+                                        // we interrupt processing the notifyq if the the completion
+                                        // of a node creation is required to continue
+                                        break;
+                                    }
                                 }
 
                                 if (sync->dirnotify->notifyq[q].size())
@@ -1101,7 +1107,7 @@ void MegaClient::exec()
 
                         totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
 
-                        if (sync->state == SYNC_INITIALSCAN || sync->state == SYNC_ACTIVE)
+                        if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                         {
                             if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                              || sync->dirnotify->notifyq[DirNotify::RETRY].size())
@@ -1155,7 +1161,7 @@ void MegaClient::exec()
 
                         for (it = syncs.begin(); it != syncs.end(); it++)
                         {
-                            if ((*it)->state == SYNC_ACTIVE)
+                            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                             {
                                 syncup(&(*it)->localroot, &nds);
 
@@ -2577,8 +2583,7 @@ void MegaClient::notifypurge(void)
         // check for deleted syncs
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
-            if ((((*it)->state == SYNC_INITIALSCAN)
-                    || ((*it)->state == SYNC_ACTIVE))
+            if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                     && (*it)->localroot.node->removed)
             {
                 delsync(*it);
@@ -4705,8 +4710,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
     }
 }
 
-// downward sync - recursively scan for tree differences and execute them
-// locally
+// downward sync - recursively scan for tree differences and execute them locally
 // this is first called after the local node tree is complete
 // actions taken:
 // * create missing local folders
@@ -4717,17 +4721,17 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
-    bool success = true;
-
     // only use for LocalNodes with a corresponding and properly linked Node
     if ((l->type != FOLDERNODE) || !l->node || (l->parent && (l->node->parent->localnode != l->parent)))
     {
         return true;
     }
-
+    
     list<string> strings;
     remotenode_map nchildren;
     remotenode_map::iterator rit;
+
+    bool success = true;
 
     // build array of sync-relevant (in case of clashes, the newest alias wins)
     // remote children by name
@@ -4811,8 +4815,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
             lit++;
         }
-        else if (rubbish && ll->deleted)    // no corresponding remote node:
-                                            // delete local item
+        else if (rubbish && ll->deleted)    // no corresponding remote node: delete local item
         {
             if (ll->type == FILENODE)
             {
@@ -4910,8 +4913,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
-                    // missing node is not associated with an existing
-                    // LocalNode
+                    // missing node is not associated with an existing LocalNode
                     if (rit->second->type == FILENODE)
                     {
                         // start fetching this node, unless fetch is already in progress
@@ -5573,7 +5575,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     // any active syncs below?
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
     {
-        if (((*it)->state == SYNC_INITIALSCAN) || ((*it)->state == SYNC_ACTIVE))
+        if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
         {
             n = (*it)->localroot.node;
 
@@ -5592,9 +5594,8 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     do {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
-            if ((((*it)->state == SYNC_INITIALSCAN)
-                  || ((*it)->state == SYNC_ACTIVE))
-                 && (n == (*it)->localroot.node))
+            if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                 && n == (*it)->localroot.node)
             {
                 return API_EEXIST;
             }

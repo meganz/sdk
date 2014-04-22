@@ -43,7 +43,7 @@ public:
     set<int32_t> deleteq;
 
     // insertion/update queue
-    set<LocalNode*> insertq;
+    localnode_set insertq;
 
     // adds an entry to the delete queue - removes it from insertq
     void statecachedel(LocalNode*);
@@ -64,7 +64,7 @@ public:
     DirNotify* dirnotify;
 
     // process and remove one directory notification queue item from *notify
-    void procscanq(int);
+    bool procscanq(int);
 
 	// recursively look for vanished child nodes and delete them
 	void deletemissing(LocalNode*);

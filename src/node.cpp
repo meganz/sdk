@@ -104,7 +104,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 Node::~Node()
 {
     // remove node's fingerprint from hash
-    if ((type == FILENODE) && (fingerprint_it != client->fingerprints.end()))
+    if (type == FILENODE && fingerprint_it != client->fingerprints.end())
     {
         client->fingerprints.erase(fingerprint_it);
     }
@@ -482,7 +482,7 @@ void Node::setattr()
 // otherwise, the file's fingerprint is derived from the file's mtime/size/key
 void Node::setfingerprint()
 {
-    if ((type == FILENODE) && (nodekey.size() >= sizeof crc))
+    if (type == FILENODE && nodekey.size() >= sizeof crc)
     {
         if (fingerprint_it != client->fingerprints.end())
         {
@@ -761,8 +761,10 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
             parent = newparent;
 
-            if (!newnode && node && parent->node)
+            if (!newnode && node)
             {
+                assert(parent->node);
+                
                 // FIXME: detect if rename permitted, copy/delete if not
                 sync->client->rename(node, parent->node);
             }
@@ -780,8 +782,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     }
 }
 
-// delay uploads by 1.1 s to prevent server flooding while a file is still
-// being written
+// delay uploads by 1.1 s to prevent server flooding while a file is still being written
 void LocalNode::bumpnagleds()
 {
     nagleds = sync->client->waiter->ds + 11;
@@ -820,7 +821,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 
     // mark fsid as not valid
     fsid_it = sync->client->fsidnode.end();
-
+    
     // enable folder notification
     if (type == FOLDERNODE)
     {
@@ -835,7 +836,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
 {
-
     if (newts != TREESTATE_NONE)
     {
         ts = newts;
@@ -867,7 +867,6 @@ void LocalNode::treestate(treestate_t newts)
 
         parent->treestate();
     }
-
 }
 
 void LocalNode::setnode(Node* cnode)
@@ -911,8 +910,7 @@ void LocalNode::setnotseen(int newnotseen)
     }
 }
 
-// set fsid - assume that an existing assignment of the same fsid is no longer
-// current and revoke
+// set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setfsid(handle newfsid)
 {
     if ((fsid_it != sync->client->fsidnode.end()))
@@ -1152,7 +1150,7 @@ bool LocalNode::serialize(string* d)
 LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
-                  + sizeof(handle)           // fsid
+                  + sizeof(handle)          // fsid
                   + sizeof(uint32_t)        // parent dbid
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length

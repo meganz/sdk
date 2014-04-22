@@ -490,6 +490,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         client->fsaccess->local2path(&tmppath, &path);
     }
 
+    // postpone moving nodes into nonexistent parents
+    if (parent && !parent->node)
+    {
+        return (LocalNode*)~0;
+    }
+
     // attempt to open/type this file
     fa = client->fsaccess->newfileaccess();
 
@@ -765,7 +771,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 }
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
-void Sync::procscanq(int q)
+bool Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
 
@@ -776,6 +782,9 @@ void Sync::procscanq(int q)
 
         LocalNode* l = checkpath(dirnotify->notifyq[q].front().localnode, &dirnotify->notifyq[q].front().path);
 
+        // defer processing because of a missing parent node?
+        if (l == (LocalNode*)~0) return true;
+        
         dirnotify->notifyq[q].pop_front();
 
         // we return control to the application in case a filenode was added
@@ -795,6 +804,8 @@ void Sync::procscanq(int q)
     {
         cachenodes();
     }
+
+    return false;
 }
 
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
