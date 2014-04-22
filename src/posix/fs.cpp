@@ -171,6 +171,7 @@ PosixFileSystemAccess::PosixFileSystemAccess()
     {
         notifyerr = false;
         notifyfailed = false;
+        lastcookie = 0;
     }
     else
 #endif
@@ -238,14 +239,44 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                         if (it != wdnodes.end())
                         {
-                            it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                it->second, in->name,
-                                                                strlen(in->name));
-                            r |= Waiter::NEEDEXEC;
+                            if (lastcookie && lastcookie != in->cookie)
+                            {
+                                // previous IN_MOVED_FROM is not followed by the
+                                // corresponding IN_MOVED_TO, so was actually a deletion
+                                lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS, lastlocalnode, lastname.c_str(), lastname.size());
+
+                                r |= Waiter::NEEDEXEC;
+                            }
+                            
+                            if (in->mask & IN_MOVED_FROM)
+                            {
+                                // could be followed by the corresponding IN_MOVE_TO or not..
+                                // retain in case it's not (in which case it's a deletion)
+                                lastcookie = in->cookie;
+                                lastlocalnode = it->second;
+                                lastname = in->name;
+                            }
+                            else
+                            {
+                                lastcookie = 0;
+
+                                it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                    it->second, in->name,
+                                                                    strlen(in->name));
+
+                                r |= Waiter::NEEDEXEC;
+                            }
                         }
                     }
                 }
             }
+        }
+        
+        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
+        if (lastcookie)
+        {
+            lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS, lastlocalnode, lastname.c_str(), lastname.size());
+            lastcookie = 0;
         }
     }
 #endif
@@ -424,6 +455,7 @@ void PosixFileSystemAccess::osversion(string* u)
 
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
+    failed = false;
 }
 
 void PosixDirNotify::addnotify(LocalNode* l, string* path)

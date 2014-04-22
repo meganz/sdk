@@ -323,11 +323,11 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
 
 void MegaClient::init()
 {
-    warned          = false;
-    csretrying      = false;
-    fetchingnodes   = false;
-    chunkfailed     = false;
-    noinetds        = 0;
+    warned = false;
+    csretrying = false;
+    fetchingnodes = false;
+    chunkfailed = false;
+    noinetds = 0;
     current_email   = "";
 
     if (syncscanstate)
@@ -1099,8 +1099,8 @@ void MegaClient::exec()
 					syncscanfailed = false;
 
                     // we have no sync-related operations pending - trigger processing if at least one
-                    // filesystem item is notified or initiate a full rescan if there has been a
-                    // even notification failure
+                    // filesystem item is notified or initiate a full rescan if there has been
+                    // an event notification failure (or event notification is unavailable)
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
                         Sync* sync = *it;

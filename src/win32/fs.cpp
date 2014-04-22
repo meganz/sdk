@@ -681,6 +681,8 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     }
 
     localbasepath->resize(localbasepath->size() - added - 1);
+    
+    failed = false;
 }
 
 WinDirNotify::~WinDirNotify()
