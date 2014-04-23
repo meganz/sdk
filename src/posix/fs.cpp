@@ -461,9 +461,8 @@ void PosixFileSystemAccess::osversion(string* u)
 
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
-#ifndef USE_INOTIFY
-    // no notification subsystem is available: mark as permanently failed
-    failed = true;
+#ifdef USE_INOTIFY
+    failed = false;
 #endif
 }
 
