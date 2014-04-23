@@ -169,15 +169,9 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 #ifdef USE_INOTIFY
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
-        notifyerr = false;
-        notifyfailed = false;
         lastcookie = 0;
     }
-    else
 #endif
-    {
-        notifyfailed = true;        // mark filesystem notification as unavailable
-    }
 }
 
 PosixFileSystemAccess::~PosixFileSystemAccess()
@@ -465,7 +459,10 @@ void PosixFileSystemAccess::osversion(string* u)
 
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
-    failed = false;
+#ifndef USE_INOTIFY
+    // no notification subsystem is available: mark as permanently failed
+    failed = true;
+#endif
 }
 
 void PosixDirNotify::addnotify(LocalNode* l, string* path)

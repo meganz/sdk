@@ -62,8 +62,6 @@ public:
     string lastname;
 #endif
 
-    bool notifyerr, notifyfailed;
-
     FileAccess* newfileaccess();
     DirAccess* newdiraccess();
     DirNotify* newdirnotify(string*, string*);

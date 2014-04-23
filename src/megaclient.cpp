@@ -1096,7 +1096,7 @@ void MegaClient::exec()
                 {
 					unsigned totalnodes = 0;
 
-					syncscanfailed = false;
+                    syncscanfailed = false;
 
                     // we have no sync-related operations pending - trigger processing if at least one
                     // filesystem item is notified or initiate a full rescan if there has been

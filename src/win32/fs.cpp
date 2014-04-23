@@ -678,11 +678,11 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                    NULL)) != INVALID_HANDLE_VALUE)
     {
         readchanges();
+    
+        failed = false;
     }
 
     localbasepath->resize(localbasepath->size() - added - 1);
-    
-    failed = false;
 }
 
 WinDirNotify::~WinDirNotify()
