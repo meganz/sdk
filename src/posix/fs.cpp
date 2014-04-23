@@ -164,6 +164,8 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 {
 	assert(sizeof(off_t) == 8);
 
+    notifyerr = false;
+
     localseparator = "/";
 
 #ifdef USE_INOTIFY

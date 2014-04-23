@@ -1130,12 +1130,13 @@ void MegaClient::exec()
                                 {
                                     sync->fullscan = false;
 
-                                    if (sync->dirnotify->failed || sync->dirnotify->error)
+                                    if (sync->dirnotify->failed || sync->dirnotify->error || fsaccess->notifyerr)
                                     {
                                         syncscanfailed = true;
 
                                         sync->scan(&sync->localroot.localname, NULL);
                                         sync->dirnotify->error = false;
+
 
                                         sync->fullscan = true;
                                         sync->scanseqno++;
@@ -1145,6 +1146,13 @@ void MegaClient::exec()
                                 }
                             }
                         }
+                    }
+
+                    // clear pending global notification error flag if all syncs were marked
+                    // to be rescanned
+                    if (fsaccess->notifyerr && it == syncs.end())
+                    {
+                        fsaccess->notifyerr = false;
                     }
 
                     // limit rescan rate (interval depends on total tree size)

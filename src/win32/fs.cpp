@@ -248,7 +248,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
+    notifyerr = false;
+
     pendingevents = 0;
+
     localseparator.assign((char*)L"\\", sizeof(wchar_t));
 }
 
