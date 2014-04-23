@@ -23,15 +23,22 @@ import os
 import time
 import subprocess
 import platform
-import logging
-import sync_test_app
+from sync_test_base import SyncTestBase
+from sync_test import SyncTest
+from sync_test_app import SyncTestApp
+import unittest
+import xmlrunner
 
-class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
-    def __init__(self, work_dir, remote_folder):
+class SyncTestMegaSyncApp(SyncTestApp):
+    """
+    operates with megasync application
+    """
+    def __init__(self, work_dir, remote_folder, delete_tmp_files=True, use_large_files=True):
         """
         work_dir: a temporary folder to place generated files
         remote_folder: a remote folder to sync
         """
+
         self.megasync_ch_in = None
         self.megasync_ch_out = None
 
@@ -42,22 +49,33 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
         self.remote_folder = remote_folder
 
         # init base class
-        sync_test_app.SyncTestApp.__init__ (self, self.local_mount_in, self.local_mount_out, self.work_dir)
+        super(SyncTestMegaSyncApp, self).__init__(self.local_mount_in, self.local_mount_out, self.work_dir, delete_tmp_files, use_large_files)
 
         try:
-            os.makedirs (self.local_mount_in);
-        except Exception, e:
-            self.logger.error("Failed to create directory: %s", self.local_mount_in)
-            exit (1)
+            os.makedirs(self.local_mount_in)
+        except OSError:
+            pass
 
         try:
-            os.makedirs (self.local_mount_out);
-        except Exception, e:
-            self.logger.error("Failed to create directory: %s", self.local_mount_out)
-            exit (1)
+            os.makedirs(self.local_mount_out)
+        except OSError:
+            pass
 
+        try:
+            os.makedirs(self.work_dir)
+        except OSError:
+            pass
 
-    def start_megasync (self, local_folder):
+        if not os.access(self.local_mount_in, os.W_OK | os.X_OK):
+            raise Exception("Not enough permissions to create / write to directory")
+
+        if not os.access(self.local_mount_out, os.W_OK | os.X_OK):
+            raise Exception("Not enough permissions to create / write to directory")
+
+        if not os.access(self.work_dir, os.W_OK | os.X_OK):
+            raise Exception("Not enough permissions to create / write to directory")
+
+    def start_megasync(self, local_folder, type_str):
         """
         fork and launch "megasync" application
         local_folder: local folder to sync
@@ -72,52 +90,80 @@ class SyncTestMegaSyncApp (sync_test_app.SyncTestApp):
             bin_path = os.path.join(base_path, "examples")
 
         args = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
+        output_fname = os.path.join(self.work_dir, "megasync" + "_" + type_str + "_" + SyncTestBase.get_random_str() + ".log")
+        output_log = open(output_fname, "w")
+
+        print "Launching megasync: %s" % (" ".join(args))
+
         try:
-            ch = subprocess.Popen (args, shell = False)
-        except OSError, e:
-            self.logger.error( "Failed to start megasync")
+            ch = subprocess.Popen(args, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, shell=False)
+        except OSError:
+            print "Failed to launch megasync process"
             return None
         return ch
 
-    def sync (self):
-        time.sleep (5)
+    def sync(self):
+        """
+        TODO: wait for full synchronization
+        """
+        time.sleep(5)
 
-    def start (self):
+    def start(self):
         """
         prepare and run tests
         """
-        self.logger.debug ("Launching megasync instances ..")
+
+        if os.environ.get('MEGA_EMAIL') is None or os.environ.get('MEGA_PWD') is None:
+            print "Environment variables MEGA_EMAIL and MEGA_PWD are not set !"
+            return False
+
         # start "in" instance
-        self.megasync_ch_in = self.start_megasync (self.local_mount_in)
+        self.megasync_ch_in = self.start_megasync(self.local_mount_in, "in")
+        # pause
+        time.sleep(5)
         # start "out" instance
-        self.megasync_ch_out = self.start_megasync (self.local_mount_out)
+        self.megasync_ch_out = self.start_megasync(self.local_mount_out, "out")
         # check both instances
         if self.megasync_ch_in == None or self.megasync_ch_out == None:
-            self.logger.error("Failed to start megasync instance.")
             return False
 
         return True
 
-    def finish(self, res):
+    def finish(self):
         """
         kill megasync instances, remove temp folders
         """
         # kill instances
-        try:
-            self.megasync_ch_in.terminate ()
-        except Exception, e:
-            self.logger.error ("Failed to kill megasync processes !")
+        if self.megasync_ch_in:
+            self.megasync_ch_in.terminate()
 
-        try:
-            self.megasync_ch_out.terminate ()
-        except Exception, e:
-            self.logger.error ("Failed to kill megasync processes !")
+        if self.megasync_ch_out:
+            self.megasync_ch_out.terminate()
 
+    def pause(self):
+        """
+        pause application
+        """
+
+    def unpause(self):
+        """
+        unpause application
+        """
 
 if __name__ == "__main__":
-    if len (sys.argv) < 3:
+    if len(sys.argv) < 3:
         print "Please run as:  python " + sys.argv[0] + " [work dir] [remote folder name]"
-        sys.exit (1)
+        sys.exit(1)
 
-    app = SyncTestMegaSyncApp (sys.argv[1], sys.argv[2])
-    app.run ()
+    with SyncTestMegaSyncApp(sys.argv[1], sys.argv[2], True, True) as app:
+        suite = unittest.TestSuite()
+
+        suite.addTest(SyncTest("test_create_delete_files", app))
+        suite.addTest(SyncTest("test_create_rename_delete_files", app))
+        suite.addTest(SyncTest("test_create_delete_dirs", app, ))
+        suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
+        suite.addTest(SyncTest("test_sync_files_write", app))
+        suite.addTest(SyncTest("test_local_operations", app))
+
+        testRunner = xmlrunner.XMLTestRunner(output='test-reports')
+        testRunner.run(suite)

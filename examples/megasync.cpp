@@ -355,7 +355,7 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                error e = client->addsync(&localname, "Debris", NULL, n, 0);
+                error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
                 if (e)
                 {
                     cout << "Sync could not be added! " << endl;
@@ -569,6 +569,18 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+
+    cout << "Starting .." << getenv("MEGA_PWD") << endl;
+            app->debug = true;
+
+    // create MegaClient, providing our custom MegaApp and Waiter classes
+    client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
+        NULL, NULL,
+        "megasync", "megaclisync");
+
+    cout << "Continue .." << endl;
+            client->toggledebug();
+    /*
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))
     {
@@ -579,18 +591,10 @@ int main(int argc, char *argv[])
         else if (!strcmp(getenv("MEGA_DEBUG"), "2"))
         {
             app->debug = true;
+            client->toggledebug();
         }
     }
-
-    // create MegaClient, providing our custom MegaApp and Waiter classes
-    client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
-//#ifdef DBACCESS_CLASS
-//	new DBACCESS_CLASS,
-//#else
-        NULL,
-//#endif
-        NULL,
-        "megasync", "megaclisync");
+    */
 
     // get values from env
     client->pw_key(getenv("MEGA_PWD"), pwkey);

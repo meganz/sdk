@@ -98,7 +98,6 @@ class Action:
             f.close ()
         logging.info ('[create] [%s] %s', self.otype, self.full_name)
 
-
     def rename (self):
         """
         Rename a file / dir
