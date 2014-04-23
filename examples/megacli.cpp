@@ -3460,7 +3460,11 @@ int main()
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp, new CONSOLE_WAIT_CLASS,
                             new HTTPIO_CLASS, new FSACCESS_CLASS,
+#ifdef DBACCESS_CLASS
+                            new DBACCESS_CLASS,
+#else
                             NULL,
+#endif
 #ifdef GFX_CLASS
                             new GFX_CLASS,
 #else
