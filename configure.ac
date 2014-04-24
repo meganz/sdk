@@ -167,7 +167,7 @@ AC_MSG_CHECKING(for libcryptopp)
 cryptopp=false
 AC_ARG_WITH(cryptopp,
   [  --with-cryptopp=PATH       base of libcrypto installation],
-  [AC_MSG_RESULT($with_cryptopp)
+  [
    case $with_cryptopp in
    no)
     cryptopp=false
@@ -195,14 +195,15 @@ AC_ARG_WITH(cryptopp,
          CRYPTO_LDFLAGS="-L$with_cryptopp/lib",
          AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
          )
+    # assume we are using crypto source directory
     else
         LDFLAGS="-L$with_cryptopp/cryptopp $LDFLAGS"
         CXXFLAGS="-I$with_cryptopp $CXXFLAGS"
         CPPFLAGS="-I$with_cryptopp $CPPFLAGS"
 
         AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-         CRYPTO_CXXFLAGS="-I$with_cryptopp/cryptopp"
-         CRYPTO_CPPFLAGS="-I$with_cryptopp/cryptopp"
+         CRYPTO_CXXFLAGS="-I$with_cryptopp"
+         CRYPTO_CPPFLAGS="-I$with_cryptopp"
          CRYPTO_LDFLAGS="-L$with_cryptopp/cryptopp",
          AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
          )
@@ -560,13 +561,14 @@ AC_ARG_WITH(freeimage,
      freeimage=true
   ]
   )
-  AC_SUBST(FI_LDFLAGS)
-  AC_SUBST(FI_LIBS)
-  AC_SUBST(FI_CXXFLAGS)
-  AC_SUBST(FI_CPPFLAGS)
-  if test "x$freeimage" = "xtrue" ; then
+AC_SUBST(FI_LDFLAGS)
+AC_SUBST(FI_LIBS)
+AC_SUBST(FI_CXXFLAGS)
+AC_SUBST(FI_CPPFLAGS)
+if test "x$freeimage" = "xtrue" ; then
     AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
-  fi
+fi
+AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then

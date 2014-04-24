@@ -48,7 +48,10 @@ src_libmega_la_SOURCES += src/utils.cpp
 src_libmega_la_SOURCES += src/waiterbase.cpp
 src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
 src_libmega_la_SOURCES += src/db/sqlite.cpp
+
+if USE_FREEIMAGE
 src_libmega_la_SOURCES += src/gfx/freeimage.cpp
+endif
 
 # win32 sources
 if WIN32
