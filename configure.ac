@@ -41,6 +41,10 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], [mega_version], [https://github.com/megaprivacy])
 
+# Define _GNU_SOURCE
+# AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
+
 AM_INIT_AUTOMAKE([1.11 foreign silent-rules])
 AC_CONFIG_HEADERS([include/mega/config.h])
 LT_INIT([shared static win32-dll])
@@ -108,17 +112,11 @@ AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C
 AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
 AC_DEFINE(__STDC_LIMIT_MACROS, [], [Force definition of limit macros for C++])
 
-# Define _GNU_SOURCE
-AC_DEFINE([_GNU_SOURCE], [1], [use GNU extensions])
-
-# Define _FILE_OFFSET_BITS and _LARGE_FILES if necessary
-AC_SYS_LARGEFILE
-
-AC_DEFINE(_GNU_SOURCE)
-
 # Add 64-bits file support on some hosts
-AC_DEFINE([_FILE_OFFSET_BITS], [64],
-          [Define to 64 for large file support on some hosts])
+AC_SYS_LARGEFILE
+# use new interfaces
+AC_FUNC_FSEEKO
+AC_TYPE_OFF_T
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_SIZEOF([uint64_t])
