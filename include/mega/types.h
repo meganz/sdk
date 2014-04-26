@@ -34,9 +34,11 @@
  #define MEGA_API
 #endif
 
+#include "megasys.h"
+
 // (inttypes.h is not present in Microsoft Visual Studio)
 #ifdef _MSC_VER
- #define PRIu32 "I32u" 
+ #define PRIu32 "I32u"
  #define PRIu64 "I64u"
  #define PRId64 "I64d"
 #else
@@ -53,8 +55,6 @@
 #include <iterator>
 #include <queue>
 #include <list>
-
-#include "megasys.h"
 
 typedef int64_t m_off_t;
 
