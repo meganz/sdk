@@ -30,6 +30,25 @@
 // FIXME: move to autoconf
 #define __STDC_FORMAT_MACROS
 
+// (inttypes.h is not present in Microsoft Visual Studio)
+#ifdef _MSC_VER
+ #define PRIu32 "I32u"
+ #define PRIu64 "I64u"
+ #define PRId64 "I64d"
+#else
+ #include <inttypes.h>
+#endif
+
+#include <iostream>
+#include <algorithm>
+#include <string>   // the MEGA SDK assumes writable, contiguous string::data()
+#include <sstream>
+#include <map>
+#include <set>
+#include <iterator>
+#include <queue>
+#include <list>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
