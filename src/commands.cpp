@@ -2162,7 +2162,6 @@ void CommandFetchNodes::procresult()
                 // nodes
                 if (!client->readnodes(&client->json, 0))
                 {
-cout << "INTERNAL: readnodes " << client->json.pos << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -2181,20 +2180,17 @@ cout << "INTERNAL: readnodes " << client->json.pos << endl;
                 // users/contacts
                 if (!client->readusers(&client->json))
                 {
-cout << "INTERNAL: readusers " << client->json.pos << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
 
             case MAKENAMEID2('c', 'r'):
                 // crypto key request
-cout << "INTERNAL: proccr() " << client->json.pos << endl;
                 client->proccr(&client->json);
                 break;
 
             case MAKENAMEID2('s', 'r'):
                 // sharekey distribution request
-cout << "INTERNAL: procsr() " << client->json.pos << endl;
                 client->procsr(&client->json);
                 break;
 
@@ -2209,7 +2205,6 @@ cout << "INTERNAL: procsr() " << client->json.pos << endl;
             case EOO:
                 if (!*client->scsn)
                 {
-cout << "INTERNAL: no scsn " << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
@@ -2226,7 +2221,6 @@ cout << "INTERNAL: no scsn " << endl;
             default:
                 if (!client->json.storeobject())
                 {
-cout << "INTERNAL: Storeobject failed: " << client->json.pos << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }
