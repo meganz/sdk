@@ -35,8 +35,11 @@ nobase_libmegainclude_HEADERS = \
 	mega/waiter.h \
     mega/crypto/cryptopp.h \
     mega/db/sqlite.h \
-    mega/db/bdb.h \
-    mega/gfx/freeimage.h
+    mega/db/bdb.h
+
+if USE_FREEIMAGE
+nobase_libmegainclude_HEADERS += mega/gfx/freeimage.h
+endif
 
 if WIN32
 nobase_libmegainclude_HEADERS += \

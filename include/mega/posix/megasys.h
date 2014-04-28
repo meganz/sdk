@@ -25,6 +25,18 @@
 // platform dependent constants
 #include "mega/config.h"
 
+#include <inttypes.h>
+
+#include <iostream>
+#include <algorithm>
+#include <string>   // the MEGA SDK assumes writable, contiguous string::data()
+#include <sstream>
+#include <map>
+#include <set>
+#include <iterator>
+#include <queue>
+#include <list>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

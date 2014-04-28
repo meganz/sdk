@@ -21,37 +21,55 @@
 import sys
 import os
 import time
-import sync_test_app
+import shutil
+import unittest
+import xmlrunner
+from sync_test_app import SyncTestApp
+from sync_test import SyncTest
 
-class SyncTestMegaCliApp (sync_test_app.SyncTestApp):
-    def __init__(self, local_mount_in, local_mount_out):
+class SyncTestMegaCliApp(SyncTestApp):
+    """
+    operates with megacli application
+    """
+    def __init__(self, local_mount_in, local_mount_out, delete_tmp_files=True, use_large_files=True):
         """
         local_mount_in: local upsync folder
         local_mount_out: local downsync folder
         """
         self.work_dir = os.path.join(".", "work_dir")
-        sync_test_app.SyncTestApp.__init__ (self, local_mount_in, local_mount_out, self.work_dir)
+        SyncTestApp.__init__(self, local_mount_in, local_mount_out, self.work_dir, delete_tmp_files, use_large_files)
 
-    def sync (self):
-        time.sleep (5)
+    def sync(self):
+        time.sleep(5)
 
-    def start (self):
+    def start(self):
         # try to create work dir
         return True
 
-    def finish (self, res):
-        if res:
-            # remove work dir
-            try:
-                shutil.rmtree (self.work_dir)
-            except:
-                None
-        pass
+    def finish(self):
+        try:
+            shutil.rmtree(self.work_dir)
+        except OSError:
+            print "Failed to remove dir: %s" % self.work_dir
+
+    def pause(self):
+        """
+        pause application
+        """
+        #TODO: implement this !
+        raise NotImplementedError("Not Implemented !")
+    def unpause(self):
+        """
+        unpause application
+        """
+        #TODO: implement this !
+        raise NotImplementedError("Not Implemented !")
+
 
 if __name__ == "__main__":
-    if len (sys.argv) < 3:
+    if len(sys.argv) < 3:
         print "Please run as:  python " + sys.argv[0] + " [upsync folder] [downsync folder]"
-        sys.exit (1)
+        sys.exit(1)
 
     print ""
     print "1) Start the first [megacli] and run:  sync " + sys.argv[1] + " [remote folder]"
@@ -59,5 +77,14 @@ if __name__ == "__main__":
     print "3) Wait for both folders get fully synced"
     print "4) Run sync_test.py"
     print ""
-    app = SyncTestMegaCliApp (sys.argv[1], sys.argv[2])
-    app.run ()
+
+    with SyncTestMegaCliApp(sys.argv[1], sys.argv[2], True, True) as app:
+        suite = unittest.TestSuite()
+        suite.addTest(SyncTest("test_create_delete_files", app))
+        suite.addTest(SyncTest("test_create_rename_delete_files", app))
+        suite.addTest(SyncTest("test_create_delete_dirs", app, ))
+        suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
+        suite.addTest(SyncTest("test_sync_files_write", app))
+        suite.addTest(SyncTest("test_local_operations", app))
+        testRunner = xmlrunner.XMLTestRunner(output='test-reports')
+        testRunner.run(suite)

@@ -41,6 +41,10 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], [mega_version], [https://github.com/megaprivacy])
 
+# Define _GNU_SOURCE
+# AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
+
 AM_INIT_AUTOMAKE([1.11 foreign silent-rules])
 AC_CONFIG_HEADERS([include/mega/config.h])
 LT_INIT([shared static win32-dll])
@@ -81,6 +85,12 @@ AC_TYPE_UINT64_T
 AC_TYPE_PID_T
 AC_TYPE_OFF_T
 
+AH_VERBATIM([__STDC_FORMAT_MACROS],
+            [/* C99 says: define this to get the PRI... macros from stdint.h */
+#ifndef __STDC_FORMAT_MACROS
+# define __STDC_FORMAT_MACROS 1
+#endif])
+
 AC_CHECK_TYPES([ssize_t])
 
 # Check programs
@@ -108,17 +118,11 @@ AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C
 AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
 AC_DEFINE(__STDC_LIMIT_MACROS, [], [Force definition of limit macros for C++])
 
-# Define _GNU_SOURCE
-AC_DEFINE([_GNU_SOURCE], [1], [use GNU extensions])
-
-# Define _FILE_OFFSET_BITS and _LARGE_FILES if necessary
-AC_SYS_LARGEFILE
-
-AC_DEFINE(_GNU_SOURCE)
-
 # Add 64-bits file support on some hosts
-AC_DEFINE([_FILE_OFFSET_BITS], [64],
-          [Define to 64 for large file support on some hosts])
+AC_SYS_LARGEFILE
+# use new interfaces
+AC_FUNC_FSEEKO
+AC_TYPE_OFF_T
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_SIZEOF([uint64_t])
@@ -167,7 +171,7 @@ AC_MSG_CHECKING(for libcryptopp)
 cryptopp=false
 AC_ARG_WITH(cryptopp,
   [  --with-cryptopp=PATH       base of libcrypto installation],
-  [AC_MSG_RESULT($with_cryptopp)
+  [
    case $with_cryptopp in
    no)
     cryptopp=false
@@ -195,14 +199,15 @@ AC_ARG_WITH(cryptopp,
          CRYPTO_LDFLAGS="-L$with_cryptopp/lib",
          AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
          )
+    # assume we are using crypto source directory
     else
         LDFLAGS="-L$with_cryptopp/cryptopp $LDFLAGS"
         CXXFLAGS="-I$with_cryptopp $CXXFLAGS"
         CPPFLAGS="-I$with_cryptopp $CPPFLAGS"
 
         AC_CHECK_HEADERS(cryptopp/cryptlib.h,
-         CRYPTO_CXXFLAGS="-I$with_cryptopp/cryptopp"
-         CRYPTO_CPPFLAGS="-I$with_cryptopp/cryptopp"
+         CRYPTO_CXXFLAGS="-I$with_cryptopp"
+         CRYPTO_CPPFLAGS="-I$with_cryptopp"
          CRYPTO_LDFLAGS="-L$with_cryptopp/cryptopp",
          AC_MSG_ERROR([cryptopp/cryptlib.h header not found or not usable])
          )
@@ -560,13 +565,14 @@ AC_ARG_WITH(freeimage,
      freeimage=true
   ]
   )
-  AC_SUBST(FI_LDFLAGS)
-  AC_SUBST(FI_LIBS)
-  AC_SUBST(FI_CXXFLAGS)
-  AC_SUBST(FI_CPPFLAGS)
-  if test "x$freeimage" = "xtrue" ; then
+AC_SUBST(FI_LDFLAGS)
+AC_SUBST(FI_LIBS)
+AC_SUBST(FI_CXXFLAGS)
+AC_SUBST(FI_CPPFLAGS)
+if test "x$freeimage" = "xtrue" ; then
     AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
-  fi
+fi
+AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then
