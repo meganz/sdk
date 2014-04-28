@@ -83,15 +83,15 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if ((curl = curl_easy_init()))
     {
-        curl_easy_setopt(curl, CURLOPT_URL,           req->posturl.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS,    data ? data : req->out->data());
+        curl_easy_setopt(curl, CURLOPT_URL, req->posturl.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
-        curl_easy_setopt(curl, CURLOPT_USERAGENT,     useragent->c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER,    req->type == REQ_JSON ? contenttypejson : contenttypebinary);
-        curl_easy_setopt(curl, CURLOPT_SHARE,         curlsh);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, useragent->c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req->type == REQ_JSON ? contenttypejson : contenttypebinary);
+        curl_easy_setopt(curl, CURLOPT_SHARE, curlsh);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA,     (void*)req);
-        curl_easy_setopt(curl, CURLOPT_PRIVATE,       (void*)req);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
 
         curl_multi_add_handle(curlm, curl);
 
@@ -155,13 +155,16 @@ bool CurlHttpIO::doio()
                 {
                     cout << "CURLMSG_DONE with HTTP status: " << req->httpstatus << endl;
 
-                    if (req->binary)
+                    if (req->httpstatus)
                     {
-                        cout << "[received " << req->in.size() << " bytes of raw data]" << endl;
-                    }
-                    else
-                    {
-                        cout << "Received: " << req->in.c_str() << endl;
+                        if (req->binary)
+                        {
+                            cout << "[received " << req->in.size() << " bytes of raw data]" << endl;
+                        }
+                        else
+                        {
+                            cout << "Received: " << req->in.c_str() << endl;
+                        }
                     }
                 }
 

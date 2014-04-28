@@ -864,15 +864,15 @@ void CommandLogin::procresult()
                 }
                 else
                 {
-                    // account has RSA keypair: decrypt server-provided session
-                    // ID
-                    if ((len_csid < 32) || (len_privk < 256))
+                    // account has RSA keypair: decrypt server-provided session ID
+                    if (len_csid < 32 || len_privk < 256)
                     {
                         return client->app->login_result(API_EINTERNAL);
                     }
 
                     // decrypt and set private key
                     client->key.ecb_decrypt(privkbuf, len_privk);
+
                     if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
                         return client->app->login_result(API_EKEY);
@@ -884,6 +884,7 @@ void CommandLogin::procresult()
                     {
                         return client->app->login_result(API_EINTERNAL);
                     }
+
                     client->setsid(sidbuf, MegaClient::SIDLEN);
                 }
 
@@ -2161,6 +2162,7 @@ void CommandFetchNodes::procresult()
                 // nodes
                 if (!client->readnodes(&client->json, 0))
                 {
+cout << "INTERNAL: readnodes " << client->json.pos << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -2179,17 +2181,20 @@ void CommandFetchNodes::procresult()
                 // users/contacts
                 if (!client->readusers(&client->json))
                 {
+cout << "INTERNAL: readusers " << client->json.pos << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
 
             case MAKENAMEID2('c', 'r'):
                 // crypto key request
+cout << "INTERNAL: proccr() " << client->json.pos << endl;
                 client->proccr(&client->json);
                 break;
 
             case MAKENAMEID2('s', 'r'):
                 // sharekey distribution request
+cout << "INTERNAL: procsr() " << client->json.pos << endl;
                 client->procsr(&client->json);
                 break;
 
@@ -2204,6 +2209,7 @@ void CommandFetchNodes::procresult()
             case EOO:
                 if (!*client->scsn)
                 {
+cout << "INTERNAL: no scsn " << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
@@ -2220,6 +2226,7 @@ void CommandFetchNodes::procresult()
             default:
                 if (!client->json.storeobject())
                 {
+cout << "INTERNAL: Storeobject failed: " << client->json.pos << endl;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }

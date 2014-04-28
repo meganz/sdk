@@ -657,10 +657,12 @@ void MegaClient::exec()
                             {
                                 // request failed
                                 error e = (error)atoi(pendingcs->in.c_str());
+
                                 if (!e)
                                 {
                                     e = API_EINTERNAL;
                                 }
+
                                 app->request_error(e);
                                 break;
                             }
@@ -3810,26 +3812,30 @@ void MegaClient::mapuser(handle uh, const char* email)
 void MegaClient::procsr(JSON* j)
 {
     User* u;
-    handle sh = UNDEF, uh = UNDEF;
+    handle sh, uh;
 
     if (!j->enterarray())
     {
         return;
     }
 
-    for (;;)
+    while (j->ishandle() && (sh = j->gethandle()))
     {
-		if (ISUNDEF(sh) && ISUNDEF(sh = j->gethandle())) break;
-
-        if (ISUNDEF(uh = j->gethandle(USERHANDLE)))
+        if (nodebyhandle(sh))
         {
-            sh = UNDEF;
-            continue;
+            // process pending requests
+            while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)))
+            {
+                if ((u = finduser(uh)))
+                {
+                    queuepubkeyreq(u, new PubKeyActionSendShareKey(sh));
+                }
+            }
         }
-
-        if (nodebyhandle(sh) && (u = finduser(uh)))
+        else
         {
-            queuepubkeyreq(u, new PubKeyActionSendShareKey(sh));
+            // unknown node: skip
+            while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)));
         }
     }
 

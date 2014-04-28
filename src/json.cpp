@@ -225,6 +225,33 @@ bool JSON::storebinary(string* dst)
     return true;
 }
 
+// test for specific handle type
+bool JSON::ishandle(int size)
+{
+    if (*pos == ',')
+    {
+        pos++;
+    }
+
+    if (*pos == '"')
+    {
+        int i;
+
+        // test for short string
+        for (i = 0; i <= size; i++)
+        {
+            if (!pos[i])
+            {
+                return false;
+            }
+        }
+    
+        return pos[i] == '"';
+    }
+
+    return false;
+}
+
 // decode handle
 handle JSON::gethandle(int size)
 {

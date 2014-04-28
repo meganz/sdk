@@ -47,6 +47,8 @@ struct MEGA_API JSON
     int storebinary(byte*, int);
     bool storebinary(string*);
 
+    // MegaClient::NODEHANDLE
+    bool ishandle(int = 6);
     handle gethandle(int = 6);
 
     bool enterarray();
