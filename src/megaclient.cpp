@@ -26,9 +26,7 @@ bool debug;
 
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
-// FIXME: instead of copying nodes, move if the source is in the rubbish to
-// reduce node creation load on the servers
-// FIXME: support filesystems with timestamp granularity > 1 s (FAT)?
+// FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: replicate folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
 
@@ -1096,7 +1094,7 @@ void MegaClient::exec()
                 // are retrying local fs writes
                 if (!syncscanning && !syncfsopsfailed)
                 {
-					unsigned totalnodes = 0;
+                    unsigned totalnodes = 0;
 
                     syncscanfailed = false;
 
@@ -4820,7 +4818,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
-                    // Updates cache entry with the new node
+                    // update cache entry with the new node
                     ll->sync->statecacheadd(ll);
                 }
 
@@ -5054,6 +5052,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             // identical
             if (ll->type == FILENODE)
             {
+                // skip if this node is being fetched
+                if (rit->second->syncget)
+                {
+                    continue;
+                }
+
                 if (ll->size == rit->second->size)
                 {
                     // check if file is likely to be identical
