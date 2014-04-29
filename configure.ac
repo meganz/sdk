@@ -136,10 +136,10 @@ AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sy
 AC_ARG_ENABLE(
     [inotify],
     [AS_HELP_STRING(
-        [--enable-inotify]],
+        [--enable-inotify],
         [enable inotify support [default=yes]])],
-    [[enable_inotify=$enableval]],
-    [[enable_inotify=yes]]
+    [enable_inotify=$enableval],
+    [enable_inotify=yes]
 )
 
 AS_IF([test "x$enable_inotify" = "xyes"], [
