@@ -133,9 +133,15 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
         kill megasync instances, remove temp folders
         """
+
+        self.sync()
+
         # kill instances
         if self.megasync_ch_in:
             self.megasync_ch_in.terminate()
+
+        # pause
+        time.sleep(5)
 
         if self.megasync_ch_out:
             self.megasync_ch_out.terminate()
