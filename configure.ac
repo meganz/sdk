@@ -132,13 +132,27 @@ AC_TYPE_SIZE_T
 
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
 
-# Checks for inotify support.
-AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
-AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+# Check for inotify support.
+AC_ARG_ENABLE(
+    [inotify],
+    [AS_HELP_STRING(
+        [--enable-inotify],
+        [enable inotify support [default=yes]])],
+    [enable_inotify=$enableval],
+    [enable_inotify=yes]
+)
 
-AC_CHECK_FUNCS(fdopendir sendfile clock_gettime select)
+AS_IF([test "x$enable_inotify" = "xyes"], [
+    AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
+    AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+])
 
 # Check for particular functions
+AC_CHECK_FUNCS(fdopendir select)
+AC_CHECK_LIB([sendfile], [sendfile])
+AC_CHECK_LIB([socket], [socket])
+AC_CHECK_LIB([rt], [clock_gettime])
+
 AC_FUNC_MALLOC
 
 # Check if building for Win32, determine Win32 API libs
@@ -170,7 +184,7 @@ CRYPTO_LIBS="-lcryptopp"
 AC_MSG_CHECKING(for libcryptopp)
 cryptopp=false
 AC_ARG_WITH(cryptopp,
-  [  --with-cryptopp=PATH       base of libcrypto installation],
+  AS_HELP_STRING(--with-cryptopp=PATH, base of libcrypto installation),
   [
    case $with_cryptopp in
    no)
@@ -248,7 +262,7 @@ AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
 sqlite=false
 AC_MSG_CHECKING(for SQLite)
 AC_ARG_WITH(sqlite,
-  [  --with-sqlite=PATH       base of SQLite installation],
+  AS_HELP_STRING(--with-sqlite=PATH, base of SQLite installation),
   [AC_MSG_RESULT($with_sqlite)
    case $with_sqlite in
    no)
@@ -315,7 +329,7 @@ AC_SUBST(DB_LDFLAGS)
 db=false
 AC_MSG_CHECKING(for Berkeley DB)
 AC_ARG_WITH(db,
-  [  --with-db=PATH       base of Berkeley DB installation],
+  AS_HELP_STRING(--with-db=PATH, base of Berkeley DB installation),
   [AC_MSG_RESULT($with_db)
    case $with_db in
    no)
@@ -363,7 +377,7 @@ AC_SUBST(DB_LDFLAGS)
 # check if both DB layers are selected
 if test "x$sqlite" = "xtrue" ; then
     if test "x$db" = "xtrue" ; then
-        AC_MSG_ERROR([Please provide exactly one DB access layer, either --enable-sqlite or --enable-db.])
+        AC_MSG_ERROR([Please provide exactly one DB access layer, either --with-sqlite or --with-db.])
     fi
 fi
 
@@ -399,7 +413,7 @@ if test "x$WIN32" = "xno" ; then
     # check for cURL library
     AC_MSG_CHECKING(for cURL)
     AC_ARG_WITH([curl],
-      [  --with-curl=PATH       path to curl],
+      AS_HELP_STRING(--with-curl=PATH, path to curl),
       [
        case $with_curl in
        no)
@@ -492,7 +506,7 @@ fi
 # Examples
 AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE([examples],
-     AS_HELP_STRING([--enable-examples build example applications]),
+     AS_HELP_STRING(--enable-examples, build example applications),
 	[], [enable_examples=no])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
@@ -501,7 +515,7 @@ AC_MSG_RESULT([$enable_examples])
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
 AC_ARG_WITH(freeimage,
-  [  --with-freeimage=PATH       base of FreeImage installation],
+  AS_HELP_STRING(--with-freeimage=PATH, base of FreeImage installation),
   [AC_MSG_RESULT($with_freeimage)
    case $with_freeimage in
    no)
@@ -579,7 +593,7 @@ if test "x$enable_examples" = "xyes" ; then
       # ReadLine
     AC_MSG_CHECKING(for Readline)
     AC_ARG_WITH(readline,
-      [  --with-readline=PATH       base of Readline installation],
+      AS_HELP_STRING(--with-readline=PATH, base of Readline installation),
       [AC_MSG_RESULT($with_redline)
        case $with_readline in
        no)
@@ -640,7 +654,7 @@ if test "x$enable_examples" = "xyes" ; then
     if test "x$WIN32" = "xyes" ; then
         AC_MSG_CHECKING(for termcap)
         AC_ARG_WITH(termcap,
-          [  --with-termcap=PATH       base of termcap installation],
+          AS_HELP_STRING(--with-termcap=PATH, base of termcap installation),
           [AC_MSG_RESULT($with_termcap)
            case $with_termcap in
            no)
@@ -665,7 +679,7 @@ fi
 if test "x$WIN32" = "xyes" ; then
     AC_MSG_CHECKING(for WinHTTP)
     AC_ARG_WITH(winhttp,
-      [  --with-winhttp=PATH       base of WinHTTP installation],
+      AS_HELP_STRING(--with-winhttp=PATH, base of WinHTTP installation),
       [AC_MSG_RESULT($with_winhttp)
        case $with_winhttp in
        no)
@@ -689,11 +703,11 @@ fi
 # Tests
 AC_MSG_CHECKING([if building tests])
 AC_ARG_ENABLE([tests],
-     AS_HELP_STRING([--enable-tests, build test applications]),
+     AS_HELP_STRING(--enable-tests, build test applications),
 	[], [enable_tests=no])
 if test "x$enable_tests" = "xyes" ; then
-    AC_ARG_WITH([gtest],
-        AS_HELP_STRING([--with-gtest], [specify GTest location]),
+    AC_ARG_WITH(gtest,
+        AS_HELP_STRING(--with-gtest, specify GTest location),
         [AC_SUBST([GTEST_DIR],[$with_gtest])],
         [AC_MSG_ERROR([GTest location must be specified])]
     )

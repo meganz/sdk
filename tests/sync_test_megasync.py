@@ -133,9 +133,15 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
         kill megasync instances, remove temp folders
         """
+
+        self.sync()
+
         # kill instances
         if self.megasync_ch_in:
             self.megasync_ch_in.terminate()
+
+        # pause
+        time.sleep(5)
 
         if self.megasync_ch_out:
             self.megasync_ch_out.terminate()
@@ -155,7 +161,12 @@ if __name__ == "__main__":
         print "Please run as:  python " + sys.argv[0] + " [work dir] [remote folder name]"
         sys.exit(1)
 
-    with SyncTestMegaSyncApp(sys.argv[1], sys.argv[2], True, True) as app:
+    if os.environ.get('MEGA_TEST_USE_LARGE_FILES') is None:
+        large_files = False
+    else:
+        large_files = True
+
+    with SyncTestMegaSyncApp(sys.argv[1], sys.argv[2], True, large_files) as app:
         suite = unittest.TestSuite()
 
         suite.addTest(SyncTest("test_create_delete_files", app))
@@ -163,7 +174,9 @@ if __name__ == "__main__":
         suite.addTest(SyncTest("test_create_delete_dirs", app, ))
         suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
         suite.addTest(SyncTest("test_sync_files_write", app))
-        suite.addTest(SyncTest("test_local_operations", app))
+
+        if os.environ.get('MEGA_TEST_USE_DIRTREE_TEST') is not None:
+            suite.addTest(SyncTest("test_local_operations", app))
 
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')
         testRunner.run(suite)

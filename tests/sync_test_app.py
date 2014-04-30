@@ -63,22 +63,26 @@ class SyncTestApp(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.finish()
-
         # remove tmp folders
         if self.delete_tmp_files:
             try:
+                print "Deleting %s" % self.local_folder_in
                 shutil.rmtree(self.local_folder_in)
             except OSError:
                 pass
             try:
+                print "Deleting %s" % self.local_folder_out
                 shutil.rmtree(self.local_folder_out)
             except OSError:
                 pass
             try:
+                print "Deleting %s" % self.work_folder
                 shutil.rmtree(self.work_folder)
             except OSError:
                 pass
+
+        # terminate apps
+        self.finish()
 
     def prepare_folders(self):
         """
