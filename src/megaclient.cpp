@@ -919,6 +919,7 @@ void MegaClient::exec()
             {
                 bool syncscanning = false;
                 unsigned totalpending = 0;
+                dstime nds = ~0;
 
                 for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
@@ -942,6 +943,9 @@ void MegaClient::exec()
                                 {
                                     if (sync->procscanq(q))
                                     {
+                                        syncup(&sync->localroot, &nds);
+                                        sync->cachenodes();
+
                                         // we interrupt processing the notifyq if the the completion
                                         // of a node creation is required to continue
                                         break;
@@ -1079,16 +1083,12 @@ void MegaClient::exec()
 
                 // FIXME: only syncup for subtrees that were actually
                 // updated to reduce CPU load
-                dstime nds = ~0;
-
                 for (it = syncs.begin(); it != syncs.end(); it++)
                 {
                     if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                         && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size() && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
                     {
                         syncup(&(*it)->localroot, &nds);
-
-                        // update possible changes in the LocalNode->Node association
                         (*it)->cachenodes();
                     }
                 }
