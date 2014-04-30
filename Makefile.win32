@@ -82,6 +82,7 @@ COMMON_SRC=\
 		src/treeproc.cpp  \
 		src/user.cpp  \
 		src/utils.cpp  \
+		src/logging.cpp  \
 		src/waiterbase.cpp  \
 		src/megaclient.cpp  \
 		src/crypto/cryptopp.cpp \

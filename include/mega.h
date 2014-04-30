@@ -2,7 +2,7 @@
  * @file mega.h
  * @brief Main header file for inclusion by client software.
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -51,6 +51,7 @@
 #include "mega/treeproc.h"
 #include "mega/user.h"
 #include "mega/utils.h"
+#include "mega/logging.h"
 #include "mega/waiter.h"
 
 #include "mega/node.h"

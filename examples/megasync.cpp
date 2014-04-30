@@ -298,10 +298,7 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
 // callback for displaying debug logs
 void SyncApp::debug_log(const char* message)
 {
-    if (debug)
-    {
-        cout << "DEBUG: " << message << endl;
-    }
+    LOG_debug << "DEBUG: " << message;
 }
 
 // this callback function is called when we have login result (success or
@@ -311,8 +308,8 @@ void SyncApp::login_result(error e)
 {
     if (e != API_OK)
     {
-        cout << "FATAL: Failed to get login result, exiting" << endl;
-                    exit(1);
+        LOG_err << "FATAL: Failed to get login result, exiting";
+        exit(1);
     }
     // get the list of nodes
     client->fetchnodes();
@@ -322,11 +319,9 @@ void SyncApp::fetchnodes_result(error e)
 {
     if (e != API_OK)
     {
-        cout << "FATAL: Failed to fetch remote nodes, exiting" << endl;
+        LOG_err << "FATAL: Failed to fetch remote nodes, exiting";
                     exit(1);
     }
-
-    cout << "fetchnodes_result" << endl;
 
     if (initial_fetch)
     {
@@ -345,30 +340,30 @@ void SyncApp::fetchnodes_result(error e)
 
             if (!n)
             {
-                cout << remote_folder << ": Not found." << endl;
-                    exit(1);
+                LOG_err << remote_folder << ": Not found.";
+                exit(1);
             }
             else if (n->type == FILENODE)
             {
-                cout << remote_folder << ": Remote sync root must be folder." << endl;
-                    exit(1);
+                LOG_err << remote_folder << ": Remote sync root must be folder.";
+                exit(1);
             }
             else
             {
                 error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
                 if (e)
                 {
-                    cout << "Sync could not be added! " << endl;
+                    LOG_err << "Sync could not be added! ";
                     exit(1);
                 }
 
-                cout << "Sync started !" << endl;
+                LOG_debug << "Sync started !";
             }
         }
         else
         {
-            cout << remote_folder << ": Syncing requires full access to path." << endl;
-                    exit(1);
+            LOG_err << remote_folder << ": Syncing requires full access to path.";
+            exit(1);
         }
     }
 }
@@ -376,20 +371,20 @@ void SyncApp::fetchnodes_result(error e)
 // this callback function is called when request-level error occurred
 void SyncApp::request_error(error e)
 {
-    cout << "FATAL: Request failed, exiting" << endl;
-                    exit(1);
+    LOG_err << "FATAL: Request failed, exiting";
+    exit(1);
 }
 
 void SyncApp::syncupdate_state(Sync*, syncstate_t state)
 {
     if (( state == SYNC_CANCELED ) || ( state == SYNC_FAILED ))
     {
-        cout << "FATAL: Sync failed !" << endl;
-                    exit(1);
+        LOG_err << "FATAL: Sync failed !";
+        exit(1);
     }
     else if (state == SYNC_ACTIVE)
     {
-        cout << "Sync is now active" << endl;
+        LOG_debug << "Sync is now active";
     }
 }
 
@@ -397,11 +392,9 @@ void SyncApp::syncupdate_stuck(string* reason)
 {
     if (reason)
     {
-        cout << "Sync halted: " << *reason << " temporarily in use" << endl;
-    }
-    else
-    {
-        cout << "Sync resumed" << endl;
+        LOG_debug << "Sync halted: " << *reason << " temporarily in use";
+    } else {
+        LOG_debug << "Sync resumed";
     }
 }
 
@@ -409,114 +402,72 @@ void SyncApp::syncupdate_stuck(string* reason)
 // change or delete the sync itself
 void SyncApp::syncupdate_local_folder_addition(Sync* sync, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - local folder addition detected: " << path << endl;
-    }
+    LOG_debug << "Sync - local folder addition detected: " << path;
 }
 
 void SyncApp::syncupdate_local_folder_deletion(Sync* sync, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - local folder deletion detected: " << path << endl;
-    }
+    LOG_debug << "Sync - local folder deletion detected: " << path;
 }
 
 void SyncApp::syncupdate_local_file_addition(Sync* sync, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - local file addition detected: " << path << endl;
-    }
+    LOG_debug << "Sync - local file addition detected: " << path;
 }
 
 void SyncApp::syncupdate_local_file_deletion(Sync* sync, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - local file deletion detected: " << path << endl;
-    }
+    LOG_debug << "Sync - local file deletion detected: " << path;
 }
 
 void SyncApp::syncupdate_local_file_change(Sync* sync, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - local file change detected: " << path << endl;
-    }
+    LOG_debug << "Sync - local file change detected: " << path;
 }
 
 void SyncApp::syncupdate_local_move(Sync*, const char* from, const char* to)
 {
-    if (debug)
-    {
-        cout << "Sync - local rename/move " << from << " -> " << to << endl;
-    }
+    LOG_debug << "Sync - local rename/move " << from << " -> " << to;
 }
 
 void SyncApp::syncupdate_remote_move(string* from, string* to)
 {
-    if (debug)
-    {
-        cout << "Sync - remote rename/move " << *from << " -> " << *to << endl;
-    }
+    LOG_debug << "Sync - remote rename/move " << *from << " -> " << *to;
 }
 
 void SyncApp::syncupdate_remote_folder_addition(Node* n)
 {
-    if (debug)
-    {
-        cout << "Sync - remote folder addition detected " << n->displayname() << endl;
-    }
+    LOG_debug << "Sync - remote folder addition detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_file_addition(Node* n)
 {
-    if (debug)
-    {
-        cout << "Sync - remote file addition detected " << n->displayname() << endl;
-    }
+    LOG_debug << "Sync - remote file addition detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_folder_deletion(Node* n)
 {
-    if (debug)
-    {
-        cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
-    }
+    LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_file_deletion(Node* n)
 {
-    if (debug)
-    {
-        cout << "Sync - remote file deletion detected " << n->displayname() << endl;
-    }
+    LOG_debug << "Sync - remote file deletion detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_get(Sync*, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - requesting file " << path << endl;
-    }
+    LOG_debug << "Sync - requesting file " << path;
 }
 
 void SyncApp::syncupdate_put(Sync*, const char* path)
 {
-    if (debug)
-    {
-        cout << "Sync - sending file " << path << endl;
-    }
+    LOG_debug  << "Sync - sending file " << path;
 }
 
 void SyncApp::syncupdate_remote_copy(Sync*, const char* name)
 {
-    if (debug)
-    {
-        cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
-    }
+    LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
 }
 
 static const char* treestatename(treestate_t ts)
@@ -541,23 +492,23 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(LocalNode* l)
 {
-    if (debug)
-    {
-        cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
-    }
+    LOG_debug << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
 }
 
-
-//
 int main(int argc, char *argv[])
 {
     static byte pwkey[SymmCipher::KEYLENGTH];
     bool is_active = true;
     SyncApp *app;
 
+    // use logInfo level
+    SimpleLogger::setLogLevel(logDebug);
+    // set output to stdout
+    SimpleLogger::setAllOutputs(&std::cout);
+
     if (argc < 3)
     {
-        cout << "Usage: " << argv[0] << " [local folder] [remote folder]" << endl;
+        LOG_info << "Usage: " << argv[0] << " [local folder] [remote folder]";
         return 1;
     }
 
@@ -565,22 +516,17 @@ int main(int argc, char *argv[])
 
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD"))
     {
-        cout << "Please set both MEGA_EMAIL and MEGA_PWD env variables!" << endl;
+        LOG_info << "Please set both MEGA_EMAIL and MEGA_PWD env variables!";
         return 1;
     }
 
-
-    cout << "Starting .." << getenv("MEGA_PWD") << endl;
-            app->debug = true;
+    app->debug = true;
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
         NULL, NULL,
         "megasync", "megaclisync");
 
-    cout << "Continue .." << endl;
-            client->toggledebug();
-    /*
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))
     {
@@ -594,7 +540,6 @@ int main(int argc, char *argv[])
             client->toggledebug();
         }
     }
-    */
 
     // get values from env
     client->pw_key(getenv("MEGA_PWD"), pwkey);
