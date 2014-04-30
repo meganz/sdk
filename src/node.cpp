@@ -969,7 +969,7 @@ LocalNode::~LocalNode()
 
     sync->localnodes[type]--;
 
-    if ((type == FILENODE) && (size > 0))
+    if (type == FILENODE && size > 0)
     {
         sync->localbytes -= size;
     }

@@ -666,12 +666,14 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     overlapped.hEvent = this;
 
     active = 0;
+
     notifybuf[0].resize(65534);
     notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
 
     localbasepath->append("", 1);
+
     if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
                                    FILE_LIST_DIRECTORY,
                                    FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -680,9 +682,13 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                    FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
                                    NULL)) != INVALID_HANDLE_VALUE)
     {
-        readchanges();
-    
         failed = false;
+
+        readchanges();
+    }
+    else
+    {
+        failed = true;
     }
 
     localbasepath->resize(localbasepath->size() - added - 1);
@@ -772,7 +778,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 
 bool WinDirAccess::dnext(string* name, nodetype_t* type)
 {
-    for (; ;)
+    for (;;)
     {
         if (ffdvalid
                 && !WinFileAccess::skipattributes(ffd.dwFileAttributes)

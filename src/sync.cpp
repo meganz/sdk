@@ -502,7 +502,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
     {
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
-		// (just compare the fsids, sizes and mtimes to detect changes)
+        // (just compare the fsids, sizes and mtimes to detect changes)
         if (fullscan)
         {
             // find corresponding LocalNode by file-/foldername
@@ -518,6 +518,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // node found and same file
                 l = cl;
+                
                 l->deleted = false;
                 l->setnotseen(0);
 
@@ -526,12 +527,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 {
                     l->scanseqno = scanseqno;
 
-                    localbytes += l->size;
-
                     if (l->type == FOLDERNODE)
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }
+                    else localbytes += l->size;
 
                     delete fa;
                     return l;
@@ -709,7 +709,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     {
                         changed = true;
                         l->bumpnagleds();
-                        l->deleted = 0;
+                        l->deleted = false;
                     }
 
                     if (l->size > 0)
@@ -775,11 +775,8 @@ bool Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
 
-    while (t-- && (state != SYNC_ACTIVE
-                   || q != DirNotify::DIREVENTS
-                   || Waiter::ds - dirnotify->notifyq[DirNotify::DIREVENTS].front().timestamp > 4))
+    while (t--)
     {
-
         LocalNode* l = checkpath(dirnotify->notifyq[q].front().localnode, &dirnotify->notifyq[q].front().path);
 
         // defer processing because of a missing parent node?
@@ -798,7 +795,10 @@ bool Sync::procscanq(int q)
 
     if (dirnotify->notifyq[q].size())
     {
-        if (q == DirNotify::DIREVENTS) client->syncactivity = true;
+        if (q == DirNotify::DIREVENTS)
+        {
+            client->syncactivity = true;
+        }
     }
     else if (!dirnotify->notifyq[!q].size())
     {
