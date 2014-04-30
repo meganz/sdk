@@ -518,7 +518,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // node found and same file
                 l = cl;
-                
                 l->deleted = false;
                 l->setnotseen(0);
 
@@ -781,7 +780,7 @@ bool Sync::procscanq(int q)
 
         // defer processing because of a missing parent node?
         if (l == (LocalNode*)~0) return true;
-        
+
         dirnotify->notifyq[q].pop_front();
 
         // we return control to the application in case a filenode was added

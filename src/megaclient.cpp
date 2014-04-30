@@ -857,8 +857,6 @@ void MegaClient::exec()
             }
         }
 
-        // syncops indicates that a sync-relevant tree update may be pending
-        bool syncops = syncadded;
         sync_list::iterator it;
 
         if (syncadded)
@@ -896,14 +894,12 @@ void MegaClient::exec()
         if (syncdownretry && syncdownbt.armed())
         {
             syncdownretry = false;
-            syncops = true;
         }
 
         // sync timer: file change upload delay timeouts (Nagle algorithm)
         if (syncnagleretry && syncnaglebt.armed())
         {
             syncnagleretry = false;
-            syncops = true;
         }
 
         // sync timer: read lock retry
@@ -944,8 +940,6 @@ void MegaClient::exec()
                                 // process items from the notifyq until depleted
                                 if (sync->dirnotify->notifyq[q].size())
                                 {
-                                    syncops = true;
-
                                     if (sync->procscanq(q))
                                     {
                                         // we interrupt processing the notifyq if the the completion
@@ -1012,7 +1006,7 @@ void MegaClient::exec()
                 // perform aggregate ops that require all scanqs to be fully processed
                 for (it = syncs.begin(); it != syncs.end(); it++)
                 {
-                    if (/*!(*it)->fullscan &&*/ ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                    if (((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                         || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()))
                     {
                         break;
@@ -1079,7 +1073,6 @@ void MegaClient::exec()
                         while (localsyncnotseen.size())
                         {
                             delete *localsyncnotseen.begin();
-                            syncops = true;
                         }
                     }
                 }
@@ -1133,7 +1126,6 @@ void MegaClient::exec()
                             if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                              || sync->dirnotify->notifyq[DirNotify::RETRY].size())
                             {
-                                syncops = true;
                                 break;
                             }
                             else
