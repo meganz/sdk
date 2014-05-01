@@ -977,6 +977,11 @@ void MegaClient::exec()
                     }
                 }
 
+                if (synccreate.size())
+                {
+                    syncupdate();
+                }
+
                 // set retry interval for locked filesystem items once all
                 // pending items were processed
                 if (syncfslockretry)
