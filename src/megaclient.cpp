@@ -1002,6 +1002,57 @@ void MegaClient::exec()
                     }
                 }
 
+                bool success = true;
+                string localpath;
+
+                notifypurge();
+
+                for (it = syncs.begin(); it != syncs.end(); it++)
+                {
+                    // make sure that the remote synced folder still exists
+                    if (!(*it)->localroot.node)
+                    {
+                        (*it)->changestate(SYNC_FAILED);
+                    }
+                    else
+                    {
+                        localpath = (*it)->localroot.localname;
+
+                        if ((*it)->state == SYNC_ACTIVE)
+                        {
+                            if (!syncdown(&(*it)->localroot, &localpath, true))
+                            {
+                                // a local filesystem item was locked - schedule periodic retry
+                                // and force a full rescan afterwards as the local item may
+                                // be subject to changes that are notified with obsolete paths
+                                success = false;
+                                (*it)->dirnotify->error = true;
+                            }
+                        }
+                    }
+                }
+
+                // notify the app if a lock is being retried
+                if (success)
+                {
+                    if (syncfsopsfailed)
+                    {
+                        syncfsopsfailed = false;
+                        app->syncupdate_local_lockretry(false);
+                    }
+                }
+                else
+                {
+                    if (!syncfsopsfailed)
+                    {
+                        syncfsopsfailed = true;
+                        app->syncupdate_local_lockretry(true);
+                    }
+
+                    syncdownretry = true;
+                    syncdownbt.backoff(50);
+                }
+
                 // perform aggregate ops that require all scanqs to be fully processed
                 for (it = syncs.begin(); it != syncs.end(); it++)
                 {
@@ -1014,52 +1065,6 @@ void MegaClient::exec()
 
                 if (it == syncs.end())
                 {
-                    bool success = true;
-                    string localpath;
-
-                    notifypurge();
-
-                    for (it = syncs.begin(); it != syncs.end(); it++)
-                    {
-                        // make sure that the remote synced folder still exists
-                        if (!(*it)->localroot.node)
-                        {
-                            (*it)->changestate(SYNC_FAILED);
-                        }
-                        else
-                        {
-                            localpath = (*it)->localroot.localname;
-
-                            if (((*it)->state == SYNC_ACTIVE)
-                                && !syncdown(&(*it)->localroot, &localpath, true)
-                                && success)
-                            {
-                                success = false;
-                            }
-                        }
-                    }
-
-                    // notify the app if a lock is being retried
-                    if (success)
-                    {
-                        if (syncfsopsfailed)
-                        {
-                            syncfsopsfailed = false;
-                            app->syncupdate_local_lockretry(false);
-                        }
-                    }
-                    else
-                    {
-                        if (!syncfsopsfailed)
-                        {
-                            syncfsopsfailed = true;
-                            app->syncupdate_local_lockretry(true);
-                        }
-
-                        syncdownretry = true;
-                        syncdownbt.backoff(50);
-                    }
-
                     // execution of notified deletions - these are held in localsyncnotseen and
                     // kept pending until all creations (that might reference them for the purpose of
                     // copying) have completed and all notification queues have run empty (to ensure
@@ -1084,7 +1089,8 @@ void MegaClient::exec()
                         for (it = syncs.begin(); it != syncs.end(); it++)
                         {
                             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                                && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size() && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                                && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                                && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
                             {
                                 syncup(&(*it)->localroot, &nds);
                                 (*it)->cachenodes();
