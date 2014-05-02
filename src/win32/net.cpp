@@ -96,6 +96,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
     {
         assert(!httpctx->req);
 
+        if (httpctx->gzip)
+        {
+            inflateEnd(&httpctx->z);
+        }
+        
         delete httpctx;
         return;
     }
@@ -148,6 +153,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 else
                 {
                     ptr = (char*)req->reserveput((unsigned*)&size);
+                    req->bufpos += size;
                 }
 
                 if (WinHttpReadData(hInternet, ptr, size, NULL))
@@ -157,7 +163,9 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                         httpctx->z.next_in = (Bytef*)ptr;
                         httpctx->z.avail_in = size;
 
+                        req->bufpos += httpctx->z.avail_out;
                         int t = inflate(&httpctx->z, Z_NO_FLUSH);
+                        req->bufpos -= httpctx->z.avail_out;
 
                         if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
                         {
@@ -178,8 +186,6 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
             if (dwStatusInformationLength)
             {
-                req->completeput(dwStatusInformationLength);
-
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
                 {
                     httpio->cancel(req);
@@ -207,11 +213,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 req->httpstatus = statusCode;
 
-                if (req->buf)
-                {
-                    httpctx->gzip = false;
-                }
-                else
+                if (!req->buf)
                 {
                     // obtain original content length - always present if gzip is in use
                     DWORD contentLength;
@@ -346,6 +348,8 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     httpctx->httpio = this;
     httpctx->req = req;
+    httpctx->gzip = false;
+
     req->httpiohandle = (void*)httpctx;
 
     if (MultiByteToWideChar(CP_UTF8, 0, req->posturl.c_str(), -1, szURL,

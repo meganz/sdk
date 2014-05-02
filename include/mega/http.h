@@ -74,8 +74,9 @@ struct MEGA_API HttpReq
     string outbuf;
 
     byte* buf;
-    unsigned buflen, bufpos;
+    m_off_t buflen, bufpos;
 
+    // we assume that API responses are smaller than 4 GB
     m_off_t contentlength;
 
     // HttpIO implementation-specific identifier for this connection
@@ -99,9 +100,6 @@ struct MEGA_API HttpReq
     
     // reserve space for incoming data
     byte* reserveput(unsigned* len);
-
-    // confirm receipt of data in reserved space
-    void completeput(unsigned len);
 
     // disconnect open HTTP connection
     void disconnect();
