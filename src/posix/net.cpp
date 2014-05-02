@@ -88,9 +88,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         curl_easy_setopt(curl, CURLOPT_USERAGENT, useragent->c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req->type == REQ_JSON ? contenttypejson : contenttypebinary);
+        curl_easy_setopt(curl, CURLOPT_ENCODING, "");
         curl_easy_setopt(curl, CURLOPT_SHARE, curlsh);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, check_header);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
 
         curl_multi_add_handle(curlm, curl);
@@ -196,5 +199,16 @@ size_t CurlHttpIO::write_data(void *ptr, size_t size, size_t nmemb, void *target
     ((HttpReq*)target)->put(ptr, size);
 
     return size;
+}
+
+// set contentlength according to Original-Content-Length header
+size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* userdata)
+{
+    if (!memcmp(ptr,"Original-Content-Length:",24))
+    {
+        ((HttpReq*)userdata)->setcontentlength(atol((char*)ptr+24));
+    }
+
+    return nmemb;
 }
 } // namespace

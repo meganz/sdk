@@ -33,7 +33,8 @@ protected:
     CURLM* curlm;
     CURLSH* curlsh;
 
-    static size_t write_data(void *, size_t, size_t, void *);
+    static size_t write_data(void*, size_t, size_t, void*);
+    static size_t check_header(void*, size_t, size_t, void*);
 
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
