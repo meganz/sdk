@@ -1198,7 +1198,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
-    uint64_t mtime;
+    uint64_t mtime = 0;
 
     if (type == FILENODE)
     {

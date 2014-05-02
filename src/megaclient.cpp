@@ -973,6 +973,9 @@ void MegaClient::exec()
                                     totalpending += sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
                                 }
                             }
+
+                            assert(!sync->insertq.size());
+                            assert(!sync->deleteq.size());
                         }
                     }
                 }
@@ -1190,6 +1193,9 @@ void MegaClient::exec()
         // fallback notifypurge() invocation while no active syncs present
         for (it = syncs.begin(); it != syncs.end(); it++)
         {
+            assert(!(*it)->insertq.size());
+            assert(!(*it)->deleteq.size());
+
             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
             {
                 break;
