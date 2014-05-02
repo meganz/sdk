@@ -228,6 +228,8 @@ bool JSON::storebinary(string* dst)
 // test for specific handle type
 bool JSON::ishandle(int size)
 {
+    size = (size == 6) ? 8 : 11;
+
     if (*pos == ',')
     {
         pos++;
