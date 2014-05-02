@@ -3864,7 +3864,7 @@ void MegaClient::procsr(JSON* j)
             while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)));
         }
     }
-
+ 
     j->leavearray();
 }
 

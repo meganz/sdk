@@ -229,7 +229,7 @@ bool JSON::storebinary(string* dst)
 bool JSON::ishandle(int size)
 {
     size = (size == 6) ? 8 : 11;
-
+ 
     if (*pos == ',')
     {
         pos++;
