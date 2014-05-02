@@ -247,8 +247,6 @@ void Sync::cachenodes()
             }
         } while (added);
 
-        assert(!insertq.size());
-
         statecachetable->commit();
 
         if (insertq.size()) client->app->debug_log("LocalNode caching did not complete");

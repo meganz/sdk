@@ -984,9 +984,6 @@ void MegaClient::exec()
                             if (sync->state == SYNC_ACTIVE)
                             {
                                 sync->cachenodes();
-
-                                assert(!sync->insertq.size());
-                                assert(!sync->deleteq.size());
                             }
                         }
                     }
@@ -1207,12 +1204,6 @@ void MegaClient::exec()
         // fallback notifypurge() invocation while no active syncs present
         for (it = syncs.begin(); it != syncs.end(); it++)
         {
-            if ((*it)->state == SYNC_ACTIVE)
-            {
-                assert(!(*it)->insertq.size());
-                assert(!(*it)->deleteq.size());
-            }
-
             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
             {
                 break;
@@ -3864,7 +3855,7 @@ void MegaClient::procsr(JSON* j)
             while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)));
         }
     }
- 
+
     j->leavearray();
 }
 
