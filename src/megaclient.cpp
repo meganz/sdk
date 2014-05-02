@@ -959,7 +959,6 @@ void MegaClient::exec()
                                     // FIXME: defer this until RETRY queue is processed
                                     sync->scanseqno++;
                                     sync->deletemissing(&sync->localroot);
-                                    sync->cachenodes();
                                 }
 
                                 if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
@@ -974,8 +973,13 @@ void MegaClient::exec()
                                 }
                             }
 
-                            assert(!sync->insertq.size());
-                            assert(!sync->deleteq.size());
+                            if (sync->state == SYNC_ACTIVE)
+                            {
+                                sync->cachenodes();
+
+                                assert(!sync->insertq.size());
+                                assert(!sync->deleteq.size());
+                            }
                         }
                     }
                 }
@@ -1036,6 +1040,8 @@ void MegaClient::exec()
                                 success = false;
                                 (*it)->dirnotify->error = true;
                             }
+
+                            (*it)->cachenodes();                            
                         }
                     }
                 }
@@ -1193,8 +1199,11 @@ void MegaClient::exec()
         // fallback notifypurge() invocation while no active syncs present
         for (it = syncs.begin(); it != syncs.end(); it++)
         {
-            assert(!(*it)->insertq.size());
-            assert(!(*it)->deleteq.size());
+            if ((*it)->state == SYNC_ACTIVE)
+            {
+                assert(!(*it)->insertq.size());
+                assert(!(*it)->deleteq.size());
+            }
 
             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
             {
