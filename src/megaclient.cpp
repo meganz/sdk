@@ -621,12 +621,12 @@ void MegaClient::exec()
                     case REQ_INFLIGHT:
                         if (pendingcs->contentlength > 0)
                         {
-                            app->request_response_progress(pendingcs->in.size(), pendingcs->contentlength);
+                            app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
                         }
                         break;
 
                     case REQ_SUCCESS:
-                        app->request_response_progress(pendingcs->in.size(), -1);
+                        app->request_response_progress(pendingcs->bufpos, -1);
 
                         if (pendingcs->in != "-3" && pendingcs->in != "-4")
                         {
@@ -678,7 +678,7 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:   // failure, repeat with capped exponential backoff
-                        app->request_response_progress(pendingcs->in.size(), -1);
+                        app->request_response_progress(pendingcs->bufpos, -1);
 
                         delete pendingcs;
                         pendingcs = NULL;
@@ -795,8 +795,8 @@ void MegaClient::exec()
                             }
 
                         // fall through
-                        case REQ_FAILURE:   // failure, repeat with capped
-                                            // exponential backoff
+                        case REQ_FAILURE:
+                            // failure, repeat with capped exponential backoff
                             delete pendingsc;
                             pendingsc = NULL;
 

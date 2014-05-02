@@ -192,21 +192,19 @@ bool CurlHttpIO::doio()
 }
 
 // callback for incoming HTTP payload
-size_t CurlHttpIO::write_data(void *ptr, size_t size, size_t nmemb, void *target)
+size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 {
-    size *= nmemb;
+    ((HttpReq*)target)->put(ptr, nmemb);
 
-    ((HttpReq*)target)->put(ptr, size);
-
-    return size;
+    return nmemb;
 }
 
 // set contentlength according to Original-Content-Length header
-size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* userdata)
+size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
 {
-    if (!memcmp(ptr,"Original-Content-Length:",24))
+    if (!memcmp(ptr, "Original-Content-Length:", 24))
     {
-        ((HttpReq*)userdata)->setcontentlength(atol((char*)ptr+24));
+        ((HttpReq*)target)->setcontentlength(atol((char*)ptr+24));
     }
 
     return nmemb;

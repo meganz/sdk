@@ -111,12 +111,13 @@ void HttpReq::put(void* data, unsigned len)
         }
 
         memcpy(buf + bufpos, data, len);
-        bufpos += len;
     }
     else
     {
         in.append((char*)data, len);
     }
+    
+    bufpos += len;
 }
 
 // set total response size
@@ -148,12 +149,6 @@ byte* HttpReq::reserveput(unsigned* len)
         *len = in.size() - bufpos;
         return (byte*)in.data() + bufpos;
     }
-}
-
-// confirm the receipt of data
-void HttpReq::completeput(unsigned len)
-{
-    bufpos += len;
 }
 
 // number of bytes transferred in this request
