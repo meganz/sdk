@@ -616,11 +616,18 @@ void MegaClient::exec()
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
+                        break;
+
                     case REQ_INFLIGHT:
-                        // implement timeout?
+                        if (pendingcs->contentlength > 0)
+                        {
+                            app->request_response_progress(pendingcs->in.size(), pendingcs->contentlength);
+                        }
                         break;
 
                     case REQ_SUCCESS:
+                        app->request_response_progress(pendingcs->in.size(), -1);
+
                         if (pendingcs->in != "-3" && pendingcs->in != "-4")
                         {
                             if (*pendingcs->in.c_str() == '[')
@@ -670,8 +677,9 @@ void MegaClient::exec()
                         }
 
                     // fall through
-                    case REQ_FAILURE:   // failure, repeat with capped
-                                        // exponential backoff
+                    case REQ_FAILURE:   // failure, repeat with capped exponential backoff
+                        app->request_response_progress(pendingcs->in.size(), -1);
+
                         delete pendingcs;
                         pendingcs = NULL;
 
@@ -1611,12 +1619,12 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
     }
 }
 
-// disconnect all HTTP connections (slows down operations, but is semantically
-// neutral)
+// disconnect all HTTP connections (slows down operations, but is semantically neutral)
 void MegaClient::disconnect()
 {
     if (pendingcs)
     {
+        app->request_response_progress(-1, -1);
         pendingcs->disconnect();
     }
 
@@ -4662,6 +4670,7 @@ void MegaClient::purgenodesusersabortsc()
 
     if (pendingsc)
     {
+        app->request_response_progress(-1, -1);
         pendingsc->disconnect();
     }
 

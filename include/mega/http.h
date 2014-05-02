@@ -76,6 +76,8 @@ struct MEGA_API HttpReq
     byte* buf;
     unsigned buflen, bufpos;
 
+    m_off_t contentlength;
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 
@@ -92,6 +94,9 @@ struct MEGA_API HttpReq
     // store chunk of incoming data
     void put(void*, unsigned);
 
+    // set response content length
+    void setcontentlength(m_off_t);
+    
     // reserve space for incoming data
     byte* reserveput(unsigned* len);
 

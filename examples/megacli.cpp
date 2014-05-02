@@ -46,6 +46,9 @@ static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[S
 // local console
 Console* console;
 
+// loading progress of lengthy API responses
+int responseprogress = -1;
+
 static const char* accesslevels[] =
 { "read-only", "read/write", "full access" };
 
@@ -2896,6 +2899,18 @@ void DemoApp::request_error(error e)
     exit(0);
 }
 
+void DemoApp::request_response_progress(m_off_t current, m_off_t total)
+{
+    if (total > 0)
+    {
+        responseprogress = current * 100 / total;
+    }
+    else
+    {
+        responseprogress = -1;
+    }   
+}
+
 // login result
 void DemoApp::login_result(error e)
 {
@@ -3352,7 +3367,7 @@ void megacli()
         if (prompt == COMMAND)
         {
             // display put/get transfer speed in the prompt
-            if (client->tslots.size())
+            if (client->tslots.size() || responseprogress >= 0)
             {
                 unsigned xferrate[2] = { 0 };
                 Waiter::bumpds();
@@ -3368,7 +3383,7 @@ void megacli()
 
                 strcpy(dynamicprompt, "MEGA");
 
-                if (xferrate[GET] || xferrate[PUT])
+                if (xferrate[GET] || xferrate[PUT] || responseprogress >= 0)
                 {
                     strcpy(dynamicprompt + 4, " (");
 
@@ -3384,6 +3399,11 @@ void megacli()
                     if (xferrate[PUT])
                     {
                         sprintf(strchr(dynamicprompt, 0), "Out: %u KB/s", xferrate[PUT]);
+                    }
+
+                    if (responseprogress >= 0)
+                    {
+                        sprintf(strchr(dynamicprompt, 0), "%d%%", responseprogress);
                     }
 
                     strcat(dynamicprompt + 6, ")");

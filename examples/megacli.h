@@ -76,7 +76,9 @@ struct DemoApp: public MegaApp
     FileAccess* newfile();
 
     void request_error(error);
-
+    
+    void request_response_progress(m_off_t, m_off_t);
+    
     void login_result(error);
 
     void ephemeral_result(error);

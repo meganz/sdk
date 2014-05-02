@@ -28,9 +28,11 @@ struct MEGA_API MegaApp
 {
     MegaClient* client;
 
-    // a request-level error occurred (other than API_EAGAIN, which will lead
-    // to a retry)
+    // a request-level error occurred (other than API_EAGAIN, which will lead to a retry)
     virtual void request_error(error) { }
+
+    // request response progress
+    virtual void request_response_progress(m_off_t, m_off_t) { }
 
     // login result
     virtual void login_result(error) { }

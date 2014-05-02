@@ -59,6 +59,7 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
     httpio = client->httpio;
     bufpos = 0;
+    contentlength = -1;
 
     httpio->post(this, data, len);
 }
@@ -116,6 +117,13 @@ void HttpReq::put(void* data, unsigned len)
     {
         in.append((char*)data, len);
     }
+}
+
+// set total response size
+void HttpReq::setcontentlength(m_off_t len)
+{
+    if (!buf) in.reserve(len);
+    contentlength = len;
 }
 
 // make space for receiving data; adjust len if out of space
