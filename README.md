@@ -68,6 +68,7 @@ To build the client access engine under Windows, you'll need to following:
 
 * A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
 * Crypto++
+* zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
 
 (You won't need cURL, as megaclient's Win32 version relies on WinHTTP
 for network access. Windows-native filesystem event monitoring is
@@ -100,9 +101,6 @@ clashes with existing short names.
 
 In this version, the sync functionality is severely limited in scope and
 functionality:
-
-* There is no state kept across sessions. Deletions are only executed on
-the other side if they occur while the sync is live.
 
 * There is no locking between clients accessing the same remote folder.
 Concurrent creation of identically named files and folders can result in

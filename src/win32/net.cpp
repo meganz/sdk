@@ -137,17 +137,43 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             }
             else
             {
-                char* ptr = (char*)req->reserveput((unsigned*)&size);
+                char* ptr;
+                string buf;
 
-                if (!WinHttpReadData(hInternet, ptr, size, NULL))
+                if (httpctx->gzip)
+                {
+                    buf.resize(size);
+                    ptr = (char*)buf.data();
+                }
+                else
+                {
+                    ptr = (char*)req->reserveput((unsigned*)&size);
+                }
+
+                if (WinHttpReadData(hInternet, ptr, size, NULL))
+                {
+                    if (httpctx->gzip)
+                    {
+                        httpctx->z.next_in = (Bytef*)ptr;
+                        httpctx->z.avail_in = size;
+
+                        int t = inflate(&httpctx->z, Z_NO_FLUSH);
+
+                        if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
+                        {
+                            httpio->cancel(req);
+                        }
+                    }
+                }
+                else
                 {
                     httpio->cancel(req);
                 }
             }
-        }
 
             httpio->httpevent();
             break;
+        }
 
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
             if (dwStatusInformationLength)
@@ -181,17 +207,52 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 req->httpstatus = statusCode;
 
-                DWORD contentLength;
-                DWORD contentLengthSize = sizeof(contentLength);
-
-                if (WinHttpQueryHeaders(httpctx->hRequest,
-                                        WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
-                                        WINHTTP_HEADER_NAME_BY_INDEX,
-                                        &contentLength,
-                                        &contentLengthSize,
-                                        WINHTTP_NO_HEADER_INDEX))
+                if (req->buf)
                 {
-                    req->setcontentlength(contentLength);
+                    httpctx->gzip = false;
+                }
+                else
+                {
+                    // obtain original content length - always present if gzip is in use
+                    DWORD contentLength;
+                    DWORD contentLengthSize = sizeof(contentLength);
+
+                    if (WinHttpQueryHeaders(httpctx->hRequest,
+                                            WINHTTP_QUERY_CUSTOM | WINHTTP_QUERY_FLAG_NUMBER,
+                                            L"Original-Content-Length",
+                                            &contentLength,
+                                            &contentLengthSize,
+                                            WINHTTP_NO_HEADER_INDEX))
+                    {
+                        req->setcontentlength(contentLength);
+
+                        // check for gzip content encoding
+                        WCHAR contentEncoding[16];
+                        DWORD contentEncodingSize = sizeof(contentEncoding);
+
+                        httpctx->gzip = WinHttpQueryHeaders(httpctx->hRequest,
+                                                WINHTTP_QUERY_CONTENT_ENCODING,
+                                                WINHTTP_HEADER_NAME_BY_INDEX,
+                                                &contentEncoding,
+                                                &contentEncodingSize,
+                                                WINHTTP_NO_HEADER_INDEX)
+                                    && !wcscmp(contentEncoding,L"gzip");
+
+                        if (httpctx->gzip)
+                        {
+                            httpctx->z.zalloc = Z_NULL;
+                            httpctx->z.zfree = Z_NULL;
+                            httpctx->z.opaque = Z_NULL;
+                            httpctx->z.avail_in = 0;
+                            httpctx->z.next_in = Z_NULL;
+
+                            inflateInit2(&httpctx->z, MAX_WBITS+16);
+
+                            req->in.resize(contentLength);
+                            httpctx->z.avail_out = contentLength;
+                            httpctx->z.next_out = (unsigned char*)req->in.data();
+                        }
+                    }
                 }
 
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
@@ -316,8 +377,8 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                          | WINHTTP_CALLBACK_FLAG_HANDLES,
                                          0);
 
-                LPCWSTR pwszHeaders = (req->type == REQ_JSON)
-                                      ? L"Content-Type: application/json"
+                LPCWSTR pwszHeaders = (req->type == REQ_JSON || !req->buf)
+                                      ? L"Content-Type: application/json\r\nAccept-Encoding: gzip"
                                       : L"Content-Type: application/octet-stream";
 
                 // data is sent in HTTP_POST_CHUNK_SIZE instalments to ensure

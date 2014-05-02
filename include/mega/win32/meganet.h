@@ -22,6 +22,8 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS WinHttpIO
 
+#include "zlib.h"
+
 #include "mega/megaclient.h"
 #include "megawaiter.h"
 
@@ -77,6 +79,9 @@ struct MEGA_API WinHttpContext
     unsigned postpos;
     unsigned postlen;
     const char* postdata;
+    
+    bool gzip;
+    z_stream z;
 };
 } // namespace
 
