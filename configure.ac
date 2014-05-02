@@ -255,6 +255,70 @@ AC_SUBST(CRYPTO_LIBS)
 AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
 
 #
+# Zlib
+#
+
+#zlib
+ZLIB_LIBS="-lz"
+AC_MSG_CHECKING(for zlib)
+zlib=false
+AC_ARG_WITH(zlib,
+  AS_HELP_STRING(--with-zlib=PATH, base of zlib installation),
+  [
+   case $with_zlib in
+   no)
+    zlib=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([zlib.h],, [
+        AC_MSG_ERROR([zlib.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(z, [main], [ZLIB_LIBS="-lz"],[
+            AC_MSG_ERROR([Could not find zlib])
+    ])
+    zlib=true
+     ;;
+   *)
+
+    LDFLAGS="-L$with_zlib $LDFLAGS"
+    CXXFLAGS="-I$with_zlib $CXXFLAGS"
+    CPPFLAGS="-I$with_zlib $CPPFLAGS"
+
+    AC_CHECK_HEADERS(zlib.h,
+     ZLIB_CXXFLAGS="-I$with_zlib"
+     ZLIB_CPPFLAGS="-I$with_zlib"
+     ZLIB_LDFLAGS="-L$with_zlib",
+     AC_MSG_ERROR([zlib.h header not found or not usable])
+     )
+
+    AC_CHECK_LIB(z, [main], [ZLIB_LIBS="-lz"],[
+            AC_MSG_ERROR([Could not find zlib])
+    ])
+
+    zlib=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-zlib not specified])
+    AC_CHECK_HEADERS([zlib.h],, [
+        AC_MSG_ERROR([zlib.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(z, [main], [ZLIB_LIBS="-lz"],[
+            AC_MSG_ERROR([Could not find zlib])
+    ])
+  ])
+AC_SUBST(ZLIB_CXXFLAGS)
+AC_SUBST(ZLIB_CPPFLAGS)
+AC_SUBST(ZLIB_LDFLAGS)
+AC_SUBST(ZLIB_LIBS)
+AC_DEFINE(USE_ZLIB, [1], [Define to use zlib])
+
+#
 # ** DB layer **
 #
 
