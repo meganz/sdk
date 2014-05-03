@@ -192,15 +192,16 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // locate byte offset of last path component
     virtual size_t lastpartlocal(string*) = 0;
 
-    // add notification (has to be called for all directories in tree for full
-    // crossplatform support)
+	// obtain lowercased extension
+	virtual bool getextension(string*, char*, int) = 0;
+
+    // add notification (has to be called for all directories in tree for full crossplatform support)
     virtual void addnotify(LocalNode*, string*) { }
 
     // delete notification
     virtual void delnotify(LocalNode*) { }
 
-    // set whenever an operation fails due to a transient condition (e.g.
-    // locking violation)
+    // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
     
     // set whenever there was a global file notification error

@@ -28,6 +28,35 @@ const int GfxProc::dimensions[][2] = {
     { 1000, 1000 }  // PREVIEW1000x1000: scaled version inside 1000x1000 bounding square
 };
 
+bool GfxProc::isgfx(string* localfilename)
+{
+    char ext[8];
+    const char* supported;
+
+    if (!(supported = supportedformats()))
+    {
+        return true;
+    }
+
+    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    {
+        const char* ptr;
+
+        // FIXME: use hash
+        if ((ptr = strstr(supportedformats(), ext)) && ptr[strlen(ext)] == '.')
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const char* GfxProc::supportedformats()
+{
+    return NULL;
+}
+
 void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 {
     if (rh)
@@ -75,36 +104,39 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 // FIXME: move to a worker thread to keep the engine nonblocking
 void GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing)
 {
-    // (this assumes that the width of the largest dimension is max)
-    if (readbitmap(fa, localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+    if (isgfx(localfilename))
     {
-        string* jpeg = NULL;
-
-        // successively downscale the original image
-        for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
+        // (this assumes that the width of the largest dimension is max)
+        if (readbitmap(fa, localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
         {
-            if (!jpeg)
+            string* jpeg = NULL;
+
+            // successively downscale the original image
+            for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
             {
-                jpeg = new string;
+                if (!jpeg)
+                {
+                    jpeg = new string;
+                }
+
+                if (missing & (1 << i) && resizebitmap(dimensions[i][0], dimensions[i][1], jpeg))
+                {
+                    // store the file attribute data - it will be attached to the file
+                    // immediately if the upload has already completed; otherwise, once
+                    // the upload completes
+                    client->putfa(th, (meta_t)i, key, jpeg);
+					
+                    jpeg = NULL;
+                }
             }
 
-            if (missing & (1 << i) && resizebitmap(dimensions[i][0], dimensions[i][1], jpeg))
+            if (jpeg)
             {
-                // store the file attribute data - it will be attached to the file
-                // immediately if the upload has already completed; otherwise, once
-                // the upload completes
-                client->putfa(th, (meta_t)i, key, jpeg);
-                
-                jpeg = NULL;
+                free(jpeg);
             }
-        }
 
-        if (jpeg)
-        {
-            free(jpeg);
+            freebitmap();
         }
-
-        freebitmap();
     }
 }
 } // namespace

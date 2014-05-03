@@ -556,6 +556,45 @@ size_t WinFileSystemAccess::lastpartlocal(string* name)
     return 0;
 }
 
+// return lowercased ASCII file extension, including the . separator
+bool WinFileSystemAccess::getextension(string* filename, char* extension, int size)
+{
+	wchar_t* ptr = (wchar_t*)(filename->data() + filename->size());
+    char c;
+    int i, j;
+
+	size--;
+
+	if (size * sizeof(wchar_t) > filename->size())
+	{
+		size = filename->size() / sizeof(wchar_t);
+	}
+
+	for (i = 0; i < size; i++)
+	{
+		if (*--ptr == '.')
+		{
+			for (j = 0; j <= i; j++)
+			{
+				if (*ptr < '.' || *ptr > 'z') return false;
+
+				c = (char)*(ptr++);
+
+				// tolower()
+				if (c >= 'A' && c <= 'Z') c |= ' ';
+                
+                extension[j] = c;
+			}
+			
+            extension[j] = 0;
+            
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void WinFileSystemAccess::osversion(string* u)
 {
     char buf[128];

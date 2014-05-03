@@ -36,8 +36,8 @@ class MEGA_API GfxProcFreeImage : public GfxProc
     bool resizebitmap(int, int, string*);
     void freebitmap();
 
-public:
-    bool isgfx(string*);
+protected:
+    const char* supportedformats();
 };
 } // namespace
 

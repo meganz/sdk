@@ -445,6 +445,45 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname)
     return 0;
 }
 
+// return lowercased ASCII file extension, including the . separator
+bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size)
+{
+	char* ptr = filename->data() + filename->size();
+    char c;
+    int i, j;
+
+	size--;
+
+	if (size > filename->size())
+	{
+		size = filename->size();
+	}
+
+	for (i = 0; i < size; i++)
+	{
+		if (*--ptr == '.')
+		{
+			for (j = 0; j <= i; j++)
+			{
+				if (*ptr < '.' || *ptr > 'z') return false;
+
+				c = *(ptr++);
+
+				// tolower()
+				if (c >= 'A' && c <= 'Z') c |= ' ';
+                
+                extension[j] = c;
+			}
+			
+            extension[j] = 0;
+            
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void PosixFileSystemAccess::osversion(string* u)
 {
     utsname uts;

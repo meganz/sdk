@@ -69,6 +69,7 @@ public:
     bool setmtimelocal(string *, m_time_t);
     bool chdirlocal(string*);
     size_t lastpartlocal(string*);
+	bool getextension(string*, char*, int);
 
     void addevents(Waiter*, int);
 

@@ -33,29 +33,13 @@ typedef const char freeimage_filename_char_t;
 #endif
 
 namespace mega {
-bool GfxProcFreeImage::isgfx(string* name)
+const char* GfxProcFreeImage::supportedformats()
 {
-    // FreeImage sometimes crashes if fed with something that appears to be an image, but isn't,
-    // so we pre-screen by filename to reduce the odds
-    size_t p = name->find_last_of('.');
-
-    if (!(p + 1))
-    {
-        return false;
-    }
-
-    string ext(*name,p);
-    
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    char* ptr =
-            strstr((char*) ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
-            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
-            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
-            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
-            ".xbm.xpm.jp2.j2k.jpf.jpx.", ext.c_str());
-
-    return ptr && ptr[ext.size()] == '.';
+    return ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
+           ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
+           ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
+           ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
+           ".xbm.xpm.jp2.j2k.jpf.jpx.";
 }
 
 bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)

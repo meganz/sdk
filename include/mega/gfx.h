@@ -41,9 +41,12 @@ protected:
     // coordinate transformation
     static void transform(int&, int&, int&, int&, int&, int&);
 
+    // list of supported extensions (NULL if no pre-filtering is needed)
+    virtual const char* supportedformats();
+
 public:
     // check whether the filename looks like a supported image type
-    virtual bool isgfx(string*) = 0;
+    bool isgfx(string*);
 
     // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
     // handle is uploadhandle or nodehandle
