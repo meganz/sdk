@@ -21,22 +21,22 @@
 
 # In order to build Mega SDK dll on MinGW environment, the following directory structure is required:
 # \project_root
-# 	\zlib
+# 	\zlib			compiled zlib library, http://www.zlib.net/
 # 	\cryptoapp		compiled Crypto++ library, http://www.cryptopp.com/
-# 	\sqlite3			Sqlite3 sources, http://www.sqlite.org/
+# 	\sqlite3		Sqlite3 sources, http://www.sqlite.org/
 # 	\db				(Optional) Berkeley DB, http://www.oracle.com/technetwork/database/database-technologies/berkeleydb/overview/index.html
-# 	\sdk				Mega SDK sources, https://github.com/meganz/sdk
+# 	\sdk			Mega SDK sources, https://github.com/meganz/sdk
 # 	\winhttp.h		WinHTTP header file
-# 	\winhttp.lib		WinHTTP lib file
-# 	\winhttp.dll		WinHTTP dll
+# 	\winhttp.lib	WinHTTP lib file
+# 	\winhttp.dll	WinHTTP dll
 #
 # To compile Mega DLL:
 # 	make -f Makefile.win32
 #
 # In order to build megacli application, additional libraries are required:
 #	\FreeImage		compiled FreeImage library, http://freeimage.sourceforge.net/
-# 	\readline			compiled The GNU Readline Library, http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
-# 	\termcap			compiled The Termcap Library, http://ftp.gnu.org/gnu/termcap/
+# 	\readline		compiled The GNU Readline Library, http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
+# 	\termcap		compiled The Termcap Library, http://ftp.gnu.org/gnu/termcap/
 #
 # To compile Mega DLL and all applications:
 # 	make -f Makefile.win32 all
@@ -52,7 +52,7 @@ CXXFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_FREEIMAGE -D_WIN32=1 -g -Wall -I. -Ii
 MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
 
 # common linked libraries for all apps
-LIB=-lwinhttp -lws2_32 -L../cryptopp -lcryptopp -L../db/build_windows -L../ -L../FreeImage/Dist -lfreeimage -lz
+LIB=-lwinhttp -lws2_32 -L../zlib -lz -L../cryptopp -lcryptopp -L../db/build_windows -L../ -L../FreeImage/Dist -lfreeimage
 # megacli specific linked libraries
 MEGACLI_LIB=-L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap
 
