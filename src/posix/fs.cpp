@@ -448,7 +448,7 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname)
 // return lowercased ASCII file extension, including the . separator
 bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size)
 {
-	char* ptr = filename->data() + filename->size();
+	const char* ptr = filename->data() + filename->size();
     char c;
     int i, j;
 
