@@ -25,7 +25,11 @@
 #include "mega.h"
 #include "mega/gfx/qt.h"
 
+#include <QFileInfo>
+
 namespace mega {
+
+QByteArray *GfxProcQT::formatstring = NULL;
 
 /************* EXIF STUFF **************/
 #define M_SOI   0xD8          // Start Of Image (beginning of datastream)
@@ -235,7 +239,7 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
         switch(Tag){
             case TAG_ORIENTATION:
                 orientation = (int)ConvertAnyFormat(ValuePtr, Format, MotorolaOrder);
-                if (orientation >= 0 || orientation <= 8)
+                if (orientation >= 0 && orientation <= 8)
                     return orientation;
                 break;
 
@@ -246,7 +250,7 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
                 if(!(SubdirStart < OffsetBase || SubdirStart > OffsetBase+ exifSize))
                 {
                     orientation = processEXIFDir(SubdirStart, OffsetBase, exifSize, nesting+1, MotorolaOrder);
-                    if (orientation >= 0 || orientation <= 8)
+                    if (orientation >= 0 && orientation <= 8)
                         return orientation;
                 }
                 continue;
@@ -292,32 +296,6 @@ int GfxProcQT::processEXIF(QByteArray *data, int itemlen){
 
 
 /*GfxProc implementation*/
-
-bool GfxProcQT::isgfx(string* name)
-{
-    // FreeImage sometimes crashes if fed with something that appears to be an image, but isn't,
-    // so we pre-screen by filename to reduce the odds
-    size_t p = name->find_last_of('.');
-
-    if (!(p + 1))
-    {
-        return false;
-    }
-
-    string ext(*name,p);
-
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    char* ptr =
-            strstr((char*) ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
-            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
-            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
-            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
-            ".xbm.xpm.jp2.j2k.jpf.jpx.", ext.c_str());
-
-    return ptr && ptr[ext.size()] == '.';
-}
-
 bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
 {
 #ifdef _WIN32
@@ -360,8 +338,18 @@ void GfxProcQT::freebitmap()
 QImage GfxProcQT::createThumbnail(QString imagePath)
 {
     int w, h, orientation;
+
+    QFileInfo info(imagePath);
+    if(!info.exists())
+        return QImage();
+
+    QString ext = QString::fromUtf8(".") + info.suffix() + QString::fromUtf8(".");
+    if(!QString::fromUtf8(supportedformatsQT()).contains(ext, Qt::CaseInsensitive))
+        return QImage();
+
     QImageReader *image = readbitmapQT(w, h, orientation, imagePath);
-    if(!image) return QImage();
+    if(!image)
+        return QImage();
 
     QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h, 120, 0);
     delete image;
@@ -456,6 +444,23 @@ QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, in
         result = result.transformed(transform);
 
     return result;
+}
+
+const char *GfxProcQT::supportedformatsQT()
+{
+    if(!formatstring)
+    {
+        formatstring = new QByteArray(".");
+        QList<QByteArray> formats = QImageReader::supportedImageFormats();
+        for(int i=0; i<formats.size(); i++)
+            formatstring->append(formats[i]).append(".");
+    }
+    return formatstring->constData();
+}
+
+const char *GfxProcQT::supportedformats()
+{
+    return supportedformatsQT();
 }
 
 } // namespace

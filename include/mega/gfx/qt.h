@@ -60,9 +60,12 @@ protected:
     static int processEXIFDir(const char *dirStart, const char *offsetBase, uint32_t size, uint32_t nesting, int MotorolaOrder);
     static QImageReader *readbitmapQT(int &w, int &h, int &orientation, QString imagePath);
     static QImage resizebitmapQT(QImageReader *image, int orientation, int w, int h, int rw, int rh);
+    static QByteArray *formatstring;
+    static const char* supportedformatsQT();
+
+    const char* supportedformats();
 
 public:
-    bool isgfx(string*);
     static int getExifOrientation(QString &filePath);
     static QImage createThumbnail(QString imagePath);
 
