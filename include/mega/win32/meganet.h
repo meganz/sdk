@@ -82,6 +82,7 @@ struct MEGA_API WinHttpContext
     
     bool gzip;
     z_stream z;
+    string zin;
 };
 } // namespace
 

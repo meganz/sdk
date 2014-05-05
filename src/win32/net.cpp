@@ -143,12 +143,12 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             else
             {
                 char* ptr;
-                string buf;
 
                 if (httpctx->gzip)
                 {
-                    buf.resize(size);
-                    ptr = (char*)buf.data();
+                    m_off_t zprevsize = httpctx->zin.size();
+                    httpctx->zin.resize(zprevsize + size);
+                    ptr = (char*) httpctx->zin.data() + zprevsize;
                 }
                 else
                 {
@@ -158,14 +158,15 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 if (WinHttpReadData(hInternet, ptr, size, NULL))
                 {
-                    if (httpctx->gzip)
+                    if (httpctx->gzip && (ptr == httpctx->zin.data()))
                     {
-                        httpctx->z.next_in = (Bytef*)ptr;
-                        httpctx->z.avail_in = size;
+                        httpctx->z.next_in = (Bytef*)httpctx->zin.data();
+                        httpctx->z.avail_in = httpctx->zin.size();
 
                         req->bufpos += httpctx->z.avail_out;
                         int t = inflate(&httpctx->z, Z_NO_FLUSH);
                         req->bufpos -= httpctx->z.avail_out;
+                        httpctx->zin.clear();
 
                         if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
                         {
