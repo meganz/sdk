@@ -156,25 +156,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                     req->bufpos += size;
                 }
 
-                if (WinHttpReadData(hInternet, ptr, size, NULL))
-                {
-                    if (httpctx->gzip && (ptr == httpctx->zin.data()))
-                    {
-                        httpctx->z.next_in = (Bytef*)httpctx->zin.data();
-                        httpctx->z.avail_in = httpctx->zin.size();
-
-                        req->bufpos += httpctx->z.avail_out;
-                        int t = inflate(&httpctx->z, Z_NO_FLUSH);
-                        req->bufpos -= httpctx->z.avail_out;
-                        httpctx->zin.clear();
-
-                        if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
-                        {
-                            httpio->cancel(req);
-                        }
-                    }
-                }
-                else
+                if (!WinHttpReadData(hInternet, ptr, size, NULL))
                 {
                     httpio->cancel(req);
                 }
@@ -187,6 +169,24 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
             if (dwStatusInformationLength)
             {
+                if (httpctx->gzip)
+                {
+                    httpctx->z.next_in = (Bytef*)lpvStatusInformation;
+                    httpctx->z.avail_in = dwStatusInformationLength;
+
+                    req->bufpos += httpctx->z.avail_out;
+                    int t = inflate(&httpctx->z, Z_SYNC_FLUSH);
+                    req->bufpos -= httpctx ->z.avail_out;
+                    if(((char *)lpvStatusInformation + dwStatusInformationLength) ==
+                             (httpctx->zin.data() + httpctx->zin.size()))
+                        httpctx->zin.clear();
+
+                    if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
+                    {
+                        httpio->cancel(req);
+                    }
+                }
+
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
                 {
                     httpio->cancel(req);
