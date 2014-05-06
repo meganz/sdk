@@ -69,7 +69,7 @@ enum LogLevel {
     logWarning, // Information representing errors in application but application will keep running
     logInfo,    // Mainly useful to represent current progress of application.
     logDebug,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-    logMax,
+    logMax
 };
 
 // settings for each log level
@@ -178,51 +178,51 @@ public:
 #ifdef DEBUG
 // output DEBUG log with line break
 #define LOG_debug \
-    if (SimpleLogger::logCurrentLevel < logDebug) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logDebug) ;\
     else \
-        SimpleLogger(logDebug, __FILE__, __LINE__)
+        mega::SimpleLogger(mega::logDebug, __FILE__, __LINE__)
 
 // output DEBUG log without line break
 #define LOGn_debug \
-    if (SimpleLogger::logCurrentLevel < logDebug) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logDebug) ;\
     else \
-        SimpleLogger(logDebug, __FILE__, __LINE__, false)
+        mega::SimpleLogger(mega::logDebug, __FILE__, __LINE__, false)
 #else
-#define LOG_debug NullLogger()
-#define LOGn_debug NullLogger()
+#define LOG_debug mega::NullLogger()
+#define LOGn_debug mega::NullLogger()
 #endif // DEBUG
 
 #define LOG_info \
-    if (SimpleLogger::logCurrentLevel < logInfo) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logInfo) ;\
     else \
-        SimpleLogger(logInfo, __FILE__, __LINE__)
+        mega::SimpleLogger(mega::logInfo, __FILE__, __LINE__)
 #define LOGn_info \
-    if (SimpleLogger::logCurrentLevel < logInfo) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logInfo) ;\
     else \
-        SimpleLogger(logInfo, __FILE__, __LINE__, false)
+        mega::SimpleLogger(mega::logInfo, __FILE__, __LINE__, false)
 
 #define LOG_warn \
-    if (SimpleLogger::logCurrentLevel < logWarning) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logWarning) ;\
     else \
-        SimpleLogger(logWarning, __FILE__, __LINE__)
+        mega::SimpleLogger(mega::logWarning, __FILE__, __LINE__)
 #define LOGn_warn \
-    if (SimpleLogger::logCurrentLevel < logWarning) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logWarning) ;\
     else \
-        SimpleLogger(logWarning, __FILE__, __LINE__, false)
+        mega::SimpleLogger(mega::logWarning, __FILE__, __LINE__, false)
 
 #define LOG_err \
-    if (SimpleLogger::logCurrentLevel < logError) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logError) ;\
     else \
-        SimpleLogger(logError, __FILE__, __LINE__)
+        mega::SimpleLogger(mega::logError, __FILE__, __LINE__)
 #define LOGn_err \
-    if (SimpleLogger::logCurrentLevel < logError) ;\
+    if (mega::SimpleLogger::logCurrentLevel < mega::logError) ;\
     else \
-        SimpleLogger(logError, __FILE__, __LINE__, false)
+        mega::SimpleLogger(mega::logError, __FILE__, __LINE__, false)
 
 #define LOG_fatal \
-    SimpleLogger(logFatal, __FILE__, __LINE__)
+    mega::SimpleLogger(mega::logFatal, __FILE__, __LINE__)
 #define LOGn_fatal \
-    SimpleLogger(logFatal, __FILE__, __LINE__, false)
+    mega::SimpleLogger(mega::logFatal, __FILE__, __LINE__, false)
 
 } // namespace
 
