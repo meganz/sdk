@@ -13,6 +13,18 @@ the Eclipse IDE with the C/C++ Development Tools.
 Static Code Check
 -----------------
 
+### Clang Static Analyzer
+
+The Clang Static Analyzer is a source code analysis tool that finds
+bugs in C, C++, and Objective-C programs.
+
+For manual checks run clang-analyzer.sh script from "contrib/" folder:
+
+    ./contrib/clang-analyzer.sh /usr/bin/clang++ sdk_check
+
+Output HTML files will be placed in "sdk_check" folder.
+
+
 ### N'SIQ CppStyle
 
 N'SIQ CppCheck is a static code and code style checker. It is
