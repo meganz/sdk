@@ -52,9 +52,6 @@ public:
     // all users
     user_map users;
 
-    // Cached email to be read while client is logged in
-    string current_email;
-
     // process API requests and HTTP I/O
     void exec();
 
