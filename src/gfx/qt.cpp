@@ -453,7 +453,7 @@ const char *GfxProcQT::supportedformatsQT()
         formatstring = new QByteArray(".");
         QList<QByteArray> formats = QImageReader::supportedImageFormats();
         for(int i=0; i<formats.size(); i++)
-            formatstring->append(formats[i]).append(".");
+            formatstring->append(QString::fromUtf8(formats[i]).toLower().toUtf8()).append(".");
     }
     return formatstring->constData();
 }
