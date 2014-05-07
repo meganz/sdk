@@ -837,17 +837,12 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 void LocalNode::treestate(treestate_t newts)
 {
     if (newts != TREESTATE_NONE)
-    {
         ts = newts;
-    }
 
     if (ts != dts)
-    {
         sync->client->app->syncupdate_treestate(this);
-        dts = ts;
-    }
 
-    if (parent)
+    if (parent && (newts != dts) && !((ts == TREESTATE_SYNCED) && (parent->ts == TREESTATE_SYNCED)))
     {
         parent->ts = TREESTATE_SYNCED;
 
@@ -867,6 +862,8 @@ void LocalNode::treestate(treestate_t newts)
 
         parent->treestate();
     }
+
+    dts = ts;
 }
 
 void LocalNode::setnode(Node* cnode)
