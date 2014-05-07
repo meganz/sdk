@@ -4826,17 +4826,16 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             }
             else
             {
-                // recurse into directories of equal name
-                ll->setnode(rit->second);
+                if(ll->node != rit->second)
+                {
+                    ll->setnode(rit->second);
+                    ll->sync->statecacheadd(ll);
+                }
 
+                // recurse into directories of equal name
                 if (!syncdown(ll, localpath, rubbish) && success)
                 {
                     success = false;
-                }
-                else
-                {
-                    // update cache entry with the new node
-                    ll->sync->statecacheadd(ll);
                 }
 
                 nchildren.erase(rit);
@@ -5088,9 +5087,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         // files have the same size and the same mtime (or the
                         // same fingerprint, if available): no action needed
-                        ll->setnode(rit->second);
                         ll->treestate(TREESTATE_SYNCED);
-                        ll->sync->statecacheadd(ll);
+                        if(ll->node != rit->second)
+                        {
+                            ll->setnode(rit->second);
+                            ll->sync->statecacheadd(ll);
+                        }
                         continue;
                     }
                 }
@@ -5099,8 +5101,13 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             {
                 insync = false;
 
+                if(ll->node != rit->second)
+                {
+                    ll->setnode(rit->second);
+                    ll->sync->statecacheadd(ll);
+                }
+
                 // recurse into directories of equal name
-                ll->setnode(rit->second);
                 syncup(ll, nds);
                 continue;
             }
