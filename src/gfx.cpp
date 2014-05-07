@@ -132,7 +132,7 @@ void GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle t
 
             if (jpeg)
             {
-                free(jpeg);
+                delete jpeg;
             }
 
             freebitmap();

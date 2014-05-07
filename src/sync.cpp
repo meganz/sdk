@@ -67,9 +67,6 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);
 
-    // obtain client->current_email
-    client->loggedin();
-
     // state cache table
     char local_id[12];
     FileAccess *fas = client->fsaccess->newfileaccess();
@@ -80,7 +77,9 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     char remote_id[12];
     Base64::btoa((byte *)&remotenode->nodehandle, MegaClient::NODEHANDLE, remote_id);
 
-    dbname = client->current_email + "_" + local_id + remote_id + "v2";
+    User *u = client->finduser(client->me);
+    string email = u ? u->email : "unknown_email";
+    dbname = email + "_" + local_id + remote_id + "v2";
 
     statecachetable = client->dbaccess ? client->dbaccess->open(client->fsaccess, &dbname) : NULL;
     sync_it = client->syncs.insert(client->syncs.end(), this);
@@ -363,15 +362,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 	{
 		DirAccess* da;
 		string localname, name;
-		size_t baselen;
 		bool success;
-
-		baselen = localroot.localname.size() + client->fsaccess->localseparator.size();
-
-		if (baselen > localpath->size())
-		{
-			baselen = localpath->size();
-		}
 
 		da = client->fsaccess->newdiraccess();
 

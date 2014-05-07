@@ -326,7 +326,6 @@ void MegaClient::init()
     fetchingnodes = false;
     chunkfailed = false;
     noinetds = 0;
-    current_email   = "";
 
     if (syncscanstate)
     {
@@ -1502,7 +1501,7 @@ bool MegaClient::dispatch(direction_t d)
                 : ts->fa->fopen(&nextit->second->localfilename, false, true))
             {
                 handle h = UNDEF;
-                bool hprivate;
+                bool hprivate = true;
 
                 nextit->second->pos = 0;
 
@@ -4416,8 +4415,6 @@ sessiontype_t MegaClient::loggedin()
     {
         return EPHEMERALACCOUNT;
     }
-
-    current_email = u->email;
 
     if (!asymkey.isvalid())
     {
