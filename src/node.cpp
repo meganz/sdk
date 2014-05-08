@@ -842,11 +842,11 @@ void LocalNode::treestate(treestate_t newts)
     if (ts != dts)
         sync->client->app->syncupdate_treestate(this);
 
-    if (parent && (newts != dts) && !((ts == TREESTATE_SYNCED) && (parent->ts == TREESTATE_SYNCED)))
+    if (parent)
     {
         if(ts == TREESTATE_SYNCING)
             parent->ts = TREESTATE_SYNCING;
-        else
+        else if((newts != dts) && !((ts == TREESTATE_SYNCED) && (parent->ts == TREESTATE_SYNCED)))
         {
             parent->ts = TREESTATE_SYNCED;
             for (localnode_map::iterator it = parent->children.begin(); it != parent->children.end(); it++)
