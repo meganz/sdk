@@ -844,22 +844,25 @@ void LocalNode::treestate(treestate_t newts)
 
     if (parent && (newts != dts) && !((ts == TREESTATE_SYNCED) && (parent->ts == TREESTATE_SYNCED)))
     {
-        parent->ts = TREESTATE_SYNCED;
-
-        for (localnode_map::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+        if(ts == TREESTATE_SYNCING)
+            parent->ts = TREESTATE_SYNCING;
+        else
         {
-            if (it->second->ts == TREESTATE_SYNCING)
+            parent->ts = TREESTATE_SYNCED;
+            for (localnode_map::iterator it = parent->children.begin(); it != parent->children.end(); it++)
             {
-                parent->ts = TREESTATE_SYNCING;
-                break;
-            }
+                if (it->second->ts == TREESTATE_SYNCING)
+                {
+                    parent->ts = TREESTATE_SYNCING;
+                    break;
+                }
 
-            if (it->second->ts == TREESTATE_PENDING && parent->ts == TREESTATE_SYNCED)
-            {
-                parent->ts = TREESTATE_PENDING;
+                if (it->second->ts == TREESTATE_PENDING && parent->ts == TREESTATE_SYNCED)
+                {
+                    parent->ts = TREESTATE_PENDING;
+                }
             }
         }
-
         parent->treestate();
     }
 
