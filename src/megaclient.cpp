@@ -3225,6 +3225,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         if ((p = nodebyhandle(ph)))
                         {
                             n->setparent(p);
+                            n->changed.parent = true;
                         }
                         else
                         {
