@@ -5087,12 +5087,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         // files have the same size and the same mtime (or the
                         // same fingerprint, if available): no action needed
-                        ll->treestate(TREESTATE_SYNCED);
                         if(ll->node != rit->second)
                         {
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
                         }
+                        ll->treestate(TREESTATE_SYNCED);
                         continue;
                     }
                 }
