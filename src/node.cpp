@@ -745,6 +745,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // set new name
                     node->attrs.map['n'] = name;
                     sync->client->setattr(node);
+                    treestate(TREESTATE_SYNCING);
                 }
             }
         }
@@ -767,6 +768,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 
                 // FIXME: detect if rename permitted, copy/delete if not
                 sync->client->rename(node, parent->node);
+                treestate(TREESTATE_SYNCING);
             }
         }
 
