@@ -864,6 +864,8 @@ void MegaClient::exec()
             }
         }
 
+        // syncops indicates that a sync-relevant tree update may be pending
+        bool syncops = syncadded;
         sync_list::iterator it;
 
         if (syncadded)
@@ -895,18 +897,21 @@ void MegaClient::exec()
         if (syncscanfailed && syncscanbt.armed())
         {
             syncscanfailed = false;
+            syncops = true;
         }
 
         // sync timer: retry syncdown() ops in case of local filesystem lock clashes
         if (syncdownretry && syncdownbt.armed())
         {
             syncdownretry = false;
+            syncops = true;
         }
 
         // sync timer: file change upload delay timeouts (Nagle algorithm)
         if (syncnagleretry && syncnaglebt.armed())
         {
             syncnagleretry = false;
+            syncops = true;
         }
 
         // sync timer: read lock retry
@@ -947,6 +952,8 @@ void MegaClient::exec()
                                 // process items from the notifyq until depleted
                                 if (sync->dirnotify->notifyq[q].size())
                                 {
+                                    syncops = true;
+
                                     if (sync->procscanq(q))
                                     {
                                         syncup(&sync->localroot, &nds);
@@ -1023,177 +1030,180 @@ void MegaClient::exec()
 
                 notifypurge();
 
-                for (it = syncs.begin(); it != syncs.end(); it++)
+                if (syncactivity || syncops)
                 {
-                    // make sure that the remote synced folder still exists
-                    if (!(*it)->localroot.node)
+                    for (it = syncs.begin(); it != syncs.end(); it++)
                     {
-                        (*it)->changestate(SYNC_FAILED);
+                        // make sure that the remote synced folder still exists
+                        if (!(*it)->localroot.node)
+                        {
+                            (*it)->changestate(SYNC_FAILED);
+                        }
+                        else
+                        {
+                            localpath = (*it)->localroot.localname;
+
+                            if ((*it)->state == SYNC_ACTIVE)
+                            {
+                                if (!syncdown(&(*it)->localroot, &localpath, true))
+                                {
+                                    // a local filesystem item was locked - schedule periodic retry
+                                    // and force a full rescan afterwards as the local item may
+                                    // be subject to changes that are notified with obsolete paths
+                                    success = false;
+                                    (*it)->dirnotify->error = true;
+                                }
+
+                                (*it)->cachenodes();                            
+                            }
+                        }
+                    }
+
+                    // notify the app if a lock is being retried
+                    if (success)
+                    {
+                        if (syncfsopsfailed)
+                        {
+                            syncfsopsfailed = false;
+                            app->syncupdate_local_lockretry(false);
+                        }
                     }
                     else
                     {
-                        localpath = (*it)->localroot.localname;
-
-                        if ((*it)->state == SYNC_ACTIVE)
+                        if (!syncfsopsfailed)
                         {
-                            if (!syncdown(&(*it)->localroot, &localpath, true))
-                            {
-                                // a local filesystem item was locked - schedule periodic retry
-                                // and force a full rescan afterwards as the local item may
-                                // be subject to changes that are notified with obsolete paths
-                                success = false;
-                                (*it)->dirnotify->error = true;
-                            }
-
-                            (*it)->cachenodes();                            
+                            syncfsopsfailed = true;
+                            app->syncupdate_local_lockretry(true);
                         }
-                    }
-                }
 
-                // notify the app if a lock is being retried
-                if (success)
-                {
-                    if (syncfsopsfailed)
-                    {
-                        syncfsopsfailed = false;
-                        app->syncupdate_local_lockretry(false);
-                    }
-                }
-                else
-                {
-                    if (!syncfsopsfailed)
-                    {
-                        syncfsopsfailed = true;
-                        app->syncupdate_local_lockretry(true);
+                        syncdownretry = true;
+                        syncdownbt.backoff(50);
                     }
 
-                    syncdownretry = true;
-                    syncdownbt.backoff(50);
-                }
-
-                // perform aggregate ops that require all scanqs to be fully processed
-                for (it = syncs.begin(); it != syncs.end(); it++)
-                {
-                    if (((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                        || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()))
+                    // perform aggregate ops that require all scanqs to be fully processed
+                    for (it = syncs.begin(); it != syncs.end(); it++)
                     {
-                        break;
-                    }
-                }
-
-                if (it == syncs.end())
-                {
-                    // execution of notified deletions - these are held in localsyncnotseen and
-                    // kept pending until all creations (that might reference them for the purpose of
-                    // copying) have completed and all notification queues have run empty (to ensure
-                    // that moves are not executed as deletions+additions.
-                    if (localsyncnotseen.size() && !synccreate.size())
-                    {
-                        // ... execute all pending deletions
-                        localnode_set::iterator it;
-
-                        while (localsyncnotseen.size())
+                        if (((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                            || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()))
                         {
-                            delete *localsyncnotseen.begin();
+                            break;
                         }
                     }
 
-                    // process filesystem notifications for active syncs unless we
-                    // are retrying local fs writes
-                    if (!syncfsopsfailed)
+                    if (it == syncs.end())
                     {
-                        // FIXME: only syncup for subtrees that were actually
-                        // updated to reduce CPU load
-                        for (it = syncs.begin(); it != syncs.end(); it++)
+                        // execution of notified deletions - these are held in localsyncnotseen and
+                        // kept pending until all creations (that might reference them for the purpose of
+                        // copying) have completed and all notification queues have run empty (to ensure
+                        // that moves are not executed as deletions+additions.
+                        if (localsyncnotseen.size() && !synccreate.size())
                         {
-                            if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                                && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                            // ... execute all pending deletions
+                            localnode_set::iterator it;
+
+                            while (localsyncnotseen.size())
                             {
-                                syncup(&(*it)->localroot, &nds);
-                                (*it)->cachenodes();
+                                delete *localsyncnotseen.begin();
                             }
                         }
 
-                        if (nds + 1)
+                        // process filesystem notifications for active syncs unless we
+                        // are retrying local fs writes
+                        if (!syncfsopsfailed)
                         {
-                            syncnaglebt.backoff(nds - Waiter::ds);
-                            syncnagleretry = true;
-                        }
-
-                        if (synccreate.size())
-                        {
-                            syncupdate();
-                        }
-
-                        unsigned totalnodes = 0;
-
-                        syncscanfailed = false;
-
-                        // we have no sync-related operations pending - trigger processing if at least one
-                        // filesystem item is notified or initiate a full rescan if there has been
-                        // an event notification failure (or event notification is unavailable)
-                        for (it = syncs.begin(); it != syncs.end(); it++)
-                        {
-                            Sync* sync = *it;
-
-                            totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
-
-                            if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                            // FIXME: only syncup for subtrees that were actually
+                            // updated to reduce CPU load
+                            for (it = syncs.begin(); it != syncs.end(); it++)
                             {
-                                if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                 || sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                                if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                                    && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                                    && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
                                 {
-                                    break;
+                                    syncup(&(*it)->localroot, &nds);
+                                    (*it)->cachenodes();
                                 }
-                                else
+                            }
+
+                            if (nds + 1)
+                            {
+                                syncnaglebt.backoff(nds - Waiter::ds);
+                                syncnagleretry = true;
+                            }
+
+                            if (synccreate.size())
+                            {
+                                syncupdate();
+                            }
+
+                            unsigned totalnodes = 0;
+
+                            syncscanfailed = false;
+
+                            // we have no sync-related operations pending - trigger processing if at least one
+                            // filesystem item is notified or initiate a full rescan if there has been
+                            // an event notification failure (or event notification is unavailable)
+                            for (it = syncs.begin(); it != syncs.end(); it++)
+                            {
+                                Sync* sync = *it;
+
+                                totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
+
+                                if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                                 {
-                                    if (sync->fullscan)
+                                    if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                                     || sync->dirnotify->notifyq[DirNotify::RETRY].size())
                                     {
-                                        // recursively delete all LocalNodes that were deleted (not moved or renamed!)
-                                        sync->deletemissing(&sync->localroot);
-                                        sync->cachenodes();
+                                        break;
                                     }
-
-                                    // if the directory events notification subsystem is permanently unavailable or
-                                    // has signaled a temporary error, initiate a full rescan
-                                    if (sync->state == SYNC_ACTIVE)
+                                    else
                                     {
-                                        sync->fullscan = false;
-
-                                        if (sync->dirnotify->failed || sync->dirnotify->error || fsaccess->notifyerr)
+                                        if (sync->fullscan)
                                         {
-                                            syncscanfailed = true;
+                                            // recursively delete all LocalNodes that were deleted (not moved or renamed!)
+                                            sync->deletemissing(&sync->localroot);
+                                            sync->cachenodes();
+                                        }
 
-                                            sync->scan(&sync->localroot.localname, NULL);
-                                            sync->dirnotify->error = false;
+                                        // if the directory events notification subsystem is permanently unavailable or
+                                        // has signaled a temporary error, initiate a full rescan
+                                        if (sync->state == SYNC_ACTIVE)
+                                        {
+                                            sync->fullscan = false;
 
-                                            sync->fullscan = true;
-                                            sync->scanseqno++;
+                                            if (sync->dirnotify->failed || sync->dirnotify->error || fsaccess->notifyerr)
+                                            {
+                                                syncscanfailed = true;
 
-                                            syncscanbt.backoff(10 + totalnodes / 128);								
+                                                sync->scan(&sync->localroot.localname, NULL);
+                                                sync->dirnotify->error = false;
+
+                                                sync->fullscan = true;
+                                                sync->scanseqno++;
+
+                                                syncscanbt.backoff(10 + totalnodes / 128);								
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // clear pending global notification error flag if all syncs were marked
-                        // to be rescanned
-                        if (fsaccess->notifyerr && it == syncs.end())
-                        {
-                            fsaccess->notifyerr = false;
-                        }
+                            // clear pending global notification error flag if all syncs were marked
+                            // to be rescanned
+                            if (fsaccess->notifyerr && it == syncs.end())
+                            {
+                                fsaccess->notifyerr = false;
+                            }
 
-                        // limit rescan rate (interval depends on total tree size)
-                        if (syncscanfailed)
-                        {
-                            syncscanbt.backoff(10 + totalnodes / 128);
-                        }
+                            // limit rescan rate (interval depends on total tree size)
+                            if (syncscanfailed)
+                            {
+                                syncscanbt.backoff(10 + totalnodes / 128);
+                            }
 
-                        if (todebris.size())
-                        {
-                            execmovetosyncdebris();
+                            if (todebris.size())
+                            {
+                                execmovetosyncdebris();
+                            }
                         }
                     }
                 }
