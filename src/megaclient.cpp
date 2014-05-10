@@ -5275,6 +5275,7 @@ void MegaClient::syncupdate()
                 tkey.setkey((const byte*)nnp->nodekey.data(), nnp->type);
                 makeattr(&tkey, &nnp->attrstring, tattrstring.c_str());
 
+                l->treestate(TREESTATE_SYNCING);
                 nnp++;
             }
             else if (l->type == FILENODE)
