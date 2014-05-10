@@ -176,8 +176,9 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                     req->bufpos += httpctx->z.avail_out;
                     int t = inflate(&httpctx->z, Z_SYNC_FLUSH);
-                    req->bufpos -= httpctx ->z.avail_out;
-                    if(((char *)lpvStatusInformation + dwStatusInformationLength) ==
+                    req->bufpos -= httpctx->z.avail_out;
+
+                    if (((char *)lpvStatusInformation + dwStatusInformationLength) ==
                              (httpctx->zin.data() + httpctx->zin.size()))
                         httpctx->zin.clear();
 

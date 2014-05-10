@@ -4837,7 +4837,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             }
             else
             {
-                if(ll->node != rit->second)
+                if (ll->node != rit->second)
                 {
                     ll->setnode(rit->second);
                     ll->sync->statecacheadd(ll);
@@ -5098,11 +5098,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         // files have the same size and the same mtime (or the
                         // same fingerprint, if available): no action needed
-                        if(ll->node != rit->second)
+                        if (ll->node != rit->second)
                         {
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
                         }
+
                         ll->treestate(TREESTATE_SYNCED);
                         continue;
                     }

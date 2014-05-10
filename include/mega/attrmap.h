@@ -48,7 +48,6 @@ struct MEGA_API AttrMap
     // import raw binary serialize
     const char* unserialize(const char*, unsigned);
 };
-
 } // namespace
 
 #endif
