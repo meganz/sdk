@@ -39,7 +39,7 @@ struct MEGA_API FileAttributeFetchChannel
     void dispatch(MegaClient*, int, const char*);
 
     // parse fetch result and remove completed attributes from pending
-    void parse(MegaClient*, int, string*);
+    void parse(MegaClient*, int, string*) const;
 
     FileAttributeFetchChannel();
 };

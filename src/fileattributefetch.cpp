@@ -63,7 +63,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client, int fac, const char
 
 // communicate the result of a file attribute fetch to the application and
 // remove completed records
-void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
+void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data) const
 {
     // data is structured as (handle.8.le / position.4.le)* attribute data
     // attributes are CBC-encrypted with the file's key
