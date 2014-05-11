@@ -309,44 +309,6 @@ void PosixFileSystemAccess::local2path(string* local, string* path)
     *path = *local;
 }
 
-// use UTF-8 filenames directly, but escape forbidden characters
-void PosixFileSystemAccess::name2local(string* filename, const char* badchars)
-{
-    char buf[4];
-
-    if (!badchars)
-    {
-        badchars = "\\/:?\"<>|*\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37";
-    }
-
-    // replace all occurrences of a badchar with %xx
-    for (int i = filename->size(); i--;)
-    {
-        if (((unsigned char)(*filename)[i] < ' ') || strchr(badchars, (*filename)[i]))
-        {
-            sprintf(buf, "%%%02x", (unsigned char)(*filename)[i]);
-            filename->replace(i, 1, buf);
-        }
-    }
-}
-
-// use UTF-8 filenames directly, but unescape escaped forbidden characters
-// by replacing occurrences of %xx (x being a lowercase hex digit) with the
-// encoded character
-void PosixFileSystemAccess::local2name(string* filename)
-{
-    char c;
-
-    for (int i = filename->size() - 2; i-- > 0;)
-    {
-        if (((*filename)[i] == '%') && islchex((*filename)[i + 1]) && islchex((*filename)[i + 2]))
-        {
-            c = (MegaClient::hexval((*filename)[i + 1]) << 4) + MegaClient::hexval((*filename)[i + 2]);
-            filename->replace(i, 3, &c, 1);
-        }
-    }
-}
-
 // no legacy DOS garbage here...
 bool PosixFileSystemAccess::getsname(string*, string*)
 {

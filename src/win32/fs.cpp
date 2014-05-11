@@ -303,10 +303,13 @@ void WinFileSystemAccess::tmpnamelocal(string* localname)
     name2local(localname);
 }
 
+// convert UTF-8 to Windows Unicode
 void WinFileSystemAccess::path2local(string* path, string* local)
 {
+    // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
 
+    // resize to actual result
     local->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
                                                             path->c_str(),
                                                             -1,
@@ -314,6 +317,7 @@ void WinFileSystemAccess::path2local(string* path, string* local)
                                                             local->size() / sizeof(wchar_t) + 1) - 1));
 }
 
+// convert Windows Unicode to UTF-8
 void WinFileSystemAccess::local2path(string* local, string* path)
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t));
@@ -323,63 +327,6 @@ void WinFileSystemAccess::local2path(string* local, string* path)
                                      (char*)path->data(),
                                      path->size() + 1,
                                      NULL, NULL));
-}
-
-//  escape forbidden characters, then convert UTF-8 to Windows 16-bit UNICODE
-void WinFileSystemAccess::name2local(string* filename, const char* badchars)
-{
-    char buf[4];
-
-    if (!badchars)
-    {
-        badchars = "\\/:?\"<>|*\1\2\3\4\5\6\7\10\11\12\13\14\15\16\17\20\21\22\23\24\25\26\27\30\31\32\33\34\35\36\37";
-    }
-
-    // replace all occurrences of a badchar with %xx
-    for (int i = filename->size(); i--;)
-    {
-        if (((unsigned char)(*filename)[i] < ' ') || strchr(badchars, (*filename)[i]))
-        {
-            sprintf(buf, "%%%02x", (unsigned char)(*filename)[i]);
-            filename->replace(i, 1, buf);
-        }
-    }
-
-    string t = *filename;
-
-    // make space for the worst case
-    filename->resize((t.size() + 1) * sizeof(wchar_t));
-
-    // resize to actual result
-    filename->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0, t.c_str(),
-                                                               -1,
-                                                               (wchar_t*)filename->data(),
-                                                               filename->size() / sizeof(wchar_t) + 1) - 1));
-}
-
-// convert Windows 16-bit UNICODE to UTF-8, then unescape escaped forbidden characters
-// by replacing occurrences of %xx (x being a lowercase hex digit) with the encoded character
-void WinFileSystemAccess::local2name(string* filename)
-{
-    char c;
-    string t = *filename;
-
-    filename->resize((t.size() + 1) * 4 / sizeof(wchar_t));
-
-    filename->resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)t.data(),
-                                         t.size() / sizeof(wchar_t),
-                                         (char*)filename->data(),
-                                         filename->size() + 1,
-                                         NULL, NULL));
-
-    for (int i = filename->size() - 2; i-- > 0;)
-    {
-        if (((*filename)[i] == '%') && islchex((*filename)[i + 1]) && islchex((*filename)[i + 2]))
-        {
-            c = (MegaClient::hexval((*filename)[i + 1]) << 4) + MegaClient::hexval((*filename)[i + 2]);
-            filename->replace(i, 3, &c, 1);
-        }
-    }
 }
 
 // write short name of the last path component to sname

@@ -54,9 +54,6 @@ public:
     void path2local(string*, string*);
     void local2path(string*, string*);
 
-    void name2local(string*, const char* = NULL);
-    void local2name(string*);
-    
     static int sanitizedriveletter(string*);
 
     bool getsname(string*, string*);

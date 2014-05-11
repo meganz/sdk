@@ -73,9 +73,6 @@ public:
     void local2path(string*, string*);
     void path2local(string*, string*);
 
-    void name2local(string*, const char* = NULL);
-    void local2name(string*);
-
     bool getsname(string*, string*);
 
     bool renamelocal(string*, string*, bool);

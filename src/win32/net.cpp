@@ -180,7 +180,9 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                     if (((char *)lpvStatusInformation + dwStatusInformationLength) ==
                              (httpctx->zin.data() + httpctx->zin.size()))
+                    {
                         httpctx->zin.clear();
+                    }
 
                     if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
                     {

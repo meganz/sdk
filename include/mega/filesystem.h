@@ -145,19 +145,21 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if character is lowercase hex ASCII
     bool islchex(char);
+    bool islocalfscompatible(unsigned char);
+    void escapefsincompatible(string*);
+    void unescapefsincompatible(string*);
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) = 0;
 
-    // convert local path to MEGA format (UTF-8)
     virtual void local2path(string*, string*) = 0;
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    virtual void name2local(string*, const char* = NULL) = 0;
+    void local2name(string*);
 
-    // reverse local2name()
-    virtual void local2name(string*) = 0;
+    // convert local path to MEGA format (UTF-8) with unescaping
+    void name2local(string*);
 
     // generate local temporary file name
     virtual void tmpnamelocal(string*) = 0;

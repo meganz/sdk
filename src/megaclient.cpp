@@ -5113,7 +5113,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             {
                 insync = false;
 
-                if(ll->node != rit->second)
+                if (ll->node != rit->second)
                 {
                     ll->setnode(rit->second);
                     ll->sync->statecacheadd(ll);
@@ -5233,7 +5233,7 @@ void MegaClient::syncupdate()
 
             l->treestate(TREESTATE_PENDING);
 
-            if ((l->type == FOLDERNODE) || (n = nodebyfingerprint(l)))
+            if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
             {
                 // create remote folder or copy file if it already exists
                 nnp->source = NEW_NODE;

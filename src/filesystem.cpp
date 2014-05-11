@@ -21,6 +21,7 @@
 
 #include "mega/filesystem.h"
 #include "mega/node.h"
+#include "mega/megaclient.h"
 
 namespace mega {
 void FileSystemAccess::captimestamp(m_time_t* t)
@@ -32,7 +33,69 @@ void FileSystemAccess::captimestamp(m_time_t* t)
 
 bool FileSystemAccess::islchex(char c)
 {
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z');
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+}
+
+// is c allowed in local fs names?
+bool FileSystemAccess::islocalfscompatible(unsigned char c)
+{
+    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+}
+
+// replace characters that are not allowed in local fs names with a %xx escape sequence
+void FileSystemAccess::escapefsincompatible(string* name)
+{
+    char buf[4];
+    unsigned char c;
+
+    // replace all occurrences of a badchar with %xx
+    for (int i = name->size(); i--; )
+    {
+        c = (unsigned char)(*name)[i];
+
+        if (!islocalfscompatible(c))
+        {
+            sprintf(buf, "%%%02x", c);
+            name->replace(i, 1, buf);
+        }
+    }
+}
+
+void FileSystemAccess::unescapefsincompatible(string* name)
+{
+    for (int i = name->size() - 3; i-- > 0; )
+    {
+        // conditions for unescaping: %xx must be well-formed and encode an incompatible character
+        if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
+        {
+            char c = (MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]);
+
+            if (!islocalfscompatible((unsigned char)c))
+            {
+                name->replace(i, 3, &c, 1);
+            }
+        }
+    }
+}
+
+// escape forbidden characters, then convert to local encoding
+void FileSystemAccess::name2local(string* filename)
+{
+    escapefsincompatible(filename);
+
+    string t = *filename;
+
+    path2local(&t, filename);
+}
+
+// convert from local encoding, then unescape escaped forbidden characters
+void FileSystemAccess::local2name(string* filename)
+{
+    string t = *filename;
+
+    local2path(&t, filename);
+    
+    unescapefsincompatible(filename);
 }
 
 // default DirNotify: no notification available
@@ -79,7 +142,7 @@ bool FileAccess::openf()
     m_time_t curr_mtime;
     m_off_t curr_size;
 
-    if (!sysstat(&curr_mtime, &curr_size) || (curr_mtime != mtime) || (curr_size != size))
+    if (!sysstat(&curr_mtime, &curr_size) || curr_mtime != mtime || curr_size != size)
     {
         return false;
     }
