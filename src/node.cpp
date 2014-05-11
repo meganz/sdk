@@ -285,7 +285,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                && --numshares);
     }
 
-    ptr = n->attrs.unserialize(ptr, end - ptr);
+    ptr = n->attrs.unserialize(ptr);
 
     n->setfingerprint();
 
