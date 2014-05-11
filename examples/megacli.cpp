@@ -1886,11 +1886,11 @@ static void process_line(char* l)
                                 return;
                             }
 
-                            client->fsaccess->name2local(&words[1], "");
+                            client->fsaccess->path2local(&words[1], &localname);
 
                             DirAccess* da = client->fsaccess->newdiraccess();
 
-                            if (da->dopen(&words[1], NULL, true))
+                            if (da->dopen(&localname, NULL, true))
                             {
                                 while (da->dnext(&localname, &type))
                                 {
