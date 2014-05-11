@@ -159,7 +159,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 }
 
 // convert this FileFingerprint to string
-void FileFingerprint::serializefingerprint(string* d)
+void FileFingerprint::serializefingerprint(string* d) const
 {
     byte buf[sizeof crc + 1 + sizeof mtime];
     int l;
