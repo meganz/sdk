@@ -68,12 +68,12 @@ public:
     DirAccess* newdiraccess();
     DirNotify* newdirnotify(string*, string*);
 
-    void tmpnamelocal(string*);
+    void tmpnamelocal(string*) const;
 
-    void local2path(string*, string*);
-    void path2local(string*, string*);
+    void local2path(string*, string*) const;
+    void path2local(string*, string*) const;
 
-    bool getsname(string*, string*);
+    bool getsname(string*, string*) const;
 
     bool renamelocal(string*, string*, bool);
     bool copylocal(string*, string*, m_time_t);
@@ -81,15 +81,15 @@ public:
     bool unlinklocal(string*);
     bool rmdirlocal(string*);
     bool mkdirlocal(string*, bool);
-    bool setmtimelocal(string *, m_time_t);
-    bool chdirlocal(string*);
-    size_t lastpartlocal(string*);
-    bool getextension(string*, char*, int);
+    bool setmtimelocal(string *, m_time_t) const;
+    bool chdirlocal(string*) const;
+    size_t lastpartlocal(string*) const;
+    bool getextension(string*, char*, int) const;
 
     void addevents(Waiter*, int);
     int checkevents(Waiter*);
 
-    void osversion(string*);
+    void osversion(string*) const;
 
     PosixFileSystemAccess();
     ~PosixFileSystemAccess();

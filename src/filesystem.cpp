@@ -31,19 +31,19 @@ void FileSystemAccess::captimestamp(m_time_t* t)
     else if (*t < 0) *t = 0;
 }
 
-bool FileSystemAccess::islchex(char c)
+bool FileSystemAccess::islchex(char c) const
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
 // is c allowed in local fs names?
-bool FileSystemAccess::islocalfscompatible(unsigned char c)
+bool FileSystemAccess::islocalfscompatible(unsigned char c) const
 {
     return c >= ' ' && !strchr("\\/:?\"<>|*", c);
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
-void FileSystemAccess::escapefsincompatible(string* name)
+void FileSystemAccess::escapefsincompatible(string* name) const
 {
     char buf[4];
     unsigned char c;
@@ -61,7 +61,7 @@ void FileSystemAccess::escapefsincompatible(string* name)
     }
 }
 
-void FileSystemAccess::unescapefsincompatible(string* name)
+void FileSystemAccess::unescapefsincompatible(string* name) const
 {
     for (int i = name->size() - 3; i-- > 0; )
     {
@@ -79,7 +79,7 @@ void FileSystemAccess::unescapefsincompatible(string* name)
 }
 
 // escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename)
+void FileSystemAccess::name2local(string* filename) const
 {
     escapefsincompatible(filename);
 
@@ -89,7 +89,7 @@ void FileSystemAccess::name2local(string* filename)
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string* filename)
+void FileSystemAccess::local2name(string* filename) const
 {
     string t = *filename;
 

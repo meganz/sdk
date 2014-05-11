@@ -290,7 +290,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 }
 
 // generate unique local filename in the same fs as relatedpath
-void PosixFileSystemAccess::tmpnamelocal(string* localname)
+void PosixFileSystemAccess::tmpnamelocal(string* localname) const
 {
     static unsigned tmpindex;
     char buf[128];
@@ -299,18 +299,18 @@ void PosixFileSystemAccess::tmpnamelocal(string* localname)
     *localname = buf;
 }
 
-void PosixFileSystemAccess::path2local(string* local, string* path)
+void PosixFileSystemAccess::path2local(string* local, string* path) const
 {
     *path = *local;
 }
 
-void PosixFileSystemAccess::local2path(string* local, string* path)
+void PosixFileSystemAccess::local2path(string* local, string* path) const
 {
     *path = *local;
 }
 
 // no legacy DOS garbage here...
-bool PosixFileSystemAccess::getsname(string*, string*)
+bool PosixFileSystemAccess::getsname(string*, string*) const
 {
     return false;
 }
@@ -383,19 +383,19 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
     return r;
 }
 
-bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
+bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
 {
     struct utimbuf times = { mtime, mtime };
 
     return !utime(name->c_str(), &times);
 }
 
-bool PosixFileSystemAccess::chdirlocal(string* name)
+bool PosixFileSystemAccess::chdirlocal(string* name) const
 {
     return !chdir(name->c_str());
 }
 
-size_t PosixFileSystemAccess::lastpartlocal(string* localname)
+size_t PosixFileSystemAccess::lastpartlocal(string* localname) const
 {
     const char* ptr = localname->data();
 
@@ -408,7 +408,7 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname)
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size)
+bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size) const
 {
 	const char* ptr = filename->data() + filename->size();
     char c;
@@ -446,7 +446,7 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
 	return false;
 }
 
-void PosixFileSystemAccess::osversion(string* u)
+void PosixFileSystemAccess::osversion(string* u) const
 {
     utsname uts;
 

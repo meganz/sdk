@@ -144,28 +144,28 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual DirNotify* newdirnotify(string*, string*);
 
     // check if character is lowercase hex ASCII
-    bool islchex(char);
-    bool islocalfscompatible(unsigned char);
-    void escapefsincompatible(string*);
-    void unescapefsincompatible(string*);
+    bool islchex(char) const;
+    bool islocalfscompatible(unsigned char) const;
+    void escapefsincompatible(string*) const;
+    void unescapefsincompatible(string*) const;
 
     // convert MEGA path (UTF-8) to local format
-    virtual void path2local(string*, string*) = 0;
+    virtual void path2local(string*, string*) const = 0;
 
-    virtual void local2path(string*, string*) = 0;
+    virtual void local2path(string*, string*) const = 0;
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*);
+    void local2name(string*) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*);
+    void name2local(string*) const;
 
     // generate local temporary file name
-    virtual void tmpnamelocal(string*) = 0;
+    virtual void tmpnamelocal(string*) const = 0;
 
     // obtain local secondary name
-    virtual bool getsname(string*, string*) = 0;
+    virtual bool getsname(string*, string*) const = 0;
 
     // rename file, overwrite target
     virtual bool renamelocal(string*, string*, bool = true) = 0;
@@ -186,16 +186,16 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static void captimestamp(m_time_t*);
     
     // set mtime
-    virtual bool setmtimelocal(string *, m_time_t) = 0;
+    virtual bool setmtimelocal(string *, m_time_t) const = 0;
 
     // change working directory
-    virtual bool chdirlocal(string*) = 0;
+    virtual bool chdirlocal(string*) const = 0;
 
     // locate byte offset of last path component
-    virtual size_t lastpartlocal(string*) = 0;
+    virtual size_t lastpartlocal(string*) const = 0;
 
     // obtain lowercased extension
-    virtual bool getextension(string*, char*, int) = 0;
+    virtual bool getextension(string*, char*, int) const = 0;
 
     // add notification (has to be called for all directories in tree for full crossplatform support)
     virtual void addnotify(LocalNode*, string*) { }
@@ -214,7 +214,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool target_exists;
 
     // append local operating system version information to string
-    virtual void osversion(string*) { }
+    virtual void osversion(string*) const { }
 
     virtual ~FileSystemAccess() { }
 };
