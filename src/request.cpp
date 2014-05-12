@@ -28,12 +28,12 @@ void Request::add(Command* c)
     cmds.push_back(c);
 }
 
-int Request::cmdspending()
+int Request::cmdspending() const
 {
     return cmds.size();
 }
 
-void Request::get(string* req)
+void Request::get(string* req) const
 {
     // concatenate all command objects, resulting in an API request
     *req = "[";
