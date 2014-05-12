@@ -88,7 +88,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     void setattr();
 
     // display name (UTF-8)
-    const char* displayname();
+    const char* displayname() const;
 
     // node-specific key
     SymmCipher key;
@@ -238,8 +238,8 @@ struct MEGA_API LocalNode : public File, Cachable
     localnode_set::iterator notseen_it;
 
     // build full local path to this node
-    void getlocalpath(string*, bool sdisable = false);
-    void getlocalsubpath(string*);
+    void getlocalpath(string*, bool sdisable = false) const;
+    void getlocalsubpath(string*) const;
 
     // return child node by name
     LocalNode* childbyname(string*);
