@@ -2079,7 +2079,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data)
 }
 
 // has the limit of concurrent transfer tslots been reached?
-bool MegaClient::slotavail()
+bool MegaClient::slotavail() const
 {
     return tslots.size() < MAXTRANSFERS;
 }
@@ -2722,7 +2722,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l)
+void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
 {
     if (l < 0)
     {
@@ -3015,7 +3015,7 @@ char* MegaClient::str_to_a32(const char* str, int* len)
 }
 
 // compute UTF-8 password hash
-error MegaClient::pw_key(const char* utf8pw, byte* key)
+error MegaClient::pw_key(const char* utf8pw, byte* key) const
 {
     int t;
     char* pw;
@@ -4183,7 +4183,7 @@ void MegaClient::procsuk(JSON* j)
 }
 
 // add node to vector, return position, deduplicate
-unsigned MegaClient::addnode(node_vector* v, Node* n)
+unsigned MegaClient::addnode(node_vector* v, Node* n) const
 {
     // linear search not particularly scalable, but fine for the relatively
     // small real-world requests
@@ -4719,7 +4719,7 @@ void MegaClient::updateputs()
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings)
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings) const
 {
     Node** npp;
 
