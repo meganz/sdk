@@ -4822,6 +4822,13 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             }
             else if (ll->type == FILENODE)
             {
+                if((!ll->node) ||
+                   ((ll->node != rit->second) && (ll->node->mtime < rit->second->mtime)))
+                {
+                    ll->setnode(rit->second);
+                    ll->sync->statecacheadd(ll);
+                }
+
                 // file on both sides - do not overwrite if local version older
                 // or identical
                 if (ll->mtime > rit->second->mtime)
@@ -5083,6 +5090,13 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
+                if((!ll->node) ||
+                   ((ll->node != rit->second) && (ll->node->mtime < rit->second->mtime)))
+                {
+                    ll->setnode(rit->second);
+                    ll->sync->statecacheadd(ll);
+                }
+
                 if (ll->size == rit->second->size)
                 {
                     // check if file is likely to be identical
@@ -5098,12 +5112,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         // files have the same size and the same mtime (or the
                         // same fingerprint, if available): no action needed
-                        if (ll->node != rit->second)
-                        {
-                            ll->setnode(rit->second);
-                            ll->sync->statecacheadd(ll);
-                        }
-
                         ll->treestate(TREESTATE_SYNCED);
                         continue;
                     }
