@@ -468,6 +468,8 @@ void Node::setattr()
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
             JSON::unescape(t);
+            if(name == 'n')
+                client->fsaccess->normalize(t);
         }
 
         setfingerprint();

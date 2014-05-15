@@ -308,9 +308,11 @@ bool MegaClient::warnlevel()
 // clashes)
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
+    string nname = name;
+    fsaccess->normalize(&nname);
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
     {
-        if (!strcmp(name, (*it)->displayname()))
+        if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
             return *it;
         }

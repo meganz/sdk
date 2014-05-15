@@ -327,6 +327,7 @@ void WinFileSystemAccess::local2path(string* local, string* path)
                                      (char*)path->data(),
                                      path->size() + 1,
                                      NULL, NULL));
+    normalize(path);
 }
 
 // write short name of the last path component to sname
