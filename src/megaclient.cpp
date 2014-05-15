@@ -3668,6 +3668,7 @@ void MegaClient::login(const char* email, const byte* pwkey, bool nocache)
     key.setkey((byte*)pwkey);
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
+    lcemail.append("v2");
     if (!nocache && dbaccess && (sctable = dbaccess->open(fsaccess, &lcemail)) && sctable->get(CACHEDSCSN, &t))
     {
         if (t.size() == sizeof cachedscsn)
