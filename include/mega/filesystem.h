@@ -161,6 +161,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // convert local path to MEGA format (UTF-8) with unescaping
     void name2local(string*);
 
+    //Normalize UTF-8 string
+    void normalize(string *);
+
     // generate local temporary file name
     virtual void tmpnamelocal(string*) = 0;
 

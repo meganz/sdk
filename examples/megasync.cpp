@@ -184,12 +184,18 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
         {
             // locate matching share from this user
             handle_set::iterator sit;
-
+            string name;
             for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
             {
                 if (( n = client->nodebyhandle(*sit)))
                 {
-                    if (!strcmp(c[1].c_str(), n->displayname()))
+                    if(!name.size())
+                    {
+                        name =  c[1];
+                        n->client->fsaccess->normalize(&name);
+                    }
+
+                    if (!strcmp(name.c_str(), n->displayname()))
                     {
                         l = 2;
                         break;

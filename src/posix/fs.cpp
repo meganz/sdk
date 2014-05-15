@@ -307,6 +307,7 @@ void PosixFileSystemAccess::path2local(string* local, string* path)
 void PosixFileSystemAccess::local2path(string* local, string* path)
 {
     *path = *local;
+    normalize(path);
 }
 
 // no legacy DOS garbage here...
