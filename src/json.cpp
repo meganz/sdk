@@ -114,7 +114,7 @@ bool JSON::isnumeric()
     return *ptr >= '0' && *ptr <= '9';
 }
 
-nameid JSON::getnameid(const char* ptr)
+nameid JSON::getnameid(const char* ptr) const
 {
     nameid id = EOO;
 

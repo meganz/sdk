@@ -285,7 +285,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                && --numshares);
     }
 
-    ptr = n->attrs.unserialize(ptr, end - ptr);
+    ptr = n->attrs.unserialize(ptr);
 
     n->setfingerprint();
 
@@ -509,7 +509,7 @@ void Node::setfingerprint()
 }
 
 // return file/folder name or special status strings
-const char* Node::displayname()
+const char* Node::displayname() const
 {
     // not yet decrypted
     if (attrstring.size())
@@ -517,7 +517,7 @@ const char* Node::displayname()
         return "NO_KEY";
     }
 
-    attr_map::iterator it;
+    attr_map::const_iterator it;
 
     it = attrs.map.find('n');
 
@@ -1015,9 +1015,9 @@ LocalNode::~LocalNode()
     }
 }
 
-void LocalNode::getlocalpath(string* path, bool sdisable)
+void LocalNode::getlocalpath(string* path, bool sdisable) const
 {
-    LocalNode* l = this;
+    const LocalNode* l = this;
 
     path->erase();
 
@@ -1046,9 +1046,9 @@ void LocalNode::getlocalpath(string* path, bool sdisable)
     }
 }
 
-void LocalNode::getlocalsubpath(string* path)
+void LocalNode::getlocalsubpath(string* path) const
 {
-    LocalNode* l = this;
+    const LocalNode* l = this;
 
     path->erase();
 

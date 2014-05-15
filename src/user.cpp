@@ -122,7 +122,7 @@ User* User::unserialize(MegaClient* client, string* d)
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
 
-    if ((ptr < end) && !(ptr = u->attrs.unserialize(ptr, end - ptr)))
+    if ((ptr < end) && !(ptr = u->attrs.unserialize(ptr)))
     {
         return NULL;
     }

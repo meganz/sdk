@@ -102,7 +102,7 @@ public:
     error setattr(Node*, const char** = NULL);
 
     // prefix and encrypt attribute json
-    void makeattr(SymmCipher*, string*, const char*, int = -1);
+    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -276,10 +276,10 @@ private:
     void init();
 
     // add node to vector and return index
-    unsigned addnode(node_vector*, Node*);
+    unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*);
+    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -499,7 +499,7 @@ public:
     void updateputs();
 
     // determine if all transfer slots are full
-    bool slotavail();
+    bool slotavail() const;
 
     // dispatch as many queued transfers as possible
     void dispatchmore(direction_t);
@@ -601,7 +601,7 @@ public:
     void proctree(Node*, TreeProc*);
 
     // hash password
-    error pw_key(const char*, byte*);
+    error pw_key(const char*, byte*) const;
 
     // convert hex digit to number
     static int hexval(char);

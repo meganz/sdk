@@ -33,9 +33,9 @@ class MEGA_API Request
 public:
     void add(Command*);
 
-    int cmdspending();
+    int cmdspending() const;
 
-    void get(string*);
+    void get(string*) const;
 
     void procresult(MegaClient*);
 

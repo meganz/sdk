@@ -40,7 +40,7 @@ struct MEGA_API JSON
     const char* getvalue();
 
     nameid getnameid();
-    nameid getnameid(const char*);
+    nameid getnameid(const char*) const;
 
     bool is(const char*);
 

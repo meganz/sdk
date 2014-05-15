@@ -293,7 +293,7 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
 }
 
 // generate unique local filename in the same fs as relatedpath
-void WinFileSystemAccess::tmpnamelocal(string* localname)
+void WinFileSystemAccess::tmpnamelocal(string* localname) const
 {
     static unsigned tmpindex;
     char buf[128];
@@ -304,7 +304,7 @@ void WinFileSystemAccess::tmpnamelocal(string* localname)
 }
 
 // convert UTF-8 to Windows Unicode
-void WinFileSystemAccess::path2local(string* path, string* local)
+void WinFileSystemAccess::path2local(string* path, string* local) const
 {
     // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
@@ -318,7 +318,7 @@ void WinFileSystemAccess::path2local(string* path, string* local)
 }
 
 // convert Windows Unicode to UTF-8
-void WinFileSystemAccess::local2path(string* local, string* path)
+void WinFileSystemAccess::local2path(string* local, string* path) const
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t));
 
@@ -330,7 +330,7 @@ void WinFileSystemAccess::local2path(string* local, string* path)
 }
 
 // write short name of the last path component to sname
-bool WinFileSystemAccess::getsname(string* name, string* sname)
+bool WinFileSystemAccess::getsname(string* name, string* sname) const
 {
     int r, rr;
 
@@ -454,7 +454,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
+bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
 {
     FILETIME lwt;
     LONGLONG ll;
@@ -481,7 +481,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     return r;
 }
 
-bool WinFileSystemAccess::chdirlocal(string* name)
+bool WinFileSystemAccess::chdirlocal(string* name) const
 {
     name->append("", 1);
     int r = SetCurrentDirectoryW((LPCWSTR)name->data());
@@ -490,7 +490,7 @@ bool WinFileSystemAccess::chdirlocal(string* name)
     return r;
 }
 
-size_t WinFileSystemAccess::lastpartlocal(string* name)
+size_t WinFileSystemAccess::lastpartlocal(string* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
@@ -504,7 +504,7 @@ size_t WinFileSystemAccess::lastpartlocal(string* name)
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(string* filename, char* extension, int size)
+bool WinFileSystemAccess::getextension(string* filename, char* extension, int size) const
 {
 	const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size());
     char c;
@@ -542,7 +542,7 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 	return false;
 }
 
-void WinFileSystemAccess::osversion(string* u)
+void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];
     DWORD dwVersion = GetVersion();

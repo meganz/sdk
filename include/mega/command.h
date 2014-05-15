@@ -76,7 +76,7 @@ public:
 
     virtual void procresult();
 
-    const char* getstring();
+    const char* getstring() const;
 
     Command();
     virtual ~Command() { }

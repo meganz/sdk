@@ -24,11 +24,11 @@
 namespace mega {
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
 // or name length into account
-unsigned AttrMap::storagesize(int perrecord)
+unsigned AttrMap::storagesize(int perrecord) const
 {
     unsigned t = 0;
 
-    for (attr_map::iterator it = map.begin(); it != map.end(); it++)
+    for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
         t += perrecord + it->second.size();
     }
@@ -36,7 +36,7 @@ unsigned AttrMap::storagesize(int perrecord)
     return t;
 }
 
-int AttrMap::nameid2string(nameid id, char* buf)
+int AttrMap::nameid2string(nameid id, char* buf) const
 {
     char* ptr = buf;
 
@@ -52,13 +52,13 @@ int AttrMap::nameid2string(nameid id, char* buf)
 }
 
 // generate binary serialize of attr_map name-value pairs
-void AttrMap::serialize(string* d)
+void AttrMap::serialize(string* d) const
 {
     char buf[8];
     unsigned char l;
     unsigned short ll;
 
-    for (attr_map::iterator it = map.begin(); it != map.end(); it++)
+    for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
         if ((l = nameid2string(it->first, buf)))
         {
@@ -74,7 +74,7 @@ void AttrMap::serialize(string* d)
 }
 
 // read binary serialize, return final offset
-const char* AttrMap::unserialize(const char* ptr, unsigned len)
+const char* AttrMap::unserialize( const char* ptr )
 {
     unsigned char l;
     unsigned short ll;
@@ -99,7 +99,7 @@ const char* AttrMap::unserialize(const char* ptr, unsigned len)
 }
 
 // generate JSON object containing attr_map
-void AttrMap::getjson(string* s)
+void AttrMap::getjson(string* s) const
 {
     nameid id;
     char buf[8];
@@ -110,7 +110,7 @@ void AttrMap::getjson(string* s)
     s->erase();
     s->reserve(storagesize(20));
 
-    for (attr_map::iterator it = map.begin(); it != map.end(); it++)
+    for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
         s->append(s->size() ? ",\"" : "\"");
 

@@ -40,7 +40,7 @@ struct MEGA_API FileFingerprint
     bool isvalid;
 
     bool genfingerprint(FileAccess*, bool = false);
-    void serializefingerprint(string*);
+    void serializefingerprint(string*) const;
     int unserializefingerprint(string*);
 
     FileFingerprint& operator=(FileFingerprint&);

@@ -36,7 +36,7 @@ void Command::cancel()
 }
 
 // returns completed command JSON string
-const char* Command::getstring()
+const char* Command::getstring() const
 {
     return json.c_str();
 }

@@ -34,19 +34,19 @@ struct MEGA_API AttrMap
     attr_map map;
 
     // compute rough storage size
-    unsigned storagesize(int);
+    unsigned storagesize(int) const;
 
     // convert nameid to string
-    int nameid2string(nameid, char*);
+    int nameid2string(nameid, char*) const;
 
     // export as JSON string
-    void getjson(string*);
+    void getjson(string*) const;
 
     // export as raw binary serialize
-    void serialize(string*);
+    void serialize(string*) const;
 
     // import raw binary serialize
-    const char* unserialize(const char*, unsigned);
+    const char* unserialize(const char*);
 };
 } // namespace
 
