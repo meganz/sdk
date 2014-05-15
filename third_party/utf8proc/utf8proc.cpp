@@ -536,7 +536,7 @@ ssize_t utf8proc_map(
   *dstptr = NULL;
   result = utf8proc_decompose(str, strlen, NULL, 0, options);
   if (result < 0) return result;
-  buffer = malloc(result * sizeof(int32_t) + 1);
+  buffer = (int32_t *)malloc(result * sizeof(int32_t) + 1);
   if (!buffer) return UTF8PROC_ERROR_NOMEM;
   result = utf8proc_decompose(str, strlen, buffer, result, options);
   if (result < 0) {
@@ -550,7 +550,7 @@ ssize_t utf8proc_map(
   }
   {
     int32_t *newptr;
-    newptr = realloc(buffer, (size_t)result+1);
+    newptr = (int32_t *)realloc(buffer, (size_t)result+1);
     if (newptr) buffer = newptr;
   }
   *dstptr = (uint8_t *)buffer;

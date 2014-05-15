@@ -94,7 +94,7 @@ void mega::FileSystemAccess::normalize(string *filename)
 {
     if(!filename) return;
 
-    char *result = (char *)utf8proc_NFC((u_int8_t *)filename->c_str());
+    char *result = (char *)utf8proc_NFC((uint8_t *)filename->c_str());
     *filename = result;
     free(result);
 }

@@ -65,8 +65,8 @@ typedef int int32_t;
 #else
 #define ssize_t int
 #endif
-typedef unsigned char bool;
-enum {false, true};
+//typedef unsigned char bool;
+//enum {false, true};
 #else
 #include <stdbool.h>
 #include <inttypes.h>
