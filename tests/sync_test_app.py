@@ -23,6 +23,8 @@ import time
 import random
 from sync_test_base import SyncTestBase
 import shutil
+import logging
+import datetime
 
 class SyncTestApp(object):
     """
@@ -34,6 +36,8 @@ class SyncTestApp(object):
         remote_folder: a remote folder to sync
         """
 
+        self.start_time = time.time()
+
         random.seed(time.time())
 
         self.local_mount_in = local_mount_in
@@ -44,7 +48,7 @@ class SyncTestApp(object):
         self.local_folder_out = os.path.join(self.local_mount_out, self.rnd_folder)
         self.work_folder = os.path.join(work_folder, self.rnd_folder)
 
-        self.nr_retries = 100
+        self.nr_retries = 200
         self.delete_tmp_files = delete_tmp_files
         self.use_large_files = use_large_files
 
@@ -52,12 +56,12 @@ class SyncTestApp(object):
         # call subclass function
         res = self.start()
         if not res:
-            self.finish()
+            self.stop()
             raise Exception('Failed to start app!')
 
         res = self.prepare_folders()
         if not res:
-            self.finish()
+            self.stop()
             raise Exception('Failed to start app!')
 
         return self
@@ -66,39 +70,51 @@ class SyncTestApp(object):
         # remove tmp folders
         if self.delete_tmp_files:
             try:
-                print "Deleting %s" % self.local_folder_in
+                logging.debug("Deleting %s" % self.local_folder_in)
                 shutil.rmtree(self.local_folder_in)
             except OSError:
                 pass
             try:
-                print "Deleting %s" % self.local_folder_out
+                logging.debug("Deleting %s" % self.local_folder_out)
                 shutil.rmtree(self.local_folder_out)
             except OSError:
                 pass
             try:
-                print "Deleting %s" % self.work_folder
+                logging.debug("Deleting %s" % self.work_folder)
                 shutil.rmtree(self.work_folder)
             except OSError:
                 pass
 
         # terminate apps
-        self.finish()
+        self.stop()
+        logging.info("Execution time: %s" % str(datetime.timedelta(seconds=time.time()-self.start_time)))
+
+    def touch(self, path):
+        """
+        create an empty file
+        update utime
+        """
+        with open(path, 'a'):
+            os.utime(path, None)
 
     def prepare_folders(self):
         """
         prepare upsync, downsync and work directories
         """
         # create "in" folder
-        print "IN folder: %s" % self.local_folder_in
+        logging.info("IN folder: %s" % self.local_folder_in)
         try:
             os.makedirs(self.local_folder_in)
         except OSError:
-            print "Failed to create directory: %s" % self.local_folder_in
+            logging.error("Failed to create directory: %s" % self.local_folder_in)
             return False
 
-        print "OUT folder: %s" % self.local_folder_out
+        logging.info("OUT folder: %s" % self.local_folder_out)
 
         self.sync()
+
+        # temporary workaround
+        tmp_fix_file = os.path.join(self.local_mount_out, "tmp_fix")
 
         success = False
         # try to access the dir
@@ -109,25 +125,38 @@ class SyncTestApp(object):
                     break
                 else:
                     # wait for a dir
-                    print "Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries)
+                    logging.debug("Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries))
+                    self.touch(tmp_fix_file)
                     self.sync()
             except OSError:
                 # wait for a dir
-                print "Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries)
+                logging.debug("Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries))
+                self.touch(tmp_fix_file)
                 self.sync()
         if success == False:
-            print "Failed to access directory: %s" % self.local_folder_out
+            logging.error("Failed to access directory: %s" % self.local_folder_out)
             return False
 
         # create work folder
-        print "Work folder: %s" % self.work_folder
+        logging.debug("Work folder: %s" % self.work_folder)
         try:
             os.makedirs(self.work_folder)
         except OSError:
-            print "Failed to create directory: %s" % self.work_folder
+            logging.error("Failed to create directory: %s" % self.work_folder)
             return False
 
         return True
+
+    def stop(self):
+        """
+        cleans directories and call finish
+        """
+        try:
+            shutil.rmtree(self.local_folder_in)
+        except OSError:
+            pass
+        self.sync()
+        self.finish()
 
 # virtual methods
     def start(self):
@@ -153,5 +182,10 @@ class SyncTestApp(object):
     def unpause(self):
         """
         unpause application
+        """
+        raise NotImplementedError("Not Implemented !")
+    def is_alive(self):
+        """
+        return True if application instance is running
         """
         raise NotImplementedError("Not Implemented !")

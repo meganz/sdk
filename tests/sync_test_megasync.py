@@ -28,6 +28,8 @@ from sync_test import SyncTest
 from sync_test_app import SyncTestApp
 import unittest
 import xmlrunner
+import logging
+import argparse
 
 class SyncTestMegaSyncApp(SyncTestApp):
     """
@@ -89,16 +91,16 @@ class SyncTestMegaSyncApp(SyncTestApp):
         else:
             bin_path = os.path.join(base_path, "examples")
 
-        args = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
+        pargs = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
         output_fname = os.path.join(self.work_dir, "megasync" + "_" + type_str + "_" + SyncTestBase.get_random_str() + ".log")
         output_log = open(output_fname, "w")
 
-        print "Launching megasync: %s" % (" ".join(args))
+        logging.info("Launching megasync: %s" % (" ".join(pargs)))
 
         try:
-            ch = subprocess.Popen(args, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, shell=False)
+            ch = subprocess.Popen(pargs, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, bufsize=1, shell=False, env=os.environ)
         except OSError:
-            print "Failed to launch megasync process"
+            logging.error("Failed to launch megasync process")
             return None
         return ch
 
@@ -114,7 +116,7 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
 
         if os.environ.get('MEGA_EMAIL') is None or os.environ.get('MEGA_PWD') is None:
-            print "Environment variables MEGA_EMAIL and MEGA_PWD are not set !"
+            logging.error("Environment variables MEGA_EMAIL and MEGA_PWD are not set !")
             return False
 
         # start "in" instance
@@ -146,6 +148,14 @@ class SyncTestMegaSyncApp(SyncTestApp):
         if self.megasync_ch_out:
             self.megasync_ch_out.terminate()
 
+    def is_alive(self):
+        """
+        return True if application instance is running
+        """
+        if not self.megasync_ch_in or not self.megasync_ch_out:
+            return False
+        return self.megasync_ch_in.poll() == None and self.megasync_ch_out.poll() == None
+
     def pause(self):
         """
         pause application
@@ -157,25 +167,48 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print "Please run as:  python " + sys.argv[0] + " [work dir] [remote folder name]"
-        sys.exit(1)
+    # logging stuff, output to stdout
 
-    if os.environ.get('MEGA_TEST_USE_LARGE_FILES') is None:
-        large_files = False
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test1", help="test_create_delete_files", action="store_true")
+    parser.add_argument("--test2", help="test_create_rename_delete_files", action="store_true")
+    parser.add_argument("--test3", help="test_create_delete_dirs", action="store_true")
+    parser.add_argument("--test4", help="test_create_rename_delete_dirs", action="store_true")
+    parser.add_argument("--test5", help="test_sync_files_write", action="store_true")
+    parser.add_argument("--test6", help="test_local_operations", action="store_true")
+    parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
+    parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
+    parser.add_argument("work_dir", help="local work directory")
+    parser.add_argument("sync_dir", help="remote directory for synchronization")
+    args = parser.parse_args()
+
+    if args.debug:
+        lvl = logging.DEBUG
     else:
-        large_files = True
+        lvl = logging.INFO
 
-    with SyncTestMegaSyncApp(sys.argv[1], sys.argv[2], True, large_files) as app:
+    logging.StreamHandler(sys.stdout)
+    logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
+
+    with SyncTestMegaSyncApp(args.work_dir, args.sync_dir, True, args.large) as app:
         suite = unittest.TestSuite()
 
-        suite.addTest(SyncTest("test_create_delete_files", app))
-        suite.addTest(SyncTest("test_create_rename_delete_files", app))
-        suite.addTest(SyncTest("test_create_delete_dirs", app, ))
-        suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
-        suite.addTest(SyncTest("test_sync_files_write", app))
+        if args.test1:
+            suite.addTest(SyncTest("test_create_delete_files", app))
 
-        if os.environ.get('MEGA_TEST_USE_DIRTREE_TEST') is not None:
+        if args.test2:
+            suite.addTest(SyncTest("test_create_rename_delete_files", app))
+
+        if args.test3:
+            suite.addTest(SyncTest("test_create_delete_dirs", app, ))
+
+        if args.test4:
+            suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
+
+        if args.test5:
+            suite.addTest(SyncTest("test_sync_files_write", app))
+
+        if args.test6:
             suite.addTest(SyncTest("test_local_operations", app))
 
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')

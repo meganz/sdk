@@ -24,6 +24,7 @@ import string
 import shutil
 import hashlib
 import unittest
+import logging
 
 class SyncTestBase(unittest.TestCase):
     """
@@ -58,7 +59,7 @@ class SyncTestBase(unittest.TestCase):
         """
         return True if folder is empty
         """
-        print "Checking if folder %s is empty" % folder_name
+        logging.debug("Checking if folder %s is empty" % folder_name)
 
         # leave old files
         if not self.app.delete_tmp_files:
@@ -68,18 +69,18 @@ class SyncTestBase(unittest.TestCase):
             try:
                 res = not os.listdir(folder_name)
             except OSError:
-                print "Failed to list dir: %s" % folder_name
+                logging.error("Failed to list dir: %s" % folder_name)
                 return False
 
             if res:
                 return True
 
-            print "Directory %s is not empty! Retrying [%d/%d] .." % (folder_name, r + 1, self.nr_retries)
+            logging.debug("Directory %s is not empty! Retrying [%d/%d] .." % (folder_name, r + 1, self.nr_retries))
 
             try:
                 shutil.rmtree(folder_name)
             except OSError:
-                print "Failed to delete folder: %s" % folder_name
+                logging.error("Failed to delete folder: %s" % folder_name)
                 return False
 
     @staticmethod
@@ -121,11 +122,11 @@ class SyncTestBase(unittest.TestCase):
             try:
                 self.file_create(ffname, fsize)
             except IOError:
-                print "Failed to create file: %s" % ffname
+                logging.error("Failed to create file: %s" % ffname)
                 return False
             md5_str = self.md5_for_file(ffname)
             l_files.append({"name":fname, "size":fsize, "md5":md5_str, "name_orig":fname})
-            print "File created: %s [%s, %db]" % (ffname, md5_str, fsize)
+            logging.debug("File created: %s [%s, %db]" % (ffname, md5_str, fsize))
         return True
 
     def files_create(self):
@@ -133,7 +134,7 @@ class SyncTestBase(unittest.TestCase):
         create files in "in" instance and check files presence in "out" instance
         Return list of files
         """
-        print "Creating files.."
+        logging.debug("Creating files..")
 
         l_files = []
 
@@ -168,7 +169,7 @@ class SyncTestBase(unittest.TestCase):
         check files on both folders
         compare names, size, md5 sums
         """
-        print "Checking files.."
+        logging.debug("Checking files..")
 
         # check files
         for f in l_files:
@@ -180,7 +181,7 @@ class SyncTestBase(unittest.TestCase):
 
             success = False
 
-            print "Comparing %s and %s" % (ffname_in, ffname)
+            logging.debug("Comparing %s and %s" % (ffname_in, ffname))
             # try to access the file
             for r in range(0, self.nr_retries):
                 try:
@@ -190,15 +191,15 @@ class SyncTestBase(unittest.TestCase):
                     break
                 except IOError:
                     # wait for a file
-                    print "File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries)
+                    logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     self.app.sync()
             if success == False:
-                print "Failed to compare files: %s and %s" % (ffname_in, ffname)
+                logging.error("Failed to compare files: %s and %s" % (ffname_in, ffname))
                 return False
             # get md5 of synced file
             md5_str = self.md5_for_file(ffname)
             if md5_str != f["md5"]:
-                print "MD5 sums don't match for file: %s" % ffname
+                logging.error("MD5 sums don't match for file: %s" % ffname)
                 return False
         return True
 
@@ -210,7 +211,7 @@ class SyncTestBase(unittest.TestCase):
         try:
             os.makedirs(dname)
         except OSError:
-            print "Failed to create directory: %s" % dname
+            logging.error("Failed to create directory: %s" % dname)
             return None
 
         l_files = []
@@ -230,17 +231,17 @@ class SyncTestBase(unittest.TestCase):
             ddname = os.path.join(parent_dir, dname)
             l_files = self.dir_create(ddname, files_num, files_maxsize)
             if l_files is None:
-                print "Failed to create directory: %s" % ddname
+                logging.error("Failed to create directory: %s" % ddname)
                 return False
             l_dirs.append({"name":dname, "files_nr":files_num, "name_orig":dname, "l_files":l_files})
-            print "Directory created: %s [%d files]" % (ddname, files_num)
+            logging.debug("Directory created: %s [%d files]" % (ddname, files_num))
         return True
 
     def dirs_create(self):
         """
         create dirs
         """
-        print "Creating directories.."
+        logging.debug("Creating directories..")
 
         l_dirs = []
 
@@ -263,14 +264,14 @@ class SyncTestBase(unittest.TestCase):
         """
         check directories for both folders
         """
-        print "Checking directories.."
+        logging.debug("Checking directories..")
 
         for d in l_dirs:
             dname = os.path.join(self.app.local_folder_out, d["name"])
             dname_in = os.path.join(self.app.local_folder_in, d["name"])
             success = False
 
-            print "Comparing dirs: %s and %s" % (dname_in, dname)
+            logging.debug("Comparing dirs: %s and %s" % (dname_in, dname))
 
             # try to access the dir
             for r in range(0, self.nr_retries):
@@ -280,20 +281,20 @@ class SyncTestBase(unittest.TestCase):
                         break
                     else:
                         # wait for a dir
-                        print "Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries)
+                        logging.debug("Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries))
                         self.app.sync()
                 except OSError:
                     # wait for a dir
-                    print "Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries)
+                    logging.debug("Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries))
                     self.app.sync()
             if success == False:
-                print "Failed to access directories: %s and " % dname
+                logging.error("Failed to access directories: %s and " % dname)
                 return False
 
             # check files
             res = self.files_check(d["l_files"], d["name"])
             if not res:
-                print "Directories do not match !"
+                logging.error("Directories do not match !")
                 return False
 
         return True
@@ -309,7 +310,7 @@ class SyncTestBase(unittest.TestCase):
                 try:
                     shutil.move(ffname_src, ffname_dst)
                 except OSError:
-                    print "Failed to rename file: %s" % ffname_src
+                    logging.error("Failed to rename file: %s" % ffname_src)
                     return False
 
             if self.force_syncing:
@@ -317,19 +318,19 @@ class SyncTestBase(unittest.TestCase):
 
             # try to access both files (old and new)
             if not os.path.exists(ffname_dst):
-                print "Failed to access a newly renamed file: %s, retrying [%d/%d].." % (ffname_dst, r + 1, self.nr_retries)
+                logging.debug("Failed to access a newly renamed file: %s, retrying [%d/%d].." % (ffname_dst, r + 1, self.nr_retries))
                 continue
             if os.path.exists(ffname_src):
-                print "Still can access an old renamed file: %s, retrying [%d/%d]" % (ffname_src, r + 1, self.nr_retries)
+                logging.debug("Still can access an old renamed file: %s, retrying [%d/%d]" % (ffname_src, r + 1, self.nr_retries))
                 continue
             break
 
         # try to access both files (old and new)
         if not os.path.exists(ffname_dst):
-            print "Failed to access a newly renamed file: %s. Aborting.." % ffname_dst
+            logging.error("Failed to access a newly renamed file: %s. Aborting.." % ffname_dst)
             return False
         if os.path.exists(ffname_src):
-            print "Still can access an old renamed file: %s. Aborting.." % ffname_src
+            logging.error("Still can access an old renamed file: %s. Aborting.." % ffname_src)
             return False
         return True
 
@@ -337,14 +338,14 @@ class SyncTestBase(unittest.TestCase):
         """
         rename objects in "in" instance and check new files in "out" instance
         """
-        print "Renaming files.."
+        logging.debug("Renaming files..")
 
         for f in l_files:
             ffname_src = os.path.join(self.app.local_folder_in, f["name"])
             f["name"] = "renamed_" + self.get_random_str(30)
             ffname_dst = os.path.join(self.app.local_folder_in, f["name"])
 
-            print "Renaming file: %s => %s" % (ffname_src, ffname_dst)
+            logging.debug("Renaming file: %s => %s" % (ffname_src, ffname_dst))
 
             if not self.file_rename(ffname_src, ffname_dst):
                 return False
@@ -355,18 +356,18 @@ class SyncTestBase(unittest.TestCase):
         """
         remove files in "in" instance and check files absence in "out" instance
         """
-        print "Removing files.."
+        logging.debug("Removing files..")
 
         for f in l_files:
             ffname = os.path.join(self.app.local_folder_in, f["name"])
 
-            print "Deleting: %s" % ffname
+            logging.debug("Deleting: %s" % ffname)
 
             for r in range(0, self.nr_retries):
                 try:
                     os.remove(ffname)
                 except OSError:
-                    print "Failed to delete file: %s" % ffname
+                    logging.error("Failed to delete file: %s" % ffname)
                     return False
 
                 if self.force_syncing:
@@ -375,10 +376,10 @@ class SyncTestBase(unittest.TestCase):
                 # check if local file does not exist
                 if not os.path.exists(ffname):
                     break
-                print "Deleted file %s still exists, retrying [%d/%d].." % (ffname, r + 1, self.nr_retries)
+                logging.debug("Deleted file %s still exists, retrying [%d/%d].." % (ffname, r + 1, self.nr_retries))
 
             if os.path.exists(ffname):
-                print "Deleted file %s still exists, aborting.." % ffname
+                logging.debug("Deleted file %s still exists, aborting.." % ffname)
 
         success = False
         for f in l_files:
@@ -388,13 +389,13 @@ class SyncTestBase(unittest.TestCase):
                     # file must be deleted
                     with open(ffname):
                         pass
-                    print "File %s is not deleted. Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries)
+                    logging.debug("File %s is not deleted. Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     self.app.sync()
                 except IOError:
                     success = True
                     break
             if success == False:
-                print "Failed to delete file: %s" % ffname
+                logging.error("Failed to delete file: %s" % ffname)
                 return False
         return True
 
@@ -402,7 +403,7 @@ class SyncTestBase(unittest.TestCase):
         """
         rename directories in "in" instance and check directories new names in "out" instance
         """
-        print "Renaming directories.."
+        logging.debug("Renaming directories..")
 
         for d in l_dirs:
             dname_src = os.path.join(self.app.local_folder_in, d["name"])
@@ -411,7 +412,7 @@ class SyncTestBase(unittest.TestCase):
             try:
                 shutil.move(dname_src, dname_dst)
             except OSError:
-                print "Failed to rename directory: %s" % dname_src
+                logging.error("Failed to rename directory: %s" % dname_src)
                 return False
 
             if self.force_syncing:
@@ -419,13 +420,13 @@ class SyncTestBase(unittest.TestCase):
 
             # try to both dirs
             if not os.path.exists(dname_dst):
-                print "Failed to access a newly renamed directory: %s" % dname_dst
+                logging.error("Failed to access a newly renamed directory: %s" % dname_dst)
                 return False
             if os.path.exists(dname_src):
-                print "Still can access an old directory: %s" % dname_src
+                logging.error("Still can access an old directory: %s" % dname_src)
                 return False
 
-            print "Directory renamed: %s => %s" % (dname_src, dname_dst)
+            logging.debug("Directory renamed: %s => %s" % (dname_src, dname_dst))
 
         return True
 
@@ -433,22 +434,22 @@ class SyncTestBase(unittest.TestCase):
         """
         remove directories in "in" instance and check directories absence in "out" instance
         """
-        print "Removing directories.."
+        logging.debug("Removing directories..")
 
         for d in l_dirs:
             dname = os.path.join(self.app.local_folder_in, d["name"])
             try:
                 shutil.rmtree(dname)
             except OSError:
-                print "Failed to delete dir: %s" % dname
+                logging.error("Failed to delete dir: %s" % dname)
                 return False
-            print "Directory removed: %s" % dname
+            logging.debug("Directory removed: %s" % dname)
 
             if self.force_syncing:
                 self.app.sync()
 
             if os.path.exists(dname):
-                print "Still can access a renamed directory: %s" % dname
+                logging.error("Still can access a renamed directory: %s" % dname)
                 return False
 
         success = False
@@ -460,13 +461,13 @@ class SyncTestBase(unittest.TestCase):
                     if not os.path.isdir(dname):
                         success = True
                         break
-                    print "Directory %s is not deleted! Retrying [%d/%d] .." % (dname, r + 1, self.nr_retries)
+                    logging.debug("Directory %s is not deleted! Retrying [%d/%d] .." % (dname, r + 1, self.nr_retries))
                     self.app.sync()
                 except OSError:
                     success = True
                     break
             if success == False:
-                print "Failed to delete dir: %s" % dname
+                logging.error("Failed to delete dir: %s" % dname)
                 return False
         return True
 
@@ -488,7 +489,7 @@ class SyncTestBase(unittest.TestCase):
         try:
             os.makedirs(real_dname)
         except OSError:
-            print "Failed to create directory: %s" % real_dname
+            logging.error("Failed to create directory: %s" % real_dname)
             return None, None, None, None
 
         # populate with random amount of files
@@ -502,7 +503,7 @@ class SyncTestBase(unittest.TestCase):
             try:
                 self.file_create(fname_real, random.randint(10, 100))
             except IOError:
-                print "Failed to create file: %s" % fname_real
+                logging.error("Failed to create file: %s" % fname_real)
                 return None, None, None, None
             l_files.append({"name":fname, "fname":ffname})
 
@@ -517,7 +518,7 @@ class SyncTestBase(unittest.TestCase):
             try:
                 os.makedirs(cname_real)
             except OSError:
-                print "Failed to create directory: %s" % cname_real
+                logging.error("Failed to create directory: %s" % cname_real)
                 return None, None, None, None
             l_dirs.append({"name":cname, "fname":ccname})
 
@@ -591,7 +592,7 @@ class SyncTestBase(unittest.TestCase):
             success = False
             total_dirs = total_dirs + 1
 
-            # print "Trying to access dir: %s" % dname
+            # logging.debug("Trying to access dir: %s" % dname)
             for r in range(0, self.nr_retries):
                 try:
                     if os.path.isdir(dname):
@@ -599,14 +600,14 @@ class SyncTestBase(unittest.TestCase):
                         break
                     else:
                         # wait for a dir
-                        print "Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries)
+                        logging.debug("Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries))
                         self.app.sync()
                 except OSError:
                     # wait for a dir
-                    print "Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries)
+                    logging.debug("Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries))
                     self.app.sync()
             if success == False:
-                print "Failed to access directories: %s and " % dname
+                logging.error("Failed to access directories: %s and " % dname)
                 return False
 
         # try to access files in "out" folder
@@ -615,7 +616,7 @@ class SyncTestBase(unittest.TestCase):
             success = False
             total_files = total_files + 1
 
-            # print "Trying to access file: %s" % fname
+            # logging.debug("Trying to access file: %s" % fname)
             for r in range(0, self.nr_retries):
                 try:
                     with open(fname):
@@ -624,13 +625,13 @@ class SyncTestBase(unittest.TestCase):
                     break
                 except IOError:
                     # wait for a file
-                    print "File %s not found! Retrying [%d/%d] .." % (fname, r + 1, self.nr_retries)
+                    logging.debug("File %s not found! Retrying [%d/%d] .." % (fname, r + 1, self.nr_retries))
                     self.app.sync()
             if success == False:
-                print "Failed to access file: %s" % fname
+                logging.error("Failed to access file: %s" % fname)
                 return False
 
-        print "Total dirs: %d, files: %d" % (total_dirs, total_files)
+        logging.debug("Total dirs: %d, files: %d" % (total_dirs, total_files))
         return True
 
     def local_tree_create_and_move(self, l_tree):
@@ -648,7 +649,7 @@ class SyncTestBase(unittest.TestCase):
             dname, ddname, l_files, l_dirs = self.local_tree_create_dir("")
             if dname is None:
                 return False
-            print "Directory created: %s" % ddname
+            logging.debug("Directory created: %s" % ddname)
             l_dir.append({"name":dname, "fname":ddname, "files":l_files, "dirs":l_dirs, "child":None})
 
             # wait for a sync and compare
@@ -669,11 +670,11 @@ class SyncTestBase(unittest.TestCase):
             dname = self.get_random_str(size=strlen)
             ddname = os.path.join(dd["fname"], dname)
             dname_real = os.path.join(self.app.local_folder_in, ddname)
-            print "Creating new dir: %s, parent: %s" % (ddname, dd["fname"])
+            logging.debug("Creating new dir: %s, parent: %s" % (ddname, dd["fname"]))
             try:
                 os.makedirs(dname_real)
             except OSError:
-                print "Failed to create directory: %s" % dname_real
+                logging.error("Failed to create directory: %s" % dname_real)
                 return False
 
             dd["dirs"].append({"name":dname, "fname":ddname, "files":None, "dirs":None, "child":None})
@@ -682,12 +683,12 @@ class SyncTestBase(unittest.TestCase):
             old_name = os.path.join(self.app.local_folder_in, l_dir[0]["fname"])
             new_name = os.path.join(dname_real, l_dir[0]["name"])
 
-            print "Moving %s to %s" % (old_name, new_name)
+            logging.debug("Moving %s to %s" % (old_name, new_name))
 
             try:
                 shutil.move(old_name, new_name)
             except OSError:
-                print "Failed to move dir: %s to new: %s" % (old_name, new_name)
+                logging.error("Failed to move dir: %s to new: %s" % (old_name, new_name))
                 return False
 
             # fix existing dir dict
@@ -733,7 +734,7 @@ class SyncTestBase(unittest.TestCase):
                 ddname = os.path.join(dd["fname"], dname)
                 dname_real = os.path.join(self.app.local_folder_in, ddname)
 
-                print "Renaming %s to %s" % (prev_name, dname_real)
+                logging.debug("Renaming %s to %s" % (prev_name, dname_real))
 
                 if not self.file_rename(prev_name, dname_real):
                     return False
@@ -741,7 +742,7 @@ class SyncTestBase(unittest.TestCase):
                 prev_name = dname_real
 
             # rename back to origin
-            print "Moving %s to %s" % (prev_name, orig_name)
+            logging.debug("Moving %s to %s" % (prev_name, orig_name))
 
             if not self.file_rename(prev_name, orig_name):
                 return False
@@ -772,7 +773,7 @@ class SyncTestBase(unittest.TestCase):
                 ddname = os.path.join(dd["fname"], dname)
                 dname_real = os.path.join(self.app.local_folder_in, ddname)
 
-                print "Renaming %s to %s" % (prev_name, dname_real)
+                logging.debug("Renaming %s to %s" % (prev_name, dname_real))
 
                 if not self.file_rename(prev_name, dname_real):
                     return False
@@ -780,7 +781,7 @@ class SyncTestBase(unittest.TestCase):
                 prev_name = dname_real
 
             # rename back to origin
-            print "Moving %s to %s" % (prev_name, orig_name)
+            logging.debug("Moving %s to %s" % (prev_name, orig_name))
 
             if not self.file_rename(prev_name, orig_name):
                 return False

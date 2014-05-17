@@ -24,8 +24,12 @@ import time
 import shutil
 import unittest
 import xmlrunner
+import subprocess
+import re
 from sync_test_app import SyncTestApp
 from sync_test import SyncTest
+import logging
+import argparse
 
 class SyncTestMegaCliApp(SyncTestApp):
     """
@@ -50,7 +54,17 @@ class SyncTestMegaCliApp(SyncTestApp):
         try:
             shutil.rmtree(self.work_dir)
         except OSError:
-            print "Failed to remove dir: %s" % self.work_dir
+            logging.error("Failed to remove dir: %s" % self.work_dir)
+
+    def is_alive(self):
+        """
+        return True if application instance is running
+        """
+        s = subprocess.Popen(["ps", "axw"], stdout=subprocess.PIPE)
+        for x in s.stdout:
+            if re.search("megacli", x):
+                return True
+        return False
 
     def pause(self):
         """
@@ -67,24 +81,49 @@ class SyncTestMegaCliApp(SyncTestApp):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print "Please run as:  python " + sys.argv[0] + " [upsync folder] [downsync folder]"
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test1", help="test_create_delete_files", action="store_true")
+    parser.add_argument("--test2", help="test_create_rename_delete_files", action="store_true")
+    parser.add_argument("--test3", help="test_create_delete_dirs", action="store_true")
+    parser.add_argument("--test4", help="test_create_rename_delete_dirs", action="store_true")
+    parser.add_argument("--test5", help="test_sync_files_write", action="store_true")
+    parser.add_argument("--test6", help="test_local_operations", action="store_true")
+    parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
+    parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
+    parser.add_argument("upsync_dir", help="local upsync directory")
+    parser.add_argument("downsync_dir", help="local downsync directory")
+    args = parser.parse_args()
 
-    print ""
-    print "1) Start the first [megacli] and run:  sync " + sys.argv[1] + " [remote folder]"
-    print "2) Start the second [megacli] and run:  sync " + sys.argv[2] + " [remote folder]"
-    print "3) Wait for both folders get fully synced"
-    print "4) Run sync_test.py"
-    print ""
+    if args.debug:
+        lvl = logging.DEBUG
+    else:
+        lvl = logging.INFO
 
-    with SyncTestMegaCliApp(sys.argv[1], sys.argv[2], True, True) as app:
+    logging.StreamHandler(sys.stdout)
+    logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
+
+    logging.info("")
+    logging.info("1) Start the first [megacli] and run the following command:  sync " + sys.argv[1] + " [remote folder]")
+    logging.info("2) Start the second [megacli] and run the following command:  sync " + sys.argv[2] + " [remote folder]")
+    logging.info("3) Wait for both folders get fully synced")
+    logging.info("4) Run sync_test.py")
+    logging.info("")
+
+    with SyncTestMegaCliApp(args.upsync_dir, args.downsync_dir, True, args.large) as app:
         suite = unittest.TestSuite()
-        suite.addTest(SyncTest("test_create_delete_files", app))
-        suite.addTest(SyncTest("test_create_rename_delete_files", app))
-        suite.addTest(SyncTest("test_create_delete_dirs", app, ))
-        suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
-        suite.addTest(SyncTest("test_sync_files_write", app))
-        suite.addTest(SyncTest("test_local_operations", app))
+
+        if args.test1:
+            suite.addTest(SyncTest("test_create_delete_files", app))
+        if args.test2:
+            suite.addTest(SyncTest("test_create_rename_delete_files", app))
+        if args.test3:
+            suite.addTest(SyncTest("test_create_delete_dirs", app, ))
+        if args.test4:
+            suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
+        if args.test5:
+            suite.addTest(SyncTest("test_sync_files_write", app))
+        if args.test6:
+            suite.addTest(SyncTest("test_local_operations", app))
+
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')
         testRunner.run(suite)
