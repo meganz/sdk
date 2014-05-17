@@ -4822,8 +4822,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             }
             else if (ll->type == FILENODE)
             {
-                if((!ll->node) ||
-                   ((ll->node != rit->second) && (ll->node->mtime < rit->second->mtime)))
+                if (!ll->node ||
+                    (ll->node != rit->second && rit->second->mtime > ll->node->mtime))
                 {
                     ll->setnode(rit->second);
                     ll->sync->statecacheadd(ll);
@@ -5080,8 +5080,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 continue;
             }
 
-            // file on both sides - do not overwrite if local version older or
-            // identical
+            // file on both sides - do not overwrite if local version older or identical
             if (ll->type == FILENODE)
             {
                 // skip if this node is being fetched
@@ -5090,8 +5089,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
-                if((!ll->node) ||
-                   ((ll->node != rit->second) && (ll->node->mtime < rit->second->mtime)))
+                if (!ll->node ||
+                    (ll->node != rit->second && rit->second->mtime > ll->node->mtime))
                 {
                     ll->setnode(rit->second);
                     ll->sync->statecacheadd(ll);
@@ -5159,15 +5158,14 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 ll->getlocalpath(&localname);
 
                 if (!(t = fa->fopen(&localname, true, false))
-                        || (fa->size != ll->size)
-                        || (fa->mtime != ll->mtime))
+                        || fa->size != ll->size
+                        || fa->mtime != ll->mtime)
                 {
                     if (t)
                     {
                         ll->sync->localbytes -= ll->size;
-                        ll->size = fa->size;
-                        ll->mtime = fa->mtime;
-                        ll->sync->localbytes += ll->size;
+                        ll->genfingerprint(fa);
+                        ll->sync->localbytes += ll->size;                        
                     }
 
                     delete fa;
