@@ -95,8 +95,11 @@ void mega::FileSystemAccess::normalize(string *filename) const
     if(!filename) return;
 
     char *result = (char *)utf8proc_NFC((uint8_t *)filename->c_str());
-    *filename = result;
-    free(result);
+    if(result)
+    {
+        *filename = result;
+        free(result);
+    }
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
