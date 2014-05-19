@@ -21,32 +21,33 @@
 
 # In order to build Mega SDK dll on MinGW environment, the following directory structure is required:
 # \project_root
-# 	\zlib			compiled zlib library, http://www.zlib.net/
-# 	\cryptoapp		compiled Crypto++ library, http://www.cryptopp.com/
-# 	\sqlite3		Sqlite3 sources, http://www.sqlite.org/
-# 	\db				(Optional) Berkeley DB, http://www.oracle.com/technetwork/database/database-technologies/berkeleydb/overview/index.html
-# 	\sdk			Mega SDK sources, https://github.com/meganz/sdk
-# 	\winhttp.h		WinHTTP header file
-# 	\winhttp.lib	WinHTTP lib file
-# 	\winhttp.dll	WinHTTP dll
+#   \zlib               compiled zlib library, http://www.zlib.net/
+#   \cryptoapp          compiled Crypto++ library, http://www.cryptopp.com/
+#   \sqlite3            Sqlite3 sources, http://www.sqlite.org/
+#   \db                 (Optional) Berkeley DB, http://www.oracle.com/technetwork/database/database-technologies/berkeleydb/overview/index.html
+#   \sdk                Mega SDK sources, https://github.com/meganz/sdk
+#   \sdk\third_party    Third party libraries
+#   \winhttp.h          WinHTTP header file
+#   \winhttp.lib        WinHTTP lib file
+#   \winhttp.dll        WinHTTP dll
 #
 # To compile Mega DLL:
-# 	make -f Makefile.win32
+#   make -f Makefile.win32
 #
 # In order to build megacli application, additional libraries are required:
-#	\FreeImage		compiled FreeImage library, http://freeimage.sourceforge.net/
-# 	\readline		compiled The GNU Readline Library, http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
-# 	\termcap		compiled The Termcap Library, http://ftp.gnu.org/gnu/termcap/
+# \FreeImage            compiled FreeImage library, http://freeimage.sourceforge.net/
+#   \readline           compiled The GNU Readline Library, http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
+#   \termcap            compiled The Termcap Library, http://ftp.gnu.org/gnu/termcap/
 #
 # To compile Mega DLL and all applications:
-# 	make -f Makefile.win32 all
+#   make -f Makefile.win32 all
 
 
 CXX=g++
 CC=gcc
 
 # common compilation flags for all apps
-CXXFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_FREEIMAGE -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -isystem ../zlib -isystem ../cryptopp -isystem ../db/build_windows -Idb  -isystem .. -isystem ../sqlite3 -isystem ../FreeImage/Dist
+CXXFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_FREEIMAGE -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -Ithird_party/utf8proc -isystem ../zlib -isystem ../cryptopp -isystem ../db/build_windows -Idb  -isystem .. -isystem ../sqlite3 -isystem ../FreeImage/Dist
 # megacli specific compilation flags
 
 MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
@@ -90,7 +91,8 @@ COMMON_SRC=\
 		src/gfx.cpp \
 		src/gfx/freeimage.cpp \
 		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/waiter.cpp src/win32/consolewaiter.cpp \
-		src/db/sqlite.cpp
+		src/db/sqlite.cpp \
+		third_party/utf8proc/utf8proc.cpp
 
 MEGACLI_SRC=examples/megacli.cpp
 MEGASYNC_SRC=examples/megasync.cpp
