@@ -53,8 +53,8 @@ class SyncTestMegaCliApp(SyncTestApp):
     def finish(self):
         try:
             shutil.rmtree(self.work_dir)
-        except OSError:
-            logging.error("Failed to remove dir: %s" % self.work_dir)
+        except OSError, e:
+            logging.error("Failed to remove dir: %s (%s)" % (self.work_dir, e))
 
     def is_alive(self):
         """
@@ -88,8 +88,13 @@ if __name__ == "__main__":
     parser.add_argument("--test4", help="test_create_rename_delete_dirs", action="store_true")
     parser.add_argument("--test5", help="test_sync_files_write", action="store_true")
     parser.add_argument("--test6", help="test_local_operations", action="store_true")
+    parser.add_argument("--test7", help="test_update_mtime", action="store_true")
+    parser.add_argument("--test8", help="test_create_rename_delete_unicode_files_dirs", action="store_true")
+    parser.add_argument("-a", "--all", help="run all tests", action="store_true")
+    parser.add_argument("-b", "--basic", help="run basic, well-tested tests", action="store_true")
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
     parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
+    parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
     parser.add_argument("upsync_dir", help="local upsync directory")
     parser.add_argument("downsync_dir", help="local downsync directory")
     args = parser.parse_args()
@@ -99,31 +104,48 @@ if __name__ == "__main__":
     else:
         lvl = logging.INFO
 
+    if args.all:
+        args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = True
+    if args.basic:
+        args.test1 = args.test2 = args.test3 = args.test4 = args.test7 = True
+
     logging.StreamHandler(sys.stdout)
     logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
 
     logging.info("")
-    logging.info("1) Start the first [megacli] and run the following command:  sync " + sys.argv[1] + " [remote folder]")
-    logging.info("2) Start the second [megacli] and run the following command:  sync " + sys.argv[2] + " [remote folder]")
+    logging.info("1) Start the first [megacli] and run the following command:  sync " + args.upsync_dir + " [remote folder]")
+    logging.info("2) Start the second [megacli] and run the following command:  sync " + args.downsync_dir + " [remote folder]")
     logging.info("3) Wait for both folders get fully synced")
-    logging.info("4) Run sync_test.py")
+    logging.info("4) Run: python %s", sys.argv[0])
     logging.info("")
+    time.sleep(5)
 
-    with SyncTestMegaCliApp(args.upsync_dir, args.downsync_dir, True, args.large) as app:
+    with SyncTestMegaCliApp(args.upsync_dir, args.downsync_dir, args.nodelete, args.large) as app:
         suite = unittest.TestSuite()
 
         if args.test1:
             suite.addTest(SyncTest("test_create_delete_files", app))
+
         if args.test2:
             suite.addTest(SyncTest("test_create_rename_delete_files", app))
+
         if args.test3:
             suite.addTest(SyncTest("test_create_delete_dirs", app, ))
+
         if args.test4:
             suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
+
         if args.test5:
             suite.addTest(SyncTest("test_sync_files_write", app))
+
         if args.test6:
             suite.addTest(SyncTest("test_local_operations", app))
+
+        if args.test7:
+            suite.addTest(SyncTest("test_update_mtime", app))
+
+        if args.test8:
+            suite.addTest(SyncTest("test_create_rename_delete_unicode_files_dirs", app))
 
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')
         testRunner.run(suite)

@@ -22,8 +22,7 @@ import sys
 import os
 import time
 import subprocess
-import platform
-from sync_test_base import SyncTestBase
+from sync_test_base import get_random_str
 from sync_test import SyncTest
 from sync_test_app import SyncTestApp
 import unittest
@@ -85,22 +84,25 @@ class SyncTestMegaSyncApp(SyncTestApp):
         # launch megasync
         base_path = os.path.join(os.path.dirname(__file__), '..')
 
-        #XXX: currently on Windows megasync.exe is located in the sources root dir.
-        if platform.system() == 'Windows':
+        # the app is either in examples/ or in the project's root
+        bin_path = os.path.join(base_path, "examples")
+        tmp = os.path.join(bin_path, "megasync")
+        if not os.path.isfile(tmp):
             bin_path = os.path.join(base_path, "")
-        else:
-            bin_path = os.path.join(base_path, "examples")
+            tmp = os.path.join(bin_path, "megasync")
+            if not os.path.isfile(tmp):
+                raise Exception("megasync application is not found!")
 
         pargs = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
-        output_fname = os.path.join(self.work_dir, "megasync" + "_" + type_str + "_" + SyncTestBase.get_random_str() + ".log")
+        output_fname = os.path.join(self.work_dir, "megasync" + "_" + type_str + "_" + get_random_str() + ".log")
         output_log = open(output_fname, "w")
 
-        logging.info("Launching megasync: %s" % (" ".join(pargs)))
+        logging.info("Launching cmd: \"%s\", log: \"%s\"" % (" ".join(pargs), output_fname))
 
         try:
             ch = subprocess.Popen(pargs, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, bufsize=1, shell=False, env=os.environ)
-        except OSError:
-            logging.error("Failed to launch megasync process")
+        except OSError, e:
+            logging.error("Failed to launch megasync process: %s" % e)
             return None
         return ch
 
@@ -169,15 +171,20 @@ class SyncTestMegaSyncApp(SyncTestApp):
 if __name__ == "__main__":
     # logging stuff, output to stdout
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(epilog="Please set MEGA_EMAIL and MEGA_PWD environment variables.")
     parser.add_argument("--test1", help="test_create_delete_files", action="store_true")
     parser.add_argument("--test2", help="test_create_rename_delete_files", action="store_true")
     parser.add_argument("--test3", help="test_create_delete_dirs", action="store_true")
     parser.add_argument("--test4", help="test_create_rename_delete_dirs", action="store_true")
     parser.add_argument("--test5", help="test_sync_files_write", action="store_true")
     parser.add_argument("--test6", help="test_local_operations", action="store_true")
+    parser.add_argument("--test7", help="test_update_mtime", action="store_true")
+    parser.add_argument("--test8", help="test_create_rename_delete_unicode_files_dirs", action="store_true")
+    parser.add_argument("-a", "--all", help="run all tests", action="store_true")
+    parser.add_argument("-b", "--basic", help="run basic, well-tested tests", action="store_true")
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
     parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
+    parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
     parser.add_argument("work_dir", help="local work directory")
     parser.add_argument("sync_dir", help="remote directory for synchronization")
     args = parser.parse_args()
@@ -187,10 +194,15 @@ if __name__ == "__main__":
     else:
         lvl = logging.INFO
 
+    if args.all:
+        args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = True
+    if args.basic:
+        args.test1 = args.test2 = args.test3 = args.test4 = args.test7 = True
+
     logging.StreamHandler(sys.stdout)
     logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
 
-    with SyncTestMegaSyncApp(args.work_dir, args.sync_dir, True, args.large) as app:
+    with SyncTestMegaSyncApp(args.work_dir, args.sync_dir, args.nodelete, args.large) as app:
         suite = unittest.TestSuite()
 
         if args.test1:
@@ -210,6 +222,12 @@ if __name__ == "__main__":
 
         if args.test6:
             suite.addTest(SyncTest("test_local_operations", app))
+
+        if args.test7:
+            suite.addTest(SyncTest("test_update_mtime", app))
+
+        if args.test8:
+            suite.addTest(SyncTest("test_create_rename_delete_unicode_files_dirs", app))
 
         testRunner = xmlrunner.XMLTestRunner(output='test-reports')
         testRunner.run(suite)

@@ -25,6 +25,112 @@ import shutil
 import hashlib
 import unittest
 import logging
+import sys
+
+def get_unicode_str(str_size=0, chars=None):
+    '''
+    generate a random unicode string
+    Taken from: https://github.com/Jaymon/testdata/blob/master/testdata.py
+
+    if chars is None, this can generate up to a 4-byte utf-8 unicode string, which can
+    break legacy utf-8 things
+
+    str_size -- integer -- how long you want the string to be
+    chars -- sequence -- the characters you want the string to use, if this is None, it
+        will default to pretty much the entire unicode range of characters
+    return -- unicode
+    '''
+    if str_size == 0:
+        str_size = random.randint(3, 20)
+
+    sg = None
+
+    if chars is None:
+        # chars can be any range in unicode (based off of table 3.7 of Unicode 6.2.0
+        # pg 42 - http://www.unicode.org/versions/Unicode6.2.0/ch03.pdf
+        # via: http://stackoverflow.com/questions/1477294/generate-random-utf-8-string-in-python
+        byte_range = lambda first, last: range(first, last+1)
+        first_values = byte_range(0x30, 0x7F) + byte_range(0xC2, 0xF4)
+        trailing_values = byte_range(0x80, 0xBF)
+
+        def random_utf8_seq():
+            """
+            return random utf8 sequence
+            """
+            while True:
+                first = random.choice(first_values)
+                if first <= 0x7F: # U+0000...U+007F
+                    return bytearray([first])
+                elif (first >= 0xC2) and (first <= 0xDF): # U+0080...U+07FF
+                    return bytearray([first, random.choice(trailing_values)])
+                elif first == 0xE0: # U+0800...U+0FFF
+                    return bytearray([first, random.choice(byte_range(0xA0, 0xBF)), random.choice(trailing_values)])
+                elif (first >= 0xE1) and (first <= 0xEC): # U+1000...U+CFFF
+                    return bytearray([first, random.choice(trailing_values), random.choice(trailing_values)])
+                elif first == 0xED: # U+D000...U+D7FF
+                    return bytearray([first, random.choice(byte_range(0x80, 0x9F)), random.choice(trailing_values)])
+                elif (first >= 0xEE) and (first <= 0xEF): # U+E000...U+FFFF
+                    return bytearray([first, random.choice(trailing_values), random.choice(trailing_values)])
+                else:
+                    if sys.maxunicode > 65535:
+                        if first == 0xF0: # U+10000...U+3FFFF
+                            return bytearray(
+                                [
+                                    first,
+                                    random.choice(byte_range(0x90, 0xBF)),
+                                    random.choice(trailing_values),
+                                    random.choice(trailing_values)
+                                ]
+                            )
+                        elif (first >= 0xF1) and (first <= 0xF3): # U+40000...U+FFFFF
+                            return bytearray(
+                                [
+                                    first,
+                                    random.choice(trailing_values),
+                                    random.choice(trailing_values),
+                                    random.choice(trailing_values)
+                                ]
+                            )
+                        elif first == 0xF4: # U+100000...U+10FFFF
+                            return bytearray(
+                                [
+                                    first,
+                                    random.choice(byte_range(0x80, 0x8F)),
+                                    random.choice(trailing_values),
+                                    random.choice(trailing_values)
+                                ]
+                            )
+
+        sg = (random_utf8_seq().decode('utf-8') for c in xrange(str_size))
+
+    else:
+        # we have a defined set of chars
+        sg = (random.choice(chars) for c in xrange(str_size))
+
+    s = u''.join(sg)
+    return s
+
+def get_random_str(size=10, chars=string.ascii_uppercase + string.digits):
+    """
+    return a random string
+    size: size of an output stirng
+    chars: characters to use
+    """
+    return ''.join(random.choice(chars) for x in range(size))
+
+def generate_ascii_name(first_symbol, i):
+    """
+    generate random ASCII string
+    """
+    strlen = random.randint(0, 20)
+    return first_symbol + get_random_str(size=strlen) + str(i)
+
+def generate_unicode_name(first_symbol, i):
+    """
+    generate random ASCII string
+    """
+    strlen = random.randint(1, 20)
+    return get_unicode_str(strlen)
 
 class SyncTestBase(unittest.TestCase):
     """
@@ -40,20 +146,11 @@ class SyncTestBase(unittest.TestCase):
 
         self.app = app
 
-        self.nr_retries = 150
+        self.nr_retries = 200
         self.nr_files = 10
         self.nr_dirs = 5
         self.local_obj_nr = 5
         self.force_syncing = False
-
-    @staticmethod
-    def get_random_str(size=10, chars=string.ascii_uppercase + string.digits):
-        """
-        return a random string
-        size: size of an output stirng
-        chars: characters to use
-        """
-        return ''.join(random.choice(chars) for x in range(size))
 
     def check_empty(self, folder_name):
         """
@@ -68,8 +165,8 @@ class SyncTestBase(unittest.TestCase):
         for r in range(0, self.nr_retries):
             try:
                 res = not os.listdir(folder_name)
-            except OSError:
-                logging.error("Failed to list dir: %s" % folder_name)
+            except OSError, e:
+                logging.error("Failed to list dir: %s (%s)" % (folder_name, e))
                 return False
 
             if res:
@@ -79,8 +176,8 @@ class SyncTestBase(unittest.TestCase):
 
             try:
                 shutil.rmtree(folder_name)
-            except OSError:
-                logging.error("Failed to delete folder: %s" % folder_name)
+            except OSError, e:
+                logging.error("Failed to delete folder: %s (%s)" % (folder_name, e))
                 return False
 
     @staticmethod
@@ -98,21 +195,30 @@ class SyncTestBase(unittest.TestCase):
         fout.close()
         return md5.hexdigest()
 
-    def file_create(self, fname, fsize):
+    @staticmethod
+    def touch(path):
+        """
+        create an empty file
+        update utime
+        """
+        with open(path, 'a'):
+            os.utime(path, None)
+
+    @staticmethod
+    def file_create(fname, fsize):
         """
         create a file of a size fsize and fill with a random data
         """
-        fout = open(fname, 'w')
-        fout.write(self.get_random_str(fsize))
+        fout = open(fname, 'wb')
+        fout.write(get_random_str(fsize))
         fout.close()
 
-    def files_create_size(self, first_symbol, maxsize, nr_files, dname, l_files):
+    def files_create_size(self, first_symbol, maxsize, nr_files, dname, file_generate_name_func, l_files):
         """
         create a list of files of a specific size
         """
         for i in range(nr_files):
-            strlen = random.randint(0, 20)
-            fname = first_symbol + self.get_random_str(size=strlen) + str(i)
+            fname = file_generate_name_func(first_symbol, i)
             ffname = os.path.join(dname, fname)
             if maxsize == 0:
                 fsize = 0
@@ -121,15 +227,15 @@ class SyncTestBase(unittest.TestCase):
 
             try:
                 self.file_create(ffname, fsize)
-            except IOError:
-                logging.error("Failed to create file: %s" % ffname)
+            except IOError, e:
+                logging.error("Failed to create file: %s (%s)" % (ffname, e))
                 return False
             md5_str = self.md5_for_file(ffname)
             l_files.append({"name":fname, "size":fsize, "md5":md5_str, "name_orig":fname})
             logging.debug("File created: %s [%s, %db]" % (ffname, md5_str, fsize))
         return True
 
-    def files_create(self):
+    def files_create(self, file_generate_name_func=generate_ascii_name):
         """
         create files in "in" instance and check files presence in "out" instance
         Return list of files
@@ -139,23 +245,23 @@ class SyncTestBase(unittest.TestCase):
         l_files = []
 
         # empty files
-        res = self.files_create_size("e", 0, self.nr_files, self.app.local_folder_in, l_files)
+        res = self.files_create_size("e", 0, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
         if not res:
             return None
 
         # small files < 1k
-        res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, l_files)
+        res = self.files_create_size("s", 1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
         if not res:
             return None
 
         if self.app.use_large_files:
             # medium files < 1mb
-            res = self.files_create_size("m", 1024*1024, self.nr_files, self.app.local_folder_in, l_files)
+            res = self.files_create_size("m", 1024*1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
             if not res:
                 return None
 
         # large files < 10mb
-            res = self.files_create_size("l", 10*1024*1024, self.nr_files, self.app.local_folder_in, l_files)
+            res = self.files_create_size("l", 10*1024*1024, self.nr_files, self.app.local_folder_in, file_generate_name_func, l_files)
             if not res:
                 return None
 
@@ -203,33 +309,32 @@ class SyncTestBase(unittest.TestCase):
                 return False
         return True
 
-    def dir_create(self, dname, files_num, files_maxsize):
+    def dir_create(self, dname, files_num, files_maxsize, file_generate_name_func=generate_ascii_name):
         """
         create and fill directory with files
         return files list
         """
         try:
             os.makedirs(dname)
-        except OSError:
-            logging.error("Failed to create directory: %s" % dname)
+        except OSError, e:
+            logging.error("Failed to create directory: %s (%s)" % (dname, e))
             return None
 
         l_files = []
-        res = self.files_create_size("s", files_maxsize, files_num, dname, l_files)
+        res = self.files_create_size("s", files_maxsize, files_num, dname, file_generate_name_func, l_files)
         if not res:
             return None
 
         return l_files
 
-    def dir_create_size(self, symbol, dirs_num, files_num, files_maxsize, parent_dir, l_dirs):
+    def dir_create_size(self, symbol, dirs_num, files_num, files_maxsize, parent_dir, dir_generate_name_func, l_dirs):
         """
         create dirs_num directories with  directories
         """
         for i in range(dirs_num):
-            strlen = random.randint(0, 20)
-            dname = symbol + self.get_random_str(size=strlen) + str(i)
+            dname = dir_generate_name_func(symbol, i)
             ddname = os.path.join(parent_dir, dname)
-            l_files = self.dir_create(ddname, files_num, files_maxsize)
+            l_files = self.dir_create(ddname, files_num, files_maxsize, dir_generate_name_func)
             if l_files is None:
                 logging.error("Failed to create directory: %s" % ddname)
                 return False
@@ -237,7 +342,7 @@ class SyncTestBase(unittest.TestCase):
             logging.debug("Directory created: %s [%d files]" % (ddname, files_num))
         return True
 
-    def dirs_create(self):
+    def dirs_create(self, dir_generate_name_func=generate_ascii_name):
         """
         create dirs
         """
@@ -246,12 +351,12 @@ class SyncTestBase(unittest.TestCase):
         l_dirs = []
 
         # create empty dirs
-        res = self.dir_create_size("z", 10, 0, 0, self.app.local_folder_in, l_dirs)
+        res = self.dir_create_size("z", 10, 0, 0, self.app.local_folder_in, dir_generate_name_func, l_dirs)
         if not res:
             return None
 
         # create dirs with < 20 files
-        res = self.dir_create_size("d", 10, 10, 1024, self.app.local_folder_in, l_dirs)
+        res = self.dir_create_size("d", 10, 10, 1024, self.app.local_folder_in, dir_generate_name_func, l_dirs)
         if not res:
             return None
 
@@ -309,8 +414,8 @@ class SyncTestBase(unittest.TestCase):
             if os.path.exists(ffname_src):
                 try:
                     shutil.move(ffname_src, ffname_dst)
-                except OSError:
-                    logging.error("Failed to rename file: %s" % ffname_src)
+                except OSError, e:
+                    logging.error("Failed to rename file: %s (%s)" % (ffname_src, e))
                     return False
 
             if self.force_syncing:
@@ -334,7 +439,7 @@ class SyncTestBase(unittest.TestCase):
             return False
         return True
 
-    def files_rename(self, l_files):
+    def files_rename(self, l_files, file_generate_name_func=generate_ascii_name):
         """
         rename objects in "in" instance and check new files in "out" instance
         """
@@ -342,7 +447,7 @@ class SyncTestBase(unittest.TestCase):
 
         for f in l_files:
             ffname_src = os.path.join(self.app.local_folder_in, f["name"])
-            f["name"] = "renamed_" + self.get_random_str(30)
+            f["name"] = file_generate_name_func("renamed_", 0)
             ffname_dst = os.path.join(self.app.local_folder_in, f["name"])
 
             logging.debug("Renaming file: %s => %s" % (ffname_src, ffname_dst))
@@ -366,8 +471,8 @@ class SyncTestBase(unittest.TestCase):
             for r in range(0, self.nr_retries):
                 try:
                     os.remove(ffname)
-                except OSError:
-                    logging.error("Failed to delete file: %s" % ffname)
+                except OSError, e:
+                    logging.error("Failed to delete file: %s (%s)" % (ffname, e))
                     return False
 
                 if self.force_syncing:
@@ -399,7 +504,7 @@ class SyncTestBase(unittest.TestCase):
                 return False
         return True
 
-    def dirs_rename(self, l_dirs):
+    def dirs_rename(self, l_dirs, dir_generate_name_func=generate_ascii_name):
         """
         rename directories in "in" instance and check directories new names in "out" instance
         """
@@ -407,12 +512,12 @@ class SyncTestBase(unittest.TestCase):
 
         for d in l_dirs:
             dname_src = os.path.join(self.app.local_folder_in, d["name"])
-            d["name"] = "renamed_" + self.get_random_str(30)
+            d["name"] = dir_generate_name_func("renamed_", 0)
             dname_dst = os.path.join(self.app.local_folder_in, d["name"])
             try:
                 shutil.move(dname_src, dname_dst)
-            except OSError:
-                logging.error("Failed to rename directory: %s" % dname_src)
+            except OSError, e:
+                logging.error("Failed to rename directory: %s (%s)" % (dname_src, e))
                 return False
 
             if self.force_syncing:
@@ -440,8 +545,8 @@ class SyncTestBase(unittest.TestCase):
             dname = os.path.join(self.app.local_folder_in, d["name"])
             try:
                 shutil.rmtree(dname)
-            except OSError:
-                logging.error("Failed to delete dir: %s" % dname)
+            except OSError, e:
+                logging.error("Failed to delete dir: %s (%s)" % (dname, e))
                 return False
             logging.debug("Directory removed: %s" % dname)
 
@@ -482,14 +587,14 @@ class SyncTestBase(unittest.TestCase):
         generate directory
         """
         strlen = random.randint(10, 20)
-        dname = self.get_random_str(size=strlen)
+        dname = get_random_str(size=strlen)
         ddname = os.path.join(parent_dir, dname)
         real_dname = os.path.join(self.app.local_folder_in, ddname)
 
         try:
             os.makedirs(real_dname)
-        except OSError:
-            logging.error("Failed to create directory: %s" % real_dname)
+        except OSError, e:
+            logging.error("Failed to create directory: %s (%s)" % (real_dname, e))
             return None, None, None, None
 
         # populate with random amount of files
@@ -497,13 +602,13 @@ class SyncTestBase(unittest.TestCase):
         l_files = []
         for _ in range(0, obj_nr):
             strlen = random.randint(10, 20)
-            fname = self.get_random_str(size=strlen) + ".txt"
+            fname = get_random_str(size=strlen) + ".txt"
             ffname = os.path.join(ddname, fname)
             fname_real = os.path.join(self.app.local_folder_in, ffname)
             try:
                 self.file_create(fname_real, random.randint(10, 100))
-            except IOError:
-                logging.error("Failed to create file: %s" % fname_real)
+            except IOError, e:
+                logging.error("Failed to create file: %s (%s)" % (fname_real, e))
                 return None, None, None, None
             l_files.append({"name":fname, "fname":ffname})
 
@@ -512,13 +617,13 @@ class SyncTestBase(unittest.TestCase):
         l_dirs = []
         for _ in range(0, obj_nr):
             strlen = random.randint(10, 20)
-            cname = self.get_random_str(size=strlen)
+            cname = get_random_str(size=strlen)
             ccname = os.path.join(ddname, cname)
             cname_real = os.path.join(self.app.local_folder_in, ccname)
             try:
                 os.makedirs(cname_real)
-            except OSError:
-                logging.error("Failed to create directory: %s" % cname_real)
+            except OSError, e:
+                logging.error("Failed to create directory: %s (%s)" % (cname_real, e))
                 return None, None, None, None
             l_dirs.append({"name":cname, "fname":ccname})
 
@@ -667,14 +772,14 @@ class SyncTestBase(unittest.TestCase):
 
             # create a new subfolder
             strlen = random.randint(10, 20)
-            dname = self.get_random_str(size=strlen)
+            dname = get_random_str(size=strlen)
             ddname = os.path.join(dd["fname"], dname)
             dname_real = os.path.join(self.app.local_folder_in, ddname)
             logging.debug("Creating new dir: %s, parent: %s" % (ddname, dd["fname"]))
             try:
                 os.makedirs(dname_real)
-            except OSError:
-                logging.error("Failed to create directory: %s" % dname_real)
+            except OSError, e:
+                logging.error("Failed to create directory: %s (%s)" % (dname_real, e))
                 return False
 
             dd["dirs"].append({"name":dname, "fname":ddname, "files":None, "dirs":None, "child":None})
@@ -687,8 +792,8 @@ class SyncTestBase(unittest.TestCase):
 
             try:
                 shutil.move(old_name, new_name)
-            except OSError:
-                logging.error("Failed to move dir: %s to new: %s" % (old_name, new_name))
+            except OSError, e:
+                logging.error("Failed to move dir: %s to new: %s (%s)" % (old_name, new_name, e))
                 return False
 
             # fix existing dir dict
@@ -730,7 +835,7 @@ class SyncTestBase(unittest.TestCase):
             # rename 10 times
             for _ in range(0, 10):
                 strlen = random.randint(10, 20)
-                dname = self.get_random_str(size=strlen)
+                dname = get_random_str(size=strlen)
                 ddname = os.path.join(dd["fname"], dname)
                 dname_real = os.path.join(self.app.local_folder_in, ddname)
 
@@ -769,7 +874,7 @@ class SyncTestBase(unittest.TestCase):
             # rename 10 times
             for _ in range(0, 10):
                 strlen = random.randint(10, 20)
-                dname = self.get_random_str(size=strlen)
+                dname = get_random_str(size=strlen)
                 ddname = os.path.join(dd["fname"], dname)
                 dname_real = os.path.join(self.app.local_folder_in, ddname)
 

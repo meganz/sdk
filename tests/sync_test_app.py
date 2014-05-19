@@ -21,7 +21,7 @@
 import os
 import time
 import random
-from sync_test_base import SyncTestBase
+from sync_test_base import get_random_str
 import shutil
 import logging
 import datetime
@@ -43,7 +43,7 @@ class SyncTestApp(object):
         self.local_mount_in = local_mount_in
         self.local_mount_out = local_mount_out
 
-        self.rnd_folder = SyncTestBase.get_random_str()
+        self.rnd_folder = get_random_str()
         self.local_folder_in = os.path.join(self.local_mount_in, self.rnd_folder)
         self.local_folder_out = os.path.join(self.local_mount_out, self.rnd_folder)
         self.work_folder = os.path.join(work_folder, self.rnd_folder)
@@ -89,7 +89,8 @@ class SyncTestApp(object):
         self.stop()
         logging.info("Execution time: %s" % str(datetime.timedelta(seconds=time.time()-self.start_time)))
 
-    def touch(self, path):
+    @staticmethod
+    def touch(path):
         """
         create an empty file
         update utime
@@ -105,8 +106,8 @@ class SyncTestApp(object):
         logging.info("IN folder: %s" % self.local_folder_in)
         try:
             os.makedirs(self.local_folder_in)
-        except OSError:
-            logging.error("Failed to create directory: %s" % self.local_folder_in)
+        except OSError, e:
+            logging.error("Failed to create directory: %s (%s)" % (self.local_folder_in, e))
             return False
 
         logging.info("OUT folder: %s" % self.local_folder_out)
@@ -141,8 +142,8 @@ class SyncTestApp(object):
         logging.debug("Work folder: %s" % self.work_folder)
         try:
             os.makedirs(self.work_folder)
-        except OSError:
-            logging.error("Failed to create directory: %s" % self.work_folder)
+        except OSError, e:
+            logging.error("Failed to create directory: %s (%s)" % (self.work_folder, e))
             return False
 
         return True
