@@ -90,7 +90,7 @@ void FileSystemAccess::name2local(string* filename) const
     path2local(&t, filename);
 }
 
-void mega::FileSystemAccess::normalize(string *filename)
+void mega::FileSystemAccess::normalize(string *filename) const
 {
     if(!filename) return;
 

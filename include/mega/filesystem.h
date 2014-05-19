@@ -162,7 +162,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void name2local(string*) const;
 
     //Normalize UTF-8 string
-    void normalize(string *);
+    void normalize(string *) const;
 
     // generate local temporary file name
     virtual void tmpnamelocal(string*) const = 0;
