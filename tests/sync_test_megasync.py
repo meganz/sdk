@@ -29,6 +29,7 @@ import unittest
 import xmlrunner
 import logging
 import argparse
+import platform
 
 class SyncTestMegaSyncApp(SyncTestApp):
     """
@@ -85,11 +86,15 @@ class SyncTestMegaSyncApp(SyncTestApp):
         base_path = os.path.join(os.path.dirname(__file__), '..')
 
         # the app is either in examples/ or in the project's root
+        if platform.system() == "Windows":
+            app_name= "megasync.exe"
+        else:
+            app_name= "megasync"
         bin_path = os.path.join(base_path, "examples")
-        tmp = os.path.join(bin_path, "megasync")
+        tmp = os.path.join(bin_path, app_name)
         if not os.path.isfile(tmp):
             bin_path = os.path.join(base_path, "")
-            tmp = os.path.join(bin_path, "megasync")
+            tmp = os.path.join(bin_path, app_name)
             if not os.path.isfile(tmp):
                 raise Exception("megasync application is not found!")
 
