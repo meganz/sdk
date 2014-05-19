@@ -5169,6 +5169,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         ll->sync->localbytes -= ll->size;
                         ll->genfingerprint(fa);
                         ll->sync->localbytes += ll->size;                        
+
+                        ll->sync->statecacheadd(ll);
                     }
 
                     delete fa;
