@@ -56,10 +56,13 @@ bool JSON::storeobject(string* s)
         else if (*ptr == '"')
         {
             ptr++;
-            while (*ptr != '"' || ptr[-1] == '\\')
+            while (*ptr && (*ptr != '"' || ptr[-1] == '\\'))
             {
                 ptr++;
             }
+
+            if(!*ptr)
+                return false;
         }
         else if (((*ptr >= '0') && (*ptr <= '9')) || (*ptr == '-') || (*ptr == '.'))
         {
