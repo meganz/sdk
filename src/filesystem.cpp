@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <utf8proc.h>
+
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
@@ -86,6 +88,15 @@ void FileSystemAccess::name2local(string* filename) const
     string t = *filename;
 
     path2local(&t, filename);
+}
+
+void mega::FileSystemAccess::normalize(string *filename)
+{
+    if(!filename) return;
+
+    char *result = (char *)utf8proc_NFC((uint8_t *)filename->c_str());
+    *filename = result;
+    free(result);
 }
 
 // convert from local encoding, then unescape escaped forbidden characters

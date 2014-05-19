@@ -788,12 +788,18 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
         {
             // locate matching share from this user
             handle_set::iterator sit;
-
+            string name;
             for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
             {
                 if ((n = client->nodebyhandle(*sit)))
                 {
-                    if (!strcmp(c[1].c_str(), n->displayname()))
+                    if(!name.size())
+                    {
+                        name =  c[1];
+                        n->client->fsaccess->normalize(&name);
+                    }
+
+                    if (!strcmp(name.c_str(), n->displayname()))
                     {
                         l = 2;
                         break;
@@ -1559,6 +1565,7 @@ static void process_line(char* l)
                                                 }
 
                                                 // rename
+                                                client->fsaccess->normalize(&newname);
                                                 n->attrs.map['n'] = newname;
 
                                                 if ((e = client->setattr(n)))
@@ -1726,6 +1733,7 @@ static void process_line(char* l)
 
                                     attrs.map = n->attrs.map;
 
+                                    client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
 
                                     key.setkey((const byte*) tc.nn->nodekey.data(), tc.nn->type);
@@ -2308,6 +2316,8 @@ static void process_line(char* l)
 
                                     // generate fresh attribute object with the folder name
                                     AttrMap attrs;
+
+                                    client->fsaccess->normalize(&newname);
                                     attrs.map['n'] = newname;
 
                                     // JSON-encode object and encrypt attribute string

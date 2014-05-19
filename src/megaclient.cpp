@@ -308,9 +308,11 @@ bool MegaClient::warnlevel()
 // clashes)
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
+    string nname = name;
+    fsaccess->normalize(&nname);
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
     {
-        if (!strcmp(name, (*it)->displayname()))
+        if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
             return *it;
         }
@@ -3666,6 +3668,7 @@ void MegaClient::login(const char* email, const byte* pwkey, bool nocache)
     key.setkey((byte*)pwkey);
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
+    lcemail.append("v2");
     if (!nocache && dbaccess && (sctable = dbaccess->open(fsaccess, &lcemail)) && sctable->get(CACHEDSCSN, &t))
     {
         if (t.size() == sizeof cachedscsn)
