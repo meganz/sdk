@@ -83,7 +83,7 @@ class MEGA_API SimpleLogger {
     enum LogLevel level;
     bool lineBreak;
     std::ostringstream ostr;
-    typedef std::vector<std::ostream *> OutputStreams;
+    typedef vector<std::ostream *> OutputStreams;
 
     static const char *toStr(enum LogLevel ll)
     {
@@ -103,7 +103,7 @@ class MEGA_API SimpleLogger {
         return outputs[ll];
     }
 
-    std::string getTime();
+    string getTime();
 
 public:
     typedef std::map<enum LogLevel, OutputStreams> OutputMap;
@@ -178,51 +178,51 @@ public:
 #ifdef DEBUG
 // output DEBUG log with line break
 #define LOG_debug \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logDebug) ;\
+    if (SimpleLogger::logCurrentLevel < logDebug) ;\
     else \
-        mega::SimpleLogger(mega::logDebug, __FILE__, __LINE__)
+        SimpleLogger(logDebug, __FILE__, __LINE__)
 
 // output DEBUG log without line break
 #define LOGn_debug \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logDebug) ;\
+    if (SimpleLogger::logCurrentLevel < logDebug) ;\
     else \
-        mega::SimpleLogger(mega::logDebug, __FILE__, __LINE__, false)
+        SimpleLogger(logDebug, __FILE__, __LINE__, false)
 #else
-#define LOG_debug mega::NullLogger()
-#define LOGn_debug mega::NullLogger()
+#define LOG_debug NullLogger()
+#define LOGn_debug NullLogger()
 #endif // DEBUG
 
 #define LOG_info \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logInfo) ;\
+    if (SimpleLogger::logCurrentLevel < logInfo) ;\
     else \
-        mega::SimpleLogger(mega::logInfo, __FILE__, __LINE__)
+        SimpleLogger(logInfo, __FILE__, __LINE__)
 #define LOGn_info \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logInfo) ;\
+    if (SimpleLogger::logCurrentLevel < logInfo) ;\
     else \
-        mega::SimpleLogger(mega::logInfo, __FILE__, __LINE__, false)
+        SimpleLogger(logInfo, __FILE__, __LINE__, false)
 
 #define LOG_warn \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logWarning) ;\
+    if (SimpleLogger::logCurrentLevel < logWarning) ;\
     else \
-        mega::SimpleLogger(mega::logWarning, __FILE__, __LINE__)
+        SimpleLogger(logWarning, __FILE__, __LINE__)
 #define LOGn_warn \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logWarning) ;\
+    if (SimpleLogger::logCurrentLevel < logWarning) ;\
     else \
-        mega::SimpleLogger(mega::logWarning, __FILE__, __LINE__, false)
+        SimpleLogger(logWarning, __FILE__, __LINE__, false)
 
 #define LOG_err \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logError) ;\
+    if (SimpleLogger::logCurrentLevel < logError) ;\
     else \
-        mega::SimpleLogger(mega::logError, __FILE__, __LINE__)
+        SimpleLogger(logError, __FILE__, __LINE__)
 #define LOGn_err \
-    if (mega::SimpleLogger::logCurrentLevel < mega::logError) ;\
+    if (SimpleLogger::logCurrentLevel < logError) ;\
     else \
-        mega::SimpleLogger(mega::logError, __FILE__, __LINE__, false)
+        SimpleLogger(logError, __FILE__, __LINE__, false)
 
 #define LOG_fatal \
-    mega::SimpleLogger(mega::logFatal, __FILE__, __LINE__)
+    SimpleLogger(logFatal, __FILE__, __LINE__)
 #define LOGn_fatal \
-    mega::SimpleLogger(mega::logFatal, __FILE__, __LINE__, false)
+    SimpleLogger(logFatal, __FILE__, __LINE__, false)
 
 } // namespace
 
