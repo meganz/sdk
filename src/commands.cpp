@@ -212,15 +212,19 @@ void CommandPutFile::procresult()
     {
         tslot->pendingcmd = NULL;
     }
-
-    if (canceled)
+    else
     {
-        return;
+        canceled = true;
     }
 
     if (client->json.isnumeric())
     {
-        return tslot->transfer->failed((error)client->json.getint());
+        if (!canceled)
+        {
+            tslot->transfer->failed((error)client->json.getint());
+        }
+       
+        return;
     }
 
     for (;;)
@@ -228,10 +232,12 @@ void CommandPutFile::procresult()
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(&tslot->tempurl);
+                if (!canceled) client->json.storeobject(&tslot->tempurl);
                 break;
 
             case EOO:
+                if (canceled) return;
+
                 if (tslot->tempurl.size())
                 {
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
@@ -245,7 +251,12 @@ void CommandPutFile::procresult()
             default:
                 if (!client->json.storeobject())
                 {
-                    return tslot->transfer->failed(API_EINTERNAL);
+                    if (!canceled)
+                    {
+                        tslot->transfer->failed(API_EINTERNAL);
+                    }
+
+                    return;
                 }
         }
     }
@@ -282,19 +293,21 @@ void CommandGetFile::procresult()
         tslot->pendingcmd = NULL;
     }
 
-    if (canceled)
-    {
-        return;
-    }
-
     if (client->json.isnumeric())
     {
-        if (tslot)
+        error e = (error)client->json.getint();
+
+        if (canceled)
         {
-            return tslot->transfer->failed((error)client->json.getint());
+            return;
         }
 
-        return client->app->checkfile_result(ph, (error)client->json.getint());
+        if (tslot)
+        {
+            return tslot->transfer->failed(e);
+        }
+
+        return client->app->checkfile_result(ph, e);
     }
 
     const char* at = NULL;
@@ -365,10 +378,16 @@ void CommandGetFile::procresult()
                 {
                     e = at ? API_EBLOCKED : API_EINTERNAL;
 
+                    if (canceled)
+                    {
+                        return;
+                    }
+
                     if (tslot)
                     {
                         return tslot->transfer->failed(e);
                     }
+
                     return client->app->checkfile_result(ph, e);
                 }
                 else
@@ -394,10 +413,12 @@ void CommandGetFile::procresult()
                                     if (!json.storeobject(&filefingerprint))
                                     {
                                         delete[] buf;
+
                                         if (tslot)
                                         {
                                             return tslot->transfer->failed(API_EINTERNAL);
                                         }
+
                                         return client->app->checkfile_result(ph, API_EINTERNAL);
                                     }
                                     break;
@@ -406,10 +427,12 @@ void CommandGetFile::procresult()
                                     if (!json.storeobject(&filenamestring))
                                     {
                                         delete[] buf;
+
                                         if (tslot)
                                         {
                                             return tslot->transfer->failed(API_EINTERNAL);
                                         }
+
                                         return client->app->checkfile_result(ph, API_EINTERNAL);
                                     }
                                     break;
@@ -420,10 +443,12 @@ void CommandGetFile::procresult()
                                     if (tslot)
                                     {
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
+
                                         if (tslot->tempurl.size() && (s >= 0))
                                         {
                                             return tslot->progress();
                                         }
+
                                         return tslot->transfer->failed(e);
                                     }
                                     else
@@ -438,6 +463,7 @@ void CommandGetFile::procresult()
                                     if (!json.storeobject())
                                     {
                                         delete[] buf;
+
                                         if (tslot)
                                         {
                                             return tslot->transfer->failed(API_EINTERNAL);
@@ -449,6 +475,11 @@ void CommandGetFile::procresult()
                                     }
                             }
                         }
+                    }
+
+                    if (canceled)
+                    {
+                        return;
                     }
 
                     if (tslot)
