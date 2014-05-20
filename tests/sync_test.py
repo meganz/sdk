@@ -27,7 +27,6 @@
 
 from sync_test_base import SyncTestBase
 from sync_test_base import get_random_str
-from sync_test_base import get_unicode_str
 from sync_test_base import generate_unicode_name
 import random
 import os
@@ -179,7 +178,7 @@ class SyncTest(SyncTestBase):
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         # rename dirs
-        self.assertTrue(self.dirs_rename(l_dirs, get_unicode_str), "Rename directories")
+        self.assertTrue(self.dirs_rename(l_dirs), "Rename directories")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         self.app.sync()
@@ -361,7 +360,7 @@ class SyncTest(SyncTestBase):
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         # rename dirs
-        self.assertTrue(self.dirs_rename(l_dirs), "Rename directories")
+        self.assertTrue(self.dirs_rename(l_dirs, generate_unicode_name), "Rename directories")
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         self.app.sync()

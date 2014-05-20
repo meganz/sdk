@@ -445,9 +445,11 @@ class SyncTestBase(unittest.TestCase):
         """
         logging.debug("Renaming files..")
 
+        i = 0
         for f in l_files:
             ffname_src = os.path.join(self.app.local_folder_in, f["name"])
-            f["name"] = file_generate_name_func("renamed_", 0)
+            f["name"] = file_generate_name_func("renamed_", i)
+            i = i + 1
             ffname_dst = os.path.join(self.app.local_folder_in, f["name"])
 
             logging.debug("Renaming file: %s => %s" % (ffname_src, ffname_dst))
@@ -510,9 +512,11 @@ class SyncTestBase(unittest.TestCase):
         """
         logging.debug("Renaming directories..")
 
+        i = 0
         for d in l_dirs:
             dname_src = os.path.join(self.app.local_folder_in, d["name"])
-            d["name"] = dir_generate_name_func("renamed_", 0)
+            d["name"] = dir_generate_name_func("renamed_", i)
+            i = i + 1
             dname_dst = os.path.join(self.app.local_folder_in, d["name"])
             try:
                 shutil.move(dname_src, dname_dst)

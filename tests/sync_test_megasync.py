@@ -87,9 +87,9 @@ class SyncTestMegaSyncApp(SyncTestApp):
 
         # the app is either in examples/ or in the project's root
         if platform.system() == "Windows":
-            app_name= "megasync.exe"
+            app_name = "megasync.exe"
         else:
-            app_name= "megasync"
+            app_name = "megasync"
         bin_path = os.path.join(base_path, "examples")
         tmp = os.path.join(bin_path, app_name)
         if not os.path.isfile(tmp):
@@ -196,6 +196,8 @@ if __name__ == "__main__":
 
     if args.debug:
         lvl = logging.DEBUG
+        # megasync will use verbose output
+        os.environ["MEGA_DEBUG"] = "2"
     else:
         lvl = logging.INFO
 
