@@ -284,6 +284,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
+    string *ignore;
 
     if (FD_ISSET(notifyfd, &pw->rfds))
     {
@@ -315,14 +316,21 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                         {
                             if (lastcookie && lastcookie != in->cookie)
                             {
-                                // previous IN_MOVED_FROM is not followed by the
-                                // corresponding IN_MOVED_TO, so was actually a deletion
-                                lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                       lastlocalnode,
-                                                                       lastname.c_str(),
-                                                                       lastname.size());
+                                ignore = &lastlocalnode->sync->dirnotify->ignore;
+                                if((lastname.size() < ignore->size())
+                                    || memcmp(lastname.c_str(), ignore->data(), ignore->size())
+                                    || ((lastname.size() > ignore->size())
+                                            && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+                                {
+                                    // previous IN_MOVED_FROM is not followed by the
+                                    // corresponding IN_MOVED_TO, so was actually a deletion
+                                    lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                           lastlocalnode,
+                                                                           lastname.c_str(),
+                                                                           lastname.size());
 
-                                r |= Waiter::NEEDEXEC;
+                                    r |= Waiter::NEEDEXEC;
+                                }
                             }
                             
                             if (in->mask & IN_MOVED_FROM)
@@ -337,11 +345,18 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                             {
                                 lastcookie = 0;
 
-                                it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                    it->second, in->name,
-                                                                    strlen(in->name));
+                                ignore = &it->second->sync->dirnotify->ignore;
+                                if((strlen(in->name) < ignore->size())
+                                    || memcmp(in->name, ignore->data(), ignore->size())
+                                    || ((strlen(in->name) > ignore->size())
+                                            && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
+                                {
+                                    it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                        it->second, in->name,
+                                                                        strlen(in->name));
 
-                                r |= Waiter::NEEDEXEC;
+                                    r |= Waiter::NEEDEXEC;
+                                }
                             }
                         }
                     }
@@ -352,12 +367,19 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
         if (lastcookie)
         {
-            lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                   lastlocalnode,
-                                                   lastname.c_str(),
-                                                   lastname.size());
+            ignore = &lastlocalnode->sync->dirnotify->ignore;
+            if((lastname.size() < ignore->size())
+                || memcmp(lastname.c_str(), ignore->data(), ignore->size())
+                || ((lastname.size() > ignore->size())
+                        && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+            {
+                lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                       lastlocalnode,
+                                                       lastname.c_str(),
+                                                       lastname.size());
 
-            r |= Waiter::NEEDEXEC;
+                r |= Waiter::NEEDEXEC;
+            }
 
             lastcookie = 0;
         }
