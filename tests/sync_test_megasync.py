@@ -93,10 +93,10 @@ class SyncTestMegaSyncApp(SyncTestApp):
             app_name = "megasync"
         bin_path = os.path.join(base_path, "examples")
         tmp = os.path.join(bin_path, app_name)
-        if not os.path.isfile(tmp) and os.access(tmp, os.X_OK):
+        if not os.path.isfile(tmp) or not os.access(tmp, os.X_OK):
             bin_path = os.path.join(base_path, "")
             tmp = os.path.join(bin_path, app_name)
-            if not os.path.isfile(tmp) and os.access(tmp, os.X_OK):
+            if not os.path.isfile(tmp) or not os.access(tmp, os.X_OK):
                 raise Exception("megasync application is not found!")
 
         pargs = [os.path.join(bin_path, app_name), local_folder, self.remote_folder]
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--test7", help="test_update_mtime", action="store_true")
     parser.add_argument("--test8", help="test_create_rename_delete_unicode_files_dirs", action="store_true")
     parser.add_argument("-a", "--all", help="run all tests", action="store_true")
-    parser.add_argument("-b", "--basic", help="run basic, well-tested tests", action="store_true")
+    parser.add_argument("-b", "--basic", help="run basic, stable tests", action="store_true")
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
     parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
     parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     if args.all:
         args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = True
     if args.basic:
-        args.test1 = args.test2 = args.test3 = args.test4 = args.test7 = True
+        args.test1 = args.test2 = args.test3 = args.test4 = True
 
     logging.StreamHandler(sys.stdout)
     logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
