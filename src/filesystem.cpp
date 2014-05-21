@@ -65,7 +65,7 @@ void FileSystemAccess::escapefsincompatible(string* name) const
 
 void FileSystemAccess::unescapefsincompatible(string* name) const
 {
-    for (int i = name->size() - 3; i-- > 0; )
+    for (int i = name->size() - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed and encode an incompatible character
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
