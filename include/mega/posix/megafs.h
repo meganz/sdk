@@ -50,9 +50,9 @@ struct MEGA_API PosixDirAccess : public DirAccess
 class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
-#ifdef USE_INOTIFY
     int notifyfd;
 
+#ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
     wdlocalnode_map wdnodes;
     

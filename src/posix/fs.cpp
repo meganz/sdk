@@ -184,6 +184,29 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 #endif
 
 #ifdef __MACH__
+#if __LP64__
+typedef struct fsevent_clone_args {
+    int8_t  *event_list;
+    int32_t  num_events;
+    int32_t  event_queue_depth;
+    int32_t *fd;
+} fsevent_clone_args;
+#else
+typedef struct fsevent_clone_args {
+    int8_t  *event_list;
+    int32_t  pad1;
+    int32_t  num_events;
+    int32_t  event_queue_depth;
+    int32_t *fd;
+    int32_t  pad2;
+} fsevent_clone_args;
+#endif
+
+#define FSE_IGNORE 0
+#define FSE_REPORT 1
+#define	FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
+#define	FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
+
     int fd;
     struct fsevent_clone_args fca;
     int8_t event_list[] = { // action to take for each event
@@ -343,6 +366,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
 #ifdef __MACH__
 #define FSE_MAX_ARGS 12
+#define FSE_MAX_EVENTS 11
 #define FSE_ARG_DONE 0xb33f
 #define FSE_EVENTS_DROPPED 999
 #define FSE_TYPE_MASK 0xfff
