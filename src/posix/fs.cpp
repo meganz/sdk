@@ -185,21 +185,21 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 
 #ifdef __MACH__
 #if __LP64__
-typedef struct fsevent_clone_args {
-    int8_t  *event_list;
-    int32_t  num_events;
-    int32_t  event_queue_depth;
-    int32_t *fd;
-} fsevent_clone_args;
+    typedef struct fsevent_clone_args {
+       int8_t *event_list;
+       int32_t num_events;
+       int32_t event_queue_depth;
+       int32_t *fd;
+    } fsevent_clone_args;
 #else
-typedef struct fsevent_clone_args {
-    int8_t  *event_list;
-    int32_t  pad1;
-    int32_t  num_events;
-    int32_t  event_queue_depth;
-    int32_t *fd;
-    int32_t  pad2;
-} fsevent_clone_args;
+    typedef struct fsevent_clone_args {
+       int8_t *event_list;
+       int32_t pad1;
+       int32_t num_events;
+       int32_t event_queue_depth;
+       int32_t *fd;
+       int32_t pad2;
+    } fsevent_clone_args;
 #endif
 
 #define FSE_IGNORE 0
@@ -397,8 +397,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         kfs_event_arg args[FSE_MAX_ARGS]; // event arguments
     };
 
-	// MacOS /dev/fsevents delivers all filesystem events as a unified stream,
-	// which we filter
+    // MacOS /dev/fsevents delivers all filesystem events as a unified stream,
+    // which we filter
     int pos, avail;
     int off;
     int i, j;
@@ -415,7 +415,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         FD_ZERO(&rfds);
         FD_SET(notifyfd, &rfds);
 
-		// bail if the read() would block
+        // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
 
         if ((avail = read(notifyfd, buffer, sizeof buffer)) < 0)
@@ -452,7 +452,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
 				// no more arguments
                 if (kea->type == FSE_ARG_DONE)
-				{
+                {
                     pos += sizeof(u_int16_t);
                     break;
                 }
@@ -676,6 +676,10 @@ void PosixFileSystemAccess::osversion(string* u) const
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifdef USE_INOTIFY
+    failed = false;
+#endif
+
+#ifdef __MACH__
     failed = false;
 #endif
 }
