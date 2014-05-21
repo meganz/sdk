@@ -15,12 +15,16 @@
  *
  * @copyright Simplified (2-clause) BSD License.
  *
+ * MacOS X fsevents code based on osxbook.com/software/fslogger
+ * (c) Amit Singh
+ *
  * You should have received a copy of the license along with this
  * program.
  */
 
 #include "mega.h"
 #include <sys/utsname.h>
+#include <sys/ioctl.h>
 
 namespace mega {
 PosixFileAccess::PosixFileAccess()
@@ -162,9 +166,11 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 
 PosixFileSystemAccess::PosixFileSystemAccess()
 {
-	assert(sizeof(off_t) == 8);
+    assert(sizeof(off_t) == 8);
 
     notifyerr = false;
+    notifyfailed = true;
+    notifyfd = -1;
 
     localseparator = "/";
 
@@ -172,30 +178,78 @@ PosixFileSystemAccess::PosixFileSystemAccess()
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
         lastcookie = 0;
+        notifyfailed = false;
+    }
+#endif
+
+#ifdef __MACH__
+    int fd;
+    struct fsevent_clone_args fca;
+    int8_t event_list[] = { // action to take for each event
+							FSE_REPORT,  // FSE_CREATE_FILE,
+							FSE_REPORT,  // FSE_DELETE,
+							FSE_REPORT,  // FSE_STAT_CHANGED,
+							FSE_REPORT,  // FSE_RENAME,
+							FSE_REPORT,  // FSE_CONTENT_MODIFIED,
+							FSE_REPORT,  // FSE_EXCHANGE,
+							FSE_IGNORE,  // FSE_FINDER_INFO_CHANGED,
+							FSE_REPORT,  // FSE_CREATE_DIR,
+							FSE_REPORT,  // FSE_CHOWN,
+							FSE_IGNORE,  // FSE_XATTR_MODIFIED,
+							FSE_IGNORE,  // FSE_XATTR_REMOVED,
+                          };
+
+    // for this to succeed, geteuid() must be 0
+    if ((fd = open("/dev/fsevents", O_RDONLY)) >= 0)
+    {
+        // with /dev/fsevents open, we can drop setuid privileges
+        seteuid(getuid());
+
+        fca.event_list = (int8_t*)event_list;
+        fca.num_events = sizeof event_list/sizeof(int8_t);
+        fca.event_queue_depth = 4096;
+        fca.fd = &notifyfd;
+
+        if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
+        {
+            close(fd);
+
+            if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
+            {
+                notifyfailed = false;
+            }
+            else
+            {
+                close(notifyfd);
+            }
+        }
+        else
+        {
+            close(fd);
+        }
     }
 #endif
 }
 
 PosixFileSystemAccess::~PosixFileSystemAccess()
 {
-#ifdef USE_INOTIFY
     if (notifyfd >= 0)
     {
         close(notifyfd);
     }
-#endif
 }
 
 // wake up from filesystem updates
 void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 {
-#ifdef USE_INOTIFY
-    PosixWaiter* pw = (PosixWaiter*)w;
+    if (notifyfd >= 0)
+    {
+        PosixWaiter* pw = (PosixWaiter*)w;
 
-    FD_SET(notifyfd, &pw->rfds);
+        FD_SET(notifyfd, &pw->rfds);
 
-    pw->bumpmaxfd(notifyfd);
-#endif
+        pw->bumpmaxfd(notifyfd);
+    }
 }
 
 // read all pending inotify events and queue them for processing
@@ -282,6 +336,139 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             r |= Waiter::NEEDEXEC;
 
             lastcookie = 0;
+        }
+    }
+#endif
+
+#ifdef __MACH__
+#define FSE_MAX_ARGS 12
+#define FSE_ARG_DONE 0xb33f
+#define FSE_EVENTS_DROPPED 999
+#define FSE_TYPE_MASK 0xfff
+#define FSE_ARG_STRING 2
+#define FSE_RENAME 3
+#define FSE_GET_FLAGS(type) (((type) >> 12) & 15)
+
+struct kfs_event_arg {
+    u_int16_t  type;         // argument type
+    u_int16_t  len;          // size of argument data that follows this field
+    union {
+        struct vnode *vp;
+        char         *str;
+        void         *ptr;
+        int32_t       int32;
+        dev_t         dev;
+        ino_t         ino;
+        int32_t       mode;
+        uid_t         uid;
+        gid_t         gid;
+        uint64_t      timestamp;
+    } data;
+};
+
+struct kfs_event {
+    int32_t         type; // event type
+    pid_t           pid;  // pid of the process that performed the operation
+    kfs_event_arg   args[FSE_MAX_ARGS]; // event arguments
+};
+
+	// MacOS /dev/fsevents delivers all filesystem events as a unified stream,
+	// which we filter
+    int pos, avail;
+    int off;
+    int i, j;
+    kfs_event_arg* kea;
+    char buffer[131072];
+    int32_t atype;
+    uint32_t aflags;
+    bool skipfirst;
+    fd_set rfds;
+    timeval tv = { 0 };
+
+    for (;;)
+    {
+        FD_ZERO(&rfds);
+        FD_SET(notifyfd, &rfds);
+
+		// bail if the read() would block
+        if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
+
+        if ((avail = read(notifyfd, buffer, sizeof buffer)) < 0)
+        {
+            notifyerr = true;
+            break;
+        }
+
+        for (pos = 0; pos < avail; )
+        {
+            kfs_event* kfse = (kfs_event*)(buffer + pos);
+
+            pos += sizeof(int32_t) + sizeof(pid_t);
+
+            if (kfse->type == FSE_EVENTS_DROPPED) 
+            {
+			    // force a full rescan
+                notifyerr = true;
+                pos += sizeof(u_int16_t);
+                continue;
+            }
+
+            atype = kfse->type & FSE_TYPE_MASK;
+
+            assert(atype >= -1 && atype < FSE_MAX_EVENTS);
+
+            aflags = FSE_GET_FLAGS(kfse->type);
+
+            skipfirst = atype == FSE_RENAME;
+
+            kea = kfse->args;
+
+            while (pos < avail)
+            {
+				// no more arguments
+                if (kea->type == FSE_ARG_DONE)
+				{
+                    pos += sizeof(u_int16_t);
+                    break;
+                }
+
+                off = sizeof(kea->type) + sizeof(kea->len) + kea->len;
+                pos += off;
+
+                if (kea->type == FSE_ARG_STRING)
+                {
+                    if (skipfirst)
+                    {
+                        skipfirst = false;
+                    }
+                    else
+                    {
+                        char* path = ((char*)&(kea->data.str))-4;
+
+						for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+						{
+							if (!memcmp((*it)->localroot.localname.c_str(), path, (*it)->localroot.localname.size()))
+							{
+								if (memcmp(path + (*it)->localroot.localname.size(),
+								           (*it)->dirnotify->ignore.c_str(),
+										   (*it)->dirnotify->ignore.size())
+									|| (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()]
+									 && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()] != '/'))
+								{
+									(*it)->dirnotify->notify(DirNotify::DIREVENTS,
+														   &(*it)->localroot,
+														   path + (*it)->localroot.localname.size(),
+														   strlen(path + (*it)->localroot.localname.size()));
+
+									r |= Waiter::NEEDEXEC;
+								}
+							}
+						}
+                    }
+                }
+
+                kea = (kfs_event_arg*)((char*)kea + off);
+            }
         }
     }
 #endif

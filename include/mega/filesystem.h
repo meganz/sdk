@@ -209,15 +209,18 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
     
-    // set whenever there was a global file notification error
+    // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
     bool notifyerr;
+    bool notifyfailed;
 
     // set whenever an operation fails because the target already exists
     bool target_exists;
 
     // append local operating system version information to string
     virtual void osversion(string*) const { }
+
+    MegaClient* client;
 
     virtual ~FileSystemAccess() { }
 };
