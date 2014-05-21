@@ -16,7 +16,8 @@
  * @copyright Simplified (2-clause) BSD License.
  *
  * MacOS X fsevents code based on osxbook.com/software/fslogger
- * (c) Amit Singh
+ * (requires the application to start with geteuid() == 0)
+ * (c) Amit Singh 
  *
  * You should have received a copy of the license along with this
  * program.
@@ -186,17 +187,17 @@ PosixFileSystemAccess::PosixFileSystemAccess()
     int fd;
     struct fsevent_clone_args fca;
     int8_t event_list[] = { // action to take for each event
-							FSE_REPORT,  // FSE_CREATE_FILE,
-							FSE_REPORT,  // FSE_DELETE,
-							FSE_REPORT,  // FSE_STAT_CHANGED,
-							FSE_REPORT,  // FSE_RENAME,
-							FSE_REPORT,  // FSE_CONTENT_MODIFIED,
-							FSE_REPORT,  // FSE_EXCHANGE,
-							FSE_IGNORE,  // FSE_FINDER_INFO_CHANGED,
-							FSE_REPORT,  // FSE_CREATE_DIR,
-							FSE_REPORT,  // FSE_CHOWN,
-							FSE_IGNORE,  // FSE_XATTR_MODIFIED,
-							FSE_IGNORE,  // FSE_XATTR_REMOVED,
+                              FSE_REPORT,  // FSE_CREATE_FILE,
+                              FSE_REPORT,  // FSE_DELETE,
+                              FSE_REPORT,  // FSE_STAT_CHANGED,
+                              FSE_REPORT,  // FSE_RENAME,
+                              FSE_REPORT,  // FSE_CONTENT_MODIFIED,
+                              FSE_REPORT,  // FSE_EXCHANGE,
+                              FSE_IGNORE,  // FSE_FINDER_INFO_CHANGED,
+                              FSE_REPORT,  // FSE_CREATE_DIR,
+                              FSE_REPORT,  // FSE_CHOWN,
+                              FSE_IGNORE,  // FSE_XATTR_MODIFIED,
+                              FSE_IGNORE,  // FSE_XATTR_REMOVED,
                           };
 
     // for this to succeed, geteuid() must be 0
@@ -324,7 +325,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 }
             }
         }
-        
+
         // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
         if (lastcookie)
         {
@@ -349,28 +350,28 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #define FSE_RENAME 3
 #define FSE_GET_FLAGS(type) (((type) >> 12) & 15)
 
-struct kfs_event_arg {
-    u_int16_t  type;         // argument type
-    u_int16_t  len;          // size of argument data that follows this field
-    union {
-        struct vnode *vp;
-        char         *str;
-        void         *ptr;
-        int32_t       int32;
-        dev_t         dev;
-        ino_t         ino;
-        int32_t       mode;
-        uid_t         uid;
-        gid_t         gid;
-        uint64_t      timestamp;
-    } data;
-};
+    struct kfs_event_arg {
+        u_int16_t type;         // argument type
+        u_int16_t len;          // size of argument data that follows this field
+        union {
+            struct vnode *vp;
+            char *str;
+            void *ptr;
+            int32_t int32;
+            dev_t dev;
+            ino_t ino;
+            int32_t mode;
+            uid_t uid;
+            gid_t gid;
+            uint64_t timestamp;
+        } data;
+    };
 
-struct kfs_event {
-    int32_t         type; // event type
-    pid_t           pid;  // pid of the process that performed the operation
-    kfs_event_arg   args[FSE_MAX_ARGS]; // event arguments
-};
+    struct kfs_event {
+        int32_t type; // event type
+        pid_t pid;  // pid of the process that performed the operation
+        kfs_event_arg args[FSE_MAX_ARGS]; // event arguments
+    };
 
 	// MacOS /dev/fsevents delivers all filesystem events as a unified stream,
 	// which we filter
@@ -445,25 +446,25 @@ struct kfs_event {
                     {
                         char* path = ((char*)&(kea->data.str))-4;
 
-						for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-						{
-							if (!memcmp((*it)->localroot.localname.c_str(), path, (*it)->localroot.localname.size()))
-							{
-								if (memcmp(path + (*it)->localroot.localname.size(),
-								           (*it)->dirnotify->ignore.c_str(),
-										   (*it)->dirnotify->ignore.size())
-									|| (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()]
-									 && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()] != '/'))
-								{
-									(*it)->dirnotify->notify(DirNotify::DIREVENTS,
-														   &(*it)->localroot,
-														   path + (*it)->localroot.localname.size(),
-														   strlen(path + (*it)->localroot.localname.size()));
+                        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                        {
+                            if (!memcmp((*it)->localroot.localname.c_str(), path, (*it)->localroot.localname.size()))
+                            {
+                                if (memcmp(path + (*it)->localroot.localname.size(),
+                                           (*it)->dirnotify->ignore.c_str(),
+                                           (*it)->dirnotify->ignore.size())
+                                    || (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()]
+                                     && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()] != '/'))
+                                {
+                                    (*it)->dirnotify->notify(DirNotify::DIREVENTS,
+                                                           &(*it)->localroot,
+                                                           path + (*it)->localroot.localname.size(),
+                                                           strlen(path + (*it)->localroot.localname.size()));
 
-									r |= Waiter::NEEDEXEC;
-								}
-							}
-						}
+                                    r |= Waiter::NEEDEXEC;
+                                }
+                            }
+                        }
                     }
                 }
 
