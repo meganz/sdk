@@ -299,7 +299,7 @@ class SyncTestBase(unittest.TestCase):
                     # wait for a file
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     self.app.sync()
-            if success == False:
+            if success is False:
                 logging.error("Failed to compare files: %s and %s" % (ffname_in, ffname))
                 return False
             # get md5 of synced file
@@ -392,7 +392,7 @@ class SyncTestBase(unittest.TestCase):
                     # wait for a dir
                     logging.debug("Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries))
                     self.app.sync()
-            if success == False:
+            if success is False:
                 logging.error("Failed to access directories: %s and " % dname)
                 return False
 
@@ -501,7 +501,7 @@ class SyncTestBase(unittest.TestCase):
                 except IOError:
                     success = True
                     break
-            if success == False:
+            if success is False:
                 logging.error("Failed to delete file: %s" % ffname)
                 return False
         return True
@@ -575,7 +575,7 @@ class SyncTestBase(unittest.TestCase):
                 except OSError:
                     success = True
                     break
-            if success == False:
+            if success is False:
                 logging.error("Failed to delete dir: %s" % dname)
                 return False
         return True
@@ -715,7 +715,7 @@ class SyncTestBase(unittest.TestCase):
                     # wait for a dir
                     logging.debug("Directory %s not found! Retrying [%d/%d].." % (dname, r + 1, self.nr_retries))
                     self.app.sync()
-            if success == False:
+            if success is False:
                 logging.error("Failed to access directories: %s and " % dname)
                 return False
 
@@ -736,7 +736,7 @@ class SyncTestBase(unittest.TestCase):
                     # wait for a file
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (fname, r + 1, self.nr_retries))
                     self.app.sync()
-            if success == False:
+            if success is False:
                 logging.error("Failed to access file: %s" % fname)
                 return False
 

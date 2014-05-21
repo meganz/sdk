@@ -33,6 +33,7 @@ import os
 import logging
 import time
 
+
 class SyncTest(SyncTestBase):
     """
     Class with MEGA SDK test methods
@@ -378,4 +379,3 @@ class SyncTest(SyncTestBase):
         self.assertTrue(self.app.is_alive(), "Test application is not running")
 
         return True
-

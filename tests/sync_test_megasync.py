@@ -31,6 +31,7 @@ import logging
 import argparse
 import platform
 
+
 class SyncTestMegaSyncApp(SyncTestApp):
     """
     operates with megasync application
@@ -133,7 +134,7 @@ class SyncTestMegaSyncApp(SyncTestApp):
         # start "out" instance
         self.megasync_ch_out = self.start_megasync(self.local_mount_out, "out")
         # check both instances
-        if self.megasync_ch_in == None or self.megasync_ch_out == None:
+        if self.megasync_ch_in is None or self.megasync_ch_out is None:
             return False
 
         return True
@@ -161,7 +162,7 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
         if not self.megasync_ch_in or not self.megasync_ch_out:
             return False
-        return self.megasync_ch_in.poll() == None and self.megasync_ch_out.poll() == None
+        return self.megasync_ch_in.poll() is None and self.megasync_ch_out.poll() is None
 
     def pause(self):
         """

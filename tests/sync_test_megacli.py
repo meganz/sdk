@@ -31,6 +31,7 @@ from sync_test import SyncTest
 import logging
 import argparse
 
+
 class SyncTestMegaCliApp(SyncTestApp):
     """
     operates with megacli application
@@ -70,13 +71,14 @@ class SyncTestMegaCliApp(SyncTestApp):
         """
         pause application
         """
-        #TODO: implement this !
+        # TODO: implement this !
         raise NotImplementedError("Not Implemented !")
+
     def unpause(self):
         """
         unpause application
         """
-        #TODO: implement this !
+        # TODO: implement this !
         raise NotImplementedError("Not Implemented !")
 
 

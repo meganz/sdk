@@ -26,6 +26,7 @@ import shutil
 import logging
 import datetime
 
+
 class SyncTestApp(object):
     """
     test application base class
@@ -134,7 +135,7 @@ class SyncTestApp(object):
                 logging.debug("Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries))
                 self.touch(tmp_fix_file)
                 self.sync()
-        if success == False:
+        if success is False:
             logging.error("Failed to access directory: %s" % self.local_folder_out)
             return False
 
@@ -165,26 +166,31 @@ class SyncTestApp(object):
         start application
         """
         raise NotImplementedError("Not Implemented !")
+
     def finish(self):
         """
         stop application
         """
         raise NotImplementedError("Not Implemented !")
+
     def sync(self):
         """
         wait for full synchronization
         """
         raise NotImplementedError("Not Implemented !")
+
     def pause(self):
         """
         pause application
         """
         raise NotImplementedError("Not Implemented !")
+
     def unpause(self):
         """
         unpause application
         """
         raise NotImplementedError("Not Implemented !")
+
     def is_alive(self):
         """
         return True if application instance is running
