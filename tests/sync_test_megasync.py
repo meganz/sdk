@@ -93,13 +93,13 @@ class SyncTestMegaSyncApp(SyncTestApp):
             app_name = "megasync"
         bin_path = os.path.join(base_path, "examples")
         tmp = os.path.join(bin_path, app_name)
-        if not os.path.isfile(tmp):
+        if not os.path.isfile(tmp) and os.access(tmp, os.X_OK):
             bin_path = os.path.join(base_path, "")
             tmp = os.path.join(bin_path, app_name)
-            if not os.path.isfile(tmp):
+            if not os.path.isfile(tmp) and os.access(tmp, os.X_OK):
                 raise Exception("megasync application is not found!")
 
-        pargs = [os.path.join(bin_path, "megasync"), local_folder, self.remote_folder]
+        pargs = [os.path.join(bin_path, app_name), local_folder, self.remote_folder]
         output_fname = os.path.join(self.work_dir, "megasync" + "_" + type_str + "_" + get_random_str() + ".log")
         output_log = open(output_fname, "w")
 
