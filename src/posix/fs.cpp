@@ -474,11 +474,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                         {
                             if (!memcmp((*it)->localroot.localname.c_str(), path, (*it)->localroot.localname.size()))
                             {
-                                if (memcmp(path + (*it)->localroot.localname.size(),
-                                           (*it)->dirnotify->ignore.c_str(),
-                                           (*it)->dirnotify->ignore.size())
-                                    || (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()]
-                                     && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size()] != '/'))
+                                if (path[(*it)->localroot.localname.size()] == '/'
+                                    && (memcmp(path + (*it)->localroot.localname.size() + 1,
+                                                      (*it)->dirnotify->ignore.c_str(),
+                                                      (*it)->dirnotify->ignore.size())
+                                    || (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1]
+                                     && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1] != '/')))
                                 {
                                     (*it)->dirnotify->notify(DirNotify::DIREVENTS,
                                                            &(*it)->localroot,
