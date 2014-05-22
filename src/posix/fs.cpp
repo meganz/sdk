@@ -482,8 +482,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 {
                                     (*it)->dirnotify->notify(DirNotify::DIREVENTS,
                                                            &(*it)->localroot,
-                                                           path + (*it)->localroot.localname.size(),
-                                                           strlen(path + (*it)->localroot.localname.size()));
+                                                           path + (*it)->localroot.localname.size() + 1,
+                                                           strlen(path + (*it)->localroot.localname.size()) - 1);
 
                                     r |= Waiter::NEEDEXEC;
                                 }
