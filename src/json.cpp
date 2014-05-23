@@ -30,6 +30,7 @@ bool JSON::storeobject(string* s)
 {
     int openobject[2] = { 0 };
     const char* ptr;
+    bool escaped = false;
 
     while (*pos > 0 && *pos <= ' ')
     {
@@ -56,10 +57,14 @@ bool JSON::storeobject(string* s)
         else if (*ptr == '"')
         {
             ptr++;
-            while (*ptr != '"' || ptr[-1] == '\\')
+            while (*ptr && (escaped || *ptr != '"'))
             {
+                escaped = (*ptr == '\\') && !escaped;
                 ptr++;
             }
+
+            if(!*ptr)
+                return false;
         }
         else if (((*ptr >= '0') && (*ptr <= '9')) || (*ptr == '-') || (*ptr == '.'))
         {
