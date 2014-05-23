@@ -426,7 +426,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     char buffer[131072];
     int32_t atype;
     uint32_t aflags;
-    bool skipfirst;
     fd_set rfds;
     timeval tv = { 0 };
 
@@ -464,8 +463,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
             aflags = FSE_GET_FLAGS(kfse->type);
 
-            skipfirst = atype == FSE_RENAME;
-
             kea = kfse->args;
 
             while (pos < avail)
@@ -482,12 +479,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 if (kea->type == FSE_ARG_STRING)
                 {
-                    if (skipfirst)
-                    {
-                        skipfirst = false;
-                    }
-                    else
-                    {
                         char* path = ((char*)&(kea->data.str))-4;
 
                         for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
@@ -499,15 +490,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                                       (*it)->dirnotify->ignore.c_str(),
                                                       (*it)->dirnotify->ignore.size())
                                     || (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1]
-                                     && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1] != '/')))
-                                {
-                                    (*it)->dirnotify->notify(DirNotify::DIREVENTS,
-                                                           &(*it)->localroot,
-                                                           path + (*it)->localroot.localname.size() + 1,
-                                                           strlen(path + (*it)->localroot.localname.size()) - 1);
+                                    && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1] != '/')))
+                            {
+                                (*it)->dirnotify->notify(DirNotify::DIREVENTS,
+                                                       &(*it)->localroot,
+                                                       path + (*it)->localroot.localname.size() + 1,
+                                                       strlen(path + (*it)->localroot.localname.size()) - 1);
 
-                                    r |= Waiter::NEEDEXEC;
-                                }
+                                r |= Waiter::NEEDEXEC;
                             }
                         }
                     }
