@@ -44,7 +44,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
     state = SYNC_INITIALSCAN;
 
-	fullscan = true;
+    fullscan = true;
 	
     if (cdebris)
     {

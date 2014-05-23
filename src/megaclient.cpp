@@ -1173,17 +1173,18 @@ void MegaClient::exec()
                                         {
                                             sync->fullscan = false;
 
-                                            if (sync->dirnotify->failed || sync->dirnotify->error || fsaccess->notifyerr)
+                                            if (sync->dirnotify->failed || fsaccess->notifyfailed || sync->dirnotify->error || fsaccess->notifyerr)
                                             {
                                                 syncscanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);
                                                 sync->dirnotify->error = false;
+                                                fsaccess->notifyerr = false;
 
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
 
-                                                syncscanbt.backoff(10 + totalnodes / 128);								
+                                                syncscanbt.backoff(10 + totalnodes / 128);
                                             }
                                         }
                                     }
