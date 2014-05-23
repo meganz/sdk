@@ -31,7 +31,9 @@ SqliteDbAccess::SqliteDbAccess(string* path)
     }
 }
 
-SqliteDbAccess::~SqliteDbAccess() {}
+SqliteDbAccess::~SqliteDbAccess()
+{
+}
 
 DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
 {

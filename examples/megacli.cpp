@@ -1059,11 +1059,15 @@ appfile_list appxferq[2];
 static char dynamicprompt[128];
 
 static const char* prompts[] =
-{ "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:" };
+{
+    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+};
+
 enum prompttype
 {
     COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
 };
+
 static prompttype prompt = COMMAND;
 
 static char pw_buf[256];
@@ -1282,6 +1286,7 @@ static void process_line(char* l)
 
             if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
             {
+                cout << endl;
                 setprompt(NEWPASSWORD);
             }
             else
@@ -1294,6 +1299,7 @@ static void process_line(char* l)
         case NEWPASSWORD:
             client->pw_key(l, newpwkey);
 
+            cout << endl;
             setprompt(PASSWORDCONFIRM);
             return;
 
@@ -2721,6 +2727,7 @@ static void process_line(char* l)
                                         signupemail = words[1];
                                         signupname = words[2];
 
+                                        cout << endl;
                                         setprompt(NEWPASSWORD);
                                     }
                                     else
@@ -2730,8 +2737,7 @@ static void process_line(char* l)
                                     break;
 
                                 case NOTLOGGEDIN:
-                                    cout << "Please use the begin command to commence or resume the ephemeral session to be upgraded."
-                                         << endl;
+                                    cout << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
                             }
                         }
 
@@ -2847,8 +2853,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "version")
                     {
-                        cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "."
-                        << MEGA_MICRO_VERSION << endl;
+                        cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
                         cout << "Features enabled:" << endl;
 
@@ -2953,8 +2958,7 @@ void DemoApp::sendsignuplink_result(error e)
     }
     else
     {
-        cout << "Thank you. Please check your e-mail and enter the command signup followed by the confirmation link."
-             << endl;
+        cout << "Thank you. Please check your e-mail and enter the command signup followed by the confirmation link." << endl;
     }
 }
 

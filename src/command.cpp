@@ -225,7 +225,7 @@ void Command::procresult()
         return;
     }
 
-    for (; ;)
+    for (;;)
     {
         switch (client->json.getnameid())
         {

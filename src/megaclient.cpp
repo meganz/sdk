@@ -349,8 +349,6 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
 
-    me = UNDEF;
-
     syncadding = 0;
     syncactivity = false;
     syncadded = false;
@@ -375,6 +373,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 {
     sctable = NULL;
     syncscanstate = false;
+    me = UNDEF;
 
     init();
 
@@ -3668,9 +3667,11 @@ void MegaClient::login(const char* email, const byte* pwkey, bool nocache)
     string lcemail(email);
 
     key.setkey((byte*)pwkey);
+
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
     lcemail.append("v2");
+
     if (!nocache && dbaccess && (sctable = dbaccess->open(fsaccess, &lcemail)) && sctable->get(CACHEDSCSN, &t))
     {
         if (t.size() == sizeof cachedscsn)
@@ -4616,7 +4617,7 @@ void MegaClient::fetchnodes()
     statecurrent = false;
 
     // only initial load from local cache
-    if (!nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
+    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
         app->debug_log("Session loaded from local cache");
 
@@ -4632,6 +4633,7 @@ void MegaClient::fetchnodes()
     {
         // clear everything in case this is a reload
         purgenodesusersabortsc();
+
         fetchingnodes = true;
         reqs[r].add(new CommandFetchNodes(this));
     }

@@ -1987,6 +1987,7 @@ void CommandCreateEphemeralSession::procresult()
 CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient* client, handle cuh, const byte* cpw, int ctag)
 {
     memcpy(pw, cpw, sizeof pw);
+
     uh = cuh;
 
     cmd("us");

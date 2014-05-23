@@ -38,6 +38,7 @@ BdbAccess::BdbAccess(string* cdbpathprefix)
         // FIXME: Unicode support for default prefix?
         dbpathprefix = "megaclient_statecache_";
     }
+
     env = NULL;
 }
 
