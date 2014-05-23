@@ -165,7 +165,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     return false;
 }
 
-PosixFileSystemAccess::PosixFileSystemAccess()
+PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 {
     assert(sizeof(off_t) == 8);
 
@@ -223,12 +223,10 @@ PosixFileSystemAccess::PosixFileSystemAccess()
                               FSE_IGNORE,  // FSE_XATTR_REMOVED,
                           };
 
-    // for this to succeed, geteuid() must be 0
-    if ((fd = open("/dev/fsevents", O_RDONLY)) >= 0)
+    // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
+    // been passed to the constructor
+    if ((fd = fseventsfd) >= 0 || (fd = open("/dev/fsevents", O_RDONLY)) >= 0)
     {
-        // with /dev/fsevents open, we can drop setuid privileges
-        seteuid(getuid());
-
         fca.event_list = (int8_t*)event_list;
         fca.num_events = sizeof event_list/sizeof(int8_t);
         fca.event_queue_depth = 4096;

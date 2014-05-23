@@ -91,7 +91,7 @@ public:
 
     void osversion(string*) const;
 
-    PosixFileSystemAccess();
+    PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();
 };
 
