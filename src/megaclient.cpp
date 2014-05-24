@@ -558,12 +558,15 @@ void MegaClient::exec()
                 switch (it->second->req.status)
                 {
                     case REQ_READY:
+                        break;
+
                     case REQ_INFLIGHT:
                         // implement timeout?
+                        it->second->parse(this, it->first, false);
                         break;
 
                     case REQ_SUCCESS:
-                        it->second->parse(this, it->first, &it->second->req.in);
+                        it->second->parse(this, it->first, true);
                         it->second->bt.reset();
                         break;
 

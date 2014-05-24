@@ -57,43 +57,53 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client, int fac, const char
         }
     }
 
+    completed = 0;
+    
     req.posturl = targeturl;
     req.post(client);
 }
 
 // communicate the result of a file attribute fetch to the application and
 // remove completed records
-void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data) const
+void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
 {
+#pragma pack(push,1)
+    struct FaPos
+    {
+        handle h;
+        uint32_t pos;
+    };
+#pragma pack(pop)
+
     // data is structured as (handle.8.le / position.4.le)* attribute data
     // attributes are CBC-encrypted with the file's key
 
     // we must have received at least one full header to continue
-    if (data->size() < sizeof(handle) + sizeof(uint32_t))
+    if (req.in.size() < sizeof(FaPos))
     {
-        return client->faf_failed(fac);
+        if (final) client->faf_failed(fac);
+        return;
     }
 
-    uint32_t bod = MemAccess::get<uint32_t>(data->data() + sizeof(handle));
+    uint32_t bod = ((FaPos*)req.in.data())->pos;
 
-    if (bod > data->size())
+    if (req.in.size() < bod)
     {
-        return client->faf_failed(fac);
+        if (final) client->faf_failed(fac);
+        return;
     }
 
-    handle fah;
     const char* fadata;
     uint32_t falen, fapos;
     Node* n;
     faf_map::iterator it;
 
-    fadata = data->data();
+    fadata = req.in.data();
 
-    for (unsigned h = 0; h < bod; h += sizeof(handle) + sizeof(uint32_t))
+    while (completed < bod - (final ? 0 : sizeof(FaPos))
+        && req.in.size() >= (falen = (final ? req.in.size() : ((FaPos*)(req.in.data() + completed))[1].pos)))
     {
-        fah = MemAccess::get<handle>(fadata + h);
-
-        it = client->fafs.find(fah);
+        it = client->fafs.find(((FaPos*)(req.in.data() + completed))->h);
 
         // locate fetch request (could have been deleted by the application in the meantime)
         if (it != client->fafs.end())
@@ -101,10 +111,8 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
             // locate related node (could have been deleted)
             if ((n = client->nodebyhandle(it->second->nodehandle)))
             {
-                fapos = MemAccess::get<uint32_t>(fadata + h + sizeof(handle));
-                falen = ((h + sizeof(handle) + sizeof(uint32_t) < bod)
-                         ? MemAccess::get<uint32_t>(fadata + h + 2 * sizeof(handle) + sizeof(uint32_t))
-                         : data->size()) - fapos;
+                fapos = ((FaPos*)(req.in.data() + completed))->pos;
+                falen -= fapos;
 
                 if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
                 {
@@ -113,11 +121,27 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, string* data)
                     client->restag = it->second->tag;
 
                     client->app->fa_complete(n, it->second->type, fadata + fapos, falen);
+
                     delete it->second;
                     client->fafs.erase(it);
                 }
+                else
+                {
+                    return client->faf_failed(fac);
+                }
             }
         }
+        else
+        {
+            return client->faf_failed(fac);
+        }
+        
+        completed += sizeof(FaPos);
+    }
+    
+    if (final && completed != bod)
+    {
+        client->faf_failed(fac);
     }
 }
 } // namespace

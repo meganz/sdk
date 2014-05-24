@@ -197,7 +197,7 @@ int JSON::storebinary(byte* dst, int dstlen)
         l = Base64::atob(pos + 1, dst, dstlen);
 
         // skip string
-            storeobject();
+        storeobject();
     }
 
     return l;
@@ -279,24 +279,25 @@ m_off_t JSON::getint()
 {
     const char* ptr;
 
-    if ((*pos == ':') || (*pos == ','))
+    if (*pos == ':' || *pos == ',')
     {
         pos++;
     }
 
     ptr = pos;
+
     if (*ptr == '"')
     {
         ptr++;
     }
 
-    if (((*ptr < '0') || (*ptr > '9')) && (*ptr != '-'))
+    if ((*ptr < '0' || *ptr > '9') && *ptr != '-')
     {
         return -1;
     }
 
     handle r = atoll(ptr);
-            storeobject();
+    storeobject();
 
     return r;
 }
@@ -304,12 +305,12 @@ m_off_t JSON::getint()
 // decode float
 double JSON::getfloat()
 {
-    if ((*pos == ':') || (*pos == ','))
+    if (*pos == ':' || *pos == ',')
     {
         pos++;
     }
 
-    if (((*pos < '0') || (*pos > '9')) && (*pos != '-') && (*pos != '.'))
+    if ((*pos < '0' || *pos > '9') && *pos != '-' && *pos != '.')
     {
         return -1;
     }
@@ -326,7 +327,7 @@ const char* JSON::getvalue()
 {
     const char* r;
 
-    if ((*pos == ':') || (*pos == ','))
+    if (*pos == ':' || *pos == ',')
     {
         pos++;
     }
@@ -400,16 +401,15 @@ bool JSON::leaveobject()
 {
     for (; ;)
     {
-        if ((*pos == ':') || (*pos == ','))
+        if (*pos == ':' || *pos == ',')
         {
             pos++;
         }
-        else if ((*pos == '"')
-                || ((*pos >= '0')
-                        && (*pos <= '9'))
-                        || (*pos == '-')
-                        || (*pos == '[')
-                        || (*pos == '{'))
+        else if (*pos == '"'
+                || (*pos >= '0' && *pos <= '9')
+                || *pos == '-'
+                || *pos == '['
+                || *pos == '{')
         {
             storeobject();
         }

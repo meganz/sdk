@@ -35,11 +35,14 @@ struct MEGA_API FileAttributeFetchChannel
     BackoffTimer bt;
     HttpReq req;
 
+    // index of next element to complete (starts at 0)
+    size_t completed;
+
     // post request to target URL
     void dispatch(MegaClient*, int, const char*);
 
     // parse fetch result and remove completed attributes from pending
-    void parse(MegaClient*, int, string*) const;
+    void parse(MegaClient*, int, bool);
 
     FileAttributeFetchChannel();
 };

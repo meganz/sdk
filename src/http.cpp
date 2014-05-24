@@ -241,7 +241,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 {
     size = (unsigned)(npos - pos);
 
-    // FIXME: check return value and abort upload in case file read fails
     if (!fa->fread(out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos))
     {
         return false;
