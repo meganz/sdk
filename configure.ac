@@ -674,7 +674,7 @@ if test "x$enable_examples" = "xyes" ; then
        *)
 
         # determine if library is installed
-        if test -d "$with_freeimage/lib"; then
+        if test -d "$with_readline/lib"; then
             LDFLAGS="-L$with_readline/lib $LDFLAGS"
             CXXFLAGS="-I$with_readline/include $CXXFLAGS"
             CPPFLAGS="-I$with_readline/include $CPPFLAGS"
