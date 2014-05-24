@@ -955,9 +955,21 @@ void MegaClient::exec()
                                 // process items from the notifyq until depleted
                                 if (sync->dirnotify->notifyq[q].size())
                                 {
+                                    dstime dsretry;
+
                                     syncops = true;
 
-                                    if (sync->procscanq(q))
+                                    if ((dsretry = sync->procscanq(q)))
+                                    {
+                                        // we resume processing after dsretry has elapsed
+                                        // (to avoid open-after-creation races with e.g. MS Office)
+                                        if (dsretry + 1)
+                                        {
+                                            syncnaglebt.backoff(dsretry + 1);
+                                            syncnagleretry = true;
+                                        }
+                                    }
+                                    else
                                     {
                                         syncup(&sync->localroot, &nds);
                                         sync->cachenodes();

@@ -119,7 +119,7 @@ struct MEGA_API DirNotify
     virtual void addnotify(LocalNode*, string*) { }
     virtual void delnotify(LocalNode*) { }
 
-    void notify(notifyqueue, LocalNode *, const char*, size_t);
+    void notify(notifyqueue, LocalNode *, const char*, size_t, bool = false);
 
     // ignore this
     string ignore;
@@ -151,7 +151,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
-
     virtual void local2path(string*, string*) const = 0;
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape

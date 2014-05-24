@@ -123,10 +123,10 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 }
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len)
+void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
 {
     notifyq[q].resize(notifyq[q].size() + 1);
-    notifyq[q].back().timestamp = Waiter::ds;
+    notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
     notifyq[q].back().localnode = l;
     notifyq[q].back().path.assign(localpath, len);
 }

@@ -394,9 +394,8 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 									  client->fsaccess->localseparator.data(),
 									  client->fsaccess->localseparator.size())))
 					{
-						// new or existing record: place scan result in
-						// notification queue
-						dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size());
+						// new or existing record: place scan result in notification queue
+						dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
 					}
 
 					localpath->resize(t);
@@ -761,16 +760,25 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 }
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
-bool Sync::procscanq(int q)
+// returns 0 if a parent node is missing, ~0 if control should be yielded, or the time
+// until a retry should be made (300 ms minimum latency).
+dstime Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
+    dstime dsmin = Waiter::ds - 3;
+    LocalNode* l;
 
     while (t--)
     {
-        LocalNode* l = checkpath(dirnotify->notifyq[q].front().localnode, &dirnotify->notifyq[q].front().path);
+        if (dirnotify->notifyq[q].front().timestamp > dsmin)
+        {
+            return dirnotify->notifyq[q].front().timestamp - dsmin;
+        }
+
+        l = checkpath(dirnotify->notifyq[q].front().localnode, &dirnotify->notifyq[q].front().path);
 
         // defer processing because of a missing parent node?
-        if (l == (LocalNode*)~0) return true;
+        if (l == (LocalNode*)~0) return 0;
 
         dirnotify->notifyq[q].pop_front();
 
@@ -795,7 +803,7 @@ bool Sync::procscanq(int q)
         cachenodes();
     }
 
-    return false;
+    return ~0;
 }
 
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)

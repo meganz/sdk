@@ -64,7 +64,7 @@ public:
     DirNotify* dirnotify;
 
     // process and remove one directory notification queue item from *notify
-    bool procscanq(int);
+    dstime procscanq(int);
 
 	// recursively look for vanished child nodes and delete them
 	void deletemissing(LocalNode*);
