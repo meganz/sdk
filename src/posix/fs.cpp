@@ -16,7 +16,7 @@
  * @copyright Simplified (2-clause) BSD License.
  *
  * MacOS X fsevents code based on osxbook.com/software/fslogger
- * (requires the application to start with geteuid() == 0)
+ * (requires euid == root or passing an existing /dev/fsevents fd)
  * (c) Amit Singh 
  *
  * You should have received a copy of the license along with this
@@ -421,11 +421,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     // which we filter
     int pos, avail;
     int off;
-    int i, j;
+    int i, n, s;
+    kfs_event* kfse;
     kfs_event_arg* kea;
     char buffer[131072];
-    int32_t atype;
-    uint32_t aflags;
+    char* paths[2];
+    char* path;
+    Sync* pathsync[2];
+    sync_list::iterator it;
     fd_set rfds;
     timeval tv = { 0 };
 
@@ -445,29 +448,23 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
         for (pos = 0; pos < avail; )
         {
-            kfs_event* kfse = (kfs_event*)(buffer + pos);
+            kfse = (kfs_event*)(buffer + pos);
 
             pos += sizeof(int32_t) + sizeof(pid_t);
 
             if (kfse->type == FSE_EVENTS_DROPPED) 
             {
-			    // force a full rescan
+                // force a full rescan
                 notifyerr = true;
                 pos += sizeof(u_int16_t);
                 continue;
             }
 
-            atype = kfse->type & FSE_TYPE_MASK;
+            n = 0;
 
-            assert(atype >= -1 && atype < FSE_MAX_EVENTS);
-
-            aflags = FSE_GET_FLAGS(kfse->type);
-
-            kea = kfse->args;
-
-            while (pos < avail)
+            for (kea = kfse->args; pos < avail; kea = (kfs_event_arg*)((char*)kea + off))
             {
-				// no more arguments
+                // no more arguments
                 if (kea->type == FSE_ARG_DONE)
                 {
                     pos += sizeof(u_int16_t);
@@ -477,33 +474,57 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 off = sizeof(kea->type) + sizeof(kea->len) + kea->len;
                 pos += off;
 
-                if (kea->type == FSE_ARG_STRING)
+                if (kea->type == FSE_ARG_STRING && n < 2)
                 {
-                        char* path = ((char*)&(kea->data.str))-4;
+                    paths[n++] = ((char*)&(kea->data.str))-4;
+                }
+            }
 
-                        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+            // always skip paths that are outside synced fs trees or in a sync-local rubbish folder
+            for (i = n; i--; )
+            {
+                path = paths[i];
+
+                for (it = client->syncs.begin(); it != client->syncs.end(); it++)
+                {
+                    int s = (*it)->localroot.localname.size();
+
+                    if (!memcmp((*it)->localroot.localname.c_str(), path, s)	// prefix match
+                      && (!path[s] || path[s] == '/')				// at end: end of path or path separator
+                      && (memcmp(path + s + 1, (*it)->dirnotify->ignore.c_str(), (*it)->dirnotify->ignore.size())
+                          || (path[s + (*it)->dirnotify->ignore.size() + 1]
+                           && path[s + (*it)->dirnotify->ignore.size() + 1] != '/')))
                         {
-                            if (!memcmp((*it)->localroot.localname.c_str(), path, (*it)->localroot.localname.size()))
-                            {
-                                if (path[(*it)->localroot.localname.size()] == '/'
-                                    && (memcmp(path + (*it)->localroot.localname.size() + 1,
-                                                      (*it)->dirnotify->ignore.c_str(),
-                                                      (*it)->dirnotify->ignore.size())
-                                    || (path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1]
-                                    && path[(*it)->localroot.localname.size() + (*it)->dirnotify->ignore.size() + 1] != '/')))
-                            {
-                                (*it)->dirnotify->notify(DirNotify::DIREVENTS,
-                                                       &(*it)->localroot,
-                                                       path + (*it)->localroot.localname.size() + 1,
-                                                       strlen(path + (*it)->localroot.localname.size()) - 1);
-
-                                r |= Waiter::NEEDEXEC;
-                            }
+                            paths[i] += (*it)->localroot.localname.size() + 1;
+                            pathsync[i] = *it;
+                            break;
                         }
-                    }
                 }
 
-                kea = (kfs_event_arg*)((char*)kea + off);
+                if (it == client->syncs.end())
+                {
+                    paths[i] = NULL;
+                }
+            }
+
+            // for rename/move operations, skip source if both paths are synced
+            // (to handle rapid a -> b, b -> c without overwriting b).
+            if (n == 2 && paths[0] && paths[1] && (kfse->type & FSE_TYPE_MASK) == FSE_RENAME)
+            {
+                paths[0] = NULL;
+            }
+
+            for (i = n; i--; )
+            {
+                if (paths[i])
+                {
+                    pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS, 
+                                                   &pathsync[i]->localroot,
+                                                   paths[i],
+                                                   strlen(paths[i]));
+
+                    r |= Waiter::NEEDEXEC;
+                }
             }
         }
     }
