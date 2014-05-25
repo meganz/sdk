@@ -4852,17 +4852,20 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     ll->sync->statecacheadd(ll);
                 }
 
-                // file on both sides - do not overwrite if local version older
-                // or identical
+                // file exists on both sides - do not overwrite if local version newer or same
                 if (ll->mtime > rit->second->mtime)
                 {
-                    // local version is older
+                    // local version is newer
                     nchildren.erase(rit);
                 }
                 else if (*ll == *(FileFingerprint*)rit->second)
                 {
                     // both files are identical
                     nchildren.erase(rit);
+                }
+                else
+                {
+                    rit->second->localnode = NULL;
                 }
             }
             else
@@ -4952,13 +4955,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 // does this node already have a corresponding LocalNode under
                 // a different name or elsewhere in the filesystem?
                 if (rit->second->localnode)
-                {
+                {                
                     if (rit->second->localnode->parent)
                     {
                         string curpath;
 
                         rit->second->localnode->getlocalpath(&curpath);
-
                         rit->second->localnode->treestate(TREESTATE_SYNCING);
 
                         if (fsaccess->renamelocal(&curpath, localpath))
@@ -5112,6 +5114,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
+                // skip if remote file is newer
+                if (ll->mtime < rit->second->mtime)
+                {
+                    continue;
+                }
+
                 if (!ll->node ||
                     (ll->node != rit->second && rit->second->mtime > ll->node->mtime))
                 {
@@ -5122,12 +5130,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 if (ll->size == rit->second->size)
                 {
                     // check if file is likely to be identical
-                    if (ll->mtime < rit->second->mtime)
-                    {
-                        // do not overwrite more recent remote file
-                        continue;
-                    }
-
                     if (rit->second->isvalid
                             ? (*ll == *(FileFingerprint*)rit->second)
                             : (ll->mtime == rit->second->mtime))
