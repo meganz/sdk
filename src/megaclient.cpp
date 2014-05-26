@@ -1108,6 +1108,11 @@ void MegaClient::exec()
                         if (((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                             || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()))
                         {
+                            if (!syncnagleretry)
+                            {
+                                syncactivity = true;
+                            }
+
                             break;
                         }
                     }
