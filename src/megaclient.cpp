@@ -971,6 +971,10 @@ void MegaClient::exec()
                                             syncnaglebt.backoff(dsretry + 1);
                                             syncnagleretry = true;
                                         }
+                                        else
+                                        {
+                                            syncactivity = true;
+                                        }
                                     }
                                     else
                                     {
