@@ -396,6 +396,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 					{
 						// new or existing record: place scan result in notification queue
 						dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
+                                                client->syncactivity = true;
 					}
 
 					localpath->resize(t);

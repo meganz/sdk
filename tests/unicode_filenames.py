@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     if platform.system() == "Windows":
         # Unicode characters 1 through 31, as well as quote ("), less than (<), greater than (>), pipe (|), backspace (\b), null (\0) and tab (\t).
-        exclude = string.punctuation + u"\t" + u" " + u''.join([unichr(x) for x in range(0, 32)])
+        exclude = string.punctuation + u"\t" +  u''.join([unichr(x) for x in range(0, 32)])
     else:
         # find . -exec rm {} \;
         exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 1)])

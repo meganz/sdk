@@ -25,95 +25,41 @@ import shutil
 import hashlib
 import unittest
 import logging
-import sys
+import platform
 
-def get_unicode_str(str_size=0, chars=None):
+def get_unicode_str(size=10, max_char=0xFFFF):
     '''
-    generate a random unicode string
-    Taken from: https://github.com/Jaymon/testdata/blob/master/testdata.py
-
-    if chars is None, this can generate up to a 4-byte utf-8 unicode string, which can
-    break legacy utf-8 things
-
-    str_size -- integer -- how long you want the string to be
-    chars -- sequence -- the characters you want the string to use, if this is None, it
-        will default to pretty much the entire unicode range of characters
-    return -- unicode
+    generates valid (for current OS) Unicode file name
     '''
-    if str_size == 0:
-        str_size = random.randint(3, 20)
-
-    sg = None
-
-    if chars is None:
-        # chars can be any range in unicode (based off of table 3.7 of Unicode 6.2.0
-        # pg 42 - http://www.unicode.org/versions/Unicode6.2.0/ch03.pdf
-        # via: http://stackoverflow.com/questions/1477294/generate-random-utf-8-string-in-python
-        byte_range = lambda first, last: range(first, last+1)
-        first_values = byte_range(0x30, 0x7F) + byte_range(0xC2, 0xF4)
-        trailing_values = byte_range(0x80, 0xBF)
-
-        def random_utf8_seq():
-            """
-            return random utf8 sequence
-            """
-            while True:
-                first = random.choice(first_values)
-                if first <= 0x7F: # U+0000...U+007F
-                    return bytearray([first])
-                elif (first >= 0xC2) and (first <= 0xDF): # U+0080...U+07FF
-                    return bytearray([first, random.choice(trailing_values)])
-                elif first == 0xE0: # U+0800...U+0FFF
-                    return bytearray([first, random.choice(byte_range(0xA0, 0xBF)), random.choice(trailing_values)])
-                elif (first >= 0xE1) and (first <= 0xEC): # U+1000...U+CFFF
-                    return bytearray([first, random.choice(trailing_values), random.choice(trailing_values)])
-                elif first == 0xED: # U+D000...U+D7FF
-                    return bytearray([first, random.choice(byte_range(0x80, 0x9F)), random.choice(trailing_values)])
-                elif (first >= 0xEE) and (first <= 0xEF): # U+E000...U+FFFF
-                    return bytearray([first, random.choice(trailing_values), random.choice(trailing_values)])
-                else:
-                    if sys.maxunicode > 65535:
-                        if first == 0xF0: # U+10000...U+3FFFF
-                            return bytearray(
-                                [
-                                    first,
-                                    random.choice(byte_range(0x90, 0xBF)),
-                                    random.choice(trailing_values),
-                                    random.choice(trailing_values)
-                                ]
-                            )
-                        elif (first >= 0xF1) and (first <= 0xF3): # U+40000...U+FFFFF
-                            return bytearray(
-                                [
-                                    first,
-                                    random.choice(trailing_values),
-                                    random.choice(trailing_values),
-                                    random.choice(trailing_values)
-                                ]
-                            )
-                        elif first == 0xF4: # U+100000...U+10FFFF
-                            return bytearray(
-                                [
-                                    first,
-                                    random.choice(byte_range(0x80, 0x8F)),
-                                    random.choice(trailing_values),
-                                    random.choice(trailing_values)
-                                ]
-                            )
-
-        sg = (random_utf8_seq().decode('utf-8') for c in xrange(str_size))
-
+    if platform.system() == "Windows":
+        # Unicode characters 1 through 31, as well as quote ("), less than (<), greater than (>), pipe (|), backspace (\b), null (\0) and tab (\t).
+        exclude = string.punctuation + u"\t" +  u''.join([unichr(x) for x in range(0, 32)])
     else:
-        # we have a defined set of chars
-        sg = (random.choice(chars) for c in xrange(str_size))
+        # I guess it mainly depends on fs type
+        #exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 1)])
+        exclude = u"/" + u"." + u''.join([unichr(x) for x in range(0, 32)])
 
-    s = u''.join(sg)
-    return s
+    name = u""
+    while len(name) < size:
+        c = unichr(random.randint(0, max_char))
+        if c not in exclude:
+            name = name + c
+    return name
 
-def get_random_str(size=10, chars=string.ascii_uppercase + string.digits):
+def get_exotic_str(size=10):
+    """
+    generate string containing random combinations of % and ASCII symbols
+    """
+    name = u""
+    while len(name) < size:
+        num = random.randint(1, 3)
+        name = name + u"%" * num + get_random_str(2)
+    return name
+
+def get_random_str(size=10, chars=string.ascii_lowercase + string.ascii_uppercase + string.digits):
     """
     return a random string
-    size: size of an output stirng
+    size: size of an output string
     chars: characters to use
     """
     return ''.join(random.choice(chars) for x in range(size))
@@ -127,10 +73,18 @@ def generate_ascii_name(first_symbol, i):
 
 def generate_unicode_name(first_symbol, i):
     """
-    generate random ASCII string
+    generate random UTF string
     """
-    strlen = random.randint(1, 20)
-    return get_unicode_str(strlen)
+    strlen = random.randint(10, 30)
+    c = random.choice(['short-utf', 'utf', 'exotic'])
+    if c == 'short-utf':
+        s = get_unicode_str(strlen, 0xFF)
+    elif c == 'utf':
+        s = get_unicode_str(strlen)
+    else:
+        s = get_exotic_str(strlen)
+    #logging.debug("Creating Unicode file:  %s" % (s.encode("unicode-escape")))
+    return s
 
 class SyncTestBase(unittest.TestCase):
     """
@@ -298,6 +252,7 @@ class SyncTestBase(unittest.TestCase):
                 except IOError:
                     # wait for a file
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
+                    logging.debug("%s" % (ffname.encode("unicode-escape")))
                     self.app.sync()
             if success is False:
                 logging.error("Failed to compare files: %s and %s" % (ffname_in, ffname))

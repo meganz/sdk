@@ -1348,7 +1348,7 @@ static void process_line(char* l)
             char* wptr;
 
             // split line into words with quoting and escaping
-            for (; ; )
+            for (;;)
             {
                 // skip leading blank space
                 while (*ptr > 0 && *ptr <= ' ')
@@ -1368,7 +1368,7 @@ static void process_line(char* l)
                     wptr = ptr;
                     words.push_back(string());
 
-                    for (; ; )
+                    for (;;)
                     {
                         if (*ptr == '"' || *ptr == '\\' || !*ptr)
                         {
