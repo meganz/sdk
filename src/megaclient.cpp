@@ -2383,7 +2383,7 @@ bool MegaClient::sc_shares()
                 }
 
                 // am I the owner of the share? use ok, otherwise k.
-                if (ok && (oh == me))
+                if (ok && oh == me)
                 {
                     k = ok;
                 }
@@ -2709,7 +2709,8 @@ void MegaClient::sc_deltree()
         {
             case 'n':
                 handle h;
-                if (!ISUNDEF(h = jsonsc.gethandle()))
+
+                if (!ISUNDEF((h = jsonsc.gethandle())))
                 {
                     n = nodebyhandle(h);
                 }
@@ -3214,20 +3215,20 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             {
                 if (ISUNDEF(ph))
                 {
-                        warn("Missing parent");
+                    warn("Missing parent");
                 }
                 else if (!a)
                 {
-                        warn("Missing node attributes");
+                    warn("Missing node attributes");
                 }
                 else if (!k)
                 {
-                        warn("Missing node key");
+                    warn("Missing node key");
                 }
 
                 if ((t == FILENODE) && ISUNDEF(s))
                 {
-                        warn("File node without file size");
+                    warn("File node without file size");
                 }
             }
         }
@@ -4762,12 +4763,11 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
     npp = &(*nchildren)[name];
 
     if (!*npp
-        || (n->mtime > (*npp)->mtime)
-        || ((n->mtime == (*npp)->mtime)
-                && (n->size > (*npp)->size))
-                || ((n->mtime == (*npp)->mtime)
-                        && (n->size == (*npp)->size)
-                        && (memcmp(n->crc, (*npp)->crc, sizeof n->crc) > 0)))
+        || n->mtime > (*npp)->mtime
+        || (n->mtime == (*npp)->mtime && n->size > (*npp)->size)
+        || (n->mtime == (*npp)->mtime
+            && n->size == (*npp)->size
+            && memcmp(n->crc, (*npp)->crc, sizeof n->crc) > 0))
     {
         *npp = n;
     }
@@ -4955,7 +4955,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 // does this node already have a corresponding LocalNode under
                 // a different name or elsewhere in the filesystem?
                 if (rit->second->localnode)
-                {                
+                {
                     if (rit->second->localnode->parent)
                     {
                         string curpath;

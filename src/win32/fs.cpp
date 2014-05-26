@@ -249,6 +249,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 WinFileSystemAccess::WinFileSystemAccess()
 {
     notifyerr = false;
+    notifyfailed = false;
 
     pendingevents = 0;
 
@@ -599,9 +600,9 @@ void WinDirNotify::process(DWORD dwBytes)
             // skip the local debris folder
             // also, we skip the old name in case of renames
             if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-                    && ((fni->FileNameLength < ignore.size())
-                    || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
-                    || ((fni->FileNameLength > ignore.size())
+                    && (fni->FileNameLength < ignore.size()
+                        || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
+                        || (fni->FileNameLength > ignore.size()
                             && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
             {
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
@@ -770,8 +771,8 @@ bool WinDirAccess::dnext(string* name, nodetype_t* type)
         if (ffdvalid
                 && !WinFileAccess::skipattributes(ffd.dwFileAttributes)
                 && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                        || (*ffd.cFileName != '.')
-                        || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
+                    || *ffd.cFileName != '.'
+                    || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             name->assign((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
             name->insert(0, globbase);
