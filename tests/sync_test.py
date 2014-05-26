@@ -21,7 +21,6 @@
 # TODO tests:
 # * "pause" sync
 # * lock directory
-# * exotic filenames
 # * large (> 4Gb) files
 # * > 10000 folders to synchronize
 

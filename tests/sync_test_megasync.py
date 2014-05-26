@@ -147,14 +147,19 @@ class SyncTestMegaSyncApp(SyncTestApp):
         self.sync()
 
         # kill instances
-        if self.megasync_ch_in:
-            self.megasync_ch_in.terminate()
+        for _ in range(0, 5):
+            if self.megasync_ch_in:
+                self.megasync_ch_in.terminate()
+                time.sleep(5)
+            else:
+                break
 
-        # pause
-        time.sleep(5)
-
-        if self.megasync_ch_out:
-            self.megasync_ch_out.terminate()
+        for _ in range(0, 5):
+            if self.megasync_ch_out:
+                self.megasync_ch_out.terminate()
+                time.sleep(5)
+            else:
+                break
 
     def is_alive(self):
         """
@@ -175,8 +180,6 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
 
 if __name__ == "__main__":
-    # logging stuff, output to stdout
-
     parser = argparse.ArgumentParser(epilog="Please set MEGA_EMAIL and MEGA_PWD environment variables.")
     parser.add_argument("--test1", help="test_create_delete_files", action="store_true")
     parser.add_argument("--test2", help="test_create_rename_delete_files", action="store_true")
@@ -207,6 +210,7 @@ if __name__ == "__main__":
     if args.basic:
         args.test1 = args.test2 = args.test3 = args.test4 = True
 
+    # logging stuff, output to stdout
     logging.StreamHandler(sys.stdout)
     logging.basicConfig(format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=lvl)
 

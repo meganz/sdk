@@ -153,10 +153,11 @@ class SyncTestApp(object):
         """
         cleans directories and call finish
         """
-        try:
-            shutil.rmtree(self.local_folder_in)
-        except OSError:
-            pass
+        if self.delete_tmp_files:
+            try:
+                shutil.rmtree(self.local_folder_in)
+            except OSError:
+                pass
         self.sync()
         self.finish()
 
