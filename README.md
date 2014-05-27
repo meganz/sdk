@@ -5,10 +5,9 @@ Building
 --------
 
     sh autogen.sh
-    ./configure
+    ./configure --enable-examples
     make
     sudo make install
-
 
 Usage
 -----
@@ -99,8 +98,7 @@ clashes with existing short names.
 
 ### Folder syncing
 
-In this version, the sync functionality is severely limited in scope and
-functionality:
+In this version, the sync functionality is limited in scope and functionality:
 
 * There is no locking between clients accessing the same remote folder.
 Concurrent creation of identically named files and folders can result in
@@ -110,12 +108,16 @@ server-side dupes.
 lead to loss of data, e.g. when syncing a folder containing `ABC.TXT` and
 `abc.txt` with a Windows client.
 
+* On POSIX platforms, filenames are assumed to be encoded in UTF-8. Invalid
+byte sequences can lead to undefined behaviour.
+
 * Local filesystem items must not be exposed to the sync subsystem more
 than once. Any dupes, whether by nesting syncs or through filesystem links,
 will lead to unexpected results and loss of data.
 
 * No in-place versioning. Deleted remote files can be found in
-//bin/SyncDebris, deleted local files in the client machine's recycle bin.
+//bin/SyncDebris, deleted local files in a sync-specific hidden debris
+folder.
 
 * No delta writes. Changed files are always overwritten as a whole, which
 means that it is not a good idea to sync e.g. live database tables.
