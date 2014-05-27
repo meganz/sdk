@@ -569,6 +569,8 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
     
     target_exists = errno == EEXIST;
     transient_error = errno == ETXTBSY || EBUSY;
+
+    return false;
 }
 
 bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t mtime)
@@ -622,6 +624,8 @@ bool PosixFileSystemAccess::unlinklocal(string* name)
     if (!unlink(name->c_str())) return true;
 
     transient_error = errno == ETXTBSY || EBUSY;   
+
+    return false;
 }
 
 bool PosixFileSystemAccess::rmdirlocal(string* name)
@@ -629,6 +633,8 @@ bool PosixFileSystemAccess::rmdirlocal(string* name)
     if (!rmdir(name->c_str())) return true;
 
     transient_error = errno == ETXTBSY || EBUSY;   
+
+    return false;
 }
 
 bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
