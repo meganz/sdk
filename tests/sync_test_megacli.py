@@ -36,13 +36,14 @@ class SyncTestMegaCliApp(SyncTestApp):
     """
     operates with megacli application
     """
-    def __init__(self, local_mount_in, local_mount_out, delete_tmp_files=True, use_large_files=True):
+    def __init__(self, local_mount_in, local_mount_out, delete_tmp_files=True, use_large_files=True, check_if_alive=True):
         """
         local_mount_in: local upsync folder
         local_mount_out: local downsync folder
         """
         self.work_dir = os.path.join(".", "work_dir")
         SyncTestApp.__init__(self, local_mount_in, local_mount_out, self.work_dir, delete_tmp_files, use_large_files)
+        self.check_if_alive = check_if_alive
 
     def sync(self):
         time.sleep(5)
@@ -61,6 +62,9 @@ class SyncTestMegaCliApp(SyncTestApp):
         """
         return True if application instance is running
         """
+        if not self.check_if_alive:
+            return True
+
         s = subprocess.Popen(["ps", "axw"], stdout=subprocess.PIPE)
         for x in s.stdout:
             if re.search("megacli", x):
@@ -97,6 +101,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
     parser.add_argument("-l", "--large", help="use large files for testing", action="store_true")
     parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
+    parser.add_argument("-c", "--check", help="Do not check if megacli is running (useful, if other application is used for testing)", action="store_false")
     parser.add_argument("upsync_dir", help="local upsync directory")
     parser.add_argument("downsync_dir", help="local downsync directory")
     args = parser.parse_args()
@@ -122,7 +127,7 @@ if __name__ == "__main__":
     logging.info("")
     time.sleep(5)
 
-    with SyncTestMegaCliApp(args.upsync_dir, args.downsync_dir, args.nodelete, args.large) as app:
+    with SyncTestMegaCliApp(args.upsync_dir, args.downsync_dir, args.nodelete, args.large, args.check) as app:
         suite = unittest.TestSuite()
 
         if args.test1:
