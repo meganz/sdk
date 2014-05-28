@@ -271,12 +271,12 @@ int WinFileSystemAccess::sanitizedriveletter(string* localpath)
 bool WinFileSystemAccess::istransient(DWORD e)
 {
     return e == ERROR_ACCESS_DENIED
-           || e == ERROR_TOO_MANY_OPEN_FILES
-           || e == ERROR_NOT_ENOUGH_MEMORY
-           || e == ERROR_OUTOFMEMORY
-           || e == ERROR_WRITE_PROTECT
-           || e == ERROR_LOCK_VIOLATION
-           || e == ERROR_SHARING_VIOLATION;
+        || e == ERROR_TOO_MANY_OPEN_FILES
+        || e == ERROR_NOT_ENOUGH_MEMORY
+        || e == ERROR_OUTOFMEMORY
+        || e == ERROR_WRITE_PROTECT
+        || e == ERROR_LOCK_VIOLATION
+        || e == ERROR_SHARING_VIOLATION;
 }
 
 bool WinFileSystemAccess::istransientorexists(DWORD e)
@@ -771,8 +771,8 @@ bool WinDirAccess::dnext(string* name, nodetype_t* type)
         if (ffdvalid
                 && !WinFileAccess::skipattributes(ffd.dwFileAttributes)
                 && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                    || *ffd.cFileName != '.'
-                    || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
+                  || *ffd.cFileName != '.'
+                  || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             name->assign((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
             name->insert(0, globbase);

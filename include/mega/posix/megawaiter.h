@@ -29,13 +29,13 @@ struct PosixWaiter : public Waiter
 {
     int maxfd;
     fd_set rfds, wfds, efds;
+    fd_set ignorefds;
+
+    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
 
     void init(dstime);
     int wait();
     void bumpmaxfd(int);
-
-    int select();
-    void fdset(fd_set *read_fd_set, fd_set *write_fd_set, fd_set *exc_fd_set, int *max_fd);
 };
 } // namespace
 

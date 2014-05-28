@@ -49,6 +49,7 @@ void PosixWaiter::init(dstime ds)
     FD_ZERO(&rfds);
     FD_ZERO(&wfds);
     FD_ZERO(&efds);
+    FD_ZERO(&ignorefds);
 }
 
 // update monotonously increasing timestamp in deciseconds
@@ -70,10 +71,24 @@ void PosixWaiter::bumpmaxfd(int fd)
     }
 }
 
-// monitor file descriptors
-// return ::select() result
-int PosixWaiter::select()
+// checks if an unfiltered fd is set
+// FIXME: use bitwise & instead of scanning
+bool PosixWaiter::fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const
 {
+    while (nfds--)
+    {
+        if (FD_ISSET(nfds, fds) && !FD_ISSET(nfds, ignorefds)) return true;    
+    }
+
+    return false;
+}
+
+// wait for supplied events (sockets, filesystem changes), plus timeout + application events
+// maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if no timeout scheduled)
+// returns application-specific bitmask. bit 0 set indicates that exec() needs to be called.
+int PosixWaiter::wait()
+{
+    int numfd;
     timeval tv;
 
     if (maxds + 1)
@@ -84,20 +99,7 @@ int PosixWaiter::select()
         tv.tv_usec = us - tv.tv_sec * 1000000;
     }
 
-    return ::select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
-}
-
-// wait for supplied events (sockets, filesystem changes), plus timeout +
-// application events
-// maxds specifies the maximum amount of time to wait in deciseconds (or ~0 if
-// no timeout scheduled)
-// returns application-specific bitmask. bit 0 set indicates that exec() needs
-// to be called.
-int PosixWaiter::wait()
-{
-    int numfd;
-
-    numfd = select();
+    numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 
     // timeout or error
     if (numfd <= 0)
@@ -105,15 +107,9 @@ int PosixWaiter::wait()
         return NEEDEXEC;
     }
 
-    return NEEDEXEC;
-}
-
-// set MEGA SDK fd_sets which an application could use to select() or poll()
-void PosixWaiter::fdset(fd_set* read_fd_set, fd_set* write_fd_set, fd_set* exc_fd_set, int* max_fd)
-{
-    FD_COPY(&rfds, read_fd_set);
-    FD_COPY(&wfds, write_fd_set);
-    FD_COPY(&efds, exc_fd_set);
-    *max_fd = maxfd;
+    // request exec() to be run only if a non-ignored fd was triggered
+    return (fd_filter(maxfd + 1, &rfds, &ignorefds)
+         || fd_filter(maxfd + 1, &wfds, &ignorefds)
+         || fd_filter(maxfd + 1, &efds, &ignorefds)) ? NEEDEXEC : 0;
 }
 } // namespace

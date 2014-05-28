@@ -269,6 +269,7 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
         PosixWaiter* pw = (PosixWaiter*)w;
 
         FD_SET(notifyfd, &pw->rfds);
+        FD_SET(notifyfd, &pw->ignorefds);
 
         pw->bumpmaxfd(notifyfd);
     }
@@ -366,10 +367,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         if (lastcookie)
         {
             ignore = &lastlocalnode->sync->dirnotify->ignore;
-            if((lastname.size() < ignore->size())
+            if (lastname.size() < ignore->size()
                 || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                || ((lastname.size() > ignore->size())
-                        && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+                || (lastname.size() > ignore->size()
+                   && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
             {
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
@@ -851,6 +852,7 @@ bool PosixDirAccess::dnext(string* name, nodetype_t* type)
                         || (d->d_name[1] && ((d->d_name[1] != '.') || d->d_name[2]))))
         {
             *name = d->d_name;
+
             if (type)
             {
                 *type = d->d_type == DT_DIR ? FOLDERNODE : FILENODE;
