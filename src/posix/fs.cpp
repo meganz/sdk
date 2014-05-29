@@ -44,7 +44,7 @@ PosixFileAccess::~PosixFileAccess()
 #ifndef HAVE_FDOPENDIR
     if (dp)
     {
-        closedir(fd);
+        closedir(dp);
     }
 #endif
 
