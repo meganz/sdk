@@ -41,6 +41,13 @@ PosixFileAccess::PosixFileAccess()
 
 PosixFileAccess::~PosixFileAccess()
 {
+#ifndef HAVE_FDOPENDIR
+    if (dp)
+    {
+        closedir(fd);
+    }
+#endif
+
     if (fd >= 0)
     {
         close(fd);
