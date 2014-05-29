@@ -26,15 +26,15 @@ int PosixConsoleWaiter::wait()
 {
     int r;
 
-    // application's own wakeup criteria:
-    // wake up upon user input
+    // application's own wakeup criteria: wake up upon user input
     FD_SET(STDIN_FILENO, &rfds);
+    FD_SET(STDIN_FILENO, &ignorefds);
+    
     bumpmaxfd(STDIN_FILENO);
 
     r = PosixWaiter::wait();
 
-    // application's own event processing:
-    // user interaction from stdin?
+    // application's own event processing: user interaction from stdin?
     if (FD_ISSET(STDIN_FILENO, &rfds))
     {
         r |= HAVESTDIN;

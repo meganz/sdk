@@ -3444,7 +3444,7 @@ void megacli()
         }
 
         // command editing loop - exits when a line is submitted or the engine requires the CPU
-        for (; ; )
+        for (;;)
         {
             int w = client->wait();
 
