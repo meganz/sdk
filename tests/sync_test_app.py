@@ -116,7 +116,7 @@ class SyncTestApp(object):
         self.sync()
 
         # temporary workaround
-        tmp_fix_file = os.path.join(self.local_mount_out, "tmp_fix")
+        #tmp_fix_file = os.path.join(self.local_mount_out, "tmp_fix")
 
         success = False
         # try to access the dir
@@ -128,12 +128,12 @@ class SyncTestApp(object):
                 else:
                     # wait for a dir
                     logging.debug("Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries))
-                    self.touch(tmp_fix_file)
+                    #self.touch(tmp_fix_file)
                     self.sync()
             except OSError:
                 # wait for a dir
                 logging.debug("Directory %s not found! Retrying [%d/%d] .." % (self.local_folder_out, r + 1, self.nr_retries))
-                self.touch(tmp_fix_file)
+                #self.touch(tmp_fix_file)
                 self.sync()
         if success is False:
             logging.error("Failed to access directory: %s" % self.local_folder_out)
