@@ -159,7 +159,6 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     if (rc)
     {
-cout << "**** sqlite3_prepare() failed: " << rc << endl;    
         return false;
     }
 
@@ -167,7 +166,6 @@ cout << "**** sqlite3_prepare() failed: " << rc << endl;
 
     if (rc)
     {
-cout << "**** sqlite3_bind_int() failed: " << rc << endl;
         return false;
     }
 
@@ -175,7 +173,6 @@ cout << "**** sqlite3_bind_int() failed: " << rc << endl;
 
     if (rc)
     {
-cout << "**** sqlite3_bind_blob() failed: " << rc << endl;
         return false;
     }
 
@@ -183,7 +180,6 @@ cout << "**** sqlite3_bind_blob() failed: " << rc << endl;
 
     if (rc != SQLITE_DONE)
     {
-cout << "**** sqlite3_step() failed: " << rc << endl;
         return false;
     }
 
