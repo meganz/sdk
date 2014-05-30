@@ -1,5 +1,4 @@
-MEGA SDK - Client Access Engine
-===============================
+MEGA SDK - Client Access Engine [![Build Status](https://travis-ci.org/meganz/sdk2.svg)](https://travis-ci.org/meganz/sdk2)
 
 Building
 --------
