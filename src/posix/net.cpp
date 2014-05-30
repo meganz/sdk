@@ -174,7 +174,9 @@ bool CurlHttpIO::doio()
                     }
                 }
 
-                req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
+                req->status = (req->httpstatus == 200
+                           && (req->contentlength < 0
+                            || req->contentlength == req->in.size())) ? REQ_SUCCESS : REQ_FAILURE;
 
                 inetstatus(req->status);
                 
