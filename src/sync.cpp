@@ -775,10 +775,13 @@ dstime Sync::procscanq(int q)
             return dirnotify->notifyq[q].front().timestamp - dsmin;
         }
 
-        l = checkpath(dirnotify->notifyq[q].front().localnode, &dirnotify->notifyq[q].front().path);
+        if ((l = dirnotify->notifyq[q].front().localnode))
+        {
+            l = checkpath(l, &dirnotify->notifyq[q].front().path);
 
-        // defer processing because of a missing parent node?
-        if (l == (LocalNode*)~0) return 0;
+            // defer processing because of a missing parent node?
+            if (l == (LocalNode*)~0) return 0;
+        }
 
         dirnotify->notifyq[q].pop_front();
 

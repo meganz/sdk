@@ -973,6 +973,21 @@ LocalNode::~LocalNode()
         newnode->localnode = NULL;
     }
 
+    if (sync->dirnotify)
+    {
+        // remove from notifyqs, if present
+        for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
+        {
+            for (notify_deque::iterator it = sync->dirnotify->notifyq[q].begin(); it != sync->dirnotify->notifyq[q].end(); it++)
+            {
+                if ((*it).localnode == this)
+                {
+                    (*it).localnode = NULL;
+                }
+            }
+        }
+    }
+    
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
