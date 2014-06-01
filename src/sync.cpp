@@ -775,7 +775,7 @@ dstime Sync::procscanq(int q)
             return dirnotify->notifyq[q].front().timestamp - dsmin;
         }
 
-        if ((l = dirnotify->notifyq[q].front().localnode))
+        if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
         {
             l = checkpath(l, &dirnotify->notifyq[q].front().path);
 
