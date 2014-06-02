@@ -80,8 +80,14 @@ public:
     // user login: e-mail, pwkey
     void login(const char*, const byte*, bool = false);
 
+    // session login: binary session, bytecount
+    void login(const byte*, int);
+
     // check if logged in
     sessiontype_t loggedin();
+
+    // dump current session
+    int dumpsession(byte*, int);
 
     // set folder link: node, key
     error folderaccess(const char*, const char*);
@@ -574,6 +580,9 @@ public:
     // account access (full account): RSA key
     AsymmCipher asymkey;
 
+    // binary session ID
+    string sid;
+    
     // apply keys
     int applykeys();
 

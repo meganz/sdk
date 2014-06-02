@@ -1409,9 +1409,11 @@ static void process_line(char* l)
             {
                 cout << "      login email [password]" << endl;
                 cout << "      login exportedfolderurl#key" << endl;
+                cout << "      login session" << endl;
                 cout << "      begin [ephemeralhandle#ephemeralpw]" << endl;
                 cout << "      signup [email name|confirmationlink]" << endl;
                 cout << "      confirm" << endl;
+                cout << "      session" << endl;
                 cout << "      mount" << endl;
                 cout << "      ls [-R] [remotepath]" << endl;
                 cout << "      cd [remotepath]" << endl;
@@ -1893,7 +1895,7 @@ static void process_line(char* l)
                                 }
                             }
 
-                            if (!client->loggedin() && !targetuser.size())
+                            if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
                             {
                                 cout << "Not logged in." << endl;
 
@@ -2069,7 +2071,7 @@ static void process_line(char* l)
                 case 5:
                     if (words[0] == "login")
                     {
-                        if (!client->loggedin())
+                        if (client->loggedin() == NOTLOGGEDIN)
                         {
                             if (words.size() > 1)
                             {
@@ -2092,22 +2094,37 @@ static void process_line(char* l)
                                 {
                                     const char* ptr;
 
-                                    // folder link login
-                                    if ((ptr = strstr(words[1].c_str(), "#F!")) && ptr[11] == '!')
+                                    if ((ptr = strchr(words[1].c_str(), '#')))
                                     {
-                                        client->app->login_result(client->folderaccess(ptr + 3, ptr + 12));
+                                        if (ptr[1] == 'F' && ptr[2] == '!' && ptr[11] == '!')
+                                        {
+                                            // folder link login
+                                            return client->app->login_result(client->folderaccess(ptr + 3, ptr + 12));
+                                        }
                                     }
                                     else
                                     {
-                                        cout << "Invalid argument. Please specify a valid e-mail address or a folder link containing the folder key."
-                                             << endl;
+                                        byte session[64];
+                                        int size;
+
+                                        if (words[1].size() < sizeof session * 4 / 3)
+                                        {
+                                            size = Base64::atob(words[1].c_str(), session, sizeof session);
+
+                                            return client->login(session, size);
+                                        }
                                     }
+                                
+                                    cout << "Invalid argument. Please specify a valid e-mail address, "
+                                         << "a folder link containing the folder key "
+                                         << "or a valid session." << endl;
                                 }
                             }
                             else
                             {
-                                cout << "      login email [password]" << endl << "      login exportedfolderurl#key"
-                                     << endl;
+                                cout << "      login email [password]" << endl
+                                     << "      login exportedfolderurl#key" << endl
+                                     << "      login session" << endl;
                             }
                         }
                         else
@@ -2611,7 +2628,7 @@ static void process_line(char* l)
                 case 6:
                     if (words[0] == "passwd")
                     {
-                        if (client->loggedin())
+                        if (client->loggedin() != NOTLOGGEDIN)
                         {
                             setprompt(OLDPASSWORD);
                         }
@@ -2847,6 +2864,32 @@ static void process_line(char* l)
                         else
                         {
                             cout << "No signup confirmation pending." << endl;
+                        }
+
+                        return;
+                    }
+                    else if (words[0] == "session")
+                    {
+                        byte session[64];
+                        int size;
+
+                        size = client->dumpsession(session, sizeof session);
+
+                        if (size > 0)
+                        {
+                            char buf[sizeof session * 4 / 3 + 3];
+
+                            Base64::btoa(session, size, buf);
+
+                            cout << "Your (secret) session is: " << buf << endl;
+                        }
+                        else if (!size)
+                        {
+                            cout << "Not logged in." << endl;
+                        }
+                        else
+                        {
+                            cout << "Internal error." << endl;
                         }
 
                         return;
@@ -3097,7 +3140,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 {
     Node* n;
 
-    if (client->loggedin() && (n = client->nodebyhandle(cwd)))
+    if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
         NewNode* newnode = new NewNode[1];
 
@@ -3346,8 +3389,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
             ts = it->mru;
             strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
-            printf("\tSession start: %s Most recent activity: %s IP: %s Country: %.2s User-Agent: %s\n", timebuf,
-                   timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+            printf("\tSession start: %s Most recent activity: %s IP: %s Country: %.2s User-Agent: %s\n",
+                    timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
         }
     }
 }
@@ -3364,8 +3407,8 @@ void DemoApp::account_details(AccountDetails* ad, error e)
 // user attribute update notification
 void DemoApp::userattr_update(User* u, int priv, const char* n)
 {
-    cout << "Notification: User " << u->email << " -" << (priv ? " private" : "") << " attribute " << n
-         << " added or updated" << endl;
+    cout << "Notification: User " << u->email << " -" << (priv ? " private" : "") << " attribute "
+          << n << " added or updated" << endl;
 }
 
 // main loop

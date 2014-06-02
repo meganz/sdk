@@ -246,13 +246,15 @@ void MegaClient::mergenewshares(bool notify)
 }
 
 // configure for full account session access
-void MegaClient::setsid(const byte* sid, unsigned len)
+void MegaClient::setsid(const byte* newsid, unsigned len)
 {
     auth = "&sid=";
 
     int t = auth.size();
     auth.resize(t + len * 4 / 3 + 4);
-    auth.resize(t + Base64::btoa(sid, len, (char*)(auth.c_str() + t)));
+    auth.resize(t + Base64::btoa(newsid, len, (char*)(auth.c_str() + t)));
+    
+    sid.assign((const char*)newsid, len);
 }
 
 // configure for exported folder links access
@@ -309,7 +311,9 @@ bool MegaClient::warnlevel()
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
     string nname = name;
+
     fsaccess->normalize(&nname);
+
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
@@ -3711,6 +3715,39 @@ void MegaClient::login(const char* email, const byte* pwkey, bool nocache)
     }
 
     reqs[r].add(new CommandLogin(this, email, emailhash));
+}
+
+void MegaClient::login(const byte* session, int size)
+{
+    if (size == sizeof key.key + SIDLEN)
+    {
+        key.setkey(session);
+        setsid(session + sizeof key.key, size - sizeof key.key);
+        
+        fetchnodes();
+    }
+    else
+    {
+        app->login_result(API_EARGS);
+    }
+}
+
+int MegaClient::dumpsession(byte* session, int size)
+{
+    if (loggedin() == NOTLOGGEDIN)
+    {
+        return 0;
+    }
+
+    if (size < (int)sid.size() + (int)sizeof key.key)
+    {
+        return API_ERANGE;
+    }
+
+    memcpy(session, key.key, sizeof key.key);
+    memcpy(session + sizeof key.key, sid.data(), sid.size());
+    
+    return sizeof key.key + sid.size();
 }
 
 // verify a static symmetric password challenge
