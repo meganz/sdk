@@ -110,6 +110,8 @@ public:
 // log into full account (ephemeral sessions are curently unsupported)
 class MEGA_API CommandLogin : public Command
 {
+    bool checksession;
+
 public:
     void procresult();
 

@@ -3689,42 +3689,40 @@ error MegaClient::folderaccess(const char* f, const char* k)
     return API_OK;
 }
 
-void MegaClient::login(const char* email, const byte* pwkey, bool nocache)
+// create new session
+void MegaClient::login(const char* email, const byte* pwkey)
 {
     logout();
 
-    string t;
     string lcemail(email);
 
     key.setkey((byte*)pwkey);
 
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
-    lcemail.append("v2");
-
-    if (!nocache && dbaccess && (sctable = dbaccess->open(fsaccess, &lcemail)) && sctable->get(CACHEDSCSN, &t))
-    {
-        if (t.size() == sizeof cachedscsn)
-        {
-            cachedscsn = MemAccess::get<handle>(t.data());
-        }
-        else
-        {
-            cachedscsn = UNDEF;
-        }
-    }
-
     reqs[r].add(new CommandLogin(this, email, emailhash));
 }
 
+// resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
 {
+    logout();
+   
     if (size == sizeof key.key + SIDLEN)
     {
+        string t;
+
         key.setkey(session);
         setsid(session + sizeof key.key, size - sizeof key.key);
-        
-        fetchnodes();
+
+        opensctable();
+
+        if (sctable && sctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
+        {
+            cachedscsn = MemAccess::get<handle>(t.data());
+        }
+
+        reqs[r].add(new CommandLogin(this, NULL, UNDEF));
     }
     else
     {
@@ -3748,6 +3746,19 @@ int MegaClient::dumpsession(byte* session, int size)
     memcpy(session + sizeof key.key, sid.data(), sid.size());
     
     return sizeof key.key + sid.size();
+}
+
+void MegaClient::opensctable()
+{
+    if (dbaccess && !sctable)
+    {
+        string dbname;
+
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+
+        sctable = dbaccess->open(fsaccess, &dbname);
+    }
 }
 
 // verify a static symmetric password challenge
@@ -4678,6 +4689,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
 void MegaClient::fetchnodes()
 {
     statecurrent = false;
+
+    opensctable();
+
+    if (sctable && cachedscsn == UNDEF)
+    {
+        sctable->truncate();
+    }
 
     // only initial load from local cache
     if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))

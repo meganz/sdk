@@ -2111,6 +2111,8 @@ static void process_line(char* l)
                                         {
                                             size = Base64::atob(words[1].c_str(), session, sizeof session);
 
+                                            cout << "Resuming session..." << endl;
+
                                             return client->login(session, size);
                                         }
                                     }
@@ -2838,6 +2840,7 @@ static void process_line(char* l)
                         cout << "Reloading account..." << endl;
 
                         cwd = UNDEF;
+                        client->cachedscsn = UNDEF;
                         client->fetchnodes();
 
                         return;

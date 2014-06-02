@@ -78,7 +78,7 @@ public:
     void setkeypair();
 
     // user login: e-mail, pwkey
-    void login(const char*, const byte*, bool = false);
+    void login(const char*, const byte*);
 
     // session login: binary session, bytecount
     void login(const byte*, int);
@@ -265,6 +265,9 @@ private:
 
     // a TransferSlot chunk failed
     bool chunkfailed;
+
+    // open/create state cache database table
+    void opensctable();
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);

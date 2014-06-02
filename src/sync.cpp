@@ -60,31 +60,39 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     {
         localdebris = *clocaldebris;
 
-        // FIXME: pass last segment of localebris
+        // FIXME: pass last segment of localdebris
         dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
     }
 
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);
 
-    // state cache table
-    char local_id[12];
-    FileAccess *fas = client->fsaccess->newfileaccess();
-    fas->fopen(crootpath, true, false);
-    Base64::btoa((byte *)&fas->fsid, MegaClient::NODEHANDLE, local_id);
-    delete fas;
-
-    char remote_id[12];
-    Base64::btoa((byte *)&remotenode->nodehandle, MegaClient::NODEHANDLE, remote_id);
-
-    User *u = client->finduser(client->me);
-    string email = u ? u->email : "unknown_email";
-    dbname = email + "_" + local_id + remote_id + "v2";
-
-    statecachetable = client->dbaccess ? client->dbaccess->open(client->fsaccess, &dbname) : NULL;
     sync_it = client->syncs.insert(client->syncs.end(), this);
 
-    readstatecache();
+    if (client->dbaccess)
+    {
+        // open state cache table
+        handle tableid[3];
+        string dbname;
+
+        FileAccess *fas = client->fsaccess->newfileaccess();
+
+        if (fas->fopen(crootpath, true, false))
+        {
+            tableid[0] = fas->fsid;
+            tableid[1] = remotenode->nodehandle;
+            tableid[2] = client->me;
+
+            dbname.resize(sizeof tableid * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
+
+            statecachetable = client->dbaccess->open(client->fsaccess, &dbname);
+
+            readstatecache();
+        }
+
+        delete fas;
+    }
 }
 
 Sync::~Sync()

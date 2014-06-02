@@ -806,11 +806,18 @@ void CommandDelNode::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* e, uint64_t emailhash)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash)
 {
     cmd("us");
-        arg("user", e);
+
+    // are we just performing a session validation?
+    checksession = !email;
+
+    if (!checksession)
+    {
+        arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
+    }
 
     if (client->cachedscsn != UNDEF)
     {
@@ -863,20 +870,22 @@ void CommandLogin::procresult()
                 {
                     // local state cache continuity rejected: read state from
                     // server instead
-                    delete client->sctable;
-                    client->sctable = NULL;
+                    client->cachedscsn = UNDEF;
                 }
                 break;
 
             case EOO:
-                if (ISUNDEF(me) || (len_k != sizeof hash))
+                if (!checksession)
                 {
-                    client->app->login_result(API_EINTERNAL);
-                }
+                    if (ISUNDEF(me) || len_k != sizeof hash)
+                    {
+                        return client->app->login_result(API_EINTERNAL);
+                    }
 
-                // decrypt and set master key
-                client->key.ecb_decrypt(hash);
-                client->key.setkey(hash);
+                    // decrypt and set master key
+                    client->key.ecb_decrypt(hash);
+                    client->key.setkey(hash);
+                }
 
                 if (len_tsid)
                 {
@@ -896,7 +905,7 @@ void CommandLogin::procresult()
                 else
                 {
                     // account has RSA keypair: decrypt server-provided session ID
-                    if (len_csid < 32 || len_privk < 256)
+                    if (len_privk < 256)
                     {
                         return client->app->login_result(API_EINTERNAL);
                     }
@@ -909,14 +918,21 @@ void CommandLogin::procresult()
                         return client->app->login_result(API_EKEY);
                     }
 
-                    // decrypt and set session ID for subsequent API
-                    // communication
-                    if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN))
+                    if (!checksession)
                     {
-                        return client->app->login_result(API_EINTERNAL);
-                    }
+                        if (len_csid < 32)
+                        {
+                            return client->app->login_result(API_EINTERNAL);                   
+                        }
 
-                    client->setsid(sidbuf, MegaClient::SIDLEN);
+                        // decrypt and set session ID for subsequent API communication
+                        if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN))
+                        {
+                            return client->app->login_result(API_EINTERNAL);
+                        }
+
+                        client->setsid(sidbuf, MegaClient::SIDLEN);
+                    }
                 }
 
                 client->me = me;
