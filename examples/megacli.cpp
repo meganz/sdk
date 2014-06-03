@@ -1953,7 +1953,7 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             string localpath;
-cout << "words[1] == " << words[1] << endl;
+
                             client->fsaccess->path2local(&words[1], &localpath);
 
                             if (!client->fsaccess->chdirlocal(&localpath))
