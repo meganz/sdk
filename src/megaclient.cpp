@@ -3726,6 +3726,7 @@ void MegaClient::login(const byte* session, int size)
     }
     else
     {
+        restag = reqtag;
         app->login_result(API_EARGS);
     }
 }
