@@ -57,18 +57,22 @@ bool JSON::storeobject(string* s)
         else if (*ptr == '"')
         {
             ptr++;
+
             while (*ptr && (escaped || *ptr != '"'))
             {
-                escaped = (*ptr == '\\') && !escaped;
+                escaped = *ptr == '\\' && !escaped;
                 ptr++;
             }
 
-            if(!*ptr)
+            if (!*ptr)
+            {
                 return false;
+            }
         }
-        else if (((*ptr >= '0') && (*ptr <= '9')) || (*ptr == '-') || (*ptr == '.'))
+        else if ((*ptr >= '0' && *ptr <= '9') || *ptr == '-' || *ptr == '.')
         {
             ptr++;
+
             while ((*ptr >= '0' && *ptr <= '9') || *ptr == '.' || *ptr == 'e' || *ptr == 'E')
             {
                 ptr++;
@@ -76,7 +80,7 @@ bool JSON::storeobject(string* s)
 
             ptr--;
         }
-        else if ((*ptr != ':') && (*ptr != ','))
+        else if (*ptr != ':' && *ptr != ',')
         {
             return false;
         }
@@ -96,6 +100,7 @@ bool JSON::storeobject(string* s)
                     s->assign(pos, ptr - pos);
                 }
             }
+
             pos = ptr;
             return true;
         }
@@ -139,7 +144,7 @@ nameid JSON::getnameid()
     const char* ptr = pos;
     nameid id = 0;
 
-    if ((*ptr == ',') || (*ptr == ':'))
+    if (*ptr == ',' || *ptr == ':')
     {
         ptr++;
     }
@@ -462,6 +467,11 @@ void JSON::unescape(string* s)
 
                 case 't':
                     c = '\t';
+                    l = 2;
+                    break;
+
+                case '\\':
+                    c = '\\';
                     l = 2;
                     break;
 

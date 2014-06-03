@@ -706,6 +706,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                     {
                         s.append(bptr, ptr - bptr);
                     }
+
                     bptr = ++ptr;
 
                     if (*bptr == 0)
@@ -1373,11 +1374,13 @@ static void process_line(char* l)
                         if (*ptr == '"' || *ptr == '\\' || !*ptr)
                         {
                             words[words.size() - 1].append(wptr, ptr - wptr);
+
                             if (!*ptr || *ptr++ == '"')
                             {
                                 break;
                             }
-                            wptr = ptr;
+
+                            wptr = ptr - 1;
                         }
                         else
                         {
@@ -1950,8 +1953,9 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             string localpath;
-
+cout << "words[1] == " << words[1] << endl;
                             client->fsaccess->path2local(&words[1], &localpath);
+
                             if (!client->fsaccess->chdirlocal(&localpath))
                             {
                                 cout << words[1] << ": Failed" << endl;
