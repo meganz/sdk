@@ -47,8 +47,11 @@ stuck whenever a non-cached hostname is accessed. Also, bear in mind
 that not enabling asynchronous DNS resolving at all would result in
 the engine losing its non-blocking behaviour.
 
-Filesystem event monitoring: Under Linux, inotify is used; periodic full
-directory scans otherwise.
+CAUTION: The provided cURL-based POSIX network layer relies on
+OpenSSL-specific functionality for security critical peer authentication.
+
+Filesystem event monitoring: The provided filesystem layer implements
+the Linux inotify and the MacOS fsevents interfaces.
 
 To build the the reference megacli example, you may also need to install:
 
