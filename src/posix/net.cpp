@@ -102,7 +102,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
 
-
         curl_multi_add_handle(curlm, curl);
 
         req->status = REQ_INFLIGHT;
@@ -214,13 +213,13 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
 {
     if (!memcmp(ptr, "Content-Length:", 15))
     {
-        if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr+15));
+        if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
     }
     else
     {
         if (!memcmp(ptr, "Original-Content-Length:", 24))
         {
-            ((HttpReq*)target)->setcontentlength(atol((char*)ptr+24));
+            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
         }
     }
 
@@ -264,5 +263,4 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
 
     return ok;
 }
-
 } // namespace
