@@ -98,6 +98,10 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, check_header);
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
+
 
         curl_multi_add_handle(curlm, curl);
 
@@ -222,4 +226,43 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
 
     return nmemb;
 }
+
+CURLcode CurlHttpIO::ssl_ctx_function(CURL* curl, void* sslctx, void*)
+{
+    SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, NULL);
+
+    return CURLE_OK;
+}
+
+// SSL public key pinning
+int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
+{
+    unsigned char buf[sizeof(APISSLMODULUS) - 1];
+    EVP_PKEY* evp;
+    int ok = 0;
+
+    if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(ctx->cert))))
+    {
+        if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS - 1
+         && BN_num_bytes(evp->pkey.rsa->e) == sizeof APISSLEXPONENT - 1)
+        {
+            BN_bn2bin(evp->pkey.rsa->n, buf);
+
+            if (!memcmp(buf, APISSLMODULUS, sizeof APISSLMODULUS - 1))
+            {
+                BN_bn2bin(evp->pkey.rsa->e, buf);
+
+                if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
+                {
+                    ok = 1;
+                }
+            }
+        }
+
+        EVP_PKEY_free(evp);
+    }
+
+    return ok;
+}
+
 } // namespace

@@ -23,6 +23,7 @@
 #define HTTPIO_CLASS CurlHttpIO
 
 #include "mega.h"
+#include <openssl/ssl.h>
 
 namespace mega {
 
@@ -35,6 +36,8 @@ protected:
 
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
+    static CURLcode ssl_ctx_function(CURL*, void*, void*);
+    static int cert_verify_callback(X509_STORE_CTX*, void*);
 
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
