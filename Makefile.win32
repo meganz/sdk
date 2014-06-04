@@ -53,7 +53,7 @@ CXXFLAGS=-DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_FREEIMAGE -D_WIN32=1 -g -Wall -I. -Ii
 MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
 
 # common linked libraries for all apps
-LIB=-lwinhttp -lws2_32 -L../zlib -lz -L../cryptopp -lcryptopp -L../db/build_windows -L../ -L../FreeImage/Dist -lfreeimage
+LIB=-lwinhttp -lws2_32 -lcrypt32 -L../zlib -lz -L../cryptopp -lcryptopp -L../db/build_windows -L../ -L../FreeImage/Dist -lfreeimage
 # megacli specific linked libraries
 MEGACLI_LIB=-L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap
 

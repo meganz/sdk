@@ -294,48 +294,21 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 CRYPT_BIT_BLOB* pkey = &cert->pCertInfo->SubjectPublicKeyInfo.PublicKey;
 
-                // this is an SSL connection: prevent MITM
-                if (pkey->cbData != 270 || memcmp(pkey->pbData, "\x30\x82\x01\x0a\x02\x82\x01\x01"
-                                                                "\x00\xb6\x61\xe7\xcf\x69\x2a\x84"
-                                                                "\x35\x05\xc3\x14\xbc\x95\xcf\x94"
-                                                                "\x33\x1c\x82\x67\x3b\x04\x35\x11"
-                                                                "\xa0\x8d\xc8\x9d\xbb\x9c\x79\x65"
-                                                                "\xe7\x10\xd9\x91\x80\xc7\x81\x0c"
-                                                                "\xf4\x95\xbb\xb3\x26\x9b\x97\xd2"
-                                                                "\x14\x0f\x0b\xca\xf0\x5e\x45\x7b"
-                                                                "\x32\xc6\xa4\x7d\x7a\xfe\x11\xe7"
-                                                                "\xb2\x5e\x21\x55\x23\x22\x1a\xca"
-                                                                "\x1a\xf9\x21\xe1\x4e\xb7\x82\x0d"
-                                                                "\xeb\x9d\xcb\x4e\x3d\x0b\xe4\xed"
-                                                                "\x4a\xef\xe4\xab\x0c\xec\x09\x69"
-                                                                "\xfe\xae\x43\xec\x19\x04\x3d\x5b"
-                                                                "\x68\x0f\x67\xe8\x80\xff\x9b\x03"
-                                                                "\xea\x50\xab\x16\xd7\xe0\x4c\xb4"
-                                                                "\x42\xef\x31\xe2\x32\x9f\xe4\xd5"
-                                                                "\xf4\xd8\xfd\x82\xcc\xc4\x50\xd9"
-                                                                "\x4d\xb5\xfb\x6d\xa2\xf3\xaf\x37"
-                                                                "\x67\x7f\x96\x4c\x54\x3d\x9b\x1c"
-                                                                "\xbd\x5c\x31\x6d\x10\x43\xd8\x22"
-                                                                "\x21\x01\x87\x63\x22\x89\x17\xca"
-                                                                "\x92\xcb\xcb\xec\xe8\xc7\xff\x58"
-                                                                "\xe8\x18\xc4\xce\x1b\xe5\x4f\x20"
-                                                                "\xa8\xcf\xd3\xb9\x9d\x5a\x7a\x69"
-                                                                "\xf2\xca\x48\xf8\x87\x95\x3a\x32"
-                                                                "\x70\xb3\x1a\xf0\xc4\x45\x70\x43"
-                                                                "\x58\x18\xda\x85\x29\x1d\xaf\x83"
-                                                                "\xc2\x35\xa9\xc1\x73\x76\xb4\x47"
-                                                                "\x22\x2b\x42\x9f\x93\x72\x3f\x9d"
-                                                                "\x3d\xa1\x47\x3d\xb0\x46\x37\x1b"
-                                                                "\xfd\x0e\x28\x68\xa0\xf6\x1d\x62"
-                                                                "\xb2\xdc\x69\xc7\x9b\x09\x1e\xb5"
-                                                                "\x47\x02\x03\x01\x00\x01",270))
+                // this is an SSL connection: verify public key to prevent MITM attacks
+                if (pkey->cbData != 270 || memcmp(pkey->pbData,
+                                                  "\x30\x82\x01\x0a\x02\x82\x01\x01\x00" APISSLMODULUS
+                                                  "\x02" APISSLEXPONENTSIZE APISSLEXPONENT, 270))
                 {
+                    CertFreeCertificateContext(cert);
                     httpio->cancel(req);
                     httpio->httpevent();
                     break;
                 }
+
+                CertFreeCertificateContext(cert);
             }
         }
+            // fall through
         case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE:
             if (httpctx->postpos < httpctx->postlen)
             {
@@ -442,11 +415,25 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                 // semi-smooth UI progress info
                 httpctx->postlen = data ? len : req->out->size();
                 httpctx->postdata = data ? data : req->out->data();
-                httpctx->postpos = (urlComp.nPort == 80)
-                                   ? ((httpctx->postlen < HTTP_POST_CHUNK_SIZE)
+
+                if (urlComp.nPort == 80)
+                {
+                    // HTTP connection: send a chunk of data immediately
+                    httpctx->postpos = (httpctx->postlen < HTTP_POST_CHUNK_SIZE)
                                       ? httpctx->postlen
-                                      : HTTP_POST_CHUNK_SIZE)
-                                   : 0;
+                                      : HTTP_POST_CHUNK_SIZE;
+                }
+                else
+                {
+                    // HTTPS connection: ignore certificate errors, send no data yet
+                    DWORD flags = SECURITY_FLAG_IGNORE_CERT_CN_INVALID
+                                | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
+                                | SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+
+                    WinHttpSetOption(httpctx->hRequest, WINHTTP_OPTION_SECURITY_FLAGS, &flags, sizeof flags);
+
+                    httpctx->postpos = 0;
+                }
 
                 if (WinHttpSendRequest(httpctx->hRequest, pwszHeaders,
                                        wcslen(pwszHeaders),

@@ -163,7 +163,7 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-	LIBS_EXTRA="-lws2_32 -lole32 -lwinmm -lshlwapi"
+	LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
     WIN32=yes
     ;;
   *)
