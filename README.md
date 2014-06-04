@@ -34,7 +34,7 @@ artifacts.
 
 Install the following development packages, if available, or download
 and compile their respective sources (package names are for
-Debian and RedHat derivatives respectively):
+Debian and RedHat derivatives, respectively):
 
 * Crypto++ (`libcrypto++-dev`, `cryptopp-devel`)
 * cURL (`libcurl-dev`, `curl-devel`)
@@ -50,7 +50,7 @@ that not enabling asynchronous DNS resolving at all would result in
 the engine losing its non-blocking behaviour.
 
 CAUTION: The provided cURL-based POSIX network layer relies on
-OpenSSL-specific functionality for security critical peer authentication.
+OpenSSL-specific functionality for security-critical peer authentication.
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux inotify and the MacOS fsevents interfaces.
@@ -72,10 +72,6 @@ To build the client access engine under Windows, you'll need to following:
 * zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
 * FreeImage
 * SQLite
-
-(You won't need cURL, as megaclient's Win32 version relies on WinHTTP
-for network access. Windows-native filesystem event monitoring is
-implemented.)
 
 To build the reference megacli.exe example, you will also need to procure
 development packages (at least headers and .lib/.a libraries) of:
