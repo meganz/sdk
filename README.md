@@ -78,7 +78,7 @@ development packages (at least headers and .lib/.a libraries) of:
 
 * GNU Readline/Termcap
 
-CAUTION: The megaclient example is currently not handling console Unicode
+CAUTION: The megacli example is currently not handling console Unicode
 input/output correctly if run in cmd.exe.
 
 Filename caveats: Please prefix all paths with `\\?\` to avoid the following
