@@ -38,8 +38,8 @@ Debian and RedHat derivatives, respectively):
 
 * Crypto++ (`libcrypto++-dev`, `cryptopp-devel`)
 * cURL (`libcurl-dev`, `curl-devel`)
-* FreeImage (`libfreeimage-dev`, `freeimage-devel`)
-* SQLite (`libsqlite3-dev`, `sqlite-devel`)
+* SQLite (`libsqlite3-dev`, `sqlite-devel`) (optional)
+* FreeImage (`libfreeimage-dev`, `freeimage-devel`) (optional)
 
 CAUTION: Verify that the installed `libcurl` uses c-ares for
 asynchronous name resolution.  If that is not the case, compile it
@@ -65,13 +65,13 @@ manipulate non-ASCII filenames.
 
 ### Windows
 
-To build the client access engine under Windows, you'll need to following:
+To build the client access engine under Windows, you'll need the following:
 
 * A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
 * Crypto++
 * zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
-* FreeImage
-* SQLite
+* SQLite (optional)
+* FreeImage (optional)
 
 To build the reference megacli.exe example, you will also need to procure
 development packages (at least headers and .lib/.a libraries) of:
@@ -115,7 +115,7 @@ will lead to unexpected results and loss of data.
 
 * No in-place versioning. Deleted remote files can be found in
 //bin/SyncDebris, deleted local files in a sync-specific hidden debris
-folder.
+folder located in the local sync's root folder.
 
 * No delta writes. Changed files are always overwritten as a whole, which
 means that it is not a good idea to sync e.g. live database tables.
