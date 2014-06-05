@@ -36,21 +36,10 @@ Install the following development packages, if available, or download
 and compile their respective sources (package names are for
 Debian and RedHat derivatives, respectively):
 
+* libcurl compiled with `--enable-ares` and `--enable-ssl`
 * Crypto++ (`libcrypto++-dev`, `cryptopp-devel`)
-* cURL (`libcurl-dev`, `curl-devel`)
 * SQLite (`libsqlite3-dev`, `sqlite-devel`) (optional)
 * FreeImage (`libfreeimage-dev`, `freeimage-devel`) (optional)
-
-CAUTION: Verify that the installed `libcurl` uses c-ares for
-asynchronous name resolution.  If that is not the case, compile it
-from the original sources with `--enable-ares`.  Do *NOT* use
-`--enable-threaded-resolver`, which will cause the engine to get
-stuck whenever a non-cached hostname is accessed. Also, bear in mind
-that not enabling asynchronous DNS resolving at all would result in
-the engine losing its non-blocking behaviour.
-
-CAUTION: The provided cURL-based POSIX network layer relies on
-OpenSSL-specific functionality for security-critical peer authentication.
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux inotify and the MacOS fsevents interfaces.
