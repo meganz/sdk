@@ -295,9 +295,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 CRYPT_BIT_BLOB* pkey = &cert->pCertInfo->SubjectPublicKeyInfo.PublicKey;
 
                 // this is an SSL connection: verify public key to prevent MITM attacks
-                if (pkey->cbData != 270 || memcmp(pkey->pbData,
-                                                  "\x30\x82\x01\x0a\x02\x82\x01\x01\x00" APISSLMODULUS
-                                                  "\x02" APISSLEXPONENTSIZE APISSLEXPONENT, 270))
+                if (pkey->cbData != 270
+                 || (memcmp(pkey->pbData, "\x30\x82\x01\x0a\x02\x82\x01\x01\x00" APISSLMODULUS1
+                                          "\x02" APISSLEXPONENTSIZE APISSLEXPONENT, 270)
+                  && memcmp(pkey->pbData, "\x30\x82\x01\x0a\x02\x82\x01\x01\x00" APISSLMODULUS2
+                                          "\x02" APISSLEXPONENTSIZE APISSLEXPONENT, 270)))
                 {
                     CertFreeCertificateContext(cert);
                     httpio->cancel(req);
