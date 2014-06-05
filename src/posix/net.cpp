@@ -99,7 +99,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
 
 
@@ -237,18 +237,18 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL* curl, void* sslctx, void*)
 // SSL public key pinning
 int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
 {
-    unsigned char buf[sizeof(APISSLMODULUS) - 1];
+    unsigned char buf[sizeof(APISSLMODULUS1) - 1];
     EVP_PKEY* evp;
     int ok = 0;
 
     if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(ctx->cert))))
     {
-        if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS - 1
+        if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS1 - 1
          && BN_num_bytes(evp->pkey.rsa->e) == sizeof APISSLEXPONENT - 1)
         {
             BN_bn2bin(evp->pkey.rsa->n, buf);
 
-            if (!memcmp(buf, APISSLMODULUS, sizeof APISSLMODULUS - 1))
+            if (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);
 
