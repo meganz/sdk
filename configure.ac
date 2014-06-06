@@ -23,6 +23,7 @@
 # Process this file with autoconf to produce a configure script.
 
 m4_include([m4/ax_prog_doxygen.m4])
+m4_include([m4/curlchk.m4])
 
 AC_PREREQ([2.61])
 
@@ -477,23 +478,17 @@ if test "x$WIN32" = "xno" ; then
     # check for cURL library
     AC_MSG_CHECKING(for cURL)
     AC_ARG_WITH([curl],
-      AS_HELP_STRING(--with-curl=PATH, path to curl),
+      AS_HELP_STRING(--with-curl=PATH, path to cURL),
       [
        case $with_curl in
        no)
-         AC_MSG_ERROR([Please specify path to curl!])
+         AC_MSG_ERROR([Please specify path to cURL installation directory!])
          ;;
        yes)
-            AC_CHECK_HEADERS([curl/curl.h],, [
-                AC_MSG_ERROR([curl.h header not found or not usable])
-            ])
-            AC_CHECK_LIB(curl, [main], [LIBCURL_LIBS="-lcurl"],[
-                    AC_MSG_ERROR([Could not find libcurl!])
-            ])
+            LIBCURL_LIBS="-lcurl"
+            LIBS="-lcurl $LIBS"
 
-            AC_SUBST(LIBCURL_LIBS)
-
-            AC_MSG_CHECKING(for Curl compiled with c-ares support)
+            AC_MSG_CHECKING(for cURL compiled with c-ares support)
             if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
             then
                 AC_MSG_RESULT([yes])
@@ -501,42 +496,50 @@ if test "x$WIN32" = "xno" ; then
                 AC_MSG_RESULT([no])
                 AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
             fi
-            AC_MSG_RESULT([yes])
+
+            CURL_CHK()
+
+            AC_CHECK_HEADERS([curl/curl.h], [],
+                AC_MSG_ERROR([curl.h header not found or not usable])
+            )
+            AC_CHECK_LIB(curl, [main], [],
+                AC_MSG_ERROR([Could not find libcurl!])
+            )
+
+            AC_SUBST(LIBCURL_LIBS)
          ;;
        *)
 
         # determine if library is installed
         LDFLAGS="-L$with_curl/lib $LDFLAGS"
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
+        LIBS="-lcurl $LIBS"
+        # XXX: check for c-ares using provided path
 
-        AC_CHECK_HEADERS([curl/curl.h],[
-         LIBCURL_LIBS="-L$with_curl/lib"
-         LIBCURL_FLAGS="-I$with_curl/include"],
-         AC_MSG_ERROR([curl.h header not found or not usable])
+        LIBCURL_LIBS="-L$with_curl/lib -lcurl"
+        LIBCURL_FLAGS="-I$with_curl/include"
+
+        CURL_CHK()
+
+        AC_CHECK_HEADERS([curl/curl.h], [], 
+            AC_MSG_ERROR([curl.h header not found or not usable])
         )
 
-        AC_CHECK_LIB(curl, [main], [LIBCURL_LIBS="-lcurl"],[
+        AC_CHECK_LIB(curl, [main], [],
             AC_MSG_ERROR([Could not find libcurl!])
-        ])
+        )
 
         AC_SUBST(LIBCURL_FLAGS)
         AC_SUBST(LIBCURL_LIBS)
-
-        # XXX: check for c-ares support !
      ;;
        esac
       ],
       [
-        AC_CHECK_HEADERS([curl/curl.h],, [
-            AC_MSG_ERROR([curl.h header not found or not usable])
-        ])
-        AC_CHECK_LIB(curl, [main], [LIBCURL_LIBS="-lcurl"],[
-                AC_MSG_ERROR([Could not find libcurl!])
-        ])
 
-        AC_SUBST(LIBCURL_LIBS)
+        LIBCURL_LIBS="-lcurl"
+        LIBS="-lcurl $LIBS"
 
-        AC_MSG_CHECKING(for Curl compiled with c-ares support)
+        AC_MSG_CHECKING(for cURL compiled with c-ares support)
         if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
         then
             AC_MSG_RESULT([yes])
@@ -544,6 +547,17 @@ if test "x$WIN32" = "xno" ; then
             AC_MSG_RESULT([no])
             AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
         fi
+
+        CURL_CHK()
+
+        AC_CHECK_HEADERS([curl/curl.h], [],
+            AC_MSG_ERROR([curl.h header not found or not usable])
+        )
+        AC_CHECK_LIB(curl, [main], [], 
+            AC_MSG_ERROR([Could not find libcurl!])
+        )
+
+        AC_SUBST(LIBCURL_LIBS)
       ]
     )
 fi
