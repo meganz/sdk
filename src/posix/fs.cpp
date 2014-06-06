@@ -440,6 +440,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     fd_set rfds;
     timeval tv = { 0 };
 
+    if(notifyfd < 0)
+        return r;
+
     for (;;)
     {
         FD_ZERO(&rfds);
