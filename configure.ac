@@ -63,11 +63,11 @@ AC_SUBST(MEGA_MINOR_VERSION)
 AC_SUBST(MEGA_MICRO_VERSION)
 
 AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
-	  [MEGA SDK major version.])
+    [MEGA SDK major version.])
 AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
-	  [MEGA SDK minor version.])
+    [MEGA SDK minor version.])
 AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
-	  [MEGA SDK micro version.])
+    [MEGA SDK micro version.])
 
 LT_CURRENT=mega_lt_current
 LT_REVISION=mega_lt_revision
@@ -134,11 +134,8 @@ AC_TYPE_SIZE_T
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
 
 # Check for inotify support.
-AC_ARG_ENABLE(
-    [inotify],
-    [AS_HELP_STRING(
-        [--enable-inotify],
-        [enable inotify support [default=yes]])],
+AC_ARG_ENABLE(inotify,
+    AS_HELP_STRING([--enable-inotify], [enable inotify support [default=yes]])],
     [enable_inotify=$enableval],
     [enable_inotify=yes]
 )
@@ -160,15 +157,15 @@ AC_FUNC_MALLOC
 AC_MSG_CHECKING([if building for Win32 platform])
 case $host in
   *-*-cygwin*)
-	LIBS_EXTRA="-luser32 -lkernel32"
+    LIBS_EXTRA="-luser32 -lkernel32"
     WIN32=yes
     ;;
   *-*-mingw*)
-	LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
     WIN32=yes
     ;;
   *)
-	LIBS_EXTRA=""
+    LIBS_EXTRA=""
     WIN32=no
     ;;
 esac
@@ -475,8 +472,14 @@ fi
 # ** Posix dependent libraries **
 #
 if test "x$WIN32" = "xno" ; then
+
+    AC_ARG_ENABLE(curl-checks,
+        AS_HELP_STRING([--enable-curl-checks], [enable cURL checks [default=yes]])],
+        [enable_curl_checks=$enableval],
+        [enable_curl_checks=yes]
+    )
+
     # check for cURL library
-    AC_MSG_CHECKING(for cURL)
     AC_ARG_WITH([curl],
       AS_HELP_STRING(--with-curl=PATH, path to cURL),
       [
@@ -487,26 +490,30 @@ if test "x$WIN32" = "xno" ; then
        yes)
             LIBCURL_LIBS="-lcurl"
             LIBS="-lcurl $LIBS"
-
-            AC_MSG_CHECKING(for cURL compiled with c-ares support)
-            if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
-            then
-                AC_MSG_RESULT([yes])
-            else
-                AC_MSG_RESULT([no])
-                AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
-            fi
-
-            CURL_CHK()
-
+            
             AC_CHECK_HEADERS([curl/curl.h], [],
                 AC_MSG_ERROR([curl.h header not found or not usable])
             )
             AC_CHECK_LIB(curl, [main], [],
                 AC_MSG_ERROR([Could not find libcurl!])
             )
-
+            
             AC_SUBST(LIBCURL_LIBS)
+
+            if test "x$enable_curl_checks" = "xyes" ; then
+                AC_MSG_CHECKING(for cURL compiled with c-ares support)
+                if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
+                then
+                    AC_MSG_RESULT([yes])
+                else
+                    AC_MSG_RESULT([no])
+                    AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
+                fi
+
+                CURL_CHK()
+            else
+                AC_MSG_NOTICE([skipping cURL checks.])
+            fi
          ;;
        *)
 
@@ -514,13 +521,10 @@ if test "x$WIN32" = "xno" ; then
         LDFLAGS="-L$with_curl/lib $LDFLAGS"
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
         LIBS="-lcurl $LIBS"
-        # XXX: check for c-ares using provided path
 
         LIBCURL_LIBS="-L$with_curl/lib -lcurl"
         LIBCURL_FLAGS="-I$with_curl/include"
-
-        CURL_CHK()
-
+        
         AC_CHECK_HEADERS([curl/curl.h], [], 
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
@@ -531,25 +535,21 @@ if test "x$WIN32" = "xno" ; then
 
         AC_SUBST(LIBCURL_FLAGS)
         AC_SUBST(LIBCURL_LIBS)
-     ;;
+
+        if test "x$enable_curl_checks" = "xyes" ; then
+            # XXX: check for c-ares using provided path
+            CURL_CHK()
+        else
+            AC_MSG_NOTICE([skipping cURL checks.])
+        fi
+         ;;
        esac
       ],
       [
 
         LIBCURL_LIBS="-lcurl"
         LIBS="-lcurl $LIBS"
-
-        AC_MSG_CHECKING(for cURL compiled with c-ares support)
-        if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
-        then
-            AC_MSG_RESULT([yes])
-        else
-            AC_MSG_RESULT([no])
-            AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
-        fi
-
-        CURL_CHK()
-
+        
         AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
@@ -558,6 +558,21 @@ if test "x$WIN32" = "xno" ; then
         )
 
         AC_SUBST(LIBCURL_LIBS)
+
+        if test "x$enable_curl_checks" = "xyes" ; then
+            AC_MSG_CHECKING([for cURL compiled with c-ares support])
+            if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
+            then
+                AC_MSG_RESULT([yes])
+            else
+                AC_MSG_RESULT([no])
+                AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
+            fi
+        
+            CURL_CHK()
+        else
+            AC_MSG_NOTICE([skipping cURL checks.])
+        fi
       ]
     )
 fi
@@ -572,8 +587,8 @@ AC_SUBST(platform_include)
 
 # Debug
 AC_ARG_ENABLE(debug,
-     AS_HELP_STRING(--enable-debug, enable support for running in debug mode),
-        [], [enable_debug=no])
+    AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
+    [], [enable_debug=no])
 
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
@@ -584,9 +599,9 @@ fi
 
 # Examples
 AC_MSG_CHECKING([if building example applications])
-AC_ARG_ENABLE([examples],
-     AS_HELP_STRING(--enable-examples, build example applications),
-	[], [enable_examples=no])
+AC_ARG_ENABLE(examples,
+    AS_HELP_STRING([--enable-examples], [build example applications]),
+    [], [enable_examples=no])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
@@ -781,9 +796,9 @@ fi
 
 # Tests
 AC_MSG_CHECKING([if building tests])
-AC_ARG_ENABLE([tests],
-     AS_HELP_STRING(--enable-tests, build test applications),
-	[], [enable_tests=no])
+AC_ARG_ENABLE(tests,
+    AS_HELP_STRING([--enable-tests], [build test applications]),
+    [], [enable_tests=no])
 if test "x$enable_tests" = "xyes" ; then
     AC_ARG_WITH(gtest,
         AS_HELP_STRING(--with-gtest, specify GTest location),
