@@ -33,7 +33,7 @@ extern void read_pw_char(char*, int, int*, char**);
 
 typedef list<struct AppFile*> appfile_list;
 
-struct AppFile: public File
+struct AppFile : public File
 {
     // app-internal sequence number for queue management
     int seqno;
@@ -49,7 +49,7 @@ struct AppFile: public File
 // application-managed GET and PUT queues (only pending and active files)
 extern appfile_list appxferq[2];
 
-struct AppFileGet: public AppFile
+struct AppFileGet : public AppFile
 {
     void start();
     void update();
@@ -59,7 +59,7 @@ struct AppFileGet: public AppFile
     ~AppFileGet();
 };
 
-struct AppFilePut: public AppFile
+struct AppFilePut : public AppFile
 {
     void start();
     void update();
@@ -71,7 +71,12 @@ struct AppFilePut: public AppFile
     ~AppFilePut();
 };
 
-struct DemoApp: public MegaApp
+struct AppReadContext
+{
+    SymmCipher key;
+};
+
+struct DemoApp : public MegaApp
 {
     FileAccess* newfile();
 
@@ -128,6 +133,9 @@ struct DemoApp: public MegaApp
 
     void checkfile_result(handle, error);
     void checkfile_result(handle, error, byte*, m_off_t, time_t, time_t, string*, string*, string*);
+
+    dstime pread_failure(error, int, void*);
+    void pread_data(byte*, m_off_t, m_off_t, void*);
 
     void transfer_added(Transfer*);
     void transfer_removed(Transfer*);

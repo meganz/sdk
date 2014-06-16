@@ -24,6 +24,7 @@
 
 #include "node.h"
 #include "backofftimer.h"
+#include "command.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -64,20 +65,99 @@ struct MEGA_API Transfer : public FileFingerprint
     // upload handle for file attribute attachment (only set if file attribute queued)
     handle uploadhandle;
 
-    // signal failure
-    void failed(error);
-
-    // signal completion
-    void complete();
-
     // position in transfers[type]
     transfer_map::iterator transfers_it;
 
     // backlink to base
     MegaClient* client;
     int tag;
+    
+    // signal failure
+    void failed(error);
+
+    // signal completion
+    void complete();
+   
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
+};
+
+struct MEGA_API DirectReadSlot
+{
+    m_off_t pos;
+
+    DirectRead* dr;
+    HttpReq* req;
+
+    drs_list::iterator drs_it;
+
+    bool doio();
+
+    DirectReadSlot(DirectRead*);
+    ~DirectReadSlot();
+};
+
+struct MEGA_API DirectRead
+{
+    m_off_t count;
+    m_off_t offset;
+
+    DirectReadNode* drn;
+    DirectReadSlot* drs;
+
+    dr_list::iterator reads_it;
+    dr_list::iterator drq_it;
+
+    void* appdata;
+
+    int reqtag;
+
+    void abort();
+
+    DirectRead(DirectReadNode*, m_off_t, m_off_t, int, void*);
+    ~DirectRead();
+};
+
+struct MEGA_API DirectReadNode
+{
+    handle h;
+    bool p;
+
+    string tempurl;
+
+    m_off_t size;
+
+    class CommandDirectRead* pendingcmd;
+
+    int retries;
+
+    int64_t ctriv;
+    SymmCipher key;
+
+    dr_list reads;
+
+    MegaClient* client;
+
+    handledrn_map::iterator hdrn_it;
+    dsdrn_map::iterator dsdrn_it;
+
+    // API command result
+    void cmdresult(error);
+    
+    // enqueue new read
+    void enqueue(m_off_t, m_off_t, int, void*);
+
+    // dispatch all reads
+    void dispatch();
+    
+    // schedule next event
+    void schedule(dstime);
+
+    // report failure to app and abort or retry all reads
+    void retry(error);
+
+    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t);
+    ~DirectReadNode();
 };
 } // namespace
 

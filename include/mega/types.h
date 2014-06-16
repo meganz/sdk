@@ -34,11 +34,10 @@
  #define MEGA_API
 #endif
 
-// platform specific includes and defines
+// platform-specific includes and defines
 #include "megasys.h"
 
 typedef int64_t m_off_t;
-
 typedef int64_t m_time_t;
 
 // monotonously increasing time in deciseconds
@@ -59,6 +58,9 @@ extern bool debug;
 struct AttrMap;
 class BackoffTimer;
 class Command;
+struct DirectRead;
+struct DirectReadNode;
+struct DirectReadSlot;
 struct FileAccess;
 struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
@@ -74,6 +76,7 @@ struct NodeCore;
 class PubKeyAction;
 class Request;
 struct Transfer;
+struct TreeProc;
 struct User;
 struct Waiter;
 
@@ -107,8 +110,7 @@ typedef enum
     API_OK = 0,
     API_EINTERNAL = -1,             // internal error
     API_EARGS = -2,                 // bad arguments
-    API_EAGAIN = -3,                // request failed, retry with exponential
-                                    // backoff
+    API_EAGAIN = -3,                // request failed, retry with exponential backoff
     API_ERATELIMIT = -4,            // too many requests, slow down
     API_EFAILED = -5,               // request failed permanently
     API_ETOOMANY = -6,              // too many requests for this resource
@@ -184,39 +186,24 @@ typedef uint64_t nameid;
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
 // OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
-typedef enum
-{
-    ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN
-} accesslevel_t;
+typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 typedef vector<struct Node*> node_vector;
 
 // contact visibility:
 // HIDDEN - not shown
 // VISIBLE - shown
-typedef enum
-{
-    VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE, ME
-} visibility_t;
+typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE, ME } visibility_t;
 
-typedef enum
-{
-    PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS
-} putsource_t;
+typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 
 // maps handle-index pairs to file attribute handle
 typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 
-typedef enum
-{
-    SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE, SYNC_FAILED
-} syncstate_t;
+typedef enum { SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE, SYNC_FAILED } syncstate_t;
 
-typedef enum
-{
-    SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
-    SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY
-} syncdel_t;
+typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
+               SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY } syncdel_t;
 
 typedef vector<LocalNode*> localnode_vector;
 
@@ -305,6 +292,11 @@ struct StringCmp
         return *a < *b;
     }
 };
+
+typedef map<handle, DirectReadNode*> handledrn_map;
+typedef multimap<dstime, DirectReadNode*> dsdrn_map;
+typedef list<DirectRead*> dr_list;
+typedef list<DirectReadSlot*> drs_list;
 
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;

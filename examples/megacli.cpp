@@ -1425,8 +1425,8 @@ static void process_line(char* l)
                 cout << "      import exportedfilelink#key" << endl;
                 cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
                 cout << "      putq [cancelslot]" << endl;
-                cout << "      get remotepath" << endl;
-                cout << "      get exportedfilelink#key" << endl;
+                cout << "      get remotepath [offset [length]]" << endl;
+                cout << "      get exportedfilelink#key [offset [length]]" << endl;
                 cout << "      getq [cancelslot]" << endl;
                 cout << "      pause [get|put] [hard] [status]" << endl;
                 cout << "      getfa type [path]" << endl;
@@ -1840,25 +1840,33 @@ static void process_line(char* l)
 
                             if (n)
                             {
-                                AppFile* f;
-
-                                // queue specified file...
-                                if (n->type == FILENODE)
+                                if (words.size() > 2)
                                 {
-                                    f = new AppFileGet(n);
-                                    f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                                    client->startxfer(GET, f);
+                                    // read file slice
+                                    client->pread(n, atol(words[2].c_str()), (words.size() > 3) ? atol(words[3].c_str()) : 0, NULL);
                                 }
                                 else
                                 {
-                                    // ...or all files in the specified folder (non-recursive)
-                                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+                                    AppFile* f;
+
+                                    // queue specified file...
+                                    if (n->type == FILENODE)
                                     {
-                                        if ((*it)->type == FILENODE)
+                                        f = new AppFileGet(n);
+                                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                                        client->startxfer(GET, f);
+                                    }
+                                    else
+                                    {
+                                        // ...or all files in the specified folder (non-recursive)
+                                        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
                                         {
-                                            f = new AppFileGet(*it);
-                                            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                                            client->startxfer(GET, f);
+                                            if ((*it)->type == FILENODE)
+                                            {
+                                                f = new AppFileGet(*it);
+                                                f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                                                client->startxfer(GET, f);
+                                            }
                                         }
                                     }
                                 }
@@ -1870,7 +1878,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      get remotepath" << endl << "      get exportedfilelink#key" << endl;
+                            cout << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
                         }
 
                         return;
@@ -3179,14 +3187,17 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, t
                                string* fingerprint, string* fileattrstring)
 {
     cout << "Name: " << *filename << ", size: " << size;
+
     if (fingerprint->size())
     {
         cout << ", fingerprint available";
     }
+
     if (fileattrstring->size())
     {
         cout << ", has attributes";
     }
+
     cout << endl;
 
     if (e)
@@ -3203,6 +3214,27 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, t
     }
 }
 
+void DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
+{
+    cout << "Received " << len << " partial read bytes at position " << pos << ": ";
+    fwrite(data, 1, len, stdout);
+    cout << endl;
+}
+
+dstime DemoApp::pread_failure(error e, int retry, void* appdata)
+{
+    if (retry < 5)
+    {
+        cout << "Retrying read (" << errorstring(e) << ", attempt #" << retry << endl;
+        return (dstime)(retry*10);
+    }
+    else
+    {
+        cout << "Too many failures (" << errorstring(e) << ", giving up" << endl;
+        return ~(dstime)0;
+    }
+}
+    
 // reload needed
 void DemoApp::reload(const char* reason)
 {

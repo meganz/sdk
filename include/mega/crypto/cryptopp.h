@@ -76,7 +76,7 @@ public:
     void cbc_encrypt(byte*, unsigned);
     void cbc_decrypt(byte*, unsigned);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, int);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool);
 
     static void setint64(int64_t, byte*);
 
@@ -113,12 +113,12 @@ public:
     int encrypt(const byte*, int, byte*, int);
     int decrypt(const byte*, int, byte*, int);
 
-    unsigned rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen);
-    unsigned rawdecrypt(const byte* c, int cl, byte* buf, int buflen);
+    unsigned rawencrypt(const byte*, int, byte*, int);
+    unsigned rawdecrypt(const byte*, int, byte*, int);
 
     static void serializeintarray(CryptoPP::Integer*, int, string*);
     void serializekey(string*, int);
-    void genkeypair(CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+    void genkeypair(CryptoPP::Integer*, CryptoPP::Integer*, int);
 };
 
 class MEGA_API Hash

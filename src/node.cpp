@@ -103,6 +103,9 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
 Node::~Node()
 {
+    // abort pending direct reads
+    client->preadabort(this);
+
     // remove node's fingerprint from hash
     if (type == FILENODE && fingerprint_it != client->fingerprints.end())
     {
@@ -144,8 +147,7 @@ Node::~Node()
         localnode->node = NULL;
     }
 
-    // in case this node is currently being transferred for syncing: abort
-    // transfer
+    // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
 }
 

@@ -127,6 +127,12 @@ public:
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
+    // enqueue/abort direct read
+    void pread(Node*, m_off_t, m_off_t, void*);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
+    void preadabort(Node*, m_off_t = -1, m_off_t = -1);
+    void preadabort(handle, m_off_t = -1, m_off_t = -1);
+
     // pause flags
     bool xferpaused[2];
 
@@ -308,6 +314,22 @@ private:
     // was the app notified of a retrying CS request?
     bool csretrying;
 
+    // encode/query handle type
+    void encodehandletype(handle*, bool);
+    bool isprivatehandle(handle*);
+    
+    // add direct read
+    void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*);
+    
+    // execute pending direct reads
+    bool execdirectreads();
+
+    // maximum number parallel connections for the direct read subsystem
+    static const int MAXDRSLOTS = 16;
+
+    // abort queued direct read(s)
+    void abortreads(handle, bool, m_off_t, m_off_t);
+
 public:
     // application callbacks
     struct MegaApp* app;
@@ -374,6 +396,12 @@ public:
 
     // file attribute fetches
     faf_map fafs;
+
+    // active/pending direct reads
+    handledrn_map hdrns;
+    dsdrn_map dsdrns;
+    dr_list drq;
+    drs_list drss;
 
     // generate attribute string based on the pending attributes for this upload
     void pendingattrstring(handle, string*);
@@ -585,7 +613,7 @@ public:
 
     // binary session ID
     string sid;
-    
+
     // apply keys
     int applykeys();
 
@@ -604,8 +632,7 @@ public:
     static void stringhash(const char*, byte*, SymmCipher*);
     static uint64_t stringhash64(string*, SymmCipher*);
 
-    // set authentication context, either a session ID or a exported folder
-    // node handle
+    // set authentication context, either a session ID or a exported folder node handle
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
 

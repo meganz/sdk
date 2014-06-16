@@ -262,8 +262,88 @@ void CommandPutFile::procresult()
     }
 }
 
-// request temporary source URL
-// p == private node
+// request temporary source URL for DirectRead
+CommandDirectRead::CommandDirectRead(DirectReadNode* cdrn)
+{
+    drn = cdrn;
+
+    cmd("g");
+    arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
+    arg("g", 1);
+}
+
+void CommandDirectRead::cancel()
+{
+    Command::cancel();
+    drn = NULL;
+}
+
+void CommandDirectRead::procresult()
+{
+    if (drn)
+    {
+        drn->pendingcmd = NULL;
+    }
+
+    if (client->json.isnumeric())
+    {
+        if (!canceled && drn)
+        {
+            return drn->cmdresult((error)client->json.getint());
+        }
+    }
+    else
+    {
+        error e = API_EINTERNAL;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case 'g':
+                    client->json.storeobject(drn ? &drn->tempurl : NULL);
+                    e = API_OK;
+                    break;
+
+                case 's':
+                    if (drn)
+                    {
+                        drn->size = client->json.getint();
+                    }
+                    break;
+
+                case 'd':
+                    e = API_EBLOCKED;
+                    break;
+
+                case 'e':
+                    e = (error)client->json.getint();
+                    break;
+
+                case EOO:
+                    if (!canceled && drn)
+                    {
+                        drn->cmdresult(e);
+                    }
+                    
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        if (!canceled && drn)
+                        {
+                            drn->cmdresult(API_EINTERNAL);
+                        }
+                        
+                        return;
+                    }
+            }
+        }
+    } 
+}
+
+// request temporary source URL for full-file access (p == private node)
 CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p)
 {
     cmd("g");

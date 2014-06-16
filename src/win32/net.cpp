@@ -147,7 +147,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 {
                     m_off_t zprevsize = httpctx->zin.size();
                     httpctx->zin.resize(zprevsize + size);
-                    ptr = (char*) httpctx->zin.data() + zprevsize;
+                    ptr = (char*)httpctx->zin.data() + zprevsize;
                 }
                 else
                 {

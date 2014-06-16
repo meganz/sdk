@@ -142,7 +142,7 @@ void SymmCipher::incblock(byte* dst, unsigned len)
 // encryption: data must be NUL-padded to BLOCKSIZE
 // decryption: data must be padded to BLOCKSIZE
 // len must be < 2^31
-void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, int encrypt)
+void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt)
 {
     assert(!(pos & (KEYLENGTH - 1)));
 
@@ -151,8 +151,11 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     MemAccess::set<int64_t>(ctr,ctriv);
     setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
 
-    memcpy(mac, ctr, sizeof ctriv);
-    memcpy(mac + sizeof ctriv, ctr, sizeof ctriv);
+    if (mac)
+    {
+        memcpy(mac, ctr, sizeof ctriv);
+        memcpy(mac + sizeof ctriv, ctr, sizeof ctriv);
+    }
 
     while ((int)len > 0)
     {
@@ -166,16 +169,21 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
         else
         {
             ecb_encrypt(ctr, tmp);
-                xorblock(tmp,  data);
-            if (len >= (unsigned)BLOCKSIZE)
+            xorblock(tmp, data);
+
+            if (mac)
             {
-                xorblock(data, mac);
+                if (len >= (unsigned)BLOCKSIZE)
+                {
+                    xorblock(data, mac);
+                }
+                else
+                {
+                    xorblock(data, mac, len);
+                }
+
+                ecb_encrypt(mac);
             }
-            else
-            {
-                xorblock(data, mac, len);
-            }
-            ecb_encrypt(mac);
         }
 
         len -= BLOCKSIZE;

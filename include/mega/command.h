@@ -276,6 +276,17 @@ public:
     CommandPubKeyRequest(MegaClient*, User*);
 };
 
+class MEGA_API CommandDirectRead : public Command
+{
+    DirectReadNode* drn;
+
+public:
+    void cancel();
+    void procresult();
+
+    CommandDirectRead(DirectReadNode*);
+};
+
 class MEGA_API CommandGetFile : public Command
 {
     TransferSlot* tslot;

@@ -102,9 +102,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // actual time this node was created (cannot be set by user)
     m_time_t ctime;
 
-    // FILENODE nodes only: nonce, meta MAC, attribute string
-    int64_t ctriv;
-    int64_t metamac;
+    // file attributes
     string fileattrstring;
 
     // check presence of file attribute

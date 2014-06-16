@@ -131,7 +131,7 @@ void Transfer::complete()
                     attachh = n->nodehandle;
                     key = &n->key;
                 }
-        
+
                 if (!n->isvalid)
                 {
                     *(FileFingerprint*)n = fingerprint;
@@ -252,5 +252,296 @@ void Transfer::complete()
         slot->retrying = true;
         slot->retrybt.backoff(11);
     }
+}
+
+DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* ckey, int64_t cctriv)
+{
+    client = cclient;
+
+    p = cp;
+    h = ch;
+
+    key = *ckey;
+    ctriv = cctriv;
+
+    retries = 0;
+    
+    pendingcmd = NULL;
+    
+    dsdrn_it = client->dsdrns.end();
+}
+
+DirectReadNode::~DirectReadNode()
+{
+    if (pendingcmd)
+    {
+        pendingcmd->cancel();
+    }
+
+    for (dr_list::iterator it = reads.begin(); it != reads.end(); )
+    {
+        delete *(it++);
+    }
+    
+    if (dsdrn_it != client->dsdrns.end())
+    {
+        client->dsdrns.erase(dsdrn_it);
+    }
+
+    client->hdrns.erase(hdrn_it);
+}
+
+void DirectReadNode::dispatch()
+{
+    if (pendingcmd)
+    {
+        pendingcmd->cancel();
+        pendingcmd = NULL;
+    }
+    
+    if (reads.empty())
+    {
+        delete this;
+    }
+    else
+    {
+        for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
+        {
+            assert((*it)->drq_it == client->drq.end());
+            assert(!(*it)->drs);
+        }
+
+        pendingcmd = new CommandDirectRead(this);
+
+        client->reqs[client->r].add(pendingcmd);
+    }
+}
+
+// abort all active reads, remove pending reads and reschedule with app-supplied backoff
+void DirectReadNode::retry(error e)
+{
+    dstime retryds, minretryds = ~0;
+
+    retries++;
+
+    // signal failure to app , obtain minimum desired retry time
+    for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
+    {
+        (*it)->abort();
+
+        retryds = client->app->pread_failure(e, retries, (*it)->appdata);
+
+        if (retryds < minretryds)
+        {
+            minretryds = retryds;
+        }
+    }
+
+    if (!minretryds)
+    {
+        // immediate retry desired
+        dispatch();        
+    }
+    else
+    {
+        if (minretryds + 1)
+        {
+            // delayed retry requested
+            if (dsdrn_it != client->dsdrns.end())
+            {
+                client->dsdrns.erase(dsdrn_it);
+            }
+
+            dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + minretryds, this));
+        }
+        else
+        {
+            // cancellation desired
+            delete this;
+        }
+    }
+}
+
+void DirectReadNode::cmdresult(error e)
+{
+    pendingcmd = NULL;
+
+    if (e == API_OK)
+    {
+        // feed all pending reads to the global read queue
+        for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
+        {
+            (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
+        }
+    }
+    else
+    {
+        retry(e);
+    }
+}
+
+void DirectReadNode::schedule(dstime deltads)
+{            
+    if (dsdrn_it != client->dsdrns.end())
+    {
+        client->dsdrns.erase(dsdrn_it);
+    }
+
+    dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + deltads, this));
+}
+
+void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* appdata)
+{
+    new DirectRead(this, count, offset, reqtag, appdata);
+}
+
+bool DirectReadSlot::doio()
+{
+    if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
+    {
+        if (req->in.size())
+        {
+            int r, l, t;
+            byte buf[SymmCipher::BLOCKSIZE];
+
+            // decrypt, pass to app and erase
+            r = pos & (sizeof buf - 1);
+            t = req->in.size();
+
+            if (r)
+            {
+                l = sizeof buf - r;
+
+                if (l > t)
+                {
+                    l = t;
+                }
+
+                memcpy(buf + r, req->in.data(), l);
+                dr->drn->key.ctr_crypt(buf, sizeof buf, pos - r, dr->drn->ctriv, NULL, false);
+                memcpy((char*)req->in.data(), buf + r, l);
+            }
+            else
+            {
+                l = 0;
+            }
+
+            if (t > l)
+            {
+                r = (l - t) & (sizeof buf - 1);
+                req->in.resize(t + r);
+                dr->drn->key.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
+            }
+
+            dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata);
+
+            pos += t;
+
+            req->in.clear();
+            req->bufpos = 0;
+        }
+
+        if (req->status == REQ_SUCCESS)
+        {
+            dr->drn->schedule(300);
+
+            // remove and delete completed read request, then remove slot
+            delete dr;
+            return true;
+        }
+    }
+    else if (req->status == REQ_FAILURE)
+    {
+        // a failure triggers a complete abort and retry of all pending reads for this node
+        dr->drn->retry(API_EREAD);
+    }
+
+    return false;
+}
+
+// abort active read, remove from pending queue
+void DirectRead::abort()
+{
+    delete drs;
+
+    if (drq_it != drn->client->drq.end())
+    {
+        drn->client->drq.erase(drq_it);
+        drq_it = drn->client->drq.end();
+    }
+}
+
+DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, int creqtag, void* cappdata)
+{
+    drn = cdrn;
+
+    count = ccount;
+    offset = coffset;
+    reqtag = creqtag;
+    appdata = cappdata;
+
+    drs = NULL;
+
+    reads_it = drn->reads.insert(drn->reads.end(), this);
+    
+    if (drn->tempurl.size())
+    {
+        // we already have a tempurl: queue for immediate fetching
+        drq_it = drn->client->drq.insert(drn->client->drq.end(), this);
+    }
+    else
+    {
+        // no tempurl yet
+        drq_it = drn->client->drq.end();
+    }
+}
+
+DirectRead::~DirectRead()
+{
+    if (reads_it != drn->reads.end())
+    {
+        drn->reads.erase(reads_it);
+    }
+
+    if (drq_it != drn->client->drq.end())
+    {
+        drn->client->drq.erase(drq_it);
+    }
+
+    delete drs;
+}
+
+// request DirectRead's range via tempurl
+DirectReadSlot::DirectReadSlot(DirectRead* cdr)
+{
+    char buf[128];
+
+    dr = cdr;
+
+    pos = dr->offset;
+
+    req = new HttpReq();
+
+    sprintf(buf,"/%" PRIu64 "-", dr->offset);
+
+    if (dr->count)
+    {
+        sprintf(strchr(buf, 0), "%" PRIu64, dr->offset + dr->count - 1);
+    }
+
+    req->posturl = dr->drn->tempurl;
+    req->posturl.append(buf);
+    req->type = REQ_BINARY;
+
+    req->post(dr->drn->client);
+
+    drs_it = dr->drn->client->drss.insert(dr->drn->client->drss.end(), this);
+}
+
+DirectReadSlot::~DirectReadSlot()
+{
+    dr->drn->client->drss.erase(drs_it);
+
+    delete req;
 }
 } // namespace

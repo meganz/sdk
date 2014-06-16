@@ -74,7 +74,7 @@
 #endif
 
 #ifndef MEGA_MINOR_VERSION
-#define MEGA_MINOR_VERSION 0
+#define MEGA_MINOR_VERSION 1
 #endif
 
 #ifndef MEGA_MICRO_VERSION

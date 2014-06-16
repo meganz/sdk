@@ -124,8 +124,11 @@ struct MEGA_API MegaApp
     virtual void checkfile_result(handle, error) { }
     virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
 
-    // global transfer queue updates (separate signaling towards the queued
-    // objects)
+    // pread result
+    virtual dstime pread_failure(error, int, void*) { return ~(dstime)0; }
+    virtual void pread_data(byte*, m_off_t, m_off_t, void*) { }
+
+    // global transfer queue updates (separate signaling towards the queued objects)
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }

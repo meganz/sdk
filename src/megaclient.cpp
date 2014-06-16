@@ -1255,7 +1255,7 @@ void MegaClient::exec()
         {
             notifypurge();
         }
-    } while (httpio->doio() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
 
     if (!badhostcs && badhosts.size())
     {
@@ -1325,6 +1325,22 @@ int MegaClient::wait()
             if (it->second->req.status != REQ_INFLIGHT)
             {
                 it->second->bt.update(&nds);
+            }
+        }
+
+        // next pending pread event
+        if (!dsdrns.empty())
+        {
+            if (dsdrns.begin()->first < nds)
+            {
+                if (dsdrns.begin()->first <= Waiter::ds)
+                {
+                    nds = Waiter::ds;
+                }
+                else
+                {
+                    nds = dsdrns.begin()->first;
+                }
             }
         }
 
@@ -4763,6 +4779,126 @@ void MegaClient::purgenodesusersabortsc()
     }
 
     init();
+}
+
+// request direct read by node pointer
+void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
+{
+    queueread(n->nodehandle, true, &n->key, MemAccess::get<int64_t>((const char*)n->nodekey.data() + SymmCipher::KEYLENGTH), count, offset, appdata);
+}
+
+// request direct read by exported handle / key
+void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata)
+{
+    queueread(ph, false, key, ctriv, count, offset, appdata);
+}
+
+// since only the first six bytes of a handle are in use, we use the seventh to encode its type
+void MegaClient::encodehandletype(handle* hp, bool p)
+{
+    if (p)
+    {
+        ((char*)hp)[NODEHANDLE] = 1;
+    }
+}
+
+bool MegaClient::isprivatehandle(handle* hp)
+{
+    return ((char*)hp)[NODEHANDLE] != 0;
+}
+
+void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata)
+{
+    handledrn_map::iterator it;
+
+    encodehandletype(&h, p);
+
+    it = hdrns.find(h);
+
+    if (it == hdrns.end())
+    {
+        // this handle is not being accessed yet: insert
+        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv)));
+        it->second->hdrn_it = it;
+        it->second->enqueue(offset, count, reqtag, appdata);
+        it->second->dispatch();
+    }
+    else
+    {
+        it->second->enqueue(offset, count, reqtag, appdata);
+    }
+}
+
+// cancel direct read by node pointer / count / count
+void MegaClient::preadabort(Node* n, m_off_t offset, m_off_t count)
+{
+    abortreads(n->nodehandle, true, offset, count);
+}
+
+// cancel direct read by exported handle / offset / count
+void MegaClient::preadabort(handle ph, m_off_t offset, m_off_t count)
+{
+    abortreads(ph, false, offset, count);
+}
+
+void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
+{
+    handledrn_map::iterator it;
+    DirectReadNode* drn;
+
+    encodehandletype(&h, p);
+    
+    if ((it = hdrns.find(h)) != hdrns.end())
+    {
+        drn = it->second;
+
+        for (dr_list::iterator it = drn->reads.begin(); it != drn->reads.end(); )
+        {
+            if ((offset < 0 || offset == (*it)->offset) && (count < 0 || count == (*it)->count))
+            {
+                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata);
+
+                delete *(it++);
+            }
+            else it++;
+        }
+    }
+}
+
+// execute pending directreads
+bool MegaClient::execdirectreads()
+{
+	bool r = false;
+    DirectReadSlot* drs;
+
+    if (drq.size() < MAXDRSLOTS)
+    {
+        // fill slots
+        for (dr_list::iterator it = drq.begin(); it != drq.end(); it++)
+        {
+            if (!(*it)->drs)
+            {
+                drs = new DirectReadSlot(*it);
+                (*it)->drs = drs;
+				r = true;
+
+                if (drq.size() >= MAXDRSLOTS) break;
+            }
+        }
+    }
+
+    // perform slot I/O
+    for (drs_list::iterator it = drss.begin(); it != drss.end(); )
+    {
+        if ((*(it++))->doio() && !r) r = true;
+    }
+
+    while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
+    {
+        dsdrns.begin()->second->dispatch();
+    }
+
+	return r;
 }
 
 // syncids are usable to indicate putnodes()-local parent linkage
