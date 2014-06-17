@@ -55,7 +55,7 @@ struct AppFileGet : public AppFile
     void update();
     void completed(Transfer*, LocalNode*);
 
-    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, time_t = 0, string* = NULL, string* = NULL);
+    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL);
     ~AppFileGet();
 };
 
@@ -129,10 +129,10 @@ struct DemoApp : public MegaApp
     void exportnode_result(handle, handle);
 
     void openfilelink_result(error);
-    void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, time_t, time_t, int);
+    void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, m_time_t, m_time_t, int);
 
     void checkfile_result(handle, error);
-    void checkfile_result(handle, error, byte*, m_off_t, time_t, time_t, string*, string*, string*);
+    void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*);
 
     dstime pread_failure(error, int, void*);
     void pread_data(byte*, m_off_t, m_off_t, void*);

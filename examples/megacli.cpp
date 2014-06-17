@@ -395,7 +395,7 @@ bool DemoApp::sync_syncable(const char* name, string* localpath, string* localna
     return is_syncable(name);
 }
 
-AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, time_t cmtime, string* cfilename,
+AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint)
 {
     if (n)
@@ -3150,8 +3150,8 @@ void DemoApp::openfilelink_result(error e)
 
 // the requested link was opened successfully - import to cwd
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
-                                  string* a, const char* fa, time_t ts,
-                                  time_t tm, int)
+                                  string* a, const char* fa, m_time_t ts,
+                                  m_time_t tm, int)
 {
     Node* n;
 
@@ -3183,7 +3183,7 @@ void DemoApp::checkfile_result(handle h, error e)
     cout << "Link check failed: " << errorstring(e) << endl;
 }
 
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, time_t ts, time_t tm, string* filename,
+void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename,
                                string* fingerprint, string* fileattrstring)
 {
     cout << "Name: " << *filename << ", size: " << size;

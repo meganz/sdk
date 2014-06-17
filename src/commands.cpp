@@ -524,7 +524,7 @@ void CommandGetFile::procresult()
                                     {
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
-                                        if (tslot->tempurl.size() && (s >= 0))
+                                        if (tslot->tempurl.size() && s >= 0)
                                         {
                                             return tslot->progress();
                                         }
