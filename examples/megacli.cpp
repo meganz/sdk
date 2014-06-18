@@ -534,7 +534,7 @@ void DemoApp::share_result(int, error e)
 
 void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
 {
-    cout << "Got attribute of type " << type << " (" << len << " bytes) for " << n->displayname() << endl;
+    cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
 }
 
 int DemoApp::fa_failed(handle, fatype type, int retries)
@@ -2693,7 +2693,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << client->putmbpscap << " bytes/second" << endl;
+                            cout << client->putmbpscap << " byte(s)/second" << endl;
                         }
 
                         return;
@@ -3214,18 +3214,20 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     }
 }
 
-void DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
+bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
 {
-    cout << "Received " << len << " partial read bytes at position " << pos << ": ";
+    cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, len, stdout);
     cout << endl;
+    
+    return true;
 }
 
 dstime DemoApp::pread_failure(error e, int retry, void* appdata)
 {
     if (retry < 5)
     {
-        cout << "Retrying read (" << errorstring(e) << ", attempt #" << retry << endl;
+        cout << "Retrying read (" << errorstring(e) << ", attempt #" << retry << ")" << endl;
         return (dstime)(retry*10);
     }
     else

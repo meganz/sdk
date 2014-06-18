@@ -273,6 +273,8 @@ DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCiph
 
 DirectReadNode::~DirectReadNode()
 {
+    schedule(~(dstime)0);
+
     if (pendingcmd)
     {
         pendingcmd->cancel();
@@ -283,16 +285,13 @@ DirectReadNode::~DirectReadNode()
         delete *(it++);
     }
     
-    if (dsdrn_it != client->dsdrns.end())
-    {
-        client->dsdrns.erase(dsdrn_it);
-    }
-
     client->hdrns.erase(hdrn_it);
 }
 
 void DirectReadNode::dispatch()
 {
+    schedule(~(dstime)0);
+
     if (pendingcmd)
     {
         pendingcmd->cancel();
@@ -373,6 +372,8 @@ void DirectReadNode::cmdresult(error e)
         {
             (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
         }
+
+        schedule(-1);
     }
     else
     {
@@ -387,7 +388,10 @@ void DirectReadNode::schedule(dstime deltads)
         client->dsdrns.erase(dsdrn_it);
     }
 
-    dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + deltads, this));
+    if (deltads + 1)
+    {
+        dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + deltads, this));
+    }
 }
 
 void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* appdata)
@@ -407,6 +411,8 @@ bool DirectReadSlot::doio()
             // decrypt, pass to app and erase
             r = pos & (sizeof buf - 1);
             t = req->in.size();
+
+            dr->drn->schedule(1800);
 
             if (r)
             {
@@ -433,17 +439,24 @@ bool DirectReadSlot::doio()
                 dr->drn->key.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
             }
 
-            dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata);
+            if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
+            {
+                pos += t;
 
-            pos += t;
-
-            req->in.clear();
-            req->bufpos = 0;
+                req->in.clear();
+                req->bufpos = 0;               
+            }
+            else
+            {
+                // app-requested abort
+                delete dr;
+                return false;
+            }
         }
 
         if (req->status == REQ_SUCCESS)
         {
-            dr->drn->schedule(300);
+            dr->drn->schedule(3000);
 
             // remove and delete completed read request, then remove slot
             delete dr;
@@ -463,6 +476,7 @@ bool DirectReadSlot::doio()
 void DirectRead::abort()
 {
     delete drs;
+    drs = NULL;
 
     if (drq_it != drn->client->drq.end())
     {
@@ -498,17 +512,12 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
 DirectRead::~DirectRead()
 {
+    abort();
+
     if (reads_it != drn->reads.end())
     {
         drn->reads.erase(reads_it);
     }
-
-    if (drq_it != drn->client->drq.end())
-    {
-        drn->client->drq.erase(drq_it);
-    }
-
-    delete drs;
 }
 
 // request DirectRead's range via tempurl

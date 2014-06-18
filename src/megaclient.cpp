@@ -4741,6 +4741,11 @@ void MegaClient::purgenodesusersabortsc()
 {
     app->clearing();
 
+    while (!hdrns.empty())
+    {
+        delete hdrns.begin()->second;
+    }
+
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); )
     {
         (*it)->changestate(SYNC_CANCELED);
