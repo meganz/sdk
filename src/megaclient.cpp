@@ -940,7 +940,7 @@ void MegaClient::exec()
             if (syncs.size() || syncactivity)
             {
                 unsigned totalpending = 0;
-                dstime nds = ~0;
+                dstime nds = NEVER;
 
                 for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
@@ -970,7 +970,7 @@ void MegaClient::exec()
                                     {
                                         // we resume processing after dsretry has elapsed
                                         // (to avoid open-after-creation races with e.g. MS Office)
-                                        if (dsretry + 1)
+                                        if (EVER(dsretry))
                                         {
                                             syncnaglebt.backoff(dsretry + 1);
                                             syncnagleretry = true;
@@ -1155,7 +1155,7 @@ void MegaClient::exec()
                                 }
                             }
 
-                            if (nds + 1)
+                            if (EVER(nds))
                             {
                                 syncnaglebt.backoff(nds - Waiter::ds);
                                 syncnagleretry = true;
@@ -1287,7 +1287,7 @@ int MegaClient::wait()
     else
     {
         // next retry of a failed transfer
-        nds = ~(dstime)0;
+        nds = NEVER;
 
         nexttransferretry(PUT, &nds);
         nexttransferretry(GET, &nds);
@@ -1376,7 +1376,7 @@ int MegaClient::wait()
     }
 
     // nds is either MAX_INT (== no pending events) or > Waiter::ds
-    if (nds + 1)
+    if (EVER(nds))
     {
         nds -= Waiter::ds;
     }
@@ -3157,7 +3157,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         const char* fa = NULL;
         const char *sk = NULL;
         accesslevel_t rl = ACCESS_UNKNOWN;
-        m_off_t s = ~(m_off_t)0;
+        m_off_t s = NEVER;
         m_time_t ts = -1, tmd = 0, sts = -1;
         nameid name;
 

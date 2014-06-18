@@ -38,10 +38,6 @@
 #include "megasys.h"
 
 typedef int64_t m_off_t;
-typedef int64_t m_time_t;
-
-// monotonously increasing time in deciseconds
-typedef uint32_t dstime;
 
 #ifdef USE_CRYPTOPP
 #include "crypto/cryptopp.h"
@@ -81,6 +77,14 @@ struct User;
 struct Waiter;
 
 #define EOO 0
+
+typedef int64_t m_time_t;
+
+// monotonously increasing time in deciseconds
+typedef uint32_t dstime;
+
+#define NEVER (~(dstime)0)
+#define EVER(ds) ((ds+1))
 
 #define STRINGIFY(x) # x
 #define TOSTRING(x) STRINGIFY(x)

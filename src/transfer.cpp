@@ -273,7 +273,7 @@ DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCiph
 
 DirectReadNode::~DirectReadNode()
 {
-    schedule(~(dstime)0);
+    schedule(NEVER);
 
     if (pendingcmd)
     {
@@ -290,7 +290,7 @@ DirectReadNode::~DirectReadNode()
 
 void DirectReadNode::dispatch()
 {
-    schedule(~(dstime)0);
+    schedule(NEVER);
 
     if (pendingcmd)
     {
@@ -319,7 +319,7 @@ void DirectReadNode::dispatch()
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
 void DirectReadNode::retry(error e)
 {
-    dstime retryds, minretryds = ~0;
+    dstime retryds, minretryds = NEVER;
 
     retries++;
 
@@ -343,7 +343,7 @@ void DirectReadNode::retry(error e)
     }
     else
     {
-        if (minretryds + 1)
+        if (EVER(minretryds))
         {
             // delayed retry requested
             if (dsdrn_it != client->dsdrns.end())
@@ -373,7 +373,7 @@ void DirectReadNode::cmdresult(error e)
             (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
         }
 
-        schedule(-1);
+        schedule(NEVER);
     }
     else
     {
@@ -388,7 +388,7 @@ void DirectReadNode::schedule(dstime deltads)
         client->dsdrns.erase(dsdrn_it);
     }
 
-    if (deltads + 1)
+    if (EVER(deltads))
     {
         dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + deltads, this));
     }
