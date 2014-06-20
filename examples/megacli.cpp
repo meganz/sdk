@@ -3232,7 +3232,7 @@ dstime DemoApp::pread_failure(error e, int retry, void* appdata)
     }
     else
     {
-        cout << "Too many failures (" << errorstring(e) << ", giving up" << endl;
+        cout << "Too many failures (" << errorstring(e) << "), giving up" << endl;
         return ~(dstime)0;
     }
 }

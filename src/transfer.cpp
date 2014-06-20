@@ -345,13 +345,8 @@ void DirectReadNode::retry(error e)
     {
         if (EVER(minretryds))
         {
-            // delayed retry requested
-            if (dsdrn_it != client->dsdrns.end())
-            {
-                client->dsdrns.erase(dsdrn_it);
-            }
-
-            dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + minretryds, this));
+            // delayed retry desired
+            schedule(minretryds);
         }
         else
         {
@@ -392,6 +387,10 @@ void DirectReadNode::schedule(dstime deltads)
     {
         dsdrn_it = client->dsdrns.insert(pair<dstime, DirectReadNode*>(Waiter::ds + deltads, this));
     }
+    else
+    {
+        dsdrn_it = client->dsdrns.end();
+    }
 }
 
 void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* appdata)
@@ -401,6 +400,7 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
 
 bool DirectReadSlot::doio()
 {
+req->status = REQ_FAILURE;
     if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
     {
         if (req->in.size())
@@ -444,6 +444,7 @@ bool DirectReadSlot::doio()
                 pos += t;
 
                 req->in.clear();
+                req->contentlength -= t;
                 req->bufpos = 0;               
             }
             else
