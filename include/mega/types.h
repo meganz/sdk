@@ -161,7 +161,7 @@ typedef list<struct File*> file_list;
 // INCOMING - inbox
 // RUBBISH - rubbish bin
 // MAIL - mail message
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE, MAILNODE } nodetype_t;
+typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;

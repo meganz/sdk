@@ -230,10 +230,6 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
                 {
                     n = client->nodebyhandle(client->rootnodes[2]);
                 }
-                else if (c[2] == "mail")
-                {
-                    n = client->nodebyhandle(client->rootnodes[3]);
-                }
                 else
                 {
                     return NULL;

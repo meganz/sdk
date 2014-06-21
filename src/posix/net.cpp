@@ -226,6 +226,8 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
         }
     }
 
+    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+
     return nmemb;
 }
 

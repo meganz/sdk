@@ -78,7 +78,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
             *client->rootnodes = h;
         }
 
-        if ((t >= ROOTNODE) && (t <= MAILNODE))
+        if (t >= ROOTNODE && t <= RUBBISHNODE)
         {
             client->rootnodes[t - ROOTNODE] = h;
         }
@@ -178,7 +178,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     s = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof s;
 
-    if (s < 0 && s >= -MAILNODE)
+    if (s < 0 && s >= -RUBBISHNODE)
     {
         t = (nodetype_t)-s;
     }

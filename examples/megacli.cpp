@@ -612,7 +612,7 @@ static handle cwd = UNDEF;
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH", "MAIL" };
 static const char* rootnodepaths[] =
-{ "/", "//in", "//bin", "//mail" };
+{ "/", "//in", "//bin" };
 
 static void nodestats(int* c, const char* action)
 {
@@ -628,16 +628,8 @@ static void nodestats(int* c, const char* action)
     {
         cout << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
     }
-    if (c[MAILNODE] && (c[FILENODE] || c[FOLDERNODE]))
-    {
-        cout << " and ";
-    }
-    if (c[MAILNODE])
-    {
-        cout << c[MAILNODE] << ((c[MAILNODE] == 1) ? " mail" : " mails");
-    }
 
-    if (c[FILENODE] || c[FOLDERNODE] || c[MAILNODE])
+    if (c[FILENODE] || c[FOLDERNODE])
     {
         cout << " " << action << endl;
     }
@@ -834,10 +826,6 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 else if (c[2] == "bin")
                 {
                     n = client->nodebyhandle(client->rootnodes[2]);
-                }
-                else if (c[2] == "mail")
-                {
-                    n = client->nodebyhandle(client->rootnodes[3]);
                 }
                 else
                 {
@@ -1038,10 +1026,6 @@ static void nodepath(handle h, string* path)
 
             case RUBBISHNODE:
                 path->insert(0, "//bin");
-                return;
-
-            case MAILNODE:
-                path->insert(0, "//mail");
                 return;
 
             case TYPE_UNKNOWN:
