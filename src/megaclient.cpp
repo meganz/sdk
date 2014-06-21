@@ -306,8 +306,7 @@ bool MegaClient::warnlevel()
     return warned ? (warned = false) | true : false;
 }
 
-// returns the first matching child node by UTF-8 name (does not resolve name
-// clashes)
+// returns the first matching child node by UTF-8 name (does not resolve name clashes)
 Node* MegaClient::childnodebyname(Node* p, const char* name)
 {
     string nname = name;
@@ -749,7 +748,7 @@ void MegaClient::exec()
                 if (scnotifyurl.size())
                 {
                     // pendingsc is a scnotifyurl connection
-                    if ((pendingsc->status == REQ_SUCCESS) || (pendingsc->status == REQ_FAILURE))
+                    if (pendingsc->status == REQ_SUCCESS || pendingsc->status == REQ_FAILURE)
                     {
                         delete pendingsc;
                         pendingsc = NULL;
@@ -3809,6 +3808,7 @@ User* MegaClient::finduser(const char* uid, int add)
         {
             return finduser(uh, add);
         }
+
         return NULL;
     }
 

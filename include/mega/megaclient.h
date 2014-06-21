@@ -43,8 +43,8 @@ public:
     // own identity
     handle me;
 
-    // root nodes (files, incoming, rubbish, mail)
-    handle rootnodes[4];
+    // root nodes (files, incoming, rubbish)
+    handle rootnodes[3];
 
     // all nodes
     node_map nodes;
