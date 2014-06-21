@@ -59,14 +59,16 @@
 #include <arpa/inet.h>
 #include <termios.h>
 
-#ifndef __MACH__
+#if defined(__linux__)
 #include <endian.h>
 #endif
 
-#ifdef HAVE_SENDFILE
-#ifndef  __APPLE__
-#include <sys/sendfile.h>
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__minix)
+#include <sys/endian.h>
 #endif
+
+#ifdef HAVE_SENDFILE
+#include <sys/sendfile.h>
 #endif
 
 #ifdef USE_INOTIFY
