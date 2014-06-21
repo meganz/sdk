@@ -28,6 +28,7 @@ HttpIO::HttpIO()
     success = false;
     noinetds = 0;
     inetback = false;
+    lastdata = NEVER;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -36,7 +37,7 @@ void HttpIO::inetstatus(bool up)
 {
     if (up)
     {
-        if (noinetds && (Waiter::ds - noinetds > 600))
+        if (noinetds && Waiter::ds - noinetds > 600)
         {
             inetback = true;
         }

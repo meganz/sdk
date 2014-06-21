@@ -466,6 +466,11 @@ void MegaClient::exec()
         abortbackoff();
     }
 
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
+    {
+        disconnect();
+    }
+
     // successful network operation with a failed transfer chunk: increment error count
     // and continue transfers
     if (httpio->success && chunkfailed)
@@ -1366,6 +1371,17 @@ int MegaClient::wait()
         {
             syncnaglebt.update(&nds);
         }
+
+        // detect stuck network
+        if (EVER(httpio->lastdata))
+        {
+            dstime timeout = httpio->lastdata + HttpIO::NETWORKTIMEOUT;
+
+            if (timeout >= Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+        }
     }
 
     // immediate action required?
@@ -1658,8 +1674,8 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
     {
         if ((!it->second->slot || !it->second->slot->fa)
             && it->second->bt.nextset()
-            && (it->second->bt.nextset() >= Waiter::ds)
-            && (it->second->bt.nextset() < *dsmin))
+            && it->second->bt.nextset() >= Waiter::ds
+            && it->second->bt.nextset() < *dsmin)
         {
             *dsmin = it->second->bt.nextset();
         }
@@ -1695,6 +1711,7 @@ void MegaClient::disconnect()
         it->second->req.disconnect();
     }
 
+    httpio->lastdata = NEVER;
 }
 
 void MegaClient::logout()

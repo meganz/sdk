@@ -80,6 +80,12 @@ struct MEGA_API HttpIO : public EventTrigger
     void inetstatus(bool);
     bool inetisback();
 
+    // timestamp of last data received (across all connections)
+    dstime lastdata;
+
+    // data receive timeout
+    static const int NETWORKTIMEOUT = 6000;
+    
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
 

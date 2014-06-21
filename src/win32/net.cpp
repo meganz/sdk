@@ -168,6 +168,8 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
             if (dwStatusInformationLength)
             {
+                req->httpio->lastdata = Waiter::ds;
+            
                 if (httpctx->gzip)
                 {
                     httpctx->z.next_in = (Bytef*)lpvStatusInformation;
@@ -177,8 +179,8 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                     int t = inflate(&httpctx->z, Z_SYNC_FLUSH);
                     req->bufpos -= httpctx->z.avail_out;
 
-                    if (((char *)lpvStatusInformation + dwStatusInformationLength) ==
-                             (httpctx->zin.data() + httpctx->zin.size()))
+                    if ((char *)lpvStatusInformation + dwStatusInformationLength ==
+                             httpctx->zin.data() + httpctx->zin.size())
                     {
                         httpctx->zin.clear();
                     }
@@ -215,6 +217,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             else
             {
                 req->httpstatus = statusCode;
+                req->httpio->lastdata = Waiter::ds;
 
                 if (!req->buf)
                 {
@@ -396,7 +399,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
             if (httpctx->hRequest)
             {
-                WinHttpSetTimeouts(httpctx->hRequest, 0, 20000, 20000, 1800000);
+                WinHttpSetTimeouts(httpctx->hRequest, 20000, 20000, 0, 0);
 
                 WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,
                                          WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE

@@ -83,9 +83,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if ((curl = curl_easy_init()))
     {
-        curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1);
-        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 10);
-        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 5);
         curl_easy_setopt(curl, CURLOPT_URL, req->posturl.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
@@ -183,6 +180,11 @@ bool CurlHttpIO::doio()
                              ? REQ_SUCCESS : REQ_FAILURE;
 
                 inetstatus(req->status);
+                
+                if (req->status == REQ_SUCCESS)
+                {
+                    lastdata = Waiter::ds;
+                }
 
                 success = true;
                 done = true;
@@ -204,6 +206,7 @@ bool CurlHttpIO::doio()
 size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 {
     ((HttpReq*)target)->put(ptr, nmemb);
+    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
 
     return nmemb;
 }
