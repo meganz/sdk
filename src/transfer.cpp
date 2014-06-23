@@ -400,7 +400,6 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
 
 bool DirectReadSlot::doio()
 {
-req->status = REQ_FAILURE;
     if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
     {
         if (req->in.size())
@@ -530,7 +529,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     pos = dr->offset;
 
-    req = new HttpReq();
+    req = new HttpReq(true);
 
     sprintf(buf,"/%" PRIu64 "-", dr->offset);
 
