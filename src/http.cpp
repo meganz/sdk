@@ -124,7 +124,7 @@ void HttpReq::put(void* data, unsigned len)
 // set total response size
 void HttpReq::setcontentlength(m_off_t len)
 {
-    if (!buf) in.reserve(len);
+    if (!buf && type != REQ_BINARY) in.reserve(len);
     contentlength = len;
 }
 
