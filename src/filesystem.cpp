@@ -94,12 +94,33 @@ void FileSystemAccess::normalize(string *filename) const
 {
     if(!filename) return;
 
-    char *result = (char *)utf8proc_NFC((uint8_t *)filename->c_str());
-    if(result)
+    int index = 0;
+    const char *cfilename = filename->c_str();
+    int csize = filename->size();
+    string result;
+    while(index < csize)
     {
-        *filename = result;
-        free(result);
+        if(!cfilename[index])
+        {
+            result.append("", 1);
+            index++;
+            continue;
+        }
+
+        const char *substring = cfilename + index;
+        char *normalized = (char *)utf8proc_NFC((uint8_t *)substring);
+        if(!normalized)
+        {
+            filename->clear();
+            return;
+        }
+
+        result.append(normalized);
+        free(normalized);
+        index += strlen(substring);
     }
+
+    *filename = result;
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
