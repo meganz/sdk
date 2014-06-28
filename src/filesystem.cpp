@@ -90,26 +90,28 @@ void FileSystemAccess::name2local(string* filename) const
     path2local(&t, filename);
 }
 
-void FileSystemAccess::normalize(string *filename) const
+void FileSystemAccess::normalize(string* filename) const
 {
-    if(!filename) return;
+    if (!filename) return;
 
-    int index = 0;
-    const char *cfilename = filename->c_str();
-    int csize = filename->size();
+    const char* cfilename = filename->c_str();
+    size_t fnsize = filename->size();
     string result;
-    while(index < csize)
+
+    for (size_t i = 0; i < fnsize; )
     {
-        if(!cfilename[index])
+        // allow NUL bytes between valid UTF-8 sequences
+        if (!cfilename[i])
         {
             result.append("", 1);
-            index++;
+            i++;
             continue;
         }
 
-        const char *substring = cfilename + index;
-        char *normalized = (char *)utf8proc_NFC((uint8_t *)substring);
-        if(!normalized)
+        const char* substring = cfilename + i;
+        char* normalized = (char*)utf8proc_NFC((uint8_t*)substring);
+
+        if (!normalized)
         {
             filename->clear();
             return;
@@ -117,7 +119,8 @@ void FileSystemAccess::normalize(string *filename) const
 
         result.append(normalized);
         free(normalized);
-        index += strlen(substring);
+
+        i += strlen(substring);
     }
 
     *filename = result;
