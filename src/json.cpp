@@ -177,7 +177,7 @@ bool JSON::is(const char* value)
 
     int t = strlen(value);
 
-    if (memcmp(pos + 1, value, t) || (pos[t + 1] != '"'))
+    if (memcmp(pos + 1, value, t) || pos[t + 1] != '"')
     {
         return false;
     }
