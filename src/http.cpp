@@ -1,6 +1,6 @@
 /**
  * @file http.cpp
- * @brief Generic host HTTP I/O interfaces
+ * @brief Generic host HTTP I/O interface
  *
  * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
@@ -124,7 +124,11 @@ void HttpReq::put(void* data, unsigned len)
 // set total response size
 void HttpReq::setcontentlength(m_off_t len)
 {
-    if (!buf && type != REQ_BINARY) in.reserve(len);
+    if (!buf && type != REQ_BINARY)
+    {
+        in.reserve(len);
+    }
+
     contentlength = len;
 }
 
@@ -148,6 +152,7 @@ byte* HttpReq::reserveput(unsigned* len)
         }
 
         *len = in.size() - bufpos;
+
         return (byte*)in.data() + bufpos;
     }
 }
