@@ -45,6 +45,10 @@ typedef int64_t m_off_t;
 #include "megacrypto.h"
 #endif
 
+#ifdef USE_SODIUM
+#include "crypto/sodium.h"
+#endif
+
 namespace mega {
 using namespace std;
 

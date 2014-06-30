@@ -252,6 +252,81 @@ AC_SUBST(CRYPTO_LDFLAGS)
 AC_SUBST(CRYPTO_LIBS)
 AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
 
+#libsodium
+SODIUM_LIBS="-lsodium"
+AC_MSG_CHECKING(for libsodium)
+sodium=false
+AC_ARG_WITH(sodium,
+  AS_HELP_STRING(--with-sodium=PATH, base of libsodium installation),
+  [
+   case $with_sodium in
+   no)
+    sodium=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([sodium/core.h],, [
+        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+    sodium=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_sodium/lib"; then
+        LDFLAGS="-L$with_sodium/lib $LDFLAGS"
+        CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(sodium/core.h,
+         SODIUM_CXXFLAGS="-I$with_sodium/include"
+         SODIUM_CPPFLAGS="-I$with_sodium/include"
+         SODIUM_LDFLAGS="-L$with_sodium/lib",
+         AC_MSG_ERROR([sodium/sodium.h header not found or not usable])
+         )
+    # assume we are using sodium source directory
+    else
+        LDFLAGS="-L$with_sodium/sodium $LDFLAGS"
+        CXXFLAGS="-I$with_sodium $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium $CPPFLAGS"
+
+        AC_CHECK_HEADERS(sodium/core.h,
+         SODIUM_CXXFLAGS="-I$with_sodium"
+         SODIUM_CPPFLAGS="-I$with_sodium"
+         SODIUM_LDFLAGS="-L$with_sodium/sodium",
+         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+
+    sodium=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-sodium not specified])
+    AC_CHECK_HEADERS([sodium/core.h],, [
+        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+  ])
+AC_SUBST(SODIUM_CXXFLAGS)
+AC_SUBST(SODIUM_CPPFLAGS)
+AC_SUBST(SODIUM_LDFLAGS)
+AC_SUBST(SODIUM_LIBS)
+AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
+
 #
 # Zlib
 #

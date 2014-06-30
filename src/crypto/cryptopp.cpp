@@ -276,9 +276,9 @@ static void rsadecrypt(Integer* key, Integer* m)
     *m = *m * key[AsymmCipher::PRIV_P] + xp;
 }
 
-unsigned AsymmCipher::rawdecrypt(const byte* c, int cl, byte* buf, int buflen)
+unsigned AsymmCipher::rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen)
 {
-    Integer m(c, cl);
+    Integer m(cipher, cipherlen);
 
     rsadecrypt(key, &m);
 
@@ -297,11 +297,11 @@ unsigned AsymmCipher::rawdecrypt(const byte* c, int cl, byte* buf, int buflen)
     return m.ByteCount();
 }
 
-int AsymmCipher::decrypt(const byte* c, int cl, byte* out, int numbytes)
+int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numbytes)
 {
     Integer m;
 
-    if (!decodeintarray(&m, 1, c, cl))
+    if (!decodeintarray(&m, 1, cipher, cipherlen))
     {
         return 0;
     }
