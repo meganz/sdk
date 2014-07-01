@@ -288,14 +288,14 @@ AC_ARG_WITH(sodium,
          )
     # assume we are using sodium source directory
     else
-        LDFLAGS="-L$with_sodium/sodium $LDFLAGS"
-        CXXFLAGS="-I$with_sodium $CXXFLAGS"
-        CPPFLAGS="-I$with_sodium $CPPFLAGS"
+        LDFLAGS="-L$with_sodium/src/libsodium/.libs $LDFLAGS"
+        CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
 
         AC_CHECK_HEADERS(sodium/core.h,
-         SODIUM_CXXFLAGS="-I$with_sodium"
-         SODIUM_CPPFLAGS="-I$with_sodium"
-         SODIUM_LDFLAGS="-L$with_sodium/sodium",
+         SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
+         SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
+         SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
          AC_MSG_ERROR([sodium/core.h header not found or not usable])
          )
     fi
@@ -565,14 +565,14 @@ if test "x$WIN32" = "xno" ; then
        yes)
             LIBCURL_LIBS="-lcurl"
             LIBS="-lcurl $LIBS"
-            
+
             AC_CHECK_HEADERS([curl/curl.h], [],
                 AC_MSG_ERROR([curl.h header not found or not usable])
             )
             AC_CHECK_LIB(curl, [main], [],
                 AC_MSG_ERROR([Could not find libcurl!])
             )
-            
+
             AC_SUBST(LIBCURL_LIBS)
 
             if test "x$enable_curl_checks" = "xyes" ; then
@@ -599,8 +599,8 @@ if test "x$WIN32" = "xno" ; then
 
         LIBCURL_LIBS="-L$with_curl/lib -lcurl"
         LIBCURL_FLAGS="-I$with_curl/include"
-        
-        AC_CHECK_HEADERS([curl/curl.h], [], 
+
+        AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
 
@@ -624,11 +624,11 @@ if test "x$WIN32" = "xno" ; then
 
         LIBCURL_LIBS="-lcurl"
         LIBS="-lcurl $LIBS"
-        
+
         AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
-        AC_CHECK_LIB(curl, [main], [], 
+        AC_CHECK_LIB(curl, [main], [],
             AC_MSG_ERROR([Could not find libcurl!])
         )
 
@@ -643,7 +643,7 @@ if test "x$WIN32" = "xno" ; then
                 AC_MSG_RESULT([no])
                 AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
             fi
-        
+
             CURL_CHK()
         else
             AC_MSG_NOTICE([skipping cURL checks.])
