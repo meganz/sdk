@@ -23,6 +23,8 @@
 
 namespace mega {
 
+CryptoPP::AutoSeededRandomPool EdDSA::rng;
+
 // Initialise libsodium crypto system.
 void EdDSA::init() {
     sodium_init();
