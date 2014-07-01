@@ -771,7 +771,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
          ;;
@@ -798,7 +798,7 @@ if test "x$enable_examples" = "xyes" ; then
             )
         fi
 
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
@@ -812,7 +812,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
       ]
       )
