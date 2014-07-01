@@ -5218,6 +5218,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                             app->syncupdate_get(l->sync, localname.c_str());
 
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                            nextreqtag();
                             startxfer(GET, rit->second->syncget);
                             syncactivity = true;
                         }
@@ -5539,6 +5540,7 @@ void MegaClient::syncupdate()
                 // the overwrite will happen upon PUT completion
                 string tmppath, tmplocalpath;
 
+                nextreqtag();
                 startxfer(PUT, l);
 
                 l->getlocalpath(&tmplocalpath, true);
