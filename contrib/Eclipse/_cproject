@@ -38,6 +38,7 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1175907711" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CONFIG_H"/>
 									<listOptionValue builtIn="false" value="USE_CRYPTOPP"/>
+									<listOptionValue builtIn="false" value="USE_SODIUM"/>
 									<listOptionValue builtIn="false" value="USE_SQLITE"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.other.pic.245631274" name="Position Independent Code (-fPIC)" superClass="gnu.cpp.compiler.option.other.pic" value="true" valueType="boolean"/>
@@ -58,6 +59,7 @@
 								<option id="gnu.cpp.link.option.libs.1392329068" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" valueType="libs">
 									<listOptionValue builtIn="false" value="crypto++"/>
 									<listOptionValue builtIn="false" value="curl"/>
+									<listOptionValue builtIn="false" value="sodium"/>
 								</option>
 								<option id="gnu.cpp.link.option.other.49656085" name="Other options (-Xlinker [option])" superClass="gnu.cpp.link.option.other"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.linker.input.58190704" superClass="cdt.managedbuild.tool.gnu.cpp.linker.input">
@@ -118,6 +120,7 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1754219754" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CONFIG_H"/>
 									<listOptionValue builtIn="false" value="USE_CRYPTOPP"/>
+									<listOptionValue builtIn="false" value="USE_SODIUM"/>
 									<listOptionValue builtIn="false" value="USE_SQLITE"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.other.pic.2083564471" name="Position Independent Code (-fPIC)" superClass="gnu.cpp.compiler.option.other.pic" value="true" valueType="boolean"/>
@@ -138,6 +141,7 @@
 								<option id="gnu.cpp.link.option.libs.1332031095" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" valueType="libs">
 									<listOptionValue builtIn="false" value="crypto++"/>
 									<listOptionValue builtIn="false" value="curl"/>
+									<listOptionValue builtIn="false" value="sodium"/>
 								</option>
 								<option id="gnu.cpp.link.option.other.121627362" name="Other options (-Xlinker [option])" superClass="gnu.cpp.link.option.other"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.linker.input.345102716" superClass="cdt.managedbuild.tool.gnu.cpp.linker.input">

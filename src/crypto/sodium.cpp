@@ -21,47 +21,6 @@
 
 #include "mega.h"
 
-
-// ### look at /usr/include/sodium/crypto_sign.h
-/* http://mob5.host.cs.st-andrews.ac.uk/html/
- * http://mob5.host.cs.st-andrews.ac.uk/html/d8/d84/a00001.html
- * http://mob5.host.cs.st-andrews.ac.uk/html/d1/d7c/a00003.html#ga4b04bb5806c450bb45b1dd00149fcb80
- *
- * https://gist.github.com/jfdm/5255788
- *
- * crypto_sign_keypair(unsigned char *pk,
- *                     unsigned char *sk)
- * Generates a signing/verification key pair.
- *
- * int crypto_sign_seed_keypair(unsigned char *pk,
- *                              unsigned char *sk,
- *                              const unsigned char *seed);
- * Generates a signing/verification key pair from a key seed.
- *
- * crypto_sign(unsigned char *sig,
- *             unsigned long long *slen,
- *             const unsigned char *msg,
- *             unsigned long long mlen,
- *             const unsigned char *sk)
- * Signs a given message using the signer's signing key.
- *
- * crypto_sign_open(unsigned char *msg,
- *                  unsigned long long *mlen,
- *                  const unsigned char *sig,
- *                  unsigned long long smlen,
- *                  const unsigned char *vk)
- * Verifies the signed message sig using the signer's verification key.
- *
- * size_t  crypto_sign_seedbytes(void)
- *
- * int crypto_sign_seed_keypair(unsigned char *pk,
- *                              unsigned char *sk,
- *                              const unsigned char *seed);
- */
-
-
-
-
 namespace mega {
 
 // Initialise libsodium crypto system.
@@ -69,10 +28,12 @@ void EdDSA::init() {
     sodium_init();
 }
 
+
 // Sets a private key seed from a buffer.
 void EdDSA::setKeySeed(const char* data) {
-    memcpy(keySeed, data, crypto_sign_SEEDBYTES);
+    memcpy(this->keySeed, data, crypto_sign_SEEDBYTES);
 }
+
 
 // Computes the signature of a message.
 int EdDSA::sign(unsigned char* msg, unsigned long long msglen, char* sig) {
@@ -89,7 +50,7 @@ int EdDSA::sign(unsigned char* msg, unsigned long long msglen, char* sig) {
     }
     int check = 0;
     check = crypto_sign_seed_keypair(pubKey, privKey,
-                                     (const unsigned char*)keySeed);
+                                     (const unsigned char*)this->keySeed);
     if (check != 0) {
         // Something went wrong deriving keys.
         return(0);
@@ -116,6 +77,7 @@ int EdDSA::sign(unsigned char* msg, unsigned long long msglen, char* sig) {
     free(privKey);
     return(bufferlen);
 }
+
 
 // Verifies the signature of a message.
 int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
@@ -149,10 +111,39 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
     }
 }
 
-// Generates an Ed25519 key pair of a given key size.
-void EdDSA::genKeyPair(char* privk, char* pubk) {
 
+// Generates a new Ed25519 private key seed. The key seed is stored in the object.
+int EdDSA::genKeySeed(unsigned char* privKey) {
+    // Make space for a new key seed (if not present).
+    if (!this->keySeed) {
+        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
+        if (this->keySeed == NULL) {
+            // Something went wrong allocating the memory.
+            return(0);
+        }
+    }
+    // Now make the new key seed.
+    this->rng.GenerateBlock(this->keySeed, crypto_sign_SEEDBYTES);
+    // Copy it to privKey before returning.
+    memcpy(privKey, this->keySeed, crypto_sign_SEEDBYTES);
+    return(1);
 }
 
+
+int EdDSA::publicKey(unsigned char* pubKey) {
+    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
+    if (privKey == NULL) {
+        // Something went wrong allocating the memory.
+        return(0);
+    }
+    int check = crypto_sign_seed_keypair(pubKey, privKey,
+                                         (const unsigned char*)this->keySeed);
+    if (check != 0) {
+        // Something went wrong deriving keys.
+        return(0);
+    }
+    free(privKey);
+    return(1);
+}
 
 } // namespace

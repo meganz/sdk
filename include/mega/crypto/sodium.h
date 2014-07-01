@@ -34,8 +34,10 @@ using namespace std;
  */
 class MEGA_API EdDSA
 {
+private:
+    static CryptoPP::AutoSeededRandomPool rng;
 public:
-    char* keySeed;
+    unsigned char* keySeed = NULL;
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.
@@ -74,13 +76,21 @@ public:
                const unsigned char* sig, const unsigned char* pubKey);
 
     /**
-     * @brief Generates an Ed25519 key pair of a given key size.
+     * @brief Generates a new Ed25519 private key seed. The key seed is stored
+     * in the object.
      *
      * @param privk Private key seed.
-     * @param pubk Public key.
-     * @return Always returns 1.
+     * @return 1 on success, 0 on failure.
      */
-    void genKeyPair(char* privk, char* pubk);
+    int genKeySeed(unsigned char* privKey);
+
+    /**
+     * @brief Derives the Ed25519 public key from the stored private key seed.
+     *
+     * @param pubKey Public key.
+     * @return 1 on success, 0 on failure.
+     */
+    int publicKey(unsigned char* pubKey);
 };
 
 
