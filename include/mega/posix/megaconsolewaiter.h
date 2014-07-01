@@ -1,8 +1,8 @@
 /**
- * @file mega/synclocalops.h
- * @brief Various sync-related local filesystem operations
+ * @file mega/posix/megaconsolewaiter.h
+ * @brief Posix event/timeout handling, listens for stdin input
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,31 +19,16 @@
  * program.
  */
 
-#ifndef MEGA_LOCALSYNCOPS_H
-#define MEGA_LOCALSYNCOPS_H 1
+#ifndef CONSOLE_WAIT_CLASS
+#define CONSOLE_WAIT_CLASS PosixConsoleWaiter
 
-#include "types.h"
-#include "megaclient.h"
+#include "megawaiter.h"
 
 namespace mega {
-
-// local file/folder rename/deletion
-class SyncLocalOp
+struct PosixConsoleWaiter : public PosixWaiter
 {
-protected:
-	MegaClient* client;
-	nodetype type;
-	string to;
-
-public:
-	string from;
-
-	bool recurse(nodetype, string*, string*);
-	bool exec();
-
-	SyncLocalOp(MegaClient*, nodetype, string*, string* = NULL);
+    int wait();
 };
-
 } // namespace
 
 #endif

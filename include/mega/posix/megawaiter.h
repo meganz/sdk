@@ -1,8 +1,8 @@
 /**
- * @file mega/win32/megawait.h
- * @brief Win32 event/timeout handling
+ * @file mega/posix/megawaiter.h
+ * @brief POSIX event/timeout handling
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -20,32 +20,23 @@
  */
 
 #ifndef WAIT_CLASS
-#define WAIT_CLASS WinWaiter
+#define WAIT_CLASS PosixWaiter
+
+#include "mega/waiter.h"
 
 namespace mega {
-
-class WinWaiter : public Waiter
+struct PosixWaiter : public Waiter
 {
-	typedef ULONGLONG (WINAPI* PGTC)();
-	PGTC pGTC;
-	ULONGLONG tickhigh;
-	DWORD prevt;
+    int maxfd;
+    fd_set rfds, wfds, efds;
+    fd_set ignorefds;
 
-public:
-	enum { WAKEUP_HTTP, WAKEUP_CONSOLE };
-	HANDLE hWakeup[2];
-	PCRITICAL_SECTION pcsHTTP;
-	unsigned pendingfsevents;
+    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
 
-	dstime getdstime();
-
-	void init(dstime);
-	void waitfor(EventTrigger*);
-	int wait();
-
-	WinWaiter();
+    void init(dstime);
+    int wait();
+    void bumpmaxfd(int);
 };
-
 } // namespace
 
 #endif

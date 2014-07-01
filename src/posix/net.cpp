@@ -2,7 +2,7 @@
  * @file posix/net.cpp
  * @brief POSIX network access layer (using cURL)
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,155 +22,250 @@
 #include "mega.h"
 
 namespace mega {
-
-extern bool debug;
-
 CurlHttpIO::CurlHttpIO()
 {
-	curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl_global_init(CURL_GLOBAL_DEFAULT);
 
-	curlm = curl_multi_init();
+    curlm = curl_multi_init();
 
-	curlsh = curl_share_init();
-	curl_share_setopt(curlsh,CURLSHOPT_SHARE,CURL_LOCK_DATA_DNS);
-	curl_share_setopt(curlsh,CURLSHOPT_SHARE,CURL_LOCK_DATA_SSL_SESSION);
+    curlsh = curl_share_init();
+    curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+    curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
 
-	contenttypejson = curl_slist_append(NULL,"Content-Type: application/json");
-	contenttypejson = curl_slist_append(contenttypejson, "Expect:");
+    contenttypejson = curl_slist_append(NULL, "Content-Type: application/json");
+    contenttypejson = curl_slist_append(contenttypejson, "Expect:");
 
-	contenttypebinary = curl_slist_append(NULL,"Content-Type: application/octet-stream");
-	contenttypebinary = curl_slist_append(contenttypebinary, "Expect:");
+    contenttypebinary = curl_slist_append(NULL, "Content-Type: application/octet-stream");
+    contenttypebinary = curl_slist_append(contenttypebinary, "Expect:");
 }
 
 CurlHttpIO::~CurlHttpIO()
 {
-	curl_global_cleanup();
+    curl_global_cleanup();
+}
+
+void CurlHttpIO::setuseragent(string* u)
+{
+    useragent = u;
 }
 
 // wake up from cURL I/O
-void CurlHttpIO::addevents(Waiter* w)
+void CurlHttpIO::addevents(Waiter* w, int flags)
 {
-	int t;
-	PosixWaiter* pw = (PosixWaiter*)w;
+    int t;
+    PosixWaiter* pw = (PosixWaiter*)w;
 
-	curl_multi_fdset(curlm,&pw->rfds,&pw->wfds,&pw->efds,&t);
+    curl_multi_fdset(curlm, &pw->rfds, &pw->wfds, &pw->efds, &t);
 
-	pw->bumpmaxfd(t);
+    pw->bumpmaxfd(t);
 }
 
 // POST request to URL
 void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
-	if (debug)
-	{
-		cout << "POST target URL: " << req->posturl << endl;
+    if (debug)
+    {
+        cout << "POST target URL: " << req->posturl << endl;
 
-		if (req->binary) cout << "[sending " << req->out->size() << " bytes of raw data]" << endl;
-		else cout << "Sending: " << *req->out << endl;
-	}
+        if (req->binary)
+        {
+            cout << "[sending " << req->out->size() << " bytes of raw data]" << endl;
+        }
+        else
+        {
+            cout << "Sending: " << *req->out << endl;
+        }
+    }
 
-	CURL* curl;
+    CURL* curl;
 
-	req->in.clear();
+    req->in.clear();
 
-	if ((curl = curl_easy_init()))
-	{
-		curl_easy_setopt(curl,CURLOPT_URL,req->posturl.c_str());
-		curl_easy_setopt(curl,CURLOPT_POSTFIELDS,data ? data : req->out->data());
-		curl_easy_setopt(curl,CURLOPT_POSTFIELDSIZE,data ? len : req->out->size());
-		curl_easy_setopt(curl,CURLOPT_USERAGENT,"MEGA Client Access Engine/1.0");
-		curl_easy_setopt(curl,CURLOPT_HTTPHEADER,req->type == REQ_JSON ? contenttypejson : contenttypebinary);
-		curl_easy_setopt(curl,CURLOPT_SHARE,curlsh);
-		curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,write_data);
-		curl_easy_setopt(curl,CURLOPT_WRITEDATA,(void*)req);
-		curl_easy_setopt(curl,CURLOPT_PRIVATE,(void*)req);
+    if ((curl = curl_easy_init()))
+    {
+        curl_easy_setopt(curl, CURLOPT_URL, req->posturl.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, useragent->c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req->type == REQ_JSON ? contenttypejson : contenttypebinary);
+        curl_easy_setopt(curl, CURLOPT_ENCODING, "");
+        curl_easy_setopt(curl, CURLOPT_SHARE, curlsh);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, check_header);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
 
-		curl_multi_add_handle(curlm,curl);
+        curl_multi_add_handle(curlm, curl);
 
-		req->status = REQ_INFLIGHT;
+        req->status = REQ_INFLIGHT;
 
-		req->httpiohandle = (void*)curl;
-	}
-	else req->status = REQ_FAILURE;
+        req->httpiohandle = (void*)curl;
+    }
+    else
+    {
+        req->status = REQ_FAILURE;
+    }
 }
 
 // cancel pending HTTP request
 void CurlHttpIO::cancel(HttpReq* req)
 {
-	if (req->httpiohandle)
-	{
-		curl_multi_remove_handle(curlm,(CURL*)req->httpiohandle);
-		curl_easy_cleanup((CURL*)req->httpiohandle);
+    if (req->httpiohandle)
+    {
+        curl_multi_remove_handle(curlm, (CURL*)req->httpiohandle);
+        curl_easy_cleanup((CURL*)req->httpiohandle);
 
-		req->httpstatus = 0;
-		req->status = REQ_FAILURE;
-		req->httpiohandle = NULL;
-	}
+        req->httpstatus = 0;
+        req->status = REQ_FAILURE;
+        req->httpiohandle = NULL;
+    }
 }
 
 // real-time progress information on POST data
 m_off_t CurlHttpIO::postpos(void* handle)
 {
-	double bytes;
+    double bytes;
 
-	curl_easy_getinfo(handle,CURLINFO_SIZE_UPLOAD,&bytes);
+    curl_easy_getinfo(handle, CURLINFO_SIZE_UPLOAD, &bytes);
 
-	return (m_off_t)bytes;
+    return (m_off_t)bytes;
 }
 
 // process events
 bool CurlHttpIO::doio()
 {
-	bool done;
+    bool done = false;
 
-	done = 0;
+    CURLMsg *msg;
+    int dummy;
 
-	CURLMsg *msg;
-	int dummy;
+    curl_multi_perform(curlm, &dummy);
 
-	curl_multi_perform(curlm,&dummy);
+    while ((msg = curl_multi_info_read(curlm, &dummy)))
+    {
+        HttpReq* req;
 
-	while ((msg = curl_multi_info_read(curlm,&dummy)))
-	{
-		HttpReq* req;
+        if ((curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK) && req)
+        {
+            req->httpio = NULL;
 
-		if (curl_easy_getinfo(msg->easy_handle,CURLINFO_PRIVATE,(char**)&req) == CURLE_OK && req)
-		{
-			req->httpio = NULL;
+            if (msg->msg == CURLMSG_DONE)
+            {
+                curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
-			if (msg->msg == CURLMSG_DONE)
-			{
-				curl_easy_getinfo(msg->easy_handle,CURLINFO_RESPONSE_CODE,&req->httpstatus);
+                if (debug)
+                {
+                    cout << "CURLMSG_DONE with HTTP status: " << req->httpstatus << endl;
 
-				if (debug)
-				{
-					cout << "CURLMSG_DONE with HTTP status: " << req->httpstatus << endl;
+                    if (req->httpstatus)
+                    {
+                        if (req->binary)
+                        {
+                            cout << "[received " << req->in.size() << " bytes of raw data]" << endl;
+                        }
+                        else
+                        {
+                            cout << "Received: " << req->in.c_str() << endl;
+                        }
+                    }
+                }
 
-					if (req->binary) cout << "[received " << req->in.size() << " bytes of raw data]" << endl;
-					else cout << "Received: " << req->in.c_str() << endl;
-				}
+                // check httpstatus and response length
+                req->status = (req->httpstatus == 200
+                            && req->contentlength == (req->buf ? req->bufpos : req->in.size()))
+                             ? REQ_SUCCESS : REQ_FAILURE;
 
-				req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
-				done = true;
-			}
-			else req->status = REQ_FAILURE;
-		}
+                inetstatus(req->status);
+                
+                if (req->status == REQ_SUCCESS)
+                {
+                    lastdata = Waiter::ds;
+                }
 
-		curl_multi_remove_handle(curlm,msg->easy_handle);
-		curl_easy_cleanup(msg->easy_handle);
-	}
+                success = true;
+                done = true;
+            }
+            else
+            {
+                req->status = REQ_FAILURE;
+            }
+        }
 
-	return done;
+        curl_multi_remove_handle(curlm, msg->easy_handle);
+        curl_easy_cleanup(msg->easy_handle);
+    }
+
+    return done;
 }
 
 // callback for incoming HTTP payload
-size_t CurlHttpIO::write_data(void *ptr, size_t size, size_t nmemb, void *target)
+size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 {
-	size *= nmemb;
+    ((HttpReq*)target)->put(ptr, nmemb);
+    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
 
-	((HttpReq*)target)->put(ptr,size);
-
-	return size;
+    return nmemb;
 }
 
+// set contentlength according to Original-Content-Length header
+size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
+{
+    if (!memcmp(ptr, "Content-Length:", 15))
+    {
+        if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+    }
+    else
+    {
+        if (!memcmp(ptr, "Original-Content-Length:", 24))
+        {
+            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+        }
+    }
+
+    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+
+    return nmemb;
+}
+
+CURLcode CurlHttpIO::ssl_ctx_function(CURL* curl, void* sslctx, void*)
+{
+    SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, NULL);
+
+    return CURLE_OK;
+}
+
+// SSL public key pinning
+int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
+{
+    unsigned char buf[sizeof(APISSLMODULUS1) - 1];
+    EVP_PKEY* evp;
+    int ok = 0;
+
+    if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(ctx->cert))))
+    {
+        if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS1 - 1
+         && BN_num_bytes(evp->pkey.rsa->e) == sizeof APISSLEXPONENT - 1)
+        {
+            BN_bn2bin(evp->pkey.rsa->n, buf);
+
+            if (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1))
+            {
+                BN_bn2bin(evp->pkey.rsa->e, buf);
+
+                if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
+                {
+                    ok = 1;
+                }
+            }
+        }
+
+        EVP_PKEY_free(evp);
+    }
+
+    return ok;
+}
 } // namespace

@@ -2,7 +2,7 @@
  * @file mega/request.h
  * @brief Generic request interface
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -25,24 +25,22 @@
 #include "types.h"
 
 namespace mega {
-
 // API request
-class Request
+class MEGA_API Request
 {
-	vector<Command*> cmds;
+    vector<Command*> cmds;
 
 public:
-	void add(Command*);
+    void add(Command*);
 
-	int cmdspending();
+    int cmdspending() const;
 
-	int get(string*);
+    void get(string*) const;
 
-	void procresult(MegaClient*);
+    void procresult(MegaClient*);
 
-	void clear();
+    void clear();
 };
-
 } // namespace
 
 #endif

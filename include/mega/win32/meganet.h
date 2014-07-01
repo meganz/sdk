@@ -2,7 +2,7 @@
  * @file mega/win32/meganet.h
  * @brief Win32 network access layer (using WinHTTP)
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,63 +22,68 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS WinHttpIO
 
-#include "megaclient.h"
+#include "zlib.h"
 
-#include "megawait.h"
-
-#include <winhttp.h>
-#include <shellapi.h>
+#include "mega/megaclient.h"
+#include "megawaiter.h"
 
 namespace mega {
+extern bool debug;
 
-class WinHttpIO : public HttpIO
+class MEGA_API WinHttpIO: public HttpIO
 {
-	CRITICAL_SECTION csHTTP;
-	HANDLE hWakeupEvent;
+    CRITICAL_SECTION csHTTP;
+    HANDLE hWakeupEvent;
 
-	protected:
-	WinWaiter* waiter;
-	HINTERNET hSession;
-	bool completion;
+protected:
+    WinWaiter* waiter;
+    HINTERNET hSession;
 
 public:
-	static const unsigned HTTP_POST_CHUNK_SIZE = 16384;
+    static const unsigned HTTP_POST_CHUNK_SIZE = 16384;
 
-	static VOID CALLBACK asynccallback(HINTERNET, DWORD_PTR, DWORD, LPVOID lpvStatusInformation, DWORD dwStatusInformationLength);
+    static VOID CALLBACK asynccallback(HINTERNET, DWORD_PTR, DWORD,
+                                       LPVOID lpvStatusInformation,
+                                       DWORD dwStatusInformationLength);
 
-	void updatedstime();
+    void updatedstime();
 
-	void post(HttpReq*, const char* = 0, unsigned = 0);
-	void cancel(HttpReq*);
+    void post(HttpReq*, const char* = 0, unsigned = 0);
+    void cancel(HttpReq*);
 
-	m_off_t postpos(void*);
+    m_off_t postpos(void*);
 
-	bool doio(void);
+    bool doio(void);
 
-	void addevents(Waiter*);
+    void addevents(Waiter*, int);
 
-	void entercs();
-	void leavecs();
+    void entercs();
+    void leavecs();
 
-	void httpevent();
+    void httpevent();
 
-	WinHttpIO();
-	~WinHttpIO();
+    void setuseragent(string*);
+
+    WinHttpIO();
+    ~WinHttpIO();
 };
 
-struct WinHttpContext
+struct MEGA_API WinHttpContext
 {
-	HINTERNET hRequest;
-	HINTERNET hConnect;
+    HINTERNET hRequest;
+    HINTERNET hConnect;
 
-	HttpReq* req;                   // backlink to underlying HttpReq
-	WinHttpIO* httpio;              // backlink to application-wide WinHttpIO object
+    HttpReq* req;                   // backlink to underlying HttpReq
+    WinHttpIO* httpio;              // backlink to application-wide WinHttpIO object
 
-	unsigned postpos;
-	unsigned postlen;
-	const char* postdata;
+    unsigned postpos;
+    unsigned postlen;
+    const char* postdata;
+    
+    bool gzip;
+    z_stream z;
+    string zin;
 };
-
 } // namespace
 
 #endif

@@ -1,0 +1,29 @@
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq build-essential autoconf libtool libcrypto++-dev libsqlite3-dev libcurl4-openssl-dev libfreeimage-dev
+language: cpp
+compiler:
+  - gcc
+  - clang
+script:
+  - ./autogen.sh
+  - ./configure --enable-examples --disable-curl-checks
+  - make clean
+  - make
+notifications:
+  email:
+    recipients:
+        - pi@mega.co.nz
+    on_success: change
+    on_failure: always
+env:
+  global:
+   - secure: ""
+addons:
+  coverity_scan:
+    project:
+      name: meganz/sdk2
+    notification_email: pi@mega.co.nz
+    build_command_prepend: "./autogen.sh && ./configure --enable-examples --disable-curl-checks && make clean"
+    build_command: make
+    branch_pattern: master

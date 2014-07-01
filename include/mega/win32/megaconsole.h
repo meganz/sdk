@@ -2,7 +2,7 @@
  * @file mega/win32/megaconsole.h
  * @brief Win32 console I/O
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -23,16 +23,14 @@
 #define CONSOLE_CLASS WinConsole
 
 namespace mega {
-
-struct WinConsole : public Console
+struct MEGA_API WinConsole : public Console
 {
-	void readpwchar(char*, int, int* pw_buf_pos, char**);
-	void setecho(bool);
+    void readpwchar(char*, int, int* pw_buf_pos, char**);
+    void setecho(bool);
 
-	WinConsole();
-	~WinConsole();
+    WinConsole();
+    ~WinConsole();
 };
-
 } // namespace
 
 #endif

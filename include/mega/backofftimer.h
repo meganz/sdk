@@ -2,7 +2,7 @@
  * @file mega/backofftimer.h
  * @brief Generic timer facility with exponential backoff
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -25,44 +25,42 @@
 #include "types.h"
 
 namespace mega {
-
 // generic timer facility with exponential backoff
-class BackoffTimer
+class MEGA_API BackoffTimer
 {
-	dstime next;
-	dstime delta;
+    dstime next;
+    dstime delta;
 
 public:
-	// reset timer
-	void reset();
+    // reset timer
+    void reset();
 
-	// trigger exponential backoff
-	void backoff(dstime);
+    // trigger exponential backoff
+    void backoff();
 
-	// set absolute backoff
-	void backoff(dstime, dstime);
+    // set absolute backoff
+    void backoff(dstime);
 
-	// check if timer has elapsed
-	bool armed(dstime) const;
+    // check if timer has elapsed
+    bool armed() const;
 
-	// arm timer
-	bool arm(dstime);
+    // arm timer
+    bool arm();
 
-	// time left for event to become armed
-	dstime retryin(dstime);
+    // time left for event to become armed
+    dstime retryin();
 
-	// current backoff delta
-	dstime backoff();
+    // current backoff delta
+    dstime backoffdelta();
 
-	// time of next trigger or 0 if no trigger since last backoff
-	dstime nextset() const;
+    // time of next trigger or 0 if no trigger since last backoff
+    dstime nextset() const;
 
-	// update time to wait
-	void update(dstime, dstime*);
+    // update time to wait
+    void update(dstime*);
 
-	BackoffTimer();
+    BackoffTimer();
 };
-
 } // namespace
 
 #endif

@@ -28,7 +28,7 @@ import sys, os
 extensions = ['breathe']
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ['doc/_templates']
 
 # The suffix of source filenames.
 source_suffix = '.rst'
@@ -49,26 +49,29 @@ copyright = u'2013, Mega Limited'
 
 def get_versions():
     """
-    Grabs and returns the version and release numbers out of the autotools
-    generated C++ header file.
+    Grabs and returns the version and release numbers from autotools.
     """
     import re
-    header_content = open(os.path.join('..', '..', 'config.h')).read()
-    major = re.search('#define +MEGA_MAJOR_VERSION +([0-9]+)',
-                      header_content)
-    minor = re.search('#define +MEGA_MINOR_VERSION +([0-9]+)',
-                      header_content)
-    patch = re.search('#define +MEGA_MICRO_VERSION +([\S]+)',
-                      header_content)
-    release = re.search('#define +PACKAGE_VERSION +"(.+?)"',
-                        header_content)
+    configure_ac = open(os.path.join('..', '..', 'configure.ac')).read()
+    major = re.search('m4_define\(\[mega_major_version\], \[([0-9]+)\]',
+                      configure_ac)
+    minor = re.search('m4_define\(\[mega_minor_version\], \[([0-9]+)\]',
+                      configure_ac)
+    micro = re.search('m4_define\(\[mega_micro_version\], \[(.+?)\]',
+                      configure_ac)
+    # minor = re.search('#define +MEGA_MINOR_VERSION +([0-9]+)',
+    #                   header_content)
+    # patch = re.search('#define +MEGA_MICRO_VERSION +([\S]+)',
+    #                   header_content)
+    # release = re.search('#define +PACKAGE_VERSION +"(.+?)"',
+    #                     header_content)
     if major:
-        major, minor, patch = major.group(1), minor.group(1), patch.group(1)
+        major, minor, micro = major.group(1), minor.group(1), micro.group(1)
         version = '.'.join([major, minor])
     else:
         version = 'raw_development'
-    if release:
-        release = release.group(1)
+    if micro:
+        release = '.'.join([major, minor, micro])
     else:
         release = 'raw_development'
     return version, release
@@ -117,7 +120,7 @@ pygments_style = 'sphinx'
 # -- Options for Doxygen input ------------------------------------------------
 
 breathe_projects = {
-    'megasdk': 'api/xml/',
+    'megasdk': 'doc/sphinx_api/xml/',
 }
 breathe_default_project = 'megasdk'
 #breathe_domain_by_extension = {
@@ -157,7 +160,7 @@ html_logo = '../images/MegaPC.jpg'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ['doc/_static']
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
@@ -251,7 +254,7 @@ latex_logo = '../images/MegaLogo_512t.png'
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'megaclientsdk', u'MEGA Client SDK Documentation',
-     [u'Mathias Ortmann <mo@mega.co.nz>, Guy Kloss <gk@mega.co.nz>'], 1)
+     [u'Mathias Ortmann <mo@mega.co.nz>, Paul Ionkin <pi@mega.co.nz>, Guy Kloss <gk@mega.co.nz>'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -265,7 +268,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'MEGAClientSDK', u'MEGA Client SDK Documentation',
-   u'Mathias Ortmann <mo@mega.co.nz>, Guy Kloss <gk@mega.co.nz>', 'MEGAClientSDK', 'One line description of project.',
+   u'Mathias Ortmann <mo@mega.co.nz>, Paul Ionkin <pi@mega.co.nz>, Guy Kloss <gk@mega.co.nz>', 'MEGAClientSDK', 'One line description of project.',
    'Miscellaneous'),
 ]
 

@@ -2,7 +2,7 @@
  * @file backofftimer.cpp
  * @brief Generic timer facility with exponential backoff
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,83 +19,93 @@
  * program.
  */
 
+#include "mega/waiter.h"
 #include "mega/backofftimer.h"
 
 namespace mega {
-
 // timer with capped exponential backoff
 BackoffTimer::BackoffTimer()
 {
-	reset();
+    reset();
 }
 
 void BackoffTimer::reset()
 {
-	next = 0;
-	delta = 1;
+    next = 0;
+    delta = 1;
 }
 
-void BackoffTimer::backoff(dstime ds)
+void BackoffTimer::backoff()
 {
-	next = ds+delta;
-	delta <<= 1;
-	if (delta > 36000) delta = 36000;
+    next = Waiter::ds + delta;
+
+    delta <<= 1;
+
+    if (delta > 36000)
+    {
+        delta = 36000;
+    }
 }
 
-void BackoffTimer::backoff(dstime ds, dstime newdelta)
+void BackoffTimer::backoff(dstime newdelta)
 {
-	next = ds+newdelta;
-	delta = newdelta;
+    next = Waiter::ds + newdelta;
+    delta = newdelta;
 }
 
-bool BackoffTimer::armed(dstime ds) const
+bool BackoffTimer::armed() const
 {
-	return !next || ds >= next;
+    return !next || Waiter::ds >= next;
 }
 
-bool BackoffTimer::arm(dstime ds)
+bool BackoffTimer::arm()
 {
-	if (next+delta > ds)
-	{
-		next = ds;
-		delta = 1;
+    if (next + delta > Waiter::ds)
+    {
+        next = Waiter::ds;
+        delta = 1;
 
-		return true;
-	}
+        return true;
+    }
 
-	return false;
+    return false;
 }
 
-dstime BackoffTimer::retryin(dstime ds)
+dstime BackoffTimer::retryin()
 {
-	if (armed(ds)) return 0;
+    if (armed())
+    {
+        return 0;
+    }
 
-	return next-ds;
+    return next - Waiter::ds;
 }
 
-dstime BackoffTimer::backoff()
+dstime BackoffTimer::backoffdelta()
 {
-	return delta;
+    return delta;
 }
 
 dstime BackoffTimer::nextset() const
 {
-	return (int)next;
+    return next;
 }
 
 // event in the future: potentially updates waituntil
 // event in the past: zeros out waituntil and clears event
-void BackoffTimer::update(dstime ds, dstime* waituntil)
+void BackoffTimer::update(dstime* waituntil)
 {
-	if (next)
-	{
-		if (next <= ds)
-		{
-			*waituntil = 0;
-			next = 1;
-		}
-		else if (next < *waituntil) *waituntil = next;
-	}
+    if (next)
+    {
+        if (next <= Waiter::ds)
+        {
+            *waituntil = 0;
+            next = 1;
+        }
+        else if (next < *waituntil)
+        {
+            *waituntil = next;
+        }
+    }
 }
-
 } // namespace

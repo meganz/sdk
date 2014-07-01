@@ -2,7 +2,7 @@
  * @file mega/sharenodekeys.h
  * @brief cr element share/node map key generator
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -25,24 +25,22 @@
 #include "types.h"
 
 namespace mega {
-
 // cr element share/node map key generator
-class ShareNodeKeys
+class MEGA_API ShareNodeKeys
 {
-	node_vector shares;
-	vector<string> items;
+    node_vector shares;
+    vector<string> items;
 
-	string keys;
+    string keys;
 
-	int addshare(Node*);
+    int addshare(Node*);
 
 public:
-	void add(Node*, Node*, int);
-	void add(NodeCore*, Node*, int, const byte* = NULL, int = 0);
+    void add(Node*, Node*, int);
+    void add(NodeCore*, Node*, int, const byte* = NULL, int = 0);
 
-	void get(Command*);
+    void get(Command*);
 };
-
 } // namespace
 
 #endif

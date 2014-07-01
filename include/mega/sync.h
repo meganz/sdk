@@ -2,7 +2,7 @@
  * @file mega/sync.h
  * @brief Class for synchronizing local and remote trees
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -25,52 +25,92 @@
 #include "megaclient.h"
 
 namespace mega {
-
-class Sync
+class MEGA_API Sync
 {
 public:
-	MegaClient* client;
+    MegaClient* client;
 
-	// root of local filesystem tree, holding the sync's root folder
-	LocalNode localroot;
+    // root of local filesystem tree, holding the sync's root folder
+    LocalNode localroot;
 
-	// queued ScanItems
-	scanitem_deque scanq;
+    // current state
+    syncstate_t state;
 
-	// current state
-	syncstate state;
+	// are we conducting a full tree scan? (during initialization and if event notification failed)
+	bool fullscan;
+	
+    // deletion queue
+    set<int32_t> deleteq;
 
-	// change state, signal to application
-	void changestate(syncstate);
+    // insertion/update queue
+    localnode_set insertq;
 
-	// process and remove one scanq item
-	void procscanq();
+    // adds an entry to the delete queue - removes it from insertq
+    void statecachedel(LocalNode*);
 
-	m_off_t localbytes;
-	unsigned localnodes[2];
+    // adds an entry to the insert queue - removes it from deleteq
+    void statecacheadd(LocalNode*);
 
-	// add or update LocalNode item, scan newly added folders
-	void queuescan(string*, string*, LocalNode*, LocalNode*, bool);
+    // recursively add children
+    void addstatecachechildren(uint32_t, idlocalnode_map*, string*, LocalNode*, int);
+    
+    // Caches all synchronized LocalNode
+    void cachenodes();
 
-	// examine filesystem item and queue it for scanning
-	LocalNode* queuefsrecord(string*, string*, LocalNode*, bool);
+    // change state, signal to application
+    void changestate(syncstate_t);
 
-	// scan items in specified path and add as children of the specified LocalNode
-	void scan(string*, FileAccess*, LocalNode*, bool);
+    // sync-wide directory notification provider
+    DirNotify* dirnotify;
 
-	// determine status of a given path
-	pathstate_t pathstate(string*);
+    // process and remove one directory notification queue item from *notify
+    dstime procscanq(int);
 
-	// own position in session sync list
-	sync_list::iterator sync_it;
+	// recursively look for vanished child nodes and delete them
+	void deletemissing(LocalNode*);
+	
+    // scan specific path
+    LocalNode* checkpath(LocalNode*, string*, string* = NULL);
 
-	// notified nodes originating from this sync bear this tag
-	int tag;
+    m_off_t localbytes;
+    unsigned localnodes[2];
 
-	Sync(MegaClient*, string*, Node*, int = 0);
-	~Sync();
+    // look up LocalNode relative to localroot
+    LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
+
+    // scan items in specified path and add as children of the specified
+    // LocalNode
+    bool scan(string*, FileAccess*);
+
+    // own position in session sync list
+    sync_list::iterator sync_it;
+
+    // rescan sequence number (incremented when a full rescan or a new
+    // notification batch starts)
+    int scanseqno;
+
+    // notified nodes originating from this sync bear this tag
+    int tag;
+
+    // debris path component relative to the base path
+    string debris, localdebris;
+
+    // permanent lock on the debris/tmp folder
+    FileAccess* tmpfa;
+
+    // state cache table
+    DbTable* statecachetable;
+
+    // move file or folder to localdebris
+    bool movetolocaldebris(string* localpath);
+
+    Sync(MegaClient*, string*, const char*, string*, Node*, int = 0);
+    ~Sync();
+
+protected :
+    bool readstatecache();
+
 };
-
 } // namespace
 
 #endif

@@ -2,7 +2,7 @@
  * @file mega/account.h
  * @brief Classes for manipulating Account data
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -24,69 +24,73 @@
 
 
 namespace mega {
-
 // account details/history
-struct AccountBalance
+struct MEGA_API AccountBalance
 {
-	double amount;
-	char currency[4];
+    double amount;
+    char currency[4];
 };
 
-struct AccountSession
+struct MEGA_API AccountSession
 {
-	time_t timestamp, mru;
-	string useragent;
-	string ip;
-	char country[3];
-	int current;
+    m_time_t timestamp, mru;
+    string useragent;
+    string ip;
+    char country[3];
+    int current;
 };
 
-struct AccountPurchase
+struct MEGA_API AccountPurchase
 {
-	time_t timestamp;
-	char handle[12];
-	char currency[4];
-	double amount;
-	int method;
+    m_time_t timestamp;
+    char handle[12];
+    char currency[4];
+    double amount;
+    int method;
 };
 
-struct AccountTransaction
+struct MEGA_API AccountTransaction
 {
-	time_t timestamp;
-	char handle[12];
-	char currency[4];
-	double delta;
+    m_time_t timestamp;
+    char handle[12];
+    char currency[4];
+    double delta;
 };
 
-struct AccountDetails
+struct MEGA_API AccountDetails
 {
-	// subscription information (summarized)
-	int pro_level;
-	char subscription_type;
+    // subscription information (summarized)
+    int pro_level;
+    char subscription_type;
 
-	time_t pro_until;
+    m_time_t pro_until;
 
-	// quota related to the session account
-	m_off_t storage_used, storage_max;
-	m_off_t transfer_own_used, transfer_srv_used, transfer_max;
-	m_off_t transfer_own_reserved, transfer_srv_reserved;
-	double srv_ratio;
+    // quota related to the session account
+    m_off_t storage_used, storage_max;
+    m_off_t transfer_own_used, transfer_srv_used, transfer_max;
+    m_off_t transfer_own_reserved, transfer_srv_reserved;
+    double srv_ratio;
 
-	// transfer history pertaining to requesting IP address
-	time_t transfer_hist_starttime;		// transfer history start timestamp
-	time_t transfer_hist_interval;		// timespan that a single transfer window record covers
-	vector<m_off_t> transfer_hist;		// transfer window - oldest to newest, bytes consumed per twrtime interval
+    // transfer history pertaining to requesting IP address
+    m_time_t transfer_hist_starttime;     // transfer history start timestamp
+    m_time_t transfer_hist_interval;      // timespan that a single transfer
+                                        // window record covers
+    vector<m_off_t> transfer_hist;      // transfer window - oldest to newest,
+                                        // bytes consumed per twrtime interval
 
-	m_off_t transfer_reserved;			// byte quota reserved for the completion of active transfers
+    m_off_t transfer_reserved;          // byte quota reserved for the
+                                        // completion of active transfers
 
-	m_off_t transfer_limit;				// current byte quota for the requesting IP address (dynamic, overage will be drawn from account quota)
+    m_off_t transfer_limit;             // current byte quota for the
+                                        // requesting IP address (dynamic,
+                                        // overage will be drawn from account
+                                        // quota)
 
-	vector<AccountBalance> balances;
-	vector<AccountSession> sessions;
-	vector<AccountPurchase> purchases;
-	vector<AccountTransaction> transactions;
+    vector<AccountBalance> balances;
+    vector<AccountSession> sessions;
+    vector<AccountPurchase> purchases;
+    vector<AccountTransaction> transactions;
 };
-
 } // namespace
 
 #endif

@@ -2,7 +2,7 @@
 # @file Makefile.am
 # @brief an input file for automake tool
 #
-# (c) 2013 by Mega Limited, Wellsford, New Zealand
+# (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
 #
 # This file is part of the MEGA SDK - Client Access Engine.
 #
@@ -23,8 +23,9 @@ AUTOMAKE_OPTIONS=foreign 1.9 subdir-objects
 ACLOCAL_AMFLAGS=-I m4
 
 AM_CPPFLAGS = \
-	-I$(top_srcdir)/include
+	-I$(top_srcdir)/include -I$(top_srcdir)/third_party/utf8proc
 
+include m4/aminclude.am
 
 if WIN32
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/win32
@@ -37,14 +38,19 @@ VERSION_INFO=$(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 CLEANFILES=
 DISTCLEANFILES=
 BUILT_SOURCES=
+noinst_PROGRAMS=
+
 include src/include.am
-include tests/include.am
 include examples/include.am
+include tests/include.am
 
 SUBDIRS = include
 
-EXTRA_DIST=autogen.sh
-EXTRA_DIST+=libmega.pc.in
+EXTRA_DIST = autogen.sh
+EXTRA_DIST += libmega.pc.in
+EXTRA_DIST += $(DX_CONFIG)
+EXTRA_DIST += m4/ax_prog_doxygen.m4
+EXTRA_DIST += m4/aminclude.am
 
 pkgconfigdir=$(libdir)/pkgconfig
 pkgconfig_DATA=libmega.pc
@@ -56,7 +62,6 @@ platform_includes=$(top_srcdir)/include/mega/win32
 else
 platform_includes=$(top_srcdir)/include/mega/posix
 endif
-
 
 CPPCHECK_CMD = cppcheck \
 	--template='{file};{line};{severity};{id};{message}' \
@@ -72,3 +77,7 @@ CPPCHECK_DIRS = \
 
 cppcheck:
 	$(CPPCHECK_CMD) $(CPPCHECK_DIRS)
+
+MOSTLYCLEANFILES = $(DX_CLEANFILES)
+
+doc: doxygen-run

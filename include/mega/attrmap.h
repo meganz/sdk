@@ -2,7 +2,7 @@
  * @file mega/attrmap.h
  * @brief Class for manipulating file attributes
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,33 +22,32 @@
 #ifndef MEGA_ATTRMAP_H
 #define MEGA_ATTRMAP_H 1
 
-#include "mega/types.h"
+#include "mega/utils.h"
 
 namespace mega {
 
 // maps attribute names to attribute values
-typedef map<nameid,string> attr_map;
+typedef map<nameid, string> attr_map;
 
-struct AttrMap
+struct MEGA_API AttrMap
 {
-	attr_map map;
+    attr_map map;
 
-	// compute rough storage size
-	unsigned storagesize(int);
+    // compute rough storage size
+    unsigned storagesize(int) const;
 
-	// convert nameid to string
-	int nameid2string(nameid, char*);
+    // convert nameid to string
+    int nameid2string(nameid, char*) const;
 
-	// export as JSON string
-	void getjson(string*);
+    // export as JSON string
+    void getjson(string*) const;
 
-	// export as raw binary serialize
-	void serialize(string*);
+    // export as raw binary serialize
+    void serialize(string*) const;
 
-	// import raw binary serialize
-	const char* unserialize(const char*, unsigned);
+    // import raw binary serialize
+    const char* unserialize(const char*);
 };
-
 } // namespace
 
 #endif

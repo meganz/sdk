@@ -2,7 +2,7 @@
  * @file sqlite.h
  * @brief SQLite DB access layer
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -26,41 +26,38 @@
 #include <sqlite3.h>
 
 namespace mega {
-
-class SqliteDbAccess : public DbAccess
+class MEGA_API SqliteDbAccess : public DbAccess
 {
     string dbpath;
-    sqlite3* db;
 
 public:
     DbTable* open(FileSystemAccess*, string*);
 
     SqliteDbAccess(string* = NULL);
-	~SqliteDbAccess();
+    ~SqliteDbAccess();
 };
 
-class SqliteDbTable : public DbTable
+class MEGA_API SqliteDbTable : public DbTable
 {
-	sqlite3* db;
-	sqlite3_stmt* pStmt;
+    sqlite3* db;
+    sqlite3_stmt* pStmt;
 
 public:
-	void rewind();
-	bool next(uint32_t*, string*);
-	bool get(uint32_t, string*);
-	bool put(uint32_t, char*, unsigned);
-	bool del(uint32_t);
-	void truncate();
-	void begin();
-	void commit();
-	void abort();
+    void rewind();
+    bool next(uint32_t*, string*);
+    bool get(uint32_t, string*);
+    bool put(uint32_t, char*, unsigned);
+    bool del(uint32_t);
+    void truncate();
+    void begin();
+    void commit();
+    void abort();
 
-	uint32_t nextid;
+    uint32_t nextid;
 
-	SqliteDbTable(sqlite3*);
-	~SqliteDbTable();
+    SqliteDbTable(sqlite3*);
+    ~SqliteDbTable();
 };
-
 } // namespace
 
 #endif

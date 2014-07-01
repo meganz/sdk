@@ -2,7 +2,7 @@
  * @file mega/win32/megasys.h
  * @brief Mega SDK platform-specific includes (Win32)
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,6 +22,33 @@
 #ifndef MEGA_WIN32_OS_H
 #define MEGA_WIN32_OS_H 1
 
+#ifdef HAVE_CONFIG_H
+// platform dependent constants
+#include "mega/config.h"
+#endif
+
+// FIXME: move to autoconf
+#define __STDC_FORMAT_MACROS
+
+// (inttypes.h is not present in Microsoft Visual Studio)
+#ifdef _MSC_VER
+ #define PRIu32 "I32u"
+ #define PRIu64 "I64u"
+ #define PRId64 "I64d"
+#else
+ #include <inttypes.h>
+#endif
+
+#include <iostream>
+#include <algorithm>
+#include <string>   // the MEGA SDK assumes writable, contiguous string::data()
+#include <sstream>
+#include <map>
+#include <set>
+#include <iterator>
+#include <queue>
+#include <list>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -30,16 +57,30 @@
 #include <memory.h>
 #include <time.h>
 
+#include <specstrings.h>
 #include <winsock2.h>
 #include <windows.h>
+#include <winhttp.h>
+#include <shellapi.h>
+#include <wincrypt.h>
+
 #define atoll _atoi64
 #define snprintf _snprintf
 #define _CRT_SECURE_NO_WARNINGS
 
-// XXX: move to auto-generated file
-#define MEGA_MAJOR_VERSION 0
-#define MEGA_MINOR_VERSION 2
-#define MEGA_MICRO_VERSION 3
+// FIXME: move to auto-generated file
+#ifndef MEGA_MAJOR_VERSION
+#define MEGA_MAJOR_VERSION 2
+#endif
 
+#ifndef MEGA_MINOR_VERSION
+#define MEGA_MINOR_VERSION 1
+#endif
+
+#ifndef MEGA_MICRO_VERSION
+#define MEGA_MICRO_VERSION 0
+#endif
+
+#include <conio.h>
 
 #endif

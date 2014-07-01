@@ -2,7 +2,7 @@
  * @file mega/transfer.h
  * @brief pending/active up/download ordered by file fingerprint
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -24,62 +24,141 @@
 
 #include "node.h"
 #include "backofftimer.h"
+#include "command.h"
 
 namespace mega {
-
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
-struct Transfer : public FileFingerprint
+struct MEGA_API Transfer : public FileFingerprint
 {
-	// PUT or GET
-	direction type;
+    // PUT or GET
+    direction_t type;
 
-	// transfer slot this transfer is active in (can be NULL if still queued)
-	TransferSlot* slot;
+    // transfer slot this transfer is active in (can be NULL if still queued)
+    TransferSlot* slot;
 
-	// files belonging to this transfer - transfer terminates upon its last file is removed
-	file_list files;
+    // files belonging to this transfer - transfer terminates upon its last
+    // file is removed
+    file_list files;
 
-	// failures/backoff
-	unsigned failcount;
-	BackoffTimer bt;
+    // failures/backoff
+    unsigned failcount;
+    BackoffTimer bt;
 
-	// representative local filename for this transfer
-	string localfilename;
+    // representative local filename for this transfer
+    string localfilename;
 
-	m_off_t pos;
+    m_off_t pos;
 
-	byte filekey[FILENODEKEYLENGTH];
+    byte filekey[FILENODEKEYLENGTH];
 
-	// CTR mode IV
-	int64_t ctriv;
+    // CTR mode IV
+    int64_t ctriv;
 
-	// meta MAC
-	int64_t metamac;
+    // meta MAC
+    int64_t metamac;
 
-	// file crypto key
-	SymmCipher key;
+    // file crypto key
+    SymmCipher key;
 
-	chunkmac_map chunkmacs;
+    chunkmac_map chunkmacs;
 
-	// upload handle for file attribute attachment (only set if file attribute queued)
-	handle uploadhandle;
+    // upload handle for file attribute attachment (only set if file attribute queued)
+    handle uploadhandle;
 
-	// signal failure
-	void failed(error);
+    // position in transfers[type]
+    transfer_map::iterator transfers_it;
 
-	// signal completion
-	void complete();
+    // backlink to base
+    MegaClient* client;
+    int tag;
+    
+    // signal failure
+    void failed(error);
 
-	// position in transfers[type]
-	transfer_map::iterator transfers_it;
-
-	// backlink to base
-	MegaClient* client;
-
-	Transfer(MegaClient*, direction);
-	virtual ~Transfer();
+    // signal completion
+    void complete();
+   
+    Transfer(MegaClient*, direction_t);
+    virtual ~Transfer();
 };
 
+struct MEGA_API DirectReadSlot
+{
+    m_off_t pos;
+
+    DirectRead* dr;
+    HttpReq* req;
+
+    drs_list::iterator drs_it;
+
+    bool doio();
+
+    DirectReadSlot(DirectRead*);
+    ~DirectReadSlot();
+};
+
+struct MEGA_API DirectRead
+{
+    m_off_t count;
+    m_off_t offset;
+
+    DirectReadNode* drn;
+    DirectReadSlot* drs;
+
+    dr_list::iterator reads_it;
+    dr_list::iterator drq_it;
+
+    void* appdata;
+
+    int reqtag;
+
+    void abort();
+
+    DirectRead(DirectReadNode*, m_off_t, m_off_t, int, void*);
+    ~DirectRead();
+};
+
+struct MEGA_API DirectReadNode
+{
+    handle h;
+    bool p;
+
+    string tempurl;
+
+    m_off_t size;
+
+    class CommandDirectRead* pendingcmd;
+
+    int retries;
+
+    int64_t ctriv;
+    SymmCipher key;
+
+    dr_list reads;
+
+    MegaClient* client;
+
+    handledrn_map::iterator hdrn_it;
+    dsdrn_map::iterator dsdrn_it;
+
+    // API command result
+    void cmdresult(error);
+    
+    // enqueue new read
+    void enqueue(m_off_t, m_off_t, int, void*);
+
+    // dispatch all reads
+    void dispatch();
+    
+    // schedule next event
+    void schedule(dstime);
+
+    // report failure to app and abort or retry all reads
+    void retry(error);
+
+    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t);
+    ~DirectReadNode();
+};
 } // namespace
 
 #endif

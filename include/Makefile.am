@@ -9,8 +9,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/config.h \
 	mega/console.h \
 	mega/command.h \
-	mega/commands.h \
 	mega/db.h \
+	mega/gfx.h \
 	mega/fileattributefetch.h \
 	mega/filefingerprint.h \
 	mega/file.h \
@@ -26,32 +26,38 @@ nobase_libmegainclude_HEADERS = \
 	mega/share.h \
 	mega/sharenodekeys.h \
 	mega/sync.h \
-	mega/synclocalops.h \
 	mega/transfer.h \
 	mega/transferslot.h \
 	mega/treeproc.h \
 	mega/types.h \
 	mega/user.h \
 	mega/utils.h \
+	mega/logging.h \
 	mega/waiter.h \
     mega/crypto/cryptopp.h \
     mega/db/sqlite.h \
     mega/db/bdb.h
+
+if USE_FREEIMAGE
+nobase_libmegainclude_HEADERS += mega/gfx/freeimage.h
+endif
 
 if WIN32
 nobase_libmegainclude_HEADERS += \
 	mega/win32/megasys.h \
     mega/win32/megafs.h \
     mega/win32/meganet.h \
-    mega/win32/megawait.h \
-    mega/win32/megaconsole.h
+    mega/win32/megawaiter.h \
+    mega/win32/megaconsole.h \
+    mega/win32/megaconsolewaiter.h
 else
 nobase_libmegainclude_HEADERS += \
 	mega/posix/megasys.h \
     mega/posix/megafs.h \
     mega/posix/meganet.h \
-    mega/posix/megawait.h \
-    mega/posix/megaconsole.h
+    mega/posix/megawaiter.h \
+    mega/posix/megaconsole.h \
+    mega/posix/megaconsolewaiter.h
 endif
 
 #noinst_HEADERS = config.h

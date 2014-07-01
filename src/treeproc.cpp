@@ -2,7 +2,7 @@
  * @file treeproc.cpp
  * @brief Node tree processor
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -23,46 +23,57 @@
 #include "mega/megaclient.h"
 
 namespace mega {
-
 // create share keys
 TreeProcShareKeys::TreeProcShareKeys(Node* n)
 {
-	sn = n;
+    sn = n;
 }
 
 void TreeProcShareKeys::proc(MegaClient*, Node* n)
 {
-	snk.add(n,sn,sn != NULL);
+    snk.add(n, sn, sn != NULL);
 }
 
 void TreeProcShareKeys::get(Command* c)
 {
-	snk.get(c);
+    snk.get(c);
 }
 
 // total disk space / node count
 TreeProcDU::TreeProcDU()
 {
-	numbytes = 0;
-	numfiles = 0;
-	numfolders = 0;
+    numbytes = 0;
+    numfiles = 0;
+    numfolders = 0;
 }
 
 void TreeProcDU::proc(MegaClient*, Node* n)
 {
-	if (n->type == FILENODE)
-	{
-		numbytes += n->size;
-		numfiles++;
-	}
-	else numfolders++;
+    if (n->type == FILENODE)
+    {
+        numbytes += n->size;
+        numfiles++;
+    }
+    else
+    {
+        numfolders++;
+    }
 }
 
 // mark node as removed and notify
 void TreeProcDel::proc(MegaClient* client, Node* n)
 {
-	n->removed = 1;
-	client->notifynode(n);
+    n->removed = 1;
+    client->notifynode(n);
 }
 
+// stop sync get
+void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
+{
+    if (n->syncget)
+    {
+        delete n->syncget;
+        n->syncget = NULL;
+    }
+}
 } // namespace

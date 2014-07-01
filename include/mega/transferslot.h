@@ -2,7 +2,7 @@
  * @file mega/transferslot.h
  * @brief Class for active transfer
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -24,63 +24,73 @@
 
 #include "http.h"
 #include "node.h"
+#include "backofftimer.h"
 
 namespace mega {
-
 // active transfer
-struct TransferSlot
+struct MEGA_API TransferSlot
 {
-	// link to related transfer (never NULL)
-	struct Transfer* transfer;
+    // link to related transfer (never NULL)
+    struct Transfer* transfer;
 
-	// associated source/destination file
-	FileAccess* file;
+    // associated source/destination file
+    FileAccess* fa;
 
-	// command in flight to obtain temporary URL
-	Command* pendingcmd;
+    // command in flight to obtain temporary URL
+    Command* pendingcmd;
 
-	// transfer attempts are considered failed after XFERTIMEOUT seconds without data flow
-	static const dstime XFERTIMEOUT = 600;
+    // transfer attempts are considered failed after XFERTIMEOUT seconds
+    // without data flow
+    static const dstime XFERTIMEOUT = 600;
 
-	m_off_t progressreported, progresscompleted;
+    m_off_t progressreported, progresscompleted;
 
-	dstime starttime, lastdata;
+    dstime starttime, lastdata;
 
-	// upload result
-	byte ultoken[NewNode::UPLOADTOKENLEN+1];
+    // number of consecutive errors
+    unsigned errorcount;
 
-	// file attribute string
-	string fileattrstring;
+    // upload result
+    byte ultoken[NewNode::UPLOADTOKENLEN + 1];
 
-	// file attributes mutable
-	int fileattrsmutable;
+    // file attribute string
+    string fileattrstring;
 
-	// storage server access URL
-	string tempurl;
+    // file attributes mutable
+    int fileattrsmutable;
 
-	// maximum number of parallel connections and connection aray
-	int connections;
-	HttpReqXfer** reqs;
+    // storage server access URL
+    string tempurl;
 
-	// handle I/O for this slot
-	void doio(MegaClient*);
+    // maximum number of parallel connections and connection aray
+    int connections;
+    HttpReqXfer** reqs;
 
-	// disconnect and reconnect all open connections for this transfer
-	void disconnect();
+    // handle I/O for this slot
+    void doio(MegaClient*);
 
-	// indicate progress
-	void progress();
+    // disconnect and reconnect all open connections for this transfer
+    void disconnect();
 
-	// compute the meta MAC based on the chunk MACs
-	int64_t macsmac(chunkmac_map*);
+    // indicate progress
+    void progress();
 
-	// tslots list position
-	transferslot_list::iterator slots_it;
+    // compute the meta MAC based on the chunk MACs
+    int64_t macsmac(chunkmac_map*);
 
-	TransferSlot(Transfer*);
-	~TransferSlot();
+    // tslots list position
+    transferslot_list::iterator slots_it;
+
+    // slot operation retry timer
+    bool retrying;
+    BackoffTimer retrybt;
+
+    // transfer failure flag
+    bool failure;
+    
+    TransferSlot(Transfer*);
+    ~TransferSlot();
 };
-
 } // namespace
 
 #endif

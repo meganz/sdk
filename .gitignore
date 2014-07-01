@@ -36,7 +36,6 @@ config.*
 configure
 depcomp
 *.swp
-m4
 install-sh
 libtool
 ltmain.sh
@@ -48,10 +47,18 @@ libmega.pc
 *.db
 .ycm_extra_conf.py
 test-driver
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+compile
+clean
 
 # Documentation generator
 doc/_build
 doc/api
+doc/sphinx_api
 
 # Editor and IDE stuff
 *~
@@ -61,3 +68,6 @@ doc/api
 *~
 Debug
 Release
+
+# Mega SDK runtime
+*.db-journal

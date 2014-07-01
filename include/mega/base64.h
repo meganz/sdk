@@ -2,7 +2,7 @@
  * @file mega/base64.h
  * @brief modified base64 encoding/decoding
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -25,18 +25,16 @@
 #include "types.h"
 
 namespace mega {
-
 // modified base64 encoding/decoding (unpadded, -_ instead of +/)
-class Base64
+class MEGA_API Base64
 {
-	static byte to64(byte);
-	static byte from64(byte);
+    static byte to64(byte);
+    static byte from64(byte);
 
 public:
-	static int btoa(const byte*, int, char*);
-	static int atob(const char*, byte*, int);
+    static int btoa(const byte*, int, char*);
+    static int atob(const char*, byte*, int);
 };
-
 } // namespace
 
 #endif

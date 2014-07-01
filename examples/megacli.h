@@ -23,15 +23,11 @@ using namespace mega;
 
 extern MegaClient* client;
 
-extern bool debug;
-
 extern void megacli();
 
 extern void term_init();
 extern void term_restore();
 extern void term_echo(int);
-
-//extern int globenqueue(const char*, const char*, handle, const char*);
 
 extern void read_pw_char(char*, int, int*, char**);
 
@@ -39,15 +35,15 @@ typedef list<struct AppFile*> appfile_list;
 
 struct AppFile : public File
 {
-	// app-internal sequence number for queue management
-	int seqno;
+    // app-internal sequence number for queue management
+    int seqno;
 
-	bool failed(error);
-	void progress();
+    bool failed(error);
+    void progress();
 
-	appfile_list::iterator appxfer_it;
+    appfile_list::iterator appxfer_it;
 
-	AppFile();
+    AppFile();
 };
 
 // application-managed GET and PUT queues (only pending and active files)
@@ -55,120 +51,135 @@ extern appfile_list appxferq[2];
 
 struct AppFileGet : public AppFile
 {
-	void start();
-	void update();
-	void completed(Transfer*, LocalNode*);
+    void start();
+    void update();
+    void completed(Transfer*, LocalNode*);
 
-	AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, time_t = 0, string* = NULL, string* = NULL);
-	~AppFileGet();
+    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL);
+    ~AppFileGet();
 };
 
 struct AppFilePut : public AppFile
 {
-	void start();
-	void update();
-	void completed(Transfer*, LocalNode*);
+    void start();
+    void update();
+    void completed(Transfer*, LocalNode*);
 
-	void displayname(string*);
+    void displayname(string*);
 
-	AppFilePut(string*, handle, const char*);
-	~AppFilePut();
+    AppFilePut(string*, handle, const char*);
+    ~AppFilePut();
+};
+
+struct AppReadContext
+{
+    SymmCipher key;
 };
 
 struct DemoApp : public MegaApp
 {
-	FileAccess* newfile();
+    FileAccess* newfile();
 
-	void request_error(error);
+    void request_error(error);
+    
+    void request_response_progress(m_off_t, m_off_t);
+    
+    void login_result(error);
 
-	void login_result(error);
+    void ephemeral_result(error);
+    void ephemeral_result(handle, const byte*);
 
-	void ephemeral_result(error);
-	void ephemeral_result(handle, const byte*);
+    void sendsignuplink_result(error);
+    void querysignuplink_result(error);
+    void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);
+    void confirmsignuplink_result(error);
+    void setkeypair_result(error);
 
-	void sendsignuplink_result(error);
-	void querysignuplink_result(error);
-	void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);
-	void confirmsignuplink_result(error);
-	void setkeypair_result(error);
+    void users_updated(User**, int);
+    void nodes_updated(Node**, int);
+    void nodes_current();
 
-	void users_updated(User**, int);
-	void nodes_updated(Node**, int);
+    int prepare_download(Node*);
 
-	int prepare_download(Node*);
+    void setattr_result(handle, error);
+    void rename_result(handle, error);
+    void unlink_result(handle, error);
 
-	void setattr_result(handle, error);
-	void rename_result(handle, error);
-	void unlink_result(handle, error);
+    void fetchnodes_result(error);
 
-	void fetchnodes_result(error);
+    void putnodes_result(error, targettype_t, NewNode*);
 
-	void putnodes_result(error, targettype, NewNode*);
+    void share_result(error);
+    void share_result(int, error);
 
-	void share_result(error);
-	void share_result(int, error);
+    void fa_complete(Node*, fatype, const char*, uint32_t);
+    int fa_failed(handle, fatype, int);
 
-	void fa_complete(Node*, fatype, const char*, uint32_t);
-	int fa_failed(handle, fatype, int);
+    void putfa_result(handle, fatype, error);
 
-	void putfa_result(handle, fatype, error);
+    void invite_result(error);
+    void putua_result(error);
+    void getua_result(error);
+    void getua_result(byte*, unsigned);
 
-	void invite_result(error);
-	void putua_result(error);
-	void getua_result(error);
-	void getua_result(byte*, unsigned);
+    void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool);
+    void account_details(AccountDetails*, error);
 
-	void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool);
-	void account_details(AccountDetails*, error);
+    void exportnode_result(error);
+    void exportnode_result(handle, handle);
 
-	void exportnode_result(error);
-	void exportnode_result(handle, handle);
+    void openfilelink_result(error);
+    void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, m_time_t, m_time_t, int);
 
-	void openfilelink_result(error);
-	void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, time_t, time_t, int);
+    void checkfile_result(handle, error);
+    void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*);
 
-	void checkfile_result(handle, error);
-	void checkfile_result(handle, error, byte*, m_off_t, time_t, time_t, string*, string*, string*);
+    dstime pread_failure(error, int, void*);
+    bool pread_data(byte*, m_off_t, m_off_t, void*);
 
-	void transfer_added(Transfer*);
-	void transfer_removed(Transfer*);
-	void transfer_prepare(Transfer*);
-	void transfer_failed(Transfer*, error);
-	void transfer_update(Transfer*);
-	void transfer_limit(Transfer*);
-	void transfer_complete(Transfer*);
+    void transfer_added(Transfer*);
+    void transfer_removed(Transfer*);
+    void transfer_prepare(Transfer*);
+    void transfer_failed(Transfer*, error);
+    void transfer_update(Transfer*);
+    void transfer_limit(Transfer*);
+    void transfer_complete(Transfer*);
 
-	void syncupdate_state(Sync*, syncstate);
-	void syncupdate_stuck(string*);
-	void syncupdate_local_folder_addition(Sync*, const char*);
-	void syncupdate_local_folder_deletion(Sync*, const char*);
-	void syncupdate_local_file_addition(Sync*, const char*);
-	void syncupdate_local_file_deletion(Sync*, const char*);
-	void syncupdate_get(Sync*, const char*);
-	void syncupdate_put(Sync*, const char*);
-	void syncupdate_remote_file_addition(Node*);
-	void syncupdate_remote_file_deletion(Node*);
-	void syncupdate_remote_folder_addition(Node*);
-	void syncupdate_remote_folder_deletion(Node*);
-	void syncupdate_remote_copy(Sync*, const char*);
-	void syncupdate_remote_move(string*, string*);
+    void syncupdate_state(Sync*, syncstate_t);
+    void syncupdate_scanning(bool);
+    void syncupdate_local_folder_addition(Sync*, const char*);
+    void syncupdate_local_folder_deletion(Sync*, const char*);
+    void syncupdate_local_file_addition(Sync*, const char*);
+    void syncupdate_local_file_deletion(Sync*, const char*);
+    void syncupdate_local_file_change(Sync*, const char*);
+    void syncupdate_local_move(Sync*, const char*, const char*);
+    void syncupdate_local_lockretry(bool);
+    void syncupdate_get(Sync*, const char*);
+    void syncupdate_put(Sync*, const char*);
+    void syncupdate_remote_file_addition(Node*);
+    void syncupdate_remote_file_deletion(Node*);
+    void syncupdate_remote_folder_addition(Node*);
+    void syncupdate_remote_folder_deletion(Node*);
+    void syncupdate_remote_copy(Sync*, const char*);
+    void syncupdate_remote_move(string*, string*);
+    void syncupdate_treestate(LocalNode*);
 
-	bool sync_syncable(Node*);
-	bool sync_syncable(const char*, string*, string*);
+    bool sync_syncable(Node*);
+    bool sync_syncable(const char*, string*, string*);
 
-	void changepw_result(error);
+    void changepw_result(error);
 
-	void userattr_update(User*, int, const char*);
+    void userattr_update(User*, int, const char*);
 
-	void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*);
-	void enumeratequotaitems_result(error);
-	void additem_result(error);
-	void checkout_result(error);
-	void checkout_result(const char*);
+    void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*);
+    void enumeratequotaitems_result(error);
+    void additem_result(error);
+    void checkout_result(error);
+    void checkout_result(const char*);
 
-	void reload(const char*);
-	void clearing();
+    void reload(const char*);
+    void clearing();
 
-	void notify_retry(dstime);
-	void debug_log(const char*);
+    void notify_retry(dstime);
+    void debug_log(const char*);
 };

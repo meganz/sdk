@@ -2,7 +2,7 @@
  * @file mega/posix/megafs.h
  * @brief POSIX filesystem/directory access/notification
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,87 +22,113 @@
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
 
+#ifdef  __APPLE__
+// Apple calls it sendfile, but it isn't
+#undef HAVE_SENDFILE
+#define O_DIRECT 0
+#endif
+
 #include "mega.h"
 
+#define DEBRISFOLDER ".debris"
+
 namespace mega {
-
-struct PosixDirAccess : public DirAccess
+struct MEGA_API PosixDirAccess : public DirAccess
 {
-	DIR* dp;
-	bool globbing;
-	glob_t globbuf;
-	unsigned globindex;
+    DIR* dp;
+    bool globbing;
+    glob_t globbuf;
+    unsigned globindex;
 
-	bool dopen(string*, FileAccess*, bool);
-	bool dnext(string*, nodetype* = NULL);
+    bool dopen(string*, FileAccess*, bool);
+    bool dnext(string*, nodetype_t* = NULL);
 
-	PosixDirAccess();
-	virtual ~PosixDirAccess();
+    PosixDirAccess();
+    virtual ~PosixDirAccess();
 };
 
-class PosixFileSystemAccess : public FileSystemAccess
+class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
-#ifdef USE_INOTIFY
-	int notifyfd;
-	char notifybuf[sizeof(struct inotify_event)+NAME_MAX+1];
-	int notifypos, notifyleft;
+public:
+    int notifyfd;
 
-	typedef map<int,LocalNode*> wdlocalnode_map;
-	wdlocalnode_map wdnodes;
+#ifdef USE_INOTIFY
+    typedef map<int, LocalNode*> wdlocalnode_map;
+    wdlocalnode_map wdnodes;
+    
+    // skip the IN_FROM component in moves if followed by IN_TO
+    LocalNode* lastlocalnode;
+    uint32_t lastcookie;
+    string lastname;
 #endif
 
-	bool notifyerr;
+    bool notifyerr;
 
-public:
-	FileAccess* newfileaccess();
-	DirAccess* newdiraccess();
+    FileAccess* newfileaccess();
+    DirAccess* newdiraccess();
+    DirNotify* newdirnotify(string*, string*);
 
-	void tmpnamelocal(string*, string* = NULL);
+    void tmpnamelocal(string*) const;
 
-	void local2path(string*, string*);
-	void path2local(string*, string*);
+    void local2path(string*, string*) const;
+    void path2local(string*, string*) const;
 
-	void name2local(string*, const char* = NULL);
-	void local2name(string*);
+    bool getsname(string*, string*) const;
 
-	bool renamelocal(string*, string*);
-	bool copylocal(string*, string*);
-	bool rubbishlocal(string*);
-	bool unlinklocal(string*);
-	bool rmdirlocal(string*);
-	bool mkdirlocal(string*);
-	bool setmtimelocal(string*, time_t);
-	bool chdirlocal(string*);
+    bool renamelocal(string*, string*, bool);
+    bool copylocal(string*, string*, m_time_t);
+    bool rubbishlocal(string*);
+    bool unlinklocal(string*);
+    bool rmdirlocal(string*);
+    bool mkdirlocal(string*, bool);
+    bool setmtimelocal(string *, m_time_t) const;
+    bool chdirlocal(string*) const;
+    size_t lastpartlocal(string*) const;
+    bool getextension(string*, char*, int) const;
 
-	void addnotify(LocalNode*, string*);
-	void delnotify(LocalNode*);
-	bool notifynext(sync_list*, string*, LocalNode**, bool* = NULL);
-	bool notifyfailed();
+    void addevents(Waiter*, int);
+    int checkevents(Waiter*);
 
-	void addevents(Waiter*);
+    void osversion(string*) const;
 
-	PosixFileSystemAccess();
-	~PosixFileSystemAccess();
+    PosixFileSystemAccess(int = -1);
+    ~PosixFileSystemAccess();
 };
 
-class PosixFileAccess : public FileAccess
+class MEGA_API PosixFileAccess : public FileAccess
 {
 public:
-	int fd;
+    int fd;
 
 #ifndef USE_FDOPENDIR
-	DIR* dp;
+    DIR* dp;
 #endif
 
-	bool fopen(string*, bool, bool);
-	bool fread(string*, unsigned, unsigned, m_off_t);
-	bool frawread(byte*, unsigned, m_off_t);
-	bool fwrite(const byte*, unsigned, m_off_t);
+    bool fopen(string*, bool, bool);
+    void updatelocalname(string*);
+    bool fread(string *, unsigned, unsigned, m_off_t);
+    bool frawread(byte *, unsigned, m_off_t);
+    bool fwrite(const byte *, unsigned, m_off_t);
 
-	PosixFileAccess();
-	~PosixFileAccess();
+    bool sysread(byte *, unsigned, m_off_t);
+    bool sysstat(m_time_t*, m_off_t*);
+    bool sysopen();
+    void sysclose();
+
+    PosixFileAccess();
+    ~PosixFileAccess();
 };
 
+class MEGA_API PosixDirNotify : public DirNotify
+{
+public:
+    PosixFileSystemAccess* fsaccess;
+
+    void addnotify(LocalNode*, string*);
+    void delnotify(LocalNode*);
+
+    PosixDirNotify(string*, string*);
+};
 } // namespace
 
 #endif

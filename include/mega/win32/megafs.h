@@ -1,8 +1,8 @@
 /**
  * @file mega/win32/megafs.h
- * @brief Win32 filesystem/directory access/notification (UNICODE)
+ * @brief Win32 filesystem/directory access/notification (Unicode)
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,110 +22,111 @@
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS WinFileSystemAccess
 
+#define DEBRISFOLDER "Rubbish"
+
 namespace mega {
-
-struct WinDirAccess : public DirAccess
+struct MEGA_API WinDirAccess : public DirAccess
 {
-	bool ffdvalid;
-	WIN32_FIND_DATAW ffd;
-	HANDLE hFind;
-	string globbase;
+    bool ffdvalid;
+    WIN32_FIND_DATAW ffd;
+    HANDLE hFind;
+    string globbase;
 
 public:
-	bool dopen(string*, FileAccess*, bool);
-	bool dnext(string*, nodetype* = NULL);
+    bool dopen(string*, FileAccess*, bool);
+    bool dnext(string*, nodetype_t* = NULL);
 
-	WinDirAccess();
-	virtual ~WinDirAccess();
+    WinDirAccess();
+    virtual ~WinDirAccess();
 };
 
-class WinFileSystemAccess : public FileSystemAccess
+class MEGA_API WinFileSystemAccess : public FileSystemAccess
 {
 public:
-	unsigned pendingevents;
-	bool notifyerr;
+    unsigned pendingevents;
 
-	FileAccess* newfileaccess();
-	DirAccess* newdiraccess();
+    FileAccess* newfileaccess();
+    DirAccess* newdiraccess();
+    DirNotify* newdirnotify(string*, string*);
 
-	void tmpnamelocal(string*, string* = NULL);
+    void tmpnamelocal(string*) const;
 
-	void path2local(string*, string*);
-	void local2path(string*, string*);
+    void path2local(string*, string*) const;
+    void local2path(string*, string*) const;
 
-	void name2local(string*, const char* = NULL);
-	void local2name(string*);
+    static int sanitizedriveletter(string*);
 
-	bool renamelocal(string*, string*);
-	bool copylocal(string*, string*);
-	bool rubbishlocal(string*);
-	bool unlinklocal(string*);
-	bool rmdirlocal(string*);
-	bool mkdirlocal(string*);
-	bool setmtimelocal(string*, time_t);
-	bool chdirlocal(string*);
+    bool getsname(string*, string*) const;
 
-	void addnotify(LocalNode*, string*);
-	void delnotify(LocalNode*);
-	bool notifynext(sync_list*, string*, LocalNode**, bool* = NULL);
-	bool notifyfailed();
+    bool renamelocal(string*, string*, bool);
+    bool copylocal(string*, string*, m_time_t);
+    bool unlinklocal(string*);
+    bool rmdirlocal(string*);
+    bool mkdirlocal(string*, bool);
+    bool setmtimelocal(string *, m_time_t) const;
+    bool chdirlocal(string*) const;
+    size_t lastpartlocal(string*) const;
+    bool getextension(string*, char*, int) const;
 
-	void addevents(Waiter*);
+    void addevents(Waiter*, int);
 
-	static bool istransient(DWORD);
-	bool istransientorexists(DWORD);
-	
-	WinFileSystemAccess();
-	~WinFileSystemAccess();
+    static bool istransient(DWORD);
+    bool istransientorexists(DWORD);
+
+    void osversion(string*) const;
+
+    WinFileSystemAccess();
 };
 
-typedef deque<string> string_deque;
-
-struct WinDirNotify
+struct MEGA_API WinDirNotify : public DirNotify
 {
-	WinFileSystemAccess* fsaccess;
+    WinFileSystemAccess* fsaccess;
 
-	HANDLE hDirectory;
+    LocalNode* localrootnode;
 
-	int active;
+    HANDLE hDirectory;
 
-	string notifybuf[2];
+    int active;
+    string notifybuf[2];
 
-	string_deque notifyq;
+    DWORD dwBytes;
+    OVERLAPPED overlapped;
 
-	string basepath;
-	LocalNode* localnode;
-	string fullpath;
+    static VOID CALLBACK completion(DWORD, DWORD, LPOVERLAPPED);
 
-	DWORD dwBytes;
-	OVERLAPPED overlapped;
+    void addnotify(LocalNode*, string*);
 
-	static VOID CALLBACK completion(DWORD, DWORD, LPOVERLAPPED);
+    void process(DWORD wNumberOfBytesTransfered);
+    void readchanges();
 
-	void process(DWORD wNumberOfBytesTransfered);
-	void readchanges();
-
-	WinDirNotify(WinFileSystemAccess*, LocalNode*, string*);
-	~WinDirNotify();
+    WinDirNotify(string*, string*);
+    ~WinDirNotify();
 };
 
-class WinFileAccess : public FileAccess
+class MEGA_API WinFileAccess : public FileAccess
 {
-	HANDLE hFile;
+    HANDLE hFile;
 
 public:
-	HANDLE hFind;
-	WIN32_FIND_DATAW ffd;
+    HANDLE hFind;
+    WIN32_FIND_DATAW ffd;
 
-	bool fopen(string*, bool, bool);
-	bool fread(string*, unsigned, unsigned, m_off_t);
-	bool frawread(byte*, unsigned, m_off_t);
-	bool fwrite(const byte*, unsigned, m_off_t);
+    bool fopen(string*, bool, bool);
+    void updatelocalname(string*);
+    bool fread(string *, unsigned, unsigned, m_off_t);
+    bool frawread(byte *, unsigned, m_off_t);
+    bool fwrite(const byte *, unsigned, m_off_t);
 
-	WinFileAccess();
-	~WinFileAccess();
+    bool sysread(byte *, unsigned, m_off_t);
+    bool sysstat(m_time_t*, m_off_t*);
+    bool sysopen();
+    void sysclose();
+
+    static bool skipattributes(DWORD);
+
+    WinFileAccess();
+    ~WinFileAccess();
 };
-
 } // namespace
 
 #endif

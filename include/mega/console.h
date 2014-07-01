@@ -2,7 +2,7 @@
  * @file mega/console.h
  * @brief Generic class for accessing console
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -23,15 +23,13 @@
 #define MEGA_CONSOLE_H 1
 
 namespace mega {
-
-struct Console
+struct MEGA_API Console
 {
-	virtual void readpwchar(char*, int, int* pw_buf_pos, char**) = 0;
-	virtual void setecho(bool) = 0;
+    virtual void readpwchar(char*, int, int* pw_buf_pos, char**) = 0;
+    virtual void setecho(bool) = 0;
 
-	virtual ~Console() { }
+    virtual ~Console() { }
 };
-
 } // namespace
 
 #endif

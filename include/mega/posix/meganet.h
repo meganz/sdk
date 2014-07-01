@@ -2,7 +2,7 @@
  * @file mega/posix/meganet.h
  * @brief POSIX network access layer (using cURL)
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -23,33 +23,39 @@
 #define HTTPIO_CLASS CurlHttpIO
 
 #include "mega.h"
-#include "wait.h"
+#include <openssl/ssl.h>
 
 namespace mega {
 
-class CurlHttpIO : public HttpIO
+class CurlHttpIO: public HttpIO
 {
 protected:
-	CURLM* curlm;
-	CURLSH* curlsh;
+    string* useragent;
+    CURLM* curlm;
+    CURLSH* curlsh;
 
-	static size_t write_data(void *, size_t, size_t, void *);
+    static size_t write_data(void*, size_t, size_t, void*);
+    static size_t check_header(void*, size_t, size_t, void*);
+    static CURLcode ssl_ctx_function(CURL*, void*, void*);
+    static int cert_verify_callback(X509_STORE_CTX*, void*);
 
-	curl_slist* contenttypejson;
-	curl_slist* contenttypebinary;
+    curl_slist* contenttypejson;
+    curl_slist* contenttypebinary;
 
 public:
-	void post(HttpReq*, const char* = 0, unsigned = 0);
-	void cancel(HttpReq*);
+    void post(HttpReq*, const char* = 0, unsigned = 0);
+    void cancel(HttpReq*);
 
-	m_off_t postpos(void*);
+    m_off_t postpos(void*);
 
-	bool doio(void);
+    bool doio(void);
 
-	void addevents(Waiter*);
+    void addevents(Waiter*, int);
 
-	CurlHttpIO();
-	~CurlHttpIO();
+    void setuseragent(string*);
+
+    CurlHttpIO();
+    ~CurlHttpIO();
 };
 
 } // namespace

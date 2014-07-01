@@ -2,7 +2,7 @@
  * @file mega.h
  * @brief Main header file for inclusion by client software.
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -48,27 +48,29 @@
 #include "mega/serialize64.h"
 #include "mega/share.h"
 #include "mega/sharenodekeys.h"
-#include "mega/synclocalops.h"
 #include "mega/treeproc.h"
 #include "mega/user.h"
 #include "mega/utils.h"
+#include "mega/logging.h"
 #include "mega/waiter.h"
 
 #include "mega/node.h"
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
-#include "mega/commands.h"
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 
 // target-specific headers
-#include "megawait.h"
+#include "megawaiter.h"
 #include "meganet.h"
 #include "megafs.h"
 #include "megaconsole.h"
+#include "megaconsolewaiter.h"
 
 #include "mega/db/sqlite.h"
 #include "mega/db/bdb.h"
+
+#include "mega/gfx/freeimage.h"
 
 #endif

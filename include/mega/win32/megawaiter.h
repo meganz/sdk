@@ -1,8 +1,8 @@
 /**
- * @file waiter.cpp
- * @brief Generic waiter interface
+ * @file mega/win32/megawaiter.h
+ * @brief Win32 event/timeout handling
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,14 +19,25 @@
  * program.
  */
 
-#include "mega/waiter.h"
+#ifndef WAIT_CLASS
+#define WAIT_CLASS WinWaiter
 
 namespace mega {
-
-// add events to wakeup criteria
-void Waiter::wakeupby(EventTrigger* et)
+class MEGA_API WinWaiter : public Waiter
 {
-	et->addevents(this);
-}
+    vector<HANDLE> handles;
+    vector<int> flags;
 
+public:
+    PCRITICAL_SECTION pcsHTTP;
+    unsigned pendingfsevents;
+
+    int wait();
+
+    bool addhandle(HANDLE handle, int);
+
+    WinWaiter();
+};
 } // namespace
+
+#endif

@@ -2,7 +2,7 @@
  * @file mega/waiter.h
  * @brief Generic waiter interface
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -26,31 +26,44 @@
 
 namespace mega {
 
-// wait for events
-struct Waiter
+// interface enabling a class to add its wakeup criteria to the waiter
+struct MEGA_API EventTrigger
 {
-	// current time
-	dstime ds;
+    // add wakeup criterion
+    virtual void addevents(Waiter*, int) = 0;
 
-	// wait ceiling
-	dstime maxds;
-
-	// current time in deciseconds
-	virtual dstime getdstime() = 0;
-
-	// beging waiting cycle
-	virtual void init(dstime) = 0;
-
-	// add wakeup events
-	void wakeupby(struct EventTrigger*);
-
-	// wait for all added wakeup criteria (plus the host app's own), up to the specified number of deciseconds
-	virtual int wait() = 0;
-
-	static const int NEEDEXEC = 1;
-	static const int HAVESTDIN = 2;
+    // process events after wakeup
+    virtual int checkevents(Waiter*)
+    {
+        return 0;
+    }
 };
 
+// wait for events
+struct MEGA_API Waiter
+{
+    // current time (processwide)
+    static dstime ds;
+
+    // set ds to current time
+    static void bumpds();
+
+    // wait ceiling
+    dstime maxds;
+
+    // begin waiting cycle with timeout
+    virtual void init(dstime);
+
+    // add wakeup events
+    void wakeupby(EventTrigger*, int);
+
+    // wait for all added wakeup criteria (plus the host app's own), up to the
+    // specified number of deciseconds
+    virtual int wait() = 0;
+
+    static const int NEEDEXEC = 1;
+    static const int HAVESTDIN = 2;
+};
 } // namespace
 
 #endif

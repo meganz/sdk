@@ -2,7 +2,7 @@
  * @file mega/filesystem.h
  * @brief Generic host filesystem access interfaces
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -23,126 +23,206 @@
 #define MEGA_FILESYSTEM_H 1
 
 #include "types.h"
+#include "waiter.h"
 
 namespace mega {
-
-// generic host file access interface
-struct FileAccess
+// generic host filesystem node ID interface
+struct MEGA_API FsNodeId
 {
-	// file size
-	m_off_t size;
+    virtual bool isequalto(FsNodeId*) = 0;
+};
 
-	// mtime of a file opened for reading
-	time_t mtime;
+// generic host file/directory access interface
+struct MEGA_API FileAccess
+{
+    // file size
+    m_off_t size;
 
-	// type of opened path
-	nodetype type;
+    // mtime of a file opened for reading
+    m_time_t mtime;
 
-	// if the open failed, retry indicates a potentially transient reason
-	bool retry;
+    // local filesystem record id (survives renames & moves)
+    handle fsid;
+    bool fsidvalid;
 
-	// open for reading, writing or reading and writing
-	virtual bool fopen(string*, bool, bool) = 0;
+    // type of opened path
+    nodetype_t type;
 
-	// absolute position read, with NUL padding
-	virtual bool fread(string*, unsigned, unsigned, m_off_t) = 0;
+    // if the open failed, retry indicates a potentially transient reason
+    bool retry;
 
-	// absolute position read to byte buffer
-	virtual bool frawread(byte*, unsigned, m_off_t) = 0;
+    // for files "opened" in nonblocking mode, the current local filename
+    string localname;
 
-	// absolute position write
-	virtual bool fwrite(const byte*, unsigned, m_off_t) = 0;
+    // open for reading, writing or reading and writing
+    virtual bool fopen(string*, bool, bool) = 0;
 
-	virtual ~FileAccess() { }
+    // open by name only
+    bool fopen(string*);
+
+    // update localname (only has an effect if operating in by-name mode)
+    virtual void updatelocalname(string*) = 0;
+
+    // absolute position read, with NUL padding
+    bool fread(string *, unsigned, unsigned, m_off_t);
+
+    // absolute position read to byte buffer
+    bool frawread(byte *, unsigned, m_off_t);
+
+    // non-locking ops: open/close temporary hFile
+    bool openf();
+    void closef();
+
+    // absolute position write
+    virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
+
+    // system-specific raw read/open/close
+    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
+    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
+    virtual bool sysopen() = 0;
+    virtual void sysclose() = 0;
+
+    virtual ~FileAccess() { }
 };
 
 // generic host directory enumeration
-struct DirAccess
+struct MEGA_API DirAccess
 {
-	// open for scanning
-	virtual bool dopen(string*, FileAccess*, bool) = 0;
+    // open for scanning
+    virtual bool dopen(string*, FileAccess*, bool) = 0;
 
-	// get next record
-	virtual bool dnext(string*, nodetype* = NULL) = 0;
+    // get next record
+    virtual bool dnext(string*, nodetype_t* = NULL) = 0;
 
-	virtual ~DirAccess() { }
+    virtual ~DirAccess() { }
+};
+
+// generic filesystem change notification
+struct MEGA_API DirNotify
+{
+    typedef enum { DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
+
+    // notifyq[DIREVENTS] is fed with filesystem changes
+    // notifyq[RETRY] receives transient errors that need to be retried
+    notify_deque notifyq[NUMQUEUES];
+
+    // set if no notification available on this platform or a permanent failure
+    // occurred
+    bool failed;
+
+    // set if a temporary error occurred
+    bool error;
+
+    // base path
+    string localbasepath;
+
+    virtual void addnotify(LocalNode*, string*) { }
+    virtual void delnotify(LocalNode*) { }
+
+    void notify(notifyqueue, LocalNode *, const char*, size_t, bool = false);
+
+    // ignore this
+    string ignore;
+
+    DirNotify(string*, string*);
 };
 
 // generic host filesystem access interface
-struct FileSystemAccess : public EventTrigger
+struct MEGA_API FileSystemAccess : public EventTrigger
 {
-	// local path separator, e.g. "/"
-	string localseparator;
+    // local path separator, e.g. "/"
+    string localseparator;
 
-	// instantiate FileAccess object
-	virtual FileAccess* newfileaccess() = 0;
+    // instantiate FileAccess object
+    virtual FileAccess* newfileaccess() = 0;
 
-	// return DirAccess object or NULL if unsuccessful
-	virtual DirAccess* newdiraccess() = 0;
+    // instantiate DirAccess object
+    virtual DirAccess* newdiraccess() = 0;
 
-	// check if character is lowercase hex ASCII
-	bool islchex(char);
+    // instantiate DirNotify object (default to periodic scanning handler if no
+    // notification configured) with given root path
+    virtual DirNotify* newdirnotify(string*, string*);
 
-	// convert MEGA path (UTF-8) to local format
-	virtual void path2local(string*, string*) = 0;
+    // check if character is lowercase hex ASCII
+    bool islchex(char) const;
+    bool islocalfscompatible(unsigned char) const;
+    void escapefsincompatible(string*) const;
+    void unescapefsincompatible(string*) const;
 
-	// convert local path to MEGA format (UTF-8)
-	virtual void local2path(string*, string*) = 0;
+    // convert MEGA path (UTF-8) to local format
+    virtual void path2local(string*, string*) const = 0;
+    virtual void local2path(string*, string*) const = 0;
 
-	// convert MEGA-formatted filename (UTF-8) to local filesystem name; escape forbidden characters using urlencode
-	virtual void name2local(string*, const char* = NULL) = 0;
+    // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
+    // forbidden characters using urlencode
+    void local2name(string*) const;
 
-	// reverse local2name()
-	virtual void local2name(string*) = 0;
+    // convert local path to MEGA format (UTF-8) with unescaping
+    void name2local(string*) const;
 
-	// generate local temporary file name
-	virtual void tmpnamelocal(string*, string* = NULL) = 0;
+    //Normalize UTF-8 string
+    void normalize(string *) const;
 
-	// rename file, overwrite target
-	virtual bool renamelocal(string*, string*) = 0;
+    // generate local temporary file name
+    virtual void tmpnamelocal(string*) const = 0;
 
-	// copy file, overwrite target
-	virtual bool copylocal(string*, string*) = 0;
+    // obtain local secondary name
+    virtual bool getsname(string*, string*) const = 0;
 
-	// move file or folder tree to OS-managed local rubbish bin
-	virtual bool rubbishlocal(string*) = 0;
+    // rename file, overwrite target
+    virtual bool renamelocal(string*, string*, bool = true) = 0;
 
-	// delete file
-	virtual bool unlinklocal(string*) = 0;
+    // copy file, overwrite target, set mtime
+    virtual bool copylocal(string*, string*, m_time_t) = 0;
 
-	// delete empty directory
-	virtual bool rmdirlocal(string*) = 0;
+    // delete file
+    virtual bool unlinklocal(string*) = 0;
 
-	// create directory
-	virtual bool mkdirlocal(string*) = 0;
+    // delete empty directory
+    virtual bool rmdirlocal(string*) = 0;
 
-	// set mtime
-	virtual bool setmtimelocal(string*, time_t) = 0;
+    // create directory, optionally hidden
+    virtual bool mkdirlocal(string*, bool = false) = 0;
 
-	// change working directory
-	virtual bool chdirlocal(string*) = 0;
+	// make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
+    static void captimestamp(m_time_t*);
+    
+    // set mtime
+    virtual bool setmtimelocal(string *, m_time_t) const = 0;
 
-	// add notification (has to be called for all directories in tree for full crossplatform support)
-	virtual void addnotify(LocalNode*, string*) = 0;
+    // change working directory
+    virtual bool chdirlocal(string*) const = 0;
 
-	// delete notification
-	virtual void delnotify(LocalNode*) = 0;
+    // locate byte offset of last path component
+    virtual size_t lastpartlocal(string*) const = 0;
 
-	// return next notified local name and corresponding parent node
-	virtual bool notifynext(sync_list*, string*, LocalNode**, bool*) = 0;
+    // obtain lowercased extension
+    virtual bool getextension(string*, char*, int) const = 0;
 
-	// true if notifications were unreliable and/or a full rescan is required
-	virtual bool notifyfailed() = 0;
-	
-	// set whenever an operation fails due to a transient condition (e.g. locking violation)
-	bool transient_error;
+    // add notification (has to be called for all directories in tree for full crossplatform support)
+    virtual void addnotify(LocalNode*, string*) { }
 
-	// set whenever an operation fails because the target already exists
-	bool target_exists;
-	
-	virtual ~FileSystemAccess() { }
+    // delete notification
+    virtual void delnotify(LocalNode*) { }
+
+    // set whenever an operation fails due to a transient condition (e.g. locking violation)
+    bool transient_error;
+    
+    // set whenever there was a global file notification error or permanent failure
+    // (this is in addition to the DirNotify-local error)
+    bool notifyerr;
+    bool notifyfailed;
+
+    // set whenever an operation fails because the target already exists
+    bool target_exists;
+
+    // append local operating system version information to string
+    virtual void osversion(string*) const { }
+
+    MegaClient* client;
+
+    virtual ~FileSystemAccess() { }
 };
-
 } // namespace
 
 #endif

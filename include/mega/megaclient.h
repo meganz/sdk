@@ -2,7 +2,7 @@
  * @file mega/megaclient.h
  * @brief Client access engine core logic
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -22,9 +22,9 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include "types.h"
 #include "json.h"
 #include "db.h"
+#include "gfx.h"
 #include "filefingerprint.h"
 #include "request.h"
 #include "treeproc.h"
@@ -35,529 +35,619 @@
 #include "pubkeyaction.h"
 
 namespace mega {
+extern bool debug;
 
-class MegaClient
+class MEGA_API MegaClient
 {
 public:
-	// own identity
-	handle me;
+    // own identity
+    handle me;
 
-	// root nodes (files, incoming, rubbish, mail)
-	handle rootnodes[4];
+    // root nodes (files, incoming, rubbish)
+    handle rootnodes[3];
 
-	// all nodes
-	node_map nodes;
+    // all nodes
+    node_map nodes;
 
-	// all users
-	user_map users;
+    // all users
+    user_map users;
 
-	// process API requests and HTTP I/O
-	void exec();
+    // process API requests and HTTP I/O
+    void exec();
 
-	// wait for I/O or other events
-	int wait();
+    // wait for I/O or other events
+    int wait();
 
-	// abort exponential backoff
-	bool abortbackoff();
+    // abort exponential backoff
+    bool abortbackoff();
 
-	// ID tag of the next request
-	int nextreqtag();
+    // ID tag of the next request
+    int nextreqtag();
 
-	// corresponding ID tag of the currently executing callback
-	int restag;
+    // corresponding ID tag of the currently executing callback
+    int restag;
 
-	// ephemeral session support
-	void createephemeral();
-	void resumeephemeral(handle, const byte*);
+    // ephemeral session support
+    void createephemeral();
+    void resumeephemeral(handle, const byte*, int = 0);
 
-	// full account confirmation/creation support
-	void sendsignuplink(const char*, const char*, const byte*);
-	void querysignuplink(const byte*, unsigned);
-	void confirmsignuplink(const byte*, unsigned, uint64_t);
-	void setkeypair();
+    // full account confirmation/creation support
+    void sendsignuplink(const char*, const char*, const byte*);
+    void querysignuplink(const byte*, unsigned);
+    void confirmsignuplink(const byte*, unsigned, uint64_t);
+    void setkeypair();
 
-	// user login: e-mail, pwkey
-	void login(const char*, const byte*, bool = false);
+    // user login: e-mail, pwkey
+    void login(const char*, const byte*);
 
-	// check if logged in
-	sessiontype loggedin();
+    // session login: binary session, bytecount
+    void login(const byte*, int);
 
-	// set folder link: node, key
-	error folderaccess(const char*, const char*);
+    // check if logged in
+    sessiontype_t loggedin();
 
-	// open exported file link
-	error openfilelink(const char*, int);
+    // dump current session
+    int dumpsession(byte*, int);
 
-	// change login password
-	error changepw(const byte*, const byte*);
+    // set folder link: node, key
+    error folderaccess(const char*, const char*);
 
-	// load all trees: nodes, shares, contacts
-	void fetchnodes();
+    // open exported file link
+    error openfilelink(const char*, int);
 
-	// retrieve user details
-	void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
+    // change login password
+    error changepw(const byte*, const byte*);
 
-	// update node attributes
-	error setattr(Node*, const char** = NULL);
+    // load all trees: nodes, shares, contacts
+    void fetchnodes();
 
-	// prefix and encrypt attribute json
-	void makeattr(SymmCipher*, string*, const char*, int = -1);
+    // retrieve user details
+    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
-	// check node access level
-	int checkaccess(Node*, accesslevel);
+    // update node attributes
+    error setattr(Node*, const char** = NULL);
 
-	// check if a move operation would succeed
-	error checkmove(Node*, Node*);
+    // prefix and encrypt attribute json
+    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
-	// delete node
-	error unlink(Node*);
+    // check node access level
+    int checkaccess(Node*, accesslevel_t);
 
-	// move node to new parent folder
-	error rename(Node*, Node*);
+    // check if a move operation would succeed
+    error checkmove(Node*, Node*);
 
-	// start/stop/pause file transfer
-	bool startxfer(direction, File*);
-	void stopxfer(File* f);
-	void pausexfers(direction, bool, bool = false);
+    // delete node
+    error unlink(Node*);
 
-	// pause flags
-	bool xferpaused[2];
-	
-	// active syncs
-	sync_list syncs;
+    // move node to new parent folder
+    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE);
 
-	// number of parallel connections per transfer (PUT/GET)
-	unsigned char connections[2];
+    // start/stop/pause file transfer
+    bool startxfer(direction_t, File*);
+    void stopxfer(File* f);
+    void pausexfers(direction_t, bool, bool = false);
 
-	// generate & return next upload handle
-	handle uploadhandle(int);
+    // enqueue/abort direct read
+    void pread(Node*, m_off_t, m_off_t, void*);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
+    void preadabort(Node*, m_off_t = -1, m_off_t = -1);
+    void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
-	// add nodes to specified parent node (complete upload, copy files, make folders)
-	void putnodes(handle, NewNode*, int);
+    // pause flags
+    bool xferpaused[2];
 
-	// send files/folders to user
-	void putnodes(const char*, NewNode*, int);
+    // active syncs
+    sync_list syncs;
+    bool syncadded;
 
-	// attach file attribute
-	void putfa(Transfer*, fatype, const byte*, unsigned);
+    // indicates whether all startup syncs have been fully scanned
+    bool syncsup;
 
-	// queue file attribute retrieval
-	error getfa(Node*, fatype, int = 0);
+    // number of parallel connections per transfer (PUT/GET)
+    unsigned char connections[2];
 
-	// attach/update/delete user attribute
-	void putua(const char*, const byte* = NULL, unsigned = 0, int = 0);
+    // generate & return next upload handle
+    handle uploadhandle(int);
 
-	// queue user attribute retrieval
-	void getua(User*, const char* = NULL, int = 0);
+    // add nodes to specified parent node (complete upload, copy files, make
+    // folders)
+    void putnodes(handle, NewNode*, int);
 
-	// add new contact (by e-mail address)
-	error invite(const char*, visibility = VISIBLE);
+    // send files/folders to user
+    void putnodes(const char*, NewNode*, int);
 
-	// add/remove/update outgoing share
-	void setshare(Node*, const char*, accesslevel);
+    // attach file attribute to upload or node handle
+    void putfa(handle, fatype, SymmCipher*, string*);
 
-	// export node link or remove existing exported link for this node
-	error exportnode(Node*, int);
+    // queue file attribute retrieval
+    error getfa(Node*, fatype, int = 0);
 
-	// close all open HTTP connections
-	void disconnect();
+    // attach/update/delete user attribute
+    void putua(const char*, const byte* = NULL, unsigned = 0, int = 0);
 
-	// abort session and free all state information
-	void logout();
+    // queue user attribute retrieval
+    void getua(User*, const char* = NULL, int = 0);
 
-	// maximum outbound throughput (per target server)
-	int putmbpscap;
+    // add new contact (by e-mail address)
+    error invite(const char*, visibility_t = VISIBLE);
 
-	// shopping basket
-	handle_vector purchase_basket;
+    // add/remove/update outgoing share
+    void setshare(Node*, const char*, accesslevel_t);
 
-	// enumerate Pro account purchase options
-	void purchase_enumeratequotaitems();
+    // export node link or remove existing exported link for this node
+    error exportnode(Node*, int);
 
-	// clear shopping basket
-	void purchase_begin();
+    // add/delete sync
+    error addsync(string*, const char*, string*, Node*, int);
+    void delsync(Sync*);
 
-	// add item to basket
-	void purchase_additem(int, handle, unsigned, char*, unsigned, char*, char*);
+    // close all open HTTP connections
+    void disconnect();
 
-	// submit purchased products for payment
-	void purchase_checkout(int);
+    // abort session and free all state information
+    void logout();
+
+    // maximum outbound throughput (per target server)
+    int putmbpscap;
+
+    // shopping basket
+    handle_vector purchase_basket;
+
+    // enumerate Pro account purchase options
+    void purchase_enumeratequotaitems();
+
+    // clear shopping basket
+    void purchase_begin();
+
+    // add item to basket
+    void purchase_additem(int, handle, unsigned, char*, unsigned, char*, char*);
+
+    // submit purchased products for payment
+    void purchase_checkout(int);
+
+    // toggle global debug flag
+    bool toggledebug();
 
 private:
-	// API request queue double buffering:
-	// reqs[r] is open for adding commands
-	// reqs[r^1] is being processed on the API server
-	HttpReq* pendingcs;
-	BackoffTimer btcs;
+    // API request queue double buffering:
+    // reqs[r] is open for adding commands
+    // reqs[r^1] is being processed on the API server
+    HttpReq* pendingcs;
+    BackoffTimer btcs;
 
-	// server-client command trigger connection
-	HttpReq* pendingsc;
-	BackoffTimer btsc;
+    // server-client command trigger connection
+    HttpReq* pendingsc;
+    BackoffTimer btsc;
 
-	// root URL for API requestrs
-	static const char* const APIURL;
+    // badhost report
+    HttpReq* badhostcs;
 
-	// notify URL for new server-client commands
-	string scnotifyurl;
+    // root URL for API requestrs
+    static const char* const APIURL;
 
-	// unique request ID
-	char reqid[10];
+    // notify URL for new server-client commands
+    string scnotifyurl;
 
-	// auth URI component for API requests
-	string auth;
+    // unique request ID
+    char reqid[10];
 
-	// API response JSON object
-	JSON response;
+    // auth URI component for API requests
+    string auth;
 
-	// response record processing issue
-	bool warned;
+    // API response JSON object
+    JSON response;
 
-	// next local user record identifier to use
-	int userid;
+    // response record processing issue
+    bool warned;
 
-	// pending file attribute writes
-	putfa_list newfa;
+    // next local user record identifier to use
+    int userid;
 
-	// current attribute being sent
-	putfa_list::iterator curfa;
-	BackoffTimer btpfa;
+    // pending file attribute writes
+    putfa_list newfa;
 
-	// pending file attribute reads, grouped by queued file attribute retrievals
-	fareq_set fareqs;
+    // current attribute being sent
+    putfa_list::iterator curfa;
+    BackoffTimer btpfa;
 
-	// next internal upload handle
-	handle nextuh;
+    // pending file attribute reads, grouped by queued file attribute
+    // retrievals
+    fareq_set fareqs;
 
-	// maximum number of concurrent transfers
-	static const unsigned MAXTRANSFERS = 8;
+    // next internal upload handle
+    handle nextuh;
 
-	// determine if more transfers fit in the pipeline
-	bool moretransfers(direction);
+    // User-Agent header for HTTP requests
+    string useragent;
 
-	// time at which next deferred transfer retry kicks in
-	dstime nexttransferretry(direction d, dstime dsmin);
+    // maximum number of concurrent transfers
+    static const unsigned MAXTRANSFERS = 8;
 
-	// fetch state serialize from local cache
-	bool fetchsc(DbTable*);
+    // determine if more transfers fit in the pipeline
+    bool moretransfers(direction_t);
 
-	// server-client command processing
-	void sc_updatenode();
-	void sc_deltree();
-	void sc_newnodes();
-	void sc_contacts();
-	void sc_keys();
-	void sc_fileattr();
-	void sc_userattr();
-	bool sc_shares();
+    // update time at which next deferred transfer retry kicks in
+    void nexttransferretry(direction_t d, dstime*);
 
-	void init();
+    // a TransferSlot chunk failed
+    bool chunkfailed;
 
-	// add node to vector and return index
-	unsigned addnode(node_vector*, Node*);
+    // open/create state cache database table
+    void opensctable();
+    
+    // fetch state serialize from local cache
+    bool fetchsc(DbTable*);
 
-	// crypto request response
-	void cr_response(node_vector*, node_vector*, JSON*);
+    // server-client command processing
+    void sc_updatenode();
+    void sc_deltree();
+    void sc_newnodes();
+    void sc_contacts();
+    void sc_keys();
+    void sc_fileattr();
+    void sc_userattr();
+    bool sc_shares();
 
-	// read node tree from JSON object
-	void readtree(JSON*);
+    void init();
 
-	// used by wait() to handle event timing
-	void checkevent(dstime, dstime*, dstime*);
+    // add node to vector and return index
+    unsigned addnode(node_vector*, Node*) const;
 
-	// converts UTF-8 to 32-bit word array
-	static char* str_to_a32(const char*, int*);
+    // add child for consideration in syncup()/syncdown()
+    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+
+    // crypto request response
+    void cr_response(node_vector*, node_vector*, JSON*);
+
+    // read node tree from JSON object
+    void readtree(JSON*);
+
+    // used by wait() to handle event timing
+    void checkevent(dstime, dstime*, dstime*);
+
+    // converts UTF-8 to 32-bit word array
+    static char* str_to_a32(const char*, int*);
+
+    // last successful interaction with the Internet
+    dstime noinetds;
+
+    // was the app notified of a retrying CS request?
+    bool csretrying;
+
+    // encode/query handle type
+    void encodehandletype(handle*, bool);
+    bool isprivatehandle(handle*);
+    
+    // add direct read
+    void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*);
+    
+    // execute pending direct reads
+    bool execdirectreads();
+
+    // maximum number parallel connections for the direct read subsystem
+    static const int MAXDRSLOTS = 16;
+
+    // abort queued direct read(s)
+    void abortreads(handle, bool, m_off_t, m_off_t);
 
 public:
-	// application callbacks
-	struct MegaApp* app;
+    // application callbacks
+    struct MegaApp* app;
 
-	// event waiter
-	Waiter* waiter;
+    // event waiter
+    Waiter* waiter;
 
-	// HTTP access
-	HttpIO* httpio;
+    // HTTP access
+    HttpIO* httpio;
 
-	// directory change notification
-	struct FileSystemAccess* fsaccess;
+    // directory change notification
+    struct FileSystemAccess* fsaccess;
 
-	// DB access
-	DbAccess* dbaccess;
+    // bitmap graphics handling
+    GfxProc* gfx;
+    
+    // DB access
+    DbAccess* dbaccess;
 
-	// state cache table for logged in user
-	DbTable* sctable;
+    // state cache table for logged in user
+    DbTable* sctable;
 
-	// scsn as read from sctable
-	handle cachedscsn;
+    // scsn as read from sctable
+    handle cachedscsn;
 
-	// record type indicator for sctable
-	enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER } sctablerectype;
+    // have we just completed fetching new nodes?
+    bool statecurrent;
 
-	// initialize/update state cache referenced sctable
-	void initsc();
-	void updatesc();
-	void finalizesc(bool);
+    // record type indicator for sctable
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE } sctablerectype;
 
-	// MegaClient-Server response JSON
-	JSON json;
+    // initialize/update state cache referenced sctable
+    void initsc();
+    void updatesc();
+    void finalizesc(bool);
 
-	// Server-MegaClient request JSON
-	JSON jsonsc;
+    // MegaClient-Server response JSON
+    JSON json;
 
-	// no two interrelated client instances should ever have the same sessionid
-	char sessionid[10];
+    // Server-MegaClient request JSON
+    JSON jsonsc;
 
-	// application key
-	char appkey[16];
+    // no two interrelated client instances should ever have the same sessionid
+    char sessionid[10];
 
-	// incoming shares to be attached to a corresponding node
-	newshare_list newshares;
+    // application key
+    char appkey[16];
 
-	// current request tag
-	int reqtag;
+    // incoming shares to be attached to a corresponding node
+    newshare_list newshares;
 
-	// user maps: by handle and by case-normalized e-mail address
-	uh_map uhindex;
-	um_map umindex;
+    // current request tag
+    int reqtag;
 
-	// pending file attributes
-	fa_map pendingfa;
+    // user maps: by handle and by case-normalized e-mail address
+    uh_map uhindex;
+    um_map umindex;
 
-	// file attribute fetch channels
-	fafc_map fafcs;
+    // pending file attributes
+    fa_map pendingfa;
 
-	// file attribute fetches
-	faf_map fafs;
+    // file attribute fetch channels
+    fafc_map fafcs;
 
-	// generate attribute string based on the pending attributes for this upload
-	void pendingattrstring(handle, string*);
+    // file attribute fetches
+    faf_map fafs;
 
-	// merge newly received share into nodes
-	void mergenewshares(bool);
+    // active/pending direct reads
+    handledrn_map hdrns;
+    dsdrn_map dsdrns;
+    dr_list drq;
+    drs_list drss;
 
-	// transfer queues (PUT/GET)
-	transfer_map transfers[2];
+    // generate attribute string based on the pending attributes for this upload
+    void pendingattrstring(handle, string*);
 
-	// transfer tslots
-	transferslot_list tslots;
+    // merge newly received share into nodes
+    void mergenewshares(bool);
 
-	// FileFingerprint to node mapping
-	fingerprint_set fingerprints;
+    // transfer queues (PUT/GET)
+    transfer_map transfers[2];
 
-	// asymmetric to symmetric key rewriting
-	handle_vector nodekeyrewrite;
-	handle_vector sharekeyrewrite;
+    // transfer tslots
+    transferslot_list tslots;
 
-	static const char* const EXPORTEDLINK;
+    // next TransferSlot to doio() on
+    transferslot_list::iterator slotit;
 
-	// minimum number of bytes in transit for upload/download pipelining
-	static const int MINPIPELINE = 65536;
+    // FileFingerprint to node mapping
+    fingerprint_set fingerprints;
 
-	// server-client request sequence number
-	char scsn[12];
+    // asymmetric to symmetric key rewriting
+    handle_vector nodekeyrewrite;
+    handle_vector sharekeyrewrite;
 
-	bool setscsn(JSON*);
+    static const char* const EXPORTEDLINK;
 
-	void purgenodes(node_vector* = NULL);
-	void purgeusers(user_vector* = NULL);
-	bool readusers(JSON*);
+    // minimum number of bytes in transit for upload/download pipelining
+    static const int MINPIPELINE = 65536;
 
-	user_vector usernotify;
-	void notifyuser(User*);
+    // initial state load in progress?
+    bool fetchingnodes;
 
-	node_vector nodenotify;
-	void notifynode(Node*);
+    // server-client request sequence number
+    char scsn[12];
 
-	// write changed/added/deleted users to the DB cache and notify the application
-	void notifypurge();
+    bool setscsn(JSON*);
 
-	// remove node subtree
-	void deltree(handle);
+    void purgenodes(node_vector* = NULL);
+    void purgeusers(user_vector* = NULL);
+    bool readusers(JSON*);
 
-	Node* nodebyhandle(handle);
-	Node* nodebyfingerprint(FileFingerprint*);
+    user_vector usernotify;
+    void notifyuser(User*);
 
-	// generate & return upload handle
-	handle getuploadhandle();
+    node_vector nodenotify;
+    void notifynode(Node*);
 
-	// sync debris folder name in //bin
-	static const char* const SYNCDEBRISFOLDERNAME;
+    // write changed/added/deleted users to the DB cache and notify the
+    // application
+    void notifypurge();
 
-	// nodes being moved to //bin/SyncDebris with move failcount
-	handlecount_map newsyncdebris;
+    // remove node subtree
+    void deltree(handle);
 
-	// we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
-	bool syncdebrisadding;
+    Node* nodebyhandle(handle);
+    Node* nodebyfingerprint(FileFingerprint*);
 
-	// number of newsyncdebris nodes being moved at the moment
-	int movedebrisinflight;
+    // generate & return upload handle
+    handle getuploadhandle();
 
-	// activity flag
-	bool syncactivity;
+    // sync debris folder name in //bin
+    static const char* const SYNCDEBRISFOLDERNAME;
 
-	// stuck flag (because of local filesystem locks preventing syncing from progressing)
-	bool syncstuck;
-	
-	// a local fs op has failed with a transient error
-	bool synclocalopretry;
-	BackoffTimer synclocalopretrybt;
-	
-	// pending local filesystem operations
-	synclocalop_deque synclocalops;
-	
-	// execute synclocalops, abort if a transient FS error is detected
-	void execsynclocalops();
-	
-	// rescan timer if fs notification unavailable or broken
-	bool syncscanfailed;
-	BackoffTimer syncscanbt;
+    // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
+    bool syncdebrisadding;
 
-	// added to a synced folder
-	handle_set syncadded;
+    // activity flag
+    bool syncactivity;
 
-	// deleted from a synced folder (split by FILENODE/FOLDERNODE)
-	handle_set syncdeleted[2];
+    // app scanstate flag
+    bool syncscanstate;
 
-	// overwritten in a sync'ed folder
-	syncidhandle_map syncoverwritten;
+    // block local fs updates processing while locked ops are in progress
+    bool syncfsopsfailed;
 
-	// local nodes that need to be added remotely
-	localnode_vector synccreate;
+    // retry accessing temporarily locked filesystem items
+    bool syncfslockretry;
+    BackoffTimer syncfslockretrybt;
 
-	// number of sync-initiated putnodes() in progress
-	int syncadding;
+    // retry of transiently failed local filesystem ops
+    bool syncdownretry;
+    BackoffTimer syncdownbt;
 
-	// sync id dispatch
-	handle nextsyncid();
-	handle currsyncid;
+    // sync PUT Nagle timer
+    bool syncnagleretry;
+    BackoffTimer syncnaglebt;
 
-	// SyncDebris folder addition result
-	void putnodes_syncdebris_result(error,NewNode*);
+    // rescan timer if fs notification unavailable or broken
+    bool syncscanfailed;
+    BackoffTimer syncscanbt;
 
-	// sync id to handle mapping
-	syncidhandle_map syncidhandles;
+    // vanished from a local synced folder
+    localnode_set localsyncnotseen;
 
-	// if no sync putnodes operation is in progress, apply the updates stored in syncadded/syncdeleted/syncoverwritten to the remote tree
-	void syncupdate();
+    // maps local fsid to corresponding LocalNode*
+    handlelocalnode_map fsidnode;
 
-	// create missing folders, copy/start uploading missing files
-	void syncup(LocalNode* = NULL/*, Node* = NULL*/);
+    // local nodes that need to be added remotely
+    localnode_vector synccreate;
 
-	// sync putnodes() completion
-	void putnodes_sync_result(error, NewNode*);
+    // number of sync-initiated putnodes() in progress
+    int syncadding;
 
-	// start downloading/copy missing files, create missing directories
-	void syncdown(LocalNode*, string* = NULL);
+    // sync id dispatch
+    handle nextsyncid();
+    handle currsyncid;
 
-	// move node to //bin/SyncDebris/yyyy-mm-dd/
-	void movetosyncdebris(Node*);
+    // SyncDebris folder addition result
+    void putnodes_syncdebris_result(error, NewNode*);
 
-	// determine if all transfer slots are full
-	bool slotavail();
+    // if no sync putnodes operation is in progress, apply the updates stored
+    // in syncadded/syncdeleted/syncoverwritten to the remote tree
+    void syncupdate();
 
-	// dispatch as many queued transfers as possible
-	void dispatchmore(direction);
+    // create missing folders, copy/start uploading missing files
+    void syncup(LocalNode*, dstime*);
 
-	// transfer queue dispatch/retry handling
-	bool dispatch(direction);
+    // sync putnodes() completion
+    void putnodes_sync_result(error, NewNode*);
 
-	void defer(direction, int td, int = 0);
-	void freeq(direction);
+    // start downloading/copy missing files, create missing directories
+    bool syncdown(LocalNode*, string*, bool);
 
-	dstime transferretrydelay();
+    // move nodes to //bin/SyncDebris/yyyy-mm-dd/
+    void movetosyncdebris(Node*);
+    void execmovetosyncdebris();
+    node_set todebris;
 
-	// active request buffer
-	int r;
+    // recursively cancel transfers in a subtree
+    void stopxfers(LocalNode*);
 
-	// client-server request double-buffering
-	Request reqs[2];
+    // update paths of all PUT transfers
+    void updateputs();
 
-	// upload handle -> node handle map (filled by upload completion)
-	handlepair_set uhnh;
+    // determine if all transfer slots are full
+    bool slotavail() const;
 
-	// file attribute fetch failed
-	void faf_failed(int);
+    // dispatch as many queued transfers as possible
+    void dispatchmore(direction_t);
 
-	// process object arrays by the API server
-	int readnodes(JSON*, int, putsource = PUTNODES_APP, NewNode* = NULL, int = 0);
+    // transfer queue dispatch/retry handling
+    bool dispatch(direction_t);
 
-	void readok(JSON*);
-	void readokelement(JSON*);
-	void readoutshares(JSON*);
-	void readoutshareelement(JSON*);
+    void defer(direction_t, int td, int = 0);
+    void freeq(direction_t);
 
-	void readcr();
-	void readsr();
+    dstime transferretrydelay();
 
-	void procsnk(JSON*);
-	void procsuk(JSON*);
+    // active request buffer
+    int r;
 
-	void setkey(SymmCipher*, const char*);
-	bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
+    // client-server request double-buffering
+    Request reqs[2];
 
-	void handleauth(handle, byte*);
+    // upload handle -> node handle map (filled by upload completion)
+    handlepair_set uhnh;
 
-	void procsc();
+    // file attribute fetch failed
+    void faf_failed(int);
 
-	// API warnings
-	void warn(const char*);
-	bool warnlevel();
+    // transfer chunk failed
+    void setchunkfailed(string*);
+    string badhosts;
+    
+    // process object arrays by the API server
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0);
 
-	Node* childnodebyname(Node*, const char*);
+    void readok(JSON*);
+    void readokelement(JSON*);
+    void readoutshares(JSON*);
+    void readoutshareelement(JSON*);
 
-	// purge account state and abort server-client connection
-	void purgenodesusersabortsc();
+    void readcr();
+    void readsr();
 
-	static const int USERHANDLE = 8;
-	static const int NODEHANDLE = 6;
+    void procsnk(JSON*);
+    void procsuk(JSON*);
 
-	// session ID length (binary)
-	static const unsigned SIDLEN = 2*SymmCipher::KEYLENGTH+USERHANDLE*4/3+1;
+    void setkey(SymmCipher*, const char*);
+    bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
 
-	void proccr(JSON*);
-	void procsr(JSON*);
+    void handleauth(handle, byte*);
 
-	// account access: master key
-	// folder link access: folder key
-	SymmCipher key;
+    void procsc();
 
-	// account access (full account): RSA key
-	AsymmCipher asymkey;
+    // API warnings
+    void warn(const char*);
+    bool warnlevel();
 
-	// apply keys
-	int applykeys();
+    Node* childnodebyname(Node*, const char*);
 
-	// symmetric password challenge
-	int checktsid(byte* sidbuf, unsigned len);
+    // purge account state and abort server-client connection
+    void purgenodesusersabortsc();
 
-	// locate user by e-mail address or by handle
-	User* finduser(const char*, int = 0);
-	User* finduser(handle, int = 0);
-	void mapuser(handle, const char*);
+    static const int USERHANDLE = 8;
+    static const int NODEHANDLE = 6;
 
-	// queue public key request for user
-	void queuepubkeyreq(User*, PubKeyAction*);
+    // session ID length (binary)
+    static const unsigned SIDLEN = 2 * SymmCipher::KEYLENGTH + USERHANDLE * 4 / 3 + 1;
 
-	// simple string hash
-	static void stringhash(const char*, byte*, SymmCipher*);
-	static uint64_t stringhash64(string*, SymmCipher*);
+    void proccr(JSON*);
+    void procsr(JSON*);
 
-	// set authentication context, either a session ID or a exported folder node handle
-	void setsid(const byte*, unsigned);
-	void setrootnode(handle);
+    // account access: master key
+    // folder link access: folder key
+    SymmCipher key;
 
-	// process node subtree
-	void proctree(Node*, TreeProc*);
+    // account access (full account): RSA key
+    AsymmCipher asymkey;
 
-	// hash password
-	error pw_key(const char*, byte*);
+    // binary session ID
+    string sid;
 
-	// convert hex digit to number
-	static int hexval(char);
+    // apply keys
+    int applykeys();
 
-	MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, const char*);
-	~MegaClient();
+    // symmetric password challenge
+    int checktsid(byte* sidbuf, unsigned len);
+
+    // locate user by e-mail address or by handle
+    User* finduser(const char*, int = 0);
+    User* finduser(handle, int = 0);
+    void mapuser(handle, const char*);
+
+    // queue public key request for user
+    void queuepubkeyreq(User*, PubKeyAction*);
+
+    // simple string hash
+    static void stringhash(const char*, byte*, SymmCipher*);
+    static uint64_t stringhash64(string*, SymmCipher*);
+
+    // set authentication context, either a session ID or a exported folder node handle
+    void setsid(const byte*, unsigned);
+    void setrootnode(handle);
+
+    // process node subtree
+    void proctree(Node*, TreeProc*);
+
+    // hash password
+    error pw_key(const char*, byte*) const;
+
+    // convert hex digit to number
+    static int hexval(char);
+
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    ~MegaClient();
 };
-
 } // namespace
 
 #endif

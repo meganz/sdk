@@ -1,6 +1,6 @@
 /**
- * @file mega/commands.h
- * @brief Implementation of various commands
+ * @file mainpage.dox
+ * @brief Documentation file for Mainpage, and defgroups.
  *
  * (c) 2013 by Mega Limited, Wellsford, New Zealand
  *
@@ -18,16 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-#ifndef MEGA_COMMANDS_H
-#define MEGA_COMMANDS_H 1
-
-#include "types.h"
-#include "command.h"
-
-
-
-
-
-#endif
-
+/** @defgroup Mega Limited - The Privacy Company */
+/**
+ * @mainpage Mega SDK C++ API Documentation
+ *
+ * Welcome to the Mega SDK.
+ *
+ * We hope that it will prove useful to developers who are interested
+ * in integrating MEGA support into their applications.
+ */
