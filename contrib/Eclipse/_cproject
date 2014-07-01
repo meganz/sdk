@@ -6,9 +6,7 @@
 				<externalSettings>
 					<externalSetting>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="includePath" name="/megasdk"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="includePath" name="/megasdk2"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/megasdk/Debug"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/megasdk2/Debug"/>
 						<entry flags="RESOLVED" kind="libraryFile" name="mega" srcPrefixMapping="" srcRootPath=""/>
 					</externalSetting>
 				</externalSettings>
@@ -29,13 +27,13 @@
 							<targetPlatform id="cdt.managedbuild.target.gnu.platform.so.debug.537152072" name="Debug Platform" superClass="cdt.managedbuild.target.gnu.platform.so.debug"/>
 							<builder buildPath="${workspace_loc:/megasdk}/Debug" id="cdt.managedbuild.target.gnu.builder.base.952162661" keepEnvironmentInBuildfile="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.base"/>
 							<tool id="cdt.managedbuild.tool.gnu.archiver.base.473984160" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.base"/>
-							<tool command="g++" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG} ${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GCCErrorParser" id="cdt.managedbuild.tool.gnu.cpp.compiler.so.debug.730781391" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.so.debug">
+							<tool errorParsers="org.eclipse.cdt.core.GCCErrorParser" id="cdt.managedbuild.tool.gnu.cpp.compiler.so.debug.730781391" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.so.debug">
 								<option id="gnu.cpp.compiler.so.debug.option.optimization.level.54460554" name="Optimization Level" superClass="gnu.cpp.compiler.so.debug.option.optimization.level" value="gnu.cpp.compiler.optimization.level.none" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.so.debug.option.debugging.level.2138193142" name="Debug Level" superClass="gnu.cpp.compiler.so.debug.option.debugging.level" value="gnu.cpp.compiler.debugging.level.max" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.include.paths.1564820636" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/include&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/include/mega/posix&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/third_party/utf8proc&quot;"/>
+									<listOptionValue builtIn="false" value="${ProjDirPath}/include"/>
+									<listOptionValue builtIn="false" value="${ProjDirPath}/include/mega/posix"/>
+									<listOptionValue builtIn="false" value="${ProjDirPath}/third_party/utf8proc"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1175907711" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CONFIG_H"/>
@@ -87,9 +85,8 @@
 				<externalSettings>
 					<externalSetting>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="includePath" name="/megasdk"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="includePath" name="/megasdk2"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/megasdk/Release"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/megasdk2/Release"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="libraryPath" name="/megasdk/Release"/>
 						<entry flags="RESOLVED" kind="libraryFile" name="mega" srcPrefixMapping="" srcRootPath=""/>
 					</externalSetting>
 				</externalSettings>
@@ -114,9 +111,9 @@
 								<option id="gnu.cpp.compiler.so.release.option.optimization.level.1476845248" name="Optimization Level" superClass="gnu.cpp.compiler.so.release.option.optimization.level" value="gnu.cpp.compiler.optimization.level.most" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.so.release.option.debugging.level.776543790" name="Debug Level" superClass="gnu.cpp.compiler.so.release.option.debugging.level" value="gnu.cpp.compiler.debugging.level.none" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.include.paths.1024049266" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/include&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/include/mega/posix&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${ProjDirPath}/third_party/utf8proc&quot;"/>
+									<listOptionValue builtIn="false" value="${ProjDirPath}/include"/>
+									<listOptionValue builtIn="false" value="${ProjDirPath}/include/mega/posix"/>
+									<listOptionValue builtIn="false" value="${ProjDirPath}/third_party/utf8proc"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1754219754" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CONFIG_H"/>
