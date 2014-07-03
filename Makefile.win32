@@ -129,6 +129,7 @@ $(COMMON_SRC):
 $(MEGACLI_OBJ):
 	$(CXX) $(CXXFLAGS) $(MEGACLI_CXXFLAGS) -c $(MEGACLI_SRC) -o $@
 
+.PHONY: clean
 clean:
 	-rm $(COMMON_OBJ)
 	-rm $(MEGACLI_OBJ)
