@@ -77,6 +77,13 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
+    /**
+     * @brief Initialises the Ed25519 EdDSA key user properties.
+     *
+     * A key pair will be added, if not present, yet.
+     */
+    void inited25519();
+
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
@@ -162,11 +169,26 @@ public:
     // queue file attribute retrieval
     error getfa(Node*, fatype, int = 0);
 
-    // attach/update/delete user attribute
-    void putua(const char*, const byte* = NULL, unsigned = 0, int = 0);
+    /**
+     * @brief Attach/update/delete a user attribute.
+     *
+     * @param an Attribute name.
+     * @param av Attribute value.
+     * @param avl Attribute value length.
+     * @param priv 1 for a private, 0 for a public attribute.
+     * @return Void.
+     */
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int priv = 0);
 
-    // queue user attribute retrieval
-    void getua(User*, const char* = NULL, int = 0);
+    /**
+     * @brief Queue a user attribute retrieval.
+     *
+     * @param u User.
+     * @param an Attribute name.
+     * @param p 1 for a private, 0 for a public attribute.
+     * @return Void.
+     */
+    void getua(User* u, const char* an = NULL, int p = 0);
 
     // add new contact (by e-mail address)
     error invite(const char*, visibility_t = VISIBLE);
@@ -610,6 +632,9 @@ public:
 
     // account access (full account): RSA key
     AsymmCipher asymkey;
+
+    /// EdDSA signing key (Ed25519 privte key seed).
+    EdDSA signkey;
 
     // binary session ID
     string sid;

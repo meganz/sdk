@@ -4063,11 +4063,21 @@ error MegaClient::invite(const char* email, visibility_t show)
     return API_OK;
 }
 
-// attach/update/delete user attribute
-// attributes are stored as base64-encoded binary blobs
-// internal attribute name prefixes:
-// * - private and CBC-encrypted
-// + - public and plaintext
+/**
+ * @brief Attach/update/delete a user attribute.
+ *
+ * Attributes are stored as base64-encoded binary blobs. They use internal
+ * attribute name prefixes:
+ *
+ * "*" - Private and CBC-encrypted.
+ * "+" - Public and plain text.
+ *
+ * @param an Attribute name.
+ * @param av Attribute value.
+ * @param avl Attribute value length.
+ * @param priv 1 for a private, 0 for a public attribute.
+ * @return Void.
+ */
 void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
 {
     string name = priv ? "*" : "+";
@@ -4091,7 +4101,14 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
     reqs[r].add(new CommandPutUA(this, name.c_str(), priv ? (const byte*)data.data() : av, priv ? data.size() : avl));
 }
 
-// queue user attribute retrieval
+/**
+ * @brief Queue a user attribute retrieval.
+ *
+ * @param u User.
+ * @param an Attribute name.
+ * @param p 1 for a private, 0 for a public attribute.
+ * @return Void.
+ */
 void MegaClient::getua(User* u, const char* an, int p)
 {
     if (an)
@@ -4656,6 +4673,33 @@ void MegaClient::setkeypair()
                                       privks.size(),
                                       (const byte*)pubks.data(),
                                       pubks.size()));
+}
+
+/**
+ * @brief Initialises the Ed25519 EdDSA key user properties.
+ *
+ * A key pair will be added, if not present, yet.
+ */
+void MegaClient::inited25519()
+{
+    signkey.init();
+    // Make the new key pair and their storage arrays.
+    if (!signkey.genKeySeed())
+    {
+        app->debug_log("Error generating an Ed25519 key seed.");
+        // TODO: What to do in case of error here?
+    }
+    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+    if (!signkey.publicKey(pubKey))
+    {
+        free(pubKey);
+        app->debug_log("Error deriving the Ed25519 public key.");
+        // TODO: What to do in case of error here?
+    }
+
+    // Store the key pair to user attributes.
+    putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
+    putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
 }
 
 bool MegaClient::fetchsc(DbTable* sctable)

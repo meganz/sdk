@@ -127,11 +127,15 @@ int EdDSA::genKeySeed(unsigned char* privKey) {
     // Now make the new key seed.
     this->rng.GenerateBlock(this->keySeed, crypto_sign_SEEDBYTES);
     // Copy it to privKey before returning.
-    memcpy(privKey, this->keySeed, crypto_sign_SEEDBYTES);
+    if (privKey)
+    {
+        memcpy(privKey, this->keySeed, crypto_sign_SEEDBYTES);
+    }
     return(1);
 }
 
 
+// Derives the Ed25519 public key from the stored private key seed.
 int EdDSA::publicKey(unsigned char* pubKey) {
     unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
     if (privKey == NULL) {

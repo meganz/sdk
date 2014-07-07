@@ -72,17 +72,17 @@ public:
      * @param buflen Length of the plain text.
      * @return 1 on a valid signature, 0 on a failed verification.
      */
-    int verify(const unsigned char* msg, unsigned long long msglen,
-               const unsigned char* sig, const unsigned char* pubKey);
+    static int verify(const unsigned char* msg, unsigned long long msglen,
+                      const unsigned char* sig, const unsigned char* pubKey);
 
     /**
      * @brief Generates a new Ed25519 private key seed. The key seed is stored
      * in the object.
      *
-     * @param privk Private key seed.
+     * @param privk Private key seed to return, unless NULL.
      * @return 1 on success, 0 on failure.
      */
-    int genKeySeed(unsigned char* privKey);
+    int genKeySeed(unsigned char* privKey = NULL);
 
     /**
      * @brief Derives the Ed25519 public key from the stored private key seed.
