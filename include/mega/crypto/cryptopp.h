@@ -26,6 +26,7 @@
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/ccm.h>
+#include <cryptopp/gcm.h>
 #include <cryptopp/integer.h>
 #include <cryptopp/aes.h>
 #include <cryptopp/osrng.h>
@@ -85,6 +86,9 @@ private:
 
     CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Encryption aesccm_e;
     CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Decryption aesccm_d;
+
+    CryptoPP::GCM<CryptoPP::AES>::Encryption aesgcm_e;
+    CryptoPP::GCM<CryptoPP::AES>::Decryption aesgcm_d;
 
 public:
     static byte zeroiv[CryptoPP::AES::BLOCKSIZE];
@@ -146,11 +150,16 @@ public:
     void cbc_decrypt(byte* data, unsigned len, const byte* iv = NULL);
 
     /**
-     * @brief Encrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+     * @brief Authenticated symmetric encryption using AES in CCM mode
+     *        (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
+     *
+     * Note: Due to in-place encryption, the buffer `data` must be large enough
+     *       to accept the cipher text in multiples of the block size as well as
+     *       the authentication tag (SymmCipher::TAG_SIZE bytes).
      *
      * @param data Data to be encrypted (encryption in-place).
      * @param len Length of data to be encrypted in bytes.
@@ -163,7 +172,8 @@ public:
     void ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
 
     /**
-     * @brief Decrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+     * @brief Authenticated symmetric decryption using AES in CCM mode
+     *        (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
@@ -178,6 +188,43 @@ public:
      * @return Void.
      */
     void ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+
+    /**
+     * @brief Authenticated symmetric encryption using AES in GCM mode.
+     *
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
+     *
+     * Note: Due to in-place encryption, the buffer `data` must be large enough
+     *       to accept the cipher text in multiples of the block size as well as
+     *       the authentication tag (16 bytes).
+     *
+     * @param data Data to be encrypted (encryption in-place).
+     * @param len Length of data to be encrypted in bytes.
+     * @param iv Initialisation vector or nonce to use for encryption. Choose
+     *     randomly and never re-use. See note on size above.
+     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+     *     bytes.
+     * @return Void.
+     */
+    void gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+
+    /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode.
+     *
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
+     *
+     * @param data Data to be encrypted (encryption in-place).
+     * @param len Length of cipher text to be decrypted in bytes (includes length
+     *     of authentication tag: SymmCipher::TAG_SIZE).
+     * @param iv Initialisation vector or nonce.
+     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+     *     bytes.
+     */
+    void gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
 
     void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool);
 

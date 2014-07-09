@@ -152,13 +152,19 @@ void SymmCipher::ecb_decrypt(byte* data, unsigned len)
 }
 
 /**
- * @brief Encrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+ * @brief Authenticated symmetric encryption using AES in CCM mode
+ *        (counter with CBC-MAC).
  *
  * The size of the IV limits the maximum length of data. A length of 12 bytes
  * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
  * sizes.
  *
- * @param data Data to be encrypted (encryption in-place).
+ * Note: Due to in-place encryption, the buffer `data` must be large enough
+ *       to accept the cipher text in multiples of the block size as well as
+ *       the authentication tag (SymmCipher::TAG_SIZE bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place). The result will be
+ *     in the same structure as the concatenated pair `{ciphertext, tag}`
  * @param len Length of data to be encrypted in bytes.
  * @param iv Initialisation vector or nonce to use for encryption. Choose
  *     randomly and never re-use. See note on size above.
@@ -173,13 +179,15 @@ void SymmCipher::ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLen
 }
 
 /**
- * @brief Decrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+ * @brief Authenticated symmetric decryption using AES in CCM mode
+ *        (counter with CBC-MAC).
  *
  * The size of the IV limits the maximum length of data. A length of 12 bytes
  * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
  * sizes.
  *
- * @param data Data to be encrypted (encryption in-place).
+ * @param data Data to be encrypted (encryption in-place). The input given must
+ *     be in the concatenated form `{ciphertext, tag}`
  * @param len Length of cipher text to be decrypted in bytes (includes length
  *     of authentication tag: SymmCipher::TAG_SIZE).
  * @param iv Initialisation vector or nonce.
@@ -191,6 +199,53 @@ void SymmCipher::ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLen
 {
     aesccm_d.Resynchronize(iv, ivLength);
     aesccm_d.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Authenticated symmetric encryption using AES in GCM mode.
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * Note: Due to in-place encryption, the buffer `data` must be large enough
+ *       to accept the cipher text in multiples of the block size as well as
+ *       the authentication tag (16 bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place). The result will be
+ *     in the same structure as the concatenated pair `{ciphertext, tag}`
+ * @param len Length of data to be encrypted in bytes.
+ * @param iv Initialisation vector or nonce to use for encryption. Choose
+ *     randomly and never re-use. See note on size above.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ * @return Void.
+ */
+void SymmCipher::gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesgcm_e.Resynchronize(iv, ivLength);
+    aesgcm_e.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Authenticated symmetric decryption using AES in GCM mode.
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * @param data Data to be encrypted (encryption in-place). The input given must
+ *     be in the concatenated form `{ciphertext, tag}`
+ * @param len Length of cipher text to be decrypted in bytes (includes length
+ *     of authentication tag: 16 bytes).
+ * @param iv Initialisation vector or nonce.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ */
+void SymmCipher::gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesgcm_d.Resynchronize(iv, ivLength);
+    aesgcm_d.ProcessData(data, data, len);
 }
 
 void SymmCipher::setint64(int64_t value, byte* data)
