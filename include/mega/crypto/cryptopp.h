@@ -25,6 +25,7 @@
 
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/modes.h>
+#include <cryptopp/ccm.h>
 #include <cryptopp/integer.h>
 #include <cryptopp/aes.h>
 #include <cryptopp/osrng.h>
@@ -68,11 +69,22 @@ public:
 // symmetric cryptography: AES-128
 class MEGA_API SymmCipher
 {
+public:
+    /**
+     * Size of the authentication digest for encryption in CCM mode.
+     * Valid values: 4, 6, 8, 10, 12, 14, and 16.
+     */
+    static const int TAG_SIZE = 12;
+
+private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesecb_d;
 
     CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption aescbc_e;
     CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption aescbc_d;
+
+    CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Encryption aesccm_e;
+    CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Decryption aesccm_d;
 
 public:
     static byte zeroiv[CryptoPP::AES::BLOCKSIZE];
@@ -88,11 +100,84 @@ public:
 
     void setkey(const byte*, int = 1);
 
+    /**
+     * @brief Encrypt symmetrically using AES in ECB mode.
+     *
+     * @param data Data to be encrypted.
+     * @param dst Target buffer to encrypt to. If NULL, encrypt in-place (to `data`).
+     * @param len Length of data to be encrypted in bytes. Defaults to
+     *     SymCipher::BLOCKSIZE.
+     * @return Void.
+     */
     void ecb_encrypt(byte*, byte* = NULL, unsigned = BLOCKSIZE);
+
+    /**
+     * @brief Decrypt symmetrically using AES in ECB mode.
+     *
+     * @param data Data to be decrypted (in-place).
+     * @param len Length of data to be decrypted in bytes. Defaults to
+     *     SymCipher::BLOCKSIZE.
+     * @return Void.
+     */
     void ecb_decrypt(byte*, unsigned = BLOCKSIZE);
 
-    void cbc_encrypt(byte*, unsigned);
-    void cbc_decrypt(byte*, unsigned);
+    /**
+     * @brief Encrypt symmetrically using AES in CBC mode.
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param data Data to be encrypted (encryption in-place).
+     * @param len Length of data to be encrypted in bytes.
+     * @param iv Initialisation vector to use. Choose randomly and never re-use.
+     * @return Void.
+     */
+    void cbc_encrypt(byte* data, unsigned len, const byte* iv = NULL);
+
+    /**
+     * @brief Decrypt symmetrically using AES in CBC mode.
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param data Data to be encrypted (encryption in-place).
+     * @param len Length of cipher text to be decrypted in bytes.
+     * @param iv Initialisation vector.
+     * @return Void.
+     */
+    void cbc_decrypt(byte* data, unsigned len, const byte* iv = NULL);
+
+    /**
+     * @brief Encrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+     *
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
+     *
+     * @param data Data to be encrypted (encryption in-place).
+     * @param len Length of data to be encrypted in bytes.
+     * @param iv Initialisation vector or nonce to use for encryption. Choose
+     *     randomly and never re-use. See note on size above.
+     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+     *     bytes.
+     * @return Void.
+     */
+    void ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+
+    /**
+     * @brief Decrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+     *
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
+     *
+     * @param data Data to be encrypted (encryption in-place).
+     * @param len Length of cipher text to be decrypted in bytes (includes length
+     *     of authentication tag: SymmCipher::TAG_SIZE).
+     * @param iv Initialisation vector or nonce.
+     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+     *     bytes.
+     * @return Void.
+     */
+    void ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
 
     void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool);
 

@@ -72,29 +72,125 @@ void SymmCipher::setkey(const byte* newkey, int type)
     aescbc_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
     aescbc_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
 
+    aesccm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    aesccm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+
     keyvalid = 1;
 }
 
-void SymmCipher::cbc_encrypt(byte* data, unsigned len)
+/**
+ * @brief Encrypt symmetrically using AES in CBC mode.
+ *
+ * The size of the IV is one block in AES-128 (16 bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place).
+ * @param len Length of data to be encrypted in bytes.
+ * @param iv Initialisation vector to use. Choose randomly and never re-use.
+ * @return Void.
+ */
+void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
 {
-    aescbc_e.Resynchronize(zeroiv);
+    if (iv == NULL)
+    {
+        aescbc_e.Resynchronize(zeroiv);
+    }
+    else
+    {
+        aescbc_e.Resynchronize(iv);
+    }
     aescbc_e.ProcessData(data, data, len);
 }
 
-void SymmCipher::cbc_decrypt(byte* data, unsigned len)
+/**
+ * @brief Decrypt symmetrically using AES in CBC mode.
+ *
+ * The size of the IV is one block in AES-128 (16 bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place).
+ * @param len Length of cipher text to be decrypted in bytes.
+ * @param iv Initialisation vector.
+ * @return Void.
+ */
+void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
 {
-    aescbc_d.Resynchronize(zeroiv);
+    if (iv == NULL)
+    {
+        aescbc_d.Resynchronize(zeroiv);
+    }
+    else
+    {
+        aescbc_d.Resynchronize(iv);
+    }
     aescbc_d.ProcessData(data, data, len);
 }
 
+/**
+ * @brief Encrypt symmetrically using AES in ECB mode.
+ *
+ * @param data Data to be encrypted.
+ * @param dst Target buffer to encrypt to. If NULL, encrypt in-place (to `data`).
+ * @param len Length of data to be encrypted in bytes. Defaults to
+ *     SymCipher::BLOCKSIZE.
+ * @return Void.
+ */
 void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
 {
     aesecb_e.ProcessData(dst ? dst : data, data, len);
 }
 
+/**
+ * @brief Decrypt symmetrically using AES in ECB mode.
+ *
+ * @param data Data to be decrypted (in-place).
+ * @param len Length of data to be decrypted in bytes. Defaults to
+ *     SymCipher::BLOCKSIZE.
+ * @return Void.
+ */
 void SymmCipher::ecb_decrypt(byte* data, unsigned len)
 {
     aesecb_d.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Encrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * @param data Data to be encrypted (encryption in-place).
+ * @param len Length of data to be encrypted in bytes.
+ * @param iv Initialisation vector or nonce to use for encryption. Choose
+ *     randomly and never re-use. See note on size above.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ * @return Void.
+ */
+void SymmCipher::ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesccm_e.Resynchronize(iv, ivLength);
+    aesccm_e.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Decrypt symmetrically using AES in CCM mode (counter with CBC-MAC).
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * @param data Data to be encrypted (encryption in-place).
+ * @param len Length of cipher text to be decrypted in bytes (includes length
+ *     of authentication tag: SymmCipher::TAG_SIZE).
+ * @param iv Initialisation vector or nonce.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ * @return Void.
+ */
+void SymmCipher::ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesccm_d.Resynchronize(iv, ivLength);
+    aesccm_d.ProcessData(data, data, len);
 }
 
 void SymmCipher::setint64(int64_t value, byte* data)
