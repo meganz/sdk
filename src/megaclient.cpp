@@ -4080,7 +4080,7 @@ error MegaClient::invite(const char* email, visibility_t show)
  */
 void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
 {
-    string name = priv ? "" : "+";
+    string name = priv ? "*" : "+";
     string data;
 
     name.append(an);
@@ -4113,7 +4113,7 @@ void MegaClient::getua(User* u, const char* an, int p)
 {
     if (an)
     {
-        string name = p ? "" : "+";
+        string name = p ? "*" : "+";
 
         name.append(an);
 
