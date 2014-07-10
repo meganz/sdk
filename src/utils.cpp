@@ -28,25 +28,103 @@ Cachable::Cachable()
     notified = 0;
 }
 
-// pad and CBC-encrypt
-void PaddedCBC::encrypt(string* data, SymmCipher* key)
+/**
+ * @brief Encrypts a string after padding it to block length.
+ *
+ * Note: With an IV, only use the first 8 bytes.
+ *
+ * @param data Data buffer to be encrypted. Encryption is done in-place,
+ *     so cipher text will be in `data` afterwards as well.
+ * @param key AES key for encryption.
+ * @param iv Optional initialisation vector for encryption. Will use a
+ *     zero IV if not given. If `iv` is a zero length string, a new IV
+ *     for encryption will be generated and available through the reference.
+ * @return Void.
+ */
+void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
 {
-    // pad to blocksize and encrypt
+    if (iv)
+    {
+        // Make a new 8-byte IV, if the one passed is zero length.
+        if (iv->size() == 0)
+        {
+            byte* buf = new byte[8];
+            PrnGen::genblock(buf, 8);
+            iv->append((char*)buf);
+            delete buf;
+        }
+
+        // Truncate a longer IV to its first 8 bytes.
+        if (iv->size() > 8)
+        {
+            iv->resize(8);
+        }
+
+        // Bring up the IV size to BLOCKSIZE.
+        iv->resize(key->BLOCKSIZE);
+    }
+
+    // Pad to block size and encrypt.
     data->append("E");
     data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
-    key->cbc_encrypt((byte*)data->data(), data->size());
+    if (iv)
+    {
+        key->cbc_encrypt((byte*)data->data(), data->size(),
+                         (const byte*)iv->data());
+    }
+    else
+    {
+        key->cbc_encrypt((byte*)data->data(), data->size());
+    }
+
+    // Truncate IV back to the first 8 bytes only..
+    if (iv)
+    {
+        iv->resize(8);
+    }
 }
 
-// CBC-decrypt and unpad
-bool PaddedCBC::decrypt(string* data, SymmCipher* key)
+/**
+ * @brief Decrypts a string and strips the padding.
+ *
+ * Note: With an IV, only use the first 8 bytes.
+ *
+ * @param data Data buffer to be decrypted. Decryption is done in-place,
+ *     so plain text will be in `data` afterwards as well.
+ * @param key AES key for decryption.
+ * @param iv Optional initialisation vector for encryption. Will use a
+ *     zero IV if not given.
+ * @return Void.
+ */
+bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
 {
+    if (iv)
+    {
+        // Truncate a longer IV to its first 8 bytes.
+        if (iv->size() > 8)
+        {
+            iv->resize(8);
+        }
+
+        // Bring up the IV size to BLOCKSIZE.
+        iv->resize(key->BLOCKSIZE);
+    }
+
     if ((data->size() & (key->BLOCKSIZE - 1)))
     {
         return false;
     }
 
-    // decrypt and unpad
-    key->cbc_decrypt((byte*)data->data(), data->size());
+    // Decrypt and unpad.
+    if (iv)
+    {
+        key->cbc_decrypt((byte*)data->data(), data->size(),
+                         (const byte*)iv->data());
+    }
+    else
+    {
+        key->cbc_decrypt((byte*)data->data(), data->size());
+    }
 
     size_t p = data->find_last_of('E');
 

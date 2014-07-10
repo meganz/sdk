@@ -4091,14 +4091,20 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
         {
             data.assign((const char*)av, avl);
         }
-        PaddedCBC::encrypt(&data, &key);
+        string iv;
+        PaddedCBC::encrypt(&data, &key, &iv);
+        // Now prepend the data with the (8 byte) IV.
+        iv.append(data);
+        data = iv;
     }
     else if (!av)
     {
         av = (const byte*)"";
     }
 
-    reqs[r].add(new CommandPutUA(this, name.c_str(), priv ? (const byte*)data.data() : av, priv ? data.size() : avl));
+    reqs[r].add(new CommandPutUA(this, name.c_str(),
+                                 priv ? (const byte*)data.data() : av,
+                                 priv ? data.size() : avl));
 }
 
 /**
