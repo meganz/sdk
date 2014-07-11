@@ -23,8 +23,7 @@
 #ifndef SODIUM_H
 #define SODIUM_H 1
 
-#include <sodium/core.h>
-#include <sodium/crypto_sign.h>
+#include <sodium.h>
 
 namespace mega {
 using namespace std;
@@ -37,7 +36,9 @@ class MEGA_API EdDSA
 private:
     static CryptoPP::AutoSeededRandomPool rng;
 public:
-    unsigned char* keySeed = NULL;
+    EdDSA() : keySeed(NULL) {}
+
+    unsigned char* keySeed;
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.
