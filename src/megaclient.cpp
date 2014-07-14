@@ -5118,12 +5118,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             }
             else if (ll->type == FILENODE)
             {
-                if (!ll->node ||
-                    (ll->node != rit->second && rit->second->mtime > ll->node->mtime))
-                {
-                    ll->setnode(rit->second);
+                if (ll->node != rit->second)
                     ll->sync->statecacheadd(ll);
-                }
+                ll->setnode(rit->second);
 
                 // file exists on both sides - do not overwrite if local version newer or same
                 if (ll->mtime > rit->second->mtime)
@@ -5394,12 +5391,9 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
-                if (!ll->node ||
-                    (ll->node != rit->second && rit->second->mtime > ll->node->mtime))
-                {
-                    ll->setnode(rit->second);
+                if (ll->node != rit->second)
                     ll->sync->statecacheadd(ll);
-                }
+                ll->setnode(rit->second);
 
                 if (ll->size == rit->second->size)
                 {
