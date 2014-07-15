@@ -90,14 +90,7 @@ void SymmCipher::setkey(const byte* newkey, int type)
  */
 void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
 {
-    if (iv == NULL)
-    {
-        aescbc_e.Resynchronize(zeroiv);
-    }
-    else
-    {
-        aescbc_e.Resynchronize(iv);
-    }
+    aescbc_e.Resynchronize(iv ? iv : zeroiv);
     aescbc_e.ProcessData(data, data, len);
 }
 
@@ -113,14 +106,7 @@ void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
  */
 void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
 {
-    if (iv == NULL)
-    {
-        aescbc_d.Resynchronize(zeroiv);
-    }
-    else
-    {
-        aescbc_d.Resynchronize(iv);
-    }
+    aescbc_d.Resynchronize(iv ? iv : zeroiv);
     aescbc_d.ProcessData(data, data, len);
 }
 
@@ -346,7 +332,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
 
 static void rsaencrypt(Integer* key, Integer* m)
 {
-    *m = a_exp_b_mod_c(*m, key[1], key[0]);
+    *m = a_exp_b_mod_c(*m, key[AsymmCipher::PUB_E], key[AsymmCipher::PUB_PQ]);
 }
 
 unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen)
@@ -372,7 +358,7 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int
 
 int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
 {
-    if ((int)key[0].ByteCount() + 2 > buflen)
+    if ((int)key[PUB_PQ].ByteCount() + 2 > buflen)
     {
         return 0;
     }
@@ -383,9 +369,9 @@ int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
     }
 
     // add random padding
-    PrnGen::genblock(buf + plainlen, key[0].ByteCount() - plainlen - 2);
+    PrnGen::genblock(buf + plainlen, key[PUB_PQ].ByteCount() - plainlen - 2);
 
-    Integer t(buf, key[0].ByteCount() - 2);
+    Integer t(buf, key[PUB_PQ].ByteCount() - 2);
 
     rsaencrypt(key, &t);
 
@@ -459,7 +445,7 @@ int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numby
 
     rsadecrypt(key, &m);
 
-    unsigned l = key[AsymmCipher::PRIV_D].ByteCount() - 2;
+    unsigned l = key[AsymmCipher::PRIV_P].ByteCount() + key[AsymmCipher::PRIV_Q].ByteCount() - 2;
 
     if (m.ByteCount() > l)
     {
@@ -545,7 +531,7 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
 
 int AsymmCipher::isvalid()
 {
-    return key[0].BitCount() && key[1].BitCount();
+    return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
 }
 
 // adapted from CryptoPP, rsa.cpp

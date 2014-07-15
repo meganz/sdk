@@ -23,7 +23,7 @@
 #ifndef SODIUM_H
 #define SODIUM_H 1
 
-#include <sodium.h>
+#include "sodium.h"
 
 namespace mega {
 using namespace std;

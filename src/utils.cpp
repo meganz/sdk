@@ -219,6 +219,12 @@ int HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
         return 0;
     }
 
+    if (s.size() < h.size())
+    {
+        // left-pad with 0
+        s.insert(0, h.size() - s.size(), 0);
+    }
+
     return s == h;
 }
 } // namespace
