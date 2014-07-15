@@ -214,19 +214,22 @@ size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 // set contentlength according to Original-Content-Length header
 size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
 {
-    if (!memcmp(ptr, "Content-Length:", 15))
+    if (target)
     {
-        if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
-    }
-    else
-    {
-        if (!memcmp(ptr, "Original-Content-Length:", 24))
+        if (!memcmp(ptr, "Content-Length:", 15))
         {
-            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+            if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
         }
-    }
+        else
+        {
+            if (!memcmp(ptr, "Original-Content-Length:", 24))
+            {
+                ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+            }
+        }
 
-    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+    }
 
     return nmemb;
 }
