@@ -217,7 +217,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             else
             {
                 req->httpstatus = statusCode;
-                req->httpio->lastdata = Waiter::ds;
+
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
 
                 if (!req->buf)
                 {
