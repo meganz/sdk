@@ -209,20 +209,22 @@ unsigned HashSignature::get(AsymmCipher* privk, byte* sigbuf, unsigned sigbuflen
 int HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
 {
     string h, s;
+    unsigned size;
 
     hash->get(&h);
 
     s.resize(h.size());
 
-    if (pubk->rawencrypt(sig, len, (byte*)s.data(), s.size()) != h.size())
+    if (!(size = pubk->rawencrypt(sig, len, (byte*)s.data(), s.size())))
     {
         return 0;
     }
 
-    if (s.size() < h.size())
+    if (size < h.size())
     {
         // left-pad with 0
-        s.insert(0, h.size() - s.size(), 0);
+        s.insert(0, h.size() - size, 0);
+	s.resize(h.size());
     }
 
     return s == h;
