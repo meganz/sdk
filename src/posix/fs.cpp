@@ -211,8 +211,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
 #define FSE_IGNORE 0
 #define FSE_REPORT 1
-#define	FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
-#define	FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
+#define FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
+#define FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
 
     int fd;
     struct fsevent_clone_args fca;
@@ -502,8 +502,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 {
                     int s = (*it)->localroot.localname.size();
 
-                    if (!memcmp((*it)->localroot.localname.c_str(), path, s)	// prefix match
-                      && (!path[s] || path[s] == '/')				// at end: end of path or path separator
+                    if (!memcmp((*it)->localroot.localname.c_str(), path, s)    // prefix match
+                      && (!path[s] || path[s] == '/')               // at end: end of path or path separator
                       && (memcmp(path + s + 1, (*it)->dirnotify->ignore.c_str(), (*it)->dirnotify->ignore.size())
                           || (path[s + (*it)->dirnotify->ignore.size() + 1]
                            && path[s + (*it)->dirnotify->ignore.size() + 1] != '/')))
@@ -641,8 +641,72 @@ bool PosixFileSystemAccess::unlinklocal(string* name)
     return false;
 }
 
+// delete all files, folders and symlinks contained in the specified folder
+// (does not recurse into mounted devices)
+void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
+{
+    DIR* dp;
+    dirent* d;
+    int removed;
+    struct stat statbuf;
+    int t;
+
+    if (!basedev)
+    {
+        if (lstat(name->c_str(), &statbuf) || !S_ISDIR(statbuf.st_mode) || S_ISLNK(statbuf.st_mode)) return;
+        basedev = statbuf.st_dev;
+    }
+
+    if ((dp = opendir(name->c_str())))
+    {
+        for (;;)
+        {
+            removed = 0;
+
+            while ((d = readdir(dp)))
+            {
+                if (d->d_type != DT_DIR
+                 || *d->d_name != '.'
+                 || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
+                {
+                    t = name->size();
+                    name->append("/");
+                    name->append(d->d_name);
+
+                    if (!lstat(name->c_str(), &statbuf))
+                    {
+                        if (!S_ISLNK(statbuf.st_mode) && S_ISDIR(statbuf.st_mode) && statbuf.st_dev == basedev)
+                        {
+                            emptydirlocal(name, basedev);
+                            removed |= !rmdir(name->c_str());
+                        }
+                        else
+                        {
+                            removed |= !unlink(name->c_str());
+                        }
+                    }
+
+                    name->resize(t);
+                }
+            }
+            
+            if (!removed)
+            {
+                break;
+            }
+            
+            rewinddir(dp);
+        }
+        
+        closedir(dp);
+    }
+    
+}
+
 bool PosixFileSystemAccess::rmdirlocal(string* name)
 {
+    emptydirlocal(name);
+
     if (!rmdir(name->c_str())) return true;
 
     transient_error = errno == ETXTBSY || errno == EBUSY;
@@ -690,40 +754,40 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname) const
 // return lowercased ASCII file extension, including the . separator
 bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size) const
 {
-	const char* ptr = filename->data() + filename->size();
+    const char* ptr = filename->data() + filename->size();
     char c;
     int i, j;
 
-	size--;
+    size--;
 
-	if (size > filename->size())
-	{
-		size = filename->size();
-	}
+    if (size > filename->size())
+    {
+        size = filename->size();
+    }
 
-	for (i = 0; i < size; i++)
-	{
-		if (*--ptr == '.')
-		{
-			for (j = 0; j <= i; j++)
-			{
-				if (*ptr < '.' || *ptr > 'z') return false;
+    for (i = 0; i < size; i++)
+    {
+        if (*--ptr == '.')
+        {
+            for (j = 0; j <= i; j++)
+            {
+                if (*ptr < '.' || *ptr > 'z') return false;
 
-				c = *(ptr++);
+                c = *(ptr++);
 
-				// tolower()
-				if (c >= 'A' && c <= 'Z') c |= ' ';
+                // tolower()
+                if (c >= 'A' && c <= 'Z') c |= ' ';
                 
                 extension[j] = c;
-			}
-			
+            }
+            
             extension[j] = 0;
             
-			return true;
-		}
-	}
+            return true;
+        }
+    }
 
-	return false;
+    return false;
 }
 
 void PosixFileSystemAccess::osversion(string* u) const
