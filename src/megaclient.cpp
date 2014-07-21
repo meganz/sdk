@@ -960,6 +960,7 @@ void MegaClient::exec()
                             if (sync->state == SYNC_CANCELED)
                             {
                                 delete sync;
+                                continue;
                             }
                             else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
