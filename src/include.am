@@ -3,16 +3,16 @@ lib_LTLIBRARIES = src/libmega.la
 
 # CXX flags
 if WIN32
-src_libmega_la_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(LIBS_EXTRA) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(CXXFLAGS) $(WINHTTP_CXXFLAGS) $(FI_CXXFLAGS)
+src_libmega_la_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(LIBS_EXTRA) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(SODIUM_CXXFLAGS) $(DB_CXXFLAGS) $(CXXFLAGS) $(WINHTTP_CXXFLAGS) $(FI_CXXFLAGS)
 else
-src_libmega_la_CXXFLAGS = $(LIBCURL_FLAGS) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(FI_CXXFLAGS)
+src_libmega_la_CXXFLAGS = $(LIBCURL_FLAGS) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(SODIUM_CXXFLAGS) $(DB_CXXFLAGS) $(FI_CXXFLAGS)
 endif
 
 # Libs
 if WIN32
-src_libmega_la_LIBADD = $(LIBS_EXTRA) $(ZLIB_LDFLAGS) $(ZLIB_LIBS)  $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(FI_LDFLAGS) $(FI_LIBS)
+src_libmega_la_LIBADD = $(LIBS_EXTRA) $(ZLIB_LDFLAGS) $(ZLIB_LIBS)  $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(FI_LDFLAGS) $(FI_LIBS)
 else
-src_libmega_la_LIBADD =  $(LIBCURL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(FI_LDFLAGS) $(FI_LIBS)
+src_libmega_la_LIBADD =  $(LIBCURL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(FI_LDFLAGS) $(FI_LIBS)
 endif
 
 # add library version
@@ -48,6 +48,7 @@ src_libmega_la_SOURCES += src/utils.cpp
 src_libmega_la_SOURCES += src/logging.cpp
 src_libmega_la_SOURCES += src/waiterbase.cpp
 src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
+src_libmega_la_SOURCES += src/crypto/sodium.cpp
 src_libmega_la_SOURCES += src/db/sqlite.cpp
 src_libmega_la_SOURCES += third_party/utf8proc/utf8proc.cpp
 

@@ -1417,6 +1417,8 @@ void CommandPutUA::procresult()
 CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, int p)
 {
     priv = p;
+    user = client->finduser((char*)uid);
+    attributename = (char*)an;
 
     cmd("uga");
     arg("u", uid);
@@ -1429,7 +1431,33 @@ void CommandGetUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->getua_result((error)client->json.getint());
+        error e = (error)client->json.getint();
+        if ((e == API_ENOENT) && (user->userhandle == client->me)
+                && ((priv && strncmp(attributename, "prEd255", 7))
+                        || (!priv && strncmp(attributename, "puEd255", 7))))
+        {
+            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
+            client->inited25519();
+
+            // Return the required key data.
+            if (strncmp(attributename, "prEd255", 7))
+            {
+                return(client->app->getua_result(client->signkey.keySeed,
+                                                 crypto_sign_SEEDBYTES));
+            }
+            else
+            {
+                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+                if (!client->signkey.publicKey(pubKey))
+                {
+                    free(pubKey);
+                    return(client->app->getua_result(API_EINTERNAL));
+                }
+                return(client->app->getua_result(pubKey,
+                                                 crypto_sign_PUBLICKEYBYTES));
+            }
+        }
+        return(client->app->getua_result(e));
     }
     else
     {
@@ -1453,11 +1481,28 @@ void CommandGetUA::procresult()
             d.assign((char*)data, l);
             delete[] data;
 
-            if (!PaddedCBC::decrypt(&d, &client->key))
+            // Is the data a multiple of the cipher blocksize, then we're using
+            // a zero IV.
+            if (l % client->key.BLOCKSIZE == 0)
             {
-                return client->app->getua_result(API_EINTERNAL);
+                if (!PaddedCBC::decrypt(&d, &client->key))
+                {
+                    return client->app->getua_result(API_EINTERNAL);
+                }
             }
-
+            else
+            {
+                // We need to shave off our 8 byte IV first.
+                string iv;
+                iv.assign(d, 0, 8);
+                string payload;
+                payload.assign(d, 8, l - 8);
+                d = payload;
+                if (!PaddedCBC::decrypt(&d, &client->key, &iv))
+                {
+                    return client->app->getua_result(API_EINTERNAL);
+                }
+            }
             return client->app->getua_result((byte*)d.data(), d.size());
         }
 

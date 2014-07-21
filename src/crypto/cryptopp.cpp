@@ -72,29 +72,166 @@ void SymmCipher::setkey(const byte* newkey, int type)
     aescbc_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
     aescbc_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
 
+    aesccm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    aesccm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+
     keyvalid = 1;
 }
 
-void SymmCipher::cbc_encrypt(byte* data, unsigned len)
+/**
+ * @brief Encrypt symmetrically using AES in CBC mode.
+ *
+ * The size of the IV is one block in AES-128 (16 bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place).
+ * @param len Length of data to be encrypted in bytes.
+ * @param iv Initialisation vector to use. Choose randomly and never re-use.
+ * @return Void.
+ */
+void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
 {
-    aescbc_e.Resynchronize(zeroiv);
+    aescbc_e.Resynchronize(iv ? iv : zeroiv);
     aescbc_e.ProcessData(data, data, len);
 }
 
-void SymmCipher::cbc_decrypt(byte* data, unsigned len)
+/**
+ * @brief Decrypt symmetrically using AES in CBC mode.
+ *
+ * The size of the IV is one block in AES-128 (16 bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place).
+ * @param len Length of cipher text to be decrypted in bytes.
+ * @param iv Initialisation vector.
+ * @return Void.
+ */
+void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
 {
-    aescbc_d.Resynchronize(zeroiv);
+    aescbc_d.Resynchronize(iv ? iv : zeroiv);
     aescbc_d.ProcessData(data, data, len);
 }
 
+/**
+ * @brief Encrypt symmetrically using AES in ECB mode.
+ *
+ * @param data Data to be encrypted.
+ * @param dst Target buffer to encrypt to. If NULL, encrypt in-place (to `data`).
+ * @param len Length of data to be encrypted in bytes. Defaults to
+ *     SymCipher::BLOCKSIZE.
+ * @return Void.
+ */
 void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
 {
     aesecb_e.ProcessData(dst ? dst : data, data, len);
 }
 
+/**
+ * @brief Decrypt symmetrically using AES in ECB mode.
+ *
+ * @param data Data to be decrypted (in-place).
+ * @param len Length of data to be decrypted in bytes. Defaults to
+ *     SymCipher::BLOCKSIZE.
+ * @return Void.
+ */
 void SymmCipher::ecb_decrypt(byte* data, unsigned len)
 {
     aesecb_d.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Authenticated symmetric encryption using AES in CCM mode
+ *        (counter with CBC-MAC).
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * Note: Due to in-place encryption, the buffer `data` must be large enough
+ *       to accept the cipher text in multiples of the block size as well as
+ *       the authentication tag (SymmCipher::TAG_SIZE bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place). The result will be
+ *     in the same structure as the concatenated pair `{ciphertext, tag}`
+ * @param len Length of data to be encrypted in bytes.
+ * @param iv Initialisation vector or nonce to use for encryption. Choose
+ *     randomly and never re-use. See note on size above.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ * @return Void.
+ */
+void SymmCipher::ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesccm_e.Resynchronize(iv, ivLength);
+    aesccm_e.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Authenticated symmetric decryption using AES in CCM mode
+ *        (counter with CBC-MAC).
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * @param data Data to be encrypted (encryption in-place). The input given must
+ *     be in the concatenated form `{ciphertext, tag}`
+ * @param len Length of cipher text to be decrypted in bytes (includes length
+ *     of authentication tag: SymmCipher::TAG_SIZE).
+ * @param iv Initialisation vector or nonce.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ * @return Void.
+ */
+void SymmCipher::ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesccm_d.Resynchronize(iv, ivLength);
+    aesccm_d.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Authenticated symmetric encryption using AES in GCM mode.
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * Note: Due to in-place encryption, the buffer `data` must be large enough
+ *       to accept the cipher text in multiples of the block size as well as
+ *       the authentication tag (16 bytes).
+ *
+ * @param data Data to be encrypted (encryption in-place). The result will be
+ *     in the same structure as the concatenated pair `{ciphertext, tag}`
+ * @param len Length of data to be encrypted in bytes.
+ * @param iv Initialisation vector or nonce to use for encryption. Choose
+ *     randomly and never re-use. See note on size above.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ * @return Void.
+ */
+void SymmCipher::gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesgcm_e.Resynchronize(iv, ivLength);
+    aesgcm_e.ProcessData(data, data, len);
+}
+
+/**
+ * @brief Authenticated symmetric decryption using AES in GCM mode.
+ *
+ * The size of the IV limits the maximum length of data. A length of 12 bytes
+ * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+ * sizes.
+ *
+ * @param data Data to be encrypted (encryption in-place). The input given must
+ *     be in the concatenated form `{ciphertext, tag}`
+ * @param len Length of cipher text to be decrypted in bytes (includes length
+ *     of authentication tag: 16 bytes).
+ * @param iv Initialisation vector or nonce.
+ * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
+ *     bytes.
+ */
+void SymmCipher::gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+{
+    aesgcm_d.Resynchronize(iv, ivLength);
+    aesgcm_d.ProcessData(data, data, len);
 }
 
 void SymmCipher::setint64(int64_t value, byte* data)
@@ -195,7 +332,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
 
 static void rsaencrypt(Integer* key, Integer* m)
 {
-    *m = a_exp_b_mod_c(*m, key[1], key[0]);
+    *m = a_exp_b_mod_c(*m, key[AsymmCipher::PUB_E], key[AsymmCipher::PUB_PQ]);
 }
 
 unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen)
@@ -221,7 +358,7 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int
 
 int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
 {
-    if ((int)key[0].ByteCount() + 2 > buflen)
+    if ((int)key[PUB_PQ].ByteCount() + 2 > buflen)
     {
         return 0;
     }
@@ -232,9 +369,9 @@ int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
     }
 
     // add random padding
-    PrnGen::genblock(buf + plainlen, key[0].ByteCount() - plainlen - 2);
+    PrnGen::genblock(buf + plainlen, key[PUB_PQ].ByteCount() - plainlen - 2);
 
-    Integer t(buf, key[0].ByteCount() - 2);
+    Integer t(buf, key[PUB_PQ].ByteCount() - 2);
 
     rsaencrypt(key, &t);
 
@@ -276,9 +413,9 @@ static void rsadecrypt(Integer* key, Integer* m)
     *m = *m * key[AsymmCipher::PRIV_P] + xp;
 }
 
-unsigned AsymmCipher::rawdecrypt(const byte* c, int cl, byte* buf, int buflen)
+unsigned AsymmCipher::rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen)
 {
-    Integer m(c, cl);
+    Integer m(cipher, cipherlen);
 
     rsadecrypt(key, &m);
 
@@ -297,18 +434,18 @@ unsigned AsymmCipher::rawdecrypt(const byte* c, int cl, byte* buf, int buflen)
     return m.ByteCount();
 }
 
-int AsymmCipher::decrypt(const byte* c, int cl, byte* out, int numbytes)
+int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numbytes)
 {
     Integer m;
 
-    if (!decodeintarray(&m, 1, c, cl))
+    if (!decodeintarray(&m, 1, cipher, cipherlen))
     {
         return 0;
     }
 
     rsadecrypt(key, &m);
 
-    unsigned l = key[AsymmCipher::PRIV_D].ByteCount() - 2;
+    unsigned l = key[AsymmCipher::PRIV_P].ByteCount() + key[AsymmCipher::PRIV_Q].ByteCount() - 2;
 
     if (m.ByteCount() > l)
     {
@@ -394,7 +531,7 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
 
 int AsymmCipher::isvalid()
 {
-    return key[0].BitCount() && key[1].BitCount();
+    return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
 }
 
 // adapted from CryptoPP, rsa.cpp

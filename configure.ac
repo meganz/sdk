@@ -252,6 +252,81 @@ AC_SUBST(CRYPTO_LDFLAGS)
 AC_SUBST(CRYPTO_LIBS)
 AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
 
+#libsodium
+SODIUM_LIBS="-lsodium"
+AC_MSG_CHECKING(for libsodium)
+sodium=false
+AC_ARG_WITH(sodium,
+  AS_HELP_STRING(--with-sodium=PATH, base of libsodium installation),
+  [
+   case $with_sodium in
+   no)
+    sodium=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([sodium/core.h],, [
+        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+    sodium=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_sodium/lib"; then
+        LDFLAGS="-L$with_sodium/lib $LDFLAGS"
+        CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(sodium/core.h,
+         SODIUM_CXXFLAGS="-I$with_sodium/include"
+         SODIUM_CPPFLAGS="-I$with_sodium/include"
+         SODIUM_LDFLAGS="-L$with_sodium/lib",
+         AC_MSG_ERROR([sodium/sodium.h header not found or not usable])
+         )
+    # assume we are using sodium source directory
+    else
+        LDFLAGS="-L$with_sodium/src/libsodium/.libs $LDFLAGS"
+        CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(sodium/core.h,
+         SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
+         SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
+         SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
+         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+
+    sodium=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-sodium not specified])
+    AC_CHECK_HEADERS([sodium/core.h],, [
+        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+  ])
+AC_SUBST(SODIUM_CXXFLAGS)
+AC_SUBST(SODIUM_CPPFLAGS)
+AC_SUBST(SODIUM_LDFLAGS)
+AC_SUBST(SODIUM_LIBS)
+AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
+
 #
 # Zlib
 #
@@ -490,14 +565,14 @@ if test "x$WIN32" = "xno" ; then
        yes)
             LIBCURL_LIBS="-lcurl"
             LIBS="-lcurl $LIBS"
-            
+
             AC_CHECK_HEADERS([curl/curl.h], [],
                 AC_MSG_ERROR([curl.h header not found or not usable])
             )
             AC_CHECK_LIB(curl, [main], [],
                 AC_MSG_ERROR([Could not find libcurl!])
             )
-            
+
             AC_SUBST(LIBCURL_LIBS)
 
             if test "x$enable_curl_checks" = "xyes" ; then
@@ -524,8 +599,8 @@ if test "x$WIN32" = "xno" ; then
 
         LIBCURL_LIBS="-L$with_curl/lib -lcurl"
         LIBCURL_FLAGS="-I$with_curl/include"
-        
-        AC_CHECK_HEADERS([curl/curl.h], [], 
+
+        AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
 
@@ -549,11 +624,11 @@ if test "x$WIN32" = "xno" ; then
 
         LIBCURL_LIBS="-lcurl"
         LIBS="-lcurl $LIBS"
-        
+
         AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
-        AC_CHECK_LIB(curl, [main], [], 
+        AC_CHECK_LIB(curl, [main], [],
             AC_MSG_ERROR([Could not find libcurl!])
         )
 
@@ -568,7 +643,7 @@ if test "x$WIN32" = "xno" ; then
                 AC_MSG_RESULT([no])
                 AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
             fi
-        
+
             CURL_CHK()
         else
             AC_MSG_NOTICE([skipping cURL checks.])
@@ -696,7 +771,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
          ;;
@@ -723,7 +798,7 @@ if test "x$enable_examples" = "xyes" ; then
             )
         fi
 
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
@@ -737,7 +812,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
       ]
       )
