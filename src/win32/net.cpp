@@ -168,7 +168,10 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
             if (dwStatusInformationLength)
             {
-                req->httpio->lastdata = Waiter::ds;
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
             
                 if (httpctx->gzip)
                 {
@@ -217,7 +220,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             else
             {
                 req->httpstatus = statusCode;
-                req->httpio->lastdata = Waiter::ds;
+                
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
 
                 if (!req->buf)
                 {
