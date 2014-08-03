@@ -325,7 +325,10 @@ AC_SUBST(SODIUM_CXXFLAGS)
 AC_SUBST(SODIUM_CPPFLAGS)
 AC_SUBST(SODIUM_LDFLAGS)
 AC_SUBST(SODIUM_LIBS)
-AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
+
+if test "x$sodium" = "xtrue" ; then
+    AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
+fi
 
 #
 # Zlib
