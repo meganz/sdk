@@ -320,6 +320,7 @@ AC_ARG_WITH(sodium,
     AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
             AC_MSG_ERROR([Could not find libsodium])
     ])
+    sodium=true
   ])
 AC_SUBST(SODIUM_CXXFLAGS)
 AC_SUBST(SODIUM_CPPFLAGS)
