@@ -1786,14 +1786,9 @@ void CommandGetUserQuota::procresult()
                 {
                     for(;;)
                     {
-                        const char *curpos = client->json.pos;
-                        //If there aren't more elements, the name isn't a handle or there isn't an array value -> leave this object
-                        if(client->json.getnameid() == EOO || (client->json.pos - curpos) < 10 || !client->json.enterarray())
+                        mega::handle h = client->json.gethandle();
+                        if(h == mega::UNDEF || !client->json.enterarray())
                             break;
-
-                        //Get the binary handle
-                        mega::handle h = 0;
-                        Base64::atob((const char *)client->json.pos-11, (byte *)&h, sizeof h);
 
                         //Save data
                         if(h == client->rootnodes[0]) //Cloud Drive
