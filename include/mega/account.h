@@ -71,6 +71,10 @@ struct MEGA_API AccountDetails
     m_off_t transfer_own_reserved, transfer_srv_reserved;
     double srv_ratio;
 
+    m_off_t cloud_storage_used, inbox_storage_used, rubbish_storage_used;
+    m_off_t cloud_files, inbox_files, rubbish_files;
+    m_off_t cloud_folders, inbox_folders, rubbish_folders;
+
     // transfer history pertaining to requesting IP address
     m_time_t transfer_hist_starttime;     // transfer history start timestamp
     m_time_t transfer_hist_interval;      // timespan that a single transfer

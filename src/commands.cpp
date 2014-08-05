@@ -1781,6 +1781,52 @@ void CommandGetUserQuota::procresult()
                 details->storage_used = client->json.getint();
                 break;
 
+            case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
+                if(client->json.enterobject())
+                {
+                    for(;;)
+                    {
+                        const char *curpos = client->json.pos;
+                        //If there aren't more elements, the name isn't a handle or there isn't an array value -> leave this object
+                        if(client->json.getnameid() == EOO || (client->json.pos - curpos) < 10 || !client->json.enterarray())
+                            break;
+
+                        //Get the binary handle
+                        mega::handle h = 0;
+                        Base64::atob((const char *)client->json.pos-11, (byte *)&h, sizeof h);
+
+                        //Save data
+                        if(h == client->rootnodes[0]) //Cloud Drive
+                        {
+                            details->cloud_storage_used = client->json.getint();
+                            details->cloud_files = client->json.getint();
+                            details->cloud_folders = client->json.getint();
+                        }
+                        else if (h == client->rootnodes[1]) //Inbox
+                        {
+                            details->inbox_storage_used = client->json.getint();
+                            details->inbox_files = client->json.getint();
+                            details->inbox_folders = client->json.getint();
+                        }
+                        else if (h == client->rootnodes[2]) //Rubbish Bin
+                        {
+                            details->rubbish_storage_used = client->json.getint();
+                            details->rubbish_files = client->json.getint();
+                            details->rubbish_folders = client->json.getint();
+                        }
+                        else
+                        {
+                            //Unknown handle
+                            client->json.getint();
+                            client->json.getint();
+                            client->json.getint();
+                        }
+                        client->json.leavearray();
+                    }
+                    client->json.leaveobject();
+                }
+                break;
+
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
                 // total storage quota
                 details->storage_max = client->json.getint();
