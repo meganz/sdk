@@ -79,6 +79,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
         if ((newnode->localnode = l))
         {
+            l->newnode = newnode;
             newnode->syncid = l->syncid;
         }
 

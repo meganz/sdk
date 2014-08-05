@@ -352,7 +352,6 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
 
-    syncadding = 0;
     syncactivity = false;
     syncadded = false;
     syncdebrisadding = false;
@@ -377,6 +376,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     sctable = NULL;
     syncscanstate = false;
     me = UNDEF;
+    syncadding = 0;
 
     init();
 
@@ -1767,6 +1767,7 @@ void MegaClient::logout()
     auth.clear();
 
     init();
+    syncadding = 0;
 }
 
 // process server-client request
@@ -5542,6 +5543,7 @@ void MegaClient::syncupdate()
                 nnp->type = l->type;
                 nnp->syncid = l->syncid;
                 nnp->localnode = l;
+                l->newnode = nnp;
                 nnp->nodehandle = n ? n->nodehandle : l->syncid;
                 nnp->parenthandle = i > start ? l->parent->syncid : UNDEF;
 

@@ -354,11 +354,7 @@ const char* JSON::getvalue()
 // try to to enter array
 bool JSON::enterarray()
 {
-    if (*pos == ':')
-    {
-        pos++;
-    }
-    else if (*pos == ',')
+    if (*pos == ',' || *pos == ':')
     {
         pos++;
     }
