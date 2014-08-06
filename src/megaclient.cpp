@@ -4798,9 +4798,6 @@ void MegaClient::fetchnodes()
     }
     else if (!fetchingnodes)
     {
-        // clear everything in case this is a reload
-        purgenodesusersabortsc();
-
         fetchingnodes = true;
         reqs[r].add(new CommandFetchNodes(this));
     }
