@@ -232,7 +232,7 @@ void CommandPutFile::procresult()
         switch (client->json.getnameid())
         {
             case 'p':
-                if (!canceled) client->json.storeobject(&tslot->tempurl);
+                client->json.storeobject(canceled ? NULL : &tslot->tempurl);
                 break;
 
             case EOO:
