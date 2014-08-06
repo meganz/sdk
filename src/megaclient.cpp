@@ -4799,6 +4799,9 @@ void MegaClient::fetchnodes()
     else if (!fetchingnodes)
     {
         fetchingnodes = true;
+        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            (*it)->changestate(SYNC_CANCELED);
+
         reqs[r].add(new CommandFetchNodes(this));
     }
 }
