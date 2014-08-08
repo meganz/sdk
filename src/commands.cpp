@@ -232,7 +232,7 @@ void CommandPutFile::procresult()
         switch (client->json.getnameid())
         {
             case 'p':
-                if (!canceled) client->json.storeobject(&tslot->tempurl);
+                client->json.storeobject(canceled ? NULL : &tslot->tempurl);
                 break;
 
             case EOO:
@@ -1781,6 +1781,47 @@ void CommandGetUserQuota::procresult()
                 details->storage_used = client->json.getint();
                 break;
 
+            case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
+                if(client->json.enterobject())
+                {
+                    for(;;)
+                    {
+                        mega::handle h = client->json.gethandle();
+                        if(h == mega::UNDEF || !client->json.enterarray())
+                            break;
+
+                        //Save data
+                        if(h == client->rootnodes[0]) //Cloud Drive
+                        {
+                            details->cloud_storage_used = client->json.getint();
+                            details->cloud_files = client->json.getint();
+                            details->cloud_folders = client->json.getint();
+                        }
+                        else if (h == client->rootnodes[1]) //Inbox
+                        {
+                            details->inbox_storage_used = client->json.getint();
+                            details->inbox_files = client->json.getint();
+                            details->inbox_folders = client->json.getint();
+                        }
+                        else if (h == client->rootnodes[2]) //Rubbish Bin
+                        {
+                            details->rubbish_storage_used = client->json.getint();
+                            details->rubbish_files = client->json.getint();
+                            details->rubbish_folders = client->json.getint();
+                        }
+                        else
+                        {
+                            //Unknown handle
+                            client->json.getint();
+                            client->json.getint();
+                            client->json.getint();
+                        }
+                        client->json.leavearray();
+                    }
+                    client->json.leaveobject();
+                }
+                break;
+
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
                 // total storage quota
                 details->storage_max = client->json.getint();
@@ -2320,6 +2361,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 // purge and rebuild node/user tree
 void CommandFetchNodes::procresult()
 {
+    client->purgenodesusersabortsc();
     client->fetchingnodes = false;
 
     if (client->json.isnumeric())
