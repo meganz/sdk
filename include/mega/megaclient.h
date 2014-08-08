@@ -633,8 +633,10 @@ public:
     // account access (full account): RSA key
     AsymmCipher asymkey;
 
+#ifdef USE_SODIUM
     /// EdDSA signing key (Ed25519 privte key seed).
     EdDSA signkey;
+#endif
 
     // binary session ID
     string sid;

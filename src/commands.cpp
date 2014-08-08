@@ -2,7 +2,7 @@
  * @file commands.cpp
  * @brief Implementation of various commands
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -1432,6 +1432,8 @@ void CommandGetUA::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+
+#ifdef USE_SODIUM
         if ((e == API_ENOENT) && (user->userhandle == client->me)
                 && ((priv && strncmp(attributename, "prEd255", 7))
                         || (!priv && strncmp(attributename, "puEd255", 7))))
@@ -1442,8 +1444,8 @@ void CommandGetUA::procresult()
             // Return the required key data.
             if (strncmp(attributename, "prEd255", 7))
             {
-                return(client->app->getua_result(client->signkey.keySeed,
-                                                 crypto_sign_SEEDBYTES));
+                return client->app->getua_result(client->signkey.keySeed,
+                                                 crypto_sign_SEEDBYTES);
             }
             else
             {
@@ -1453,11 +1455,14 @@ void CommandGetUA::procresult()
                     free(pubKey);
                     return(client->app->getua_result(API_EINTERNAL));
                 }
-                return(client->app->getua_result(pubKey,
-                                                 crypto_sign_PUBLICKEYBYTES));
+
+                return client->app->getua_result(pubKey,
+                                                 crypto_sign_PUBLICKEYBYTES);
             }
         }
-        return(client->app->getua_result(e));
+#endif
+
+        return client->app->getua_result(e);
     }
     else
     {
@@ -1782,42 +1787,22 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
-                if(client->json.enterobject())
+                if (client->json.enterobject())
                 {
-                    for(;;)
-                    {
-                        mega::handle h = client->json.gethandle();
-                        if(h == mega::UNDEF || !client->json.enterarray())
-                            break;
+                    handle h;
+                    NodeStorage* ns;
 
-                        //Save data
-                        if(h == client->rootnodes[0]) //Cloud Drive
-                        {
-                            details->cloud_storage_used = client->json.getint();
-                            details->cloud_files = client->json.getint();
-                            details->cloud_folders = client->json.getint();
-                        }
-                        else if (h == client->rootnodes[1]) //Inbox
-                        {
-                            details->inbox_storage_used = client->json.getint();
-                            details->inbox_files = client->json.getint();
-                            details->inbox_folders = client->json.getint();
-                        }
-                        else if (h == client->rootnodes[2]) //Rubbish Bin
-                        {
-                            details->rubbish_storage_used = client->json.getint();
-                            details->rubbish_files = client->json.getint();
-                            details->rubbish_folders = client->json.getint();
-                        }
-                        else
-                        {
-                            //Unknown handle
-                            client->json.getint();
-                            client->json.getint();
-                            client->json.getint();
-                        }
+                    while (!ISUNDEF(h = client->json.gethandle()) && client->json.enterarray())
+                    {
+                        ns = &details->storage[h];
+
+                        ns->bytes = client->json.getint();
+                        ns->files = client->json.getint();
+                        ns->folders = client->json.getint();
+
                         client->json.leavearray();
                     }
+
                     client->json.leaveobject();
                 }
                 break;
