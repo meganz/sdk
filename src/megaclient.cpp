@@ -4683,6 +4683,7 @@ void MegaClient::setkeypair()
                                       pubks.size()));
 }
 
+#ifdef USE_SODIUM
 /**
  * @brief Initialises the Ed25519 EdDSA key user properties.
  *
@@ -4691,13 +4692,16 @@ void MegaClient::setkeypair()
 void MegaClient::inited25519()
 {
     signkey.init();
+
     // Make the new key pair and their storage arrays.
     if (!signkey.genKeySeed())
     {
         app->debug_log("Error generating an Ed25519 key seed.");
         // TODO: What to do in case of error here?
     }
+
     unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+
     if (!signkey.publicKey(pubKey))
     {
         free(pubKey);
@@ -4709,6 +4713,7 @@ void MegaClient::inited25519()
     putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
     putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
 }
+#endif
 
 bool MegaClient::fetchsc(DbTable* sctable)
 {
