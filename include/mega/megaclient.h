@@ -2,7 +2,7 @@
  * @file mega/megaclient.h
  * @brief Client access engine core logic
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -541,7 +541,7 @@ public:
     void syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*);
+    void putnodes_sync_result(error, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, string*, bool);
@@ -588,7 +588,7 @@ public:
     string badhosts;
     
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
 
     void readok(JSON*);
     void readokelement(JSON*);

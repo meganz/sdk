@@ -3326,7 +3326,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
 
-        for (int i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
+        for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 

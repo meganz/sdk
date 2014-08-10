@@ -2,7 +2,7 @@
  * @file megaclient.cpp
  * @brief Client access engine core logic
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -3154,7 +3154,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int tag)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag)
 {
     if (!j->enterarray())
     {
@@ -3163,7 +3163,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
     node_vector dp;
     Node* n;
-    int i = 0;
 
     while (j->enterobject())
     {
@@ -3178,6 +3177,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         m_off_t s = NEVER;
         m_time_t ts = -1, tmd = 0, sts = -1;
         nameid name;
+        int nni = -1;
 
         while ((name = j->getnameid()) != EOO)
         {
@@ -3209,6 +3209,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 case 's':   // file size
                     s = j->getint();
+                    break;
+
+                case 'i':   // related source NewNode index
+                    nni = j->getint();
                     break;
 
                 case MAKENAMEID2('t', 's'):  // actual creation timestamp
@@ -3314,7 +3318,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else
                 {
                     // node already present - check for race condition
-                    if ((n->parent && (ph != n->parent->nodehandle)) || (n->type != t))
+                    if ((n->parent && (ph != n->parent->nodehandle)) || n->type != t)
                     {
                         app->reload("Node inconsistency (parent linkage)");
                     }
@@ -3378,38 +3382,40 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
                 }
 
-                if (source == PUTNODES_SYNC)
+                if (nn && nni >= 0 && nni < nnsize)
                 {
-                    if (nn[i].localnode)
+                    nn[nni].added = true;
+
+                    if (source == PUTNODES_SYNC)
                     {
-                        // overwrites/updates: associate LocalNode with newly created Node
-                        nn[i].localnode->setnode(n);
-                        nn[i].localnode->newnode = NULL;
-                        nn[i].localnode->treestate(TREESTATE_SYNCED);
+                        if (nn[nni].localnode)
+                        {
+                            // overwrites/updates: associate LocalNode with newly created Node
+                            nn[nni].localnode->setnode(n);
+                            nn[nni].localnode->newnode = NULL;
+                            nn[nni].localnode->treestate(TREESTATE_SYNCED);
 
-                        // updates cache with the new node associated
-                        nn[i].localnode->sync->statecacheadd(nn[i].localnode);
-                    }
-                }
-
-                // map upload handle to node handle for pending file attributes
-                if (nn && (nn[i].source == NEW_UPLOAD))
-                {
-                    handle uh = nn[i].uploadhandle;
-
-                    // do we have pending file attributes for this upload? set them.
-                    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
-                         it != pendingfa.end() && it->first.first == uh; )
-                    {
-                        reqs[r].add(new CommandAttachFA(h, it->first.second, it->second.first, it->second.second));
-                        pendingfa.erase(it++);
+                            // updates cache with the new node associated
+                            nn[nni].localnode->sync->statecacheadd(nn[nni].localnode);
+                        }
                     }
 
-                    // FIXME: only do this for in-flight FA writes
-                    uhnh.insert(pair<handle, handle>(uh, h));
-                }
+                    if (nn[nni].source == NEW_UPLOAD)
+                    {
+                        handle uh = nn[nni].uploadhandle;
 
-                i++;
+                        // do we have pending file attributes for this upload? set them.
+                        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
+                             it != pendingfa.end() && it->first.first == uh; )
+                        {
+                            reqs[r].add(new CommandAttachFA(h, it->first.second, it->second.first, it->second.second));
+                            pendingfa.erase(it++);
+                        }
+
+                        // FIXME: only do this for in-flight FA writes
+                        uhnh.insert(pair<handle, handle>(uh, h));
+                    }
+                }
             }
 
             if (notify)
@@ -3420,7 +3426,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     }
 
     // any child nodes that arrived before their parents?
-    for (i = dp.size(); i--; )
+    for (int i = dp.size(); i--; )
     {
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
@@ -5627,8 +5633,27 @@ void MegaClient::syncupdate()
 
 }
 
-void MegaClient::putnodes_sync_result(error e, NewNode* nn)
+void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 {
+    // check for file nodes that failed to copy and remove them from fingerprints
+    // FIXME: retrigger sync decision upload them immediately
+    while (nni--)
+    {
+        if (nn[nni].type == FILENODE && !nn[nni].added)
+        {
+            Node* n;
+
+            if ((n = nodebyhandle(nn[nni].nodehandle)))
+            {
+                if (n->fingerprint_it != fingerprints.end())
+                {
+                    fingerprints.erase(n->fingerprint_it);
+                    n->fingerprint_it = fingerprints.end();
+                }
+            }
+        }
+    }
+
     delete[] nn;
 
     syncadding--;
