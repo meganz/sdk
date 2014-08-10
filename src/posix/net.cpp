@@ -99,6 +99,25 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
 
+#ifdef __ANDROID__
+        //cURL can't find the certstore on Android,
+        //so we rely on the public key pinning
+        curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
+        curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
+#endif
+
+        if(proxyurl.size())
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+            curl_easy_setopt(curl, CURLOPT_PROXY, proxyurl.c_str());
+            if(proxyusername.size())
+            {
+                curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
+                curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, proxypassword.c_str());
+            }
+            curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+        }
+
         curl_multi_add_handle(curlm, curl);
 
         req->status = REQ_INFLIGHT;
@@ -109,6 +128,27 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         req->status = REQ_FAILURE;
     }
+}
+
+void CurlHttpIO::setproxy(Proxy* proxy)
+{
+    if(proxy->getProxyType() != MegaProxySettings::CUSTOM)
+    {
+        //Automatic proxy is not supported
+        proxyurl.clear();
+        return;
+    }
+
+    proxyurl = proxySettings->getProxyURL();
+    proxyusername = proxySettings->getUsername();
+    proxypassword = proxySettings->getPassword();
+}
+
+Proxy* CurlHttpIO::getautoproxy()
+{
+    Proxy *proxy = new Proxy();
+    proxy->setProxyType(MegaProxySettings::NONE);
+    return proxy;
 }
 
 // cancel pending HTTP request

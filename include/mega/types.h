@@ -79,6 +79,7 @@ struct Transfer;
 struct TreeProc;
 struct User;
 struct Waiter;
+struct Proxy;
 
 #define EOO 0
 

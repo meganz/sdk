@@ -33,6 +33,9 @@ protected:
     string* useragent;
     CURLM* curlm;
     CURLSH* curlsh;
+    string proxyurl;
+    string proxyusername;
+    string proxypassword;
 
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
@@ -53,6 +56,8 @@ public:
     void addevents(Waiter*, int);
 
     void setuseragent(string*);
+    void setproxy(Proxy *);
+    Proxy *getautoproxy();
 
     CurlHttpIO();
     ~CurlHttpIO();
