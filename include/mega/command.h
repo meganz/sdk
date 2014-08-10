@@ -328,6 +328,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
     NewNode* nn;
+    int nnsize;
     targettype_t type;
     putsource_t source;
 

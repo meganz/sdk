@@ -628,6 +628,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     int i;
 
     nn = newnodes;
+    nnsize = numnodes;
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
 
@@ -642,6 +643,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     {
         arg("t", (byte*)&th, MegaClient::NODEHANDLE);
     }
+
+    arg("sm",1);
 
     beginarray("n");
 
@@ -742,7 +745,7 @@ void CommandPutNodes::procresult()
 
         if (source == PUTNODES_SYNC)
         {
-            return client->putnodes_sync_result(e, nn);
+            return client->putnodes_sync_result(e, nn, 0);
         }
         else if (source == PUTNODES_APP)
         {
@@ -761,7 +764,7 @@ void CommandPutNodes::procresult()
         switch (client->json.getnameid())
         {
             case 'f':
-                if (client->readnodes(&client->json, 1, source, nn, tag))
+                if (client->readnodes(&client->json, 1, source, nn, nnsize, tag))
                 {
                     e = API_OK;
                 }
@@ -781,7 +784,7 @@ void CommandPutNodes::procresult()
 
                 if (source == PUTNODES_SYNC)
                 {
-                    client->putnodes_sync_result(e, nn);
+                    client->putnodes_sync_result(e, nn, nnsize);
                 }
                 else if (source == PUTNODES_APP)
                 {

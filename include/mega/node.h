@@ -61,9 +61,12 @@ struct MEGA_API NewNode : public NodeCore
     handle syncid;
     LocalNode* localnode;
 
+    bool added;
+
     NewNode()
     {
         syncid = UNDEF;
+        added = false;
     }
 };
 
