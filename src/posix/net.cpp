@@ -132,22 +132,22 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
 void CurlHttpIO::setproxy(Proxy* proxy)
 {
-    if(proxy->getProxyType() != MegaProxySettings::CUSTOM)
+    if(proxy->getProxyType() != Proxy::CUSTOM)
     {
         //Automatic proxy is not supported
         proxyurl.clear();
         return;
     }
 
-    proxyurl = proxySettings->getProxyURL();
-    proxyusername = proxySettings->getUsername();
-    proxypassword = proxySettings->getPassword();
+    proxyurl = proxy->getProxyURL();
+    proxyusername = proxy->getUsername();
+    proxypassword = proxy->getPassword();
 }
 
 Proxy* CurlHttpIO::getautoproxy()
 {
     Proxy *proxy = new Proxy();
-    proxy->setProxyType(MegaProxySettings::NONE);
+    proxy->setProxyType(Proxy::NONE);
     return proxy;
 }
 
