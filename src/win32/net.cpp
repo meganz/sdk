@@ -110,7 +110,7 @@ Proxy *WinHttpIO::getautoproxy()
             string proxyURL;
             proxy->setProxyType(Proxy::CUSTOM);
             int len = lstrlen(ieProxyConfig.lpszProxy);
-            proxyURL.assign((const char *)ieProxyConfig.lpszProxy, (len+1) * sizeof(wchar_t));
+            proxyURL.assign((const char *)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
 
             //Only save one proxy
             for(int i=0; i<len; i++)
