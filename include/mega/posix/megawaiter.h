@@ -36,6 +36,11 @@ struct PosixWaiter : public Waiter
     void init(dstime);
     int wait();
     void bumpmaxfd(int);
+
+    void notify();
+
+protected:
+    int m_pipe[2];
 };
 } // namespace
 

@@ -40,6 +40,8 @@ WinWaiter::WinWaiter()
         tickhigh = 0;
         prevt = 0;
     }
+
+    externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 
 // update monotonously increasing timestamp in deciseconds
@@ -82,6 +84,7 @@ int WinWaiter::wait()
         LeaveCriticalSection(pcsHTTP);
     }
 
+    addhandle(externalEvent, NEEDEXEC);
     DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
 
     if (pcsHTTP)
@@ -112,5 +115,10 @@ bool WinWaiter::addhandle(HANDLE handle, int flag)
     flags.push_back(flag);
 
     return true;
+}
+
+void WinWaiter::notify()
+{
+    SetEvent(externalEvent);
 }
 } // namespace
