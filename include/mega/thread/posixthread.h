@@ -30,6 +30,7 @@
 namespace mega {
 class PosixThread : public Thread
 {
+public:
     PosixThread();
     void start(void *(*start_routine)(void*), void *parameter);
     void join();

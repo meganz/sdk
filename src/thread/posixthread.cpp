@@ -25,17 +25,17 @@ namespace mega {
 
 PosixThread::PosixThread()
 {
-    thread = new pthread_mutex_t;
+    thread = new pthread_t;
 }
 
 void PosixThread::start(void *(*start_routine)(void*), void *parameter)
 {
-    pthread_create(&thread, NULL, start_routine, parameter);
+    pthread_create(thread, NULL, start_routine, parameter);
 }
 
 void PosixThread::join()
 {
-    pthread_join(thread, NULL);
+    pthread_join(*thread, NULL);
 }
 
 PosixThread::~PosixThread()
