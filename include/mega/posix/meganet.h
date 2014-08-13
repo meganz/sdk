@@ -23,6 +23,7 @@
 #define HTTPIO_CLASS CurlHttpIO
 
 #include "mega.h"
+#include <curl/curl.h>
 #include <openssl/ssl.h>
 
 namespace mega {

@@ -53,7 +53,11 @@ void CurlHttpIO::setuseragent(string* u)
 void CurlHttpIO::addevents(Waiter* w, int flags)
 {
     int t;
+#ifndef WINDOWS_PHONE
     PosixWaiter* pw = (PosixWaiter*)w;
+#else
+	WinPhoneWaiter* pw = (WinPhoneWaiter*)w;
+#endif
 
     curl_multi_fdset(curlm, &pw->rfds, &pw->wfds, &pw->efds, &t);
 

@@ -24,6 +24,7 @@
 
 #include "zlib.h"
 #include "mega.h"
+#include <winhttp.h>
 
 namespace mega {
 extern bool debug;
