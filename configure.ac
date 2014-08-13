@@ -253,7 +253,6 @@ AC_SUBST(CRYPTO_LIBS)
 AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
 
 #libsodium
-SODIUM_LIBS="-lsodium"
 AC_MSG_CHECKING(for libsodium)
 sodium=false
 AC_ARG_WITH(sodium,
