@@ -880,7 +880,7 @@ AC_ARG_ENABLE(tests,
     [], [enable_tests=no])
 if test "x$enable_tests" = "xyes" ; then
     AC_ARG_WITH(gtest,
-        AS_HELP_STRING(--with-gtest, specify GTest location),
+        AS_HELP_STRING(--with-gtest=PATH, specify GTest location),
         [AC_SUBST([GTEST_DIR],[$with_gtest])],
         [AC_MSG_ERROR([GTest location must be specified])]
     )
