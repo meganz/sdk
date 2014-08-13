@@ -330,6 +330,7 @@ AC_SUBST(SODIUM_LIBS)
 if test "x$sodium" = "xtrue" ; then
     AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
 fi
+AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
 
 #
 # Zlib

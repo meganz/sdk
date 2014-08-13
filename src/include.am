@@ -48,12 +48,15 @@ src_libmega_la_SOURCES += src/utils.cpp
 src_libmega_la_SOURCES += src/logging.cpp
 src_libmega_la_SOURCES += src/waiterbase.cpp
 src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
-src_libmega_la_SOURCES += src/crypto/sodium.cpp
 src_libmega_la_SOURCES += src/db/sqlite.cpp
 src_libmega_la_SOURCES += third_party/utf8proc/utf8proc.cpp
 
 if USE_FREEIMAGE
 src_libmega_la_SOURCES += src/gfx/freeimage.cpp
+endif
+
+if USE_SODIUM
+src_libmega_la_SOURCES += src/crypto/sodium.cpp
 endif
 
 # win32 sources
