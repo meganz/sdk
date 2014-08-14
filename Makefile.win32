@@ -97,18 +97,18 @@ COMMON_SRC=\
 		third_party/utf8proc/utf8proc.cpp
 
 MEGACLI_SRC=examples/megacli.cpp
-MEGASYNC_SRC=examples/megasync.cpp
+MEGASIMPLESYNC_SRC=examples/megasimplesync.cpp
 
 COMMON_OBJ=$(COMMON_SRC:.cpp=.o)
 MEGACLI_OBJ=$(MEGACLI_SRC:.cpp=.o)
-MEGASYNC_OBJ=$(MEGASYNC_SRC:.cpp=.o)
+MEGASIMPLESYNC_OBJ=$(MEGASIMPLESYNC_SRC:.cpp=.o)
 
 SQLITE_SRC=../sqlite3/sqlite3.c
 SQLITE_OBJ=$(SQLITE_SRC:.c=.o)
 
 # Targets
 MEGA=mega
-PROGS=megacli megasync
+PROGS=megacli megasimplesync
 
 # build rules
 $(MEGA).dll: $(COMMON_OBJ) $(SQLITE_OBJ)
@@ -119,7 +119,7 @@ all: $(MEGA).dll $(PROGS)
 megacli: $(MEGACLI_OBJ)
 	$(CXX) $(LDFLAGS) $^ -o $@ $(MEGACLI_LIB) -L. -lmega
 
-megasync:  $(MEGASYNC_OBJ)
+megasimplesync:  $(MEGASIMPLESYNC_OBJ)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@ $(LIB) -L. -lmega
 
 $(SQLITE_SRC):
@@ -133,7 +133,7 @@ $(MEGACLI_OBJ):
 clean:
 	-rm $(COMMON_OBJ)
 	-rm $(MEGACLI_OBJ)
-	-rm $(MEGASYNC_OBJ)
+	-rm $(MEGASIMPLESYNC_OBJ)
 	-rm $(SQLITE_OBJ)
 	-rm $(PROGS:=.exe)
 	-rm $(MEGA).dll $(MEGA).lib
