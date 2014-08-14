@@ -80,27 +80,27 @@ class SyncTestMegaSyncApp(SyncTestApp):
 
     def start_megasync(self, local_folder, type_str):
         """
-        fork and launch "megasync" application
+        fork and launch "megasimplesync" application
         local_folder: local folder to sync
         """
-        # launch megasync
+        # launch megasimplesync
         base_path = os.path.join(os.path.dirname(__file__), '..')
 
         # the app is either in examples/ or in the project's root
         if platform.system() == "Windows":
-            app_name = "megasync.exe"
+            app_name = "megasimplesync.exe"
         else:
-            app_name = "megasync"
+            app_name = "megasimplesync"
         bin_path = os.path.join(base_path, "examples")
         tmp = os.path.join(bin_path, app_name)
         if not os.path.isfile(tmp) or not os.access(tmp, os.X_OK):
             bin_path = os.path.join(base_path, "")
             tmp = os.path.join(bin_path, app_name)
             if not os.path.isfile(tmp) or not os.access(tmp, os.X_OK):
-                raise Exception("megasync application is not found!")
+                raise Exception("megasimplesync application is not found!")
 
         pargs = [os.path.join(bin_path, app_name), local_folder, self.remote_folder]
-        output_fname = os.path.join(self.work_dir, "megasync" + "_" + type_str + "_" + get_random_str() + ".log")
+        output_fname = os.path.join(self.work_dir, "megasimplesync" + "_" + type_str + "_" + get_random_str() + ".log")
         output_log = open(output_fname, "w")
 
         logging.info("Launching cmd: \"%s\", log: \"%s\"" % (" ".join(pargs), output_fname))
@@ -108,7 +108,7 @@ class SyncTestMegaSyncApp(SyncTestApp):
         try:
             ch = subprocess.Popen(pargs, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, bufsize=1, shell=False, env=os.environ)
         except OSError, e:
-            logging.error("Failed to launch megasync process: %s" % e)
+            logging.error("Failed to launch megasimplesync process: %s" % e)
             return None
         return ch
 
