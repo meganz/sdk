@@ -19,31 +19,47 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
+#ifdef WINDOWS_PHONE
 
-#include "mega/waiter.h"
+#ifndef THREAD_CLASS
+#define THREAD_CLASS CppThread
+
+#include "mega/thread.h"
+
+#include <thread>
+#include <mutex>
 
 namespace mega {
-struct PosixWaiter : public Waiter
+
+class CppThread : public Thread
 {
-    PosixWaiter();
-
-    int maxfd;
-    fd_set rfds, wfds, efds;
-    fd_set ignorefds;
-
-    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
-
-    void init(dstime);
-    int wait();
-    void bumpmaxfd(int);
-
-    void notify();
+public:
+	CppThread();
+    virtual void start(void *(*start_routine)(void*), void *parameter);
+    virtual void join();
+	virtual ~CppThread();
 
 protected:
-    int m_pipe[2];
+	std::thread *thread;
 };
+
+	
+class CppMutex : public Mutex
+{
+public:
+	CppMutex();
+    virtual void init(bool recursive);
+    virtual void lock();
+    virtual void unlock();
+	virtual ~CppMutex();
+
+protected:
+	std::mutex *mutex;
+	std::recursive_mutex *rmutex;
+};
+
 } // namespace
+
+#endif
 
 #endif

@@ -35,8 +35,13 @@ public:
     int wait();
 
     bool addhandle(HANDLE handle, int);
+    void notify();
 
     WinWaiter();
+
+
+protected:
+    HANDLE externalEvent;
 };
 } // namespace
 

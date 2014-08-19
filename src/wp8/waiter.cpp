@@ -20,7 +20,9 @@
  */
 
 #include "mega.h"
-#include "megawaiter.h"
+#include "mega/wp8/megawaiter.h"
+
+#include <thread>
 
 namespace mega {
 dstime Waiter::ds;
@@ -31,22 +33,34 @@ static PGTC pGTC;
 static ULONGLONG tickhigh;
 static DWORD prevt;
 
-WinWaiter::WinWaiter()
+WinPhoneWaiter::WinPhoneWaiter()
 {
-    if (!pGTC) pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
+    //if (!pGTC) pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
 
     if (!pGTC)
     {
         tickhigh = 0;
         prevt = 0;
     }
+	maxfd = -1;
+	notified = false;
+}
 
-    externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+void WinPhoneWaiter::init(dstime ds)
+{
+	Waiter::init(ds);
+
+	maxfd = -1;
+
+	FD_ZERO(&rfds);
+	FD_ZERO(&wfds);
+	FD_ZERO(&efds);
+	FD_ZERO(&ignorefds);
 }
 
 // update monotonously increasing timestamp in deciseconds
 // FIXME: restore thread safety for applications using multiple MegaClient objects
-void Waiter::bumpds()
+void WinPhoneWaiter::bumpds()
 {
     if (pGTC)
     {
@@ -55,7 +69,7 @@ void Waiter::bumpds()
     else
     {
         // emulate GetTickCount64() on XP
-        DWORD t = GetTickCount();
+        DWORD t = GetTickCount64();
 
         if (t < prevt)
         {
@@ -68,48 +82,64 @@ void Waiter::bumpds()
     }
 }
 
+// update maxfd for select()
+void WinPhoneWaiter::bumpmaxfd(int fd)
+{
+	if (fd > maxfd)
+	{
+		maxfd = fd;
+	}
+}
+
+// checks if an unfiltered fd is set
+// FIXME: use bitwise & instead of scanning
+bool WinPhoneWaiter::fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const
+{
+	while (nfds--)
+	{
+		if (FD_ISSET(nfds, fds) && !FD_ISSET(nfds, ignorefds)) return true;
+	}
+
+	return false;
+}
+
 // wait for events (socket, I/O completion, timeout + application events)
 // ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no
 // timeout scheduled)
 // (this assumes that the second call to addhandle() was coming from the
 // network layer)
-int WinWaiter::wait()
+int WinPhoneWaiter::wait()
 {
-    int r = 0;
+	timeval tv;
+	if (maxds < 0 || maxds > 10)
+		maxds = 10;
 
-    // only allow interaction of asynccallback() with the main process while
-    // waiting (because WinHTTP is threaded)
-    if (pcsHTTP)
-    {
-        LeaveCriticalSection(pcsHTTP);
-    }
+	dstime us = 1000000 / 10 * maxds;
+	tv.tv_sec = us / 1000000;
+	tv.tv_usec = us - tv.tv_sec * 1000000;
 
-    addhandle(externalEvent, NEEDEXEC);
-    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
+	if (maxfd >= 0)
+	{
+		select(maxfd + 1, &rfds, &wfds, &efds, &tv);
+		return NEEDEXEC;
+	}
+	else
+	{
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		if (notified)
+		{
+			notified = false;
+			return NEEDEXEC;
+		}
 
-    if (pcsHTTP)
-    {
-        EnterCriticalSection(pcsHTTP);
-    }
-
-    if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION))
-    {
-        r = NEEDEXEC;
-    }
-    else if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
-    {
-        r = flags[dwWaitResult - WAIT_OBJECT_0];
-    }
-
-    handles.clear();
-    flags.clear();
-
-    return r;
+		//Needed because cURL doesn't include c-ares in our build yet :-/
+		return NEEDEXEC;
+	}
 }
 
 // add handle to the list - must not be called twice with the same handle
 // return true if handle added
-bool WinWaiter::addhandle(HANDLE handle, int flag)
+bool WinPhoneWaiter::addhandle(HANDLE handle, int flag)
 {
     handles.push_back(handle);
     flags.push_back(flag);
@@ -117,8 +147,9 @@ bool WinWaiter::addhandle(HANDLE handle, int flag)
     return true;
 }
 
-void WinWaiter::notify()
+void WinPhoneWaiter::notify()
 {
-    SetEvent(externalEvent);
+	notified = true;
 }
+
 } // namespace

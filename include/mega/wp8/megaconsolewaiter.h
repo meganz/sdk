@@ -1,6 +1,6 @@
 /**
- * @file mega/posix/megawaiter.h
- * @brief POSIX event/timeout handling
+ * @file mega/posix/megaconsolewaiter.h
+ * @brief Posix event/timeout handling, listens for stdin input
  *
  * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
@@ -19,31 +19,7 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
-
-#include "mega/waiter.h"
-
-namespace mega {
-struct PosixWaiter : public Waiter
-{
-    PosixWaiter();
-
-    int maxfd;
-    fd_set rfds, wfds, efds;
-    fd_set ignorefds;
-
-    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
-
-    void init(dstime);
-    int wait();
-    void bumpmaxfd(int);
-
-    void notify();
-
-protected:
-    int m_pipe[2];
-};
-} // namespace
-
+#ifndef CONSOLE_WAIT_CLASS
+#define CONSOLE_WAIT_CLASS WinPhoneConsoleWaiter
+//Not available
 #endif

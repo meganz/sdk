@@ -1,6 +1,6 @@
 /**
- * @file mega/posix/megawaiter.h
- * @brief POSIX event/timeout handling
+ * @file mega/win32/megawaiter.h
+ * @brief Win32 event/timeout handling
  *
  * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
@@ -20,29 +20,34 @@
  */
 
 #ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
-
-#include "mega/waiter.h"
+#define WAIT_CLASS WinPhoneWaiter
 
 namespace mega {
-struct PosixWaiter : public Waiter
+class MEGA_API WinPhoneWaiter : public Waiter
 {
-    PosixWaiter();
+    vector<HANDLE> handles;
+    vector<int> flags;
+	int maxfd;
+	fd_set ignorefds;
 
-    int maxfd;
-    fd_set rfds, wfds, efds;
-    fd_set ignorefds;
+	bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
+	bool notified;
 
-    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
+public:
+    PCRITICAL_SECTION pcsHTTP;
+    unsigned pendingfsevents;
 
-    void init(dstime);
     int wait();
-    void bumpmaxfd(int);
+	static void bumpds();
+	void init(dstime ds);
+	void bumpmaxfd(int);
+	fd_set rfds, wfds, efds;
 
-    void notify();
+    bool addhandle(HANDLE handle, int);
 
-protected:
-    int m_pipe[2];
+	WinPhoneWaiter();
+
+	void notify();
 };
 } // namespace
 

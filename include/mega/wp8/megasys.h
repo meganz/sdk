@@ -1,6 +1,6 @@
 /**
- * @file mega/posix/megawaiter.h
- * @brief POSIX event/timeout handling
+ * @file mega/win32/megasys.h
+ * @brief Mega SDK platform-specific includes (Win32)
  *
  * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
  *
@@ -19,31 +19,4 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
-
-#include "mega/waiter.h"
-
-namespace mega {
-struct PosixWaiter : public Waiter
-{
-    PosixWaiter();
-
-    int maxfd;
-    fd_set rfds, wfds, efds;
-    fd_set ignorefds;
-
-    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
-
-    void init(dstime);
-    int wait();
-    void bumpmaxfd(int);
-
-    void notify();
-
-protected:
-    int m_pipe[2];
-};
-} // namespace
-
-#endif
+#include "mega/win32/megasys.h"

@@ -23,9 +23,8 @@
 #define HTTPIO_CLASS WinHttpIO
 
 #include "zlib.h"
-
-#include "mega/megaclient.h"
-#include "megawaiter.h"
+#include "mega.h"
+#include <winhttp.h>
 
 namespace mega {
 extern bool debug;
@@ -38,6 +37,8 @@ class MEGA_API WinHttpIO: public HttpIO
 protected:
     WinWaiter* waiter;
     HINTERNET hSession;
+    string proxyUsername;
+    string proxyPassword;
 
 public:
     static const unsigned HTTP_POST_CHUNK_SIZE = 16384;
@@ -63,6 +64,8 @@ public:
     void httpevent();
 
     void setuseragent(string*);
+    void setproxy(Proxy *);
+    Proxy *getautoproxy();
 
     WinHttpIO();
     ~WinHttpIO();

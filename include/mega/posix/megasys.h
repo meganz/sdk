@@ -23,7 +23,11 @@
 #define MEGA_POSIX_OS_H 1
 
 // platform dependent constants
+#ifdef __ANDROID__
+#include "mega/config-android.h"
+#else
 #include "mega/config.h"
+#endif
 
 #include <inttypes.h>
 

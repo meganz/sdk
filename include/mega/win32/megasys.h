@@ -60,9 +60,7 @@
 #include <specstrings.h>
 #include <winsock2.h>
 #include <windows.h>
-#include <winhttp.h>
 #include <shellapi.h>
-#include <wincrypt.h>
 
 #define atoll _atoi64
 #define snprintf _snprintf

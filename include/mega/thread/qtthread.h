@@ -19,31 +19,46 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
+#ifdef USE_QT
 
-#include "mega/waiter.h"
+#ifndef THREAD_CLASS
+#define THREAD_CLASS QtThread
+
+#include "mega/thread.h"
+#include <QThread>
+#include <QMutex>
 
 namespace mega {
-struct PosixWaiter : public Waiter
+class QtThread : public QThread, public Thread
 {
-    PosixWaiter();
-
-    int maxfd;
-    fd_set rfds, wfds, efds;
-    fd_set ignorefds;
-
-    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
-
-    void init(dstime);
-    int wait();
-    void bumpmaxfd(int);
-
-    void notify();
+public:
+    QtThread();
+    virtual void start(void *(*start_routine)(void*), void *parameter);
+    virtual void join();
+    virtual ~QtThread();
 
 protected:
-    int m_pipe[2];
+    virtual void run();
+
+    void *(*start_routine)(void*);
+    void *pointer;
 };
+
+class QtMutex : public Mutex
+{
+public:
+    QtMutex();
+    virtual void init(bool recursive);
+    virtual void lock();
+    virtual void unlock();
+    virtual ~QtMutex();
+
+protected:
+    QMutex *mutex;
+};
+
 } // namespace
+
+#endif
 
 #endif

@@ -40,6 +40,16 @@ int clock_gettime(int, struct timespec* t)
 namespace mega {
 dstime Waiter::ds;
 
+PosixWaiter::PosixWaiter()
+{
+    //Pipe to be able to leave the select() call
+    if (pipe(m_pipe) < 0)
+        cout << "Error creating pipe" << endl;
+
+    if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
+        cout << "fcntl error" << endl;
+}
+
 void PosixWaiter::init(dstime ds)
 {
     Waiter::init(ds);
@@ -91,6 +101,10 @@ int PosixWaiter::wait()
     int numfd;
     timeval tv;
 
+    //Pipe added to rfds to be able to leave select() when needed
+    FD_SET(m_pipe[0], &rfds);
+    bumpmaxfd(m_pipe[0]);
+
     if (maxds + 1)
     {
         dstime us = 1000000 / 10 * maxds;
@@ -100,6 +114,10 @@ int PosixWaiter::wait()
     }
 
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
+
+    //Empty pipe
+    uint8_t buf;
+    while (read(m_pipe[0], &buf, 1) == 1);
 
     // timeout or error
     if (numfd <= 0)
@@ -111,5 +129,10 @@ int PosixWaiter::wait()
     return (fd_filter(maxfd + 1, &rfds, &ignorefds)
          || fd_filter(maxfd + 1, &wfds, &ignorefds)
          || fd_filter(maxfd + 1, &efds, &ignorefds)) ? NEEDEXEC : 0;
+}
+
+void PosixWaiter::notify()
+{
+    write(m_pipe[1], "0", 1);
 }
 } // namespace

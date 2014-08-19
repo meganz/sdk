@@ -19,31 +19,26 @@
  * program.
  */
 
-#ifndef WAIT_CLASS
-#define WAIT_CLASS PosixWaiter
-
-#include "mega/waiter.h"
+#ifndef MEGA_THREAD_H
+#define MEGA_THREAD_H 1
 
 namespace mega {
-struct PosixWaiter : public Waiter
+class Thread
 {
-    PosixWaiter();
-
-    int maxfd;
-    fd_set rfds, wfds, efds;
-    fd_set ignorefds;
-
-    bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
-
-    void init(dstime);
-    int wait();
-    void bumpmaxfd(int);
-
-    void notify();
-
-protected:
-    int m_pipe[2];
+public:
+    virtual void start(void *(*start_routine)(void*), void *parameter) = 0;
+    virtual void join() = 0;
 };
+
+class Mutex
+{
+public:
+    virtual void init(bool recursive) = 0;
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+};
+
 } // namespace
 
 #endif
+
