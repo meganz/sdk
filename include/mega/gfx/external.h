@@ -24,26 +24,16 @@
 #define GFX_CLASS GfxProcExternal
 
 #include <string>
-#include "mega/posix/megafs.h"
+#include "mega.h"
+#include "megaapi.h"
+#include "mega/gfx.h"
 
 namespace mega {
 
-class GfxProcessor
-{
-public:
-	virtual bool readBitmap(const char* path) { return false; }
-	virtual int getWidth() { return 0; }
-	virtual int getHeight() { return 0; }
-	virtual int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh) { return 0; }
-	virtual bool getBitmapData(char *bitmapData, size_t size) { return false; }
-	virtual void freeBitmap() {}
-	virtual ~GfxProcessor() {};
-};
-	
 // bitmap graphics processor
 class GfxProcExternal : public GfxProc
 {
-	GfxProcessor *processor;
+    MegaGfxProcessor *processor;
     int w, h;
 
     bool readbitmap(FileAccess*, string*, int);
@@ -52,7 +42,7 @@ class GfxProcExternal : public GfxProc
 
 public:
     bool isgfx(string*);
-    void setProcessor(GfxProcessor *processor);
+    void setProcessor(MegaGfxProcessor *processor);
 };
 } // namespace
 

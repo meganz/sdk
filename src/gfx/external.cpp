@@ -19,11 +19,12 @@
  * program.
  */
 
+#define USE_EXTERNAL_GFX
 #include "mega/gfx/external.h"
 
 namespace mega {
 
-void GfxProcExternal::setProcessor(GfxProcessor *processor)
+void GfxProcExternal::setProcessor(MegaGfxProcessor *processor)
 {
 	this->processor = processor;
 }
