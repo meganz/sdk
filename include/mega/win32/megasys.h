@@ -60,6 +60,7 @@
 #include <specstrings.h>
 #include <winsock2.h>
 #include <windows.h>
+#include <Wincrypt.h>
 #include <shellapi.h>
 
 #define atoll _atoi64
