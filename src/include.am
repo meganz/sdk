@@ -47,6 +47,7 @@ src_libmega_la_SOURCES += src/user.cpp
 src_libmega_la_SOURCES += src/utils.cpp
 src_libmega_la_SOURCES += src/logging.cpp
 src_libmega_la_SOURCES += src/waiterbase.cpp
+src_libmega_la_SOURCES += src/proxy.cpp
 src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
 src_libmega_la_SOURCES += src/db/sqlite.cpp
 src_libmega_la_SOURCES += third_party/utf8proc/utf8proc.cpp
