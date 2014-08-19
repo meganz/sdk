@@ -162,6 +162,7 @@ case $host in
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    CXXFLAGS="$CXXFLAGS -DUNICODE"
     WIN32=yes
     ;;
   *)
