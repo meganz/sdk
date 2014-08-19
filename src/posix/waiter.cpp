@@ -40,6 +40,16 @@ int clock_gettime(int, struct timespec* t)
 namespace mega {
 dstime Waiter::ds;
 
+PosixWaiter::PosixWaiter()
+{
+    //Pipe to be able to leave the select() call
+    if (pipe(m_pipe) < 0)
+        cout << "Error creating pipe" << endl;
+
+    if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
+        cout << "fcntl error" << endl;
+}
+
 void PosixWaiter::init(dstime ds)
 {
     Waiter::init(ds);
@@ -50,13 +60,6 @@ void PosixWaiter::init(dstime ds)
     FD_ZERO(&wfds);
     FD_ZERO(&efds);
     FD_ZERO(&ignorefds);
-
-    //Pipe to be able to leave the select() call
-    if (pipe(m_pipe) < 0)
-        cout << "Error creating pipe" << endl;
-
-    if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
-        cout << "fcntl error" << endl;
 }
 
 // update monotonously increasing timestamp in deciseconds
