@@ -157,6 +157,8 @@ class MegaUserPrivate : public MegaUser
 {
 	public:
 		static MegaUser *fromUser(User *user);
+		virtual MegaUser *copy();
+
 		~MegaUserPrivate();
 		virtual const char* getEmail();
 		virtual int getVisibility();
@@ -164,6 +166,7 @@ class MegaUserPrivate : public MegaUser
 
 	protected:
 		MegaUserPrivate(User *user);
+		MegaUserPrivate(MegaUser *user);
 		const char *email;
 		int visibility;
 		time_t ctime;
@@ -173,6 +176,7 @@ class MegaSharePrivate : public MegaShare
 {
 	public:
 		static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+		virtual MegaShare *copy();
 		virtual ~MegaSharePrivate();
 		virtual const char *getUser();
 		virtual MegaHandle getNodeHandle();
@@ -181,6 +185,8 @@ class MegaSharePrivate : public MegaShare
 
 	protected:
 		MegaSharePrivate(MegaHandle nodehandle, Share *share);
+		MegaSharePrivate(MegaShare *share);
+
 		MegaHandle nodehandle;
 		const char *user;
 		int access;
@@ -632,6 +638,9 @@ class MegaApiImpl : public MegaApp
         static void removeRecursively(const char *path);
 
         //Filesystem
+		int getNumChildren(MegaNode* parent);
+		int getNumChildFiles(MegaNode* parent);
+		int getNumChildFolders(MegaNode* parent);
         NodeList* getChildren(MegaNode *parent, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);

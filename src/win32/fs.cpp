@@ -455,7 +455,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
 bool WinFileSystemAccess::rmdirlocal(string* name)
 {
     name->append("", 1);
-    int r = !!RemoveDirectoryW((LPCWSTR)name->data());
+    bool r = !!RemoveDirectoryW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
 
     if (!r)
@@ -469,7 +469,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 bool WinFileSystemAccess::unlinklocal(string* name)
 {
     name->append("", 1);
-    int r = !!DeleteFileW((LPCWSTR)name->data());
+    bool r = !!DeleteFileW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
 
     if (!r)
@@ -483,7 +483,7 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 {
     name->append("", 1);
-    int r = !!CreateDirectoryW((LPCWSTR)name->data(), NULL);
+    bool r = !!CreateDirectoryW((LPCWSTR)name->data(), NULL);
 
     if (!r)
     {

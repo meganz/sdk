@@ -73,7 +73,7 @@ void HttpReq::disconnect()
     }
 }
 
-HttpReq::HttpReq(int b)
+HttpReq::HttpReq(bool b)
 {
     binary = b;
 

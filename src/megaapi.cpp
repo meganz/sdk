@@ -738,6 +738,21 @@ MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
     return pImpl->checkMove(megaNode, targetNode);
 }
 
+int MegaApi::getNumChildren(MegaNode* parent)
+{
+	return pImpl->getNumChildren(parent);
+}
+
+int MegaApi::getNumChildFiles(MegaNode* parent)
+{
+	return pImpl->getNumChildFiles(parent);
+}
+
+int MegaApi::getNumChildFolders(MegaNode* parent)
+{
+	return pImpl->getNumChildFolders(parent);
+}
+
 NodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);
@@ -819,7 +834,7 @@ char* MegaApi::strdup(const char* buffer)
     return newbuffer;
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 
 // convert Windows Unicode to UTF-8
 void MegaApi::utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* path)

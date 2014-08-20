@@ -1,7 +1,7 @@
 #define _POSIX_SOURCE
 #define _LARGE_FILES
 
-#ifndef WIN32
+#ifndef _WIN32
 #define _LARGEFILE64_SOURCE
 #include <signal.h>
 #endif
@@ -199,9 +199,21 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
 	ctime = user->ctime;
 }
 
+MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
+{
+	email = MegaApi::strdup(user->getEmail());
+	visibility = user->getVisibility();
+	ctime = user->getTimestamp();
+}
+
 MegaUser *MegaUserPrivate::fromUser(User *user)
 {
 	return new MegaUserPrivate(user);
+}
+
+MegaUser *MegaUserPrivate::copy()
+{
+	return new MegaUserPrivate(this);
 }
 
 MegaUserPrivate::~MegaUserPrivate()
@@ -229,6 +241,19 @@ MegaNode *MegaNodePrivate::fromNode(Node *node)
 {
     if(!node) return NULL;
     return new MegaNodePrivate(node);
+}
+
+MegaSharePrivate::MegaSharePrivate(MegaShare *share) : MegaShare()
+{
+	this->nodehandle = share->getNodeHandle();
+	this->user = MegaApi::strdup(share->getUser());
+	this->access = share->getAccess();
+	this->ts = share->getTimestamp();
+}
+
+MegaShare *MegaSharePrivate::copy()
+{
+	return new MegaSharePrivate(this);
 }
 
 MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
@@ -1351,7 +1376,7 @@ TreeProcessor::~TreeProcessor()
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
 {
-#ifndef WIN32
+#ifndef _WIN32
     struct sigaction noaction;
     memset(&noaction, 0, sizeof(noaction));
     noaction.sa_handler = SIG_IGN;
@@ -1988,7 +2013,7 @@ void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int conne
     if(localPath)
     {
         string path(localPath);
-#ifdef WIN32
+#ifdef _WIN32
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2019,7 +2044,7 @@ void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, int co
 
     if(localPath)
     {
-#ifdef WIN32
+#ifdef _WIN32
         string path(localPath);
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
@@ -2051,7 +2076,7 @@ void MegaApiImpl::startPublicDownload(MegaNode* node, const char* localPath, Meg
     if(localPath)
     {
         string path(localPath);
-#ifdef WIN32
+#ifdef _WIN32
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2101,7 +2126,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     sdkMutex.lock();
 
     string utf8path = path;
-#ifdef WIN32
+#ifdef _WIN32
         if((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\"))
             utf8path.insert(0, "\\\\?\\");
 #endif
@@ -2136,7 +2161,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 
 treestate_t MegaApiImpl::syncPathState(string* path)
 {
-#ifdef WIN32
+#ifdef _WIN32
     string prefix("\\\\?\\");
     string localPrefix;
     fsAccess->path2local(&prefix, &localPrefix);
@@ -2193,7 +2218,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder)
     if(localFolder)
     {
         string path(localFolder);
-#ifdef WIN32
+#ifdef _WIN32
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2213,7 +2238,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, MegaNode *megaFolder)
     if(localFolder)
     {
         string path(localFolder);
-#ifdef WIN32
+#ifdef _WIN32
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2740,7 +2765,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 
     if(tr->slot)
     {
-#ifdef WIN32
+#ifdef _WIN32
         if(!tr->files.front()->syncxfer && !tr->slot->progressreported && (tr->type==GET))
         {
             tr->localfilename.append("",1);
@@ -2837,7 +2862,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
 	string tmpPath;
 	fsAccess->local2path(&tr->localfilename, &tmpPath);
 
-#ifdef WIN32
+#ifdef _WIN32
     if((!tr->files.front()->syncxfer) && (tr->type==GET))
     {
 		WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -4011,6 +4036,70 @@ bool MegaApiImpl::nodeComparatorAlphabeticalASC  (Node *i, Node *j)
 bool MegaApiImpl::nodeComparatorAlphabeticalDESC  (Node *i, Node *j)
 { if(strcasecmp(i->displayname(), j->displayname())<=0) return 0; return 1; }
 
+int MegaApiImpl::getNumChildren(MegaNode* p)
+{
+	if (!p) return 0;
+
+	sdkMutex.lock();
+	Node *parent = client->nodebyhandle(p->getHandle());
+	if (!parent)
+	{
+		sdkMutex.unlock();
+		return 0;
+	}
+
+	int numChildren = parent->children.size();
+	sdkMutex.unlock();
+
+	return numChildren;
+}
+
+int MegaApiImpl::getNumChildFiles(MegaNode* p)
+{
+	if (!p) return 0;
+
+	sdkMutex.lock();
+	Node *parent = client->nodebyhandle(p->getHandle());
+	if (!parent)
+	{
+		sdkMutex.unlock();
+		return 0;
+	}
+
+	int numFiles = 0;
+	for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+	{
+		if ((*it)->type == FILENODE)
+			numFiles++;
+	}
+	sdkMutex.unlock();
+
+	return numFiles;
+}
+
+int MegaApiImpl::getNumChildFolders(MegaNode* p)
+{
+	if (!p) return 0;
+	
+	sdkMutex.lock();
+	Node *parent = client->nodebyhandle(p->getHandle());
+	if (!parent)
+	{
+		sdkMutex.unlock();
+		return 0;
+	}
+
+	int numFolders = 0;
+	for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+	{
+		if ((*it)->type != FILENODE)
+			numFolders++;
+	}
+	sdkMutex.unlock();
+
+	return numFolders;
+}
+
 
 NodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 {
@@ -4569,7 +4658,7 @@ bool MegaApiImpl::is_syncable(const char *name)
 
 void MegaApiImpl::removeRecursively(const char *path)
 {
-#ifndef WIN32
+#ifndef _WIN32
     string spath = path;
     mega::PosixFileSystemAccess::emptydirlocal(&spath);
 #endif
@@ -5379,14 +5468,14 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
 {
-    hashSignature = new mega::HashSignature(new mega::Hash());
+    hashSignature = new HashSignature(new Hash());
     asymmCypher = new AsymmCipher();
 
     string pubks;
     int len = strlen(base64Key)/4*3+3;
     pubks.resize(len);
-    pubks.resize(mega::Base64::atob(base64Key, (byte *)pubks.data(), len));
-    asymmCypher->setkey(mega::AsymmCipher::PUBKEY,(byte*)pubks.data(), pubks.size());
+    pubks.resize(Base64::atob(base64Key, (byte *)pubks.data(), len));
+    asymmCypher->setkey(AsymmCipher::PUBKEY,(byte*)pubks.data(), pubks.size());
 }
 
 MegaHashSignatureImpl::~MegaHashSignatureImpl()
@@ -5408,7 +5497,7 @@ void MegaHashSignatureImpl::add(const char *data, unsigned size)
 bool MegaHashSignatureImpl::check(const char *base64Signature)
 {
     char signature[512];
-    int l = mega::Base64::atob(base64Signature, (byte *)signature, sizeof(signature));
+    int l = Base64::atob(base64Signature, (byte *)signature, sizeof(signature));
     if(l != sizeof(signature))
         return false;
 

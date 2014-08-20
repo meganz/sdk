@@ -27,21 +27,8 @@
 namespace mega {
 dstime Waiter::ds;
 
-typedef ULONGLONG (WINAPI * PGTC)();
-
-static PGTC pGTC;
-static ULONGLONG tickhigh;
-static DWORD prevt;
-
 WinPhoneWaiter::WinPhoneWaiter()
 {
-    //if (!pGTC) pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
-
-    if (!pGTC)
-    {
-        tickhigh = 0;
-        prevt = 0;
-    }
 	maxfd = -1;
 	notified = false;
 }
@@ -62,24 +49,7 @@ void WinPhoneWaiter::init(dstime ds)
 // FIXME: restore thread safety for applications using multiple MegaClient objects
 void WinPhoneWaiter::bumpds()
 {
-    if (pGTC)
-    {
-        ds = pGTC() / 100;
-    }
-    else
-    {
-        // emulate GetTickCount64() on XP
-        DWORD t = GetTickCount64();
-
-        if (t < prevt)
-        {
-            tickhigh += 0x100000000;
-        }
-
-        prevt = t;
-
-        ds = (t + tickhigh) / 100;
-    }
+	ds = GetTickCount64() / 100;
 }
 
 // update maxfd for select()

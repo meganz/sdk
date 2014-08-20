@@ -115,6 +115,7 @@ class MegaUser
 		};
 
 		virtual ~MegaUser() = 0;
+		virtual MegaUser *copy() = 0;
 		virtual const char* getEmail() = 0;
 		virtual int getVisibility() = 0;
 		virtual time_t getTimestamp() = 0;
@@ -132,6 +133,7 @@ class MegaShare
 		};
 
 		virtual ~MegaShare() = 0;
+		virtual MegaShare *copy() = 0;
 		virtual const char *getUser() = 0;
         virtual MegaHandle getNodeHandle() = 0;
 		virtual int getAccess() = 0;
@@ -502,6 +504,9 @@ class MegaApi
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC};
 
+		int getNumChildren(MegaNode* parent);
+		int getNumChildFiles(MegaNode* parent);
+		int getNumChildFolders(MegaNode* parent);
         NodeList* getChildren(MegaNode *parent, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
@@ -526,7 +531,7 @@ class MegaApi
         NodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
-    #ifdef WIN32
+	#ifdef _WIN32
         static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* path);
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
