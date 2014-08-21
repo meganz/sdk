@@ -113,7 +113,7 @@ win32 {
 }
 
 unix {
-    !exists($$MEGASDK_BASE_PATH/bindings/qt/include/mega/config.h) {
+    !exists($$MEGASDK_BASE_PATH/include/mega/config.h) {
         error("Configuration file not found! Please re-run configure script located in the project's root directory!")
     }
     HEADERS  += include/mega/posix/meganet.h  \
