@@ -19,8 +19,8 @@
  * program.
  */
 
+#include "mega.h"
 #include "mega/thread/qtthread.h"
-
 
 namespace mega {
 

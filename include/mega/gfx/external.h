@@ -19,9 +19,8 @@
  * program.
  */
 
-#ifdef USE_EXTERNAL_GFX
-#ifndef GFX_CLASS
-#define GFX_CLASS GfxProcExternal
+#ifndef GFX_PROC_EXTERNAL
+#define GFX_PROC_EXTERNAL
 
 #include <string>
 #include "mega.h"
@@ -47,4 +46,4 @@ public:
 } // namespace
 
 #endif
-#endif
+

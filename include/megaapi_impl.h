@@ -22,13 +22,10 @@ DEALINGS IN THE SOFTWARE.
 
 #include <inttypes.h>
 
-#define USE_EXTERNAL_GFX
-#include "mega/gfx/external.h"
-#undef GFX_CLASS
-
 #include "mega.h"
 #include "mega/thread/posixthread.h"
 #include "mega/thread/qtthread.h"
+#include "mega/gfx/external.h"
 #include "mega/gfx/qt.h"
 #include "mega/thread/cppthread.h"
 #include "mega/proxy.h"

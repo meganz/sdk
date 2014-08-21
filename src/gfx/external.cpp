@@ -19,7 +19,7 @@
  * program.
  */
 
-#define USE_EXTERNAL_GFX
+#include "mega.h"
 #include "mega/gfx/external.h"
 
 namespace mega {

@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "mega/thread/cppthread.h"
 
 namespace mega {
