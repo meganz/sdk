@@ -109,9 +109,15 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
 bool WinFileAccess::sysopen()
 {
+#ifdef WINDOWS_PHONE
+    hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
+                            FILE_SHARE_WRITE | FILE_SHARE_READ,
+                            OPEN_EXISTING, NULL);
+#else
     hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL, OPEN_EXISTING, 0, NULL);
+#endif
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -161,7 +167,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 bool WinFileAccess::fopen(string* name, bool read, bool write)
 {
     WIN32_FILE_ATTRIBUTE_DATA fad;
+
+#ifdef WINDOWS_PHONE
+    FILE_ID_INFO bhfi = { 0 };
+#else
     BY_HANDLE_FILE_INFORMATION bhfi;
+#endif
 
     int added = WinFileSystemAccess::sanitizedriveletter(name);
     
@@ -194,6 +205,19 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
     // fixable with the current Win32 API?)
+#ifdef WINDOWS_PHONE
+    CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
+    ex.dwSize = sizeof(ex);
+
+    if (type == FOLDERNODE)
+        ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
+
+    hFile = CreateFile2((LPCWSTR)name->data(),
+                        read ? GENERIC_READ : GENERIC_WRITE,
+                        FILE_SHARE_WRITE | FILE_SHARE_READ,
+                        read ? OPEN_EXISTING : OPEN_ALWAYS,
+                        &ex);
+#else
     hFile = CreateFileW((LPCWSTR)name->data(),
                         read ? GENERIC_READ : GENERIC_WRITE,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
@@ -201,6 +225,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
                         read ? OPEN_EXISTING : OPEN_ALWAYS,
                         ((type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0),
                         NULL);
+#endif
 
     name->resize(name->size() - added - 1);
 
@@ -215,15 +240,28 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
+#ifdef WINDOWS_PHONE
+    if (read && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
+    {
+        fsid = *((handle *)(&(bhfi.FileId)));
+    }
+#else
     if (read && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
     {
         fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
+#endif
 
     if (type == FOLDERNODE)
     {
         name->append((char*)L"\\*", 5);
+
+#ifdef WINDOWS_PHONE
+        hFind = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+#else
         hFind = FindFirstFileW((LPCWSTR)name->data(), &ffd);
+#endif
+
         name->resize(name->size() - 5);
 
         if (hFind == INVALID_HANDLE_VALUE)
@@ -289,8 +327,10 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
 // wake up from filesystem updates
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
+#ifndef WINDOWS_PHONE
     // overlapped completion wakes up WaitForMultipleObjectsEx()
     ((WinWaiter*)w)->pendingfsevents = pendingevents;
+#endif
 }
 
 // generate unique local filename in the same fs as relatedpath
@@ -334,6 +374,9 @@ void WinFileSystemAccess::local2path(string* local, string* path) const
 // write short name of the last path component to sname
 bool WinFileSystemAccess::getsname(string* name, string* sname) const
 {
+#ifdef WINDOWS_PHONE
+    return false;
+#else
     int r, rr;
 
     name->append("", 1);
@@ -368,6 +411,7 @@ bool WinFileSystemAccess::getsname(string* name, string* sname) const
     }
 
     return true;
+#endif
 }
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
@@ -392,7 +436,11 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
 {
     oldname->append("", 1);
     newname->append("", 1);
+#ifdef WINDOWS_PHONE
+    bool r = !!CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL);
+#else
     bool r = !!CopyFileW((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), FALSE);
+#endif
     newname->resize(newname->size() - 1);
     oldname->resize(oldname->size() - 1);
 
@@ -407,7 +455,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
 bool WinFileSystemAccess::rmdirlocal(string* name)
 {
     name->append("", 1);
-    int r = !!RemoveDirectoryW((LPCWSTR)name->data());
+    bool r = !!RemoveDirectoryW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
 
     if (!r)
@@ -421,7 +469,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 bool WinFileSystemAccess::unlinklocal(string* name)
 {
     name->append("", 1);
-    int r = !!DeleteFileW((LPCWSTR)name->data());
+    bool r = !!DeleteFileW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
 
     if (!r)
@@ -435,7 +483,7 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 {
     name->append("", 1);
-    int r = !!CreateDirectoryW((LPCWSTR)name->data(), NULL);
+    bool r = !!CreateDirectoryW((LPCWSTR)name->data(), NULL);
 
     if (!r)
     {
@@ -443,12 +491,21 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     }
     else if (hidden)
     {
+#ifdef WINDOWS_PHONE
+        WIN32_FILE_ATTRIBUTE_DATA a = {0};
+        BOOL res = GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, &a);
+        if (res)
+        {
+            SetFileAttributesW((LPCWSTR)name->data(), a.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+        }
+#else
         DWORD a = GetFileAttributesW((LPCWSTR)name->data());
 
         if (a != INVALID_FILE_ATTRIBUTES)
         {
             SetFileAttributesW((LPCWSTR)name->data(), a | FILE_ATTRIBUTE_HIDDEN);
         }
+#endif
     }
 
     name->resize(name->size() - 1);
@@ -458,6 +515,9 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 
 bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
 {
+#ifdef WINDOWS_PHONE
+    return false;
+#else
     FILETIME lwt;
     LONGLONG ll;
     HANDLE hFile;
@@ -481,15 +541,20 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
     CloseHandle(hFile);
 
     return r;
+#endif
 }
 
 bool WinFileSystemAccess::chdirlocal(string* name) const
 {
+#ifdef WINDOWS_PHONE
+    return false;
+#else
     name->append("", 1);
     int r = SetCurrentDirectoryW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
 
     return r;
+#endif
 }
 
 size_t WinFileSystemAccess::lastpartlocal(string* name) const
@@ -547,9 +612,13 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];
+#ifdef WINDOWS_PHONE
+    sprintf(buf, "Windows Phone 8/8.1");
+#else
     DWORD dwVersion = GetVersion();
 
     sprintf(buf, "Windows %d.%d", (int)(LOBYTE(LOWORD(dwVersion))), (int)(HIBYTE(LOWORD(dwVersion))));
+#endif
 
     u->append(buf);
 }
@@ -565,14 +634,17 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
+#ifndef WINDOWS_PHONE
     if (dwErrorCode != ERROR_OPERATION_ABORTED)
     {
         ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
     }
+#endif
 }
 
 void WinDirNotify::process(DWORD dwBytes)
 {
+#ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
         // empty notification: re-read all trees
@@ -616,11 +688,13 @@ void WinDirNotify::process(DWORD dwBytes)
             ptr += fni->NextEntryOffset;
         }
     }
+#endif
 }
 
 // request change notifications on the subtree under hDirectory
 void WinDirNotify::readchanges()
 {
+#ifndef WINDOWS_PHONE
     if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
                               notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
@@ -645,10 +719,12 @@ void WinDirNotify::readchanges()
             failed = true;
         }
     }
+#endif
 }
 
 WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
+#ifndef WINDOWS_PHONE
     ZeroMemory(&overlapped, sizeof(overlapped));
 
     overlapped.hEvent = this;
@@ -680,14 +756,17 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     }
 
     localbasepath->resize(localbasepath->size() - added - 1);
+#endif
 }
 
 WinDirNotify::~WinDirNotify()
 {
+#ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
         CloseHandle(hDirectory);
     }
+#endif
 }
 
 FileAccess* WinFileSystemAccess::newfileaccess()
@@ -726,7 +805,11 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
             name->append("", 1);
         }
 
+#ifdef WINDOWS_PHONE
+        hFind = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+#else
         hFind = FindFirstFileW((LPCWSTR)name->data(), &ffd);
+#endif
 
         if (glob)
         {

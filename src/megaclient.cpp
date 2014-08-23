@@ -458,7 +458,7 @@ MegaClient::~MegaClient()
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
-    waiter->bumpds();
+	WAIT_CLASS::bumpds();
 
     if (httpio->inetisback())
     {
@@ -1284,7 +1284,7 @@ int MegaClient::wait()
     dstime nds;
 
     // get current dstime and clear wait events
-    waiter->bumpds();
+	WAIT_CLASS::bumpds();
 
     // sync directory scans in progress? don't wait.
     if (syncactivity)
@@ -1419,7 +1419,7 @@ bool MegaClient::abortbackoff()
 {
     bool r = false;
 
-    waiter->bumpds();
+	WAIT_CLASS::bumpds();
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
@@ -5796,7 +5796,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 
     if (!pause || hard)
     {
-        waiter->bumpds();
+		WAIT_CLASS::bumpds();
 
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
         {

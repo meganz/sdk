@@ -162,6 +162,7 @@ case $host in
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    CXXFLAGS="$CXXFLAGS -DUNICODE"
     WIN32=yes
     ;;
   *)
@@ -172,6 +173,14 @@ esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
+
+HAVE_PTHREAD=yes
+AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
+
+# check for Pthreads
+if test "$HAVE_PTHREAD" = "yes"; then
+    AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
+fi
 
 SAVE_LDFLAGS=$LDFLAGS
 SAVE_CXXFLAGS=$CXXFLAGS

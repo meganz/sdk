@@ -34,6 +34,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/utils.h \
 	mega/logging.h \
 	mega/waiter.h \
+	mega/proxy.h \
     mega/crypto/cryptopp.h \
     mega/crypto/sodium.h \
     mega/db/sqlite.h \

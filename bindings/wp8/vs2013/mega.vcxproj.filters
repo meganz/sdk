@@ -1,0 +1,411 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Bindings">
+      <UniqueIdentifier>{c5cef34a-dd94-4490-9abf-e665dfdc2191}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK">
+      <UniqueIdentifier>{8ee96227-d895-44c8-b951-c2537da87311}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK\Source">
+      <UniqueIdentifier>{a52a73d9-c0c8-4c89-b21b-c27e94fedb9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK\Header">
+      <UniqueIdentifier>{daeeae6f-4786-413b-9aeb-bb7850420bbd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Libraries">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\mega.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\megaapi.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\megaapi_impl.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\account.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\attrmap.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\backofftimer.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\base64.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\command.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\config-android.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\console.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\db.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\file.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\fileattributefetch.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\filefingerprint.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\filesystem.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\gfx.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\http.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\json.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\logging.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\megaapp.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\megaclient.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\node.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\proxy.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\pubkeyaction.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\request.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\serialize64.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\share.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\sharenodekeys.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\sync.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\thread.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\transfer.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\transferslot.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\treeproc.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\types.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\user.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\utils.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\waiter.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\wp8\megaconsole.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\wp8\megaconsolewaiter.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\wp8\megafs.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\wp8\meganet.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\wp8\megasys.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\thread\cppthread.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\db\sqlite.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\crypto\cryptopp.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\crypto\sodium.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\gfx\external.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMGlobalListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMRequestListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMTransferListener.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountDetails.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MegaSDK.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MError.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MGlobalListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MNode.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MNodeList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MRequest.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MRequestListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MShare.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MShareList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransfer.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransferList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransferListenerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTreeProcessorInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MUser.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MUserList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\attrmap.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\backofftimer.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\base64.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\command.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\commands.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\db.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\file.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\fileattributefetch.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\filefingerprint.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\filesystem.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\gfx.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\http.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\json.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\logging.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\megaapi.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\megaapi_impl.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\megaclient.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\node.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\proxy.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\pubkeyaction.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\request.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\serialize64.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\share.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\sharenodekeys.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\sync.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\transfer.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\transferslot.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\treeproc.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\user.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\utils.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\waiterbase.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\wp8\waiter.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\win32\fs.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\thread\cppthread.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\db\sqlite.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\crypto\cryptopp.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\third_party\utf8proc\utf8proc.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\gfx\external.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\posix\net.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMGlobalListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMRequestListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMTransferListener.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountDetails.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MegaSDK.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MError.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MNode.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MNodeList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MRequest.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MShare.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MShareList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTransfer.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTransferList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MUser.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MUserList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="..\3rdparty\bin\Debug\ARM\libcurl.dll">
+      <Filter>Libraries</Filter>
+    </Library>
+    <Library Include="..\3rdparty\bin\Debug\ARM\libeay32.dll">
+      <Filter>Libraries</Filter>
+    </Library>
+    <Library Include="..\3rdparty\bin\Debug\ARM\sqlite3.dll">
+      <Filter>Libraries</Filter>
+    </Library>
+    <Library Include="..\3rdparty\bin\Debug\ARM\ssleay32.dll">
+      <Filter>Libraries</Filter>
+    </Library>
+  </ItemGroup>
+</Project>

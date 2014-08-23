@@ -76,9 +76,10 @@ struct NodeCore;
 class PubKeyAction;
 class Request;
 struct Transfer;
-struct TreeProc;
+class TreeProc;
 struct User;
 struct Waiter;
+struct Proxy;
 
 #define EOO 0
 

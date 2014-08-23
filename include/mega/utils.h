@@ -89,7 +89,7 @@ public:
     unsigned get(AsymmCipher*, byte*, unsigned);
 
     // verify signature
-    int check(AsymmCipher*, const byte*, unsigned);
+    bool check(AsymmCipher*, const byte*, unsigned);
 
     HashSignature(Hash*);
     ~HashSignature();
@@ -106,7 +106,7 @@ struct MEGA_API MemAccess
         return val;
     }
 
-    template<typename T> static void set(const byte* ptr, T val)
+    template<typename T> static void set(byte* ptr, T val)
     {
         memcpy(ptr,&val,sizeof val);
     }
@@ -116,7 +116,7 @@ struct MEGA_API MemAccess
         return *(T*)ptr;
     }
 
-    template<typename T> static void set(const byte* ptr, T val)
+    template<typename T> static void set(byte* ptr, T val)
     {
         *(T*)ptr = val;
     }

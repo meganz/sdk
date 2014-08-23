@@ -47,9 +47,13 @@ src_libmega_la_SOURCES += src/user.cpp
 src_libmega_la_SOURCES += src/utils.cpp
 src_libmega_la_SOURCES += src/logging.cpp
 src_libmega_la_SOURCES += src/waiterbase.cpp
+src_libmega_la_SOURCES += src/proxy.cpp
 src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
 src_libmega_la_SOURCES += src/db/sqlite.cpp
 src_libmega_la_SOURCES += third_party/utf8proc/utf8proc.cpp
+src_libmega_la_SOURCES += src/gfx/external.cpp
+src_libmega_la_SOURCES += src/megaapi_impl.cpp
+src_libmega_la_SOURCES += src/megaapi.cpp
 
 if USE_FREEIMAGE
 src_libmega_la_SOURCES += src/gfx/freeimage.cpp
@@ -76,6 +80,8 @@ src_libmega_la_SOURCES += src/posix/console.cpp
 src_libmega_la_SOURCES += src/posix/net.cpp
 src_libmega_la_SOURCES += src/posix/waiter.cpp
 src_libmega_la_SOURCES += src/posix/consolewaiter.cpp
+
+src_libmega_la_SOURCES += src/thread/posixthread.cpp
 
 endif
 

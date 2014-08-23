@@ -32,6 +32,7 @@
 // project includes
 #include "mega/account.h"
 #include "mega/http.h"
+#include "mega/proxy.h"
 #include "mega/attrmap.h"
 #include "mega/backofftimer.h"
 #include "mega/base64.h"
