@@ -2,7 +2,7 @@
  * @file mega/transfer.h
  * @brief pending/active up/download ordered by file fingerprint
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -65,18 +65,30 @@ struct MEGA_API Transfer : public FileFingerprint
     // upload handle for file attribute attachment (only set if file attribute queued)
     handle uploadhandle;
 
+    // minimum number of file attributes that need to be posted before a PUT transfer can complete
+    int minfa;
+    
     // position in transfers[type]
     transfer_map::iterator transfers_it;
+
+    // position in faputcompletion[uploadhandle]
+    handletransfer_map::iterator faputcompletion_it;
+    
+    // upload result
+    byte ultoken[NewNode::UPLOADTOKENLEN + 1];
 
     // backlink to base
     MegaClient* client;
     int tag;
-    
+
     // signal failure
     void failed(error);
 
     // signal completion
     void complete();
+    
+    // execute completion
+    void completefiles();
    
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();

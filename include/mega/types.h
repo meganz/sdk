@@ -2,7 +2,7 @@
  * @file mega/types.h
  * @brief Mega SDK types and includes
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -243,6 +243,9 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+
+// map an upload handle to the corresponding transer
+typedef map<handle, Transfer*> handletransfer_map;
 
 // maps node handles to Node pointers
 typedef map<handle, Node*> node_map;

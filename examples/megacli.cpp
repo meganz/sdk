@@ -719,6 +719,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                         {
                             return NULL;
                         }
+
                         remote = 1;
                     }
 
@@ -848,7 +849,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     }
 
     // parse relative path
-    while (n && l < (int) c.size())
+    while (n && l < (int)c.size())
     {
         if (c[l] != ".")
         {

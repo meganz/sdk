@@ -2,7 +2,7 @@
  * @file gfx.cpp
  * @brief Platform-independent bitmap graphics transformation functionality
  *
- * (c) 2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -102,8 +102,10 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-void GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing)
+int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing)
 {
+    int numputs = 0;
+
     if (isgfx(localfilename))
     {
         // (this assumes that the width of the largest dimension is max)
@@ -125,6 +127,7 @@ void GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle t
                     // immediately if the upload has already completed; otherwise, once
                     // the upload completes
                     client->putfa(th, (meta_t)i, key, jpeg);
+                    numputs++;
 					
                     jpeg = NULL;
                 }
@@ -138,5 +141,7 @@ void GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle t
             freebitmap();
         }
     }
+    
+    return numputs;
 }
 } // namespace

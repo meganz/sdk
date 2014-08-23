@@ -50,9 +50,6 @@ struct MEGA_API TransferSlot
     // number of consecutive errors
     unsigned errorcount;
 
-    // upload result
-    byte ultoken[NewNode::UPLOADTOKENLEN + 1];
-
     // file attribute string
     string fileattrstring;
 

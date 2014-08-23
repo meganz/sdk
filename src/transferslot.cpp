@@ -177,7 +177,7 @@ void TransferSlot::doio(MegaClient* client)
                         {
                             if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN * 4 / 3)
                             {
-                                if (Base64::atob(reqs[i]->in.data(), ultoken, NewNode::UPLOADTOKENLEN + 1)
+                                if (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN + 1)
                                     == NewNode::UPLOADTOKENLEN)
                                 {
                                     memcpy(transfer->filekey, transfer->key.key, sizeof transfer->key.key);

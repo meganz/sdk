@@ -2,7 +2,7 @@
  * @file sodium.cpp
  * @brief Crypto layer using libsodium.
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,6 +18,8 @@
  * You should have received a copy of the license along with this
  * program.
  */
+
+#ifdef USE_SODIUM
 
 #include "mega.h"
 
@@ -153,3 +155,4 @@ int EdDSA::publicKey(unsigned char* pubKey) {
 }
 
 } // namespace
+#endif

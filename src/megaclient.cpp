@@ -476,7 +476,7 @@ void MegaClient::exec()
     if (httpio->success && chunkfailed)
     {
         chunkfailed = false;
-        
+
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
         {
             if ((*it)->failure)
@@ -526,6 +526,8 @@ void MegaClient::exec()
                         else
                         {
                             pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
+                            
+                            checkfacompletion(fa->th);
                         }
 
                         delete fa;
@@ -546,7 +548,7 @@ void MegaClient::exec()
             }
         }
 
-        if (newfa.size() && (curfa == newfa.end()) && btpfa.armed())
+        if (newfa.size() && curfa == newfa.end() && btpfa.armed())
         {
             // dispatch most recent file attribute put
             curfa = newfa.begin();
@@ -1590,7 +1592,8 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         nextit->second->uploadhandle = getuploadhandle();
 
-                        gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key);
+                        // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
+                        nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key);
                     }
                 }
                 else
@@ -1655,6 +1658,51 @@ handle MegaClient::getuploadhandle()
     while (!++(*--ptr));
 
     return nextuh;
+}
+
+// do we have an upload that is still waiting for file attributes before being completed?
+void MegaClient::checkfacompletion(handle th, Transfer* t)
+{
+    bool delayedcompletion;
+    handletransfer_map::iterator htit;
+
+    if ((delayedcompletion = !t))
+    {
+        // abort if upload still running
+        if ((htit = faputcompletion.find(th)) == faputcompletion.end())
+        {
+            return;
+        }
+
+        t = htit->second;
+    }
+
+    int facount = 0;
+
+    // do we have the pre-set threshold number of file attributes available? complete upload.
+    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, 0));
+         it != pendingfa.end() && it->first.first == th; it++) facount++;
+
+    if (facount >= t->minfa)
+    {
+        t->completefiles();
+
+        delete t;
+        
+        return;
+    }
+    
+    if (!delayedcompletion)
+    {
+        // we have insufficient file attributes available: remove transfer and put on hold
+        t->faputcompletion_it = faputcompletion.insert(pair<handle, Transfer*>(th, t)).first;
+
+        transfers[t->type].erase(t->transfers_it);
+        t->transfers_it = transfers[t->type].end();
+
+        delete t->slot;
+        t->slot = NULL;
+    }
 }
 
 // clear transfer queue

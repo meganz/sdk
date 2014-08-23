@@ -2,7 +2,7 @@
  * @file transfer.cpp
  * @brief Pending/active up/download ordered by file fingerprint
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -32,19 +32,32 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 
     failcount = 0;
     uploadhandle = 0;
+    minfa = 0;
+
     slot = NULL;
+    
+    faputcompletion_it = client->faputcompletion.end();
 }
 
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+    if (faputcompletion_it != client->faputcompletion.end()) client->faputcompletion.erase(faputcompletion_it);
+
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
         (*it)->transfer = NULL;
     }
 
-    client->transfers[type].erase(transfers_it);
-    delete slot;
+    if (transfers_it != client->transfers[type].end())
+    {
+        client->transfers[type].erase(transfers_it);
+    }
+
+    if (slot)
+    {
+        delete slot;
+    }
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -161,7 +174,7 @@ void Transfer::complete()
         // place file in all target locations - use up to one renames, copy
         // operations for the rest
         // remove and complete successfully completed files
-        for (file_list::iterator it = files.begin(); it != files.end();)
+        for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             transient_error = false;
             success = false;
@@ -229,14 +242,10 @@ void Transfer::complete()
             return failed(API_EREAD);
         }
 
-        // notify all files and give them an opportunity to self-destruct
-        for (file_list::iterator it = files.begin(); it != files.end();)
-        {
-            // prevent deletion of associated Transfer object in completed()
-            (*it)->transfer = NULL;
-            (*it)->completed(this, NULL);
-            files.erase(it++);
-        }
+        // if this transfer is put on hold, do not complete
+        client->checkfacompletion(uploadhandle, this);
+
+        return;
     }
 
     if (!files.size())
@@ -251,6 +260,18 @@ void Transfer::complete()
 
         slot->retrying = true;
         slot->retrybt.backoff(11);
+    }
+}
+
+void Transfer::completefiles()
+{
+    // notify all files and give them an opportunity to self-destruct
+    for (file_list::iterator it = files.begin(); it != files.end(); )
+    {
+        // prevent deletion of associated Transfer object in completed()
+        (*it)->transfer = NULL;
+        (*it)->completed(this, NULL);
+        files.erase(it++);
     }
 }
 

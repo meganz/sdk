@@ -168,6 +168,9 @@ public:
 
     // queue file attribute retrieval
     error getfa(Node*, fatype, int = 0);
+    
+    // notify delayed upload completion subsystem about new file attribute
+    void checkfacompletion(handle, Transfer* = NULL);
 
     /**
      * @brief Attach/update/delete a user attribute.
@@ -412,6 +415,9 @@ public:
 
     // pending file attributes
     fa_map pendingfa;
+
+    // upload waiting for file attributes
+    handletransfer_map faputcompletion;    
 
     // file attribute fetch channels
     fafc_map fafcs;

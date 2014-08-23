@@ -2,7 +2,7 @@
  * @file gfx.h
  * @brief Bitmap graphics processing
  *
- * (c) 2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -52,7 +52,7 @@ public:
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    void gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1);
+    int gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL120X120, PREVIEW1000x1000 } meta_t;
