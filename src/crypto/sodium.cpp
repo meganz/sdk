@@ -19,10 +19,10 @@
  * program.
  */
 
-#ifdef USE_SODIUM
 
 #include "mega.h"
 
+#ifdef USE_SODIUM
 namespace mega {
 
 CryptoPP::AutoSeededRandomPool EdDSA::rng;
