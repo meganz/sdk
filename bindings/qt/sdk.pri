@@ -124,7 +124,7 @@ unix {
 }
 
 DEFINES += USE_SQLITE USE_CRYPTOPP USE_SODIUM USE_QT MEGA_QT_LOGGING
-LIBS += -lcryptopp -lsodium
+LIBS += -lcryptopp
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/third_party/utf8proc
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
@@ -172,12 +172,22 @@ unix:!macx {
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
-    INCLUDEPATH += $$PWD/3rdparty/include/curl
-    LIBS += -L$$PWD/3rdparty/libs/ $$PWD/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
+    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
    }
    else {
     LIBS += -lcurl
    }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
+    DEFINES += SODIUM_STATIC PCRE_STATIC
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/sodium
+    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
+   }
+   else {
+    LIBS += -lsodium
+   }
+
 }
 
 macx {
