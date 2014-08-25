@@ -198,7 +198,7 @@ fi
 AC_ARG_ENABLE(gcc-hardening,
     AS_HELP_STRING(--disable-gcc-hardening, disable compiler security checks))
 if test x$enable_gcc_hardening != xno; then
-    CFLAGS="$CFLAGS -D_FORTIFY_SOURCE=2"
+    CXXFLAGS="$CXXFLAGS -D_FORTIFY_SOURCE=2"
     AX_CHECK_COMPILE_FLAG([-fstack-protector-all], [
         AX_CHECK_LINK_FLAG([-fstack-protector-all],
         [CXXFLAGS="$CXXFLAGS -fstack-protector-all"]
