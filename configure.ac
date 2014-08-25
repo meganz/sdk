@@ -183,9 +183,18 @@ AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
 
-HAVE_PTHREAD=yes
-AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
+# check for Pthreads
+AC_ARG_ENABLE(posix-threads,
+    AS_HELP_STRING(--disable-posix-threads, disable POSIX threads support))
+if test x$enable_posix_threads != xno; then
+    HAVE_PTHREAD=yes
+    AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
+fi
+if test "$HAVE_PTHREAD" = "yes"; then
+    AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
+fi
 
+# hardening options
 AC_ARG_ENABLE(gcc-hardening,
     AS_HELP_STRING(--disable-gcc-hardening, disable compiler security checks))
 if test x$enable_gcc_hardening != xno; then
@@ -195,13 +204,6 @@ if test x$enable_gcc_hardening != xno; then
         [CXXFLAGS="$CXXFLAGS -fstack-protector-all"]
     )
 ])
-fi
-
-
-
-# check for Pthreads
-if test "$HAVE_PTHREAD" = "yes"; then
-    AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
 fi
 
 SAVE_LDFLAGS=$LDFLAGS
