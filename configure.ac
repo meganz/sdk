@@ -24,6 +24,8 @@
 
 m4_include([m4/ax_prog_doxygen.m4])
 m4_include([m4/curlchk.m4])
+m4_include([m4/ax_check_compile_flag.m4])
+m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
@@ -132,6 +134,13 @@ AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
+
+# Check if we can use -fPIC flag
+AX_CHECK_COMPILE_FLAG([-fPIC], [
+  AX_CHECK_LINK_FLAG([-fPIC],
+    [CXXFLAGS="$CXXFLAGS -fPIC"]
+  )
+])
 
 # Check for inotify support.
 AC_ARG_ENABLE(inotify,
