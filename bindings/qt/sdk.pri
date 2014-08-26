@@ -143,6 +143,7 @@ win32 {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
     DEFINES += SODIUM_STATIC PCRE_STATIC
+    LIBS += -lsodium
 
     contains(CONFIG, BUILDX64) {
 	release {
@@ -195,6 +196,7 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    DEFINES += SODIUM_STATIC PCRE_STATIC
+   LIBS += -lsodium
 
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/qt/libs/sqlite3.c
 
