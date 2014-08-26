@@ -63,6 +63,7 @@ To build the client access engine under Windows, you'll need the following:
 * zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
 * SQLite (optional)
 * FreeImage (optional)
+* pthreads (MinGW)
 
 To build the reference `megacli.exe` example, you will also need to procure
 development packages (at least headers and `.lib`/`.a` libraries) of:
