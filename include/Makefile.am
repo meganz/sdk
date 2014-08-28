@@ -38,7 +38,17 @@ nobase_libmegainclude_HEADERS = \
     mega/crypto/cryptopp.h \
     mega/crypto/sodium.h \
     mega/db/sqlite.h \
-    mega/db/bdb.h
+    mega/db/bdb.h \
+	megaapi.h \
+	megaapi_impl.h \
+	mega/thread.h \
+	mega/thread/cppthread.h \
+	mega/thread/posixthread.h \
+	mega/thread/qtthread.h \
+	mega/gfx/external.h \
+	mega/gfx/qt.h \
+	../third_party/utf8proc/utf8proc.h \
+	../third_party/utf8proc/utf8proc_data.c
 
 if USE_FREEIMAGE
 nobase_libmegainclude_HEADERS += mega/gfx/freeimage.h
