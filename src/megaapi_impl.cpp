@@ -5363,7 +5363,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		t->source = NEW_NODE;
 		t->type = n->type;
 		t->nodehandle = n->nodehandle;
-        t->parenthandle = n->parent->nodehandle;
+        t->parenthandle = n->parent ? n->parent->nodehandlei : UNDEF;
         t->clienttimestamp = n->clienttimestamp;
 
 		// copy key (if file) or generate new key (if folder)
