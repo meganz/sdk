@@ -106,44 +106,44 @@ const char *MegaNodePrivate::getBase64Handle()
     return base64Handle;
 }
 
-int MegaNodePrivate::getType() 
-{ 
-	return type; 
+int MegaNodePrivate::getType()
+{
+	return type;
 }
 
-const char* MegaNodePrivate::getName() 
-{ 
-	return name; 
+const char* MegaNodePrivate::getName()
+{
+	return name;
 }
 
-int64_t MegaNodePrivate::getSize() 
-{ 
-	return size; 
+int64_t MegaNodePrivate::getSize()
+{
+	return size;
 }
 
-int64_t MegaNodePrivate::getCreationTime() 
-{ 
-	return ctime; 
+int64_t MegaNodePrivate::getCreationTime()
+{
+	return ctime;
 }
 
-int64_t MegaNodePrivate::getModificationTime() 
-{ 
-	return mtime; 
+int64_t MegaNodePrivate::getModificationTime()
+{
+	return mtime;
 }
 
-uint64_t MegaNodePrivate::getHandle() 
-{ 
-	return nodehandle; 
+uint64_t MegaNodePrivate::getHandle()
+{
+	return nodehandle;
 }
 
-string *MegaNodePrivate::getNodeKey() 
-{ 
-	return &nodekey; 
+string *MegaNodePrivate::getNodeKey()
+{
+	return &nodekey;
 }
 
-string *MegaNodePrivate::getAttrString() 
-{ 
-	return &attrstring; 
+string *MegaNodePrivate::getAttrString()
+{
+	return &attrstring;
 }
 
 int MegaNodePrivate::getTag()
@@ -189,7 +189,7 @@ bool MegaNodePrivate::hasPreview()
 
 MegaNodePrivate::~MegaNodePrivate()
 {
- 	delete name;   
+ 	delete name;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -361,7 +361,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
 	this->setUpdateTime(transfer.getUpdateTime());
     this->setPublicNode(transfer.getPublicNode());
     this->setTransfer(transfer.getTransfer());
-    this->setSyncTransfer(transfer.isSyncTransfer());    
+    this->setSyncTransfer(transfer.isSyncTransfer());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -369,169 +369,169 @@ MegaTransfer* MegaTransferPrivate::copy()
 	return new MegaTransferPrivate(*this);
 }
 
-void MegaTransferPrivate::setTransfer(Transfer *transfer) 
-{ 
-	this->transfer = transfer; 
-}
-
-Transfer* MegaTransferPrivate::getTransfer() const 
-{ 
-	return transfer; 
-}
-
-int MegaTransferPrivate::getSlot() const 
-{ 
-	return slot; 
-}
-
-int MegaTransferPrivate::getTag() const 
-{ 
-	return tag; 
-}
-
-long long MegaTransferPrivate::getSpeed() const 
-{ 
-	return speed; 
-}
-
-long long MegaTransferPrivate::getDeltaSize() const 
-{ 
-	return deltaSize; 
-}
-
-int64_t MegaTransferPrivate::getUpdateTime() const 
-{ 
-	return updateTime; 
-}
-
-MegaNode *MegaTransferPrivate::getPublicNode() const 
-{ 
-	return publicNode; 
-}
-
-bool MegaTransferPrivate::isSyncTransfer() const 
-{ 
-	return syncTransfer; 
-}
-
-bool MegaTransferPrivate::isStreamingTransfer() const 
-{ 
-	return (transfer == NULL); 
-}
-
-int MegaTransferPrivate::getType() const 
-{ 
-	return type; 
-}
-
-int64_t MegaTransferPrivate::getStartTime() const 
-{ 
-	return startTime; 
-}
-
-long long MegaTransferPrivate::getTransferredBytes() const 
+void MegaTransferPrivate::setTransfer(Transfer *transfer)
 {
-	return transferredBytes; 
+	this->transfer = transfer;
 }
 
-long long MegaTransferPrivate::getTotalBytes() const 
-{ 
-	return totalBytes; 
+Transfer* MegaTransferPrivate::getTransfer() const
+{
+	return transfer;
 }
 
-const char* MegaTransferPrivate::getPath() const 
-{ 
-	return path; 
+int MegaTransferPrivate::getSlot() const
+{
+	return slot;
 }
 
-const char* MegaTransferPrivate::getParentPath() const 
-{ 
-	return parentPath; 
+int MegaTransferPrivate::getTag() const
+{
+	return tag;
 }
 
-uint64_t MegaTransferPrivate::getNodeHandle() const 
-{ 
-	return nodeHandle; 
+long long MegaTransferPrivate::getSpeed() const
+{
+	return speed;
 }
 
-uint64_t MegaTransferPrivate::getParentHandle() const 
-{ 
-	return parentHandle; 
+long long MegaTransferPrivate::getDeltaSize() const
+{
+	return deltaSize;
 }
 
-int MegaTransferPrivate::getNumConnections() const 
-{ 
-	return numConnections; 
+int64_t MegaTransferPrivate::getUpdateTime() const
+{
+	return updateTime;
 }
 
-long long MegaTransferPrivate::getStartPos() const 
-{ 
-	return startPos; 
+MegaNode *MegaTransferPrivate::getPublicNode() const
+{
+	return publicNode;
 }
 
-long long MegaTransferPrivate::getEndPos() const 
-{ 
-	return endPos; 
+bool MegaTransferPrivate::isSyncTransfer() const
+{
+	return syncTransfer;
 }
 
-int MegaTransferPrivate::getMaxSpeed() const 
-{ 
-	return maxSpeed; 
+bool MegaTransferPrivate::isStreamingTransfer() const
+{
+	return (transfer == NULL);
 }
 
-int MegaTransferPrivate::getNumRetry() const 
-{ 
-	return retry; 
+int MegaTransferPrivate::getType() const
+{
+	return type;
 }
 
-int MegaTransferPrivate::getMaxRetries() const 
-{ 
-	return maxRetries; 
+int64_t MegaTransferPrivate::getStartTime() const
+{
+	return startTime;
 }
 
-int64_t MegaTransferPrivate::getTime() const 
-{ 
-	return time; 
+long long MegaTransferPrivate::getTransferredBytes() const
+{
+	return transferredBytes;
 }
 
-const char* MegaTransferPrivate::getFileName() const 
-{ 
-	return fileName; 
+long long MegaTransferPrivate::getTotalBytes() const
+{
+	return totalBytes;
 }
 
-const char* MegaTransferPrivate::getBase64Key() const 
-{ 
-	return base64Key; 
+const char* MegaTransferPrivate::getPath() const
+{
+	return path;
 }
 
-char * MegaTransferPrivate::getLastBytes() const 
-{ 
-	return lastBytes; 
+const char* MegaTransferPrivate::getParentPath() const
+{
+	return parentPath;
 }
 
-void MegaTransferPrivate::setSlot(int slot) 
-{ 
-	this->slot = slot; 
+uint64_t MegaTransferPrivate::getNodeHandle() const
+{
+	return nodeHandle;
 }
 
-void MegaTransferPrivate::setTag(int tag) 
-{ 
-	this->tag = tag; 
+uint64_t MegaTransferPrivate::getParentHandle() const
+{
+	return parentHandle;
 }
 
-void MegaTransferPrivate::setSpeed(long long speed) 
-{ 
-	this->speed = speed; 
+int MegaTransferPrivate::getNumConnections() const
+{
+	return numConnections;
+}
+
+long long MegaTransferPrivate::getStartPos() const
+{
+	return startPos;
+}
+
+long long MegaTransferPrivate::getEndPos() const
+{
+	return endPos;
+}
+
+int MegaTransferPrivate::getMaxSpeed() const
+{
+	return maxSpeed;
+}
+
+int MegaTransferPrivate::getNumRetry() const
+{
+	return retry;
+}
+
+int MegaTransferPrivate::getMaxRetries() const
+{
+	return maxRetries;
+}
+
+int64_t MegaTransferPrivate::getTime() const
+{
+	return time;
+}
+
+const char* MegaTransferPrivate::getFileName() const
+{
+	return fileName;
+}
+
+const char* MegaTransferPrivate::getBase64Key() const
+{
+	return base64Key;
+}
+
+char * MegaTransferPrivate::getLastBytes() const
+{
+	return lastBytes;
+}
+
+void MegaTransferPrivate::setSlot(int slot)
+{
+	this->slot = slot;
+}
+
+void MegaTransferPrivate::setTag(int tag)
+{
+	this->tag = tag;
+}
+
+void MegaTransferPrivate::setSpeed(long long speed)
+{
+	this->speed = speed;
 }
 
 void MegaTransferPrivate::setDeltaSize(long long deltaSize)
-{ 
-	this->deltaSize = deltaSize; 
+{
+	this->deltaSize = deltaSize;
 }
 
-void MegaTransferPrivate::setUpdateTime(int64_t updateTime) 
-{ 
-	this->updateTime = updateTime; 
+void MegaTransferPrivate::setUpdateTime(int64_t updateTime)
+{
+	this->updateTime = updateTime;
 }
 void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
 {
@@ -540,29 +540,29 @@ void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
     else this->publicNode = publicNode->copy();
 }
 
-void MegaTransferPrivate::setSyncTransfer(bool syncTransfer) 
-{ 
-	this->syncTransfer = syncTransfer; 
+void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
+{
+	this->syncTransfer = syncTransfer;
 }
 
-void MegaTransferPrivate::setStartTime(int64_t startTime) 
-{ 
-	this->startTime = startTime; 
+void MegaTransferPrivate::setStartTime(int64_t startTime)
+{
+	this->startTime = startTime;
 }
 
-void MegaTransferPrivate::setTransferredBytes(long long transferredBytes) 
-{ 
-	this->transferredBytes = transferredBytes; 
+void MegaTransferPrivate::setTransferredBytes(long long transferredBytes)
+{
+	this->transferredBytes = transferredBytes;
 }
 
-void MegaTransferPrivate::setTotalBytes(long long totalBytes) 
-{ 
-	this->totalBytes = totalBytes; 
+void MegaTransferPrivate::setTotalBytes(long long totalBytes)
+{
+	this->totalBytes = totalBytes;
 }
 
-void MegaTransferPrivate::setLastBytes(char *lastBytes) 
-{ 
-	this->lastBytes = lastBytes; 
+void MegaTransferPrivate::setLastBytes(char *lastBytes)
+{
+	this->lastBytes = lastBytes;
 }
 void MegaTransferPrivate::setPath(const char* path)
 {
@@ -603,49 +603,49 @@ void MegaTransferPrivate::setBase64Key(const char* base64Key)
     this->base64Key =  MegaApi::strdup(base64Key);
 }
 
-void MegaTransferPrivate::setNodeHandle(uint64_t nodeHandle) 
-{ 
-	this->nodeHandle = nodeHandle; 
-}
-
-void MegaTransferPrivate::setParentHandle(uint64_t parentHandle) 
-{ 
-	this->parentHandle = parentHandle; 
-}
-
-void MegaTransferPrivate::setNumConnections(int connections) 
-{ 
-	this->numConnections = connections; 
-}
-
-void MegaTransferPrivate::setStartPos(long long startPos) 
-{ 
-	this->startPos = startPos; 
-}
-
-void MegaTransferPrivate::setEndPos(long long endPos) 
-{ 
-	this->endPos = endPos; 
-}
-
-void MegaTransferPrivate::setMaxSpeed(int maxSpeed) 
+void MegaTransferPrivate::setNodeHandle(uint64_t nodeHandle)
 {
-	this->maxSpeed = maxSpeed; 
+	this->nodeHandle = nodeHandle;
 }
 
-void MegaTransferPrivate::setNumRetry(int retry) 
+void MegaTransferPrivate::setParentHandle(uint64_t parentHandle)
 {
-	this->retry = retry; 
+	this->parentHandle = parentHandle;
 }
 
-void MegaTransferPrivate::setMaxRetries(int maxRetries) 
+void MegaTransferPrivate::setNumConnections(int connections)
 {
-	this->maxRetries = maxRetries; 
+	this->numConnections = connections;
 }
 
-void MegaTransferPrivate::setTime(int64_t time) 
-{ 
-	this->time = time; 
+void MegaTransferPrivate::setStartPos(long long startPos)
+{
+	this->startPos = startPos;
+}
+
+void MegaTransferPrivate::setEndPos(long long endPos)
+{
+	this->endPos = endPos;
+}
+
+void MegaTransferPrivate::setMaxSpeed(int maxSpeed)
+{
+	this->maxSpeed = maxSpeed;
+}
+
+void MegaTransferPrivate::setNumRetry(int retry)
+{
+	this->retry = retry;
+}
+
+void MegaTransferPrivate::setMaxRetries(int maxRetries)
+{
+	this->maxRetries = maxRetries;
+}
+
+void MegaTransferPrivate::setTime(int64_t time)
+{
+	this->time = time;
 }
 
 const char * MegaTransferPrivate::getTransferString() const
@@ -661,9 +661,9 @@ const char * MegaTransferPrivate::getTransferString() const
 	return "unknown";
 }
 
-MegaTransferListener* MegaTransferPrivate::getListener() const 
-{ 
-	return listener; 
+MegaTransferListener* MegaTransferPrivate::getListener() const
+{
+	return listener;
 }
 
 MegaTransferPrivate::~MegaTransferPrivate()
@@ -675,14 +675,14 @@ MegaTransferPrivate::~MegaTransferPrivate()
     delete publicNode;
 }
 
-const char * MegaTransferPrivate::toString() const 
-{ 
-	return getTransferString(); 
+const char * MegaTransferPrivate::toString() const
+{
+	return getTransferString();
 }
 
-const char * MegaTransferPrivate::__str__() const 
-{ 
-	return getTransferString(); 
+const char * MegaTransferPrivate::__str__() const
+{
+	return getTransferString();
 }
 
 MegaAccountDetails *MegaAccountDetailsPrivate::fromAccountDetails(AccountDetails *details)
@@ -772,7 +772,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
 	this->accountDetails = NULL;
 	if(request.getAccountDetails())
     {
-		this->accountDetails = new AccountDetails();		
+		this->accountDetails = new AccountDetails();
         AccountDetails *temp = request.getAccountDetails();
         this->accountDetails->pro_level = temp->pro_level;
         this->accountDetails->subscription_type = temp->subscription_type;
@@ -793,14 +793,14 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
 	}
 }
 
-AccountDetails *MegaRequestPrivate::getAccountDetails() const 
-{ 
-	return accountDetails; 
+AccountDetails *MegaRequestPrivate::getAccountDetails() const
+{
+	return accountDetails;
 }
 
 MegaAccountDetails *MegaRequestPrivate::getMegaAccountDetails() const
-{ 
-	return MegaAccountDetailsPrivate::fromAccountDetails(accountDetails); 
+{
+	return MegaAccountDetailsPrivate::fromAccountDetails(accountDetails);
 }
 
 MegaRequestPrivate::~MegaRequestPrivate()
@@ -817,119 +817,119 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete accountDetails;
 }
 
-int MegaRequestPrivate::getType() const 
-{ 
-	return type; 
+int MegaRequestPrivate::getType() const
+{
+	return type;
 }
 
-uint64_t MegaRequestPrivate::getNodeHandle() const 
-{ 
-	return nodeHandle; 
+uint64_t MegaRequestPrivate::getNodeHandle() const
+{
+	return nodeHandle;
 }
 
-const char* MegaRequestPrivate::getLink() const 
-{ 
-	return link; 
+const char* MegaRequestPrivate::getLink() const
+{
+	return link;
 }
 
-uint64_t MegaRequestPrivate::getParentHandle() const 
-{ 
-	return parentHandle; 
+uint64_t MegaRequestPrivate::getParentHandle() const
+{
+	return parentHandle;
 }
 
-const char* MegaRequestPrivate::getSessionKey() const 
-{ 
-	return sessionKey; 
+const char* MegaRequestPrivate::getSessionKey() const
+{
+	return sessionKey;
 }
 
-const char* MegaRequestPrivate::getName() const 
-{ 
-	return name; 
+const char* MegaRequestPrivate::getName() const
+{
+	return name;
 }
 
-const char* MegaRequestPrivate::getEmail() const 
-{ 
-	return email; 
+const char* MegaRequestPrivate::getEmail() const
+{
+	return email;
 }
 
-const char* MegaRequestPrivate::getPassword() const 
-{ 
-	return password; 
+const char* MegaRequestPrivate::getPassword() const
+{
+	return password;
 }
 
-const char* MegaRequestPrivate::getNewPassword() const 
-{ 
-	return newPassword; 
+const char* MegaRequestPrivate::getNewPassword() const
+{
+	return newPassword;
 }
 
-const char* MegaRequestPrivate::getPrivateKey() const 
-{ 
-	return privateKey; 
+const char* MegaRequestPrivate::getPrivateKey() const
+{
+	return privateKey;
 }
 
-int MegaRequestPrivate::getAccess() const 
-{ 
-	return access; 
+int MegaRequestPrivate::getAccess() const
+{
+	return access;
 }
 
-const char* MegaRequestPrivate::getFile() const 
-{ 
-	return file; 
+const char* MegaRequestPrivate::getFile() const
+{
+	return file;
 }
 
-int MegaRequestPrivate::getParamType() const 
-{ 
-	return attrType; 
+int MegaRequestPrivate::getParamType() const
+{
+	return attrType;
 }
 
-bool MegaRequestPrivate::getFlag() const 
-{ 
+bool MegaRequestPrivate::getFlag() const
+{
 	return flag;
 }
 
-long long MegaRequestPrivate::getTransferredBytes() const 
-{ 
-	return transferredBytes; 
+long long MegaRequestPrivate::getTransferredBytes() const
+{
+	return transferredBytes;
 }
 
-long long MegaRequestPrivate::getTotalBytes() const 
-{ 
-	return totalBytes; 
+long long MegaRequestPrivate::getTotalBytes() const
+{
+	return totalBytes;
 }
 
-int MegaRequestPrivate::getNumRetry() const 
-{ 
-	return numRetry; 
+int MegaRequestPrivate::getNumRetry() const
+{
+	return numRetry;
 }
 
-int MegaRequestPrivate::getNextRetryDelay() const 
-{ 
-	return nextRetryDelay; 
+int MegaRequestPrivate::getNextRetryDelay() const
+{
+	return nextRetryDelay;
 }
 
-int MegaRequestPrivate::getNumDetails() const 
-{ 
-	return numDetails; 
+int MegaRequestPrivate::getNumDetails() const
+{
+	return numDetails;
 }
 
-void MegaRequestPrivate::setNumDetails(int numDetails) 
-{ 
-	this->numDetails = numDetails; 
+void MegaRequestPrivate::setNumDetails(int numDetails)
+{
+	this->numDetails = numDetails;
 }
 
-MegaNode *MegaRequestPrivate::getPublicNode() 
-{ 
+MegaNode *MegaRequestPrivate::getPublicNode()
+{
 	return publicNode;
 }
 
-void MegaRequestPrivate::setNodeHandle(uint64_t nodeHandle) 
-{ 
-	this->nodeHandle = nodeHandle; 
+void MegaRequestPrivate::setNodeHandle(uint64_t nodeHandle)
+{
+	this->nodeHandle = nodeHandle;
 }
 
-void MegaRequestPrivate::setParentHandle(uint64_t parentHandle) 
-{ 
-	this->parentHandle = parentHandle; 
+void MegaRequestPrivate::setParentHandle(uint64_t parentHandle)
+{
+	this->parentHandle = parentHandle;
 }
 
 void MegaRequestPrivate::setSessionKey(const char* sessionKey)
@@ -938,56 +938,56 @@ void MegaRequestPrivate::setSessionKey(const char* sessionKey)
     this->sessionKey = MegaApi::strdup(sessionKey);
 }
 
-void MegaRequestPrivate::setNumRetry(int numRetry) 
-{ 
-	this->numRetry = numRetry; 
+void MegaRequestPrivate::setNumRetry(int numRetry)
+{
+	this->numRetry = numRetry;
 }
 
-void MegaRequestPrivate::setNextRetryDelay(int nextRetryDelay) 
-{ 
-	this->nextRetryDelay = nextRetryDelay; 
+void MegaRequestPrivate::setNextRetryDelay(int nextRetryDelay)
+{
+	this->nextRetryDelay = nextRetryDelay;
 }
 
 void MegaRequestPrivate::setLink(const char* link)
 {
-	if(this->link) 
+	if(this->link)
 		delete [] this->link;
-    
+
     this->link = MegaApi::strdup(link);
 }
 void MegaRequestPrivate::setName(const char* name)
 {
-	if(this->name) 
+	if(this->name)
 		delete [] this->name;
-    
+
     this->name = MegaApi::strdup(name);
 }
 void MegaRequestPrivate::setEmail(const char* email)
 {
-	if(this->email) 
+	if(this->email)
 		delete [] this->email;
-    
+
     this->email = MegaApi::strdup(email);
 }
 void MegaRequestPrivate::setPassword(const char* password)
 {
-	if(this->password) 
+	if(this->password)
 		delete [] this->password;
-    
+
     this->password = MegaApi::strdup(password);
 }
 void MegaRequestPrivate::setNewPassword(const char* newPassword)
 {
-	if(this->newPassword) 
+	if(this->newPassword)
 		delete [] this->newPassword;
-    
+
     this->newPassword = MegaApi::strdup(newPassword);
 }
 void MegaRequestPrivate::setPrivateKey(const char* privateKey)
 {
-	if(this->privateKey) 
+	if(this->privateKey)
 		delete [] this->privateKey;
-    
+
     this->privateKey = MegaApi::strdup(privateKey);
 }
 void MegaRequestPrivate::setAccess(int access)
@@ -999,7 +999,7 @@ void MegaRequestPrivate::setFile(const char* file)
 {
     if(this->file)
         delete [] this->file;
-    
+
     this->file = MegaApi::strdup(file);
 }
 
@@ -1035,12 +1035,12 @@ void MegaRequestPrivate::setTransferredBytes(long long transferredBytes)
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
 {
-    if(this->publicNode) 
+    if(this->publicNode)
 		delete this->publicNode;
-    
-    if(!publicNode) 
+
+    if(!publicNode)
 		this->publicNode = NULL;
-    else 
+    else
 		this->publicNode = publicNode->copy();
 }
 
@@ -1089,30 +1089,30 @@ const char *MegaRequestPrivate::getRequestString() const
 	return "unknown";
 }
 
-MegaRequestListener *MegaRequestPrivate::getListener() const 
-{ 
-	return listener; 
+MegaRequestListener *MegaRequestPrivate::getListener() const
+{
+	return listener;
 }
 
-int MegaRequestPrivate::getTransfer() const 
-{ 
-	return transfer; 
+int MegaRequestPrivate::getTransfer() const
+{
+	return transfer;
 }
 
-const char *MegaRequestPrivate::toString() const 
-{ 
-	return getRequestString(); 
+const char *MegaRequestPrivate::toString() const
+{
+	return getRequestString();
 }
 
-const char *MegaRequestPrivate::__str__() const 
-{ 
-	return getRequestString(); 
+const char *MegaRequestPrivate::__str__() const
+{
+	return getRequestString();
 }
 
 NodeListPrivate::NodeListPrivate()
-{ 
-	list = NULL; 
-	s = 0; 
+{
+	list = NULL;
+	s = 0;
 }
 
 NodeListPrivate::NodeListPrivate(Node** newlist, int size)
@@ -1127,7 +1127,7 @@ NodeListPrivate::NodeListPrivate(Node** newlist, int size)
 
 NodeListPrivate::~NodeListPrivate()
 {
-	if(!list) 
+	if(!list)
 		return;
 
 	for(int i=0; i<s; i++)
@@ -1144,22 +1144,22 @@ MegaNode *NodeListPrivate::get(int i)
 }
 
 int NodeListPrivate::size()
-{ 
-	return s; 
+{
+	return s;
 }
 
 UserListPrivate::UserListPrivate()
-{ 
-	list = NULL; 
-	s = 0; 
+{
+	list = NULL;
+	s = 0;
 }
 
 UserListPrivate::UserListPrivate(User** newlist, int size)
 {
-	list = NULL; 
+	list = NULL;
 	s = size;
-	
-	if(!size) 
+
+	if(!size)
 		return;
 
 	list = new MegaUser*[size];
@@ -1169,12 +1169,12 @@ UserListPrivate::UserListPrivate(User** newlist, int size)
 
 UserListPrivate::~UserListPrivate()
 {
-	if(!list) 
+	if(!list)
 		return;
 
 	for(int i=0; i<s; i++)
 		delete list[i];
-	
+
 	delete [] list;
 }
 
@@ -1187,15 +1187,15 @@ MegaUser *UserListPrivate::get(int i)
 }
 
 int UserListPrivate::size()
-{ 
-	return s; 
+{
+	return s;
 }
 
 
 ShareListPrivate::ShareListPrivate()
-{ 
-	list = NULL; 
-	s = 0; 
+{
+	list = NULL;
+	s = 0;
 }
 
 ShareListPrivate::ShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
@@ -1210,12 +1210,12 @@ ShareListPrivate::ShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int 
 
 ShareListPrivate::~ShareListPrivate()
 {
-	if(!list) 
+	if(!list)
 		return;
 
 	for(int i=0; i<s; i++)
 		delete list[i];
-	
+
 	delete [] list;
 }
 
@@ -1228,22 +1228,22 @@ MegaShare *ShareListPrivate::get(int i)
 }
 
 int ShareListPrivate::size()
-{ 
-	return s; 
+{
+	return s;
 }
 
 TransferListPrivate::TransferListPrivate()
-{ 
-	list = NULL; 
-	s = 0; 
+{
+	list = NULL;
+	s = 0;
 }
 
 TransferListPrivate::TransferListPrivate(MegaTransfer** newlist, int size)
 {
-	list = NULL; 
+	list = NULL;
 	s = size;
-	
-	if(!size) 
+
+	if(!size)
 		return;
 
     list = new MegaTransfer*[size];
@@ -1253,12 +1253,12 @@ TransferListPrivate::TransferListPrivate(MegaTransfer** newlist, int size)
 
 TransferListPrivate::~TransferListPrivate()
 {
-	if(!list) 
+	if(!list)
 		return;
 
 	for(int i=0; i<s; i++)
 		delete list[i];
-	
+
 	delete [] list;
 }
 
@@ -1271,8 +1271,8 @@ MegaTransfer *TransferListPrivate::get(int i)
 }
 
 int TransferListPrivate::size()
-{ 
-	return s; 
+{
+	return s;
 }
 
 int MegaFile::nextseqno = 0;
@@ -1365,8 +1365,8 @@ void MegaFilePut::completed(Transfer* t, LocalNode*)
 }
 
 bool TreeProcessor::processNode(Node*)
-{ 
-	return false; /* Stops the processing */ 
+{
+	return false; /* Stops the processing */
 }
 
 TreeProcessor::~TreeProcessor()
@@ -1476,9 +1476,9 @@ const char* MegaApiImpl::getMyEmail()
 {
 	User* u;
     sdkMutex.lock();
-	if (!client->loggedin() || !(u = client->finduser(client->me))) 
+	if (!client->loggedin() || !(u = client->finduser(client->me)))
 		return NULL;
-		
+
     const char *result = MegaApi::strdup(u->email.c_str());
     sdkMutex.unlock();
 	return result;
@@ -1490,7 +1490,7 @@ const char* MegaApiImpl::getBase64PwKey(const char *password)
 
 	byte pwkey[SymmCipher::KEYLENGTH];
 	error e = client->pw_key(password,pwkey);
-	if(e) 
+	if(e)
 		return NULL;
 
 	char* buf = new char[SymmCipher::KEYLENGTH*4/3+4];
@@ -2769,7 +2769,7 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         if(!tr->files.front()->syncxfer && !tr->slot->progressreported && (tr->type==GET))
         {
             tr->localfilename.append("",1);
-   
+
 			WIN32_FILE_ATTRIBUTE_DATA fad;
 			if (GetFileAttributesExW((LPCWSTR)tr->localfilename.data(), GetFileExInfoStandard, &fad))
 				SetFileAttributesW((LPCWSTR)tr->localfilename.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
@@ -2983,7 +2983,7 @@ void MegaApiImpl::syncupdate_remote_move(string *, string *)
 }
 
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
-{    
+{
     string local;
     string path;
     l->getlocalpath(&local, true);
@@ -4080,7 +4080,7 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
 int MegaApiImpl::getNumChildFolders(MegaNode* p)
 {
 	if (!p) return 0;
-	
+
 	sdkMutex.lock();
 	Node *parent = client->nodebyhandle(p->getHandle());
 	if (!parent)
@@ -5363,7 +5363,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		t->source = NEW_NODE;
 		t->type = n->type;
 		t->nodehandle = n->nodehandle;
-        t->parenthandle = n->parent ? n->parent->nodehandlei : UNDEF;
+        t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
         t->clienttimestamp = n->clienttimestamp;
 
 		// copy key (if file) or generate new key (if folder)
