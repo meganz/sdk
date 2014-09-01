@@ -151,7 +151,7 @@ String^ MRequest::getFile()
 
 MNode^ MRequest::getPublicNode()
 {
-	return nullptr;
+	return megaRequest && megaRequest->getPublicNode() ? ref new MNode(megaRequest->getPublicNode()->copy(), true) : nullptr;
 }
 
 int MRequest::getParamType()

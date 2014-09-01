@@ -22,6 +22,7 @@ namespace mega
 		friend ref class MegaSDK;
 		friend ref class MNodeList;
 		friend ref class MTransfer;
+		friend ref class MRequest;
 
 	public:
 		virtual ~MNode();
