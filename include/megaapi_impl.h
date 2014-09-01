@@ -611,7 +611,7 @@ class MegaApiImpl : public MegaApp
         TransferList *getTransfers();
 
         //Sync
-        treestate_t syncPathState(string *path);
+        int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder);
         void resumeSync(const char *localFolder, MegaNode *megaFolder);

@@ -565,7 +565,7 @@ bool MegaApi::moveToLocalDebris(const char *path)
 
 int MegaApi::syncPathState(string* path)
 {
-    return (int)pImpl->syncPathState(path);
+    return pImpl->syncPathState(path);
 }
 
 MegaNode *MegaApi::getSyncedNode(string *path)

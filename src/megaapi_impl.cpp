@@ -2165,7 +2165,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     return result;
 }
 
-treestate_t MegaApiImpl::syncPathState(string* path)
+int MegaApiImpl::syncPathState(string* path)
 {
 #ifdef _WIN32
     string prefix("\\\\?\\");
@@ -2175,26 +2175,27 @@ treestate_t MegaApiImpl::syncPathState(string* path)
         path->insert(0, localPrefix);
 #endif
 
-    treestate_t state = TREESTATE_NONE;
+    int state = MegaApi::STATE_NONE;
     sdkMutex.lock();
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
-        if(path->size()<sync->localroot.localname.size()) continue;
-        if(path->size()==sync->localroot.localname.size())
-        {
-            if(!memcmp(path->data(), sync->localroot.localname.data(), path->size()))
-            {
-                state = sync->localroot.ts;
-                break;
-            }
-            else continue;
-        }
+        unsigned int ssize = sync->localroot.localname.size();
+        if(path->size() < ssize || memcmp(path->data(), sync->localroot.localname.data(), ssize))
+            continue;
 
-        LocalNode* l = sync->localnodebypath(NULL,path);
-        if(l)
+        if(path->size() == ssize)
         {
-            state = l->ts;
+            state = sync->localroot.ts;
+            break;
+        }
+        else if(!memcmp(path->data()+ssize, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
+        {
+            LocalNode* l = sync->localnodebypath(NULL, path);
+            if(l)
+                state = l->ts;
+            else
+                state = MegaApi::STATE_IGNORED;
             break;
         }
     }
