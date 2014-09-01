@@ -399,6 +399,7 @@ class MegaApi
 
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
         virtual ~MegaApi();
 
         //Multiple listener management.

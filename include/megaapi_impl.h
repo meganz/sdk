@@ -536,6 +536,7 @@ class MegaApiImpl : public MegaApp
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
         virtual ~MegaApiImpl();
 
         //Multiple listener management.
@@ -674,7 +675,7 @@ class MegaApiImpl : public MegaApp
         static bool userComparatorDefaultASC (User *i, User *j);
 
 protected:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
         static void *threadEntryPoint(void *param);
 

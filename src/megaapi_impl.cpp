@@ -1398,7 +1398,12 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath,
 	init(api, appKey, NULL, basePath, userAgent);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+{
+	init(api, appKey, NULL, basePath, userAgent, fseventsfd);
+}
+
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
 {
     this->api = api;
 
@@ -1423,9 +1428,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     waiter = new MegaWaiter();
 
 #ifndef __APPLE__
+    (void)fseventsfd;
     fsAccess = new MegaFileSystemAccess();
 #else
-    fsAccess = new MegaFileSystemAccess(MacXPlatform::fd);
+    fsAccess = new MegaFileSystemAccess(fseventsfd);
 #endif
 
 	if (basePath)
@@ -4659,7 +4665,7 @@ void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
     string spath = path;
-    mega::PosixFileSystemAccess::emptydirlocal(&spath);
+    PosixFileSystemAccess::emptydirlocal(&spath);
 #endif
 }
 

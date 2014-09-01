@@ -276,6 +276,11 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent);
 }
 
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+{
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd);
+}
+
 MegaApi::~MegaApi()
 {
     delete pImpl;
