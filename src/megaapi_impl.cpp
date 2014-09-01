@@ -4393,7 +4393,6 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 			{
 				if (c[2] == "in") n = client->nodebyhandle(client->rootnodes[1]);
 				else if (c[2] == "bin") n = client->nodebyhandle(client->rootnodes[2]);
-				else if (c[2] == "mail") n = client->nodebyhandle(client->rootnodes[3]);
 				else
 				{
                     sdkMutex.unlock();
