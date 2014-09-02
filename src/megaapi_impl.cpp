@@ -2752,8 +2752,12 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
             if(!t->localfilename.size())
                 t->localfilename = t->files.front()->localname;
 
-            string suffix(".mega");
-            fsAccess->name2local(&suffix);
+            int index = t->localfilename.find_last_of(fsAccess->localseparator);
+            if(index != string::npos)
+                t->localfilename.resize(index+1);
+
+            string suffix;
+            fsAccess->tmpnamelocal(&suffix);
             t->localfilename.append(suffix);
         }
 	}
