@@ -1437,6 +1437,13 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 	if (basePath)
 	{
 		string sBasePath = basePath;
+		int lastIndex = sBasePath.size() - 1;
+		if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+		{
+			string utf8Separator;
+			fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
+			sBasePath.append(utf8Separator);
+		}
 		dbAccess = new MegaDbAccess(&sBasePath);
 	}
 	else dbAccess = NULL;
