@@ -3165,7 +3165,9 @@ void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t l
 
     FileAccess *f = client->fsaccess->newfileaccess();
     string filePath(request->getFile());
-    f->fopen(&filePath, false, true);
+    string localPath;
+    fsAccess->path2local(&filePath, &localPath);
+    f->fopen(&localPath, false, true);
 	f->fwrite((const byte*)data, len, 0);
 	delete f;
     fireOnRequestFinish(request, MegaError(API_OK));
@@ -3541,7 +3543,9 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
 	FileAccess *f = client->fsaccess->newfileaccess();
 	string filePath(request->getFile());
-	f->fopen(&filePath, false, true);
+	string localPath;
+	fsAccess->path2local(&filePath, &localPath);
+	f->fopen(&localPath, false, true);
 	f->fwrite((const byte*)data, len, 0);
 	delete f;
     fireOnRequestFinish(request, MegaError(API_OK));
