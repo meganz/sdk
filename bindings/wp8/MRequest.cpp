@@ -143,7 +143,7 @@ String^ MRequest::getFile()
 	if (!megaRequest) return nullptr;
 
 	std::string utf16file;
-	const char *utf8file = megaRequest->getPrivateKey();
+	const char *utf8file = megaRequest->getFile();
 	MegaApi::utf8ToUtf16(utf8file, &utf16file);
 
 	return ref new String((wchar_t *)utf16file.data());
