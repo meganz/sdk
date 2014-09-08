@@ -25,13 +25,9 @@
 namespace mega {
 class MEGA_API WinPhoneWaiter : public Waiter
 {
-    vector<HANDLE> handles;
-    vector<int> flags;
 	int maxfd;
-	fd_set ignorefds;
-
-	bool fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const;
-	bool notified;
+	SOCKET wakupSocket;
+	struct sockaddr_in notifyAddress;
 
 public:
     PCRITICAL_SECTION pcsHTTP;
@@ -43,10 +39,7 @@ public:
 	void bumpmaxfd(int);
 	fd_set rfds, wfds, efds;
 
-    bool addhandle(HANDLE handle, int);
-
 	WinPhoneWaiter();
-
 	void notify();
 };
 } // namespace

@@ -22,15 +22,24 @@
 #include "mega.h"
 #include "mega/wp8/megawaiter.h"
 
-#include <thread>
-
 namespace mega {
 dstime Waiter::ds;
+
+int CALLBACK RejectFunc(LPWSABUF, LPWSABUF, LPQOS, LPQOS, LPWSABUF, LPWSABUF, GROUP FAR *, DWORD_PTR)
+{ return CF_REJECT; }
 
 WinPhoneWaiter::WinPhoneWaiter()
 {
 	maxfd = -1;
-	notified = false;
+
+	int notifyAddressSize = sizeof(notifyAddress);
+	wakupSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	notifyAddress.sin_family = AF_INET;
+	notifyAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+	notifyAddress.sin_port = htons(0);
+	::bind(wakupSocket, (SOCKADDR*)&notifyAddress, notifyAddressSize);
+	::getsockname(wakupSocket, (SOCKADDR*)&notifyAddress, &notifyAddressSize);
+	::listen(wakupSocket, SOMAXCONN);
 }
 
 void WinPhoneWaiter::init(dstime ds)
@@ -42,7 +51,6 @@ void WinPhoneWaiter::init(dstime ds)
 	FD_ZERO(&rfds);
 	FD_ZERO(&wfds);
 	FD_ZERO(&efds);
-	FD_ZERO(&ignorefds);
 }
 
 // update monotonously increasing timestamp in deciseconds
@@ -61,65 +69,37 @@ void WinPhoneWaiter::bumpmaxfd(int fd)
 	}
 }
 
-// checks if an unfiltered fd is set
-// FIXME: use bitwise & instead of scanning
-bool WinPhoneWaiter::fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const
-{
-	while (nfds--)
-	{
-		if (FD_ISSET(nfds, fds) && !FD_ISSET(nfds, ignorefds)) return true;
-	}
-
-	return false;
-}
-
 // wait for events (socket, I/O completion, timeout + application events)
 // ds specifies the maximum amount of time to wait in deciseconds (or ~0 if no
 // timeout scheduled)
-// (this assumes that the second call to addhandle() was coming from the
-// network layer)
 int WinPhoneWaiter::wait()
 {
 	timeval tv;
-	if (maxds < 0 || maxds > 10)
-		maxds = 10;
 
-	dstime us = 1000000 / 10 * maxds;
-	tv.tv_sec = us / 1000000;
-	tv.tv_usec = us - tv.tv_sec * 1000000;
-
-	if (maxfd >= 0)
+	if (EVER(maxds))
 	{
-		select(maxfd + 1, &rfds, &wfds, &efds, &tv);
-		return NEEDEXEC;
+		dstime us = 1000000 / 10 * maxds;
+
+		tv.tv_sec = us / 1000000;
+		tv.tv_usec = us - tv.tv_sec * 1000000;
 	}
-	else
-	{
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-		if (notified)
-		{
-			notified = false;
-			return NEEDEXEC;
-		}
 
-		//Needed because cURL doesn't include c-ares in our build yet :-/
-		return NEEDEXEC;
-	}
-}
+	FD_SET(wakupSocket, &rfds);
+	select(maxfd + 1, &rfds, &wfds, &efds, EVER(maxds) ? &tv : NULL);
+	
+	if (FD_ISSET(wakupSocket, &rfds))
+		WSAAccept(wakupSocket, NULL, NULL, RejectFunc, NULL);
 
-// add handle to the list - must not be called twice with the same handle
-// return true if handle added
-bool WinPhoneWaiter::addhandle(HANDLE handle, int flag)
-{
-    handles.push_back(handle);
-    flags.push_back(flag);
-
-    return true;
+	return NEEDEXEC;
 }
 
 void WinPhoneWaiter::notify()
 {
-	notified = true;
+	u_long mode = 1;
+	SOCKET notifySocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	::ioctlsocket(notifySocket, FIONBIO, &mode);
+	::connect(notifySocket, (SOCKADDR*)&notifyAddress, sizeof(notifyAddress));
+	::closesocket(notifySocket);
 }
 
 } // namespace
