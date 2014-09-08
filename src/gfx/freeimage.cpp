@@ -33,6 +33,14 @@ typedef const char freeimage_filename_char_t;
 #endif
 
 namespace mega {
+
+GfxProcFreeImage::GfxProcFreeImage()
+{
+#ifdef FREEIMAGE_LIB
+	FreeImage_Initialise(TRUE);
+#endif
+}
+
 const char* GfxProcFreeImage::supportedformats()
 {
     return ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
