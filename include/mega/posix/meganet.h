@@ -37,6 +37,7 @@ protected:
     string proxyurl;
     string proxyusername;
     string proxypassword;
+	string dnsservers;
 
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
@@ -59,6 +60,7 @@ public:
     void setuseragent(string*);
     void setproxy(Proxy *);
     Proxy *getautoproxy();
+	void setdnsservers(const char *dnsservers);
 
     CurlHttpIO();
     ~CurlHttpIO();

@@ -49,6 +49,12 @@ void CurlHttpIO::setuseragent(string* u)
     useragent = u;
 }
 
+void CurlHttpIO::setdnsservers(const char *servers)
+{
+	if (servers)
+		dnsservers = servers;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int flags)
 {
@@ -102,6 +108,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
+
+		if (dnsservers.size())
+			curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, dnsservers.c_str());
 
 #ifdef __ANDROID__
         //cURL can't find the certstore on Android,
