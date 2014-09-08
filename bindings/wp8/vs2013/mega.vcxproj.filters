@@ -13,10 +13,6 @@
     <Filter Include="SDK\Header">
       <UniqueIdentifier>{daeeae6f-4786-413b-9aeb-bb7850420bbd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Libraries">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\mega.h">
@@ -393,19 +389,8 @@
     <ClCompile Include="..\MUserList.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\3rdparty\bin\Debug\ARM\libcurl.dll">
-      <Filter>Libraries</Filter>
-    </Library>
-    <Library Include="..\3rdparty\bin\Debug\ARM\libeay32.dll">
-      <Filter>Libraries</Filter>
-    </Library>
-    <Library Include="..\3rdparty\bin\Debug\ARM\sqlite3.dll">
-      <Filter>Libraries</Filter>
-    </Library>
-    <Library Include="..\3rdparty\bin\Debug\ARM\ssleay32.dll">
-      <Filter>Libraries</Filter>
-    </Library>
+    <ClCompile Include="..\..\..\src\gfx\freeimage.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -59,9 +59,18 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <LibraryPath>$(ProjectDir)..\3rdparty\libs\Debug\ARM;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <LibraryPath>$(ProjectDir)..\3rdparty\libs\Release\ARM;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LibraryPath>$(WP80ToolSetPath)lib;$(WindowsSDK_LibraryPath_x86);$(ProjectDir)..\3rdparty\libs\Release\Win32</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LibraryPath>$(ProjectDir)..\3rdparty\libs\Debug\Win32;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -75,27 +84,30 @@
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>ole32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
-      <AdditionalDependencies>sqlite3.lib;cryptopp.lib;ws2_32.lib;libcurl.lib;ssleay32.lib;libeay32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>sqlite3.lib;cryptopp.lib;ws2_32.lib;libcurl.lib;ssleay32.lib;libeay32.lib;zlib.lib;cares.lib;FreeImage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>ole32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
+      <AdditionalDependencies>WindowsPhoneCore.lib;RuntimeObject.lib;PhoneAppModelHost.lib;sqlite3.lib;cryptopp.lib;ws2_32.lib;libcurl.lib;ssleay32.lib;libeay32.lib;zlib.lib;cares.lib;FreeImage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -109,22 +121,25 @@
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>ole32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
-      <AdditionalDependencies>sqlite3.lib;cryptopp.lib;ws2_32.lib;libcurl.lib;ssleay32.lib;libeay32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>sqlite3.lib;cryptopp.lib;ws2_32.lib;libcurl.lib;ssleay32.lib;libeay32.lib;zlib.lib;cares.lib;FreeImage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>ole32.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
+      <AdditionalDependencies>sqlite3.lib;cryptopp.lib;ws2_32.lib;libcurl.lib;ssleay32.lib;libeay32.lib;zlib.lib;cares.lib;FreeImage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -219,6 +234,7 @@
     <ClCompile Include="..\..\..\src\filesystem.cpp" />
     <ClCompile Include="..\..\..\src\gfx.cpp" />
     <ClCompile Include="..\..\..\src\gfx\external.cpp" />
+    <ClCompile Include="..\..\..\src\gfx\freeimage.cpp" />
     <ClCompile Include="..\..\..\src\http.cpp" />
     <ClCompile Include="..\..\..\src\json.cpp" />
     <ClCompile Include="..\..\..\src\logging.cpp" />
@@ -260,28 +276,6 @@
     <ClCompile Include="..\MTransferList.cpp" />
     <ClCompile Include="..\MUser.cpp" />
     <ClCompile Include="..\MUserList.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\3rdparty\bin\Debug\ARM\libcurl.dll">
-      <FileType>Document</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">true</ExcludedFromBuild>
-      <DeploymentContent>true</DeploymentContent>
-    </Library>
-    <Library Include="..\3rdparty\bin\Debug\ARM\libeay32.dll">
-      <FileType>Document</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">true</ExcludedFromBuild>
-      <DeploymentContent>true</DeploymentContent>
-    </Library>
-    <Library Include="..\3rdparty\bin\Debug\ARM\sqlite3.dll">
-      <FileType>Document</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">true</ExcludedFromBuild>
-      <DeploymentContent>true</DeploymentContent>
-    </Library>
-    <Library Include="..\3rdparty\bin\Debug\ARM\ssleay32.dll">
-      <FileType>Document</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">true</ExcludedFromBuild>
-      <DeploymentContent>true</DeploymentContent>
-    </Library>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsPhone\v$(TargetPlatformVersion)\Microsoft.Cpp.WindowsPhone.$(TargetPlatformVersion).targets" />
