@@ -1457,9 +1457,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 	}
 	else
 	{
-		#ifndef WINDOWS_PHONE
-			gfxAccess = new MegaGfxProc();
-		#endif
+		gfxAccess = new MegaGfxProc();
 	}
 
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
@@ -1714,6 +1712,34 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
+#ifdef WINDOWS_PHONE
+	// Workaround to get the IP of valid DNS servers on Windows Phone
+	struct hostent *hp;
+	struct in_addr **addr_list;
+	string servers;
+
+	while (true)
+	{
+		hp = gethostbyname("ns.mega.co.nz");
+		if (hp != NULL && hp->h_addr != NULL)
+		{
+			addr_list = (struct in_addr **)hp->h_addr_list;
+			for (int i = 0; addr_list[i] != NULL; i++)
+			{
+				const char *ip = inet_ntoa(*addr_list[i]);
+				if (i > 0) servers.append(",");
+				servers.append(ip);
+			}
+
+			if (servers.size())
+				break;
+		}
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
+
+	httpio->setdnsservers(servers.c_str());
+#endif
+
     while(true)
 	{
         int r = client->wait();
