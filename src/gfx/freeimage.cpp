@@ -32,6 +32,11 @@ typedef const wchar_t freeimage_filename_char_t;
 typedef const char freeimage_filename_char_t;
 #endif
 
+#if FREEIMAGE_MAJOR_VERSION < 3 || FREEIMAGE_MINOR_VERSION < 13
+#define OLD_FREEIMAGE
+#endif
+
+
 namespace mega {
 
 GfxProcFreeImage::GfxProcFreeImage()
@@ -67,6 +72,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         return false;
     }
 
+ #ifndef OLD_FREEIMAGE
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
@@ -100,10 +106,15 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         }
     }
     else
+#endif
     {
         // load all other image types - for RAW formats, rely on embedded preview
         if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname->data(),
+                #ifndef OLD_FREEIMAGE
                                     (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
+                #else
+                                    0)))
+                #endif
         {
 #ifdef _WIN32
             localname->resize(localname->size()-1);
@@ -146,7 +157,11 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
             if ((hmem = FreeImage_OpenMemory()))
             {
-                if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem, JPEG_BASELINE | JPEG_OPTIMIZE | 85))
+                if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem,
+                #ifndef OLD_FREEIMAGE
+                    JPEG_BASELINE | JPEG_OPTIMIZE |
+                #endif
+                    85))
                 {
                     BYTE* tdata;
                     DWORD tlen;
