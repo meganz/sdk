@@ -585,6 +585,77 @@ fi
 #
 if test "x$WIN32" = "xno" ; then
 
+    # OpenSSL
+    openssl=false
+    AC_MSG_CHECKING(for OpenSSL)
+    AC_ARG_WITH([openssl],
+      AS_HELP_STRING(--with-openssl=PATH, base of OpenSSL installation),
+      [
+       case $with_openssl in
+       no)
+         AC_MSG_ERROR([Please specify path to OpenSSL installation directory!])
+         ;;
+       yes)
+            LIBSSL_LIBS="-lssl"
+
+            AC_CHECK_HEADERS([openssl/ssl.h], [],
+                AC_MSG_ERROR([ssl.h header not found or not usable])
+            )
+            AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+                AC_MSG_ERROR([Could not find OpenSSL library!])
+            )
+
+            AC_SUBST(LIBSSL_LIBS)
+            openssl=true
+         ;;
+       *)
+        # determine if library is installed
+        LDFLAGS="-L$with_openssl/lib $LDFLAGS"
+        CXXFLAGS="-I$with_openssl/include $CXXFLAGS"
+
+        LIBSSL_LIBS="-L$with_openssl/lib -lssl"
+        LIBSSL_FLAGS="-I$with_openssl/include"
+
+        AC_CHECK_HEADERS([openssl/ssl.h], [],
+            AC_MSG_ERROR([ssl.h header not found or not usable])
+        )
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+            AC_MSG_ERROR([Could not find OpenSSL library!])
+        )
+
+        AC_SUBST(LIBSSL_FLAGS)
+        AC_SUBST(LIBSSL_LIBS)
+        openssl=true
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
+        ;;
+       esac
+      ],
+      [
+        AC_MSG_RESULT([--with-openssl not specified])
+
+        LIBSSL_LIBS="-lssl"
+
+        AC_CHECK_HEADERS([openssl/ssl.h], [],
+            AC_MSG_ERROR([ssl.h header not found or not usable])
+        )
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+            AC_MSG_ERROR([Could not find OpenSSL library!])
+        )
+
+        AC_SUBST(LIBSSL_LIBS)
+        openssl=true
+      ]
+    )
+    AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
+    if test "x$openssl" = "xtrue" ; then
+        AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
+    fi
+
+    # cURL
     AC_ARG_ENABLE(curl-checks,
         AS_HELP_STRING([--enable-curl-checks], [enable cURL checks [default=yes]])],
         [enable_curl_checks=$enableval],
@@ -593,7 +664,7 @@ if test "x$WIN32" = "xno" ; then
 
     # check for cURL library
     AC_ARG_WITH([curl],
-      AS_HELP_STRING(--with-curl=PATH, path to cURL),
+      AS_HELP_STRING(--with-curl=PATH, base of cURL installation),
       [
        case $with_curl in
        no)
@@ -654,11 +725,15 @@ if test "x$WIN32" = "xno" ; then
         else
             AC_MSG_NOTICE([skipping cURL checks.])
         fi
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
          ;;
        esac
       ],
       [
-
         LIBCURL_LIBS="-lcurl"
         LIBS="-lcurl $LIBS"
 
