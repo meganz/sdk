@@ -94,7 +94,11 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        fa->frawread((byte*)newcrc, size, 0);
+        if(!fa->frawread((byte*)newcrc, size, 0))
+        {
+            size = -1;
+            return true;
+        }
         memset((byte*)newcrc + size, 0, sizeof crc - size);
     }
     else if (size <= MAXFULL)
