@@ -693,6 +693,26 @@ long long MegaApi::getSize(MegaNode *n)
     return pImpl->getSize(n);
 }
 
+const char *MegaApi::getFingerprint(const char *filePath)
+{
+    return pImpl->getFingerprint(filePath);
+}
+
+const char *MegaApi::getFingerprint(MegaNode *node)
+{
+    return pImpl->getFingerprint(node);
+}
+
+MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint)
+{
+    return pImpl->getNodeByFingerprint(fingerprint);
+}
+
+bool MegaApi::hasFingerprint(const char *fingerprint)
+{
+    return pImpl->hasFingerprint(fingerprint);
+}
+
 void MegaApi::addListener(MegaListener* listener)
 {
     pImpl->addListener(listener);

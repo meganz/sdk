@@ -522,6 +522,13 @@ class MegaApi
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
 
+        //Fingerprint
+        const char* getFingerprint(const char *filePath);
+        const char *getFingerprint(MegaNode *node);
+        MegaNode *getNodeByFingerprint(const char* fingerprint);
+        bool hasFingerprint(const char* fingerprint);
+
+        //Permissions
         MegaError checkAccess(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
 
