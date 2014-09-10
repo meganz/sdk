@@ -862,19 +862,31 @@ char* MegaApi::strdup(const char* buffer)
 #ifdef _WIN32
 
 // convert Windows Unicode to UTF-8
-void MegaApi::utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* path)
+void MegaApi::utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8string)
 {
-    path->resize((utf16size + 1) * 4);
+    if(!utf16size)
+    {
+        utf8string->clear();
+        return;
+    }
 
-    path->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
+    utf8string->resize((utf16size + 1) * 4);
+
+    utf8string->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
         utf16size,
-        (char*)path->data(),
-        path->size() + 1,
+        (char*)utf8string->data(),
+        utf8string->size() + 1,
         NULL, NULL));
 }
 
 void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 {
+    if(!utf8data)
+    {
+        utf16string->clear();
+        return;
+    }
+
     int size = strlen(utf8data) + 1;
 
     // make space for the worst case
