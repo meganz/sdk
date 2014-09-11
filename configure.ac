@@ -583,10 +583,10 @@ fi
 #
 # ** Posix dependent libraries **
 #
+openssl=false
 if test "x$WIN32" = "xno" ; then
 
     # OpenSSL
-    openssl=false
     AC_MSG_CHECKING(for OpenSSL)
     AC_ARG_WITH([openssl],
       AS_HELP_STRING(--with-openssl=PATH, base of OpenSSL installation),
@@ -650,12 +650,6 @@ if test "x$WIN32" = "xno" ; then
         openssl=true
       ]
     )
-    AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
-    if test "x$openssl" = "xtrue" ; then
-        AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
-    else
-        AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
-    fi
 
     # cURL
     AC_ARG_ENABLE(curl-checks,
@@ -764,6 +758,14 @@ if test "x$WIN32" = "xno" ; then
         fi
       ]
     )
+fi
+
+# define on all platforms
+AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
+if test "x$openssl" = "xtrue" ; then
+    AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
+else
+    AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
 fi
 
 # determine platform include path
