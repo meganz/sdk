@@ -447,6 +447,14 @@ public:
 
     CommandEnumerateQuotaItems(MegaClient*);
 };
+
+class MEGA_API CommandSubmitEvent : public Command
+{
+public:
+    void procresult();
+
+    CommandSubmitEvent(MegaClient*, const char*, const char*, int);
+};
 } // namespace
 
 #endif

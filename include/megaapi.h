@@ -188,7 +188,7 @@ class MegaRequest
                 TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE };
+                TYPE_DELETE, TYPE_SUBMIT_EVENT };
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;
@@ -397,6 +397,13 @@ class MegaApi
 			STATE_IGNORED
 		};
 
+        enum
+        {
+            EVENT_FEEDBACK,
+            EVENT_DEBUG,
+            EVENT_INVALID
+        };
+
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
@@ -460,6 +467,7 @@ class MegaApi
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
+        void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);

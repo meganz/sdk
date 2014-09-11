@@ -6127,4 +6127,9 @@ bool MegaClient::toggledebug()
 {
     return debug = !debug;
 }
+
+void MegaClient::submitevent(const char *evtclass, const char *message, int version)
+{
+    reqs[r].add(new CommandSubmitEvent(this, evtclass, message, version));
+}
 } // namespace

@@ -2429,4 +2429,28 @@ void CommandFetchNodes::procresult()
         }
     }
 }
+
+//Submit event
+CommandSubmitEvent::CommandSubmitEvent(MegaClient *client, const char *evtclass, const char *message, int version)
+{
+    cmd("cd");
+    arg("c", evtclass);
+    arg("v", message);
+    arg("t", version);
+
+    tag = client->reqtag;
+}
+
+void CommandSubmitEvent::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->submitevent_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->submitevent_result(API_EINTERNAL);
+    }
+}
 } // namespace

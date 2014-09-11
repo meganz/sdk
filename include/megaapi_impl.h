@@ -309,6 +309,8 @@ class MegaRequestPrivate : public MegaRequest
 		void setNumDetails(int numDetails);
 		void setFile(const char* file);
         void setParamType(int type);
+        void setText(const char* text);
+        void setNumber(int number);
         void setFlag(bool flag);
         void setTransfer(int transfer);
         void setListener(MegaRequestListener *listener);
@@ -334,6 +336,8 @@ class MegaRequestPrivate : public MegaRequest
 		virtual int getNextRetryDelay() const;
         virtual MegaNode *getPublicNode();
         virtual int getParamType() const;
+        virtual const char *getText() const;
+        virtual int getNumber() const;
         virtual bool getFlag() const;
         virtual long long getTransferredBytes() const;
         virtual long long getTotalBytes() const;
@@ -355,6 +359,8 @@ class MegaRequestPrivate : public MegaRequest
 		const char* password;
 		const char* newPassword;
 		const char* privateKey;
+        const char* text;
+        int number;
 		int access;
 		const char* file;
 		int attrType;
@@ -597,6 +603,8 @@ class MegaApiImpl : public MegaApp
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
+        void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+        void submitEvent(int eventClass, const char *message, int version, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -817,6 +825,8 @@ protected:
 
         virtual dstime pread_failure(error, int, void*);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
+
+        virtual void submitevent_result(error);
 
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);
