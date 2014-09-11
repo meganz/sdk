@@ -653,6 +653,8 @@ if test "x$WIN32" = "xno" ; then
     AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
     if test "x$openssl" = "xtrue" ; then
         AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
+    else
+        AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
     fi
 
     # cURL
