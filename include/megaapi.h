@@ -522,6 +522,13 @@ class MegaApi
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
 
+        //Fingerprint
+        const char* getFingerprint(const char *filePath);
+        const char *getFingerprint(MegaNode *node);
+        MegaNode *getNodeByFingerprint(const char* fingerprint);
+        bool hasFingerprint(const char* fingerprint);
+
+        //Permissions
         MegaError checkAccess(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
 
@@ -533,7 +540,7 @@ class MegaApi
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
 	#ifdef _WIN32
-        static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* path);
+        static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
         static char* strdup(const char* buffer);
