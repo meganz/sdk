@@ -38,7 +38,7 @@ String^ MNode::getName()
 	const char *utf8name = megaNode->getName();
 	MegaApi::utf8ToUtf16(utf8name, &utf16name);
 
-	return ref new String((wchar_t *)utf16name.data());
+	return utf8name ? ref new String((wchar_t *)utf16name.data()) : nullptr;
 }
 
 String^ MNode::getBase64Handle()
@@ -48,9 +48,8 @@ String^ MNode::getBase64Handle()
 	std::string utf16base64Handle;
 	const char *utf8base64Handle = megaNode->getBase64Handle();
 	MegaApi::utf8ToUtf16(utf8base64Handle, &utf16base64Handle);
-	delete[] utf8base64Handle;
 
-	return ref new String((wchar_t *)utf16base64Handle.data());
+	return utf8base64Handle ? ref new String((wchar_t *)utf16base64Handle.data()) : nullptr;
 }
 
 uint64 MNode::getSize()
@@ -107,5 +106,3 @@ bool MNode::hasPreview()
 {
 	return megaNode ? megaNode->hasPreview() : false;
 }
-
-

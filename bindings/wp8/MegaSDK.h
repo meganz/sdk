@@ -168,6 +168,10 @@ namespace mega
 		MNodeList^ getInShares(MUser^ user);
 		MNodeList^ getInShares();
 		MShareList^ getOutShares(MNode^ node);
+		String^ getFileFingerprint(String^ filePath);
+		String^ getNodeFingerprint(MNode^ node);
+		MNode^ getNodeByFingerprint(String^ fingerprint);
+		bool hasFingerprint(String^ fingerprint);
 		int getAccess(MNode^ node);
 		MError^ checkAccess(MNode^ node, int level);
 		MError^ checkMove(MNode^ node, MNode^ target);

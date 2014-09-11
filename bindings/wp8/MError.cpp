@@ -49,9 +49,8 @@ String^ MError::getErrorString(int errorCode)
 	std::string utf16error;
 	const char *utf8error = MegaError::getErrorString(errorCode);
 	MegaApi::utf8ToUtf16(utf8error, &utf16error);
-	delete[] utf8error;
 
-	return ref new String((wchar_t *)utf16error.data());
+	return utf8error ? ref new String((wchar_t *)utf16error.data()) : nullptr;
 }
 
 String^ MError::toString()

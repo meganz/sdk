@@ -4111,7 +4111,7 @@ MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 
 MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
-	if(!megaNode || !targetNode) return MegaError(API_EINTERNAL);
+	if(!megaNode || !targetNode) return MegaError(API_EARGS);
 
     sdkMutex.lock();
     Node *node = client->nodebyhandle(megaNode->getHandle());
@@ -4119,7 +4119,7 @@ MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 	if(!node || !target)
 	{
         sdkMutex.unlock();
-        return MegaError(API_EINTERNAL);
+		return MegaError(API_EARGS);
 	}
 
 	MegaError e(client->checkmove(node,target));

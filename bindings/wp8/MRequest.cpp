@@ -38,7 +38,7 @@ String^ MRequest::getRequestString()
 	const char *utf8request = megaRequest->getRequestString();
 	MegaApi::utf8ToUtf16(utf8request, &utf16request);
 
-	return ref new String((wchar_t *)utf16request.data());
+	return utf8request ? ref new String((wchar_t *)utf16request.data()) : nullptr;
 }
 
 String^ MRequest::toString()
@@ -59,7 +59,7 @@ String^ MRequest::getLink()
 	const char *utf8link = megaRequest->getLink();
 	MegaApi::utf8ToUtf16(utf8link, &utf16link);
 
-	return ref new String((wchar_t *)utf16link.data());
+	return utf8link ? ref new String((wchar_t *)utf16link.data()) : nullptr;
 }
 
 uint64 MRequest::getParentHandle()
@@ -75,7 +75,7 @@ String^ MRequest::getSessionKey()
 	const char *utf8session = megaRequest->getSessionKey();
 	MegaApi::utf8ToUtf16(utf8session, &utf16session);
 
-	return ref new String((wchar_t *)utf16session.data());
+	return utf8session ? ref new String((wchar_t *)utf16session.data()) : nullptr;
 }
 
 String^ MRequest::getName()
@@ -86,7 +86,7 @@ String^ MRequest::getName()
 	const char *utf8name = megaRequest->getName();
 	MegaApi::utf8ToUtf16(utf8name, &utf16name);
 
-	return ref new String((wchar_t *)utf16name.data());
+	return utf8name ? ref new String((wchar_t *)utf16name.data()) : nullptr;
 }
 
 String^ MRequest::getEmail()
@@ -97,7 +97,7 @@ String^ MRequest::getEmail()
 	const char *utf8email = megaRequest->getEmail();
 	MegaApi::utf8ToUtf16(utf8email, &utf16email);
 
-	return ref new String((wchar_t *)utf16email.data());
+	return utf8email ? ref new String((wchar_t *)utf16email.data()) : nullptr;
 }
 
 String^ MRequest::getPassword()
@@ -108,7 +108,7 @@ String^ MRequest::getPassword()
 	const char *utf8password = megaRequest->getPassword();
 	MegaApi::utf8ToUtf16(utf8password, &utf16password);
 
-	return ref new String((wchar_t *)utf16password.data());
+	return utf8password ? ref new String((wchar_t *)utf16password.data()) : nullptr;
 }
 
 String^ MRequest::getNewPassword()
@@ -119,7 +119,7 @@ String^ MRequest::getNewPassword()
 	const char *utf8password = megaRequest->getNewPassword();
 	MegaApi::utf8ToUtf16(utf8password, &utf16password);
 
-	return ref new String((wchar_t *)utf16password.data());
+	return utf8password ? ref new String((wchar_t *)utf16password.data()) : nullptr;
 }
 
 String^ MRequest::getPrivateKey()
@@ -130,7 +130,7 @@ String^ MRequest::getPrivateKey()
 	const char *utf8privateKey = megaRequest->getPrivateKey();
 	MegaApi::utf8ToUtf16(utf8privateKey, &utf16privateKey);
 
-	return ref new String((wchar_t *)utf16privateKey.data());
+	return utf8privateKey ? ref new String((wchar_t *)utf16privateKey.data()) : nullptr;
 }
 
 int MRequest::getAccess()
@@ -146,7 +146,7 @@ String^ MRequest::getFile()
 	const char *utf8file = megaRequest->getFile();
 	MegaApi::utf8ToUtf16(utf8file, &utf16file);
 
-	return ref new String((wchar_t *)utf16file.data());
+	return utf8file ? ref new String((wchar_t *)utf16file.data()) : nullptr;
 }
 
 MNode^ MRequest::getPublicNode()

@@ -28,7 +28,7 @@ String^ MShare::getUser()
 	const char *utf8user = megaShare->getUser();
 	MegaApi::utf8ToUtf16(utf8user, &utf16user);
 
-	return ref new String((wchar_t *)utf16user.data());
+	return utf8user ? ref new String((wchar_t *)utf16user.data()) : nullptr;
 }
 
 uint64 MShare::getNodeHandle()
@@ -45,4 +45,3 @@ uint64 MShare::getTimestamp()
 {
 	return megaShare ? megaShare->getTimestamp() : 0;
 }
-

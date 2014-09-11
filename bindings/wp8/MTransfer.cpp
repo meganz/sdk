@@ -15,7 +15,6 @@ MTransfer::~MTransfer()
 		delete megaTransfer;
 }
 
-
 MegaTransfer *MTransfer::getCPtr()
 {
 	return megaTransfer;
