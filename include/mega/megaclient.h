@@ -612,7 +612,7 @@ public:
 
     void handleauth(handle, byte*);
 
-    void procsc();
+    bool procsc();
 
     // API warnings
     void warn(const char*);

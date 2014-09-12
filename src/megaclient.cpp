@@ -748,107 +748,96 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        for (;;)
+        if (pendingsc)
         {
-            if (pendingsc)
+            if (scnotifyurl.size())
             {
-                if (scnotifyurl.size())
+                // pendingsc is a scnotifyurl connection
+                if (pendingsc->status == REQ_SUCCESS || pendingsc->status == REQ_FAILURE)
                 {
-                    // pendingsc is a scnotifyurl connection
-                    if (pendingsc->status == REQ_SUCCESS || pendingsc->status == REQ_FAILURE)
-                    {
+                    delete pendingsc;
+                    pendingsc = NULL;
+
+                    scnotifyurl.clear();
+                }
+            }
+            else
+            {
+                // pendingsc is a server-client API request
+                switch (pendingsc->status)
+                {
+                    case REQ_SUCCESS:
+                        if (*pendingsc->in.c_str() == '{')
+                        {
+                            jsonsc.begin(pendingsc->in.c_str());
+                            break;
+                        }
+                        else
+                        {
+                            error e = (error)atoi(pendingsc->in.c_str());
+
+                            if (e == API_ESID)
+                            {
+                                app->request_error(API_ESID);
+                                *scsn = 0;
+                            }
+                            else if (e == API_ETOOMANY)
+                            {
+                                app->debug_log("Too many pending updates - reloading local state");
+                                fetchnodes();
+                            }
+                        }
+
+                    // fall through
+                    case REQ_FAILURE:
+                        // failure, repeat with capped exponential backoff
                         delete pendingsc;
                         pendingsc = NULL;
 
-                        scnotifyurl.clear();
-                    }
-                }
-                else
-                {
-                    // do not process the result until all preconfigured syncs
-                    // are up and running
-                    if (!syncsup && (pendingsc->status == REQ_SUCCESS))
-                    {
-                        break;
-                    }
+                        btsc.backoff();
 
-                    // pendingsc is a server-client API request
-                    switch (pendingsc->status)
-                    {
-                        case REQ_READY:
-                        case REQ_INFLIGHT:
-                            // TODO: timeout
-                            break;
-
-                        case REQ_SUCCESS:
-                            if (*pendingsc->in.c_str() == '{')
-                            {
-                                // FIXME: reload in case of bad JSON
-                                jsonsc.begin(pendingsc->in.c_str());
-                                procsc();
-
-                                delete pendingsc;
-                                pendingsc = NULL;
-
-                                btsc.reset();
-                                break;
-                            }
-                            else
-                            {
-                                error e = (error)atoi(pendingsc->in.c_str());
-
-                                if (e == API_ESID)
-                                {
-                                    app->request_error(API_ESID);
-                                    *scsn = 0;
-                                }
-                                else if (e == API_ETOOMANY)
-                                {
-                                    app->debug_log("Too many pending updates - reloading local state");
-                                    fetchnodes();
-                                }
-                            }
-
-                        // fall through
-                        case REQ_FAILURE:
-                            // failure, repeat with capped exponential backoff
-                            delete pendingsc;
-                            pendingsc = NULL;
-
-                            btsc.backoff();
-
-                        default:
-                            ;
-                    }
-                }
-
-                if (pendingsc)
-                {
-                    break;
+                    default:
+                        ;
                 }
             }
 
-            if (*scsn && btsc.armed())
+            // do not process the SC result until all preconfigured syncs are up and running
+            if (syncsup && jsonsc.pos)
             {
-                pendingsc = new HttpReq();
-
-                if (scnotifyurl.size())
+                // FIXME: reload in case of bad JSON
+                if (procsc())
                 {
-                    pendingsc->posturl = scnotifyurl;
-                }
-                else
-                {
-                    pendingsc->posturl = APIURL;
-                    pendingsc->posturl.append("sc?sn=");
-                    pendingsc->posturl.append(scsn);
-                    pendingsc->posturl.append(auth);
-                }
+                    // completed - initiate next SC request
+                    delete pendingsc;
+                    pendingsc = NULL;
 
-                pendingsc->type = REQ_JSON;
-
-                pendingsc->post(this);
+                    btsc.reset();
+                    
+                    jsonsc.pos = NULL;
+                }
             }
-            break;
+        }
+
+        if (!pendingsc && *scsn && btsc.armed())
+        {
+            pendingsc = new HttpReq();
+
+            if (scnotifyurl.size())
+            {
+                pendingsc->posturl = scnotifyurl;
+            }
+            else
+            {
+                pendingsc->posturl = APIURL;
+                pendingsc->posturl.append("sc?sn=");
+                pendingsc->posturl.append(scsn);
+                pendingsc->posturl.append(auth);
+            }
+
+            pendingsc->type = REQ_JSON;
+            pendingsc->post(this);
+
+            jsonsc.pos = NULL;
         }
 
         if (badhostcs)
@@ -1819,7 +1808,7 @@ void MegaClient::logout()
 }
 
 // process server-client request
-void MegaClient::procsc()
+bool MegaClient::procsc()
 {
     nameid name;
 
@@ -1839,7 +1828,7 @@ void MegaClient::procsc()
             
                 if (!jsonsc.storeobject(&scnotifyurl))
                 {
-                    return;
+                    return true;
                 }
                 break;
 
@@ -1922,12 +1911,12 @@ void MegaClient::procsc()
             case EOO:
                 mergenewshares(1);
                 applykeys();
-                return;
+                return true;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return;
+                    return true;
                 }
         }
     }
