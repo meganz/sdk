@@ -2,7 +2,7 @@
  * @file mega/sync.h
  * @brief Class for synchronizing local and remote trees
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -36,9 +36,9 @@ public:
     // current state
     syncstate_t state;
 
-	// are we conducting a full tree scan? (during initialization and if event notification failed)
-	bool fullscan;
-	
+    // are we conducting a full tree scan? (during initialization and if event notification failed)
+    bool fullscan;
+
     // deletion queue
     set<int32_t> deleteq;
 
@@ -66,9 +66,9 @@ public:
     // process and remove one directory notification queue item from *notify
     dstime procscanq(int);
 
-	// recursively look for vanished child nodes and delete them
-	void deletemissing(LocalNode*);
-	
+    // recursively look for vanished child nodes and delete them
+    void deletemissing(LocalNode*);
+
     // scan specific path
     LocalNode* checkpath(LocalNode*, string*, string* = NULL);
 

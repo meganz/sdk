@@ -2,7 +2,7 @@
  * @file node.cpp
  * @brief Classes for accessing local and remote nodes
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -898,7 +898,7 @@ void LocalNode::setnode(Node* cnode)
 
     node = cnode;
 
-	if (node)
+    if (node)
     {
         node->localnode = this;
     }

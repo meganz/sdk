@@ -458,7 +458,7 @@ MegaClient::~MegaClient()
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
-	WAIT_CLASS::bumpds();
+    WAIT_CLASS::bumpds();
 
     if (httpio->inetisback())
     {
@@ -1284,7 +1284,7 @@ int MegaClient::wait()
     dstime nds;
 
     // get current dstime and clear wait events
-	WAIT_CLASS::bumpds();
+    WAIT_CLASS::bumpds();
 
     // sync directory scans in progress? don't wait.
     if (syncactivity)
@@ -1419,7 +1419,7 @@ bool MegaClient::abortbackoff()
 {
     bool r = false;
 
-	WAIT_CLASS::bumpds();
+    WAIT_CLASS::bumpds();
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
@@ -5001,7 +5001,7 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 // execute pending directreads
 bool MegaClient::execdirectreads()
 {
-	bool r = false;
+    bool r = false;
     DirectReadSlot* drs;
 
     if (drq.size() < MAXDRSLOTS)
@@ -5013,7 +5013,7 @@ bool MegaClient::execdirectreads()
             {
                 drs = new DirectReadSlot(*it);
                 (*it)->drs = drs;
-				r = true;
+                r = true;
 
                 if (drq.size() >= MAXDRSLOTS) break;
             }
@@ -5031,7 +5031,7 @@ bool MegaClient::execdirectreads()
         dsdrns.begin()->second->dispatch();
     }
 
-	return r;
+    return r;
 }
 
 // syncids are usable to indicate putnodes()-local parent linkage
@@ -5145,7 +5145,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 && ((*it)->syncdeleted == SYNCDEL_NONE)
                 && !(*it)->attrstring.size()
                 && ((ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()))
-			&& (l->parent || l->sync->debris != ait->second))
+                && (l->parent || l->sync->debris != ait->second))
         {
             addchild(&nchildren, &ait->second, *it, &strings);
         }
@@ -5796,7 +5796,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 
     if (!pause || hard)
     {
-		WAIT_CLASS::bumpds();
+        WAIT_CLASS::bumpds();
 
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
         {
@@ -5873,7 +5873,7 @@ void MegaClient::execmovetosyncdebris()
     syncdel_t target;
 
     // attempt to move the nodes in node_set todebris to the following
-    // locations (in falling :
+    // locations (in falling order):
     // - //bin/SyncDebris/yyyy-mm-dd
     // - //bin/SyncDebris
     // - //bin

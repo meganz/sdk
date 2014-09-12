@@ -2,7 +2,7 @@
  * @file utils.cpp
  * @brief Mega SDK various utilities and helper classes
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -148,10 +148,12 @@ m_off_t ChunkedHash::chunkfloor(m_off_t p)
     for (unsigned i = 1; i <= 8; i++)
     {
         np = cp + i * SEGSIZE;
+
         if ((p >= cp) && (p < np))
         {
             return cp;
         }
+
         cp = np;
     }
 
@@ -224,7 +226,7 @@ bool HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
     {
         // left-pad with 0
         s.insert(0, h.size() - size, 0);
-	s.resize(h.size());
+        s.resize(h.size());
     }
 
     return s == h;

@@ -2,7 +2,7 @@
  * @file sync.cpp
  * @brief Class for synchronizing local and remote trees
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -45,7 +45,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     state = SYNC_INITIALSCAN;
 
     fullscan = true;
-	
+
     if (cdebris)
     {
         debris = cdebris;
@@ -183,7 +183,7 @@ bool Sync::readstatecache()
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
         scanseqno++;
-		
+
         return true;
     }
 
@@ -267,7 +267,7 @@ void Sync::changestate(syncstate_t newstate)
         client->app->syncupdate_state(this, newstate);
 
         state = newstate;
-		fullscan = false;
+        fullscan = false;
     }
 }
 
@@ -361,61 +361,61 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 // localpath must be prefixed with Sync
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
-	if (localpath->size() < localdebris.size()
-		|| memcmp(localpath->data(), localdebris.data(), localdebris.size())
-		|| (localpath->size() != localdebris.size()
-			&& memcmp(localpath->data() + localdebris.size(),
-					  client->fsaccess->localseparator.data(),
-					  client->fsaccess->localseparator.size())))
-	{
-		DirAccess* da;
-		string localname, name;
-		bool success;
+    if (localpath->size() < localdebris.size()
+        || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+        || (localpath->size() != localdebris.size()
+            && memcmp(localpath->data() + localdebris.size(),
+                      client->fsaccess->localseparator.data(),
+                      client->fsaccess->localseparator.size())))
+    {
+        DirAccess* da;
+        string localname, name;
+        bool success;
 
-		da = client->fsaccess->newdiraccess();
+        da = client->fsaccess->newdiraccess();
 
-		// scan the dir, mark all items with a unique identifier
-		if ((success = da->dopen(localpath, fa, false)))
-		{
-			size_t t = localpath->size();
+        // scan the dir, mark all items with a unique identifier
+        if ((success = da->dopen(localpath, fa, false)))
+        {
+            size_t t = localpath->size();
 
-			while (da->dnext(&localname))
-			{
-				name = localname;
-				client->fsaccess->local2name(&name);
+            while (da->dnext(&localname))
+            {
+                name = localname;
+                client->fsaccess->local2name(&name);
 
-				// check if this record is to be ignored
-				if (client->app->sync_syncable(name.c_str(), localpath, &localname))
-				{
-					if (t)
-					{
-						localpath->append(client->fsaccess->localseparator);
-					}
+                // check if this record is to be ignored
+                if (client->app->sync_syncable(name.c_str(), localpath, &localname))
+                {
+                    if (t)
+                    {
+                        localpath->append(client->fsaccess->localseparator);
+                    }
 
-					localpath->append(localname);
+                    localpath->append(localname);
 
-					// skip the sync's debris folder
-					if ((localpath->size() < localdebris.size())
-						|| memcmp(localpath->data(), localdebris.data(), localdebris.size())
-						|| ((localpath->size() != localdebris.size())
-							&& memcmp(localpath->data() + localdebris.size(),
-									  client->fsaccess->localseparator.data(),
-									  client->fsaccess->localseparator.size())))
-					{
-						// new or existing record: place scan result in notification queue
-						dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
-					}
+                    // skip the sync's debris folder
+                    if ((localpath->size() < localdebris.size())
+                        || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+                        || ((localpath->size() != localdebris.size())
+                            && memcmp(localpath->data() + localdebris.size(),
+                                      client->fsaccess->localseparator.data(),
+                                      client->fsaccess->localseparator.size())))
+                    {
+                        // new or existing record: place scan result in notification queue
+                        dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
+                    }
 
-					localpath->resize(t);
-				}
-			}
-		}
+                    localpath->resize(t);
+                }
+            }
+        }
 
-		delete da;
+        delete da;
 
-		return success;
-	}
-	else return false;
+        return success;
+    }
+    else return false;
 }
 
 // check local path - if !localname, localpath is relative to l, with l == NULL
@@ -648,7 +648,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                     // immediately scan folder to detect deviations from cached state
                     if (fullscan)
-					{
+                    {
                         scan(localname ? localpath : &tmppath, fa);
                     }
                 }

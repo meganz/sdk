@@ -128,7 +128,7 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
                     // the upload completes
                     client->putfa(th, (meta_t)i, key, jpeg);
                     numputs++;
-					
+
                     jpeg = NULL;
                 }
             }
