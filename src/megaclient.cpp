@@ -748,7 +748,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (pendingsc)
+        if (!jsonsc.pos && pendingsc)
         {
             if (scnotifyurl.size())
             {
@@ -770,6 +770,7 @@ void MegaClient::exec()
                         if (*pendingsc->in.c_str() == '{')
                         {
                             jsonsc.begin(pendingsc->in.c_str());
+                            jsonsc.enterobject();
                             break;
                         }
                         else
@@ -787,8 +788,7 @@ void MegaClient::exec()
                                 fetchnodes();
                             }
                         }
-
-                    // fall through
+                        // fall through
                     case REQ_FAILURE:
                         // failure, repeat with capped exponential backoff
                         delete pendingsc;
@@ -800,21 +800,19 @@ void MegaClient::exec()
                         ;
                 }
             }
+        }
 
-            // do not process the SC result until all preconfigured syncs are up and running
-            if (syncsup && jsonsc.pos)
+        // do not process the SC result until all preconfigured syncs are up and running
+        if (syncsup && jsonsc.pos)
+        {
+            // FIXME: reload in case of bad JSON
+            if (procsc())
             {
-                // FIXME: reload in case of bad JSON
-                if (procsc())
-                {
-                    // completed - initiate next SC request
-                    delete pendingsc;
-                    pendingsc = NULL;
+                // completed - initiate next SC request
+                delete pendingsc;
+                pendingsc = NULL;
 
-                    btsc.reset();
-                    
-                    jsonsc.pos = NULL;
-                }
+                btsc.reset();
             }
         }
 
@@ -1812,112 +1810,119 @@ bool MegaClient::procsc()
 {
     nameid name;
 
-    jsonsc.enterobject();
-
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        if (!insca)
         {
-            case 'w':
-                if (!statecurrent)
-                {
-                    // NULL vector: "notify all nodes"
-                    app->nodes_current();
-                    statecurrent = true;
-                }
-            
-                if (!jsonsc.storeobject(&scnotifyurl))
-                {
-                    return true;
-                }
-                break;
-
-            case 'a':
-                if (jsonsc.enterarray())
-                {
-                    while (jsonsc.enterobject())
+            switch (jsonsc.getnameid())
+            {
+                case 'w':
+                    if (!statecurrent)
                     {
-                        // the "a" attribute is guaranteed to be located at the head of the object
-                        if (jsonsc.getnameid() == 'a')
-                        {
-                            name = jsonsc.getnameid();
-
-                            // only process action if not marked as
-                            // self-originated (marker guaranteed to be next in
-                            // sequence if present)
-                            if (memcmp(jsonsc.pos, "\"i\":\"", 5)
-                                || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
-                                || (jsonsc.pos[5 + sizeof sessionid] != '"'))
-                            {
-                                switch (name)
-                                {
-                                    case 'u':
-                                        // node update
-                                        sc_updatenode();
-                                        break;
-
-                                    case 't':
-                                        // node addition
-                                        sc_newnodes();
-                                        mergenewshares(1);
-                                        break;
-
-                                    case 'd':
-                                        // node deletion
-                                        sc_deltree();
-                                        break;
-
-                                    case 's':
-                                        // share addition/update/revocation
-                                        if (sc_shares())
-                                        {
-                                            mergenewshares(1);
-                                        }
-                                        break;
-
-                                    case 'c':
-                                        // contact addition/update
-                                        sc_contacts();
-                                        break;
-
-                                    case 'k':
-                                        // crypto key request
-                                        sc_keys();
-                                        break;
-
-                                    case MAKENAMEID2('f', 'a'):
-                                        // file attribute update
-                                        sc_fileattr();
-                                        break;
-
-                                    case MAKENAMEID2('u', 'a'):
-                                        // user attribtue update
-                                        sc_userattr();
-                                }
-                            }
-                        }
-
-                        jsonsc.leaveobject();
+                        // NULL vector: "notify all nodes"
+                        app->nodes_current();
+                        statecurrent = true;
                     }
-
-                    jsonsc.leavearray();
-                }
-                break;
-
-            case MAKENAMEID2('s', 'n'):
-                setscsn(&jsonsc);
-                break;
                 
-            case EOO:
-                mergenewshares(1);
-                applykeys();
-                return true;
+                    jsonsc.storeobject(&scnotifyurl);
+                    break;
 
-            default:
-                if (!jsonsc.storeobject())
-                {
+                case MAKENAMEID2('s', 'n'):
+                    // the sn element is guaranteed to be the last in sequence
+                    setscsn(&jsonsc);
+                    break;
+                    
+                case EOO:
+                    mergenewshares(1);
+                    applykeys();
                     return true;
+
+                case 'a':
+                    if (jsonsc.enterarray())
+                    {
+                        insca = true;
+                        break;
+                    }
+                    // fall through
+                default:
+                    if (!jsonsc.storeobject())
+                    {
+                        return true;
+                    }
+            }
+        }
+
+        if (insca)
+        {
+            if (jsonsc.enterobject())
+            {
+                // the "a" attribute is guaranteed to be the first in the object
+                if (jsonsc.getnameid() == 'a')
+                {
+                    name = jsonsc.getnameid();
+
+                    // only process action if not marked as
+                    // self-originated (marker guaranteed to be next in
+                    // sequence if present)
+                    if (memcmp(jsonsc.pos, "\"i\":\"", 5)
+                     || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
+                     || jsonsc.pos[5 + sizeof sessionid] != '"')
+                    {
+                        switch (name)
+                        {
+                            case 'u':
+                                // node update
+                                sc_updatenode();
+                                break;
+
+                            case 't':
+                                // node addition
+                                sc_newnodes();
+                                mergenewshares(1);
+                                break;
+
+                            case 'd':
+                                // node deletion
+                                sc_deltree();
+                                break;
+
+                            case 's':
+                                // share addition/update/revocation
+                                if (sc_shares())
+                                {
+                                    mergenewshares(1);
+                                }
+                                break;
+
+                            case 'c':
+                                // contact addition/update
+                                sc_contacts();
+                                break;
+
+                            case 'k':
+                                // crypto key request
+                                sc_keys();
+                                break;
+
+                            case MAKENAMEID2('f', 'a'):
+                                // file attribute update
+                                sc_fileattr();
+                                break;
+
+                            case MAKENAMEID2('u', 'a'):
+                                // user attribtue update
+                                sc_userattr();
+                        }
+                    }
                 }
+
+                jsonsc.leaveobject();
+            }
+            else
+            {
+                jsonsc.leavearray();
+                insca = false;
+            }
         }
     }
 }
