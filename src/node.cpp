@@ -736,8 +736,8 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
 
         // has the name changed?
-        if ((localname.size() != newlocalpath->size() - p)
-                || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
+        if (localname.size() != newlocalpath->size() - p
+         || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
         {
             // set new name
             localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);

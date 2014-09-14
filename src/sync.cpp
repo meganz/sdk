@@ -555,18 +555,19 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         {
                             handlelocalnode_map::iterator it;
 
-                            // was the file overwritten by moving an existing
-                            // file over it?
+                            // was the file overwritten by moving an existing file over it?
                             if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
                             {
-                                client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
-
-                                // immediately delete existing LocalNode and
-                                // replace with moved one
+                                // delete existing LocalNode...
                                 delete l;
 
-                                // (in case of a move, this synchronously
-                                // updates l->parent and l->node->parent)
+                                // ...move remote node out of the way...
+                                client->execmovetosyncdebris();
+                                
+                                // ...and atomically replace with moved one
+                                client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
+
+                                // (in case of a move, this synchronously updates l->parent and l->node->parent)
                                 it->second->setnameparent(parent, localname ? localpath : &tmppath);
 
                                 // mark as seen / undo possible deletion

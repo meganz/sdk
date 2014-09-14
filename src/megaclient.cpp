@@ -802,6 +802,8 @@ void MegaClient::exec()
             }
         }
 
+        syncactivity = false;
+
         // do not process the SC result until all preconfigured syncs are up and running
         if (syncsup && jsonsc.pos)
         {
@@ -813,6 +815,11 @@ void MegaClient::exec()
                 pendingsc = NULL;
 
                 btsc.reset();
+            }
+            else
+            {
+                // a remote node move requires the immediate attention of syncdown()
+                syncactivity = true;
             }
         }
 
@@ -922,8 +929,6 @@ void MegaClient::exec()
         {
             syncfslockretrybt.backoff(1);
         }
-
-        syncactivity = false;
 
         // halt all syncing while the local filesystem is pending a lock-blocked operation
         // FIXME: indicate by callback
@@ -1273,8 +1278,9 @@ int MegaClient::wait()
     // get current dstime and clear wait events
     WAIT_CLASS::bumpds();
 
-    // sync directory scans in progress? don't wait.
-    if (syncactivity)
+    // sync directory scans in progress or still processing sc packet without having
+    // encountered a locally locked item? don't wait.
+    if (syncactivity || (jsonsc.pos && !syncdownretry))
     {
         nds = Waiter::ds;
     }
@@ -1808,7 +1814,7 @@ void MegaClient::logout()
 // process server-client request
 bool MegaClient::procsc()
 {
-    nameid name;
+    nameid name, prevname = 0;
 
     for (;;)
     {
@@ -1879,6 +1885,12 @@ bool MegaClient::procsc()
                                 // node addition
                                 sc_newnodes();
                                 mergenewshares(1);
+                                
+                                if (prevname == 'd')
+                                {
+                                    // temporarily hand over to syncdown() to process this move
+                                    return false;
+                                }
                                 break;
 
                             case 'd':
@@ -1914,6 +1926,8 @@ bool MegaClient::procsc()
                                 sc_userattr();
                         }
                     }
+                    
+                    prevname = name;
                 }
 
                 jsonsc.leaveobject();
@@ -5174,7 +5188,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else if (ll->type == FILENODE)
             {
                 if (ll->node != rit->second)
+                {
                     ll->sync->statecacheadd(ll);
+                }
+
                 ll->setnode(rit->second);
 
                 // file exists on both sides - do not overwrite if local version newer or same
