@@ -196,7 +196,7 @@ struct MEGA_API LocalNode : public File, Cachable
     // children by name
     localnode_map children;
 
-    // for filesystems with botched secondary ("short") names
+    // for botched filesystems with legacy secondary ("short") names
     string slocalname;
     localnode_map schildren;
 
@@ -225,6 +225,9 @@ struct MEGA_API LocalNode : public File, Cachable
     // was actively deleted
     bool deleted;
 
+    // has been created remotely
+    bool created;
+    
     // current subtree sync state: current and displayed
     treestate_t ts, dts;
 

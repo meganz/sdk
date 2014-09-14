@@ -97,8 +97,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
 Sync::~Sync()
 {
-    // must be set to prevent remote mass deletion while rootlocal destructor
-    // runs
+    // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED);
 
     // unlock tmp lock
@@ -362,11 +361,11 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
     if (localpath->size() < localdebris.size()
-        || memcmp(localpath->data(), localdebris.data(), localdebris.size())
-        || (localpath->size() != localdebris.size()
-            && memcmp(localpath->data() + localdebris.size(),
-                      client->fsaccess->localseparator.data(),
-                      client->fsaccess->localseparator.size())))
+     || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+     || (localpath->size() != localdebris.size()
+      && memcmp(localpath->data() + localdebris.size(),
+                client->fsaccess->localseparator.data(),
+                client->fsaccess->localseparator.size())))
     {
         DirAccess* da;
         string localname, name;
@@ -395,12 +394,12 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                     localpath->append(localname);
 
                     // skip the sync's debris folder
-                    if ((localpath->size() < localdebris.size())
-                        || memcmp(localpath->data(), localdebris.data(), localdebris.size())
-                        || ((localpath->size() != localdebris.size())
-                            && memcmp(localpath->data() + localdebris.size(),
-                                      client->fsaccess->localseparator.data(),
-                                      client->fsaccess->localseparator.size())))
+                    if (localpath->size() < localdebris.size()
+                     || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+                     || (localpath->size() != localdebris.size()
+                       && memcmp(localpath->data() + localdebris.size(),
+                                 client->fsaccess->localseparator.data(),
+                                 client->fsaccess->localseparator.size())))
                     {
                         // new or existing record: place scan result in notification queue
                         dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);

@@ -5464,15 +5464,18 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 }
 
                 if (ll->node != rit->second)
+                {
                     ll->sync->statecacheadd(ll);
+                }
+
                 ll->setnode(rit->second);
 
                 if (ll->size == rit->second->size)
                 {
                     // check if file is likely to be identical
                     if (rit->second->isvalid
-                            ? (*ll == *(FileFingerprint*)rit->second)
-                            : (ll->mtime == rit->second->mtime))
+                      ? *ll == *(FileFingerprint*)rit->second
+                      : (ll->mtime == rit->second->mtime))
                     {
                         // files have the same size and the same mtime (or the
                         // same fingerprint, if available): no action needed
@@ -5499,6 +5502,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
         if (ll->type == FILENODE)
         {
+            // do not begin transfer until the file size / mtime has stabilized
             insync = false;
 
             if (ll->transfer)
@@ -5512,6 +5516,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 {
                     *nds = ll->nagleds;
                 }
+
                 continue;
             }
             else
@@ -5523,8 +5528,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 ll->getlocalpath(&localname);
 
                 if (!(t = fa->fopen(&localname, true, false))
-                        || fa->size != ll->size
-                        || fa->mtime != ll->mtime)
+                 || fa->size != ll->size
+                 || fa->mtime != ll->mtime)
                 {
                     if (t)
                     {
@@ -5548,7 +5553,22 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 }
 
                 delete fa;
+                
+                ll->created = false;
             }
+        }
+
+        if (ll->created)
+        {
+            // FIXME: remove created flag and associated safeguards after verifying the absence
+            // of a related repetitive node creation bug
+            app->debug_log("Internal error, please report: Duplicate node creation");
+            app->debug_log(ll->name.c_str());
+            abort();
+        }
+        else
+        {
+            ll->created = true;
         }
 
         // create remote folder or send file
@@ -5689,7 +5709,6 @@ void MegaClient::syncupdate()
     }
 
     synccreate.clear();
-
 }
 
 void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
@@ -5734,7 +5753,7 @@ bool MegaClient::startxfer(direction_t d, File* f)
                 // missing FileFingerprint for local file - generate
                 FileAccess* fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(&f->localname, (d == PUT), (d == GET)))
+                if (fa->fopen(&f->localname, d == PUT, d == GET))
                 {
                     f->genfingerprint(fa);
                 }
@@ -5923,9 +5942,9 @@ void MegaClient::execmovetosyncdebris()
     {
         n = *it;
 
-        if ((n->syncdeleted == SYNCDEL_DELETED)
-                || (n->syncdeleted == SYNCDEL_BIN)
-                || (n->syncdeleted == SYNCDEL_DEBRIS))
+        if (n->syncdeleted == SYNCDEL_DELETED
+         || n->syncdeleted == SYNCDEL_BIN
+         || n->syncdeleted == SYNCDEL_DEBRIS)
         {
             while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
 
@@ -5933,10 +5952,10 @@ void MegaClient::execmovetosyncdebris()
             {
                 n = *it;
 
-                if ((n->syncdeleted == SYNCDEL_DELETED)
-                   || (((n->syncdeleted == SYNCDEL_BIN)
-                           || (n->syncdeleted == SYNCDEL_DEBRIS))
-                           && (target == SYNCDEL_DEBRISDAY)))
+                if (n->syncdeleted == SYNCDEL_DELETED
+                 || ((n->syncdeleted == SYNCDEL_BIN
+                   || n->syncdeleted == SYNCDEL_DEBRIS)
+                      && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
                     rename(n, tn, target);
@@ -5966,7 +5985,7 @@ void MegaClient::execmovetosyncdebris()
         }
     }
 
-    if ((target != SYNCDEL_DEBRISDAY) && todebris.size() && !syncdebrisadding)
+    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding)
     {
         syncdebrisadding = true;
 
@@ -5999,8 +6018,9 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, &nn->attrstring, tattrstring.c_str());
         }
 
-        reqs[r].add(new CommandPutNodes(this, tn->nodehandle, NULL, nn, (target == SYNCDEL_DEBRIS)
-                                        ? 1 : 2, 0, PUTNODES_SYNCDEBRIS));
+        reqs[r].add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
+                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, 0,
+                                        PUTNODES_SYNCDEBRIS));
     }
 }
 
@@ -6011,7 +6031,7 @@ void MegaClient::execmovetosyncdebris()
 error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, int tag)
 {
     // cannot sync files, rubbish bins or inboxes
-    if ((remotenode->type != FOLDERNODE) && (remotenode->type != ROOTNODE))
+    if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
         return API_EACCESS;
     }
@@ -6041,7 +6061,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                 && n == (*it)->localroot.node)
+             && n == (*it)->localroot.node)
             {
                 return API_EEXIST;
             }
@@ -6049,9 +6069,9 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     } while ((n = n->parent));
 
     if (rootpath->size() >= fsaccess->localseparator.size()
-        && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
-                   fsaccess->localseparator.data(),
-                   fsaccess->localseparator.size()))
+     && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
+                fsaccess->localseparator.data(),
+                fsaccess->localseparator.size()))
     {
         rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
     }

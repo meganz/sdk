@@ -805,6 +805,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     node = NULL;
     notseen = 0;
     deleted = false;
+    created = false;
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
