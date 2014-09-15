@@ -63,6 +63,7 @@ namespace mega
 		static uint64 base64ToHandle(String^ base64Handle);
 		static String^ ebcEncryptKey(String^ encryptionKey, String^ plainKey);
 		void retryPendingConnections();
+		void retryPendingConnections(MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password, MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password);
 		String^ dumpSession();

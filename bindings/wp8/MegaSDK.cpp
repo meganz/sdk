@@ -202,6 +202,11 @@ void MegaSDK::retryPendingConnections()
 	megaApi->retryPendingConnections();
 }
 
+void MegaSDK::retryPendingConnections(MRequestListenerInterface^ listener)
+{
+	megaApi->retryPendingConnections(createDelegateMRequestListener(listener));
+}
+
 void MegaSDK::login(String^ email, String^ password)
 {
 	std::string utf8email;
