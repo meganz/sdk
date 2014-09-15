@@ -397,9 +397,9 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                     if (localpath->size() < localdebris.size()
                      || memcmp(localpath->data(), localdebris.data(), localdebris.size())
                      || (localpath->size() != localdebris.size()
-                       && memcmp(localpath->data() + localdebris.size(),
-                                 client->fsaccess->localseparator.data(),
-                                 client->fsaccess->localseparator.size())))
+                      && memcmp(localpath->data() + localdebris.size(),
+                                client->fsaccess->localseparator.data(),
+                                client->fsaccess->localseparator.size())))
                     {
                         // new or existing record: place scan result in notification queue
                         dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);

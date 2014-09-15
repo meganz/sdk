@@ -1447,7 +1447,7 @@ bool MegaClient::abortbackoff()
 
     for (fafc_map::iterator it = fafcs.begin(); it != fafcs.end(); it++)
     {
-        if ((it->second->req.status != REQ_INFLIGHT) && it->second->bt.arm())
+        if (it->second->req.status != REQ_INFLIGHT && it->second->bt.arm())
         {
             r = true;
         }
@@ -1674,7 +1674,10 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 
     // do we have the pre-set threshold number of file attributes available? complete upload.
     for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, 0));
-         it != pendingfa.end() && it->first.first == th; it++) facount++;
+         it != pendingfa.end() && it->first.first == th; it++)
+    {
+         facount++;
+    }
 
     if (facount >= t->minfa)
     {
@@ -1715,9 +1718,9 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
     for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
     {
         if ((!it->second->slot || !it->second->slot->fa)
-            && it->second->bt.nextset()
-            && it->second->bt.nextset() >= Waiter::ds
-            && it->second->bt.nextset() < *dsmin)
+         && it->second->bt.nextset()
+         && it->second->bt.nextset() >= Waiter::ds
+         && it->second->bt.nextset() < *dsmin)
         {
             *dsmin = it->second->bt.nextset();
         }
@@ -1867,9 +1870,9 @@ bool MegaClient::procsc()
                 {
                     name = jsonsc.getnameid();
 
-                    // only process action if not marked as
-                    // self-originated (marker guaranteed to be next in
-                    // sequence if present)
+                    // only process server-client request if not marked as
+                    // self-originating ("i" marker element guaranteed to be following
+                    // "a" element if present)
                     if (memcmp(jsonsc.pos, "\"i\":\"", 5)
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
@@ -1885,10 +1888,14 @@ bool MegaClient::procsc()
                                 // node addition
                                 sc_newnodes();
                                 mergenewshares(1);
-                                
-                                if (prevname == 'd')
+
+                                if (prevname == 'd'
+                                 && (!memcmp(jsonsc.pos, "},{\"a\":\"d\"",10)
+                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"",10)))
                                 {
-                                    // temporarily hand over to syncdown() to process this move
+                                    // we have a potential move followed by another potential move
+                                    // or rename, which indicates a potential move-overwrite:
+                                    // run syncdown() to process the first move before proceeding
                                     return false;
                                 }
                                 break;
@@ -2256,7 +2263,7 @@ bool MegaClient::moretransfers(direction_t d)
     {
         int bpds = (int)(c / t);
 
-        if ((bpds > 100) && (r / bpds < 20))
+        if (bpds > 100 && r / bpds < 20)
         {
             return true;
         }
@@ -3077,7 +3084,7 @@ char* MegaClient::str_to_a32(const char* str, int* len)
         }
         else if ((c & 0xe0) == 0xc0)
         {
-            if ((i >= t) || ((str[i] & 0xc0) != 0x80))
+            if (i >= t || (str[i] & 0xc0) != 0x80)
             {
                 delete[] result;
                 return NULL;
@@ -3088,7 +3095,7 @@ char* MegaClient::str_to_a32(const char* str, int* len)
         }
         else if ((c & 0xf0) == 0xe0)
         {
-            if ((i + 2 > t) || ((str[i] & 0xc0) != 0x80) || ((str[i + 1] & 0xc0) != 0x80))
+            if (i + 2 > t || (str[i] & 0xc0) != 0x80 || (str[i + 1] & 0xc0) != 0x80)
             {
                 delete[] result;
                 return NULL;
@@ -3100,10 +3107,10 @@ char* MegaClient::str_to_a32(const char* str, int* len)
         }
         else if ((c & 0xf8) == 0xf0)
         {
-            if ((i + 3 > t)
-                    || ((str[i] & 0xc0) != 0x80)
-                    || ((str[i + 1] & 0xc0) != 0x80)
-                    || ((str[i + 2] & 0xc0) != 0x80))
+            if (i + 3 > t
+            || (str[i] & 0xc0) != 0x80
+            || (str[i + 1] & 0xc0) != 0x80
+            || (str[i + 2] & 0xc0) != 0x80)
             {
                 delete[] result;
                 return NULL;
@@ -4074,6 +4081,7 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
     else
     {
         u->pkrs.push_back(pka);
+
         if (!u->pubkrequested)
         {
             reqs[r].add(new CommandPubKeyRequest(this, u));
@@ -4155,7 +4163,9 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
         {
             data.assign((const char*)av, avl);
         }
+
         string iv;
+
         PaddedCBC::encrypt(&data, &key, &iv);
         // Now prepend the data with the (8 byte) IV.
         iv.append(data);
