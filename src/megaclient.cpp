@@ -367,6 +367,8 @@ void MegaClient::init()
 
     putmbpscap = 0;
 
+    jsonsc.pos = NULL;
+    insca = false;
     scnotifyurl.clear();
     *scsn = 0;
 }
