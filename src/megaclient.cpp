@@ -148,7 +148,7 @@ void MegaClient::mergenewshares(bool notify)
                 }
             }
 
-            if ((s->access == ACCESS_UNKNOWN) && !s->have_key)
+            if (s->access == ACCESS_UNKNOWN && !s->have_key)
             {
                 // share was deleted
                 if (s->outgoing)
@@ -1892,8 +1892,8 @@ bool MegaClient::procsc()
                                 mergenewshares(1);
 
                                 if (prevname == 'd'
-                                 && (!memcmp(jsonsc.pos, "},{\"a\":\"d\"",10)
-                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"",10)))
+                                 && (!memcmp(jsonsc.pos, "},{\"a\":\"d\"", 10)
+                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"", 10)))
                                 {
                                     // we have a potential move followed by another potential move
                                     // or rename, which indicates a potential move-overwrite:
@@ -2751,7 +2751,7 @@ void MegaClient::notifypurge(void)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                    && (*it)->localroot.node->removed)
+             && (*it)->localroot.node->removed)
             {
                 delsync(*it);
             }
@@ -3003,13 +3003,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
     }
 
     // moves within the same tree or between the user's own trees are permitted
-    if ((fn == tn) || (!fn->inshare && !tn->inshare))
+    if (fn == tn || (!fn->inshare && !tn->inshare))
     {
         return API_OK;
     }
 
     // moves between inbound shares from the same user are permitted
-    if (fn->inshare && tn->inshare && (fn->inshare->user == tn->inshare->user))
+    if (fn->inshare && tn->inshare && fn->inshare->user == tn->inshare->user)
     {
         return API_OK;
     }
@@ -3327,7 +3327,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             {
                 warn("Unknown node type");
             }
-            else if ((t == FILENODE) || (t == FOLDERNODE))
+            else if (t == FILENODE || t == FOLDERNODE)
             {
                 if (ISUNDEF(ph))
                 {
@@ -3342,14 +3342,14 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     warn("Missing node key");
                 }
 
-                if ((t == FILENODE) && ISUNDEF(s))
+                if (t == FILENODE && ISUNDEF(s))
                 {
                     warn("File node without file size");
                 }
             }
         }
 
-        if (fa && (t != FILENODE))
+        if (fa && t != FILENODE)
         {
             warn("Spurious file attributes");
         }
@@ -3383,7 +3383,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else
                 {
                     // node already present - check for race condition
-                    if ((n->parent && (ph != n->parent->nodehandle)) || n->type != t)
+                    if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
                     {
                         app->reload("Node inconsistency (parent linkage)");
                     }
@@ -4572,7 +4572,7 @@ error MegaClient::exportnode(Node* n, int del)
     }
 
     // export node
-    if ((n->type == FOLDERNODE) || (n->type == FILENODE))
+    if (n->type == FOLDERNODE || n->type == FILENODE)
     {
         reqs[r].add(new CommandSetPH(this, n, del));
     }
@@ -4878,8 +4878,11 @@ void MegaClient::fetchnodes()
     else if (!fetchingnodes)
     {
         fetchingnodes = true;
+
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+        {
             (*it)->changestate(SYNC_CANCELED);
+        }
 
         reqs[r].add(new CommandFetchNodes(this));
     }
@@ -5086,7 +5089,7 @@ void MegaClient::updateputs()
 {
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
     {
-        if (((*it)->transfer->type == PUT) && (*it)->transfer->files.size())
+        if ((*it)->transfer->type == PUT && (*it)->transfer->files.size())
         {
             (*it)->transfer->files.front()->prepare();
         }
@@ -5117,11 +5120,9 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
     npp = &(*nchildren)[name];
 
     if (!*npp
-        || n->mtime > (*npp)->mtime
-        || (n->mtime == (*npp)->mtime && n->size > (*npp)->size)
-        || (n->mtime == (*npp)->mtime
-            && n->size == (*npp)->size
-            && memcmp(n->crc, (*npp)->crc, sizeof n->crc) > 0))
+     || n->mtime > (*npp)->mtime
+     || (n->mtime == (*npp)->mtime && n->size > (*npp)->size)
+     || (n->mtime == (*npp)->mtime && n->size == (*npp)->size && memcmp(n->crc, (*npp)->crc, sizeof n->crc) > 0))
     {
         *npp = n;
     }
@@ -5139,7 +5140,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
     // only use for LocalNodes with a corresponding and properly linked Node
-    if ((l->type != FOLDERNODE) || !l->node || (l->parent && (l->node->parent->localnode != l->parent)))
+    if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
     {
         return true;
     }
@@ -5162,10 +5163,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
         if ((app->sync_syncable(*it)
-                && ((*it)->syncdeleted == SYNCDEL_NONE)
-                && !(*it)->attrstring.size()
-                && ((ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()))
-                && (l->parent || l->sync->debris != ait->second))
+             && (*it)->syncdeleted == SYNCDEL_NONE
+             && !(*it)->attrstring.size()
+             && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
+         && (l->parent || l->sync->debris != ait->second))
         {
             addchild(&nchildren, &ait->second, *it, &strings);
         }
