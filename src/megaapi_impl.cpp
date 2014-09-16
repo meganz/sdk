@@ -4898,6 +4898,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if(node->parent == newParent)
             {
+                client->restag = nextTag;
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
@@ -5204,6 +5205,8 @@ void MegaApiImpl::sendPendingRequests()
 			client->abortbackoff();
 			if(disconnect)
 				client->disconnect();
+
+            client->restag = nextTag;
 			fireOnRequestFinish(request, MegaError(API_OK));
 			break;
 		}
