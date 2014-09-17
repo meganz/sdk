@@ -316,9 +316,9 @@ uint64_t MegaApi::base64ToHandle(const char* base64Handle)
     return MegaApiImpl::base64ToHandle(base64Handle);
 }
 
-void MegaApi::retryPendingConnections()
+void MegaApi::retryPendingConnections(MegaRequestListener* listener)
 {
-    pImpl->retryPendingConnections();
+    pImpl->retryPendingConnections(false, listener);
 }
 
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)

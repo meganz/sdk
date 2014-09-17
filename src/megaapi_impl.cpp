@@ -1558,9 +1558,11 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
 	return h;
 }
 
-void MegaApiImpl::retryPendingConnections()
+void MegaApiImpl::retryPendingConnections(bool disconnect, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS);
+	request->setFlag(disconnect);
+	request->setListener(listener);
 	requestQueue.push(request);
     waiter->notify();
 }
@@ -4896,6 +4898,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if(node->parent == newParent)
             {
+                client->restag = nextTag;
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
@@ -5198,8 +5201,13 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS:
 		{
+			bool disconnect = request->getFlag();
 			client->abortbackoff();
-			client->disconnect();
+			if(disconnect)
+				client->disconnect();
+
+            client->restag = nextTag;
+			fireOnRequestFinish(request, MegaError(API_OK));
 			break;
 		}
 		case MegaRequest::TYPE_ADD_CONTACT:
