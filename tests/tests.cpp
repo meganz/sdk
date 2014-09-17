@@ -22,15 +22,35 @@
 #include "mega.h"
 #include "gtest/gtest.h"
 
+using namespace mega;
+using ::testing::InitGoogleTest;
+using ::testing::Test;
+using ::testing::TestCase;
+using ::testing::TestInfo;
+using ::testing::TestPartResult;
+using ::testing::UnitTest;
+
 bool debug;
 
 TEST(JSON, storeobject) {
-  string in_str("Test");
-  JSON j;
-  j.storeobject (&in_str);
+    std::string in_str("Test");
+    JSON j;
+    j.storeobject(&in_str);
+}
+
+// Test 64-bit int serialization/unserialization
+TEST(Serialize64, serialize) {
+    uint64_t in = 0xDEADBEEF;
+    uint64_t out;
+    byte buf[sizeof in];
+
+    Serialize64::serialize(buf, in);
+    ASSERT_GT(Serialize64::unserialize(buf, sizeof buf, &out), 0);
+    ASSERT_EQ(in, out);
 }
 
 int main (int argc, char *argv[])
 {
+    InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

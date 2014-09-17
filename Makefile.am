@@ -65,10 +65,10 @@ endif
 
 CPPCHECK_CMD = cppcheck \
 	--template='{file};{line};{severity};{id};{message}' \
-	--enable=style,information,performance,portability,missingInclude,unusedFunction \
+	--enable=warning,portability,information,missingInclude \
 	--std=c++03 --force \
 	--quiet \
-    -I $(top_srcdir)/include \
+	-I $(top_srcdir)/include \
 	-I $(platform_includes)
 
 CPPCHECK_DIRS = \

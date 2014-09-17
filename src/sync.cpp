@@ -2,7 +2,7 @@
  * @file sync.cpp
  * @brief Class for synchronizing local and remote trees
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -45,7 +45,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     state = SYNC_INITIALSCAN;
 
     fullscan = true;
-	
+
     if (cdebris)
     {
         debris = cdebris;
@@ -97,8 +97,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
 Sync::~Sync()
 {
-    // must be set to prevent remote mass deletion while rootlocal destructor
-    // runs
+    // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED);
 
     // unlock tmp lock
@@ -114,7 +113,6 @@ Sync::~Sync()
     delete statecachetable;
 
     client->syncs.erase(sync_it);
-
     client->syncactivity = true;
 }
 
@@ -150,7 +148,10 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         l->setfsid(fsid);
         l->setnode(node);
 
-        if (maxdepth) addstatecachechildren(l->dbid, tmap, path, l, maxdepth - 1);
+        if (maxdepth)
+        {
+            addstatecachechildren(l->dbid, tmap, path, l, maxdepth - 1);
+        }
     }
 
     path->resize(pathlen);
@@ -183,7 +184,7 @@ bool Sync::readstatecache()
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
         scanseqno++;
-		
+
         return true;
     }
 
@@ -267,7 +268,7 @@ void Sync::changestate(syncstate_t newstate)
         client->app->syncupdate_state(this, newstate);
 
         state = newstate;
-		fullscan = false;
+        fullscan = false;
     }
 }
 
@@ -361,61 +362,61 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 // localpath must be prefixed with Sync
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
-	if (localpath->size() < localdebris.size()
-		|| memcmp(localpath->data(), localdebris.data(), localdebris.size())
-		|| (localpath->size() != localdebris.size()
-			&& memcmp(localpath->data() + localdebris.size(),
-					  client->fsaccess->localseparator.data(),
-					  client->fsaccess->localseparator.size())))
-	{
-		DirAccess* da;
-		string localname, name;
-		bool success;
+    if (localpath->size() < localdebris.size()
+     || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+     || (localpath->size() != localdebris.size()
+      && memcmp(localpath->data() + localdebris.size(),
+                client->fsaccess->localseparator.data(),
+                client->fsaccess->localseparator.size())))
+    {
+        DirAccess* da;
+        string localname, name;
+        bool success;
 
-		da = client->fsaccess->newdiraccess();
+        da = client->fsaccess->newdiraccess();
 
-		// scan the dir, mark all items with a unique identifier
-		if ((success = da->dopen(localpath, fa, false)))
-		{
-			size_t t = localpath->size();
+        // scan the dir, mark all items with a unique identifier
+        if ((success = da->dopen(localpath, fa, false)))
+        {
+            size_t t = localpath->size();
 
-			while (da->dnext(&localname))
-			{
-				name = localname;
-				client->fsaccess->local2name(&name);
+            while (da->dnext(&localname))
+            {
+                name = localname;
+                client->fsaccess->local2name(&name);
 
-				// check if this record is to be ignored
-				if (client->app->sync_syncable(name.c_str(), localpath, &localname))
-				{
-					if (t)
-					{
-						localpath->append(client->fsaccess->localseparator);
-					}
+                // check if this record is to be ignored
+                if (client->app->sync_syncable(name.c_str(), localpath, &localname))
+                {
+                    if (t)
+                    {
+                        localpath->append(client->fsaccess->localseparator);
+                    }
 
-					localpath->append(localname);
+                    localpath->append(localname);
 
-					// skip the sync's debris folder
-					if ((localpath->size() < localdebris.size())
-						|| memcmp(localpath->data(), localdebris.data(), localdebris.size())
-						|| ((localpath->size() != localdebris.size())
-							&& memcmp(localpath->data() + localdebris.size(),
-									  client->fsaccess->localseparator.data(),
-									  client->fsaccess->localseparator.size())))
-					{
-						// new or existing record: place scan result in notification queue
-						dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
-					}
+                    // skip the sync's debris folder
+                    if (localpath->size() < localdebris.size()
+                     || memcmp(localpath->data(), localdebris.data(), localdebris.size())
+                     || (localpath->size() != localdebris.size()
+                      && memcmp(localpath->data() + localdebris.size(),
+                                client->fsaccess->localseparator.data(),
+                                client->fsaccess->localseparator.size())))
+                    {
+                        // new or existing record: place scan result in notification queue
+                        dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
+                    }
 
-					localpath->resize(t);
-				}
-			}
-		}
+                    localpath->resize(t);
+                }
+            }
+        }
 
-		delete da;
+        delete da;
 
-		return success;
-	}
-	else return false;
+        return success;
+    }
+    else return false;
 }
 
 // check local path - if !localname, localpath is relative to l, with l == NULL
@@ -483,7 +484,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
-        isroot = (l == &localroot && !newname.size());
+        isroot = l == &localroot && !newname.size();
 
         client->fsaccess->local2path(&tmppath, &path);
     }
@@ -508,7 +509,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
             string fname(localname ? *localpath : tmppath,
                                    lastpart,
-                                   (localname ? *localpath : tmppath).size()-lastpart);
+                                   (localname ? *localpath : tmppath).size() - lastpart);
 
             LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
 
@@ -528,7 +529,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }
-                    else localbytes += l->size;
+                    else
+                    {
+                        localbytes += l->size;
+                    }
 
                     delete fa;
                     return l;
@@ -555,27 +559,37 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         {
                             handlelocalnode_map::iterator it;
 
-                            // was the file overwritten by moving an existing
-                            // file over it?
+                            // was the file overwritten by moving an existing file over it?
                             if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
                             {
-                                client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
+                                // catch the not so unlikely case of a false fsid match due to
+                                // e.g. a file deletion/creation cycle that reuses the same inode
+                                if (it->second->mtime != fa->mtime || it->second->size != fa->size)
+                                {
+                                    delete it->second;
+                                }
+                                else
+                                {
+                                    // delete existing LocalNode...
+                                    delete l;
 
-                                // immediately delete existing LocalNode and
-                                // replace with moved one
-                                delete l;
+                                    // ...move remote node out of the way...
+                                    client->execmovetosyncdebris();
+                                    
+                                    // ...and atomically replace with moved one
+                                    client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
 
-                                // (in case of a move, this synchronously
-                                // updates l->parent and l->node->parent)
-                                it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                                    // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                                    it->second->setnameparent(parent, localname ? localpath : &tmppath);
 
-                                // mark as seen / undo possible deletion
-                                it->second->setnotseen(0);
+                                    // mark as seen / undo possible deletion
+                                    it->second->setnotseen(0);
 
-                                statecacheadd(it->second);
+                                    statecacheadd(it->second);
 
-                                delete fa;
-                                return it->second;
+                                    delete fa;
+                                    return it->second;
+                                }
                             }
                             else
                             {
@@ -648,7 +662,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                     // immediately scan folder to detect deviations from cached state
                     if (fullscan)
-					{
+                    {
                         scan(localname ? localpath : &tmppath, fa);
                     }
                 }
@@ -756,7 +770,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
             // in fullscan mode, missing files are handled in bulk in deletemissing()
             // rather than through setnotseen()
-            if (!fullscan) l->setnotseen(1);
+            if (!fullscan)
+            {
+                l->setnotseen(1);
+            }
         }
 
         l = NULL;
@@ -845,7 +862,7 @@ bool Sync::movetolocaldebris(string* localpath)
 
     for (int i = -3; i < 100; i++)
     {
-        if ((i == -2) || (i > 95))
+        if (i == -2 || i > 95)
         {
             client->fsaccess->mkdirlocal(&localdebris, true);
         }
@@ -883,7 +900,7 @@ bool Sync::movetolocaldebris(string* localpath)
         {
             return false;
         }
-        
+
         if (havedir && !client->fsaccess->target_exists)
         {
             return false;

@@ -170,6 +170,8 @@ public:
     template<typename T>
     inline NullLogger& operator<<(T const& obj)
     {
+        // suppress unused warning
+        (void)obj;
         return *this;
     }
 };

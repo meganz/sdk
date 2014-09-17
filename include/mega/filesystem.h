@@ -2,7 +2,7 @@
  * @file mega/filesystem.h
  * @brief Generic host filesystem access interfaces
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -184,7 +184,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // create directory, optionally hidden
     virtual bool mkdirlocal(string*, bool = false) = 0;
 
-	// make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
+    // make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);
     
     // set mtime

@@ -1,5 +1,5 @@
 /**
- * @file examples/megasync.cpp
+ * @file examples/megasimplesync.cpp
  * @brief sample daemon, which synchronizes local and remote folders
  *
  * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
@@ -527,7 +527,7 @@ int main(int argc, char *argv[])
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
         NULL, NULL,
-        "megasync", "megaclisync");
+        "megasimplesync", "megaclisync");
 
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))

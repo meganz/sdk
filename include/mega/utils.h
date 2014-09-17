@@ -42,11 +42,39 @@ struct MEGA_API ChunkedHash
     static m_off_t chunkceil(m_off_t);
 };
 
-// padded CBC encryption
+/**
+ * @brief Padded encryption using AES-128 in CBC mode.
+ */
 struct MEGA_API PaddedCBC
 {
-    static void encrypt(string*, SymmCipher*);
-    static bool decrypt(string*, SymmCipher*);
+    /**
+     * @brief Encrypts a string after padding it to block length.
+     *
+     * Note: With an IV, only use the first 8 bytes.
+     *
+     * @param data Data buffer to be encrypted. Encryption is done in-place,
+     *     so cipher text will be in `data` afterwards as well.
+     * @param key AES key for encryption.
+     * @param iv Optional initialisation vector for encryption. Will use a
+     *     zero IV if not given. If `iv` is a zero length string, a new IV
+     *     for encryption will be generated and available through the reference.
+     * @return Void.
+     */
+    static void encrypt(string* data, SymmCipher* key, string* iv = NULL);
+
+    /**
+     * @brief Decrypts a string and strips the padding.
+     *
+     * Note: With an IV, only use the first 8 bytes.
+     *
+     * @param data Data buffer to be decrypted. Decryption is done in-place,
+     *     so plain text will be in `data` afterwards as well.
+     * @param key AES key for decryption.
+     * @param iv Optional initialisation vector for encryption. Will use a
+     *     zero IV if not given.
+     * @return Void.
+     */
+    static bool decrypt(string* data, SymmCipher* key, string* iv = NULL);
 };
 
 class MEGA_API HashSignature
@@ -61,7 +89,7 @@ public:
     unsigned get(AsymmCipher*, byte*, unsigned);
 
     // verify signature
-    int check(AsymmCipher*, const byte*, unsigned);
+    bool check(AsymmCipher*, const byte*, unsigned);
 
     HashSignature(Hash*);
     ~HashSignature();
@@ -78,7 +106,7 @@ struct MEGA_API MemAccess
         return val;
     }
 
-    template<typename T> static void set(const byte* ptr, T val)
+    template<typename T> static void set(byte* ptr, T val)
     {
         memcpy(ptr,&val,sizeof val);
     }
@@ -88,7 +116,7 @@ struct MEGA_API MemAccess
         return *(T*)ptr;
     }
 
-    template<typename T> static void set(const byte* ptr, T val)
+    template<typename T> static void set(byte* ptr, T val)
     {
         *(T*)ptr = val;
     }

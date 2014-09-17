@@ -149,7 +149,7 @@ struct MEGA_API HttpReq
     // prevent raw data from being dumped in debug mode
     bool binary;
 
-    HttpReq(int = 0);
+    HttpReq(bool = false);
     virtual ~HttpReq();
 };
 
@@ -161,7 +161,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
     virtual bool prepare(FileAccess *, const char*, SymmCipher *, chunkmac_map *, uint64_t, m_off_t, m_off_t) = 0;
     virtual void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) { }
 
-    HttpReqXfer() : HttpReq(1) { }
+    HttpReqXfer() : HttpReq(true) { }
 };
 
 // file chunk upload

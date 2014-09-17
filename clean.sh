@@ -25,11 +25,13 @@ include/Makefile include/Makefile.in
 include/mega/config.h include/mega/config.h.in include/mega/stamp-h1
 m4/libtool.m4 m4/lt~obsolete.m4  m4/ltoptions.m4  m4/ltsugar.m4  m4/ltversion.m4
 src/.deps src/.dirstamp
-src/crypto/.deps src/crypto/.dirstamp
-src/db/.deps src/db/.dirstamp
+src/crypto/.deps src/crypto/.dirstamp src/crypto/.libs
+src/db/.deps src/db/.dirstamp src/db/.libs
+src/gfx/.deps src/gfx/.dirstamp src/gfx/.libs
 src/.libs
-src/posix/.deps src/posix/.dirstamp
+src/posix/.deps src/posix/.dirstamp src/posix/.libs
 src/win32/.deps src/win32/.dirstamp
+third_party/utf8proc/.deps third_party/utf8proc/.dirstamp third_party/utf8proc/.libs
 tests/.deps tests/.dirstamp
 doc/api doc/sphinx_api doc/_build
 "

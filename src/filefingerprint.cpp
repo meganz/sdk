@@ -36,11 +36,15 @@ bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
     // mtime check disabled on Android due to this bug:
     // https://code.google.com/p/android/issues/detail?id=18624
 
+#ifndef WINDOWS_PHONE
+    // Disabled on Windows Phone too because SetFileTime isn't available
+
     // mtime differs - cannot be equal
     if (abs(lhs.mtime-rhs.mtime) > 2)
     {
         return false;
     }
+#endif
 #endif
 
     // FileFingerprints not fully available - give it the benefit of the doubt
@@ -90,7 +94,11 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        fa->frawread((byte*)newcrc, size, 0);
+        if(!fa->frawread((byte*)newcrc, size, 0))
+        {
+            size = -1;
+            return true;
+        }
         memset((byte*)newcrc + size, 0, sizeof crc - size);
     }
     else if (size <= MAXFULL)

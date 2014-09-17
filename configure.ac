@@ -24,6 +24,8 @@
 
 m4_include([m4/ax_prog_doxygen.m4])
 m4_include([m4/curlchk.m4])
+m4_include([m4/ax_check_compile_flag.m4])
+m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
@@ -133,6 +135,13 @@ AC_TYPE_SIZE_T
 
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
 
+# Check if we can use -fPIC flag
+AX_CHECK_COMPILE_FLAG([-fPIC], [
+  AX_CHECK_LINK_FLAG([-fPIC],
+    [CXXFLAGS="$CXXFLAGS -fPIC"]
+  )
+])
+
 # Check for inotify support.
 AC_ARG_ENABLE(inotify,
     AS_HELP_STRING([--enable-inotify], [enable inotify support [default=yes]])],
@@ -162,6 +171,7 @@ case $host in
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    CXXFLAGS="$CXXFLAGS -DUNICODE"
     WIN32=yes
     ;;
   *)
@@ -172,6 +182,29 @@ esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
+
+# check for Pthreads
+AC_ARG_ENABLE(posix-threads,
+    AS_HELP_STRING(--disable-posix-threads, disable POSIX threads support))
+if test x$enable_posix_threads != xno; then
+    HAVE_PTHREAD=yes
+    AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
+fi
+if test "$HAVE_PTHREAD" = "yes"; then
+    AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
+fi
+
+# hardening options
+AC_ARG_ENABLE(gcc-hardening,
+    AS_HELP_STRING(--disable-gcc-hardening, disable compiler security checks))
+if test x$enable_gcc_hardening != xno; then
+    CXXFLAGS="$CXXFLAGS -D_FORTIFY_SOURCE=2"
+    AX_CHECK_COMPILE_FLAG([-fstack-protector-all], [
+        AX_CHECK_LINK_FLAG([-fstack-protector-all],
+        [CXXFLAGS="$CXXFLAGS -fstack-protector-all"]
+    )
+])
+fi
 
 SAVE_LDFLAGS=$LDFLAGS
 SAVE_CXXFLAGS=$CXXFLAGS
@@ -251,6 +284,85 @@ AC_SUBST(CRYPTO_CPPFLAGS)
 AC_SUBST(CRYPTO_LDFLAGS)
 AC_SUBST(CRYPTO_LIBS)
 AC_DEFINE(USE_CRYPTOPP, [1], [Define to use libcryptopp])
+
+#libsodium
+AC_MSG_CHECKING(for libsodium)
+sodium=false
+AC_ARG_WITH(sodium,
+  AS_HELP_STRING(--with-sodium=PATH, base of libsodium installation),
+  [
+   case $with_sodium in
+   no)
+    sodium=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([sodium/core.h],, [
+        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+    sodium=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_sodium/lib"; then
+        LDFLAGS="-L$with_sodium/lib $LDFLAGS"
+        CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(sodium/core.h,
+         SODIUM_CXXFLAGS="-I$with_sodium/include"
+         SODIUM_CPPFLAGS="-I$with_sodium/include"
+         SODIUM_LDFLAGS="-L$with_sodium/lib",
+         AC_MSG_ERROR([sodium/sodium.h header not found or not usable])
+         )
+    # assume we are using sodium source directory
+    else
+        LDFLAGS="-L$with_sodium/src/libsodium/.libs $LDFLAGS"
+        CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(sodium/core.h,
+         SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
+         SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
+         SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
+         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+
+    sodium=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-sodium not specified])
+    AC_CHECK_HEADERS([sodium/core.h],, [
+        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+            AC_MSG_ERROR([Could not find libsodium])
+    ])
+    sodium=true
+  ])
+AC_SUBST(SODIUM_CXXFLAGS)
+AC_SUBST(SODIUM_CPPFLAGS)
+AC_SUBST(SODIUM_LDFLAGS)
+AC_SUBST(SODIUM_LIBS)
+
+if test "x$sodium" = "xtrue" ; then
+    AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
+fi
+AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
 
 #
 # Zlib
@@ -471,8 +583,75 @@ fi
 #
 # ** Posix dependent libraries **
 #
+openssl=false
 if test "x$WIN32" = "xno" ; then
 
+    # OpenSSL
+    AC_MSG_CHECKING(for OpenSSL)
+    AC_ARG_WITH([openssl],
+      AS_HELP_STRING(--with-openssl=PATH, base of OpenSSL installation),
+      [
+       case $with_openssl in
+       no)
+         AC_MSG_ERROR([Please specify path to OpenSSL installation directory!])
+         ;;
+       yes)
+            LIBSSL_LIBS="-lssl"
+
+            AC_CHECK_HEADERS([openssl/ssl.h], [],
+                AC_MSG_ERROR([ssl.h header not found or not usable])
+            )
+            AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+                AC_MSG_ERROR([Could not find OpenSSL library!])
+            )
+
+            AC_SUBST(LIBSSL_LIBS)
+            openssl=true
+         ;;
+       *)
+        # determine if library is installed
+        LDFLAGS="-L$with_openssl/lib $LDFLAGS"
+        CXXFLAGS="-I$with_openssl/include $CXXFLAGS"
+
+        LIBSSL_LIBS="-L$with_openssl/lib -lssl"
+        LIBSSL_FLAGS="-I$with_openssl/include"
+
+        AC_CHECK_HEADERS([openssl/ssl.h], [],
+            AC_MSG_ERROR([ssl.h header not found or not usable])
+        )
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+            AC_MSG_ERROR([Could not find OpenSSL library!])
+        )
+
+        AC_SUBST(LIBSSL_FLAGS)
+        AC_SUBST(LIBSSL_LIBS)
+        openssl=true
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
+        ;;
+       esac
+      ],
+      [
+        AC_MSG_RESULT([--with-openssl not specified])
+
+        LIBSSL_LIBS="-lssl"
+
+        AC_CHECK_HEADERS([openssl/ssl.h], [],
+            AC_MSG_ERROR([ssl.h header not found or not usable])
+        )
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+            AC_MSG_ERROR([Could not find OpenSSL library!])
+        )
+
+        AC_SUBST(LIBSSL_LIBS)
+        openssl=true
+      ]
+    )
+
+    # cURL
     AC_ARG_ENABLE(curl-checks,
         AS_HELP_STRING([--enable-curl-checks], [enable cURL checks [default=yes]])],
         [enable_curl_checks=$enableval],
@@ -481,7 +660,7 @@ if test "x$WIN32" = "xno" ; then
 
     # check for cURL library
     AC_ARG_WITH([curl],
-      AS_HELP_STRING(--with-curl=PATH, path to cURL),
+      AS_HELP_STRING(--with-curl=PATH, base of cURL installation),
       [
        case $with_curl in
        no)
@@ -490,14 +669,14 @@ if test "x$WIN32" = "xno" ; then
        yes)
             LIBCURL_LIBS="-lcurl"
             LIBS="-lcurl $LIBS"
-            
+
             AC_CHECK_HEADERS([curl/curl.h], [],
                 AC_MSG_ERROR([curl.h header not found or not usable])
             )
             AC_CHECK_LIB(curl, [main], [],
                 AC_MSG_ERROR([Could not find libcurl!])
             )
-            
+
             AC_SUBST(LIBCURL_LIBS)
 
             if test "x$enable_curl_checks" = "xyes" ; then
@@ -524,8 +703,8 @@ if test "x$WIN32" = "xno" ; then
 
         LIBCURL_LIBS="-L$with_curl/lib -lcurl"
         LIBCURL_FLAGS="-I$with_curl/include"
-        
-        AC_CHECK_HEADERS([curl/curl.h], [], 
+
+        AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
 
@@ -542,18 +721,22 @@ if test "x$WIN32" = "xno" ; then
         else
             AC_MSG_NOTICE([skipping cURL checks.])
         fi
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
          ;;
        esac
       ],
       [
-
         LIBCURL_LIBS="-lcurl"
         LIBS="-lcurl $LIBS"
-        
+
         AC_CHECK_HEADERS([curl/curl.h], [],
             AC_MSG_ERROR([curl.h header not found or not usable])
         )
-        AC_CHECK_LIB(curl, [main], [], 
+        AC_CHECK_LIB(curl, [main], [],
             AC_MSG_ERROR([Could not find libcurl!])
         )
 
@@ -568,13 +751,21 @@ if test "x$WIN32" = "xno" ; then
                 AC_MSG_RESULT([no])
                 AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
             fi
-        
+
             CURL_CHK()
         else
             AC_MSG_NOTICE([skipping cURL checks.])
         fi
       ]
     )
+fi
+
+# define on all platforms
+AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
+if test "x$openssl" = "xtrue" ; then
+    AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
+else
+    AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
 fi
 
 # determine platform include path
@@ -696,7 +887,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
          ;;
@@ -723,7 +914,7 @@ if test "x$enable_examples" = "xyes" ; then
             )
         fi
 
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
@@ -737,7 +928,7 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
-        AC_CHECK_LIB([readline], [rl_redisplay], [RL_LIBS="-lreadline"], [
+        AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
       ]
       )
@@ -801,7 +992,7 @@ AC_ARG_ENABLE(tests,
     [], [enable_tests=no])
 if test "x$enable_tests" = "xyes" ; then
     AC_ARG_WITH(gtest,
-        AS_HELP_STRING(--with-gtest, specify GTest location),
+        AS_HELP_STRING(--with-gtest=PATH, specify GTest location),
         [AC_SUBST([GTEST_DIR],[$with_gtest])],
         [AC_MSG_ERROR([GTest location must be specified])]
     )

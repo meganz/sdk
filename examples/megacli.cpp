@@ -2,7 +2,7 @@
  * @file examples/megaclient.cpp
  * @brief Sample application, interactive GNU Readline CLI
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -610,7 +610,7 @@ static AccountDetails account;
 static handle cwd = UNDEF;
 
 static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH", "MAIL" };
+{ "ROOT", "INBOX", "RUBBISH" };
 static const char* rootnodepaths[] =
 { "/", "//in", "//bin" };
 
@@ -719,6 +719,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                         {
                             return NULL;
                         }
+
                         remote = 1;
                     }
 
@@ -848,7 +849,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     }
 
     // parse relative path
-    while (n && l < (int) c.size())
+    while (n && l < (int)c.size())
     {
         if (c[l] != ".")
         {
@@ -3324,8 +3325,14 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (storage)
     {
-        cout << "\tStorage: " << ad->storage_used << " of " << ad->storage_max << " ("
-             << (100 * ad->storage_used / ad->storage_max) << "%)" << endl;
+        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
+
+        for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
+        {
+            NodeStorage* ns = &ad->storage[client->rootnodes[i]];
+
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+        }
     }
 
     if (transfer)

@@ -202,6 +202,8 @@ public:
 class MEGA_API CommandGetUA : public Command
 {
     int priv;
+    User* user;
+    char* attributename;
 
 public:
     CommandGetUA(MegaClient*, const char*, const char*, int);
@@ -326,6 +328,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
     NewNode* nn;
+    int nnsize;
     targettype_t type;
     putsource_t source;
 
@@ -443,6 +446,14 @@ public:
     void procresult();
 
     CommandEnumerateQuotaItems(MegaClient*);
+};
+
+class MEGA_API CommandSubmitEvent : public Command
+{
+public:
+    void procresult();
+
+    CommandSubmitEvent(MegaClient*, const char*, const char*, int);
 };
 } // namespace
 

@@ -2,7 +2,7 @@
  * @file mega/megaclient.h
  * @brief Client access engine core logic
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -76,6 +76,13 @@ public:
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
+
+    /**
+     * @brief Initialises the Ed25519 EdDSA key user properties.
+     *
+     * A key pair will be added, if not present, yet.
+     */
+    void inited25519();
 
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
@@ -161,12 +168,30 @@ public:
 
     // queue file attribute retrieval
     error getfa(Node*, fatype, int = 0);
+    
+    // notify delayed upload completion subsystem about new file attribute
+    void checkfacompletion(handle, Transfer* = NULL);
 
-    // attach/update/delete user attribute
-    void putua(const char*, const byte* = NULL, unsigned = 0, int = 0);
+    /**
+     * @brief Attach/update/delete a user attribute.
+     *
+     * @param an Attribute name.
+     * @param av Attribute value.
+     * @param avl Attribute value length.
+     * @param priv 1 for a private, 0 for a public attribute.
+     * @return Void.
+     */
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int priv = 0);
 
-    // queue user attribute retrieval
-    void getua(User*, const char* = NULL, int = 0);
+    /**
+     * @brief Queue a user attribute retrieval.
+     *
+     * @param u User.
+     * @param an Attribute name.
+     * @param p 1 for a private, 0 for a public attribute.
+     * @return Void.
+     */
+    void getua(User* u, const char* an = NULL, int p = 0);
 
     // add new contact (by e-mail address)
     error invite(const char*, visibility_t = VISIBLE);
@@ -190,6 +215,9 @@ public:
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
+    // User-Agent header for HTTP requests
+    string useragent;
+
     // shopping basket
     handle_vector purchase_basket;
 
@@ -207,6 +235,9 @@ public:
 
     // toggle global debug flag
     bool toggledebug();
+
+    // submit an event
+    void submitevent(const char* evtclass, const char* message, int version);
 
 private:
     // API request queue double buffering:
@@ -256,9 +287,6 @@ private:
 
     // next internal upload handle
     handle nextuh;
-
-    // User-Agent header for HTTP requests
-    string useragent;
 
     // maximum number of concurrent transfers
     static const unsigned MAXTRANSFERS = 8;
@@ -369,8 +397,9 @@ public:
     // MegaClient-Server response JSON
     JSON json;
 
-    // Server-MegaClient request JSON
+    // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
+    bool insca;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
@@ -390,6 +419,9 @@ public:
 
     // pending file attributes
     fa_map pendingfa;
+
+    // upload waiting for file attributes
+    handletransfer_map faputcompletion;    
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -519,7 +551,7 @@ public:
     void syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*);
+    void putnodes_sync_result(error, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, string*, bool);
@@ -566,7 +598,7 @@ public:
     string badhosts;
     
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -584,7 +616,7 @@ public:
 
     void handleauth(handle, byte*);
 
-    void procsc();
+    bool procsc();
 
     // API warnings
     void warn(const char*);
@@ -610,6 +642,11 @@ public:
 
     // account access (full account): RSA key
     AsymmCipher asymkey;
+
+#ifdef USE_SODIUM
+    /// EdDSA signing key (Ed25519 privte key seed).
+    EdDSA signkey;
+#endif
 
     // binary session ID
     string sid;

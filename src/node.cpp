@@ -2,7 +2,7 @@
  * @file node.cpp
  * @brief Classes for accessing local and remote nodes
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -470,8 +470,11 @@ void Node::setattr()
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
             JSON::unescape(t);
-            if(name == 'n')
+
+            if (name == 'n')
+            {
                 client->fsaccess->normalize(t);
+            }
         }
 
         setfingerprint();
@@ -529,10 +532,12 @@ const char* Node::displayname() const
     {
         return "CRYPTO_ERROR";
     }
+
     if (!it->second.size())
     {
         return "BLANK";
     }
+
     return it->second.c_str();
 }
 
@@ -733,8 +738,8 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
 
         // has the name changed?
-        if ((localname.size() != newlocalpath->size() - p)
-                || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
+        if (localname.size() != newlocalpath->size() - p
+         || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
         {
             // set new name
             localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);
@@ -802,6 +807,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     node = NULL;
     notseen = 0;
     deleted = false;
+    created = false;
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
@@ -895,7 +901,7 @@ void LocalNode::setnode(Node* cnode)
 
     node = cnode;
 
-	if (node)
+    if (node)
     {
         node->localnode = this;
     }
@@ -927,7 +933,7 @@ void LocalNode::setnotseen(int newnotseen)
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setfsid(handle newfsid)
 {
-    if ((fsid_it != sync->client->fsidnode.end()))
+    if (fsid_it != sync->client->fsidnode.end())
     {
         if (newfsid == fsid)
         {
@@ -949,7 +955,6 @@ void LocalNode::setfsid(handle newfsid)
         fsid_it->second->fsid_it = sync->client->fsidnode.end();
         fsid_it->second = this;
     }
-
 }
 
 LocalNode::~LocalNode()
@@ -1016,7 +1021,7 @@ LocalNode::~LocalNode()
         setnameparent(NULL, NULL);
     }
 
-    for (localnode_map::iterator it = children.begin(); it != children.end();)
+    for (localnode_map::iterator it = children.begin(); it != children.end(); )
     {
         delete it++->second;
     }
@@ -1118,7 +1123,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 {
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
-    if (!parent || !parent->node || (node && (mtime < node->mtime)))
+    if (!parent || !parent->node || (node && mtime < node->mtime))
     {
         h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
     }
@@ -1233,13 +1238,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     if (type == FILENODE)
     {
-        if (ptr + (4*sizeof(int32_t)) > end + 1)
+        if (ptr + 4 * sizeof(int32_t) > end + 1)
         {
             sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
             return NULL;
         }
 
-        if (!Serialize64::unserialize((byte*)ptr + (4*sizeof(int32_t)), end - ptr - (4*sizeof(int32_t)), &mtime))
+        if (!Serialize64::unserialize((byte*)ptr + 4 * sizeof(int32_t), end - ptr - 4 * sizeof(int32_t), &mtime))
         {
             sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
             return NULL;
@@ -1266,6 +1271,9 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->node = sync->client->nodebyhandle(h);
     l->parent = NULL;
     l->sync = sync;
+
+    // FIXME: serialize/unserialize
+    l->created = false;
 
     return l;
 }

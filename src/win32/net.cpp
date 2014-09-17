@@ -2,7 +2,7 @@
  * @file win32/net.cpp
  * @brief Win32 network access layer (using WinHTTP)
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -55,6 +55,133 @@ void WinHttpIO::setuseragent(string* useragent)
                            WINHTTP_NO_PROXY_NAME,
                            WINHTTP_NO_PROXY_BYPASS,
                            WINHTTP_FLAG_ASYNC);
+}
+
+
+void WinHttpIO::setproxy(Proxy *proxy)
+{
+    Proxy *autoProxy = NULL;
+
+    proxyUsername.clear();
+    proxyPassword.clear();
+
+    if (proxy->getProxyType() == Proxy::AUTO)
+    {
+        autoProxy = getautoproxy();
+        proxy = autoProxy;
+    }
+
+    if (proxy->getProxyType() == Proxy::NONE)
+    {
+        WINHTTP_PROXY_INFO proxyInfo;
+        proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NO_PROXY;
+        proxyInfo.lpszProxy = WINHTTP_NO_PROXY_NAME;
+        proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
+        WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
+    }
+    else if(proxy->getProxyType() == Proxy::CUSTOM)
+    {
+        string proxyURL = proxy->getProxyURL();
+        WINHTTP_PROXY_INFO proxyInfo;
+        proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+        proxyInfo.lpszProxy = (LPWSTR)proxyURL.data();
+        proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
+        WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
+
+        if(proxy->credentialsNeeded())
+        {
+            proxyUsername = proxy->getUsername();
+            proxyPassword = proxy->getPassword();
+        }
+    }
+
+    delete autoProxy;
+}
+
+Proxy *WinHttpIO::getautoproxy()
+{
+    Proxy* proxy = new Proxy();
+    proxy->setProxyType(Proxy::NONE);
+
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG ieProxyConfig = { 0 };
+
+    if (WinHttpGetIEProxyConfigForCurrentUser(&ieProxyConfig) == TRUE)
+    {
+        if (ieProxyConfig.lpszProxy)
+        {
+            string proxyURL;
+            proxy->setProxyType(Proxy::CUSTOM);
+            int len = lstrlen(ieProxyConfig.lpszProxy);
+            proxyURL.assign((const char *)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
+
+            // only save one proxy
+            for (int i = 0; i < len; i++)
+            {
+                wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
+
+                if (*character == ' ' || *character == ';')
+                {
+                    proxyURL.resize(i*sizeof(wchar_t));
+                    len = i;
+                    proxyURL.append("",1);
+                    break;
+                }
+            }
+
+            // remove protocol prefix, if any
+            for (int i = len - 1; i >= 0; i--)
+            {
+                wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
+
+                if (*character == '/')
+                {
+                    proxyURL = proxyURL.substr((i + 1) * sizeof(wchar_t));
+                    break;
+                }
+            }
+
+            proxy->setProxyURL(&proxyURL);
+        }
+        else if (ieProxyConfig.lpszAutoConfigUrl || ieProxyConfig.fAutoDetect == TRUE)
+        {
+            WINHTTP_AUTOPROXY_OPTIONS autoProxyOptions;
+
+            if (ieProxyConfig.lpszAutoConfigUrl)
+            {
+                autoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_CONFIG_URL;
+                autoProxyOptions.lpszAutoConfigUrl = ieProxyConfig.lpszAutoConfigUrl;
+                autoProxyOptions.dwAutoDetectFlags = 0;
+            }
+            else
+            {
+                autoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_AUTO_DETECT;
+                autoProxyOptions.lpszAutoConfigUrl = NULL;
+                autoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP | WINHTTP_AUTO_DETECT_TYPE_DNS_A;
+            }
+            autoProxyOptions.fAutoLogonIfChallenged = TRUE;
+            autoProxyOptions.lpvReserved = NULL;
+            autoProxyOptions.dwReserved = 0;
+
+            WINHTTP_PROXY_INFO proxyInfo;
+
+            if (WinHttpGetProxyForUrl(hSession, L"https://g.api.mega.co.nz/", &autoProxyOptions, &proxyInfo))
+            {
+                if (proxyInfo.lpszProxy)
+                {
+                    string proxyURL;
+                    proxy->setProxyType(Proxy::CUSTOM);
+                    proxyURL.assign((const char*)proxyInfo.lpszProxy, (lstrlen(proxyInfo.lpszProxy) + 1) * sizeof(wchar_t));
+                    proxy->setProxyURL(&proxyURL);
+                }
+            }
+        }
+    }
+
+    if (ieProxyConfig.lpszProxy) GlobalFree(ieProxyConfig.lpszProxy);
+    if (ieProxyConfig.lpszProxyBypass) GlobalFree(ieProxyConfig.lpszProxyBypass);
+    if (ieProxyConfig.lpszAutoConfigUrl) GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
+
+    return proxy;
 }
 
 // trigger wakeup
@@ -168,7 +295,10 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
             if (dwStatusInformationLength)
             {
-                req->httpio->lastdata = Waiter::ds;
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
             
                 if (httpctx->gzip)
                 {
@@ -217,7 +347,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             else
             {
                 req->httpstatus = statusCode;
-                req->httpio->lastdata = Waiter::ds;
+
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
 
                 if (!req->buf)
                 {
@@ -399,6 +533,13 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
             if (httpctx->hRequest)
             {
+                if(proxyUsername.size())
+                {
+                    WinHttpSetCredentials(httpctx->hRequest, WINHTTP_AUTH_TARGET_PROXY,
+                                  WINHTTP_AUTH_SCHEME_BASIC,
+                                  (LPWSTR)proxyUsername.data(), (LPWSTR)proxyPassword.data(), NULL);
+                }
+
                 WinHttpSetTimeouts(httpctx->hRequest, 20000, 20000, 0, 0);
 
                 WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,

@@ -37,14 +37,15 @@ and compile their respective sources (package names are for
 Debian and RedHat derivatives, respectively):
 
 * libcurl compiled with `--enable-ares` and `--enable-ssl`
-* Crypto++ (`libcrypto++-dev`, `cryptopp-devel`)
+* Crypto++ (`libcrypto++-dev`, `libcryptopp-devel`)
+* Sodium (`libsodium-dev`, `libsodium-devel`)
 * SQLite (`libsqlite3-dev`, `sqlite-devel`) (optional)
 * FreeImage (`libfreeimage-dev`, `freeimage-devel`) (optional)
 
 Filesystem event monitoring: The provided filesystem layer implements
-the Linux inotify and the MacOS fsevents interfaces.
+the Linux inotify and the MacOS `fsevents` interfaces.
 
-To build the the reference megacli example, you may also need to install:
+To build the the reference `megacli` example, you may also need to install:
 
 * GNU Readline (`libreadline-dev`, `readline-devel`)
 
@@ -58,17 +59,19 @@ To build the client access engine under Windows, you'll need the following:
 
 * A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
 * Crypto++
+* Sodium
 * zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
 * SQLite (optional)
 * FreeImage (optional)
+* pthreads (MinGW)
 
-To build the reference megacli.exe example, you will also need to procure
-development packages (at least headers and .lib/.a libraries) of:
+To build the reference `megacli.exe` example, you will also need to procure
+development packages (at least headers and `.lib`/`.a` libraries) of:
 
 * GNU Readline/Termcap
 
-CAUTION: The megacli example is currently not handling console Unicode
-input/output correctly if run in cmd.exe.
+CAUTION: The `megacli` example is currently not handling console Unicode
+input/output correctly if run in `cmd.exe`.
 
 Filename caveats: Please prefix all paths with `\\?\` to avoid the following
 issues:
@@ -103,7 +106,7 @@ than once. Any dupes, whether by nesting syncs or through filesystem links,
 will lead to unexpected results and loss of data.
 
 * No in-place versioning. Deleted remote files can be found in
-//bin/SyncDebris, deleted local files in a sync-specific hidden debris
+`//bin/SyncDebris`, deleted local files in a sync-specific hidden debris
 folder located in the local sync's root folder.
 
 * No delta writes. Changed files are always overwritten as a whole, which

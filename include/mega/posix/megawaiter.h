@@ -27,6 +27,8 @@
 namespace mega {
 struct PosixWaiter : public Waiter
 {
+    PosixWaiter();
+
     int maxfd;
     fd_set rfds, wfds, efds;
     fd_set ignorefds;
@@ -36,6 +38,11 @@ struct PosixWaiter : public Waiter
     void init(dstime);
     int wait();
     void bumpmaxfd(int);
+
+    void notify();
+
+protected:
+    int m_pipe[2];
 };
 } // namespace
 

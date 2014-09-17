@@ -90,16 +90,40 @@ void FileSystemAccess::name2local(string* filename) const
     path2local(&t, filename);
 }
 
-void FileSystemAccess::normalize(string *filename) const
+void FileSystemAccess::normalize(string* filename) const
 {
-    if(!filename) return;
+    if (!filename) return;
 
-    char *result = (char *)utf8proc_NFC((uint8_t *)filename->c_str());
-    if(result)
+    const char* cfilename = filename->c_str();
+    size_t fnsize = filename->size();
+    string result;
+
+    for (size_t i = 0; i < fnsize; )
     {
-        *filename = result;
-        free(result);
+        // allow NUL bytes between valid UTF-8 sequences
+        if (!cfilename[i])
+        {
+            result.append("", 1);
+            i++;
+            continue;
+        }
+
+        const char* substring = cfilename + i;
+        char* normalized = (char*)utf8proc_NFC((uint8_t*)substring);
+
+        if (!normalized)
+        {
+            filename->clear();
+            return;
+        }
+
+        result.append(normalized);
+        free(normalized);
+
+        i += strlen(substring);
     }
+
+    *filename = result;
 }
 
 // convert from local encoding, then unescape escaped forbidden characters

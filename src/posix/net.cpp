@@ -49,11 +49,21 @@ void CurlHttpIO::setuseragent(string* u)
     useragent = u;
 }
 
+void CurlHttpIO::setdnsservers(const char *servers)
+{
+	if (servers)
+		dnsservers = servers;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int flags)
 {
     int t;
+#ifndef WINDOWS_PHONE
     PosixWaiter* pw = (PosixWaiter*)w;
+#else
+	WinPhoneWaiter* pw = (WinPhoneWaiter*)w;
+#endif
 
     curl_multi_fdset(curlm, &pw->rfds, &pw->wfds, &pw->efds, &t);
 
@@ -99,6 +109,29 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
 
+		if (dnsservers.size())
+			curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, dnsservers.c_str());
+
+#ifdef __ANDROID__
+        //cURL can't find the certstore on Android,
+        //so we rely on the public key pinning
+        curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
+        curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
+#endif
+
+        if(proxyurl.size())
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+            curl_easy_setopt(curl, CURLOPT_PROXY, proxyurl.c_str());
+            curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+            if(proxyusername.size())
+            {
+                curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
+                curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, proxypassword.c_str());
+            }
+            curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+        }
+
         curl_multi_add_handle(curlm, curl);
 
         req->status = REQ_INFLIGHT;
@@ -109,6 +142,27 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         req->status = REQ_FAILURE;
     }
+}
+
+void CurlHttpIO::setproxy(Proxy* proxy)
+{
+    if(proxy->getProxyType() != Proxy::CUSTOM)
+    {
+        //Automatic proxy is not supported
+        proxyurl.clear();
+        return;
+    }
+
+    proxyurl = proxy->getProxyURL();
+    proxyusername = proxy->getUsername();
+    proxypassword = proxy->getPassword();
+}
+
+Proxy* CurlHttpIO::getautoproxy()
+{
+    Proxy *proxy = new Proxy();
+    proxy->setProxyType(Proxy::NONE);
+    return proxy;
 }
 
 // cancel pending HTTP request
@@ -226,7 +280,10 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
         }
     }
 
-    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+    if (((HttpReq*)target)->httpio)
+    {
+        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+    }
 
     return nmemb;
 }
