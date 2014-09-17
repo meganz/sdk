@@ -513,7 +513,7 @@ void MegaClient::exec()
 
                         it = uhnh.lower_bound(pair<handle, handle>(h, 0));
 
-                        if ((it != uhnh.end()) && (it->first == h))
+                        if (it != uhnh.end() && it->first == h)
                         {
                             h = it->second;
                         }
@@ -1148,8 +1148,8 @@ void MegaClient::exec()
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
                                 if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                                    && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                    && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                                 && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                                 && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
                                 {
                                     syncup(&(*it)->localroot, &nds);
                                     (*it)->cachenodes();
@@ -1479,8 +1479,8 @@ bool MegaClient::dispatch(direction_t d)
         for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
         {
             if (!it->second->slot && it->second->bt.armed()
-                && ((nextit == transfers[d].end())
-                    || (it->second->bt.retryin() < nextit->second->bt.retryin())))
+             && (nextit == transfers[d].end()
+              || it->second->bt.retryin() < nextit->second->bt.retryin()))
             {
                 nextit = it;
             }
@@ -1568,8 +1568,8 @@ bool MegaClient::dispatch(direction_t d)
 
             // try to open file (PUT transfers: open in nonblocking mode)
             if ((d == PUT)
-                ? ts->fa->fopen(&nextit->second->localfilename)
-                : ts->fa->fopen(&nextit->second->localfilename, false, true))
+              ? ts->fa->fopen(&nextit->second->localfilename)
+              : ts->fa->fopen(&nextit->second->localfilename, false, true))
             {
                 handle h = UNDEF;
                 bool hprivate = true;
@@ -1622,8 +1622,8 @@ bool MegaClient::dispatch(direction_t d)
 
                 // dispatch request for temporary source/target URL
                 reqs[r].add((ts->pendingcmd = (d == PUT)
-                        ? (Command*)new CommandPutFile(ts, putmbpscap)
-                        : (Command*)new CommandGetFile(ts, NULL, h, hprivate)));
+                          ? (Command*)new CommandPutFile(ts, putmbpscap)
+                          : (Command*)new CommandGetFile(ts, NULL, h, hprivate)));
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
