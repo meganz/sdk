@@ -2430,7 +2430,7 @@ void CommandFetchNodes::procresult()
     }
 }
 
-//Submit event
+// submit event
 CommandSubmitEvent::CommandSubmitEvent(MegaClient *client, const char *evtclass, const char *message, int version)
 {
     cmd("cd");
