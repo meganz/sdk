@@ -715,6 +715,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->sessionKey = NULL;
 	this->name = NULL;
 	this->email = NULL;
+    this->text = NULL;
 	this->password = NULL;
 	this->newPassword = NULL;
 	this->privateKey = NULL;
@@ -728,6 +729,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->flag = false;
     this->totalBytes = -1;
     this->transferredBytes = 0;
+    this->number = 0;
 
 	if(type == MegaRequest::TYPE_ACCOUNT_DETAILS) this->accountDetails = new AccountDetails();
 	else this->accountDetails = NULL;
@@ -739,6 +741,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->sessionKey = NULL;
     this->name = NULL;
     this->email = NULL;
+    this->text = NULL;
     this->password = NULL;
     this->newPassword = NULL;
     this->privateKey = NULL;
@@ -763,6 +766,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
 	this->numDetails = 0;
 	this->setFile(request.getFile());
     this->setParamType(request.getParamType());
+    this->setText(request.getText());
+    this->setNumber(request.getNumber());
     this->setPublicNode(request.getPublicNode());
     this->setFlag(request.getFlag());
     this->setTransfer(request.getTransfer());
@@ -815,6 +820,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete publicNode;
 	delete [] file;
 	delete accountDetails;
+    delete [] text;
 }
 
 int MegaRequestPrivate::getType() const
@@ -880,6 +886,16 @@ const char* MegaRequestPrivate::getFile() const
 int MegaRequestPrivate::getParamType() const
 {
 	return attrType;
+}
+
+const char *MegaRequestPrivate::getText() const
+{
+    return text;
+}
+
+int MegaRequestPrivate::getNumber() const
+{
+    return number;
 }
 
 bool MegaRequestPrivate::getFlag() const
@@ -1008,6 +1024,17 @@ void MegaRequestPrivate::setParamType(int type)
     this->attrType = type;
 }
 
+void MegaRequestPrivate::setText(const char *text)
+{
+    if(this->text) delete [] this->text;
+    this->text = MegaApi::strdup(text);
+}
+
+void MegaRequestPrivate::setNumber(int number)
+{
+    this->number = number;
+}
+
 void MegaRequestPrivate::setFlag(bool flag)
 {
     this->flag = flag;
@@ -1085,6 +1112,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CANCEL_TRANSFER: return "canceltransfer";
         case TYPE_CANCEL_TRANSFERS: return "canceltransfers";
         case TYPE_DELETE: return "delete";
+        case TYPE_SUBMIT_EVENT: return "submitevent";
 	}
 	return "unknown";
 }
@@ -1961,6 +1989,28 @@ void MegaApiImpl::logout(MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_EVENT, listener);
+    request->setParamType(MegaApi::EVENT_FEEDBACK);
+    request->setText(comment);
+    request->setNumber(rating);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::submitEvent(int eventClass, const char *message, int version, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_EVENT, listener);
+    request->setParamType(eventClass);
+    request->setText(message);
+    request->setNumber(version);
+    request->setListener(listener);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -3029,7 +3079,17 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
         fireOnTransferFinish(transfer, end ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
 		return end;
 	}
-	return true;
+    return true;
+}
+
+void MegaApiImpl::submitevent_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request) return;
+
+    fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::syncupdate_state(Sync *, syncstate_t)
@@ -5392,9 +5452,44 @@ void MegaApiImpl::sendPendingRequests()
             if(!found) e = API_ENOENT;
             break;
         }
+        case MegaRequest::TYPE_SUBMIT_EVENT:
+        {
+            int evtType = request->getParamType();
+            const char *message = request->getText();
+            int number = request->getNumber();
+
+            if(evtType < 0 || evtType >= MegaApi::EVENT_INVALID)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            string eventClass;
+            switch(evtType)
+            {
+                case MegaApi::EVENT_FEEDBACK:
+                    eventClass = "F|";
+                    eventClass.append(client->useragent);
+                    if(number < 1 || number > 5)
+                        e = API_EARGS;
+                    break;
+                case MegaApi::EVENT_DEBUG:
+                    eventClass = "D|";
+                    eventClass.append(client->useragent);
+                    break;
+                default:
+                    e = API_EINTERNAL;
+            }
+
+            if(!e)
+                client->submitevent(eventClass.c_str(), message ? message : "", number);
+            break;
+        }
         case MegaRequest::TYPE_DELETE:
+        {
             threadExit = 1;
             break;
+        }
 		}
 
 		if(e)

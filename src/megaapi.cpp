@@ -496,6 +496,11 @@ void MegaApi::logout(MegaRequestListener *listener)
     pImpl->logout(listener);
 }
 
+void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
+{
+    pImpl->submitFeedback(rating, comment, listener);
+}
+
 void MegaApi::addContact(const char* email, MegaRequestListener* listener)
 {
     pImpl->addContact(email, listener);

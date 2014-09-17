@@ -215,6 +215,9 @@ public:
     // maximum outbound throughput (per target server)
     int putmbpscap;
 
+    // User-Agent header for HTTP requests
+    string useragent;
+
     // shopping basket
     handle_vector purchase_basket;
 
@@ -232,6 +235,9 @@ public:
 
     // toggle global debug flag
     bool toggledebug();
+
+    // submit an event
+    void submitevent(const char* evtclass, const char* message, int version);
 
 private:
     // API request queue double buffering:
@@ -281,9 +287,6 @@ private:
 
     // next internal upload handle
     handle nextuh;
-
-    // User-Agent header for HTTP requests
-    string useragent;
 
     // maximum number of concurrent transfers
     static const unsigned MAXTRANSFERS = 8;
