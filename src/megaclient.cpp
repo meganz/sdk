@@ -5577,7 +5577,22 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             // of a related repetitive node creation bug
             app->debug_log("Internal error, please report: Duplicate node creation");
             app->debug_log(ll->name.c_str());
-            abort();
+
+            string evtclass = "D|";
+            evtclass.append(useragent);
+
+            char report[256];
+            int ns = ll->name.size();
+            if(ll->node)
+            {
+                char buf[MegaClient::NODEHANDLE * 4 / 3 + 4];
+                Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, buf);
+                sprintf(report,"Duplicate node creation. NS: %d S: %" PRIu64 " T: %" PRIu64 " H: %s", ns, ll->size, ll->mtime, buf);
+            }
+            else sprintf(report,"Duplicate node creation. NS: %d S: %" PRIu64 " T: %" PRIu64, ns, ll->size, ll->mtime);
+
+            reqtag = 0;
+            submitevent(evtclass.c_str(), report, 0);
         }
         else
         {
