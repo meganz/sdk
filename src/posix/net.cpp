@@ -123,6 +123,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         {
             curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
             curl_easy_setopt(curl, CURLOPT_PROXY, proxyurl.c_str());
+            curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
             if(proxyusername.size())
             {
                 curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
