@@ -316,7 +316,8 @@ class MegaRequestPrivate : public MegaRequest
         void setListener(MegaRequestListener *listener);
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
-        
+        void setTag(int tag);
+
         virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
@@ -345,6 +346,7 @@ class MegaRequestPrivate : public MegaRequest
 		virtual MegaAccountDetails *getMegaAccountDetails() const;
         virtual int getTransfer() const;
 		virtual int getNumDetails() const;
+        virtual int getTag() const;
 	    AccountDetails * getAccountDetails() const;
         
     protected:
@@ -373,6 +375,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaNode* publicNode;
 		int numRetry;
 		int nextRetryDelay;
+        int tag;
 };
 
 class MegaAccountDetailsPrivate : public MegaAccountDetails

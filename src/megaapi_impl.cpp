@@ -707,6 +707,7 @@ MegaRequest *MegaRequestPrivate::copy()
 MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 {
 	this->type = type;
+    this->tag = 0;
 	this->transfer = 0;
 	this->listener = listener;
 	this->nodeHandle = UNDEF;
@@ -751,6 +752,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->publicNode = NULL;
 
     this->type = request.getType();
+    this->setTag(request.getTag());
 	this->setNodeHandle(request.getNodeHandle());
 	this->setLink(request.getLink());
 	this->setParentHandle(request.getParentHandle());
@@ -925,7 +927,12 @@ int MegaRequestPrivate::getNextRetryDelay() const
 
 int MegaRequestPrivate::getNumDetails() const
 {
-	return numDetails;
+    return numDetails;
+}
+
+int MegaRequestPrivate::getTag() const
+{
+    return tag;
 }
 
 void MegaRequestPrivate::setNumDetails(int numDetails)
@@ -1058,6 +1065,11 @@ void MegaRequestPrivate::setTotalBytes(long long totalBytes)
 void MegaRequestPrivate::setTransferredBytes(long long transferredBytes)
 {
     this->transferredBytes = transferredBytes;
+}
+
+void MegaRequestPrivate::setTag(int tag)
+{
+    this->tag = tag;
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
@@ -2339,6 +2351,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, MegaNode *megaFolder)
     }
 
     int nextTag = client->nextreqtag();
+    request->setTag(nextTag);
     requestMap[nextTag]=request;
     error e = API_OK;
     fireOnRequestStart(request);
@@ -2357,10 +2370,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, MegaNode *megaFolder)
         e = client->addsync(&localname, DEBRISFOLDER, NULL, node, -1);
     }
 
-    int prevTag = client->restag;
-    client->restag = nextTag;
     fireOnRequestFinish(request, MegaError(e));
-    client->restag = prevTag;
     sdkMutex.unlock();
 }
 
@@ -3087,7 +3097,7 @@ void MegaApiImpl::submitevent_result(error e)
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_EVENT)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3218,10 +3228,7 @@ void MegaApiImpl::setattr_result(handle h, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-	if(request->getType() != MegaRequest::TYPE_RENAME)
-	{}
+    if(!request || (request->getType() != MegaRequest::TYPE_RENAME)) return;
 
 	request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
@@ -3232,10 +3239,7 @@ void MegaApiImpl::rename_result(handle h, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_MOVE)
-    {}
+    if(!request || (request->getType() != MegaRequest::TYPE_MOVE)) return;
 
     request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
@@ -3246,10 +3250,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_REMOVE)
-    {}
+    if(!request || (request->getType() != MegaRequest::TYPE_REMOVE)) return;
 
     request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
@@ -3261,10 +3262,8 @@ void MegaApiImpl::fetchnodes_result(error e)
 
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-	if((request->getType() != MegaRequest::TYPE_FETCH_NODES) && (request->getType() != MegaRequest::TYPE_FOLDER_ACCESS))
-    {}
+    if(!request || ((request->getType() != MegaRequest::TYPE_FETCH_NODES) &&
+                    (request->getType() != MegaRequest::TYPE_FOLDER_ACCESS))) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3274,7 +3273,10 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 	MegaError megaError(e);
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
-	if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_MKDIR) &&
+                    (request->getType() != MegaRequest::TYPE_COPY) &&
+                    (request->getType() != MegaRequest::TYPE_IMPORT_NODE))) return;
 
 	if (t == USER_HANDLE)
 	{
@@ -3282,11 +3284,6 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 		delete[] nn;	// free array allocated by the app
 		return;
 	}
-
-	if((request->getType() != MegaRequest::TYPE_IMPORT_LINK) && (request->getType() != MegaRequest::TYPE_MKDIR) &&
-            (request->getType() != MegaRequest::TYPE_COPY) &&
-			(request->getType() != MegaRequest::TYPE_IMPORT_NODE))
-    {}
 
 	handle h = UNDEF;
 	Node *n = NULL;
@@ -3304,15 +3301,12 @@ void MegaApiImpl::share_result(error e)
 
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
+                    (request->getType() != MegaRequest::TYPE_SHARE))) return;
 
+    //exportnode_result will be called to end the request.
 	if(request->getType() == MegaRequest::TYPE_EXPORT)
-	{
 		return;
-		//exportnode_result will be called to end the request.
-	}
-    if(request->getType() != MegaRequest::TYPE_SHARE)
-    {}
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3326,10 +3320,7 @@ void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t l
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)
-    {}
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return;
 
     FileAccess *f = client->fsaccess->newfileaccess();
     string filePath(request->getFile());
@@ -3345,10 +3336,7 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return 1;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return 1;
-
-    if(request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)
-    {}
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return 1;
 
 	if(retries > 3)
 	{
@@ -3361,11 +3349,14 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries)
 
 void MegaApiImpl::putfa_result(handle, fatype, error e)
 {
-	MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-    fireOnRequestFinish(request, megaError);
+    //There isn't any request triggering these callbacks in the intermediate layer
+    return;
+
+    //MegaError megaError(e);
+    //if(requestMap.find(client->restag) == requestMap.end()) return;
+    //MegaRequestPrivate* request = requestMap.at(client->restag);
+    //if(!request) return;
+    //fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::clearing()
@@ -3422,10 +3413,8 @@ void MegaApiImpl::login_result(error result)
 	MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-	if((request->getType() != MegaRequest::TYPE_LOGIN) && (request->getType() != MegaRequest::TYPE_FAST_LOGIN))
-    {}
+    if(!request || ((request->getType() != MegaRequest::TYPE_LOGIN) &&
+                    (request->getType() != MegaRequest::TYPE_FAST_LOGIN))) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3436,10 +3425,7 @@ void MegaApiImpl::changepw_result(error result)
 	MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_CHANGE_PW)
-    {}
+    if(!request || request->getType() != MegaRequest::TYPE_CHANGE_PW) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3450,10 +3436,7 @@ void MegaApiImpl::exportnode_result(error result)
 	MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_EXPORT)
-    {}
+    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3463,10 +3446,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
 	Node* n;
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_EXPORT)
-    {}
+    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
 
 	if ((n = client->nodebyhandle(h)))
 	{
@@ -3512,10 +3492,8 @@ void MegaApiImpl::openfilelink_result(error result)
 	MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-	if((request->getType() != MegaRequest::TYPE_IMPORT_LINK) && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))
-    {}
+    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3526,10 +3504,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-	if((request->getType() != MegaRequest::TYPE_IMPORT_LINK) && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))
-    {}
+    if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
 
 	if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
 	{
@@ -3551,9 +3527,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		newnode->attrstring = *a;
 
 		// add node
-		requestMap.erase(client->restag);
-		requestMap[client->nextreqtag()]=request;
-		client->putnodes(request->getParentHandle(),newnode,1);
+        requestMap.erase(request->getTag());
+        int nextTag = client->nextreqtag();
+        request->setTag(nextTag);
+        requestMap[nextTag]=request;
+        client->putnodes(request->getParentHandle(), newnode, 1);
 	}
 	else
 	{
@@ -3604,9 +3582,9 @@ void MegaApiImpl::reload(const char*)
 }
 
 
-void MegaApiImpl::debug_log(const char*)
+void MegaApiImpl::debug_log(const char* message)
 {
-
+    cout << message << endl;
 }
 
 
@@ -3652,18 +3630,13 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
 	int numDetails = request->getNumDetails();
 	numDetails--;
 	request->setNumDetails(numDetails);
 	if(!numDetails)
-	{
-        if(request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)
-        {}
-
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
-	}
 }
 
 void MegaApiImpl::account_details(AccountDetails*, error e)
@@ -3671,10 +3644,7 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-    if(request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)
-    {}
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3684,7 +3654,9 @@ void MegaApiImpl::invite_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_ADD_CONTACT) &&
+                    (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT))) return;
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -3698,7 +3670,8 @@ void MegaApiImpl::getua_result(error e)
 	MegaError megaError(e);
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
-	if(!request) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -3707,7 +3680,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	MegaError megaError(API_OK);
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
-	if(!request) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
 	FileAccess *f = client->fsaccess->newfileaccess();
 	string filePath(request->getFile());
@@ -3716,7 +3689,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	f->fopen(&localPath, false, true);
 	f->fwrite((const byte*)data, len, 0);
 	delete f;
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, megaError);
 }
 
 // user attribute update notification
@@ -3730,7 +3703,9 @@ void MegaApiImpl::ephemeral_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_FAST_CREATE_ACCOUNT))) return;
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -3738,16 +3713,13 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_FAST_CREATE_ACCOUNT))) return;
 
-	if((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
-		(request->getType() != MegaRequest::TYPE_FAST_CREATE_ACCOUNT))
-    {
-
-    }
-
-	requestMap.erase(client->restag);
-	requestMap[client->nextreqtag()]=request;
+    requestMap.erase(request->getTag());
+    int nextTag = client->nextreqtag();
+    request->setTag(nextTag);
+    requestMap[nextTag] = request;
 
 	byte pwkey[SymmCipher::KEYLENGTH];
 	if(request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
@@ -3763,13 +3735,8 @@ void MegaApiImpl::sendsignuplink_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
-
-	if((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
-		(request->getType() != MegaRequest::TYPE_FAST_CREATE_ACCOUNT))
-    {
-
-    }
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_FAST_CREATE_ACCOUNT))) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -3779,7 +3746,10 @@ void MegaApiImpl::querysignuplink_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_FAST_CONFIRM_ACCOUNT))) return;
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -3787,7 +3757,9 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_FAST_CONFIRM_ACCOUNT))) return;
 
 	request->setEmail(email);
 	request->setName(name);
@@ -3828,8 +3800,11 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
 		pwcipher.ecb_decrypt(signupencryptedmasterkey);
 		client->key.setkey(signupencryptedmasterkey);
 
-		requestMap.erase(client->restag);
-		requestMap[client->nextreqtag()]=request;
+        requestMap.erase(request->getTag());
+        int nextTag = client->nextreqtag();
+        request->setTag(nextTag);
+        requestMap[nextTag] = request;
+
 		client->confirmsignuplink((const byte*)signupcode.data(),signupcode.size(),MegaClient::stringhash64(&signupemail,&pwcipher));
 	}
 }
@@ -3969,7 +3944,7 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 	MegaRequestListener* listener = request->getListener();
 	if(listener) listener->onRequestFinish(api, request, megaError);
 
-	requestMap.erase(client->restag);
+    requestMap.erase(request->getTag());
 	delete request;
     delete megaError;
 }
@@ -4684,7 +4659,7 @@ void MegaApiImpl::sendPendingTransfers()
 	while((transfer = transferQueue.pop()))
 	{
 		e = API_OK;
-		nextTag=client->nextreqtag();
+        nextTag = client->nextreqtag();
 
 		switch(transfer->getType())
 		{
@@ -4806,17 +4781,14 @@ void MegaApiImpl::sendPendingTransfers()
                 		//TODO: Implement streaming of public nodes
                 	}
                 }
-                currentTransfer=NULL;
 
+                currentTransfer=NULL;
 				break;
 			}
 		}
 
 		if(e)
-		{
-			client->restag = nextTag;
             fireOnTransferFinish(transfer, MegaError(e));
-		}
     }
 }
 
@@ -4896,6 +4868,7 @@ void MegaApiImpl::sendPendingRequests()
 	while((request = requestQueue.pop()))
 	{
 		nextTag = client->nextreqtag();
+        request->setTag(nextTag);
 		requestMap[nextTag]=request;
 		e = API_OK;
 
@@ -4958,7 +4931,6 @@ void MegaApiImpl::sendPendingRequests()
 
             if(node->parent == newParent)
             {
-                client->restag = nextTag;
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
@@ -5163,7 +5135,6 @@ void MegaApiImpl::sendPendingRequests()
             while(!requestMap.empty())
             {
                 std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                client->restag = it->first;
                 if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
             }
 
@@ -5175,8 +5146,6 @@ void MegaApiImpl::sendPendingRequests()
 
 			client->logout();
 
-            requestMap[nextTag]=request;
-			client->restag = nextTag;
             pausetime = 0;
             pendingUploads = 0;
             pendingDownloads = 0;
@@ -5184,6 +5153,7 @@ void MegaApiImpl::sendPendingRequests()
             totalDownloads = 0;
             waiting = false;
             waitingRequest = false;
+            requestMap[nextTag] = request;
             fireOnRequestFinish(request, MegaError(errorCode));
 			break;
 		}
@@ -5266,7 +5236,6 @@ void MegaApiImpl::sendPendingRequests()
 			if(disconnect)
 				client->disconnect();
 
-            client->restag = nextTag;
 			fireOnRequestFinish(request, MegaError(API_OK));
 			break;
 		}
@@ -5332,10 +5301,7 @@ void MegaApiImpl::sendPendingRequests()
             client->fsaccess->path2local(&utf8name, &localname);
             e = client->addsync(&localname, DEBRISFOLDER, NULL, node, -1);
             if(!e)
-            {
-                client->restag = nextTag;
                 fireOnRequestFinish(request, MegaError(API_OK));
-            }
             break;
         }
         case MegaRequest::TYPE_PAUSE_TRANSFERS:
@@ -5362,7 +5328,6 @@ void MegaApiImpl::sendPendingRequests()
 
             client->pausexfers(PUT, pause);
             client->pausexfers(GET, pause);
-            client->restag = nextTag;
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
@@ -5383,7 +5348,6 @@ void MegaApiImpl::sendPendingRequests()
                 iterator++;
                 if(!file->syncxfer) client->stopxfer(file);
             }
-            client->restag = nextTag;
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
@@ -5410,7 +5374,6 @@ void MegaApiImpl::sendPendingRequests()
 					if(!file->syncxfer) client->stopxfer(file);
 				}
             }
-            client->restag = nextTag;
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
@@ -5423,7 +5386,6 @@ void MegaApiImpl::sendPendingRequests()
                 it++;
                 client->delsync(sync);
             }
-            client->restag = nextTag;
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
@@ -5441,7 +5403,6 @@ void MegaApiImpl::sendPendingRequests()
                     fsAccess->local2path(&sync->localroot.localname, &path);
                     request->setFile(path.c_str());
                     client->delsync(sync);
-                    client->restag = nextTag;
                     fireOnRequestFinish(request, MegaError(API_OK));
                     found = true;
                     break;
@@ -5493,10 +5454,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
 
 		if(e)
-		{
-			client->restag = nextTag;
             fireOnRequestFinish(request, MegaError(e));
-		}
 	}
 }
 
