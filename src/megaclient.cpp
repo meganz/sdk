@@ -5971,6 +5971,7 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
+                    reqtag = 0;
                     rename(n, tn, target);
                     it++;
                 }

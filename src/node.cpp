@@ -776,6 +776,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 assert(parent->node);
                 
                 // FIXME: detect if rename permitted, copy/delete if not
+                sync->client->reqtag = sync->tag;
                 sync->client->rename(node, parent->node);
                 treestate(TREESTATE_SYNCING);
             }

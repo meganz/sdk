@@ -100,6 +100,7 @@ void File::completed(Transfer* t, LocalNode* l)
         if (targetuser.size())
         {
             // drop file into targetuser's inbox
+            t->client->reqtag = l ? l->sync->tag : t->tag;
             t->client->putnodes(targetuser.c_str(), newnode, 1);
         }
         else
