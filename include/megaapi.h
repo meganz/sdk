@@ -188,7 +188,7 @@ class MegaRequest
                 TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE, TYPE_SUBMIT_EVENT };
+                TYPE_DELETE, TYPE_REPORT_EVENT };
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;

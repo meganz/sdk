@@ -1124,7 +1124,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CANCEL_TRANSFER: return "canceltransfer";
         case TYPE_CANCEL_TRANSFERS: return "canceltransfers";
         case TYPE_DELETE: return "delete";
-        case TYPE_SUBMIT_EVENT: return "submitevent";
+        case TYPE_REPORT_EVENT: return "reportevent";
 	}
 	return "unknown";
 }
@@ -2006,7 +2006,7 @@ void MegaApiImpl::logout(MegaRequestListener *listener)
 
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_EVENT, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
     request->setParamType(MegaApi::EVENT_FEEDBACK);
     request->setText(comment);
     request->setNumber(rating);
@@ -2015,12 +2015,11 @@ void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::submitEvent(int eventClass, const char *message, int version, MegaRequestListener *listener)
+void MegaApiImpl::reportEvent(int event, const char *details, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_EVENT, listener);
-    request->setParamType(eventClass);
-    request->setText(message);
-    request->setNumber(version);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
+    request->setParamType(event);
+    request->setText(details);
     request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
@@ -3092,12 +3091,12 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
     return true;
 }
 
-void MegaApiImpl::submitevent_result(error e)
+void MegaApiImpl::reportevent_result(error e)
 {
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_EVENT)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_REPORT_EVENT)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -5413,10 +5412,10 @@ void MegaApiImpl::sendPendingRequests()
             if(!found) e = API_ENOENT;
             break;
         }
-        case MegaRequest::TYPE_SUBMIT_EVENT:
+        case MegaRequest::TYPE_REPORT_EVENT:
         {
             int evtType = request->getParamType();
-            const char *message = request->getText();
+            const char *details = request->getText();
             int number = request->getNumber();
 
             if(evtType < 0 || evtType >= MegaApi::EVENT_INVALID)
@@ -5425,25 +5424,25 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            string eventClass;
+            string event;
             switch(evtType)
             {
                 case MegaApi::EVENT_FEEDBACK:
-                    eventClass = "F|";
-                    eventClass.append(client->useragent);
+                    event = "F";
                     if(number < 1 || number > 5)
                         e = API_EARGS;
+                    else
+                        event.append(1, '0'+number);
                     break;
                 case MegaApi::EVENT_DEBUG:
-                    eventClass = "D|";
-                    eventClass.append(client->useragent);
+                    event = "A"; //Application event
                     break;
                 default:
                     e = API_EINTERNAL;
             }
 
             if(!e)
-                client->submitevent(eventClass.c_str(), message ? message : "", number);
+                client->reportevent(event.c_str(), details);
             break;
         }
         case MegaRequest::TYPE_DELETE:

@@ -607,7 +607,7 @@ class MegaApiImpl : public MegaApp
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
-        void submitEvent(int eventClass, const char *message, int version, MegaRequestListener *listener = NULL);
+        void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -829,7 +829,7 @@ protected:
         virtual dstime pread_failure(error, int, void*);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
-        virtual void submitevent_result(error);
+        virtual void reportevent_result(error);
 
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);
