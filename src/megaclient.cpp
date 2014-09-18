@@ -5421,11 +5421,43 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
         // resolution: use newest version
         for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
         {
-            // node must be alive, decrypted and name defined to be considered
-            if (((*it)->syncdeleted == SYNCDEL_NONE)
-                    && !(*it)->attrstring.size()
-                    && ((ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()))
+            // node must be alive
+            if ((*it)->syncdeleted == SYNCDEL_NONE)
             {
+                // abort this subtree if there is a crypto key missing...
+                if ((*it)->attrstring.size())
+                {
+                    app->debug_log("Undecrypted child node, not syncing subtree");
+                    app->debug_log(l->name.c_str());
+
+                    if (!l->reported)
+                    {
+                        l->reported = true;
+
+                        // report a "undecrypted child" event
+                        reportevent("CU");
+                    }
+
+                    return;
+                }
+                
+                // ...or a node name attribute missing
+                if ((ait = (*it)->attrs.map.find('n')) == (*it)->attrs.map.end())
+                {
+                    app->debug_log("Node name missing, not syncing subtree");
+                    app->debug_log(l->name.c_str());
+
+                    if (!l->reported)
+                    {
+                        l->reported = true;
+
+                        // report a "no-name child" event
+                        reportevent("CN");
+                    }
+
+                    return;
+                }
+
                 addchild(&nchildren, &ait->second, *it, &strings);
             }
         }
@@ -5573,36 +5605,52 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
         if (ll->created)
         {
-            // FIXME: remove created flag and associated safeguards after verifying the absence
-            // of a related repetitive node creation bug
-            app->debug_log("Internal error, please report: Duplicate node creation");
-            app->debug_log(ll->name.c_str());
-
-            string evtclass = "D|";
-            evtclass.append(useragent);
-
-            char report[256];
-            int ns = ll->name.size();
-            if(ll->node)
+            if (!ll->reported)
             {
-                char buf[MegaClient::NODEHANDLE * 4 / 3 + 4];
-                Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, buf);
-                sprintf(report,"Duplicate node creation. NS: %d S: %" PRIu64 " T: %" PRIu64 " H: %s", ns, ll->size, ll->mtime, buf);
-            }
-            else sprintf(report,"Duplicate node creation. NS: %d S: %" PRIu64 " T: %" PRIu64, ns, ll->size, ll->mtime);
+                ll->reported = true;
 
-            reqtag = 0;
-            submitevent(evtclass.c_str(), report, 0);
+                // FIXME: remove created flag and associated safeguards after
+                // positively verifying the absence of a related repetitive node creation bug
+                app->debug_log("Internal error: Duplicate node creation");
+                app->debug_log(ll->name.c_str());
+
+                char report[256];
+
+                // always report LocalNode's type, name length, mtime, file size
+                sprintf(report,"%d %d %" PRIi64 " %" PRIi64, ll->type, (int)ll->name.size(), ll->mtime, ll->size);
+
+                if (ll->node)
+                {
+                    int namelen;
+
+                    if ((ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end())
+                    {
+                        namelen = ait->second.size();
+                    }
+                    else
+                    {
+                        namelen = -1;
+                    }
+
+                    // additionally, report corresponding Node's type, name length, mtime, file size and handle
+                    sprintf(strchr(report, 0)," %d %d %" PRIi64 " %" PRIi64 " ", ll->node->type, namelen, ll->node->size, ll->node->mtime);
+                    Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
+                }
+
+                reqtag = 0;
+
+                // report a "dupe" event
+                reportevent("D", report);
+            }
         }
         else
         {
             ll->created = true;
+
+            // create remote folder or send file
+            synccreate.push_back(ll);
+            syncactivity = true;
         }
-
-        // create remote folder or send file
-        synccreate.push_back(ll);
-
-        syncactivity = true;
 
         if (ll->type == FOLDERNODE)
         {
@@ -6188,8 +6236,8 @@ bool MegaClient::toggledebug()
     return debug = !debug;
 }
 
-void MegaClient::submitevent(const char* evtclass, const char* message, int version)
+void MegaClient::reportevent(const char* event, const char* details)
 {
-    reqs[r].add(new CommandSubmitEvent(this, evtclass, message, version));
+    reqs[r].add(new CommandReportEvent(this, event, details));
 }
 } // namespace

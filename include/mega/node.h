@@ -222,12 +222,18 @@ struct MEGA_API LocalNode : public File, Cachable
     // global sync reference
     handle syncid;
 
-    // was actively deleted
-    bool deleted;
+    struct
+    {
+        // was actively deleted
+        bool deleted : 1;
 
-    // has been created remotely
-    bool created;
-    
+        // has been created remotely
+        bool created : 1;
+
+        // an issue has been reported
+        bool reported : 1;
+    };
+
     // current subtree sync state: current and displayed
     treestate_t ts, dts;
 

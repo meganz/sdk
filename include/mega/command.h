@@ -448,12 +448,12 @@ public:
     CommandEnumerateQuotaItems(MegaClient*);
 };
 
-class MEGA_API CommandSubmitEvent : public Command
+class MEGA_API CommandReportEvent : public Command
 {
 public:
     void procresult();
 
-    CommandSubmitEvent(MegaClient*, const char*, const char*, int);
+    CommandReportEvent(MegaClient*, const char*, const char*);
 };
 } // namespace
 

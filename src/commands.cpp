@@ -2430,27 +2430,30 @@ void CommandFetchNodes::procresult()
     }
 }
 
-// submit event
-CommandSubmitEvent::CommandSubmitEvent(MegaClient *client, const char *evtclass, const char *message, int version)
+// report event to server logging facility
+CommandReportEvent::CommandReportEvent(MegaClient *client, const char *event, const char *details)
 {
-    cmd("cd");
-    arg("c", evtclass);
-    arg("v", message);
-    arg("t", version);
+    cmd("cds");
+    arg("c", event);
+
+    if (details)
+    {
+        arg("v", details);
+    }
 
     tag = client->reqtag;
 }
 
-void CommandSubmitEvent::procresult()
+void CommandReportEvent::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->submitevent_result((error)client->json.getint());
+        client->app->reportevent_result((error)client->json.getint());
     }
     else
     {
         client->json.storeobject();
-        client->app->submitevent_result(API_EINTERNAL);
+        client->app->reportevent_result(API_EINTERNAL);
     }
 }
 } // namespace

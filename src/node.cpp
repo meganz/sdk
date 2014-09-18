@@ -809,6 +809,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     notseen = 0;
     deleted = false;
     created = false;
+    reported = false;
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
@@ -1275,6 +1276,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     // FIXME: serialize/unserialize
     l->created = false;
+    l->reported = false;
 
     return l;
 }

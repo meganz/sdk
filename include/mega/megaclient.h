@@ -236,8 +236,8 @@ public:
     // toggle global debug flag
     bool toggledebug();
 
-    // submit an event
-    void submitevent(const char* evtclass, const char* message, int version);
+    // report an event to the API logger
+    void reportevent(const char*, const char* = NULL);
 
 private:
     // API request queue double buffering:
