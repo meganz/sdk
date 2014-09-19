@@ -5662,7 +5662,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         l->treestate(TREESTATE_SYNCED);
     }
-
 }
 
 // execute updates stored in synccreate[]

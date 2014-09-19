@@ -813,7 +813,7 @@ dstime Sync::procscanq(int q)
         // we return control to the application in case a filenode was added
         // (in order to avoid lengthy blocking episodes due to multiple
         // consecutive fingerprint calculations)
-        if (l && (l->type == FILENODE))
+        if (l && l != (LocalNode*)~0 && l->type == FILENODE)
         {
             break;
         }
