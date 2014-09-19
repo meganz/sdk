@@ -5434,6 +5434,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         l->reported = true;
 
+                        reqtag = 0;
+
                         // report a "undecrypted child" event
                         reportevent("CU");
                     }
@@ -5450,6 +5452,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     if (!l->reported)
                     {
                         l->reported = true;
+
+                        reqtag = 0;
 
                         // report a "no-name child" event
                         reportevent("CN");
