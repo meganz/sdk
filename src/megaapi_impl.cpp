@@ -3583,7 +3583,9 @@ void MegaApiImpl::reload(const char*)
 
 void MegaApiImpl::debug_log(const char* message)
 {
-    cout << message << endl;
+    #if DEBUG
+        cout << message << endl;
+    #endif
 }
 
 
