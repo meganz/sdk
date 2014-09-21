@@ -2,7 +2,7 @@
  * @file win32/fs.cpp
  * @brief Win32 filesystem/directory access/notification
  *
- * (c) 2013 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -111,8 +111,8 @@ bool WinFileAccess::sysopen()
 {
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
-                            FILE_SHARE_WRITE | FILE_SHARE_READ,
-                            OPEN_EXISTING, NULL);
+                        FILE_SHARE_WRITE | FILE_SHARE_READ,
+                        OPEN_EXISTING, NULL);
 #else
     hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
@@ -153,8 +153,8 @@ void WinFileAccess::updatelocalname(string* name)
 bool WinFileAccess::skipattributes(DWORD dwAttributes)
 {
     return (dwAttributes & (FILE_ATTRIBUTE_REPARSE_POINT
-                        | FILE_ATTRIBUTE_TEMPORARY
-                        | FILE_ATTRIBUTE_OFFLINE))
+          | FILE_ATTRIBUTE_TEMPORARY
+          | FILE_ATTRIBUTE_OFFLINE))
         || (dwAttributes & (FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN))
             == (FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
 }
@@ -319,7 +319,7 @@ bool WinFileSystemAccess::istransient(DWORD e)
 
 bool WinFileSystemAccess::istransientorexists(DWORD e)
 {
-    target_exists = (e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS);
+    target_exists = e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS;
 
     return istransient(e);
 }
@@ -352,10 +352,10 @@ void WinFileSystemAccess::path2local(string* path, string* local) const
 
     // resize to actual result
     local->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-                                                            path->c_str(),
-                                                            -1,
-                                                            (wchar_t*)local->data(),
-                                                            local->size() / sizeof(wchar_t) + 1) - 1));
+                                                         path->c_str(),
+                                                         -1,
+                                                         (wchar_t*)local->data(),
+                                                         local->size() / sizeof(wchar_t) + 1) - 1));
 }
 
 // convert Windows Unicode to UTF-8
@@ -436,11 +436,13 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
 {
     oldname->append("", 1);
     newname->append("", 1);
+
 #ifdef WINDOWS_PHONE
     bool r = !!CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL);
 #else
     bool r = !!CopyFileW((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), FALSE);
 #endif
+
     newname->resize(newname->size() - 1);
     oldname->resize(oldname->size() - 1);
 
@@ -492,8 +494,9 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     else if (hidden)
     {
 #ifdef WINDOWS_PHONE
-        WIN32_FILE_ATTRIBUTE_DATA a = {0};
+        WIN32_FILE_ATTRIBUTE_DATA a = { 0 };
         BOOL res = GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, &a);
+
         if (res)
         {
             SetFileAttributesW((LPCWSTR)name->data(), a.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
@@ -561,7 +564,7 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
-        if ((((wchar_t*)name->data())[i] == '\\') || (((wchar_t*)name->data())[i] == ':'))
+        if (((wchar_t*)name->data())[i] == '\\' || ((wchar_t*)name->data())[i] == ':')
         {
             return (i + 1) * sizeof(wchar_t);
         }
@@ -612,6 +615,7 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];
+
 #ifdef WINDOWS_PHONE
     sprintf(buf, "Windows Phone 8/8.1");
 #else
@@ -672,10 +676,10 @@ void WinDirNotify::process(DWORD dwBytes)
             // skip the local debris folder
             // also, we skip the old name in case of renames
             if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-                    && (fni->FileNameLength < ignore.size()
-                        || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
-                        || (fni->FileNameLength > ignore.size()
-                            && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
+             && (fni->FileNameLength < ignore.size()
+              || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
+              || (fni->FileNameLength > ignore.size()
+               && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
             {
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }
@@ -698,10 +702,10 @@ void WinDirNotify::readchanges()
     if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
                               notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
-                              | FILE_NOTIFY_CHANGE_DIR_NAME
-                              | FILE_NOTIFY_CHANGE_LAST_WRITE
-                              | FILE_NOTIFY_CHANGE_SIZE
-                              | FILE_NOTIFY_CHANGE_CREATION,
+                            | FILE_NOTIFY_CHANGE_DIR_NAME
+                            | FILE_NOTIFY_CHANGE_LAST_WRITE
+                            | FILE_NOTIFY_CHANGE_SIZE
+                            | FILE_NOTIFY_CHANGE_CREATION,
                               &dwBytes, &overlapped, completion))
     {
         failed = false;
@@ -739,12 +743,12 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     localbasepath->append("", 1);
 
     if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
-                                   FILE_LIST_DIRECTORY,
-                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                   NULL,
-                                   OPEN_EXISTING,
-                                   FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-                                   NULL)) != INVALID_HANDLE_VALUE)
+                                  FILE_LIST_DIRECTORY,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                  NULL,
+                                  OPEN_EXISTING,
+                                  FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
+                                  NULL)) != INVALID_HANDLE_VALUE)
     {
         failed = false;
 
@@ -820,7 +824,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 
             while (p--)
             {
-                if ((bp[p] == '/') || (bp[p] == '\\'))
+                if (bp[p] == '/' || bp[p] == '\\')
                 {
                     break;
                 }
@@ -839,7 +843,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
         name->resize(name->size() - (glob ? 1 : 5));
     }
 
-    if (!(ffdvalid = (hFind != INVALID_HANDLE_VALUE)))
+    if (!(ffdvalid = hFind != INVALID_HANDLE_VALUE))
     {
         return false;
     }
@@ -852,10 +856,10 @@ bool WinDirAccess::dnext(string* name, nodetype_t* type)
     for (;;)
     {
         if (ffdvalid
-                && !WinFileAccess::skipattributes(ffd.dwFileAttributes)
-                && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                  || *ffd.cFileName != '.'
-                  || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
+         && !WinFileAccess::skipattributes(ffd.dwFileAttributes)
+         && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+          || *ffd.cFileName != '.'
+          || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             name->assign((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
             name->insert(0, globbase);

@@ -5570,13 +5570,13 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             }
             else
             {
-                string localname;
+                string localpath;
                 bool t;
                 FileAccess* fa = fsaccess->newfileaccess();
 
-                ll->getlocalpath(&localname);
+                ll->getlocalpath(&localpath);
 
-                if (!(t = fa->fopen(&localname, true, false))
+                if (!(t = fa->fopen(&localpath, true, false))
                  || fa->size != ll->size
                  || fa->mtime != ll->mtime)
                 {
@@ -5621,7 +5621,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report,"%d %d %" PRIi64 " %" PRIi64, ll->type, (int)ll->name.size(), ll->mtime, ll->size);
+                sprintf(report,"%d %d %d %" PRIi64, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
 
                 if (ll->node)
                 {
@@ -5630,6 +5630,18 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     if ((ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end())
                     {
                         namelen = ait->second.size();
+
+                        for (int i = 0; i < namelen && i < (int)ll->name.size(); i += sizeof(wchar_t))
+                        {
+                            wchar_t c1 = *(wchar_t*)(ll->name.data()+i);
+                            wchar_t c2 = *(wchar_t*)(ait->second.data()+i);
+                            
+                            if (c1 != c2)
+                            {
+                                sprintf(strchr(report, 0)," [%d %x %x]", i, c1, c2);
+                                break;
+                            }
+                        }
                     }
                     else
                     {
@@ -5637,8 +5649,9 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    sprintf(strchr(report, 0)," %d %d %" PRIi64 " %" PRIi64 " ", ll->node->type, namelen, ll->node->size, ll->node->mtime);
+                    sprintf(strchr(report, 0)," %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
+
                 }
 
                 reqtag = 0;
