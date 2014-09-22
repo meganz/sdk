@@ -3325,8 +3325,21 @@ void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t l
     string filePath(request->getFile());
     string localPath;
     fsAccess->path2local(&filePath, &localPath);
-    f->fopen(&localPath, false, true);
-	f->fwrite((const byte*)data, len, 0);
+
+    if(!f->fopen(&localPath, false, true))
+    {
+        delete f;
+        fireOnRequestFinish(request, MegaError(API_EWRITE));
+        return;
+    }
+
+    if(!f->fwrite((const byte*)data, len, 0))
+    {
+        delete f;
+        fireOnRequestFinish(request, MegaError(API_EWRITE));
+        return;
+    }
+
 	delete f;
     fireOnRequestFinish(request, MegaError(API_OK));
 }
@@ -3678,7 +3691,6 @@ void MegaApiImpl::getua_result(error e)
 
 void MegaApiImpl::getua_result(byte* data, unsigned len)
 {
-	MegaError megaError(API_OK);
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
@@ -3687,10 +3699,23 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	string filePath(request->getFile());
 	string localPath;
 	fsAccess->path2local(&filePath, &localPath);
-	f->fopen(&localPath, false, true);
-	f->fwrite((const byte*)data, len, 0);
-	delete f;
-    fireOnRequestFinish(request, megaError);
+
+    if(!f->fopen(&localPath, false, true))
+    {
+        delete f;
+        fireOnRequestFinish(request, MegaError(API_EWRITE));
+        return;
+    }
+
+    if(!f->fwrite((const byte*)data, len, 0))
+    {
+        delete f;
+        fireOnRequestFinish(request, MegaError(API_EWRITE));
+        return;
+    }
+
+    delete f;
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 // user attribute update notification
