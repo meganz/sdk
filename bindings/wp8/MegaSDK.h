@@ -151,6 +151,8 @@ namespace mega
 		int getNumPendingDownloads();
 		int getTotalUploads();
 		int getTotalDownloads();
+		uint64 getTotalDownloadedBytes();
+		uint64 getTotalUploadedBytes();
 		void resetTotalDownloads();
 		void resetTotalUploads();
 		int getNumChildren(MNode^ parent);

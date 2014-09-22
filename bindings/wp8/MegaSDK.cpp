@@ -1037,6 +1037,16 @@ int MegaSDK::getTotalDownloads()
 	return megaApi->getTotalDownloads();
 }
 
+uint64 MegaSDK::getTotalDownloadedBytes()
+{
+	return megaApi->getTotalDownloadedBytes();
+}
+
+uint64 MegaSDK::getTotalUploadedBytes()
+{
+	return megaApi->getTotalUploadedBytes();
+}
+
 void MegaSDK::resetTotalDownloads()
 {
 	megaApi->resetTotalDownloads();
