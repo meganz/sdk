@@ -629,14 +629,6 @@ class MegaApiImpl : public MegaApp
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
-        int getNumPendingUploads();
-        int getNumPendingDownloads();
-        int getTotalUploads();
-        int getTotalDownloads();
-        void resetTotalDownloads();
-        void resetTotalUploads();
-        string getLocalPath(MegaNode *node);
-        void updateStatics();
         void update();
         bool isIndexing();
         bool isWaiting();
@@ -644,7 +636,17 @@ class MegaApiImpl : public MegaApp
         void setExcludedNames(vector<string> *excludedNames);
         bool moveToLocalDebris(const char *path);
         bool is_syncable(const char* name);
-        static void removeRecursively(const char *path);
+
+        //Statistics
+        int getNumPendingUploads();
+        int getNumPendingDownloads();
+        int getTotalUploads();
+        int getTotalDownloads();
+        void resetTotalDownloads();
+        void resetTotalUploads();
+        void updateStatics();
+        long long getTotalDownloadedBytes();
+        long long getTotalUploadedBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
@@ -663,6 +665,8 @@ class MegaApiImpl : public MegaApp
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
+        string getLocalPath(MegaNode *node);
+        static void removeRecursively(const char *path);
 
         //Fingerprint
         const char* getFingerprint(const char *filePath);
@@ -729,6 +733,8 @@ protected:
         int pendingDownloads;
         int totalUploads;
         int totalDownloads;
+        long long totalDownloadedBytes;
+        long long totalUploadedBytes;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
         set<MegaGlobalListener *> globalListeners;

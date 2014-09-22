@@ -1464,6 +1464,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     client = NULL;
     waiting = false;
     waitingRequest = false;
+    totalDownloadedBytes = 0;
+    totalUploadedBytes = 0;
+
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
@@ -2968,6 +2971,12 @@ void MegaApiImpl::transfer_update(Transfer *tr)
             transfer->setTime(tr->slot->lastdata);
             if(!transfer->getStartTime()) transfer->setStartTime(Waiter::ds);
             transfer->setDeltaSize(tr->slot->progressreported - transfer->getTransferredBytes());
+
+            if(tr->type == GET)
+                totalDownloadedBytes += transfer->getDeltaSize();
+            else
+                totalUploadedBytes += transfer->getDeltaSize();
+
             transfer->setTransferredBytes(tr->slot->progressreported);
 
             dstime currentTime = Waiter::ds;
@@ -3042,6 +3051,11 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     transfer->setSpeed(speed);
     transfer->setTime(currentTime);
     transfer->setDeltaSize(tr->size - transfer->getTransferredBytes());
+    if(tr->type == GET)
+        totalDownloadedBytes += transfer->getDeltaSize();
+    else
+        totalUploadedBytes += transfer->getDeltaSize();
+
     transfer->setTransferredBytes(tr->size);
 
 	string tmpPath;
@@ -3079,6 +3093,7 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
 	MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
 	transfer->setLastBytes((char *)buffer);
 	transfer->setDeltaSize(len);
+    totalDownloadedBytes += len;
 	transfer->setTransferredBytes(transfer->getTransferredBytes()+len);
 
 	bool end = (transfer->getTransferredBytes() == transfer->getTotalBytes());
@@ -3326,6 +3341,7 @@ void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t l
     string localPath;
     fsAccess->path2local(&filePath, &localPath);
 
+    totalDownloadedBytes += len;
     if(!f->fopen(&localPath, false, true))
     {
         delete f;
@@ -3700,6 +3716,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	string localPath;
 	fsAccess->path2local(&filePath, &localPath);
 
+    totalDownloadedBytes += len;
     if(!f->fopen(&localPath, false, true))
     {
         delete f;
@@ -5523,6 +5540,16 @@ void MegaApiImpl::updateStatics()
     pendingDownloads = downloadCount;
     pendingUploads = uploadCount;
     sdkMutex.unlock();
+}
+
+long long MegaApiImpl::getTotalDownloadedBytes()
+{
+    return totalDownloadedBytes;
+}
+
+long long MegaApiImpl::getTotalUploadedBytes()
+{
+    return totalUploadedBytes;
 }
 
 void MegaApiImpl::update()

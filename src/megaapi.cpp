@@ -818,6 +818,16 @@ void MegaApi::updateStatics()
     pImpl->updateStatics();
 }
 
+long long MegaApi::getTotalDownloadedBytes()
+{
+    return pImpl->getTotalDownloadedBytes();
+}
+
+long long MegaApi::getTotalUploadedBytes()
+{
+    return pImpl->getTotalUploadedBytes();
+}
+
 void MegaApi::update()
 {
    pImpl->update();

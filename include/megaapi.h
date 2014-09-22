@@ -489,14 +489,6 @@ class MegaApi
         void removeSync(MegaHandle nodeMegaHandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
-        int getNumPendingUploads();
-        int getNumPendingDownloads();
-        int getTotalUploads();
-        int getTotalDownloads();
-        void resetTotalDownloads();
-        void resetTotalUploads();
-        std::string getLocalPath(MegaNode *node);
-        void updateStatics();
         void update();
         bool isIndexing();
         bool isWaiting();
@@ -504,7 +496,17 @@ class MegaApi
         void setExcludedNames(std::vector<std::string> *excludedNames);
         bool moveToLocalDebris(const char *path);
         bool isSyncable(const char *name);
-        static void removeRecursively(const char *path);
+
+        //Statistics
+        int getNumPendingUploads();
+        int getNumPendingDownloads();
+        int getTotalUploads();
+        int getTotalDownloads();
+        void resetTotalDownloads();
+        void resetTotalUploads();
+        void updateStatics();
+        long long getTotalDownloadedBytes();
+        long long getTotalUploadedBytes();
 
         //Filesystem
         enum {	ORDER_NONE, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
@@ -529,6 +531,8 @@ class MegaApi
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
+        std::string getLocalPath(MegaNode *node);
+        static void removeRecursively(const char *path);
 
         //Fingerprint
         const char* getFingerprint(const char *filePath);
