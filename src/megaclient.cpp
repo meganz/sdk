@@ -771,8 +771,12 @@ void MegaClient::exec()
                     case REQ_SUCCESS:
                         if (*pendingsc->in.c_str() == '{')
                         {
-                            jsonsc.begin(pendingsc->in.c_str());
-                            jsonsc.enterobject();
+                            if (syncsup)
+                            {
+                                jsonsc.begin(pendingsc->in.c_str());
+                                jsonsc.enterobject();
+                            }
+
                             break;
                         }
                         else
