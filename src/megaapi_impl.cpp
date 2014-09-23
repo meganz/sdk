@@ -1711,7 +1711,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 
     string localurl;
     fsAccess->path2local(&url, &localurl);
-    localurl.append("", 1);
+
     localProxySettings.setProxyURL(&localurl);
 
     if(proxySettings->credentialsNeeded())
@@ -1722,7 +1722,6 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 
         string localusername;
         fsAccess->path2local(&username, &localusername);
-        localusername.append("", 1);
 
         string password;
         if(proxySettings->getPassword())
@@ -1730,7 +1729,6 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 
         string localpassword;
         fsAccess->path2local(&password, &localpassword);
-        localpassword.append("", 1);
 
         localProxySettings.setCredentials(&localusername, &localpassword);
     }
