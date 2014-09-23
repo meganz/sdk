@@ -82,6 +82,7 @@ void WinHttpIO::setproxy(Proxy *proxy)
     else if(proxy->getProxyType() == Proxy::CUSTOM)
     {
         string proxyURL = proxy->getProxyURL();
+        proxyURL.append("", 1);
         WINHTTP_PROXY_INFO proxyInfo;
         proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
         proxyInfo.lpszProxy = (LPWSTR)proxyURL.data();
@@ -91,7 +92,11 @@ void WinHttpIO::setproxy(Proxy *proxy)
         if(proxy->credentialsNeeded())
         {
             proxyUsername = proxy->getUsername();
+            if(proxyUsername.size())
+                proxyUsername.append("", 1);
             proxyPassword = proxy->getPassword();
+            if(proxyPassword.size())
+                proxyPassword.append("", 1);
         }
     }
 
@@ -123,7 +128,6 @@ Proxy *WinHttpIO::getautoproxy()
                 {
                     proxyURL.resize(i*sizeof(wchar_t));
                     len = i;
-                    proxyURL.append("",1);
                     break;
                 }
             }
@@ -170,7 +174,7 @@ Proxy *WinHttpIO::getautoproxy()
                 {
                     string proxyURL;
                     proxy->setProxyType(Proxy::CUSTOM);
-                    proxyURL.assign((const char*)proxyInfo.lpszProxy, (lstrlen(proxyInfo.lpszProxy) + 1) * sizeof(wchar_t));
+                    proxyURL.assign((const char*)proxyInfo.lpszProxy, lstrlen(proxyInfo.lpszProxy) * sizeof(wchar_t));
                     proxy->setProxyURL(&proxyURL);
                 }
             }
