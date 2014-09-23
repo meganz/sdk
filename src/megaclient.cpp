@@ -771,8 +771,12 @@ void MegaClient::exec()
                     case REQ_SUCCESS:
                         if (*pendingsc->in.c_str() == '{')
                         {
-                            jsonsc.begin(pendingsc->in.c_str());
-                            jsonsc.enterobject();
+                            if (syncsup)
+                            {
+                                jsonsc.begin(pendingsc->in.c_str());
+                                jsonsc.enterobject();
+                            }
+
                             break;
                         }
                         else
@@ -1282,7 +1286,7 @@ int MegaClient::wait()
 
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || (jsonsc.pos && !syncdownretry && !syncsup))
+    if (syncactivity || (jsonsc.pos && !syncdownretry))
     {
         nds = Waiter::ds;
     }
