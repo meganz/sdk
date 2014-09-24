@@ -59,7 +59,7 @@ public:
     int wait();
 
     // abort exponential backoff
-    bool abortbackoff();
+    bool abortbackoff(bool = true);
 
     // ID tag of the next request
     int nextreqtag();

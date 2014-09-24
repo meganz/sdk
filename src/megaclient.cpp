@@ -1414,23 +1414,24 @@ int MegaClient::wait()
 }
 
 // reset all backoff timers and transfer retry counters
-bool MegaClient::abortbackoff()
+bool MegaClient::abortbackoff(bool includexfers)
 {
     bool r = false;
 
     WAIT_CLASS::bumpds();
 
-    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    if (includexfers)
     {
-        for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
-            if (it->second->failcount)
+            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
-                it->second->failcount = 0;
-
-                if (it->second->bt.arm())
+                if (it->second->failcount)
                 {
-                    r = true;
+                    if (it->second->bt.arm())
+                    {
+                        r = true;
+                    }
                 }
             }
         }
