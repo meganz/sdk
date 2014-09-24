@@ -1789,17 +1789,18 @@ void MegaApiImpl::loop()
         int r = client->wait();
         if(r & Waiter::NEEDEXEC)
         {
-            sdkMutex.lock();
             sendPendingTransfers();
             sendPendingRequests();
             if(threadExit)
                 break;
 
+            sdkMutex.lock();
             client->exec();
             sdkMutex.unlock();
         }
 	}
 
+    sdkMutex.lock();
     delete client->dbaccess; //Warning, it's deleted in MegaClient's destructor
     delete client->sctable;  //Warning, it's deleted in MegaClient's destructor
 
@@ -4698,8 +4699,10 @@ void MegaApiImpl::sendPendingTransfers()
 	MegaTransferPrivate *transfer;
 	error e;
 	int nextTag;
+
 	while((transfer = transferQueue.pop()))
 	{
+		sdkMutex.lock();
 		e = API_OK;
         nextTag = client->nextreqtag();
 
@@ -4831,6 +4834,8 @@ void MegaApiImpl::sendPendingTransfers()
 
 		if(e)
             fireOnTransferFinish(transfer, MegaError(e));
+
+        sdkMutex.unlock();
     }
 }
 
@@ -4909,6 +4914,7 @@ void MegaApiImpl::sendPendingRequests()
 
 	while((request = requestQueue.pop()))
 	{
+		sdkMutex.lock();
 		nextTag = client->nextreqtag();
         request->setTag(nextTag);
 		requestMap[nextTag]=request;
@@ -5498,6 +5504,8 @@ void MegaApiImpl::sendPendingRequests()
 
 		if(e)
             fireOnRequestFinish(request, MegaError(e));
+
+		sdkMutex.unlock();
 	}
 }
 
