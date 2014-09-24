@@ -424,7 +424,7 @@ class MegaApi
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
         static MegaHandle base64ToHandle(const char* base64Handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
-        void retryPendingConnections(bool disconnect = false, MegaRequestListener* listener = NULL);
+        void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);

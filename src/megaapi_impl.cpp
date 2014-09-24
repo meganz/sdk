@@ -1601,10 +1601,11 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
 	return h;
 }
 
-void MegaApiImpl::retryPendingConnections(bool disconnect, MegaRequestListener *listener)
+void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS);
 	request->setFlag(disconnect);
+	request->setNumber(includexfers);
 	request->setListener(listener);
 	requestQueue.push(request);
     waiter->notify();
@@ -5273,7 +5274,8 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS:
 		{
 			bool disconnect = request->getFlag();
-			client->abortbackoff();
+			bool includexfers = request->getNumber();
+			client->abortbackoff(includexfers);
 			if(disconnect)
 				client->disconnect();
 
