@@ -41,6 +41,7 @@ CurlHttpIO::CurlHttpIO()
 
     contenttypebinary = curl_slist_append(NULL, "Content-Type: application/octet-stream");
     contenttypebinary = curl_slist_append(contenttypebinary, "Expect:");
+    proxyinflight = 0;
 }
 
 CurlHttpIO::~CurlHttpIO()
@@ -81,9 +82,68 @@ void CurlHttpIO::addevents(Waiter* w, int)
     waiter->bumpmaxfd(t);
 }
 
+void CurlHttpIO::proxy_ready_callback(void *arg, int status, int, hostent *host)
+{
+    //the name of a proxy has been resolved
+    CurlHttpIO *httpio = (CurlHttpIO *)arg;
+
+    httpio->proxyinflight--; //reduce the number of inflight proxy requests
+
+    if(!httpio->proxyhost.size() || //the proxy was disabled during the name resolution.
+        httpio->proxyip.size())     //or we already have the correct ip
+        return;
+
+    if(status != ARES_SUCCESS || !host || !host->h_addr_list[0])
+    {
+        //error getting the IP of the proxy
+        if(!httpio->proxyinflight)
+        {
+            //there aren't more inflight proxies
+            //drop all requests
+            httpio->drop_pending_requests();
+        }
+        return;
+    }
+
+    //is this the required proxy name?
+    //(there could be several active proxy requests)
+    if(httpio->proxyhost != host->h_name)
+    {
+        int i=0;
+        while(host->h_aliases[i])
+        {
+            if(httpio->proxyhost == host->h_aliases[i])
+                break;
+            i++;
+        }
+
+        if(!host->h_aliases[i])
+        {
+            //this isn't the required proxy name
+            if(!httpio->proxyinflight)
+            {
+                //there aren't more inflight proxies
+                //drop all requests
+                httpio->drop_pending_requests();
+            }
+            return;
+        }
+    }
+
+
+    //set the IP of the proxy and start using it
+    char ip[INET6_ADDRSTRLEN];
+    inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
+    std::ostringstream oss;
+    oss << ip << ":" << httpio->proxyport;
+    httpio->proxyip = oss.str();
+    httpio->send_pending_requests();
+}
+
 void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct hostent *host)
 {
     CurlHttpContext* httpctx = (CurlHttpContext *)arg;
+    CurlHttpIO *httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
     if(!req) //The request was cancelled
     {
@@ -91,33 +151,44 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
         return;
     }
 
-    if(status != ARES_SUCCESS || !host || !host->h_addr_list[0])
+    if(status != ARES_SUCCESS || !host || !host->h_addr_list[0] ||   //unable to get the destination host
+            (httpio->proxyurl.size() && !httpio->proxyhost.size()))  //or malformed proxy string
     {
         req->status = REQ_FAILURE;
         return;
     }
 
-    char ip[INET6_ADDRSTRLEN];
-    int len = httpctx->len;
-    const char* data = httpctx->data;
-
-    string port;
-    unsigned int num = httpctx->port;
-    int digits = 0;
-    while(num)
+    if(httpio->proxyhost.size() && !httpio->proxyip.size() && !httpio->proxyinflight)
     {
-        num /= 10;
-        digits++;
+        //c-ares failed getting the IP of the proxy. Queue this request and retry.
+        httpio->proxyinflight++;
+        httpio->pendingrequests.push(httpctx);
+        ares_gethostbyname(httpio->ares, httpio->proxyhost.c_str(), PF_INET, proxy_ready_callback, httpio);
+        return;
     }
 
-    port.resize(digits + 2);
-    sprintf((char *)port.data(), ":%d:", httpctx->port);
-
-    CurlHttpIO *httpio = httpctx->httpio;
-
+    //save the IP for this request
+    char ip[INET6_ADDRSTRLEN];    
     inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
-    string dnsrecord = httpctx->hostname + port + ip;
+    std::ostringstream oss;
+    oss << httpctx->hostname << ":" << httpctx->port << ":" << ip;
+    string dnsrecord = oss.str();
     httpctx->resolve = curl_slist_append(NULL, dnsrecord.c_str());
+
+    //If there is no proxy or we already have the IP of the proxy, send the request.
+    //Otherwise, queue the request until we get the IP of the proxy
+    if(!httpio->proxyurl.size() || httpio->proxyip.size())
+        send_request(httpctx);
+    else
+        httpio->pendingrequests.push(httpctx);
+}
+
+void CurlHttpIO::send_request(CurlHttpContext *httpctx)
+{
+    CurlHttpIO *httpio = httpctx->httpio;
+    HttpReq* req = httpctx->req;
+    int len = httpctx->len;
+    const char* data = httpctx->data;
 
     if (debug)
     {
@@ -162,11 +233,11 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
 #endif
 
-        if(httpio->proxyurl.size())
+        if(httpio->proxyip.size())
         {
             curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
 
-            curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyurl.c_str());
+            curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
             if(httpio->proxyusername.size())
             {
@@ -191,64 +262,65 @@ bool CurlHttpIO::crackurl(string *url, string *hostname, int *port)
     *port = 0;
     size_t starthost, endhost, startport, endport;
 
-    starthost = url->find_first_of("://");
+    starthost = url->find("://");
     if(starthost != string::npos)
-    {
         starthost += 3;
-        startport = url->find_first_of(":", starthost);
-        if(startport != string::npos)
-        {
-            endhost = startport;
-            startport++;
+    else
+        starthost = 0;
 
-            endport = url->find_first_of("/", startport);
-            if(endport == string::npos)
-                endport = url->size();
+    startport = url->find(":", starthost);
+    if(startport != string::npos)
+    {
+        endhost = startport;
+        startport++;
 
-            if(endport <= startport || (endport - startport) > 5)
-                *port = -1;
-            else
-            {
-                for(unsigned int i = startport; i < endport; i++)
-                {
-                    int c = url->data()[i];
-                    if(c < '0' || c > '9')
-                    {
-                        *port = -1;
-                         break;
-                    }
-                }
-            }
+        endport = url->find("/", startport);
+        if(endport == string::npos)
+            endport = url->size();
 
-            if(!*port)
-            {
-                *port = atoi(url->data() + startport);
-                if(*port > 65535)
-                    *port = -1;
-            }
-        }
+        if(endport <= startport || (endport - startport) > 5)
+            *port = -1;
         else
         {
-            endhost = url->find_first_of("/", starthost);
-            if(endhost == string::npos)
-                endhost = url->size();
+            for(unsigned int i = startport; i < endport; i++)
+            {
+                int c = url->data()[i];
+                if(c < '0' || c > '9')
+                {
+                    *port = -1;
+                     break;
+                }
+            }
         }
 
         if(!*port)
         {
-            if(!url->compare(0, 8, "https://"))
-                *port = 443;
-            else if(!url->compare(0, 7, "http://"))
-                *port = 80;
-            else
+            *port = atoi(url->data() + startport);
+            if(*port > 65535)
                 *port = -1;
         }
     }
+    else
+    {
+        endhost = url->find("/", starthost);
+        if(endhost == string::npos)
+            endhost = url->size();
+    }
 
+    if(!*port)
+    {
+        if(!url->compare(0, 8, "https://"))
+            *port = 443;
+        else if(!url->compare(0, 7, "http://"))
+            *port = 80;
+        else
+            *port = -1;
+    }
+
+    *hostname = url->substr(starthost, endhost - starthost);
     if(*port <= 0 || starthost == string::npos || starthost >= endhost)
         return false;
 
-    *hostname = url->substr(starthost, endhost - starthost);
     return true;
 }
 
@@ -265,7 +337,8 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     req->httpiohandle = (void *)httpctx;
 
-    if(!crackurl(&req->posturl, &httpctx->hostname, &httpctx->port))
+    if((proxyurl.size() && !proxyhost.size()) || //Malformed proxy string
+            !crackurl(&req->posturl, &httpctx->hostname, &httpctx->port)) //Invalid request
     {
         req->status = REQ_FAILURE;
         return;
@@ -278,16 +351,42 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
 void CurlHttpIO::setproxy(Proxy* proxy)
 {
-    if(proxy->getProxyType() != Proxy::CUSTOM)
+    //clear the previous proxy IP
+    proxyip.clear();
+
+    if(proxy->getProxyType() != Proxy::CUSTOM || !proxy->getProxyURL().size())
     {
-        //Automatic proxy is not supported
+        //automatic proxy is not supported
+        //invalidate inflight proxy changes
+        proxyhost.clear();
+
+        //don't use a proxy
         proxyurl.clear();
+
+        //send pending requests without a proxy
+        send_pending_requests();
         return;
     }
 
     proxyurl = proxy->getProxyURL();
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
+
+    if(!crackurl(&proxyurl, &proxyhost, &proxyport))
+    {
+        //malformed proxy string
+        //invalidate inflight proxy changes
+
+        //mark the proxy as invalid (proxyurl set but proxyhost not set)
+        proxyhost.clear();
+
+        //drop all pending requests
+        drop_pending_requests();
+        return;
+    }
+
+    proxyinflight++;
+    ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, this);
 }
 
 Proxy* CurlHttpIO::getautoproxy()
@@ -406,6 +505,34 @@ bool CurlHttpIO::doio()
 }
 
 // callback for incoming HTTP payload
+void CurlHttpIO::send_pending_requests()
+{
+    while(pendingrequests.size())
+    {
+        CurlHttpContext *httpctx = pendingrequests.front();
+        if(httpctx->req)
+            send_request(httpctx);
+        else
+            delete httpctx;
+
+        pendingrequests.pop();
+    }
+}
+
+void CurlHttpIO::drop_pending_requests()
+{
+    while(pendingrequests.size())
+    {
+        CurlHttpContext *httpctx = pendingrequests.front();
+        if(httpctx->req)
+            httpctx->req->status = REQ_FAILURE;
+        else
+            delete httpctx;
+
+        pendingrequests.pop();
+    }
+}
+
 size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 {
     ((HttpReq*)target)->put(ptr, nmemb);
@@ -474,4 +601,5 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
 
     return ok;
 }
+
 } // namespace

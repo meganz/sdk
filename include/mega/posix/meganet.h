@@ -29,6 +29,7 @@
 
 namespace mega {
 
+struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
@@ -37,14 +38,24 @@ protected:
     CURLSH* curlsh;
     ares_channel ares;
     string proxyurl;
+    string proxyhost;
+    int proxyport;
+    string proxyip;
     string proxyusername;
     string proxypassword;
+    int proxyinflight;
+    std::queue<CurlHttpContext *> pendingrequests;
+
+    void send_pending_requests();
+    void drop_pending_requests();
 
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
+    static void proxy_ready_callback(void *arg, int status, int timeouts, struct hostent *host);
     static void ares_completed_callback(void *arg, int status, int timeouts, struct hostent *host);
+    static void send_request(CurlHttpContext *httpctx);
     static bool crackurl(string *url, string *hostname, int* port);
 
     curl_slist* contenttypejson;
