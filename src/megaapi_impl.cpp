@@ -2871,8 +2871,7 @@ long long SizeProcessor::getTotalBytes()
 }
 
 void MegaApiImpl::transfer_added(Transfer *t)
-{
-    updateStatics();
+{       
 	MegaTransferPrivate *transfer = currentTransfer;
     if(!transfer)
     {
@@ -2886,16 +2885,22 @@ void MegaApiImpl::transfer_added(Transfer *t)
     transfer->setTag(t->tag);
 	transferMap[t->tag]=transfer;
 
-    if (t->type == GET) totalDownloads++;
-    else totalUploads++;
+    if (t->type == GET)
+    {
+        totalDownloads++;
+        pendingDownloads++;
+    }
+    else
+    {
+        totalUploads++;
+        pendingUploads++;
+    }
 
     fireOnTransferStart(transfer);
 }
 
 void MegaApiImpl::transfer_removed(Transfer *t)
 {
-    updateStatics();
-
     if (t->files.size() == 1)
     {
         if (t->type == GET)
@@ -2911,13 +2916,24 @@ void MegaApiImpl::transfer_removed(Transfer *t)
 
         if(transferMap.find(t->tag) == transferMap.end()) return;
         MegaTransferPrivate* transfer = transferMap.at(t->tag);
+
+        if (t->type == GET)
+        {
+            if(pendingDownloads > 0)
+                pendingDownloads--;
+        }
+        else
+        {
+            if(pendingUploads > 0)
+                pendingUploads--;
+        }
+
         fireOnTransferFinish(transfer, MegaError(API_EINCOMPLETE));
     }
 }
 
 void MegaApiImpl::transfer_prepare(Transfer *t)
 {
-    updateStatics();
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
 
@@ -2947,7 +2963,6 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
 
 void MegaApiImpl::transfer_update(Transfer *tr)
 {
-    updateStatics();
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
 
@@ -3000,7 +3015,6 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 
 void MegaApiImpl::transfer_failed(Transfer* tr, error e)
 {
-    updateStatics();
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaError megaError(e);
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
@@ -3012,7 +3026,6 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e)
 
 void MegaApiImpl::transfer_limit(Transfer* t)
 {
-    updateStatics();
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
     fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA));
@@ -3020,7 +3033,6 @@ void MegaApiImpl::transfer_limit(Transfer* t)
 
 void MegaApiImpl::transfer_complete(Transfer* tr)
 {
-    updateStatics();
     if (tr->type == GET)
     {
         if(pendingDownloads > 0)
