@@ -1,7 +1,7 @@
 #ifndef QTMEGALISTENER_H
 #define QTMEGALISTENER_H
 
-#include<QObject>
+#include <QObject>
 #include "megaapi.h"
 
 namespace mega
@@ -28,37 +28,9 @@ public:
     virtual void onSyncStateChanged(MegaApi* api);
     virtual void onSyncFileStateChanged(MegaApi *api, const char *filePath, int newState);
 
-signals:
-    void QTonRequestStartSignal(MegaApi* api, MegaRequest *request);
-    void QTonRequestFinishSignal(MegaApi* api, MegaRequest *request, MegaError* e);
-    void QTonRequestUpdateSignal(MegaApi* api, MegaRequest *request);
-    void QTonRequestTemporaryErrorSignal(MegaApi *api, MegaRequest *request, MegaError* e);
-    void QTonTransferStartSignal(MegaApi *api, MegaTransfer *transfer);
-    void QTonTransferFinishSignal(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-    void QTonTransferUpdateSignal(MegaApi *api, MegaTransfer *transfer);
-    void QTonTransferTemporaryErrorSignal(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-    void QTonUsersUpdateSignal(MegaApi* api, UserList *users);
-    void QTonNodesUpdateSignal(MegaApi* api, NodeList *nodes);
-    void QTonReloadNeededSignal(MegaApi* api);
-    void QTonSyncStateChangedSignal(MegaApi* api);
-    void QTonSyncFileStateChangedSignal(MegaApi *api, const char *filePath, int newState);
-
-public slots:
-	virtual void QTonRequestStart(MegaApi* api, MegaRequest *request);
-	virtual void QTonRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
-    virtual void QTonRequestUpdate(MegaApi* api, MegaRequest *request);
-	virtual void QTonRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
-	virtual void QTonTransferStart(MegaApi *api, MegaTransfer *transfer);
-	virtual void QTonTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-	virtual void QTonTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-	virtual void QTonTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-	virtual void QTonUsersUpdate(MegaApi* api, UserList *users);
-	virtual void QTonNodesUpdate(MegaApi* api, NodeList *nodes);
-	virtual void QTonReloadNeeded(MegaApi* api);
-    virtual void QTonSyncStateChanged(MegaApi* api);
-    virtual void QTonSyncFileStateChanged(MegaApi *api, const char *filePath, int newState);
-
 protected:
+    virtual void customEvent(QEvent * event);
+
     MegaApi *megaApi;
 	MegaListener *listener;
 };
