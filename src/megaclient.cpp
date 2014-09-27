@@ -5433,7 +5433,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 if ((*it)->attrstring.size())
                 {
                     app->debug_log("Undecrypted child node, not syncing subtree");
-                    app->debug_log(l->keystring.c_str());
+                    app->debug_log((*it)->keystring.c_str());
 
                     if (!l->reported)
                     {
