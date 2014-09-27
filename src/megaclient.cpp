@@ -5433,7 +5433,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 if ((*it)->attrstring.size())
                 {
                     app->debug_log("Undecrypted child node, not syncing subtree");
-                    app->debug_log(l->name.c_str());
+                    app->debug_log(l->keystring.c_str());
 
                     if (!l->reported)
                     {
@@ -5445,7 +5445,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         reportevent("CU");
                     }
 
-                    return;
+                    continue;
+                    //return;
                 }
                 
                 // ...or a node name attribute missing
@@ -5464,7 +5465,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         reportevent("CN");
                     }
 
-                    return;
+                    continue;
+                    //return;
                 }
 
                 addchild(&nchildren, &ait->second, *it, &strings);
