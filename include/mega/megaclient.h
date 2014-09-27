@@ -82,7 +82,7 @@ public:
      *
      * A key pair will be added, if not present, yet.
      */
-    void inited25519();
+    int inited25519();
 
     // user login: e-mail, pwkey
     void login(const char*, const byte*);

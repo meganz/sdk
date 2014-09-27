@@ -1442,7 +1442,8 @@ void CommandGetUA::procresult()
                         || (!priv && strncmp(attributename, "puEd255", 7))))
         {
             // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-            client->inited25519();
+            if(!client->inited25519())
+                return(client->app->getua_result(API_EINTERNAL));
 
             // Return the required key data.
             if (strncmp(attributename, "prEd255", 7))

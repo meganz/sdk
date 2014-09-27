@@ -2783,7 +2783,7 @@ const char *MegaApiImpl::getFingerprint(const char *filePath)
     string result(1, ssize);
     result.append(buf);
     result.append(fingerprint);
-    delete buf;
+    delete [] buf;
 
     return MegaApi::strdup(result.c_str());
 }
@@ -2812,7 +2812,7 @@ const char *MegaApiImpl::getFingerprint(MegaNode *n)
     string result(1, ssize);
     result.append(buf);
     result.append(fingerprint);
-    delete buf;
+    delete [] buf;
 
     return MegaApi::strdup(result.c_str());
 }
@@ -4428,7 +4428,7 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
     byte *buf = new byte[len];
     Base64::atob(fingerprint + 1, buf, len);
     int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete buf;
+    delete [] buf;
     if(l <= 0)
         return NULL;
 

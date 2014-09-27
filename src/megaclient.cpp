@@ -4768,7 +4768,7 @@ void MegaClient::setkeypair()
  *
  * A key pair will be added, if not present, yet.
  */
-void MegaClient::inited25519()
+int MegaClient::inited25519()
 {
     signkey.init();
 
@@ -4777,6 +4777,7 @@ void MegaClient::inited25519()
     {
         app->debug_log("Error generating an Ed25519 key seed.");
         // TODO: What to do in case of error here?
+        return 0;
     }
 
     unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
@@ -4786,11 +4787,14 @@ void MegaClient::inited25519()
         free(pubKey);
         app->debug_log("Error deriving the Ed25519 public key.");
         // TODO: What to do in case of error here?
+        return 0;
     }
 
     // Store the key pair to user attributes.
     putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
     putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
+    free(pubKey);
+    return 1;
 }
 #endif
 

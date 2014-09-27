@@ -1014,7 +1014,8 @@ LocalNode::~LocalNode()
 
     if (type == FOLDERNODE)
     {
-        sync->dirnotify->delnotify(this);
+        if(sync->dirnotify)
+            sync->dirnotify->delnotify(this);
     }
 
     // remove parent association

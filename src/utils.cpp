@@ -51,7 +51,7 @@ void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
             byte* buf = new byte[8];
             PrnGen::genblock(buf, 8);
             iv->append((char*)buf);
-            delete buf;
+            delete [] buf;
         }
 
         // Truncate a longer IV to its first 8 bytes.
