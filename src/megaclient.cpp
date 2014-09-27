@@ -5429,24 +5429,37 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             // node must be alive
             if ((*it)->syncdeleted == SYNCDEL_NONE)
             {
-                // abort this subtree if there is a crypto key missing...
+                // check if there is a crypto key missing...
                 if ((*it)->attrstring.size())
                 {
-                    app->debug_log("Undecrypted child node, not syncing subtree");
-                    app->debug_log((*it)->keystring.c_str());
+                    (*it)->setattr();
 
-                    if (!l->reported)
+                    if (!(*it)->attrstring.size())
                     {
-                        l->reported = true;
+                        app->debug_log("Sync: Child node decrypted");
 
                         reqtag = 0;
 
-                        // report a "undecrypted child" event
-                        reportevent("CU");
+                        // report a "decrypted child" event
+                        reportevent("CD");
                     }
+                    else
+                    {
+                        app->debug_log("Sync: Undecryptable child node");
+                        app->debug_log((*it)->keystring.c_str());
 
-                    continue;
-                    //return;
+                        if (!l->reported)
+                        {
+                            l->reported = true;
+
+                            reqtag = 0;
+
+                            // report an "undecrypted child" event
+                            reportevent("CU");
+                        }
+
+                        continue;
+                    }
                 }
                 
                 // ...or a node name attribute missing
@@ -5466,7 +5479,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     continue;
-                    //return;
                 }
 
                 addchild(&nchildren, &ait->second, *it, &strings);
