@@ -1474,6 +1474,12 @@ bool MegaClient::dispatch(direction_t d)
         return false;
     }
 
+    // file attribute jam? halt uploads.
+    if (d == PUT && newfa.size() > 32)
+    {
+        return false;
+    }
+
     transfer_map::iterator nextit;
     TransferSlot *ts = NULL;
 
@@ -5644,7 +5650,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report,"%d %d %d %" PRIi64, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
+                sprintf(report,"[%u %u %d] %d %d %d %" PRIi64, nchildren.size(), l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
 
                 if (ll->node)
                 {
@@ -5653,18 +5659,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     if ((ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end())
                     {
                         namelen = ait->second.size();
-
-                        for (int i = 0; i < namelen && i < (int)ll->name.size(); i += sizeof(wchar_t))
-                        {
-                            wchar_t c1 = *(wchar_t*)(ll->name.data()+i);
-                            wchar_t c2 = *(wchar_t*)(ait->second.data()+i);
-                            
-                            if (c1 != c2)
-                            {
-                                sprintf(strchr(report, 0)," [%d %x %x]", i, c1, c2);
-                                break;
-                            }
-                        }
                     }
                     else
                     {

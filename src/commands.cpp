@@ -777,8 +777,7 @@ void CommandPutNodes::procresult()
                 }
 
                 e = API_EINTERNAL;
-
-            // fall through
+                // fall through
             case EOO:
                 client->applykeys();
 
