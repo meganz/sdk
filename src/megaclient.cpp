@@ -490,7 +490,7 @@ void MegaClient::exec()
     }
 
     do {
-        // file attribute puts (handled sequentially, newest-to-oldest)
+        // file attribute puts (handled sequentially as a FIFO)
         if (curfa != newfa.end())
         {
             HttpReqCommandPutFA* fa = *curfa;
@@ -1447,7 +1447,7 @@ bool MegaClient::abortbackoff(bool includexfers)
         r = true;
     }
 
-    if ((curfa == newfa.end()) && btpfa.arm())
+    if (curfa == newfa.end() && btpfa.arm())
     {
         r = true;
     }
