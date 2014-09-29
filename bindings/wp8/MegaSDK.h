@@ -22,6 +22,7 @@
 #include "DelegateMTransferListener.h"
 #include "DelegateMGlobalListener.h"
 #include "DelegateMListener.h"
+#include "MRandomNumberProvider.h"
 
 #include <megaapi.h>
 #include <set>
@@ -47,8 +48,8 @@ namespace mega
 		friend class DelegateMListener;
 
 	public:
-		MegaSDK(String^ appKey, String^ userAgent);
-		MegaSDK(String^ appKey, String^ userAgent, String^ basePath);
+		MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^randomProvider);
+		MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider ^randomProvider);
 		virtual ~MegaSDK();
 		void addListener(MListenerInterface^ listener);
 		void addRequestListener(MRequestListenerInterface^ listener);
@@ -145,6 +146,10 @@ namespace mega
 		void cancelTransfers(int direction);
 		void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
 		void pauseTransfers(bool pause);
+		void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
+		void submitFeedback(int rating, String^ comment);
+		void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);
+		void reportDebugEvent(String^ text);
 		void setUploadLimit(int bpslimit);
 		MTransferList^ getTransfers();
 		int getNumPendingUploads();

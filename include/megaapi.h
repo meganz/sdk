@@ -425,7 +425,6 @@ class MegaApi
         static MegaHandle base64ToHandle(const char* base64Handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
-        static void reseedRandomPool();
         static void addEntropy(unsigned char* data, unsigned int size);
 
         //API requests

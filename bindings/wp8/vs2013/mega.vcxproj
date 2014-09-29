@@ -218,6 +218,7 @@
     <ClInclude Include="..\MTreeProcessorInterface.h" />
     <ClInclude Include="..\MUser.h" />
     <ClInclude Include="..\MUserList.h" />
+    <ClInclude Include="MRandomNumberProvider.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp" />

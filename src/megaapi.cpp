@@ -321,11 +321,6 @@ void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRe
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
 }
 
-void MegaApi::reseedRandomPool()
-{
-    MegaApiImpl::reseedRandomPool();
-}
-
 void MegaApi::addEntropy(unsigned char *data, unsigned int size)
 {
     MegaApiImpl::addEntropy(data, size);

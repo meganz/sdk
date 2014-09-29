@@ -3,6 +3,8 @@
 using namespace mega;
 using namespace Platform;
 
+#define REQUIRED_ENTROPY 64
+
 MegaSDK::~MegaSDK()
 {
 	delete megaApi;
@@ -14,8 +16,18 @@ MegaApi *MegaSDK::getCPtr()
 	return megaApi;
 }
 
-MegaSDK::MegaSDK(String^ appKey, String^ userAgent)
+MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^randomProvider)
 {
+	//Windows 8.1
+	//auto iBuffer = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandom(size);
+	//auto reader = Windows::Storage::Streams::DataReader::FromBuffer(iBuffer);
+	//reader->ReadBytes(::Platform::ArrayReference<unsigned char>(output, size));
+
+	unsigned char randomData[REQUIRED_ENTROPY];
+	if (randomProvider != nullptr)
+		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
+	MegaApi::addEntropy(randomData, REQUIRED_ENTROPY);
+
 	std::string utf8appKey;
 	if(appKey != nullptr) 
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -29,8 +41,18 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent)
 	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
 }
 
-MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath)
+MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider ^randomProvider)
 {
+	//Windows 8.1
+	//auto iBuffer = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandom(size);
+	//auto reader = Windows::Storage::Streams::DataReader::FromBuffer(iBuffer);
+	//reader->ReadBytes(::Platform::ArrayReference<unsigned char>(output, size));
+
+	unsigned char randomData[REQUIRED_ENTROPY];
+	if (randomProvider != nullptr)
+		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
+	MegaApi::addEntropy(randomData, REQUIRED_ENTROPY);
+
 	std::string utf8appKey;
 	if (appKey != nullptr)
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -1005,6 +1027,46 @@ void MegaSDK::pauseTransfers(bool pause, MRequestListenerInterface^ listener)
 void MegaSDK::pauseTransfers(bool pause)
 {
 	megaApi->pauseTransfers(pause);
+}
+
+void MegaSDK::submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener)
+{
+	std::string utf8comment;
+	if (comment != nullptr)
+		MegaApi::utf16ToUtf8(comment->Data(), comment->Length(), &utf8comment);
+
+	megaApi->submitFeedback(rating,
+		(comment != nullptr) ? utf8comment.c_str() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::submitFeedback(int rating, String^ comment)
+{
+	std::string utf8comment;
+	if (comment != nullptr)
+		MegaApi::utf16ToUtf8(comment->Data(), comment->Length(), &utf8comment);
+
+	megaApi->submitFeedback(rating,
+		(comment != nullptr) ? utf8comment.c_str() : NULL);
+}
+
+void MegaSDK::reportDebugEvent(String^ text, MRequestListenerInterface^ listener)
+{
+	std::string utf8text;
+	if (text != nullptr)
+		MegaApi::utf16ToUtf8(text->Data(), text->Length(), &utf8text);
+
+	megaApi->reportDebugEvent((text != nullptr) ? utf8text.c_str() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::reportDebugEvent(String^ text)
+{
+	std::string utf8text;
+	if (text != nullptr)
+		MegaApi::utf16ToUtf8(text->Data(), text->Length(), &utf8text);
+
+	megaApi->reportDebugEvent((text != nullptr) ? utf8text.c_str() : NULL);
 }
 
 void MegaSDK::setUploadLimit(int bpslimit)

@@ -28,6 +28,10 @@
 #define strncasecmp _strnicmp
 #endif
 
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+#include <openssl/rand.h>
+#endif
+
 using namespace mega;
 
 extern bool debug;
@@ -1611,18 +1615,6 @@ void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, Me
     waiter->notify();
 }
 
-void MegaApiImpl::reseedRandomPool()
-{
-    PrnGen::rng.Reseed();
-#ifdef USE_SODIUM
-    EdDSA::rng.Reseed();
-#endif
-
-#ifndef _WIN32
-    RAND_poll();
-#endif
-}
-
 void MegaApiImpl::addEntropy(unsigned char *data, unsigned int size)
 {
     if(PrnGen::rng.CanIncorporateEntropy())
@@ -1633,7 +1625,7 @@ void MegaApiImpl::addEntropy(unsigned char *data, unsigned int size)
         EdDSA::rng.IncorporateEntropy(data, size);
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
     RAND_seed(data, size);
 #endif
 }
