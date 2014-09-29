@@ -1611,6 +1611,33 @@ void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, Me
     waiter->notify();
 }
 
+void MegaApiImpl::reseedRandomPool()
+{
+    PrnGen::rng.Reseed();
+#ifdef USE_SODIUM
+    EdDSA::rng.Reseed();
+#endif
+
+#ifndef _WIN32
+    RAND_poll();
+#endif
+}
+
+void MegaApiImpl::addEntropy(unsigned char *data, unsigned int size)
+{
+    if(PrnGen::rng.CanIncorporateEntropy())
+        PrnGen::rng.IncorporateEntropy(data, size);
+
+#ifdef USE_SODIUM
+    if(EdDSA::rng.CanIncorporateEntropy())
+        EdDSA::rng.IncorporateEntropy(data, size);
+#endif
+
+#ifndef _WIN32
+    RAND_seed(data, size);
+#endif
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FAST_LOGIN, listener);

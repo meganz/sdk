@@ -321,6 +321,16 @@ void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRe
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
 }
 
+void MegaApi::reseedRandomPool()
+{
+    MegaApiImpl::reseedRandomPool();
+}
+
+void MegaApi::addEntropy(unsigned char *data, unsigned int size)
+{
+    MegaApiImpl::addEntropy(data, size);
+}
+
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     pImpl->fastLogin(email, stringHash, base64pwkey,listener);
