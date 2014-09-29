@@ -511,6 +511,11 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
     pImpl->submitFeedback(rating, comment, listener);
 }
 
+void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
+{
+    pImpl->reportEvent(MegaApi::EVENT_DEBUG, text, listener);
+}
+
 void MegaApi::addContact(const char* email, MegaRequestListener* listener)
 {
     pImpl->addContact(email, listener);

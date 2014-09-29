@@ -470,6 +470,7 @@ class MegaApi
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+        void reportDebugEvent(const char *text, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
