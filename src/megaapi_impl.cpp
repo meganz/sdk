@@ -2854,16 +2854,40 @@ bool MegaApiImpl::hasFingerprint(const char *fingerprint)
 
 SearchTreeProcessor::SearchTreeProcessor(const char *search) { this->search = search; }
 
+#if defined(_WIN32) || defined(__APPLE__)
+
+char *strcasestr(const char *string, const char *substring)
+{
+	int i, j;
+	for (i = 0; string[i]; i++)
+	{
+		for (j = 0; substring[j]; j++)
+		{
+			unsigned char c1 = string[i + j];
+			if (!c1)
+				return NULL;
+
+			unsigned char c2 = substring[j];
+			if (toupper(c1) != toupper(c2))
+				break;
+		}
+
+		if (!substring[j])
+			return (char *)string + i;
+	}
+	return NULL;
+}
+
+#endif
+
 bool SearchTreeProcessor::processNode(Node* node)
 {
 	if(!node) return true;
 	if(!search) return false;
-#ifndef _WIN32
-#ifndef __APPLE__
-    if(strcasestr(node->displayname(), search)!=NULL) results.push_back(node);
-//TODO: Implement this for Windows and MacOS
-#endif
-#endif
+
+	if(strcasestr(node->displayname(), search)!=NULL) 
+		results.push_back(node);
+
 	return true;
 }
 

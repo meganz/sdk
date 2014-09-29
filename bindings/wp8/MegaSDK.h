@@ -22,6 +22,8 @@
 #include "DelegateMTransferListener.h"
 #include "DelegateMGlobalListener.h"
 #include "DelegateMListener.h"
+#include "DelegateMTreeProcessor.h"
+#include "DelegateMGfxProcessor.h"
 #include "MRandomNumberProvider.h"
 
 #include <megaapi.h>
@@ -49,7 +51,8 @@ namespace mega
 
 	public:
 		MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^randomProvider);
-		MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider ^randomProvider);
+		MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider);
+		MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider, MGfxProcessorInterface^ gfxProcessor);
 		virtual ~MegaSDK();
 		void addListener(MListenerInterface^ listener);
 		void addRequestListener(MRequestListenerInterface^ listener);
@@ -64,7 +67,6 @@ namespace mega
 		static uint64 base64ToHandle(String^ base64Handle);
 		static String^ ebcEncryptKey(String^ encryptionKey, String^ plainKey);
 		void retryPendingConnections();
-		void retryPendingConnections(MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password, MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password);
 		String^ dumpSession();
@@ -140,6 +142,7 @@ namespace mega
 		void startDownload(MNode^ node, String^ localPath);
 		void startPublicDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
 		void startPublicDownload(MNode^ node, String^ localPath);
+		void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
 		void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
 		void cancelTransfer(MTransfer^ transfer);
 		void cancelTransfers(int direction, MRequestListenerInterface^ listener);
@@ -185,10 +188,10 @@ namespace mega
 		MError^ checkMove(MNode^ node, MNode^ target);
 		MNode^ getRootNode();
 		MNode^ getRubbishNode();
-		//MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
-		//MNodeList^ search(MNode^ node, String^ searchString);
-		//bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
-		//bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+		MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
+		MNodeList^ search(MNode^ node, String^ searchString);
+		bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
+		bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
 
 	private:
 		std::set<DelegateMRequestListener *> activeRequestListeners;
@@ -201,11 +204,13 @@ namespace mega
 		MegaTransferListener *createDelegateMTransferListener(MTransferListenerInterface^ listener, bool singleListener = true);
 		MegaGlobalListener *createDelegateMGlobalListener(MGlobalListenerInterface^ listener);
 		MegaListener *createDelegateMListener(MListenerInterface^ listener);
+		MegaTreeProcessor *createDelegateMTreeProcessor(MTreeProcessorInterface^ processor);
 
 		void freeRequestListener(DelegateMRequestListener *listener);
 		void freeTransferListener(DelegateMTransferListener *listener);
 
 		MegaApi *megaApi;
+		DelegateMGfxProcessor *externalGfxProcessor;
 		MegaApi *getCPtr();
 	};
 }

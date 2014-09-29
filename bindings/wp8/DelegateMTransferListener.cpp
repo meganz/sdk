@@ -42,3 +42,11 @@ void DelegateMTransferListener::onTransferTemporaryError(MegaApi* api, MegaTrans
 	if (listener != nullptr)
 		listener->onTransferTemporaryError(megaSDK, ref new MTransfer(transfer->copy(), true), ref new MError(e->copy(), true));
 }
+
+bool DelegateMTransferListener::onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size)
+{
+	if (listener != nullptr)
+		return listener->onTransferData(megaSDK, ref new MTransfer(transfer->copy(), true), ::Platform::ArrayReference<unsigned char>((unsigned char *)buffer, size));
+
+	return false;
+}

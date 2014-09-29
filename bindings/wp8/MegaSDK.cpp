@@ -71,6 +71,41 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
 }
 
+MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider, MGfxProcessorInterface^ gfxProcessor)
+{
+	//Windows 8.1
+	//auto iBuffer = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandom(size);
+	//auto reader = Windows::Storage::Streams::DataReader::FromBuffer(iBuffer);
+	//reader->ReadBytes(::Platform::ArrayReference<unsigned char>(output, size));
+
+	unsigned char randomData[REQUIRED_ENTROPY];
+	if (randomProvider != nullptr)
+		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
+	MegaApi::addEntropy(randomData, REQUIRED_ENTROPY);
+
+	std::string utf8appKey;
+	if (appKey != nullptr)
+		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
+
+	std::string utf8userAgent;
+	if (userAgent != nullptr)
+		MegaApi::utf16ToUtf8(userAgent->Data(), userAgent->Length(), &utf8userAgent);
+
+	std::string utf8basePath;
+	if (basePath != nullptr)
+		MegaApi::utf16ToUtf8(basePath->Data(), basePath->Length(), &utf8basePath);
+
+	externalGfxProcessor = NULL;
+	if (gfxProcessor != nullptr)
+		externalGfxProcessor = new DelegateMGfxProcessor(gfxProcessor);
+
+	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL,
+		externalGfxProcessor,
+		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
+		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
+	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+}
+
 void MegaSDK::addListener(MListenerInterface^ listener)
 {
 	megaApi->addListener(createDelegateMListener(listener));
@@ -222,11 +257,6 @@ String^ MegaSDK::ebcEncryptKey(String^ encryptionKey, String^ plainKey)
 void MegaSDK::retryPendingConnections()
 {
 	megaApi->retryPendingConnections();
-}
-
-void MegaSDK::retryPendingConnections(MRequestListenerInterface^ listener)
-{
-	megaApi->retryPendingConnections(createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::login(String^ email, String^ password)
@@ -998,6 +1028,11 @@ void MegaSDK::startPublicDownload(MNode^ node, String^ localPath)
 		(localPath != nullptr) ? utf8localPath.c_str() : NULL);
 }
 
+void MegaSDK::startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener)
+{
+	megaApi->startStreaming((node != nullptr) ? node->getCPtr() : NULL, startPos, size, createDelegateMTransferListener(listener));
+}
+
 void MegaSDK::cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
 	megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, 
@@ -1362,6 +1397,14 @@ MegaListener *MegaSDK::createDelegateMListener(MListenerInterface^ listener)
 	return delegateListener;
 }
 
+MegaTreeProcessor *MegaSDK::createDelegateMTreeProcessor(MTreeProcessorInterface^ processor)
+{
+	if (processor == nullptr) return NULL;
+
+	DelegateMTreeProcessor *delegateProcessor = new DelegateMTreeProcessor(processor);
+	return delegateProcessor;
+}
+
 void MegaSDK::freeRequestListener(DelegateMRequestListener *listener)
 {
 	if (listener == nullptr) return;
@@ -1383,27 +1426,36 @@ void MegaSDK::freeTransferListener(DelegateMTransferListener *listener)
 }
 
 
-/*MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
+MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
 {
 	std::string utf8search;
-	MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
+	if (searchString != nullptr)
+		MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
 
-	return ref new MNodeList(megaApi->search(node->getCPtr(), utf8search.c_str(), recursive), true);
+	return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, recursive), true);
 }
 
 MNodeList^ MegaSDK::search(MNode^ node, String^ searchString)
 {
-	return nullptr;
+	std::string utf8search;
+	if (searchString != nullptr)
+		MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
+
+	return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, true), true);
 }
 
 bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive)
 {
-	return false;
+	MegaTreeProcessor *delegateProcessor = createDelegateMTreeProcessor(processor);
+	bool ret = megaApi->processMegaTree((node != nullptr) ? node->getCPtr() : NULL, delegateProcessor, recursive);
+	delete delegateProcessor;
+	return ret;
 }
 
 bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor)
 {
-	return false;
-}*/
-
- 
+	MegaTreeProcessor *delegateProcessor = createDelegateMTreeProcessor(processor);
+	bool ret = megaApi->processMegaTree((node != nullptr) ? node->getCPtr() : NULL, delegateProcessor, true);
+	delete delegateProcessor;
+	return ret;
+}
