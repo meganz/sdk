@@ -33,6 +33,7 @@ DEALINGS IN THE SOFTWARE.
 
 #ifndef _WIN32
 #include <openssl/ssl.h>
+#include <openssl/rand.h>
 #include <curl/curl.h>
 #include <fcntl.h>
 #endif
