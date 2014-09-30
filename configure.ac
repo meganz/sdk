@@ -618,7 +618,7 @@ if test "x$WIN32" = "xno" ; then
         LDFLAGS="-L$with_openssl/lib $LDFLAGS"
         CXXFLAGS="-I$with_openssl/include $CXXFLAGS"
 
-        LIBSSL_LIBS="-L$with_openssl/lib -lssl"
+        LIBSSL_LDFLAGS="-L$with_openssl/lib"
         LIBSSL_FLAGS="-I$with_openssl/include"
 
         AC_CHECK_HEADERS([openssl/ssl.h], [],
@@ -629,6 +629,7 @@ if test "x$WIN32" = "xno" ; then
         )
 
         AC_SUBST(LIBSSL_FLAGS)
+        AC_SUBST(LIBSSL_LDFLAGS)
         AC_SUBST(LIBSSL_LIBS)
         openssl=true
 
