@@ -142,6 +142,9 @@ AX_CHECK_COMPILE_FLAG([-fPIC], [
   )
 ])
 
+AM_CONDITIONAL(ENABLE_STATIC, test x$enable_static = xyes)
+AC_SUBST(ENABLE_STATIC)
+
 # Check for inotify support.
 AC_ARG_ENABLE(inotify,
     AS_HELP_STRING([--enable-inotify], [enable inotify support [default=yes]])],
@@ -481,6 +484,8 @@ AC_ARG_WITH(sqlite,
          DB_CPPFLAGS="-I$with_sqlite"],
          AC_MSG_ERROR([sqlite3.h header not found or not usable])
         )
+        DB_LIBS="-lsqlite3"
+        AC_SUBST(DB_LIBS)
     fi
 
     sqlite=true

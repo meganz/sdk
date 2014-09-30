@@ -18,6 +18,10 @@ endif
 # add library version
 src_libmega_la_LDFLAGS = -version-info $(VERSION_INFO)
 
+if ENABLE_STATIC
+src_libmega_la_LDFLAGS += -Wl,-static -all-static
+endif
+
 # common sources
 src_libmega_la_SOURCES = src/megaclient.cpp
 src_libmega_la_SOURCES += src/attrmap.cpp
