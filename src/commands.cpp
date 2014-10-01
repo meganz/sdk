@@ -1442,13 +1442,15 @@ void CommandGetUA::procresult()
         {
             // We apparently don't have Ed25519 keys, yet. Let's make 'em.
             if(!client->inited25519())
+            {
                 return(client->app->getua_result(API_EINTERNAL));
+            }
 
             // Return the required key data.
             if (strncmp(attributename, "prEd255", 7))
             {
-                return client->app->getua_result(client->signkey.keySeed,
-                                                 crypto_sign_SEEDBYTES);
+                return(client->app->getua_result(client->signkey.keySeed,
+                                                 crypto_sign_SEEDBYTES));
             }
             else
             {
@@ -1459,13 +1461,13 @@ void CommandGetUA::procresult()
                     return(client->app->getua_result(API_EINTERNAL));
                 }
 
-                return client->app->getua_result(pubKey,
-                                                 crypto_sign_PUBLICKEYBYTES);
+                return(client->app->getua_result(pubKey,
+                                                 crypto_sign_PUBLICKEYBYTES));
             }
         }
 #endif
 
-        return client->app->getua_result(e);
+        return(client->app->getua_result(e));
     }
     else
     {
@@ -1475,7 +1477,7 @@ void CommandGetUA::procresult()
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            return client->app->getua_result(API_EINTERNAL);
+            return(client->app->getua_result(API_EINTERNAL));
         }
 
         int l = (end - ptr) / 4 * 3 + 3;
@@ -1495,7 +1497,7 @@ void CommandGetUA::procresult()
             {
                 if (!PaddedCBC::decrypt(&d, &client->key))
                 {
-                    return client->app->getua_result(API_EINTERNAL);
+                    return(client->app->getua_result(API_EINTERNAL));
                 }
             }
             else
@@ -1508,10 +1510,10 @@ void CommandGetUA::procresult()
                 d = payload;
                 if (!PaddedCBC::decrypt(&d, &client->key, &iv))
                 {
-                    return client->app->getua_result(API_EINTERNAL);
+                    return(client->app->getua_result(API_EINTERNAL));
                 }
             }
-            return client->app->getua_result((byte*)d.data(), d.size());
+            return(client->app->getua_result((byte*)d.data(), d.size()));
         }
 
         client->app->getua_result(data, l);

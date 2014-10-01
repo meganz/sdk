@@ -81,6 +81,8 @@ public:
      * @brief Initialises the Ed25519 EdDSA key user properties.
      *
      * A key pair will be added, if not present, yet.
+     *
+     * @return Error code (default: 1 on success).
      */
     int inited25519();
 
