@@ -3922,14 +3922,30 @@ void MegaApiImpl::setkeypair_result(error e)
 
 }
 
-void MegaApiImpl::checkfile_result(handle, error)
+void MegaApiImpl::checkfile_result(handle h, error e)
 {
-
+    if(e)
+    {
+        for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
+        {
+            MegaTransferPrivate *transfer = iter->second;
+            if(transfer->getNodeHandle() == h)
+                fireOnTransferTemporaryError(transfer, MegaError(e));
+        }
+    }
 }
 
-void MegaApiImpl::checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*)
+void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*)
 {
-
+    if(e)
+    {
+        for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
+        {
+            MegaTransferPrivate *transfer = iter->second;
+            if(transfer->getNodeHandle() == h)
+                fireOnTransferTemporaryError(transfer, MegaError(e));
+        }
+    }
 }
 
 void MegaApiImpl::addListener(MegaListener* listener)
@@ -4107,6 +4123,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+    transfer->setNumRetry(transfer->getNumRetry() + 1);
 
 	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
 		(*it)->onTransferTemporaryError(api, transfer, megaError);
