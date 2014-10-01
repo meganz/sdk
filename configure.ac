@@ -96,6 +96,9 @@ AH_VERBATIM([__STDC_FORMAT_MACROS],
 
 AC_CHECK_TYPES([ssize_t])
 
+AC_CANONICAL_HOST
+AC_DEFINE_UNQUOTED(OS, "${host}", [cpu-machine-OS])
+
 # Check programs
 AC_PROG_CXX
 if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
@@ -372,7 +375,6 @@ AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
 #
 
 #zlib
-ZLIB_LIBS="-lz"
 AC_MSG_CHECKING(for zlib)
 zlib=false
 AC_ARG_WITH(zlib,
@@ -941,31 +943,32 @@ if test "x$enable_examples" = "xyes" ; then
       AC_SUBST(RL_LDFLAGS)
       AC_SUBST(RL_LIBS)
       AC_SUBST(RL_CXXFLAGS)
-
-    if test "x$WIN32" = "xyes" ; then
-        AC_MSG_CHECKING(for termcap)
-        AC_ARG_WITH(termcap,
-          AS_HELP_STRING(--with-termcap=PATH, base of termcap installation),
-          [AC_MSG_RESULT($with_termcap)
-           case $with_termcap in
-           no)
-             ;;
-           *)
-            TERMCAP_LDFLAGS="-L$with_termcap"
-            TERMCAP_LIBS="-ltermcap"
-            TERMCAP_CXXFLAGS="-I$with_termcap"
-            TERMCAP_CPPFLAGS="-I$with_termcap"
-            ;;
-           esac
-          ],
-            AC_MSG_ERROR([termcap.h header not found or not usable])
-          )
-          AC_SUBST(TERMCAP_LDFLAGS)
-          AC_SUBST(TERMCAP_LIBS)
-          AC_SUBST(TERMCAP_CXXFLAGS)
-          AC_SUBST(TERMCAP_CPPFLAGS)
-    fi
 fi
+
+AC_MSG_CHECKING(for termcap)
+AC_ARG_WITH(termcap,
+  AS_HELP_STRING(--with-termcap=PATH, base of termcap installation),
+  [AC_MSG_RESULT($with_termcap)
+   case $with_termcap in
+   no)
+     ;;
+   yes)
+    TERMCAP_LIBS="-ltermcap"
+    ;;
+   *)
+    TERMCAP_LDFLAGS="-L$with_termcap"
+    TERMCAP_LIBS="-ltermcap"
+    TERMCAP_CXXFLAGS="-I$with_termcap"
+    TERMCAP_CPPFLAGS="-I$with_termcap"
+    ;;
+   esac
+  ], []
+)
+AC_SUBST(TERMCAP_LDFLAGS)
+AC_SUBST(TERMCAP_LIBS)
+AC_SUBST(TERMCAP_CXXFLAGS)
+AC_SUBST(TERMCAP_CPPFLAGS)
+
 
 if test "x$WIN32" = "xyes" ; then
     AC_MSG_CHECKING(for WinHTTP)
@@ -1029,3 +1032,28 @@ AC_CONFIG_FILES([
  libmega.pc
 ])
 AC_OUTPUT
+
+AC_MSG_NOTICE([Configured to build Mega SDK:
+
+  SDK version:      mega_version
+  Host setup:       ${host}
+  Install prefix:   $prefix
+  Compiler:         $CXX
+  gcc hardening:    $enable_gcc_hardening
+  debug:            $enable_debug
+  static:           $enable_static
+  example apps:     $enable_examples
+
+  inotify:          $enable_inotify
+  posix threads:    $enable_posix_threads
+
+  OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
+  Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS
+  Sodium:           $SODIUM_CXXFLAGS $SODIUM_LDFLAGS $SODIUM_LIBS
+  Zlib:             $ZLIB_CXXFLAGS $ZLIB_LDFLAGS $ZLIB_LIBS
+  SQLite3:          $DB_CXXFLAGS $DB_LDFLAGS $DB_LIBS
+  cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS $LIBCURL_LIBS
+  FreeeImage:       $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
+  Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
+])
