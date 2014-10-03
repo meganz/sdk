@@ -1026,6 +1026,12 @@ void MegaClient::exec()
                     }
                 }
 
+                // delete files that were overwritten by folders in checkpath()
+                if (todebris.size())
+                {
+                    execmovetosyncdebris();
+                }
+
                 if (synccreate.size())
                 {
                     syncupdate();
@@ -5215,6 +5221,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             // local: file, remote: file - overwrite if newer
             if (ll->type != rit->second->type)
             {
+cout << "*** CLASH DETECTED " << ll->name << endl;
                 // folder/file clash: do nothing (rather than attempting to
                 // second-guess the user)
                 nchildren.erase(rit);
