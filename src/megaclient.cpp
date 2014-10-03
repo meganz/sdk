@@ -1916,7 +1916,8 @@ bool MegaClient::procsc()
 
                                 if (prevname == 'd'
                                  && (!memcmp(jsonsc.pos, "},{\"a\":\"d\"", 10)
-                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"", 10)))
+                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"", 10)
+                                  || !memcmp(jsonsc.pos, "},{\"a\":\"t\"", 10)))
                                 {
                                     // we have a potential move followed by another potential move
                                     // or rename, which indicates a potential move-overwrite:
