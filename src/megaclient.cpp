@@ -1166,6 +1166,12 @@ void MegaClient::exec()
                                 syncnagleretry = true;
                             }
 
+                            // delete files that were overwritten by folders in syncup()
+                            if (todebris.size())
+                            {
+                                execmovetosyncdebris();
+                            }
+
                             if (synccreate.size())
                             {
                                 syncupdate();
