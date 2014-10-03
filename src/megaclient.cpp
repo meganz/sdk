@@ -5221,7 +5221,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             // local: file, remote: file - overwrite if newer
             if (ll->type != rit->second->type)
             {
-cout << "*** CLASH DETECTED " << ll->name << endl;
                 // folder/file clash: do nothing (rather than attempting to
                 // second-guess the user)
                 nchildren.erase(rit);
