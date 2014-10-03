@@ -5442,36 +5442,28 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 // check if there is a crypto key missing...
                 if ((*it)->attrstring.size())
                 {
-                    (*it)->setattr();
-
-                    if (!(*it)->attrstring.size())
-                    {
-                        app->debug_log("Sync: Child node decrypted");
-
-                        reqtag = 0;
-
-                        // report a "decrypted child" event
-                        reportevent("CD");
-                    }
-                    else
+                    if (!l->reported)
                     {
                         app->debug_log("Sync: Undecryptable child node");
                         app->debug_log((*it)->keystring.c_str());
 
-                        if (!l->reported)
-                        {
-                            l->reported = true;
+                        l->reported = true;
 
-                            reqtag = 0;
+                        char report[256];
 
-                            // report an "undecrypted child" event
-                            reportevent("CU");
-                        }
+                        Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
+                        
+                        sprintf(report + 8, " %d %.200s", (*it)->type, (*it)->keystring.c_str());
 
-                        continue;
+                        reqtag = 0;
+
+                        // report an "undecrypted child" event
+                        reportevent("CU", report);
                     }
+
+                    continue;
                 }
-                
+
                 // ...or a node name attribute missing
                 if ((ait = (*it)->attrs.map.find('n')) == (*it)->attrs.map.end())
                 {
@@ -5650,7 +5642,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report,"[%u %u %d] %d %d %d %" PRIi64, nchildren.size(), l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
+                sprintf(report, "[%u %u %d] %d %d %d %" PRIi64, nchildren.size(), l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
 
                 if (ll->node)
                 {
@@ -5666,7 +5658,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    sprintf(strchr(report, 0)," %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
+                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
 
                 }
