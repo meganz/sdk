@@ -5507,66 +5507,68 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
         if (rit != nchildren.end())
         {
             // corresponding remote node exists
-            // local: folder, remote: file - ignore
-            // local: file, remote: folder - ignore
+            // local: folder, remote: file - overwrite
+            // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
             if (ll->type != rit->second->type)
             {
-                // folder/file clash - do nothing rather than attempting to
-                // second-guess the user
-                continue;
-            }
+                insync = false;
 
-            // file on both sides - do not overwrite if local version older or identical
-            if (ll->type == FILENODE)
-            {
-                // skip if this node is being fetched
-                if (rit->second->syncget)
-                {
-                    continue;
-                }
-
-                // skip if remote file is newer
-                if (ll->mtime < rit->second->mtime)
-                {
-                    continue;
-                }
-
-                if (ll->node != rit->second)
-                {
-                    ll->sync->statecacheadd(ll);
-                }
-
-                ll->setnode(rit->second);
-
-                if (ll->size == rit->second->size)
-                {
-                    // check if file is likely to be identical
-                    if (rit->second->isvalid
-                      ? *ll == *(FileFingerprint*)rit->second
-                      : (ll->mtime == rit->second->mtime))
-                    {
-                        // files have the same size and the same mtime (or the
-                        // same fingerprint, if available): no action needed
-                        ll->treestate(TREESTATE_SYNCED);
-                        continue;
-                    }
-                }
+                movetosyncdebris(rit->second);
             }
             else
             {
-                insync = false;
-
-                if (ll->node != rit->second)
+                // file on both sides - do not overwrite if local version older or identical
+                if (ll->type == FILENODE)
                 {
-                    ll->setnode(rit->second);
-                    ll->sync->statecacheadd(ll);
-                }
+                    // skip if this node is being fetched
+                    if (rit->second->syncget)
+                    {
+                        continue;
+                    }
 
-                // recurse into directories of equal name
-                syncup(ll, nds);
-                continue;
+                    // skip if remote file is newer
+                    if (ll->mtime < rit->second->mtime)
+                    {
+                        continue;
+                    }
+
+                    if (ll->node != rit->second)
+                    {
+                        ll->sync->statecacheadd(ll);
+                    }
+
+                    ll->setnode(rit->second);
+
+                    if (ll->size == rit->second->size)
+                    {
+                        // check if file is likely to be identical
+                        if (rit->second->isvalid
+                          ? *ll == *(FileFingerprint*)rit->second
+                          : (ll->mtime == rit->second->mtime))
+                        {
+                            // files have the same size and the same mtime (or the
+                            // same fingerprint, if available): no action needed
+                            ll->treestate(TREESTATE_SYNCED);
+                            continue;
+                        }
+                    }
+                }
+                else
+                {
+                    insync = false;
+
+                    if (ll->node != rit->second)
+                    {
+                        ll->setnode(rit->second);
+                        ll->sync->statecacheadd(ll);
+                    }
+
+                    // recurse into directories of equal name
+                    syncup(ll, nds);
+                    continue;
+                }
             }
         }
 
@@ -5642,7 +5644,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d] %d %d %d %" PRIi64, nchildren.size(), l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
+                sprintf(report, "[%u %u %d] %d %d %d %" PRIi64, (int)nchildren.size(), (int)l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
 
                 if (ll->node)
                 {
