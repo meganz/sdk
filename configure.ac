@@ -611,6 +611,7 @@ fi
 # ** Posix dependent libraries **
 #
 openssl=false
+cares=false
 if test "x$WIN32" = "xno" ; then
 
     # OpenSSL
@@ -679,7 +680,6 @@ if test "x$WIN32" = "xno" ; then
     )
 
     # c-ares
-    cares=false
     AC_MSG_CHECKING(for c-ares)
     AC_ARG_WITH([cares],
       AS_HELP_STRING(--with-cares=PATH, base of c-ares installation),
@@ -741,12 +741,6 @@ if test "x$WIN32" = "xno" ; then
       ]
     )
 
-    AM_CONDITIONAL(HAVE_CARES, test x$cares = xtrue)
-    if test "x$cares" = "xtrue" ; then
-        AC_DEFINE(USE_CARES, [1], [Define to use c-ares])
-    else
-        AC_DEFINE(USE_CARES, [0], [Define to use c-ares])
-    fi
 
 
     # cURL
@@ -871,6 +865,14 @@ if test "x$openssl" = "xtrue" ; then
     AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
 else
     AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
+fi
+
+# define on all platforms
+AM_CONDITIONAL(HAVE_CARES, test x$cares = xtrue)
+if test "x$cares" = "xtrue" ; then
+    AC_DEFINE(USE_CARES, [1], [Define to use c-ares])
+else
+    AC_DEFINE(USE_CARES, [0], [Define to use c-ares])
 fi
 
 # determine platform include path
