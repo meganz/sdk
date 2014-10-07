@@ -1382,6 +1382,47 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     hprivate = false;
 }
 
+void MegaFileGet::prepare()
+{
+    if (!transfer->localfilename.size())
+    {
+        transfer->localfilename = localname;
+
+        int index = transfer->localfilename.find_last_of(transfer->client->fsaccess->localseparator);
+        if(index != string::npos)
+            transfer->localfilename.resize(index+1);
+
+        string suffix;
+        transfer->client->fsaccess->tmpnamelocal(&suffix);
+        transfer->localfilename.append(suffix);
+    }
+}
+
+void MegaFileGet::updatelocalname()
+{
+#ifdef _WIN32
+    transfer->localfilename.append("", 1);
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+    transfer->localfilename.resize(transfer->localfilename.size()-1);
+#endif
+}
+
+void MegaFileGet::progress()
+{
+#ifdef _WIN32
+    if(transfer->slot && !transfer->slot->progressreported)
+    {
+        transfer->localfilename.append("", 1);
+        WIN32_FILE_ATTRIBUTE_DATA fad;
+        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
+            SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+        transfer->localfilename.resize(transfer->localfilename.size()-1);
+    }
+#endif
+}
+
 void MegaFileGet::completed(Transfer*, LocalNode*)
 {
     delete this;
@@ -2943,36 +2984,22 @@ void MegaApiImpl::transfer_added(Transfer *t)
 }
 
 void MegaApiImpl::transfer_removed(Transfer *t)
-{
-    if (t->files.size() == 1)
+{    
+    if(transferMap.find(t->tag) == transferMap.end()) return;
+    MegaTransferPrivate* transfer = transferMap.at(t->tag);
+
+    if (t->type == GET)
     {
-        if (t->type == GET)
-        {
-            if(pendingDownloads > 0)
-                pendingDownloads--;
-        }
-        else
-        {
-            if(pendingUploads > 0)
-                pendingUploads --;
-        }
-
-        if(transferMap.find(t->tag) == transferMap.end()) return;
-        MegaTransferPrivate* transfer = transferMap.at(t->tag);
-
-        if (t->type == GET)
-        {
-            if(pendingDownloads > 0)
-                pendingDownloads--;
-        }
-        else
-        {
-            if(pendingUploads > 0)
-                pendingUploads--;
-        }
-
-        fireOnTransferFinish(transfer, MegaError(API_EINCOMPLETE));
+        if(pendingDownloads > 0)
+            pendingDownloads--;
     }
+    else
+    {
+        if(pendingUploads > 0)
+            pendingUploads--;
+    }
+
+    fireOnTransferFinish(transfer, MegaError(API_EINCOMPLETE));
 }
 
 void MegaApiImpl::transfer_prepare(Transfer *t)
@@ -2981,22 +3008,7 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
 
 	if (t->type == GET)
-	{
         transfer->setNodeHandle(t->files.front()->h);
-        if((!t->localfilename.size()) || (!t->files.front()->syncxfer))
-        {
-            if(!t->localfilename.size())
-                t->localfilename = t->files.front()->localname;
-
-            int index = t->localfilename.find_last_of(fsAccess->localseparator);
-            if(index != string::npos)
-                t->localfilename.resize(index+1);
-
-            string suffix;
-            fsAccess->tmpnamelocal(&suffix);
-            t->localfilename.append(suffix);
-        }
-	}
 
     string path;
     fsAccess->local2path(&(t->files.front()->localname), &path);
@@ -3011,18 +3023,6 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 
     if(tr->slot)
     {
-#ifdef _WIN32
-        if(!tr->files.front()->syncxfer && !tr->slot->progressreported && (tr->type==GET))
-        {
-            tr->localfilename.append("",1);
-
-			WIN32_FILE_ATTRIBUTE_DATA fad;
-			if (GetFileAttributesExW((LPCWSTR)tr->localfilename.data(), GetFileExInfoStandard, &fad))
-				SetFileAttributesW((LPCWSTR)tr->localfilename.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
-			tr->localfilename.resize(tr->localfilename.size() - 1);
-        }
-#endif
-
         if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported ||
            (tr->slot->progressreported == tr->size))
         {
@@ -3112,19 +3112,6 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         totalUploadedBytes += transfer->getDeltaSize();
 
     transfer->setTransferredBytes(tr->size);
-
-	string tmpPath;
-	fsAccess->local2path(&tr->localfilename, &tmpPath);
-
-#ifdef _WIN32
-    if((!tr->files.front()->syncxfer) && (tr->type==GET))
-    {
-		WIN32_FILE_ATTRIBUTE_DATA fad;
-		if (GetFileAttributesExW((LPCWSTR)tr->localfilename.data(), GetFileExInfoStandard, &fad))
-			SetFileAttributesW((LPCWSTR)tr->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-    }
-#endif
-
     fireOnTransferFinish(transfer, MegaError(API_OK));
 }
 
@@ -5458,8 +5445,20 @@ void MegaApiImpl::sendPendingRequests()
             if(transferMap.find(transferTag) == transferMap.end()) { e = API_ENOENT; break; };
 
             MegaTransferPrivate* megaTransfer = transferMap.at(transferTag);
-            megaTransfer->setSyncTransfer(true);
             Transfer *transfer = megaTransfer->getTransfer();
+
+            #ifdef _WIN32
+                if(transfer->type==GET)
+                {
+                    transfer->localfilename.append("", 1);
+                    WIN32_FILE_ATTRIBUTE_DATA fad;
+                    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
+                        SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+                    transfer->localfilename.resize(transfer->localfilename.size()-1);
+                }
+            #endif
+
+            megaTransfer->setSyncTransfer(true);
 
             file_list files = transfer->files;
             file_list::iterator iterator = files.begin();

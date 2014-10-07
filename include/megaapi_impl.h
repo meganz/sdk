@@ -467,6 +467,9 @@ struct MegaFile : public File
 
 struct MegaFileGet : public MegaFile
 {
+    void prepare();
+    void updatelocalname();
+    void progress();
     void completed(Transfer*, LocalNode*);
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);

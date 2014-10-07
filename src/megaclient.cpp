@@ -5933,13 +5933,12 @@ void MegaClient::stopxfer(File* f)
 {
     if (f->transfer)
     {
-        app->transfer_removed(f->transfer);
-
         f->transfer->files.erase(f->file_it);
 
         // last file for this transfer removed? shut down transfer.
         if (!f->transfer->files.size())
         {
+            app->transfer_removed(f->transfer);
             delete f->transfer;
         }
 

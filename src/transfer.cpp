@@ -88,6 +88,7 @@ void Transfer::failed(error e)
     }
     else
     {
+        client->app->transfer_removed(this);
         delete this;
     }
 }
@@ -96,11 +97,6 @@ void Transfer::failed(error e)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
-    if (slot->fa)
-    {
-        client->app->transfer_complete(this);
-    }
-
     if (type == GET)
     {
         // disconnect temp file from slot...
@@ -252,6 +248,7 @@ void Transfer::complete()
 
     if (!files.size())
     {
+        client->app->transfer_complete(this);
         delete this;
     }
     else
