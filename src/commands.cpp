@@ -802,16 +802,11 @@ void CommandPutNodes::procresult()
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel)
 {
+    h = n->nodehandle;
+    syncdel = csyncdel;
+
     cmd("m");
     notself(client);
-
-    h = n->nodehandle;
-
-    if ((syncdel = csyncdel) != SYNCDEL_NONE)
-    {
-        syncn = n;
-    }
-
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
 
@@ -830,27 +825,32 @@ void CommandMoveNode::procresult()
 
         if (syncdel != SYNCDEL_NONE)
         {
-            if (e == API_OK)
-            {
-                Node* n;
+            Node* syncn = client->nodebyhandle(h);
 
-                // update all todebris records in the subtree
-                for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+            if (syncn)
+            {
+                if (e == API_OK)
                 {
-                    n = *it;
+                    Node* n;
 
-                    do {
-                        if (n == syncn)
-                        {
-                            (*it)->syncdeleted = syncdel;
-                            break;
-                        }
-                    } while ((n = n->parent));
+                    // update all todebris records in the subtree
+                    for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+                    {
+                        n = *it;
+
+                        do {
+                            if (n == syncn)
+                            {
+                                (*it)->syncdeleted = syncdel;
+                                break;
+                            }
+                        } while ((n = n->parent));
+                    }
                 }
-            }
-            else
-            {
-                syncn->syncdeleted = SYNCDEL_NONE;
+                else
+                {
+                    syncn->syncdeleted = SYNCDEL_NONE;
+                }
             }
         }
 
