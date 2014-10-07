@@ -2370,6 +2370,13 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     for (sync_list::iterator it = client->syncs.begin(); (it != client->syncs.end()) && (node == NULL); it++)
     {
         Sync *sync = (*it);
+        if(path->size() == sync->localroot.localname.size() &&
+                !memcmp(path->data(), sync->localroot.localname.data(), path->size()))
+        {
+            node = MegaNodePrivate::fromNode(sync->localroot.node);
+            break;
+        }
+
         LocalNode * localNode = sync->localnodebypath(NULL, path);
         if(localNode) node = MegaNodePrivate::fromNode(localNode->node);
     }
