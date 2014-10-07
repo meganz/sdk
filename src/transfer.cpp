@@ -42,7 +42,10 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
-    if (faputcompletion_it != client->faputcompletion.end()) client->faputcompletion.erase(faputcompletion_it);
+    if (faputcompletion_it != client->faputcompletion.end())
+    {
+        client->faputcompletion.erase(faputcompletion_it);
+    }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
@@ -244,7 +247,6 @@ void Transfer::complete()
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this);
-
         return;
     }
 

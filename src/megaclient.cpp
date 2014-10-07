@@ -386,7 +386,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     if ((app = a))
     {
-         a->client = this;
+        a->client = this;
     }
 
     waiter = w;
@@ -396,7 +396,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     if ((gfx = g))
     {
-         g->client = this;
+        g->client = this;
     }
 
     slotit = tslots.end();
@@ -423,8 +423,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     }
 
     r = 0;
-
-    nextuh = 0;
+    nextuh = 0;  
     currsyncid = 0;
     reqtag = 0;
 
@@ -527,8 +526,7 @@ void MegaClient::exec()
                         }
                         else
                         {
-                            pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
-                            
+                            pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);                           
                             checkfacompletion(fa->th);
                         }
 
@@ -590,7 +588,7 @@ void MegaClient::exec()
                         ;
                 }
 
-                if ((it->second->req.status != REQ_INFLIGHT) && it->second->bt.armed())
+                if (it->second->req.status != REQ_INFLIGHT && it->second->bt.armed())
                 {
                     // no request in flight, but ready for next request - check
                     // for remaining fetches for this cluster
@@ -1267,7 +1265,7 @@ void MegaClient::exec()
                 break;
             }
         }
-        
+
         if (it == syncs.end())
         {
             notifypurge();
@@ -1707,16 +1705,30 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
     if (facount >= t->minfa)
     {
         t->completefiles();
-
         delete t;
-        
         return;
     }
     
     if (!delayedcompletion)
     {
+        bool success;
+
         // we have insufficient file attributes available: remove transfer and put on hold
-        t->faputcompletion_it = faputcompletion.insert(pair<handle, Transfer*>(th, t)).first;
+        pair<handletransfer_map::iterator, bool>(t->faputcompletion_it, success) = faputcompletion.insert(pair<handle, Transfer*>(th, t));
+
+        if (!success)
+        {
+            char report[20];
+
+            sprintf(report, "%016llx", th);
+
+            reqtag = 0;
+
+            // report a "duplicate transfer handle" event
+            reportevent("DTH", report);
+            
+            t->faputcompletion_it = faputcompletion.end();
+        }
 
         transfers[t->type].erase(t->transfers_it);
         t->transfers_it = transfers[t->type].end();
