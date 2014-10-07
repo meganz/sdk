@@ -794,7 +794,6 @@ void CommandPutNodes::procresult()
                     client->putnodes_syncdebris_result(e, nn);
                 }
 
-                client->notifypurge();
                 return;
         }
     }

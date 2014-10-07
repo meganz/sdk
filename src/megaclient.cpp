@@ -1078,7 +1078,7 @@ void MegaClient::exec()
                         {
                             localpath = (*it)->localroot.localname;
 
-                            if ((*it)->state == SYNC_ACTIVE)
+                            if ((*it)->state == SYNC_ACTIVE && !syncscanstate)
                             {
                                 if (!syncdown(&(*it)->localroot, &localpath, true))
                                 {
@@ -1257,19 +1257,8 @@ void MegaClient::exec()
             }
         }
 
-        // fallback notifypurge() invocation while no active syncs present
-        for (it = syncs.begin(); it != syncs.end(); it++)
-        {
-            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-            {
-                break;
-            }
-        }
+        notifypurge();
 
-        if (it == syncs.end())
-        {
-            notifypurge();
-        }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
 
     if (!badhostcs && badhosts.size())
