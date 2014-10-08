@@ -3391,6 +3391,8 @@ void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t l
     fsAccess->path2local(&filePath, &localPath);
 
     totalDownloadedBytes += len;
+
+	fsAccess->unlinklocal(&localPath);
     if(!f->fopen(&localPath, false, true))
     {
         delete f;
@@ -3766,6 +3768,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	fsAccess->path2local(&filePath, &localPath);
 
     totalDownloadedBytes += len;
+
+	fsAccess->unlinklocal(&localPath);
     if(!f->fopen(&localPath, false, true))
     {
         delete f;
