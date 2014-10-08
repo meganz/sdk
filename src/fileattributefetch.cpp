@@ -2,7 +2,7 @@
  * @file fileattributefetch.cpp
  * @brief Classes for file attributes fetching
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -81,7 +81,11 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
     // we must have received at least one full header to continue
     if (req.in.size() < sizeof(FaPos))
     {
-        if (final) client->faf_failed(fac);
+        if (final)
+        {
+            client->faf_failed(fac);
+        }
+
         return;
     }
 
@@ -89,7 +93,11 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
 
     if (req.in.size() < bod)
     {
-        if (final) client->faf_failed(fac);
+        if (final)
+        {
+            client->faf_failed(fac);
+        }
+
         return;
     }
 
@@ -101,7 +109,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
     fadata = req.in.data();
 
     while (completed < bod - (final ? 0 : sizeof(FaPos))
-        && req.in.size() >= (falen = (final ? req.in.size() : ((FaPos*)(req.in.data() + completed))[1].pos)))
+        && req.in.size() >= (falen = ((completed == bod - sizeof(FaPos)) ? req.in.size() : ((FaPos*)(req.in.data() + completed))[1].pos)))
     {
         it = client->fafs.find(((FaPos*)(req.in.data() + completed))->h);
 
