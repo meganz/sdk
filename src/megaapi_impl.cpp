@@ -2999,11 +2999,17 @@ void MegaApiImpl::transfer_removed(Transfer *t)
     {
         if(pendingDownloads > 0)
             pendingDownloads--;
+            
+        if(totalDownloads > 0)
+            totalDownloads--;
     }
     else
     {
         if(pendingUploads > 0)
             pendingUploads--;
+            
+        if(totalUploads > 0)
+            totalUploads--;
     }
 
     fireOnTransferFinish(transfer, MegaError(API_EINCOMPLETE));
