@@ -1705,6 +1705,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
     if (facount >= t->minfa)
     {
         t->completefiles();
+        app->transfer_complete(t);
         delete t;
         return;
     }
