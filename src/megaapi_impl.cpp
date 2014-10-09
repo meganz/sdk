@@ -1428,6 +1428,11 @@ void MegaFileGet::completed(Transfer*, LocalNode*)
     delete this;
 }
 
+void MegaFileGet::terminated()
+{
+    delete this;
+}
+
 MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser) : MegaFile()
 {
     // full local path
@@ -1446,6 +1451,11 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
 void MegaFilePut::completed(Transfer* t, LocalNode*)
 {
     File::completed(t,NULL);
+    delete this;
+}
+
+void MegaFilePut::terminated()
+{
     delete this;
 }
 
