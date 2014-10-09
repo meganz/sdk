@@ -50,6 +50,7 @@ Transfer::~Transfer()
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
         (*it)->transfer = NULL;
+        (*it)->terminated();
     }
 
     if (transfers_it != client->transfers[type].end())
@@ -216,6 +217,11 @@ void Transfer::complete()
                 if (success || !(*it)->failed(API_EAGAIN))
                 {
                     files.erase(it++);
+                    if(!success)
+                    {
+                        (*it)->transfer = NULL;
+                        (*it)->terminated();
+                    }
                 }
                 else
                 {

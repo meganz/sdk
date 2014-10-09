@@ -471,6 +471,7 @@ struct MegaFileGet : public MegaFile
     void updatelocalname();
     void progress();
     void completed(Transfer*, LocalNode*);
+    void terminated();
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
 	~MegaFileGet() {}
@@ -479,6 +480,7 @@ struct MegaFileGet : public MegaFile
 struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*);
+    void terminated();
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser);
     ~MegaFilePut() {}
 };
