@@ -138,12 +138,26 @@ AC_TYPE_SIZE_T
 
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
 
+# Debug
+AC_ARG_ENABLE(debug,
+    AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
+    [], [enable_debug=no])
+
+# Enable debug flags / build
+if test "x$enable_debug" = "xyes" ; then
+    AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
+    CXXFLAGS="-Wall -g -ggdb3 -O0"
+    AC_SUBST([AM_CXXFLAGS])
+    AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+fi
+
 # Check if we can use -fPIC flag
 AX_CHECK_COMPILE_FLAG([-fPIC], [
   AX_CHECK_LINK_FLAG([-fPIC],
     [CXXFLAGS="$CXXFLAGS -fPIC"]
   )
 ])
+
 
 AM_CONDITIONAL(ENABLE_STATIC, test x$enable_static = xyes)
 if test x$enable_static = xyes; then
@@ -883,17 +897,6 @@ else
 fi
 AC_SUBST(platform_include)
 
-# Debug
-AC_ARG_ENABLE(debug,
-    AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
-    [], [enable_debug=no])
-
-# Enable debug flags / build
-if test "x$enable_debug" = "xyes" ; then
-    AM_CXXFLAGS="${AM_CXXFLAGS} -Wall -g -ggdb3 -O0"
-    AC_SUBST([AM_CXXFLAGS])
-    AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
-fi
 
 # Examples
 AC_MSG_CHECKING([if building example applications])
@@ -1144,6 +1147,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Host setup:       ${host}
   Install prefix:   $prefix
   Compiler:         $CXX
+  CXXFLAGS:         $CXXFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
