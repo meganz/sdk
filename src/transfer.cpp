@@ -216,11 +216,12 @@ void Transfer::complete()
 
                 if (success || !(*it)->failed(API_EAGAIN))
                 {
+                    File* f = (*it);
                     files.erase(it++);
                     if(!success)
                     {
-                        (*it)->transfer = NULL;
-                        (*it)->terminated();
+                        f->transfer = NULL;
+                        f->terminated();
                     }
                 }
                 else
