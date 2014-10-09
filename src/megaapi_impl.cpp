@@ -1560,6 +1560,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    httpio->leavecs();
+#endif
+
     //Start blocking thread
 	threadExit = 0;
     thread.start(threadEntryPoint, this);
@@ -1804,13 +1808,17 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
         localProxySettings.setCredentials(&localusername, &localpassword);
     }
 
+    sdkMutex.lock();
     httpio->setproxy(&localProxySettings);
+    sdkMutex.unlock();
 }
 
 MegaProxy *MegaApiImpl::getAutoProxySettings()
 {
     MegaProxy *proxySettings = new MegaProxy;
+    sdkMutex.lock();
     Proxy *localProxySettings = httpio->getautoproxy();
+    sdkMutex.unlock();
     proxySettings->setProxyType(localProxySettings->getProxyType());
     if(localProxySettings->getProxyType() == Proxy::CUSTOM)
     {
@@ -1852,6 +1860,8 @@ void MegaApiImpl::loop()
 	}
 
 	httpio->setdnsservers(servers.c_str());
+#elif _WIN32
+    httpio->entercs();
 #endif
 
     while(true)
