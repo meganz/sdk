@@ -1707,12 +1707,14 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
         {
             if (!delayedcompletion)
             {
-                bool success;
-
                 // we have insufficient file attributes available: remove transfer and put on hold
-                pair<handletransfer_map::iterator, bool>(t->faputcompletion_it, success) = faputcompletion.insert(pair<handle, Transfer*>(th, t));
+                pair<handletransfer_map::iterator, bool> res = faputcompletion.insert(pair<handle, Transfer*>(th, t));
 
-                if (!success)
+                if(res.second)
+                {
+                    t->faputcompletion_it = res.first;
+                }
+                else if (t != res.first->second)
                 {
                     char report[24];
 
@@ -1726,8 +1728,11 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
                     t->faputcompletion_it = faputcompletion.end();
                 }
 
-                transfers[t->type].erase(t->transfers_it);
-                t->transfers_it = transfers[t->type].end();
+                if(t->transfers_it != transfers[t->type].end())
+                {
+                    transfers[t->type].erase(t->transfers_it);
+                    t->transfers_it = transfers[t->type].end();
+                }
 
                 delete t->slot;
                 t->slot = NULL;
