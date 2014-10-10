@@ -119,6 +119,7 @@ class MegaNodePrivate : public MegaNode
 		virtual int64_t getModificationTime();
 		virtual MegaHandle getHandle();
 		virtual std::string* getNodeKey();
+        virtual const char *getBase64Key();
 		virtual std::string* getAttrString();
 		virtual int getTag();
 		virtual bool isFile();
@@ -128,6 +129,7 @@ class MegaNodePrivate : public MegaNode
 		virtual std::string getLocalPath();
 		virtual bool hasThumbnail();
 		virtual bool hasPreview();
+        virtual bool isPublic();
 
 		static MegaNode *fromNode(Node *node);
 		virtual MegaNode *copy();
@@ -148,6 +150,7 @@ class MegaNodePrivate : public MegaNode
 		bool syncdeleted;
 		bool thumbnailAvailable;
 		bool previewAvailable;
+        bool isPublicNode;
 };
 
 
@@ -471,6 +474,7 @@ struct MegaFileGet : public MegaFile
     void updatelocalname();
     void progress();
     void completed(Transfer*, LocalNode*);
+    void terminated();
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
 	~MegaFileGet() {}
@@ -479,6 +483,7 @@ struct MegaFileGet : public MegaFile
 struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*);
+    void terminated();
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser);
     ~MegaFilePut() {}
 };
@@ -566,6 +571,7 @@ class MegaApiImpl : public MegaApp
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
         static handle base64ToHandle(const char* base64Handle);
+        static const char* handleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(unsigned char* data, unsigned int size);
@@ -826,7 +832,7 @@ protected:
 
         // exported link access result
         virtual void openfilelink_result(error);
-        virtual void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, m_time_t, m_time_t, int);
+        virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int);
 
         // global transfer queue updates (separate signaling towards the queued objects)
         virtual void transfer_added(Transfer*);

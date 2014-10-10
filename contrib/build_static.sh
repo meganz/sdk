@@ -121,11 +121,17 @@ package_install() {
     local name=$1
     local dir=$2
 
+    if [ "$#" -eq 3 ]; then
+        local target=$3
+    else
+        local target=""
+    fi
+
     echo "Installing $name"
 
     local cwd=$(pwd)
     cd $dir
-    make install &> ../$name.install.log
+    make install $target &> ../$name.install.log
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
@@ -211,9 +217,21 @@ zlib_pkg() {
 
     package_download $name $zlib_url $zlib_file
     package_extract $name $zlib_file $zlib_dir
-    package_configure $name $zlib_dir $install_dir "$zlib_params"
-    package_build $name $zlib_dir
-    package_install $name $zlib_dir
+    # Windows must use Makefile.gcc
+    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        package_configure $name $zlib_dir $install_dir "$zlib_params"
+        package_build $name $zlib_dir
+        package_install $name $zlib_dir  "-f win32/Makefile.gcc"
+    else
+        export BINARY_PATH=$install_dir/bin
+        export INCLUDE_PATH=$install_dir/include
+        export LIBRARY_PATH=$install_dir/lib
+        package_build $name $zlib_dir "-f win32/Makefile.gcc"
+        package_install $name $zlib_dir  "-f win32/Makefile.gcc"
+        unset BINARY_PATH
+        unset INCLUDE_PATH
+        unset LIBRARY_PATH
+    fi
 }
 
 sqlite_pkg() {
@@ -324,11 +342,38 @@ freeimage_pkg() {
         cp $cwd/contrib/FreeImage.Makefile.osx $freeimage_dir
     fi
 
-    package_build $name $freeimage_dir
+    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        package_build $name $freeimage_dir
+        # manually copy header and library
+        cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
+        cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
 
-    # manually copy header and library
-    cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
-    cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
+    # it doesn't detect MinGW
+    else
+        package_build $name $freeimage_dir "-f Makefile.mingw"
+        # manually copy header and library
+        cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
+        cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || exit 1
+        cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || exit 1
+    fi
+}
+
+# we can't build vanilla ReadLine under MinGW
+readline_win_pkg() {
+    local build_dir=$1
+    local install_dir=$2
+    local name="Readline"
+    local readline_ver="5.0"
+    local readline_url="http://gnuwin32.sourceforge.net/downlinks/readline-bin-zip.php"
+    local readline_file="readline-bin.zip"
+    local readline_dir="readline-bin"
+
+    package_download $name $readline_url $readline_file
+    package_extract $name $readline_file $readline_dir
+
+    # manually copy binary files
+    cp -R $readline_dir/include/* $install_dir/include/ || exit 1
+    cp $readline_dir/lib/* $install_dir/lib/ || exit 1
 }
 
 
@@ -338,20 +383,37 @@ build_sdk() {
     echo "Configuring MEGA SDK"
 
     ./autogen.sh || exit 1
-    ./configure --enable-examples \
-        --disable-shared --enable-static \
-        --disable-silent-rules \
-        --disable-curl-checks \
-        --with-openssl=$install_dir \
-        --with-cryptopp=$install_dir \
-        --with-sodium=$install_dir \
-        --with-zlib=$install_dir \
-        --with-sqlite=$install_dir \
-        --with-cares=$install_dir \
-        --with-curl=$install_dir \
-        --with-freeimage=$install_dir \
-        --with-readline=$install_dir \
-        --with-termcap=$install_dir || exit 1
+
+    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        ./configure --enable-examples \
+            --disable-shared --enable-static \
+            --disable-silent-rules \
+            --disable-curl-checks \
+            --with-openssl=$install_dir \
+            --with-cryptopp=$install_dir \
+            --with-sodium=$install_dir \
+            --with-zlib=$install_dir \
+            --with-sqlite=$install_dir \
+            --with-cares=$install_dir \
+            --with-curl=$install_dir \
+            --with-freeimage=$install_dir \
+            --with-readline=$install_dir \
+            --with-termcap=$install_dir || exit 1
+    else
+        ./configure --enable-examples \
+            --disable-shared --enable-static \
+            --disable-silent-rules \
+            --disable-curl-checks \
+            --without-openssl \
+            --with-cryptopp=$install_dir \
+            --with-sodium=$install_dir \
+            --with-zlib=$install_dir \
+            --with-sqlite=$install_dir \
+            --without-cares \
+            --without-curl \
+            --with-freeimage=$install_dir \
+            --with-readline=$install_dir || exit 1
+    fi
 
     echo "Building MEGA SDK"
 
@@ -384,16 +446,25 @@ main() {
     export LD_LIBRARY_PATH=$install_dir
     export LD_RUN_PATH=$install_dir
 
-    openssl_pkg $build_dir $install_dir
+    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        openssl_pkg $build_dir $install_dir
+    fi
     cryptopp_pkg $build_dir $install_dir
     sodium_pkg $build_dir $install_dir
     zlib_pkg $build_dir $install_dir
     sqlite_pkg $build_dir $install_dir
-    cares_pkg $build_dir $install_dir
-    curl_pkg $build_dir $install_dir
+    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        cares_pkg $build_dir $install_dir
+        curl_pkg $build_dir $install_dir
+    fi
     freeimage_pkg $build_dir $install_dir $cwd
-    readline_pkg $build_dir $install_dir
-    termcap_pkg $build_dir $install_dir
+
+    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        readline_pkg $build_dir $install_dir
+        termcap_pkg $build_dir $install_dir
+    else
+       readline_win_pkg  $build_dir $install_dir
+    fi
 
     cd $cwd
 

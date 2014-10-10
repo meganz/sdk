@@ -1088,7 +1088,7 @@ void MegaClient::exec()
                         {
                             localpath = (*it)->localroot.localname;
 
-                            if ((*it)->state == SYNC_ACTIVE)
+                            if ((*it)->state == SYNC_ACTIVE && !syncscanstate)
                             {
                                 if (!syncdown(&(*it)->localroot, &localpath, true))
                                 {
@@ -1267,19 +1267,8 @@ void MegaClient::exec()
             }
         }
 
-        // fallback notifypurge() invocation while no active syncs present
-        for (it = syncs.begin(); it != syncs.end(); it++)
-        {
-            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-            {
-                break;
-            }
-        }
+        notifypurge();
 
-        if (it == syncs.end())
-        {
-            notifypurge();
-        }
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
 
     if (!badhostcs && badhosts.size())
@@ -1715,6 +1704,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
     if (facount >= t->minfa)
     {
         t->completefiles();
+        app->transfer_complete(t);
         delete t;
         return;
     }
@@ -5943,16 +5933,17 @@ void MegaClient::stopxfer(File* f)
 {
     if (f->transfer)
     {
-        f->transfer->files.erase(f->file_it);
+        Transfer *transfer = f->transfer;
+        transfer->files.erase(f->file_it);
+        f->transfer = NULL;
+        f->terminated();
 
         // last file for this transfer removed? shut down transfer.
-        if (!f->transfer->files.size())
+        if (!transfer->files.size())
         {
-            app->transfer_removed(f->transfer);
-            delete f->transfer;
+            app->transfer_removed(transfer);
+            delete transfer;
         }
-
-        f->transfer = NULL;
     }
 }
 

@@ -127,6 +127,11 @@ void File::completed(Transfer* t, LocalNode* l)
     }
 }
 
+void File::terminated()
+{
+
+}
+
 // do not retry crypto errors or administrative takedowns; retry other types of
 // failuresup to 16 times
 bool File::failed(error e)
@@ -274,6 +279,11 @@ void SyncFileGet::updatelocalname()
 void SyncFileGet::completed(Transfer* t, LocalNode* n)
 {
     sync->checkpath(NULL, &localname);
+    delete this;
+}
+
+void SyncFileGet::terminated()
+{
     delete this;
 }
 } // namespace

@@ -41,6 +41,9 @@ struct MEGA_API File: public FileFingerprint
     // transfer completion
     virtual void completed(Transfer*, LocalNode*);
 
+    // transfer terminated before completion (cancelled, failed too many times)
+    virtual void terminated();
+
     // transfer failed
     virtual bool failed(error);
 
@@ -93,6 +96,8 @@ struct MEGA_API SyncFileGet: public File
 
     // self-destruct after completion
     void completed(Transfer*, LocalNode*);
+
+    void terminated();
 
     SyncFileGet(Sync*, Node*, string*);
     ~SyncFileGet();
