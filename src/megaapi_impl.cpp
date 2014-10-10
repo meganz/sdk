@@ -3605,7 +3605,7 @@ void MegaApiImpl::openfilelink_result(error result)
 
 // the requested link was opened successfully
 // (it is the application's responsibility to delete n!)
-void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, const char*, m_time_t ts, m_time_t tm, int)
+void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, string*, int)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -3618,6 +3618,55 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		return;
 	}
 
+    string attrstring;
+    string fileName;
+    string keystring;
+
+    attrstring.resize(a->length()*4/3+4);
+    attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
+
+    m_time_t mtime = 0;
+
+    if(key)
+    {
+        SymmCipher nodeKey;
+        keystring.assign((char*)key,FILENODEKEYLENGTH);
+        nodeKey.setkey(key, FILENODE);
+
+        byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
+        if(buf)
+        {
+            JSON json;
+            nameid name;
+            string* t;
+            AttrMap attrs;
+
+            json.begin((char*)buf+5);
+            while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+                JSON::unescape(t);
+
+            delete[] buf;
+
+            attr_map::iterator it;
+            it = attrs.map.find('n');
+            if (it == attrs.map.end()) fileName = "CRYPTO_ERROR";
+            else if (!it->second.size()) fileName = "BLANK";
+            else fileName = it->second.c_str();
+
+            it = attrs.map.find('c');
+            if(it != attrs.map.end())
+            {
+                FileFingerprint ffp;
+                if(ffp.unserializefingerprint(&it->second))
+                {
+                    mtime = ffp.mtime;
+                }
+            }
+        }
+        else fileName = "CRYPTO_ERROR";
+    }
+    else fileName = "NO_KEY";
+
 	if(request->getType() == MegaRequest::TYPE_IMPORT_LINK)
 	{
 		NewNode* newnode = new NewNode[1];
@@ -3626,7 +3675,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		newnode->source = NEW_PUBLIC;
 		newnode->type = FILENODE;
 		newnode->nodehandle = ph;
-		newnode->clienttimestamp = tm;
+        newnode->clienttimestamp = mtime;
 		newnode->parenthandle = UNDEF;
 		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
 		newnode->attrstring = *a;
@@ -3640,42 +3689,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 	}
 	else
 	{
-		string attrstring;
-		string fileName;
-		string keystring;
-
-		attrstring.resize(a->length()*4/3+4);
-		attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
-
-		if(key)
-		{
-			SymmCipher nodeKey;
-			keystring.assign((char*)key,FILENODEKEYLENGTH);
-			nodeKey.setkey(key, FILENODE);
-
-			byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-			if(buf)
-			{
-				JSON json;
-				nameid name;
-				string* t;
-				AttrMap attrs;
-
-				json.begin((char*)buf+5);
-				while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name]))) JSON::unescape(t);
-				delete[] buf;
-
-				attr_map::iterator it;
-				it = attrs.map.find('n');
-				if (it == attrs.map.end()) fileName = "CRYPTO_ERROR";
-				else if (!it->second.size()) fileName = "BLANK";
-				else fileName = it->second.c_str();
-			}
-			else fileName = "CRYPTO_ERROR";
-		}
-		else fileName = "NO_KEY";
-
-		request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, ts, tm, ph, &keystring, a));
+        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a));
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
 	}
 }

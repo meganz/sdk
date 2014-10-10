@@ -2058,7 +2058,6 @@ void CommandGetPH::procresult()
     }
 
     m_off_t s = -1;
-    time_t ts = 0, tm = 0;
     string a, fa;
 
     for (;;)
@@ -2077,20 +2076,12 @@ void CommandGetPH::procresult()
                 client->json.storeobject(&fa);
                 break;
 
-            case MAKENAMEID2('t', 's'):
-                ts = client->json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'm', 'd'):
-                tm = ts + client->json.getint();
-                break;
-
             case EOO:
                 // we want at least the attributes
                 if (s >= 0)
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
-                    client->app->openfilelink_result(ph, key, s, &a, fa.c_str(), ts, tm, op);
+                    client->app->openfilelink_result(ph, key, s, &a, &fa, op);
                 }
                 else
                 {
