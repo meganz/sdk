@@ -145,7 +145,21 @@ uint64_t MegaNodePrivate::getHandle()
 
 string *MegaNodePrivate::getNodeKey()
 {
-	return &nodekey;
+    return &nodekey;
+}
+
+const char *MegaNodePrivate::getBase64Key()
+{
+    char *key = NULL;
+
+    // the key
+    if (type == FILENODE && nodekey.size() >= FILENODEKEYLENGTH)
+    {
+        key = new char[FILENODEKEYLENGTH*4/3+3];
+        Base64::btoa((const byte*)nodekey.data(),FILENODEKEYLENGTH, key);
+    }
+
+    return key;
 }
 
 string *MegaNodePrivate::getAttrString()
@@ -1665,7 +1679,14 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
 
 	handle h = 0;
 	Base64::atob(base64Handle,(byte*)&h,MegaClient::NODEHANDLE);
-	return h;
+    return h;
+}
+
+const char *MegaApiImpl::handleToBase64(MegaHandle handle)
+{
+    char *base64Handle = new char[12];
+    Base64::btoa((byte*)&(handle),MegaClient::NODEHANDLE,base64Handle);
+    return base64Handle;
 }
 
 void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
