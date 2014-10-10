@@ -102,6 +102,7 @@ class MegaNode
         virtual std::string getLocalPath() = 0;
         virtual bool hasThumbnail() = 0;
         virtual bool hasPreview() = 0;
+        virtual bool isPublic() = 0;
 };
 
 class MegaUser

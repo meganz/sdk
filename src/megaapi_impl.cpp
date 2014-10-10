@@ -52,6 +52,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->thumbnailAvailable = false;
     this->previewAvailable = false;
     this->tag = 0;
+    this->isPublicNode = true;
 }
 
 MegaNodePrivate::MegaNodePrivate(MegaNode *node)
@@ -73,6 +74,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->previewAvailable = node->hasPreview();
     this->tag = node->getTag();
     this->localPath = node->getLocalPath();
+    this->isPublicNode = node->isPublic();
 }
 
 MegaNodePrivate::MegaNodePrivate(Node *node)
@@ -91,6 +93,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
+    this->isPublicNode = false;
     if(node->localnode)
     {
         node->localnode->getlocalpath(&localPath, true);
@@ -187,7 +190,12 @@ bool MegaNodePrivate::hasThumbnail()
 
 bool MegaNodePrivate::hasPreview()
 {
-	return previewAvailable;
+    return previewAvailable;
+}
+
+bool MegaNodePrivate::isPublic()
+{
+    return isPublicNode;
 }
 
 

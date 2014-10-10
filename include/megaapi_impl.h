@@ -128,6 +128,7 @@ class MegaNodePrivate : public MegaNode
 		virtual std::string getLocalPath();
 		virtual bool hasThumbnail();
 		virtual bool hasPreview();
+        virtual bool isPublic();
 
 		static MegaNode *fromNode(Node *node);
 		virtual MegaNode *copy();
@@ -148,6 +149,7 @@ class MegaNodePrivate : public MegaNode
 		bool syncdeleted;
 		bool thumbnailAvailable;
 		bool previewAvailable;
+        bool isPublicNode;
 };
 
 
