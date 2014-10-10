@@ -26,7 +26,6 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
-#include <sys/statfs.h>
 
 namespace mega {
 PosixFileAccess::PosixFileAccess()

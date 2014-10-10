@@ -1537,7 +1537,7 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         // the size field must be valid right away for
                         // MegaClient::moretransfers()
-                        if ((n = nodebyhandle((*it)->h)) && (n->type == FILENODE))
+                        if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
                         {
                             k = (const byte*)n->nodekey.data();
                             nextit->second->size = n->size;
@@ -1678,64 +1678,68 @@ handle MegaClient::getuploadhandle()
 // do we have an upload that is still waiting for file attributes before being completed?
 void MegaClient::checkfacompletion(handle th, Transfer* t)
 {
-    bool delayedcompletion;
-    handletransfer_map::iterator htit;
-
-    if ((delayedcompletion = !t))
+    if (th)
     {
-        // abort if upload still running
-        if ((htit = faputcompletion.find(th)) == faputcompletion.end())
+        bool delayedcompletion;
+        handletransfer_map::iterator htit;
+
+        if ((delayedcompletion = !t))
         {
+            // abort if upload still running
+            if ((htit = faputcompletion.find(th)) == faputcompletion.end())
+            {
+                return;
+            }
+
+            t = htit->second;
+        }
+
+        int facount = 0;
+
+        // do we have the pre-set threshold number of file attributes available? complete upload.
+        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, 0));
+             it != pendingfa.end() && it->first.first == th; it++)
+        {
+            facount++;
+        }
+
+        if (facount < t->minfa)
+        {
+            if (!delayedcompletion)
+            {
+                bool success;
+
+                // we have insufficient file attributes available: remove transfer and put on hold
+                pair<handletransfer_map::iterator, bool>(t->faputcompletion_it, success) = faputcompletion.insert(pair<handle, Transfer*>(th, t));
+
+                if (!success)
+                {
+                    char report[24];
+
+                    sprintf(report, "%016llx %d", th, t->faputcompletion_it->second == t);
+
+                    reqtag = 0;
+
+                    // report a "duplicate transfer handle" event
+                    reportevent("DTH", report);
+            
+                    t->faputcompletion_it = faputcompletion.end();
+                }
+
+                transfers[t->type].erase(t->transfers_it);
+                t->transfers_it = transfers[t->type].end();
+
+                delete t->slot;
+                t->slot = NULL;
+            }
+
             return;
         }
-
-        t = htit->second;
     }
 
-    int facount = 0;
-
-    // do we have the pre-set threshold number of file attributes available? complete upload.
-    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, 0));
-         it != pendingfa.end() && it->first.first == th; it++)
-    {
-         facount++;
-    }
-
-    if (facount >= t->minfa)
-    {
-        t->completefiles();
-        app->transfer_complete(t);
-        delete t;
-        return;
-    }
-    
-    if (!delayedcompletion)
-    {
-        bool success;
-
-        // we have insufficient file attributes available: remove transfer and put on hold
-        pair<handletransfer_map::iterator, bool>(t->faputcompletion_it, success) = faputcompletion.insert(pair<handle, Transfer*>(th, t));
-
-        if (!success)
-        {
-            char report[20];
-
-            sprintf(report, "%016llx", th);
-
-            reqtag = 0;
-
-            // report a "duplicate transfer handle" event
-            reportevent("DTH", report);
-            
-            t->faputcompletion_it = faputcompletion.end();
-        }
-
-        transfers[t->type].erase(t->transfers_it);
-        t->transfers_it = transfers[t->type].end();
-
-        delete t->slot;
-        t->slot = NULL;
-    }
+    t->completefiles();
+    app->transfer_complete(t);
+    delete t;
 }
 
 // clear transfer queue

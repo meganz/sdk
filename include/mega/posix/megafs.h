@@ -26,6 +26,10 @@
 // Apple calls it sendfile, but it isn't
 #undef HAVE_SENDFILE
 #define O_DIRECT 0
+#include <sys/param.h>
+#include <sys/mount.h>
+#else
+#include <statfs.h>
 #endif
 
 #include "mega.h"
