@@ -29,7 +29,7 @@ namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, int ctag)
+           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, int ctag)
 {
     string dbname;
 
@@ -62,6 +62,16 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
         // FIXME: pass last segment of localdebris
         dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+    }
+
+    // set specified fsfp or get from fs if none
+    if (cfsfp)
+    {
+        fsfp = cfsfp;
+    }
+    else
+    {
+        fsfp = dirnotify->fsfingerprint();
     }
 
     localroot.init(this, FOLDERNODE, NULL, crootpath);
@@ -98,7 +108,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
-    assert(state == SYNC_CANCELED);
+    assert(state == SYNC_CANCELED || state == SYNC_FAILED);
 
     // unlock tmp lock
     delete tmpfa;

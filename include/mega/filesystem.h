@@ -121,6 +121,9 @@ struct MEGA_API DirNotify
 
     void notify(notifyqueue, LocalNode *, const char*, size_t, bool = false);
 
+    // filesystem fingerprint
+    virtual fsfp_t fsfingerprint();
+
     // ignore this
     string ignore;
 

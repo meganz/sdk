@@ -205,7 +205,7 @@ public:
     error exportnode(Node*, int);
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, int);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
     void delsync(Sync*);
 
     // close all open HTTP connections

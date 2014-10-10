@@ -37,7 +37,11 @@
 // platform-specific includes and defines
 #include "megasys.h"
 
+// signed 64-bit generic offset
 typedef int64_t m_off_t;
+
+// opaque filesystem fingerprint
+typedef uint64_t fsfp_t;
 
 #ifdef USE_CRYPTOPP
 #include "crypto/cryptopp.h"

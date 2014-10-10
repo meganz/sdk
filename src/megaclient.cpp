@@ -31,7 +31,7 @@ bool debug;
 // FIXME: prevent synced folder from being moved into another synced folder
 
 // root URL for API access
-const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
+const char* const MegaClient::APIURL = "https://staging.api.mega.co.nz/";
 
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -887,6 +887,16 @@ void MegaClient::exec()
             syncadded = false;
         }
 
+        // verify filesystem fingerprints, disable deviating syncs
+        // (this covers mountovers, some device removals and some failures)
+        for (it = syncs.begin(); it != syncs.end(); it++)
+        {
+            if ((*it)->fsfp && (*it)->fsfp != (*it)->dirnotify->fsfingerprint())
+            {
+                (*it)->changestate(SYNC_FAILED);
+            }
+        }
+
         if (!syncsup)
         {
             // set syncsup if there are no initializing syncs
@@ -955,7 +965,7 @@ void MegaClient::exec()
                         {
                             Sync* sync = *it++;
 
-                            if (sync->state == SYNC_CANCELED)
+                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
                             {
                                 delete sync;
                                 continue;
@@ -6156,7 +6166,7 @@ void MegaClient::execmovetosyncdebris()
 // disallow nested syncs (there is only one LocalNode pointer per node), return
 // EEXIST otherwise
 // (FIXME: perform same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, int tag)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
 {
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
@@ -6211,7 +6221,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     {
         if (fa->type == FOLDERNODE)
         {
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, tag);
+            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, tag);
 
             if (sync->scan(rootpath, fa))
             {

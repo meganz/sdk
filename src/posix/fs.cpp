@@ -26,6 +26,7 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#include <sys/statfs.h>
 
 namespace mega {
 PosixFileAccess::PosixFileAccess()
@@ -842,6 +843,16 @@ void PosixDirNotify::delnotify(LocalNode* l)
 #endif
 }
 
+fsfp_t PosixDirNotify::fsfingerprint()
+{
+    struct statfs statfsbuf;
+
+    // FIXME: statfs() does not really do what we want.
+    if (statfs(localbasepath.c_str(), &statfsbuf)) return 0;
+    
+    return *(fsfp_t*)&statfsbuf.f_fsid + 1;
+}
+
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {
     return new PosixFileAccess();
@@ -921,11 +932,9 @@ bool PosixDirAccess::dnext(string* name, nodetype_t* type)
 
     while ((d = readdir(dp)))
     {
-        if (((d->d_type == DT_DIR)
-                || (d->d_type == DT_REG))
-                && ((d->d_type != DT_DIR)
-                        || (*d->d_name != '.')
-                        || (d->d_name[1] && ((d->d_name[1] != '.') || d->d_name[2]))))
+        if ((d->d_type == DT_DIR || d->d_type == DT_REG)
+         && (d->d_type != DT_DIR || *d->d_name != '.'
+         || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2]))))
         {
             *name = d->d_name;
 
