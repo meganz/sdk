@@ -31,7 +31,7 @@ bool debug;
 // FIXME: prevent synced folder from being moved into another synced folder
 
 // root URL for API access
-const char* const MegaClient::APIURL = "https://staging.api.mega.co.nz/";
+const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
