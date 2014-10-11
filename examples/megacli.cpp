@@ -541,7 +541,6 @@ void DemoApp::share_result(int, error e)
 
 void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
 {
-printf("%02x%02x ",(unsigned char)data[0],(unsigned char)data[1]);
     cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
 }
 
