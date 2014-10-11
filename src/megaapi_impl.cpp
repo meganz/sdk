@@ -2447,11 +2447,12 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder)
         request->setFile(path.data());
         path.clear();
     }
+    request->setParentHandle(0);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::resumeSync(const char *localFolder, MegaNode *megaFolder)
+void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder)
 {
     sdkMutex.lock();
 
@@ -2467,6 +2468,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, MegaNode *megaFolder)
         request->setFile(path.data());
         path.clear();
     }
+    request->setParentHandle(localfp);
 
     int nextTag = client->nextreqtag();
     request->setTag(nextTag);
@@ -2485,7 +2487,11 @@ void MegaApiImpl::resumeSync(const char *localFolder, MegaNode *megaFolder)
         string utf8name(localPath);
         string localname;
         client->fsaccess->path2local(&utf8name, &localname);
-        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, -1);
+        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -1);
+        if(!e)
+        {
+            request->setParentHandle(client->syncs.back()->fsfp);
+        }
     }
 
     fireOnRequestFinish(request, MegaError(e));
@@ -3220,8 +3226,18 @@ void MegaApiImpl::reportevent_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::syncupdate_state(Sync *, syncstate_t)
+void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
+    if(newstate == SYNC_FAILED && sync->localroot.node)
+    {
+        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+        request->setNodeHandle(sync->localroot.node->nodehandle);
+        int nextTag = client->nextreqtag();
+        request->setTag(nextTag);
+        requestMap[nextTag]=request;
+        fireOnRequestFinish(request, MegaError(API_EFAILED));
+    }
+
     fireOnSyncStateChanged();
 }
 
@@ -5487,9 +5503,12 @@ void MegaApiImpl::sendPendingRequests()
             string utf8name(localPath);
             string localname;
             client->fsaccess->path2local(&utf8name, &localname);
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, -1);
+            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -1);
             if(!e)
+            {
+                request->setParentHandle(client->syncs.back()->fsfp);
                 fireOnRequestFinish(request, MegaError(API_OK));
+            }
             break;
         }
         case MegaRequest::TYPE_PAUSE_TRANSFERS:

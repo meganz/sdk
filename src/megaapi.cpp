@@ -598,9 +598,9 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder)
    pImpl->syncFolder(localFolder, megaFolder);
 }
 
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder)
+void MegaApi::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder)
 {
-    pImpl->resumeSync(localFolder, megaFolder);
+    pImpl->resumeSync(localFolder, localfp, megaFolder);
 }
 
 void MegaApi::removeSync(uint64_t nodeuint64_t, MegaRequestListener* listener)

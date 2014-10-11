@@ -490,7 +490,7 @@ class MegaApi
         int syncPathState(std::string *path);
         MegaNode *getSyncedNode(std::string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder);
-        void resumeSync(const char *localFolder, MegaNode *megaFolder);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder);
         void removeSync(MegaHandle nodeMegaHandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);

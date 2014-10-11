@@ -636,7 +636,7 @@ class MegaApiImpl : public MegaApp
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder);
-        void resumeSync(const char *localFolder, MegaNode *megaFolder);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
