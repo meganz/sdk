@@ -29,7 +29,7 @@
 #include <sys/param.h>
 #include <sys/mount.h>
 #else
-#include <statfs.h>
+#include <sys/vfs.h>
 #endif
 
 #include "mega.h"
@@ -59,7 +59,7 @@ public:
 #ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
     wdlocalnode_map wdnodes;
-    
+
     // skip the IN_FROM component in moves if followed by IN_TO
     LocalNode* lastlocalnode;
     uint32_t lastcookie;
