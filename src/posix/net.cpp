@@ -2,7 +2,7 @@
  * @file posix/net.cpp
  * @brief POSIX network access layer (using cURL)
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -53,7 +53,7 @@ void CurlHttpIO::setuseragent(string* u)
 
 void CurlHttpIO::setdnsservers(const char* servers)
 {
-	if (servers)
+    if (servers)
     {
 		dnsservers = servers;
     }
@@ -207,7 +207,7 @@ bool CurlHttpIO::doio()
     {
         HttpReq* req;
 
-        if ((curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK) && req)
+        if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
         {
             req->httpio = NULL;
 
