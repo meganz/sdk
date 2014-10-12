@@ -460,7 +460,7 @@ MegaClient::~MegaClient()
 void MegaClient::exec()
 {
     WAIT_CLASS::bumpds();
-
+cout << "TRANSFERS: " << tslots.size() << endl;
     if (httpio->inetisback())
     {
         app->debug_log("Internet connectivity returned - resetting all backoff timers");
