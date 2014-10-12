@@ -28,6 +28,8 @@ CurlHttpIO::CurlHttpIO()
 
     curlm = curl_multi_init();
 
+    curl_multi_setopt(curlm, CURLMOPT_MAXCONNECTS, 256);
+
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
