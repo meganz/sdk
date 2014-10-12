@@ -51,16 +51,19 @@ void CurlHttpIO::setuseragent(string* u)
     useragent = u;
 }
 
-void CurlHttpIO::setdnsservers(const char *servers)
+void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
+    {
 		dnsservers = servers;
+    }
 }
 
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int flags)
 {
     int t;
+
 #ifndef WINDOWS_PHONE
     PosixWaiter* pw = (PosixWaiter*)w;
 #else
@@ -110,27 +113,26 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
-
-		if (dnsservers.size())
-			curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, dnsservers.c_str());
-
-#ifdef __ANDROID__
-        //cURL can't find the certstore on Android,
-        //so we rely on the public key pinning
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
-#endif
 
-        if(proxyurl.size())
+		if (dnsservers.size())
+        {
+			curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, dnsservers.c_str());
+        }
+
+        if (proxyurl.size())
         {
             curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
             curl_easy_setopt(curl, CURLOPT_PROXY, proxyurl.c_str());
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-            if(proxyusername.size())
+
+            if (proxyusername.size())
             {
                 curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, proxypassword.c_str());
             }
+
             curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
         }
 
@@ -148,9 +150,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
 void CurlHttpIO::setproxy(Proxy* proxy)
 {
-    if(proxy->getProxyType() != Proxy::CUSTOM)
+    if (proxy->getProxyType() != Proxy::CUSTOM)
     {
-        //Automatic proxy is not supported
+        // automatic proxy is not supported
         proxyurl.clear();
         return;
     }
@@ -162,7 +164,7 @@ void CurlHttpIO::setproxy(Proxy* proxy)
 
 Proxy* CurlHttpIO::getautoproxy()
 {
-    Proxy *proxy = new Proxy();
+    Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
     return proxy;
 }
