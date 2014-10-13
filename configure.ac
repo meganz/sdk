@@ -198,8 +198,9 @@ case $host in
     WIN32=yes
     ;;
   *-apple-darwin*)
-    AC_DEFINE(_XOPEN_SOURCE, 500, [])
-    AC_DEFINE(_DARWIN_C_SOURCE, 1, [])
+    AC_DEFINE([_XOPEN_SOURCE], [500], [Define _XOPEN_SOURCE])
+    AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
+    ;;
   *)
     LIBS_EXTRA=""
     WIN32=no
