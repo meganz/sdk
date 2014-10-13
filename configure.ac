@@ -197,6 +197,9 @@ case $host in
     CXXFLAGS="$CXXFLAGS -DUNICODE"
     WIN32=yes
     ;;
+  *-apple-darwin*)
+    AC_DEFINE(_XOPEN_SOURCE, 500, [])
+    AC_DEFINE(_DARWIN_C_SOURCE, 1, [])
   *)
     LIBS_EXTRA=""
     WIN32=no
@@ -722,7 +725,7 @@ if test "x$WIN32" = "xno" ; then
         LDFLAGS="-L$with_cares/lib $LDFLAGS"
         CXXFLAGS="-I$with_cares/include $CXXFLAGS"
 
-        CARES_LDFLAGS="-L$with_care/lib"
+        CARES_LDFLAGS="-L$with_cares/lib"
         CARES_FLAGS="-I$with_cares/include"
 
         AC_CHECK_HEADERS([ares.h], [],
