@@ -398,6 +398,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 		virtual long long getNumFiles(MegaHandle handle);
 		virtual long long getNumFolders(MegaHandle handle);
 	
+		virtual MegaAccountDetails* copy();
+
 	private:
 		MegaAccountDetailsPrivate(AccountDetails *details);
 		AccountDetails *details;
@@ -605,10 +607,13 @@ class MegaApiImpl : public MegaApp
         void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -893,9 +898,10 @@ protected:
         NodeList* search(Node* node, const char* searchString, bool recursive = 1);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener = NULL);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void getUserAttribute(MegaUser* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttribute(MegaUser* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, MegaTransferListener *listener);
         void startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener = NULL);
         void startDownload(handle nodehandle, const char* target, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener);

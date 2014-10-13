@@ -456,6 +456,11 @@ void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestL
     pImpl->getThumbnail(node, dstFilePath, listener);
 }
 
+void MegaApi::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener)
+{
+	pImpl->cancelGetThumbnail(node, listener);
+}
+
 void MegaApi::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
     pImpl->setThumbnail(node, srcFilePath, listener);
@@ -466,6 +471,11 @@ void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestLis
     pImpl->getPreview(node, dstFilePath, listener);
 }
 
+void MegaApi::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
+{
+	pImpl->cancelGetPreview(node, listener);
+}
+
 void MegaApi::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
     pImpl->setPreview(node, srcFilePath, listener);
@@ -474,6 +484,11 @@ void MegaApi::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestLis
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getUserAvatar(user, dstFilePath, listener);
+}
+
+void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
+{
+	pImpl->setAvatar(dstFilePath, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)

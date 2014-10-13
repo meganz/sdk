@@ -2034,6 +2034,11 @@ void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequ
 	getNodeAttribute(node, 0, dstFilePath, listener);
 }
 
+void MegaApiImpl::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener)
+{
+	cancelGetNodeAttribute(node, 0, listener);
+}
+
 void MegaApiImpl::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
 	setNodeAttribute(node, 0, srcFilePath, listener);
@@ -2044,6 +2049,11 @@ void MegaApiImpl::getPreview(MegaNode* node, const char *dstFilePath, MegaReques
 	getNodeAttribute(node, 1, dstFilePath, listener);
 }
 
+void MegaApiImpl::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
+{
+	cancelGetNodeAttribute(node, 1, listener);
+}
+
 void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
 	setNodeAttribute(node, 1, srcFilePath, listener);
@@ -2052,6 +2062,11 @@ void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaReques
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
 {
 	getUserAttribute(user, 0, dstFilePath, listener);
+}
+
+void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
+{
+	setUserAttribute(0, dstFilePath, listener);
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -2147,6 +2162,15 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     waiter->notify();
 }
 
+void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener)
+{
+	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_ATTR_FILE, listener);
+	request->setParamType(type);
+	if (node) request->setNodeHandle(node->getHandle());
+	requestQueue.push(request);
+	waiter->notify();
+}
+
 void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
@@ -2167,12 +2191,11 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     waiter->notify();
 }
 
-void MegaApiImpl::setUserAttribute(MegaUser *user, int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
 	request->setFile(srcFilePath);
     request->setParamType(type);
-    if(user) request->setEmail(user->getEmail());
 	requestQueue.push(request);
     waiter->notify();
 }
@@ -5406,30 +5429,91 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:
 		{
-			const char* dstFilePath = request->getFile();
+			const char* srcFilePath = request->getFile();
             int type = request->getParamType();
-            User *user = client->finduser(request->getEmail(), 0);
 
-			if(!dstFilePath || !user || (type != 0)) { e = API_EARGS; break; }
+			if (!srcFilePath || (type != 0)) { e = API_EARGS; break; }
 
-			e = API_EACCESS; //TODO: Use putua
+			string path = srcFilePath;
+			string localpath;
+			fsAccess->path2local(&path, &localpath);
+
+			string attributedata;
+			FileAccess *f = fsAccess->newfileaccess();
+			if (!f->fopen(&localpath, 1, 0))
+			{
+				delete f;
+				e = API_EREAD;
+				break;
+			}
+
+			if (!f->fread(&attributedata, f->size, 0, 0))
+			{
+				delete f;
+				e = API_EREAD;
+				break;
+			}
+			delete f;
+
+			client->putua("a", (byte *)attributedata.data(), attributedata.size(), false);
 			break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_FILE:
 		{
-            /*const char* srcFilePath = request->getFile();
-			int type = request->getAttrType();
+            const char* srcFilePath = request->getFile();
+			int type = request->getParamType();
 			Node *node = client->nodebyhandle(request->getNodeHandle());
 
 			if(!srcFilePath || !node) { e = API_EARGS; break; }
 
-			string thumbnail;
-			FileAccess *f = this->newfile();
-			f->fopen(srcFilePath, 1, 0);
-			f->fread(&thumbnail, f->size, 0, 0);
+			string path = srcFilePath;
+			string localpath;
+			fsAccess->path2local(&path, &localpath);
+
+			string attributedata;
+			FileAccess *f = fsAccess->newfileaccess();
+			if (!f->fopen(&localpath, 1, 0))
+			{
+				delete f;
+				e = API_EREAD;
+				break;
+			}
+
+			if(!f->fread(&attributedata, f->size, 0, 0))
+			{
+				delete f;
+				e = API_EREAD;
+				break;
+			}
 			delete f;
 
-            client->putfa(&(node->key),node->nodehandle,type,(const byte*)thumbnail.data(),thumbnail.size());*/
+			client->putfa(node->nodehandle, type, &node->key, &attributedata);
+			break;
+		}
+		case MegaRequest::TYPE_CANCEL_ATTR_FILE:
+		{
+			int type = request->getParamType();
+			Node *node = client->nodebyhandle(request->getNodeHandle());
+			
+			if (!node) { e = API_EARGS; break; }
+
+			e = client->getfa(node, type, 1);
+			if (!e)
+			{
+				std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
+				while(it != requestMap.end())
+				{
+					MegaRequestPrivate *r = it->second;
+					it++;
+					if (r->getType() == MegaRequest::TYPE_GET_ATTR_FILE &&
+						r->getParamType() == request->getParamType() &&
+						r->getNodeHandle() == request->getNodeHandle())
+					{
+						fireOnRequestFinish(r, MegaError(API_EINCOMPLETE));
+					}
+				}
+				fireOnRequestFinish(request, MegaError(e));
+			}
 			break;
 		}
 		case MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS:
@@ -5996,3 +6080,7 @@ long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
     return details->storage[handle].folders;
 }
 
+MegaAccountDetails* MegaAccountDetailsPrivate::copy()
+{
+	return new MegaAccountDetailsPrivate(details);
+}

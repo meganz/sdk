@@ -190,7 +190,7 @@ class MegaRequest
                 TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE, TYPE_REPORT_EVENT };
+                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE };
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;
@@ -459,10 +459,13 @@ class MegaApi
         void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -593,6 +596,7 @@ public:
     virtual long long getStorageUsed(MegaHandle handle) = 0;
     virtual long long getNumFiles(MegaHandle handle) = 0;
     virtual long long getNumFolders(MegaHandle handle) = 0;
+	virtual MegaAccountDetails* copy() = 0;
 };
 
 }
