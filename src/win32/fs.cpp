@@ -640,14 +640,22 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 
 fsfp_t WinDirNotify::fsfingerprint()
 {
-    BY_HANDLE_FILE_INFORMATION fi;
-
-    if (!GetFileInformationByHandle(hDirectory, &fi))
+#ifdef WINDOWS_PHONE
+	FILE_ID_INFO fi = { 0 };
+	if(!GetFileInformationByHandleEx(hDirectory, FileIdInfo, &fi, sizeof(fi)))
+#else
+	BY_HANDLE_FILE_INFORMATION fi;
+	if (!GetFileInformationByHandle(hDirectory, &fi))
+#endif
     {
         return 0;
     }
 
+#ifdef WINDOWS_PHONE
+	return fi.VolumeSerialNumber + 1;
+#else
     return fi.dwVolumeSerialNumber + 1;
+#endif
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)

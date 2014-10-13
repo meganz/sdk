@@ -21,7 +21,33 @@
 
 #include "mega.h"
 
+#ifdef WINDOWS_PHONE
+const char* inet_ntop(int af, const void* src, char* dst, int cnt){
+
+	struct sockaddr_in srcaddr;
+	wchar_t ip[INET6_ADDRSTRLEN];
+	int len = INET6_ADDRSTRLEN;
+
+	memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+	memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+
+	srcaddr.sin_family = af;
+
+	if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0) 
+	{
+		return NULL;
+	}
+
+	if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
+	{
+		return NULL;
+	}
+
+	return dst;
+}
+#else
 #include <netdb.h>
+#endif
 
 namespace mega {
 CurlHttpIO::CurlHttpIO()
