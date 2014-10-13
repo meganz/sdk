@@ -706,7 +706,7 @@ if test "x$WIN32" = "xno" ; then
     AC_ARG_WITH([cares],
       AS_HELP_STRING(--with-cares=PATH, base of c-ares installation),
       [
-       case $with_ocares in
+       case $with_cares in
        no)
          AC_MSG_ERROR([Please specify path to c-ares installation directory!])
          ;;
@@ -762,8 +762,6 @@ if test "x$WIN32" = "xno" ; then
         cares=true
       ]
     )
-
-
 
     # cURL
     AC_ARG_ENABLE(curl-checks,
@@ -885,7 +883,6 @@ else
     platform_include="mega/posix"
 fi
 AC_SUBST(platform_include)
-
 
 # Examples
 AC_MSG_CHECKING([if building example applications])
