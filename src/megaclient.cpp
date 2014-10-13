@@ -1670,7 +1670,7 @@ handle MegaClient::getuploadhandle()
 {
     byte* ptr = (byte*)(&nextuh + 1);
 
-    while (!++(*--ptr));
+    while (!++*--ptr);
 
     return nextuh;
 }
@@ -1708,25 +1708,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
             if (!delayedcompletion)
             {
                 // we have insufficient file attributes available: remove transfer and put on hold
-                pair<handletransfer_map::iterator, bool> res = faputcompletion.insert(pair<handle, Transfer*>(th, t));
-
-                if (res.second)
-                {
-                    t->faputcompletion_it = res.first;
-                }
-                else
-                {
-                    char report[24];
-
-                    sprintf(report, "%016llx %d", th, t->faputcompletion_it->second == t);
-
-                    reqtag = 0;
-
-                    // report a "duplicate transfer handle" event
-                    reportevent("DTH", report);
-            
-                    t->faputcompletion_it = faputcompletion.end();
-                }
+                t->faputcompletion_it = faputcompletion.insert(pair<handle, Transfer*>(th, t)).first;
 
                 transfers[t->type].erase(t->transfers_it);
                 t->transfers_it = transfers[t->type].end();
@@ -1749,7 +1731,7 @@ void MegaClient::freeq(direction_t d)
 {
     for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); )
     {
-        delete (it++)->second;
+        delete it++->second;
     }
 }
 
