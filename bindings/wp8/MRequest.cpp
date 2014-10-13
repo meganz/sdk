@@ -176,5 +176,6 @@ uint64 MRequest::getTotalBytes()
 
 MAccountDetails^ MRequest::getMAccountDetails()
 {
-	return nullptr;
+	return megaRequest && megaRequest->getMegaAccountDetails() ? 
+		ref new MAccountDetails(megaRequest->getMegaAccountDetails(), true) : nullptr;
 }

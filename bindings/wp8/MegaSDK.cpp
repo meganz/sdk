@@ -731,6 +731,17 @@ void MegaSDK::getThumbnail(MNode^ node, String^ dstFilePath)
 		(dstFilePath != nullptr) ? utf8dstFilePath.c_str() : NULL);
 }
 
+void MegaSDK::cancelGetThumbnail(MNode^ node, MRequestListenerInterface^ listener)
+{
+	megaApi->cancelGetThumbnail((node != nullptr) ? node->getCPtr() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::cancelGetThumbnail(MNode^ node)
+{
+	megaApi->cancelGetThumbnail((node != nullptr) ? node->getCPtr() : NULL);
+}
+
 void MegaSDK::setThumbnail(MNode^ node, String^ srcFilePath, MRequestListenerInterface^ listener)
 {
 	std::string utf8srcFilePath;
@@ -773,6 +784,17 @@ void MegaSDK::getPreview(MNode^ node, String^ dstFilePath)
 		(dstFilePath != nullptr) ? utf8dstFilePath.c_str() : NULL);
 }
 
+void MegaSDK::cancelGetPreview(MNode^ node, MRequestListenerInterface^ listener)
+{
+	megaApi->cancelGetPreview((node != nullptr) ? node->getCPtr() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::cancelGetPreview(MNode^ node)
+{
+	megaApi->cancelGetPreview((node != nullptr) ? node->getCPtr() : NULL);
+}
+
 void MegaSDK::setPreview(MNode^ node, String^ srcFilePath, MRequestListenerInterface^ listener)
 {
 	std::string utf8srcFilePath;
@@ -813,6 +835,25 @@ void MegaSDK::getUserAvatar(MUser^ user, String^ dstFilePath)
 
 	megaApi->getUserAvatar((user != nullptr) ? user->getCPtr() : NULL, 
 		(dstFilePath != nullptr) ? utf8dstFilePath.c_str() : NULL);
+}
+
+void MegaSDK::setAvatar(String ^srcFilePath, MRequestListenerInterface^ listener)
+{
+	std::string utf8srcFilePath;
+	if (srcFilePath != nullptr)
+		MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
+
+	megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL, 
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setAvatar(String ^srcFilePath)
+{
+	std::string utf8srcFilePath;
+	if (srcFilePath != nullptr)
+		MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
+
+	megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL);
 }
 
 void MegaSDK::exportNode(MNode^ node, MRequestListenerInterface^ listener)
