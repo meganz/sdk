@@ -208,7 +208,9 @@ AC_SUBST(LIBS_EXTRA)
 
 # check for Pthreads
 AC_ARG_ENABLE(posix-threads,
-    AS_HELP_STRING(--disable-posix-threads, disable POSIX threads support))
+    AS_HELP_STRING(--disable-posix-threads, disable POSIX threads support),
+    [],
+    [enable_posix_threads=no])
 if test x$enable_posix_threads != xno; then
     HAVE_PTHREAD=yes
     AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
@@ -219,7 +221,9 @@ fi
 
 # hardening options
 AC_ARG_ENABLE(gcc-hardening,
-    AS_HELP_STRING(--disable-gcc-hardening, disable compiler security checks))
+    AS_HELP_STRING(--disable-gcc-hardening, disable compiler security checks),
+    [],
+    [enable_gcc_hardening=no])
 if test x$enable_gcc_hardening != xno; then
     CXXFLAGS="$CXXFLAGS -D_FORTIFY_SOURCE=2"
     AX_CHECK_COMPILE_FLAG([-fstack-protector-all], [
@@ -787,15 +791,6 @@ if test "x$WIN32" = "xno" ; then
             AC_SUBST(LIBCURL_LIBS)
 
             if test "x$enable_curl_checks" = "xyes" ; then
-                AC_MSG_CHECKING(for cURL compiled with c-ares support)
-                if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
-                then
-                    AC_MSG_RESULT([yes])
-                else
-                    AC_MSG_RESULT([no])
-                    AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
-                fi
-
                 CURL_CHK()
             else
                 AC_MSG_NOTICE([skipping cURL checks.])
@@ -826,7 +821,6 @@ if test "x$WIN32" = "xno" ; then
         AC_SUBST(LIBCURL_LIBS)
 
         if test "x$enable_curl_checks" = "xyes" ; then
-            # XXX: check for c-ares using provided path
             CURL_CHK()
         else
             AC_MSG_NOTICE([skipping cURL checks.])
@@ -855,15 +849,6 @@ if test "x$WIN32" = "xno" ; then
         AC_SUBST(LIBCURL_LIBS)
 
         if test "x$enable_curl_checks" = "xyes" ; then
-            AC_MSG_CHECKING([for cURL compiled with c-ares support])
-            if curl-config --configure  2>&1 | grep enable-ares > /dev/null;
-            then
-                AC_MSG_RESULT([yes])
-            else
-                AC_MSG_RESULT([no])
-                AC_MSG_ERROR([cURL needs to be compiled with c-ares enabled!])
-            fi
-
             CURL_CHK()
         else
             AC_MSG_NOTICE([skipping cURL checks.])
