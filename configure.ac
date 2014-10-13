@@ -200,6 +200,7 @@ case $host in
   *-apple-darwin*)
     AC_DEFINE([_XOPEN_SOURCE], [500], [Define _XOPEN_SOURCE])
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
+    WIN32=no
     ;;
   *)
     LIBS_EXTRA=""
