@@ -19,12 +19,19 @@ examples_megacli_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(LIBS_EX
 examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
 
 examples_megasimplesync_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(LIBS_EXTRA) $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(WINHTTP_CXXFLAGS) $(SODIUM_CXXFLAGS)
-examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
+examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(top_builddir)/src/libmega.la
 else
 
 examples_megacli_CXXFLAGS = $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LIBS) $(top_builddir)/src/libmega.la
+examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(TERMCAP_LDFLAGS) $(TERMCAP_LIBS) $(top_builddir)/src/libmega.la
 
 examples_megasimplesync_CXXFLAGS = $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LIBS) $(top_builddir)/src/libmega.la
+examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(top_builddir)/src/libmega.la
 endif
+
+if ENABLE_STATIC
+examples_megacli_CXXFLAGS += -static
+examples_megacli_LDFLAGS = -Wl,-static -all-static
+examples_megasimplesync_LDFLAGS = -Wl,-static -all-static
+endif
+

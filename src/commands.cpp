@@ -777,8 +777,7 @@ void CommandPutNodes::procresult()
                 }
 
                 e = API_EINTERNAL;
-
-            // fall through
+                // fall through
             case EOO:
                 client->applykeys();
 
@@ -795,7 +794,6 @@ void CommandPutNodes::procresult()
                     client->putnodes_syncdebris_result(e, nn);
                 }
 
-                client->notifypurge();
                 return;
         }
     }
@@ -803,16 +801,11 @@ void CommandPutNodes::procresult()
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel)
 {
+    h = n->nodehandle;
+    syncdel = csyncdel;
+
     cmd("m");
     notself(client);
-
-    h = n->nodehandle;
-
-    if ((syncdel = csyncdel) != SYNCDEL_NONE)
-    {
-        syncn = n;
-    }
-
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
 
@@ -831,27 +824,32 @@ void CommandMoveNode::procresult()
 
         if (syncdel != SYNCDEL_NONE)
         {
-            if (e == API_OK)
-            {
-                Node* n;
+            Node* syncn = client->nodebyhandle(h);
 
-                // update all todebris records in the subtree
-                for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+            if (syncn)
+            {
+                if (e == API_OK)
                 {
-                    n = *it;
+                    Node* n;
 
-                    do {
-                        if (n == syncn)
-                        {
-                            (*it)->syncdeleted = syncdel;
-                            break;
-                        }
-                    } while ((n = n->parent));
+                    // update all todebris records in the subtree
+                    for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+                    {
+                        n = *it;
+
+                        do {
+                            if (n == syncn)
+                            {
+                                (*it)->syncdeleted = syncdel;
+                                break;
+                            }
+                        } while ((n = n->parent));
+                    }
                 }
-            }
-            else
-            {
-                syncn->syncdeleted = SYNCDEL_NONE;
+                else
+                {
+                    syncn->syncdeleted = SYNCDEL_NONE;
+                }
             }
         }
 
@@ -1442,13 +1440,16 @@ void CommandGetUA::procresult()
                         || (!priv && strncmp(attributename, "puEd255", 7))))
         {
             // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-            client->inited25519();
+            if(!client->inited25519())
+            {
+                return(client->app->getua_result(API_EINTERNAL));
+            }
 
             // Return the required key data.
             if (strncmp(attributename, "prEd255", 7))
             {
-                return client->app->getua_result(client->signkey.keySeed,
-                                                 crypto_sign_SEEDBYTES);
+                return(client->app->getua_result(client->signkey.keySeed,
+                                                 crypto_sign_SEEDBYTES));
             }
             else
             {
@@ -1459,13 +1460,13 @@ void CommandGetUA::procresult()
                     return(client->app->getua_result(API_EINTERNAL));
                 }
 
-                return client->app->getua_result(pubKey,
-                                                 crypto_sign_PUBLICKEYBYTES);
+                return(client->app->getua_result(pubKey,
+                                                 crypto_sign_PUBLICKEYBYTES));
             }
         }
 #endif
 
-        return client->app->getua_result(e);
+        return(client->app->getua_result(e));
     }
     else
     {
@@ -1475,7 +1476,7 @@ void CommandGetUA::procresult()
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            return client->app->getua_result(API_EINTERNAL);
+            return(client->app->getua_result(API_EINTERNAL));
         }
 
         int l = (end - ptr) / 4 * 3 + 3;
@@ -1495,7 +1496,7 @@ void CommandGetUA::procresult()
             {
                 if (!PaddedCBC::decrypt(&d, &client->key))
                 {
-                    return client->app->getua_result(API_EINTERNAL);
+                    return(client->app->getua_result(API_EINTERNAL));
                 }
             }
             else
@@ -1508,10 +1509,10 @@ void CommandGetUA::procresult()
                 d = payload;
                 if (!PaddedCBC::decrypt(&d, &client->key, &iv))
                 {
-                    return client->app->getua_result(API_EINTERNAL);
+                    return(client->app->getua_result(API_EINTERNAL));
                 }
             }
-            return client->app->getua_result((byte*)d.data(), d.size());
+            return(client->app->getua_result((byte*)d.data(), d.size()));
         }
 
         client->app->getua_result(data, l);
@@ -2057,7 +2058,6 @@ void CommandGetPH::procresult()
     }
 
     m_off_t s = -1;
-    time_t ts = 0, tm = 0;
     string a, fa;
 
     for (;;)
@@ -2076,20 +2076,12 @@ void CommandGetPH::procresult()
                 client->json.storeobject(&fa);
                 break;
 
-            case MAKENAMEID2('t', 's'):
-                ts = client->json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'm', 'd'):
-                tm = ts + client->json.getint();
-                break;
-
             case EOO:
                 // we want at least the attributes
                 if (s >= 0)
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
-                    client->app->openfilelink_result(ph, key, s, &a, fa.c_str(), ts, tm, op);
+                    client->app->openfilelink_result(ph, key, s, &a, &fa, op);
                 }
                 else
                 {

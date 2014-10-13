@@ -2,7 +2,7 @@
  * @file posix/net.cpp
  * @brief POSIX network access layer (using cURL)
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -32,6 +32,8 @@ CurlHttpIO::CurlHttpIO()
     curlm = curl_multi_init();
     ares_init(&ares);
 
+    curl_multi_setopt(curlm, CURLMOPT_MAXCONNECTS, 256);
+
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
@@ -58,10 +60,12 @@ void CurlHttpIO::setuseragent(string* u)
     useragent = u;
 }
 
-void CurlHttpIO::setdnsservers(const char *servers)
+void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
+    {
 		ares_set_servers_csv(ares, servers);
+    }
 }
 
 // wake up from cURL I/O
@@ -225,13 +229,8 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
-
-#ifdef __ANDROID__
-        //cURL can't find the certstore on Android,
-        //so we rely on the public key pinning
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
-#endif
 
         if(httpio->proxyip.size())
         {
@@ -239,11 +238,13 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
 
             curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+
             if(httpio->proxyusername.size())
             {
                 curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, httpio->proxyusername.c_str());
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, httpio->proxypassword.c_str());
             }
+
             curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
         }
 
@@ -391,7 +392,7 @@ void CurlHttpIO::setproxy(Proxy* proxy)
 
 Proxy* CurlHttpIO::getautoproxy()
 {
-    Proxy *proxy = new Proxy();
+    Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
     return proxy;
 }
@@ -447,7 +448,7 @@ bool CurlHttpIO::doio()
     {
         HttpReq* req;
 
-        if ((curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK) && req)
+        if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
         {
             req->httpio = NULL;
 

@@ -222,6 +222,18 @@
     <ClInclude Include="..\MUserList.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\DelegateMTreeProcessor.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MRandomNumberProvider.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MGfxProcessorInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMGfxProcessor.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -391,6 +403,12 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\gfx\freeimage.cpp">
       <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMTreeProcessor.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMGfxProcessor.cpp">
+      <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

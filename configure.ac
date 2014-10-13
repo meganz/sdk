@@ -50,7 +50,7 @@ AC_USE_SYSTEM_EXTENSIONS
 
 AM_INIT_AUTOMAKE([1.11 foreign silent-rules])
 AC_CONFIG_HEADERS([include/mega/config.h])
-LT_INIT([shared static win32-dll])
+LT_INIT([shared disable-static win32-dll])
 AC_CONFIG_MACRO_DIR([m4])
 # enable silent build
 m4_ifndef([AM_SILENT_RULES], [m4_define([AM_SILENT_RULES],[])])
@@ -96,6 +96,9 @@ AH_VERBATIM([__STDC_FORMAT_MACROS],
 
 AC_CHECK_TYPES([ssize_t])
 
+AC_CANONICAL_HOST
+AC_DEFINE_UNQUOTED(OS, "${host}", [cpu-machine-OS])
+
 # Check programs
 AC_PROG_CXX
 if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
@@ -135,12 +138,32 @@ AC_TYPE_SIZE_T
 
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
 
+# Debug
+AC_ARG_ENABLE(debug,
+    AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
+    [], [enable_debug=no])
+
+# Enable debug flags / build
+if test "x$enable_debug" = "xyes" ; then
+    AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
+    CXXFLAGS="-Wall -g -ggdb3 -O0"
+    AC_SUBST([AM_CXXFLAGS])
+    AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+fi
+
 # Check if we can use -fPIC flag
 AX_CHECK_COMPILE_FLAG([-fPIC], [
   AX_CHECK_LINK_FLAG([-fPIC],
     [CXXFLAGS="$CXXFLAGS -fPIC"]
   )
 ])
+
+
+AM_CONDITIONAL(ENABLE_STATIC, test x$enable_static = xyes)
+if test x$enable_static = xyes; then
+    LIBS="-ldl $LIBS"
+fi
+AC_SUBST(ENABLE_STATIC)
 
 # Check for inotify support.
 AC_ARG_ENABLE(inotify,
@@ -369,7 +392,6 @@ AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
 #
 
 #zlib
-ZLIB_LIBS="-lz"
 AC_MSG_CHECKING(for zlib)
 zlib=false
 AC_ARG_WITH(zlib,
@@ -390,20 +412,37 @@ AC_ARG_WITH(zlib,
      ;;
    *)
 
-    LDFLAGS="-L$with_zlib $LDFLAGS"
-    CXXFLAGS="-I$with_zlib $CXXFLAGS"
-    CPPFLAGS="-I$with_zlib $CPPFLAGS"
+    if test -d "$with_zlib/lib"; then
+        LDFLAGS="-L$with_zlib/lib $LDFLAGS"
+        CXXFLAGS="-I$with_zlib/include $CXXFLAGS"
+        CPPFLAGS="-I$with_zlib/include $CPPFLAGS"
 
-    AC_CHECK_HEADERS(zlib.h,
-     ZLIB_CXXFLAGS="-I$with_zlib"
-     ZLIB_CPPFLAGS="-I$with_zlib"
-     ZLIB_LDFLAGS="-L$with_zlib",
-     AC_MSG_ERROR([zlib.h header not found or not usable])
-     )
+        AC_CHECK_HEADERS(zlib.h,
+         ZLIB_CXXFLAGS="-I$with_zlib/include"
+         ZLIB_CPPFLAGS="-I$with_zlib/include"
+         ZLIB_LDFLAGS="-L$with_zlib/lib",
+         AC_MSG_ERROR([zlib.h header not found or not usable])
+         )
 
-    AC_CHECK_LIB(z, [main], [ZLIB_LIBS="-lz"],[
-            AC_MSG_ERROR([Could not find zlib])
-    ])
+        AC_CHECK_LIB(z, [main], [ZLIB_LIBS="-lz"],[
+                AC_MSG_ERROR([Could not find zlib])
+        ])
+    else
+        LDFLAGS="-L$with_zlib $LDFLAGS"
+        CXXFLAGS="-I$with_zlib $CXXFLAGS"
+        CPPFLAGS="-I$with_zlib $CPPFLAGS"
+
+        AC_CHECK_HEADERS(zlib.h,
+         ZLIB_CXXFLAGS="-I$with_zlib"
+         ZLIB_CPPFLAGS="-I$with_zlib"
+         ZLIB_LDFLAGS="-L$with_zlib",
+         AC_MSG_ERROR([zlib.h header not found or not usable])
+         )
+
+        AC_CHECK_LIB(z, [main], [ZLIB_LIBS="-lz"],[
+                AC_MSG_ERROR([Could not find zlib])
+        ])
+    fi
 
     zlib=true
 
@@ -481,6 +520,8 @@ AC_ARG_WITH(sqlite,
          DB_CPPFLAGS="-I$with_sqlite"],
          AC_MSG_ERROR([sqlite3.h header not found or not usable])
         )
+        DB_LIBS="-lsqlite3"
+        AC_SUBST(DB_LIBS)
     fi
 
     sqlite=true
@@ -584,6 +625,7 @@ fi
 # ** Posix dependent libraries **
 #
 openssl=false
+cares=false
 if test "x$WIN32" = "xno" ; then
 
     # OpenSSL
@@ -596,8 +638,6 @@ if test "x$WIN32" = "xno" ; then
          AC_MSG_ERROR([Please specify path to OpenSSL installation directory!])
          ;;
        yes)
-            LIBSSL_LIBS="-lssl"
-
             AC_CHECK_HEADERS([openssl/ssl.h], [],
                 AC_MSG_ERROR([ssl.h header not found or not usable])
             )
@@ -613,21 +653,25 @@ if test "x$WIN32" = "xno" ; then
         LDFLAGS="-L$with_openssl/lib $LDFLAGS"
         CXXFLAGS="-I$with_openssl/include $CXXFLAGS"
 
-        LIBSSL_LIBS="-L$with_openssl/lib -lssl"
+        LIBSSL_LDFLAGS="-L$with_openssl/lib"
         LIBSSL_FLAGS="-I$with_openssl/include"
+        SAVE_LIBS=$LIBS
+        LIBS="-lcrypto $LIBS"
 
         AC_CHECK_HEADERS([openssl/ssl.h], [],
             AC_MSG_ERROR([ssl.h header not found or not usable])
         )
-        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
             AC_MSG_ERROR([Could not find OpenSSL library!])
         )
 
         AC_SUBST(LIBSSL_FLAGS)
+        AC_SUBST(LIBSSL_LDFLAGS)
         AC_SUBST(LIBSSL_LIBS)
         openssl=true
 
         #restore
+        LIBS=$SAVE_LIBS
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
         CPPFLAGS=$SAVE_CPPFLAGS
@@ -636,8 +680,6 @@ if test "x$WIN32" = "xno" ; then
       ],
       [
         AC_MSG_RESULT([--with-openssl not specified])
-
-        LIBSSL_LIBS="-lssl"
 
         AC_CHECK_HEADERS([openssl/ssl.h], [],
             AC_MSG_ERROR([ssl.h header not found or not usable])
@@ -650,6 +692,70 @@ if test "x$WIN32" = "xno" ; then
         openssl=true
       ]
     )
+
+    # c-ares
+    AC_MSG_CHECKING(for c-ares)
+    AC_ARG_WITH([cares],
+      AS_HELP_STRING(--with-cares=PATH, base of c-ares installation),
+      [
+       case $with_ocares in
+       no)
+         AC_MSG_ERROR([Please specify path to c-ares installation directory!])
+         ;;
+       yes)
+            AC_CHECK_HEADERS([ares.h], [],
+                AC_MSG_ERROR([ares.h header not found or not usable])
+            )
+            AC_CHECK_LIB(cares, [ares_library_init], [CARES_LIBS="-lcares"],
+                AC_MSG_ERROR([Could not find c-ares library!])
+            )
+
+            AC_SUBST(CARES_LIBS)
+            cares=true
+         ;;
+       *)
+        # determine if library is installed
+        LDFLAGS="-L$with_cares/lib $LDFLAGS"
+        CXXFLAGS="-I$with_cares/include $CXXFLAGS"
+
+        CARES_LDFLAGS="-L$with_care/lib"
+        CARES_FLAGS="-I$with_cares/include"
+
+        AC_CHECK_HEADERS([ares.h], [],
+            AC_MSG_ERROR([ares.h header not found or not usable])
+        )
+        AC_CHECK_LIB(cares, [ares_library_init], [CARES_LIBS="-lcares"],
+            AC_MSG_ERROR([Could not find c-ares library!])
+        )
+
+        AC_SUBST(CARES_FLAGS)
+        AC_SUBST(CARES_LDFLAGS)
+        AC_SUBST(CARES_LIBS)
+        cares=true
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
+        ;;
+       esac
+      ],
+      [
+        AC_MSG_RESULT([--with-cares not specified])
+
+        AC_CHECK_HEADERS([ares.h], [],
+            AC_MSG_ERROR([ares.h header not found or not usable])
+        )
+        AC_CHECK_LIB(cares, [ares_library_init], [CARES_LIBS="-lcares"],
+            AC_MSG_ERROR([Could not find c-ares library!])
+        )
+
+        AC_SUBST(CARES_LIBS)
+        cares=true
+      ]
+    )
+
+
 
     # cURL
     AC_ARG_ENABLE(curl-checks,
@@ -668,6 +774,7 @@ if test "x$WIN32" = "xno" ; then
          ;;
        yes)
             LIBCURL_LIBS="-lcurl"
+            SAVE_LIBS=$LIBS
             LIBS="-lcurl $LIBS"
 
             AC_CHECK_HEADERS([curl/curl.h], [],
@@ -693,12 +800,15 @@ if test "x$WIN32" = "xno" ; then
             else
                 AC_MSG_NOTICE([skipping cURL checks.])
             fi
+
+            LIBS=$SAVE_LIBS
          ;;
        *)
 
         # determine if library is installed
         LDFLAGS="-L$with_curl/lib $LDFLAGS"
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
+        SAVE_LIBS=$LIBS
         LIBS="-lcurl $LIBS"
 
         LIBCURL_LIBS="-L$with_curl/lib -lcurl"
@@ -723,6 +833,7 @@ if test "x$WIN32" = "xno" ; then
         fi
 
         #restore
+        LIBS=$SAVE_LIBS
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
         CPPFLAGS=$SAVE_CPPFLAGS
@@ -731,6 +842,7 @@ if test "x$WIN32" = "xno" ; then
       ],
       [
         LIBCURL_LIBS="-lcurl"
+        SAVE_LIBS=$LIBS
         LIBS="-lcurl $LIBS"
 
         AC_CHECK_HEADERS([curl/curl.h], [],
@@ -756,6 +868,7 @@ if test "x$WIN32" = "xno" ; then
         else
             AC_MSG_NOTICE([skipping cURL checks.])
         fi
+        LIBS=$SAVE_LIBS
       ]
     )
 fi
@@ -768,6 +881,14 @@ else
     AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
 fi
 
+# define on all platforms
+AM_CONDITIONAL(HAVE_CARES, test x$cares = xtrue)
+if test "x$cares" = "xtrue" ; then
+    AC_DEFINE(USE_CARES, [1], [Define to use c-ares])
+else
+    AC_DEFINE(USE_CARES, [0], [Define to use c-ares])
+fi
+
 # determine platform include path
 if test "x$WIN32" = "xyes" ; then
     platform_include="mega/win32"
@@ -776,17 +897,6 @@ else
 fi
 AC_SUBST(platform_include)
 
-# Debug
-AC_ARG_ENABLE(debug,
-    AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
-    [], [enable_debug=no])
-
-# Enable debug flags / build
-if test "x$enable_debug" = "xyes" ; then
-    AM_CXXFLAGS="${AM_CXXFLAGS} -Wall -g -ggdb3 -O0"
-    AC_SUBST([AM_CXXFLAGS])
-    AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
-fi
 
 # Examples
 AC_MSG_CHECKING([if building example applications])
@@ -875,6 +985,31 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then
+    #termcap
+    AC_MSG_CHECKING(for termcap)
+    AC_ARG_WITH(termcap,
+      AS_HELP_STRING(--with-termcap=PATH, base of termcap installation),
+      [AC_MSG_RESULT($with_termcap)
+       case $with_termcap in
+       no)
+         ;;
+       yes)
+        TERMCAP_LIBS="-ltermcap"
+        ;;
+       *)
+        TERMCAP_LDFLAGS="-L$with_termcap"
+        TERMCAP_LIBS="-ltermcap"
+        TERMCAP_CXXFLAGS="-I$with_termcap"
+        TERMCAP_CPPFLAGS="-I$with_termcap"
+        ;;
+       esac
+      ], []
+    )
+    AC_SUBST(TERMCAP_LDFLAGS)
+    AC_SUBST(TERMCAP_LIBS)
+    AC_SUBST(TERMCAP_CXXFLAGS)
+    AC_SUBST(TERMCAP_CPPFLAGS)
+
       # ReadLine
     AC_MSG_CHECKING(for Readline)
     AC_ARG_WITH(readline,
@@ -892,6 +1027,9 @@ if test "x$enable_examples" = "xyes" ; then
 
          ;;
        *)
+
+        SAVE_LIBS=$LIBS
+        LIBS="-ltermcap $LIBS"
 
         # determine if library is installed
         if test -d "$with_readline/lib"; then
@@ -918,6 +1056,7 @@ if test "x$enable_examples" = "xyes" ; then
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
+        LIBS=$SAVE_LIBS
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
         CPPFLAGS=$SAVE_CPPFLAGS
@@ -935,31 +1074,9 @@ if test "x$enable_examples" = "xyes" ; then
       AC_SUBST(RL_LDFLAGS)
       AC_SUBST(RL_LIBS)
       AC_SUBST(RL_CXXFLAGS)
-
-    if test "x$WIN32" = "xyes" ; then
-        AC_MSG_CHECKING(for termcap)
-        AC_ARG_WITH(termcap,
-          AS_HELP_STRING(--with-termcap=PATH, base of termcap installation),
-          [AC_MSG_RESULT($with_termcap)
-           case $with_termcap in
-           no)
-             ;;
-           *)
-            TERMCAP_LDFLAGS="-L$with_termcap"
-            TERMCAP_LIBS="-ltermcap"
-            TERMCAP_CXXFLAGS="-I$with_termcap"
-            TERMCAP_CPPFLAGS="-I$with_termcap"
-            ;;
-           esac
-          ],
-            AC_MSG_ERROR([termcap.h header not found or not usable])
-          )
-          AC_SUBST(TERMCAP_LDFLAGS)
-          AC_SUBST(TERMCAP_LIBS)
-          AC_SUBST(TERMCAP_CXXFLAGS)
-          AC_SUBST(TERMCAP_CPPFLAGS)
-    fi
 fi
+
+
 
 if test "x$WIN32" = "xyes" ; then
     AC_MSG_CHECKING(for WinHTTP)
@@ -1023,3 +1140,30 @@ AC_CONFIG_FILES([
  libmega.pc
 ])
 AC_OUTPUT
+
+AC_MSG_NOTICE([Configured to build Mega SDK:
+
+  SDK version:      mega_version
+  Host setup:       ${host}
+  Install prefix:   $prefix
+  Compiler:         $CXX
+  CXXFLAGS:         $CXXFLAGS
+  gcc hardening:    $enable_gcc_hardening
+  debug:            $enable_debug
+  static:           $enable_static
+  example apps:     $enable_examples
+
+  inotify:          $enable_inotify
+  posix threads:    $enable_posix_threads
+
+  OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
+  Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS
+  Sodium:           $SODIUM_CXXFLAGS $SODIUM_LDFLAGS $SODIUM_LIBS
+  Zlib:             $ZLIB_CXXFLAGS $ZLIB_LDFLAGS $ZLIB_LIBS
+  SQLite3:          $DB_CXXFLAGS $DB_LDFLAGS $DB_LIBS
+  c-ares:           $CARES_FLAGS $CARES_LDFLAGS $CARES_LIBS
+  cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
+  FreeeImage:       $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
+  Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
+])

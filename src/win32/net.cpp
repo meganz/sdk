@@ -79,7 +79,7 @@ void WinHttpIO::setproxy(Proxy *proxy)
         proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
         WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
     }
-    else if(proxy->getProxyType() == Proxy::CUSTOM)
+    else if (proxy->getProxyType() == Proxy::CUSTOM)
     {
         string proxyURL = proxy->getProxyURL();
         proxyURL.append("", 1);
@@ -89,14 +89,21 @@ void WinHttpIO::setproxy(Proxy *proxy)
         proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
         WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
 
-        if(proxy->credentialsNeeded())
+        if (proxy->credentialsNeeded())
         {
             proxyUsername = proxy->getUsername();
-            if(proxyUsername.size())
+
+            if (proxyUsername.size())
+            {
                 proxyUsername.append("", 1);
+            }
+
             proxyPassword = proxy->getPassword();
+
             if(proxyPassword.size())
+            {
                 proxyPassword.append("", 1);
+            }
         }
     }
 
@@ -162,6 +169,7 @@ Proxy *WinHttpIO::getautoproxy()
                 autoProxyOptions.lpszAutoConfigUrl = NULL;
                 autoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP | WINHTTP_AUTO_DETECT_TYPE_DNS_A;
             }
+
             autoProxyOptions.fAutoLogonIfChallenged = TRUE;
             autoProxyOptions.lpvReserved = NULL;
             autoProxyOptions.dwReserved = 0;
@@ -181,9 +189,20 @@ Proxy *WinHttpIO::getautoproxy()
         }
     }
 
-    if (ieProxyConfig.lpszProxy) GlobalFree(ieProxyConfig.lpszProxy);
-    if (ieProxyConfig.lpszProxyBypass) GlobalFree(ieProxyConfig.lpszProxyBypass);
-    if (ieProxyConfig.lpszAutoConfigUrl) GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
+    if (ieProxyConfig.lpszProxy)
+    {
+        GlobalFree(ieProxyConfig.lpszProxy);
+    }
+
+    if (ieProxyConfig.lpszProxyBypass)
+    {
+        GlobalFree(ieProxyConfig.lpszProxyBypass);
+    }
+
+    if (ieProxyConfig.lpszAutoConfigUrl)
+    {
+        GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
+    }
 
     return proxy;
 }

@@ -214,7 +214,14 @@ void DemoApp::transfer_complete(Transfer* t)
 {
     displaytransferdetails(t, "completed, ");
 
-    cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+    if (t->slot)
+    {
+        cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+    }
+    else
+    {
+        cout << "delayed" << endl;
+    }
 }
 
 // transfer about to start - make final preparations (determine localfilename, create thumbnail for image upload)
@@ -1996,7 +2003,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
+                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n);
 
                                     if (e)
                                     {

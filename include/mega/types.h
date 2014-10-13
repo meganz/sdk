@@ -37,7 +37,11 @@
 // platform-specific includes and defines
 #include "megasys.h"
 
+// signed 64-bit generic offset
 typedef int64_t m_off_t;
+
+// opaque filesystem fingerprint
+typedef uint64_t fsfp_t;
 
 #ifdef USE_CRYPTOPP
 #include "crypto/cryptopp.h"
@@ -211,7 +215,7 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle
 typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 
-typedef enum { SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE, SYNC_FAILED } syncstate_t;
+typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE } syncstate_t;
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY } syncdel_t;

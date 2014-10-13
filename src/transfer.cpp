@@ -42,11 +42,15 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
-    if (faputcompletion_it != client->faputcompletion.end()) client->faputcompletion.erase(faputcompletion_it);
+    if (faputcompletion_it != client->faputcompletion.end())
+    {
+        client->faputcompletion.erase(faputcompletion_it);
+    }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
         (*it)->transfer = NULL;
+        (*it)->terminated();
     }
 
     if (transfers_it != client->transfers[type].end())
@@ -85,6 +89,7 @@ void Transfer::failed(error e)
     }
     else
     {
+        client->app->transfer_removed(this);
         delete this;
     }
 }
@@ -93,11 +98,6 @@ void Transfer::failed(error e)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
-    if (slot->fa)
-    {
-        client->app->transfer_complete(this);
-    }
-
     if (type == GET)
     {
         // disconnect temp file from slot...
@@ -216,7 +216,13 @@ void Transfer::complete()
 
                 if (success || !(*it)->failed(API_EAGAIN))
                 {
+                    File* f = (*it);
                     files.erase(it++);
+                    if(!success)
+                    {
+                        f->transfer = NULL;
+                        f->terminated();
+                    }
                 }
                 else
                 {
@@ -244,12 +250,12 @@ void Transfer::complete()
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this);
-
         return;
     }
 
     if (!files.size())
     {
+        client->app->transfer_complete(this);
         delete this;
     }
     else

@@ -104,7 +104,10 @@ public:
     // move file or folder to localdebris
     bool movetolocaldebris(string* localpath);
 
-    Sync(MegaClient*, string*, const char*, string*, Node*, int = 0);
+    // original filesystem fingerprint
+    fsfp_t fsfp;
+    
+    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
     ~Sync();
 
 protected :

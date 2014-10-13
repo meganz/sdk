@@ -23,6 +23,7 @@ namespace mega
 		friend ref class MNodeList;
 		friend ref class MTransfer;
 		friend ref class MRequest;
+		friend class DelegateMTreeProcessor;
 
 	public:
 		virtual ~MNode();

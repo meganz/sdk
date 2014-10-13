@@ -210,7 +210,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     ex.dwSize = sizeof(ex);
 
     if (type == FOLDERNODE)
+    {
         ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
+    }
 
     hFile = CreateFile2((LPCWSTR)name->data(),
                         read ? GENERIC_READ : GENERIC_WRITE,
@@ -223,7 +225,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
                         read ? OPEN_EXISTING : OPEN_ALWAYS,
-                        ((type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0),
+                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
                         NULL);
 #endif
 
@@ -243,7 +245,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 #ifdef WINDOWS_PHONE
     if (read && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
     {
-        fsid = *((handle *)(&(bhfi.FileId)));
+        fsid = *(handle*)&bhfi.FileId;
     }
 #else
     if (read && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
@@ -634,6 +636,18 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
     {
         localrootnode = l;
     }
+}
+
+fsfp_t WinDirNotify::fsfingerprint()
+{
+    BY_HANDLE_FILE_INFORMATION fi;
+
+    if (!GetFileInformationByHandle(hDirectory, &fi))
+    {
+        return 0;
+    }
+
+    return fi.dwVolumeSerialNumber + 1;
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
