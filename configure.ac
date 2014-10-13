@@ -209,8 +209,8 @@ AC_SUBST(LIBS_EXTRA)
 # check for Pthreads
 AC_ARG_ENABLE(posix-threads,
     AS_HELP_STRING(--disable-posix-threads, disable POSIX threads support),
-    [],
-    [enable_posix_threads=no])
+    [enable_posix_threads=no],
+    [enable_posix_threads=yes])
 if test x$enable_posix_threads != xno; then
     HAVE_PTHREAD=yes
     AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
