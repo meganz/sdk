@@ -74,7 +74,7 @@ package_configure() {
     local conf_f1="./config"
     local conf_f2="./configure"
 
-    echo "Configuring $name: $params"
+    echo "Configuring $name"
 
     local cwd=$(pwd)
     cd $dir || exit 1
@@ -221,7 +221,7 @@ zlib_pkg() {
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         package_configure $name $zlib_dir $install_dir "$zlib_params"
         package_build $name $zlib_dir
-        package_install $name $zlib_dir  "-f win32/Makefile.gcc"
+        package_install $name $zlib_dir
     else
         export BINARY_PATH=$install_dir/bin
         export INCLUDE_PATH=$install_dir/include
@@ -339,7 +339,7 @@ freeimage_pkg() {
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
-        cp $cwd/contrib/FreeImage.Makefile.osx $freeimage_dir
+        cp $cwd/contrib/FreeImage.Makefile.osx $freeimage_dir/Makefile.osx
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then

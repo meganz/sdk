@@ -186,6 +186,8 @@ AC_CHECK_LIB([rt], [clock_gettime])
 AC_FUNC_MALLOC
 
 # Check if building for Win32, determine Win32 API libs
+WIN32=no
+DARWIN=no
 AC_MSG_CHECKING([if building for Win32 platform])
 case $host in
   *-*-cygwin*)
@@ -200,15 +202,16 @@ case $host in
   *-apple-darwin*)
     AC_DEFINE([_XOPEN_SOURCE], [500], [Define _XOPEN_SOURCE])
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
-    WIN32=no
+    DARWIN=yes
     ;;
   *)
     LIBS_EXTRA=""
-    WIN32=no
     ;;
 esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
+AC_MSG_RESULT([${DARWIN}])
+AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
 
 # check for Pthreads

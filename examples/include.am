@@ -30,8 +30,9 @@ examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_
 endif
 
 if ENABLE_STATIC
+    if ! DARWIN
 examples_megacli_CXXFLAGS += -static
 examples_megacli_LDFLAGS = -Wl,-static -all-static
 examples_megasimplesync_LDFLAGS = -Wl,-static -all-static
+    endif
 endif
-
