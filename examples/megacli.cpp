@@ -2120,7 +2120,7 @@ static void process_line(char* l)
                                             return client->login(session, size);
                                         }
                                     }
-                                
+
                                     cout << "Invalid argument. Please specify a valid e-mail address, "
                                          << "a folder link containing the folder key "
                                          << "or a valid session." << endl;
@@ -2935,6 +2935,10 @@ static void process_line(char* l)
                         cout << "* _LARGE_FILES" << endl;
 #endif
 
+#ifdef USE_FREEIMAGE
+                        cout << "* FreeImage" << endl;
+#endif
+
                         cwd = UNDEF;
 
                         return;
@@ -2973,7 +2977,7 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
     else
     {
         responseprogress = -1;
-    }   
+    }
 }
 
 // login result
@@ -3211,7 +3215,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
     cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, len, stdout);
     cout << endl;
-    
+
     return true;
 }
 
@@ -3228,7 +3232,7 @@ dstime DemoApp::pread_failure(error e, int retry, void* appdata)
         return ~(dstime)0;
     }
 }
-    
+
 // reload needed
 void DemoApp::reload(const char* reason)
 {
