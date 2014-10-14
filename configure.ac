@@ -210,7 +210,6 @@ case $host in
 esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
-AC_MSG_RESULT([${DARWIN}])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
 AC_SUBST(LIBS_EXTRA)
 
