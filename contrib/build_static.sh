@@ -36,9 +36,11 @@ package_download() {
 
     echo "Downloading $name"
 
-    if [ ! -f $file ]; then
-        wget --no-check-certificate -c $url -O $file &> $name.download.log || exit 1
+    if [ -f $file ]; then
+        rm -f $file || true
     fi
+
+    wget --no-check-certificate -c $url -O $file &> $name.download.log || exit 1
 }
 
 package_extract() {
