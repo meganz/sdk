@@ -3146,8 +3146,7 @@ void DemoApp::openfilelink_result(error e)
 
 // the requested link was opened successfully - import to cwd
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
-                                  string* a, const char* fa, m_time_t ts,
-                                  m_time_t tm, int)
+                                  string* a, string* fa, int)
 {
     Node* n;
 
@@ -3159,10 +3158,10 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->source = NEW_PUBLIC;
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
-        newnode->clienttimestamp = tm;
+        newnode->clienttimestamp = 0;
         newnode->parenthandle = UNDEF;
 
-        newnode->nodekey.assign((char*) key, FILENODEKEYLENGTH);
+        newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
 
         newnode->attrstring = *a;
 
