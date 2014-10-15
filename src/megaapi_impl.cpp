@@ -17,8 +17,13 @@
 #include "megaapi.h"
 
 #ifdef __APPLE__
-    #include "xlocale.h"
-    #include "strings.h"
+    #include <xlocale.h>
+    #include <strings.h>
+    #include <TargetConditionals.h>
+
+    #ifdef TARGET_OS_IPHONE
+    #include <resolv.h>
+    #endif
 #endif
 
 #ifdef _WIN32
@@ -1889,6 +1894,18 @@ void MegaApiImpl::loop()
 	}
 
 	httpio->setdnsservers(servers.c_str());
+#elif TARGET_OS_IPHONE
+    string servers;
+    if ((_res.options & RES_INIT) == 0) res_init();
+    
+    for (int i = 0; i < _res.nscount; i++)
+    {
+        const char *ip = inet_ntoa(_res.nsaddr_list[i].sin_addr);
+        if (i > 0) servers.append(",");
+        servers.append(ip);
+    }
+    
+    httpio->setdnsservers(servers.c_str());
 #elif _WIN32
     httpio->entercs();
 #endif
