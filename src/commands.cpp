@@ -92,12 +92,17 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(int p, handle fahref)
+CommandGetFA::CommandGetFA(int p, handle fahref, bool chunked)
 {
     part = p;
 
     cmd("ufa");
     arg("fah", (byte*)&fahref, sizeof fahref);
+
+    if (chunked)
+    {
+        arg("r",1);
+    }
 }
 
 void CommandGetFA::procresult()

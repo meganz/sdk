@@ -571,12 +571,16 @@ void MegaClient::exec()
                         break;
 
                     case REQ_INFLIGHT:
-                        // implement timeout?
+                        // FIXME: implement timeout?
+                        httpio->lock();
                         it->second->parse(this, it->first, false);
+                        httpio->unlock();
                         break;
 
                     case REQ_SUCCESS:
+                        httpio->lock();
                         it->second->parse(this, it->first, true);
+                        httpio->unlock();
                         it->second->bt.reset();
                         break;
 
@@ -605,7 +609,7 @@ void MegaClient::exec()
                     if (itf != fafs.end())
                     {
                         // pending fetches present - dispatch
-                        reqs[r].add(new CommandGetFA(it->first, it->second->fahref));
+                        reqs[r].add(new CommandGetFA(it->first, it->second->fahref, httpio->chunkedok));
                         it->second->req.status = REQ_INFLIGHT;
                         it++;
                     }

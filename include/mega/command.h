@@ -104,7 +104,7 @@ class MEGA_API CommandGetFA : public Command
 public:
     void procresult();
 
-    CommandGetFA(int, handle);
+    CommandGetFA(int, handle, bool);
 };
 
 class MEGA_API CommandLogin : public Command

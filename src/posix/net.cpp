@@ -501,7 +501,8 @@ bool CurlHttpIO::doio()
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
-                            && req->contentlength == (req->buf ? req->bufpos : (int)req->in.size()))
+                            && (req->contentlength < 0
+                             || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                              ? REQ_SUCCESS : REQ_FAILURE;
 
                 inetstatus(req->status);

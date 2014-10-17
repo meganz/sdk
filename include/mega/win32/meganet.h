@@ -57,8 +57,8 @@ public:
 
     void addevents(Waiter*, int);
 
-    void entercs();
-    void leavecs();
+    void lock();
+    void unlock();
 
     void httpevent();
 

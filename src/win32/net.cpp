@@ -30,6 +30,8 @@ WinHttpIO::WinHttpIO()
     hWakeupEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
     waiter = NULL;
+    
+    chunkedok = false;
 }
 
 WinHttpIO::~WinHttpIO()
@@ -214,12 +216,12 @@ void WinHttpIO::httpevent()
 }
 
 // (WinHTTP unfortunately uses threads, hence the need for a mutex)
-void WinHttpIO::entercs()
+void WinHttpIO::lock()
 {
     EnterCriticalSection(&csHTTP);
 }
 
-void WinHttpIO::leavecs()
+void WinHttpIO::unlock()
 {
     LeaveCriticalSection(&csHTTP);
 }
@@ -228,6 +230,12 @@ void WinHttpIO::leavecs()
 void WinHttpIO::addevents(Waiter* cwaiter, int flags)
 {
     waiter = (WinWaiter*)cwaiter;
+
+    extern PGTC pGTC;
+
+    // enabled chunked transfer encoding if GetTickCount64() exists
+    // (we are on Vista or greater)
+    if (pGTC) chunkedok = true;
 
     waiter->addhandle(hWakeupEvent, flags);
     waiter->pcsHTTP = &csHTTP;
@@ -255,14 +263,14 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         return;
     }
 
-    httpio->entercs();
+    httpio->lock();
 
     HttpReq* req = httpctx->req;
 
     // request cancellations that occured after asynccallback() was entered are caught here
     if (!req)
     {
-        httpio->leavecs();
+        httpio->unlock();
         return;
     }
 
@@ -501,7 +509,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             }
     }
 
-    httpio->leavecs();
+    httpio->unlock();
 }
 
 // POST request to URL

@@ -74,11 +74,19 @@ struct MEGA_API HttpIO : public EventTrigger
     // execute I/O operations
     virtual bool doio(void) = 0;
 
+    // lock/unlock all in-flight HttpReqs
+    virtual void lock() { }
+    virtual void unlock() { }
+
     // track Internet connectivity issues
     dstime noinetds;
     bool inetback;
     void inetstatus(bool);
     bool inetisback();
+
+    // is HTTP chunked transfer encoding supported?
+    // (WinHTTP on XP does not)
+    bool chunkedok;
 
     // timestamp of last data received (across all connections)
     dstime lastdata;
@@ -106,6 +114,7 @@ struct MEGA_API HttpReq
 
     string* out;
     string in;
+    size_t inpurge;
 
     string outbuf;
 
@@ -130,6 +139,13 @@ struct MEGA_API HttpReq
 
     // store chunk of incoming data
     void put(void*, unsigned);
+
+    // start and size of unpurged data block - must be called with !buf and httpio locked
+    char* data();
+    size_t size();
+
+    // set amount of purgeable data at 0
+    void purge(size_t);
 
     // set response content length
     void setcontentlength(m_off_t);
