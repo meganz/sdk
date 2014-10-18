@@ -125,7 +125,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         w = FreeImage_GetWidth(dib);
         h = FreeImage_GetHeight(dib);
     }
-    
+
     return true;
 }
 
@@ -136,7 +136,7 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
     int px, py;
 
     if (!w || !h) return false;
-    
+
     transform(w, h, rw, rh, px, py);
 
     if (!w || !h) return false;
@@ -154,6 +154,16 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
             FreeImage_Unload(dib);
 
             dib = tdib;
+
+            WORD bpp = (WORD)FreeImage_GetBPP(dib);
+            if (bpp != 24) {
+                if ((tdib = FreeImage_ConvertTo24Bits(dib)) == NULL) {
+                    FreeImage_Unload(dib);
+                    return 0;
+                }
+                FreeImage_Unload(dib);
+                dib = tdib;
+            }
 
             if ((hmem = FreeImage_OpenMemory()))
             {
