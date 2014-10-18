@@ -78,7 +78,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
     const char* endptr = ptr + req.size();
     Node* n;
     faf_map::iterator it;
-    uint32_t falen;
+    uint32_t falen = 0;
 
     // data is structured as (handle.8.le / position.4.le) + attribute data
     // attributes are CBC-encrypted with the file's key
@@ -115,7 +115,6 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
                     n->key.cbc_decrypt((byte*)ptr, falen);
 
                     client->restag = it->second->tag;
-
                     client->app->fa_complete(n, it->second->type, ptr, falen);
 
                     delete it->second;
