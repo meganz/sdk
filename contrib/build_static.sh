@@ -40,7 +40,7 @@ package_download() {
         rm -f $file || true
     fi
 
-    wget --no-check-certificate -c $url -O $file &> $name.download.log || exit 1
+    wget --no-check-certificate -c $url -O $file --progress=bar:force || exit 1
 }
 
 package_extract() {

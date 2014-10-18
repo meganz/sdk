@@ -965,6 +965,10 @@ AC_ARG_WITH(freeimage,
   )
 AC_SUBST(FI_LDFLAGS)
 AC_SUBST(FI_LIBS)
+if test x$enable_static = xyes; then
+    $FI_CXXFLAGS="$FI_CXXFLAGS -DFREEIMAGE_LIB"
+    $FI_CPPFLAGS="$FI_CPPFLAGS -DFREEIMAGE_LIB"
+fi
 AC_SUBST(FI_CXXFLAGS)
 AC_SUBST(FI_CPPFLAGS)
 if test "x$freeimage" = "xtrue" ; then
