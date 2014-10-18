@@ -20,19 +20,9 @@ public:
 	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
 	virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
 
-signals:
-	void QTonTransferStartSignal(MegaApi *api, MegaTransfer *transfer);
-	void QTonTransferFinishSignal(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-	void QTonTransferUpdateSignal(MegaApi *api, MegaTransfer *transfer);
-	void QTonTransferTemporaryErrorSignal(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-
-public slots:
-	virtual void QTonTransferStart(MegaApi *api, MegaTransfer *transfer);
-	virtual void QTonTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-	virtual void QTonTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-	virtual void QTonTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-
 protected:
+    virtual void customEvent(QEvent * event);
+
     MegaApi *megaApi;
 	MegaTransferListener *listener;
 };

@@ -70,12 +70,12 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
@@ -89,12 +89,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -107,12 +107,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
@@ -126,12 +126,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalUsingDirectories>$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <CompileAsWinRT>true</CompileAsWinRT>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\include;$(ProjectDir)..\include;$(ProjectDir)..\..\..\third_party\utf8proc;$(ProjectDir)..\..\..\include\mega\wp8;$(ProjectDir)..\3rdparty\include;$(ProjectDir)..\3rdparty\include\cares;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
@@ -197,17 +197,21 @@
     <ClInclude Include="..\..\..\include\mega\wp8\meganet.h" />
     <ClInclude Include="..\..\..\include\mega\wp8\megasys.h" />
     <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h" />
+    <ClInclude Include="..\DelegateMGfxProcessor.h" />
     <ClInclude Include="..\DelegateMGlobalListener.h" />
     <ClInclude Include="..\DelegateMListener.h" />
     <ClInclude Include="..\DelegateMRequestListener.h" />
     <ClInclude Include="..\DelegateMTransferListener.h" />
+    <ClInclude Include="..\DelegateMTreeProcessor.h" />
     <ClInclude Include="..\MAccountDetails.h" />
     <ClInclude Include="..\MegaSDK.h" />
     <ClInclude Include="..\MError.h" />
+    <ClInclude Include="..\MGfxProcessorInterface.h" />
     <ClInclude Include="..\MGlobalListenerInterface.h" />
     <ClInclude Include="..\MListenerInterface.h" />
     <ClInclude Include="..\MNode.h" />
     <ClInclude Include="..\MNodeList.h" />
+    <ClInclude Include="..\MRandomNumberProvider.h" />
     <ClInclude Include="..\MRequest.h" />
     <ClInclude Include="..\MRequestListenerInterface.h" />
     <ClInclude Include="..\MShare.h" />
@@ -260,10 +264,12 @@
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\..\src\wp8\waiter.cpp" />
     <ClCompile Include="..\..\..\third_party\utf8proc\utf8proc.cpp" />
+    <ClCompile Include="..\DelegateMGfxProcessor.cpp" />
     <ClCompile Include="..\DelegateMGlobalListener.cpp" />
     <ClCompile Include="..\DelegateMListener.cpp" />
     <ClCompile Include="..\DelegateMRequestListener.cpp" />
     <ClCompile Include="..\DelegateMTransferListener.cpp" />
+    <ClCompile Include="..\DelegateMTreeProcessor.cpp" />
     <ClCompile Include="..\MAccountDetails.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />
     <ClCompile Include="..\MError.cpp" />

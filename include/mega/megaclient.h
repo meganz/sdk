@@ -59,7 +59,7 @@ public:
     int wait();
 
     // abort exponential backoff
-    bool abortbackoff();
+    bool abortbackoff(bool = true);
 
     // ID tag of the next request
     int nextreqtag();
@@ -81,8 +81,10 @@ public:
      * @brief Initialises the Ed25519 EdDSA key user properties.
      *
      * A key pair will be added, if not present, yet.
+     *
+     * @return Error code (default: 1 on success).
      */
-    void inited25519();
+    int inited25519();
 
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
@@ -203,7 +205,7 @@ public:
     error exportnode(Node*, int);
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, int);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
     void delsync(Sync*);
 
     // close all open HTTP connections
@@ -236,8 +238,8 @@ public:
     // toggle global debug flag
     bool toggledebug();
 
-    // submit an event
-    void submitevent(const char* evtclass, const char* message, int version);
+    // report an event to the API logger
+    void reportevent(const char*, const char* = NULL);
 
 private:
     // API request queue double buffering:
@@ -289,7 +291,7 @@ private:
     handle nextuh;
 
     // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 8;
+    static const unsigned MAXTRANSFERS = 12;
 
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);

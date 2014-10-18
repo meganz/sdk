@@ -2,7 +2,7 @@
  * @file mega/posix/megafs.h
  * @brief POSIX filesystem/directory access/notification
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -26,6 +26,10 @@
 // Apple calls it sendfile, but it isn't
 #undef HAVE_SENDFILE
 #define O_DIRECT 0
+#include <sys/param.h>
+#include <sys/mount.h>
+#else
+#include <sys/vfs.h>
 #endif
 
 #include "mega.h"
@@ -55,7 +59,7 @@ public:
 #ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
     wdlocalnode_map wdnodes;
-    
+
     // skip the IN_FROM component in moves if followed by IN_TO
     LocalNode* lastlocalnode;
     uint32_t lastcookie;
@@ -128,6 +132,8 @@ public:
 
     void addnotify(LocalNode*, string*);
     void delnotify(LocalNode*);
+
+    fsfp_t fsfingerprint();
 
     PosixDirNotify(string*, string*);
 };

@@ -214,7 +214,14 @@ void DemoApp::transfer_complete(Transfer* t)
 {
     displaytransferdetails(t, "completed, ");
 
-    cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+    if (t->slot)
+    {
+        cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+    }
+    else
+    {
+        cout << "delayed" << endl;
+    }
 }
 
 // transfer about to start - make final preparations (determine localfilename, create thumbnail for image upload)
@@ -1996,7 +2003,7 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
+                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n);
 
                                     if (e)
                                     {
@@ -2113,7 +2120,7 @@ static void process_line(char* l)
                                             return client->login(session, size);
                                         }
                                     }
-                                
+
                                     cout << "Invalid argument. Please specify a valid e-mail address, "
                                          << "a folder link containing the folder key "
                                          << "or a valid session." << endl;
@@ -2928,6 +2935,10 @@ static void process_line(char* l)
                         cout << "* _LARGE_FILES" << endl;
 #endif
 
+#ifdef USE_FREEIMAGE
+                        cout << "* FreeImage" << endl;
+#endif
+
                         cwd = UNDEF;
 
                         return;
@@ -2966,7 +2977,7 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
     else
     {
         responseprogress = -1;
-    }   
+    }
 }
 
 // login result
@@ -3135,8 +3146,7 @@ void DemoApp::openfilelink_result(error e)
 
 // the requested link was opened successfully - import to cwd
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
-                                  string* a, const char* fa, m_time_t ts,
-                                  m_time_t tm, int)
+                                  string* a, string* fa, int)
 {
     Node* n;
 
@@ -3148,10 +3158,10 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->source = NEW_PUBLIC;
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
-        newnode->clienttimestamp = tm;
+        newnode->clienttimestamp = 0;
         newnode->parenthandle = UNDEF;
 
-        newnode->nodekey.assign((char*) key, FILENODEKEYLENGTH);
+        newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
 
         newnode->attrstring = *a;
 
@@ -3204,7 +3214,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, void* appdata)
     cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, len, stdout);
     cout << endl;
-    
+
     return true;
 }
 
@@ -3221,7 +3231,7 @@ dstime DemoApp::pread_failure(error e, int retry, void* appdata)
         return ~(dstime)0;
     }
 }
-    
+
 // reload needed
 void DemoApp::reload(const char* reason)
 {

@@ -25,27 +25,47 @@
 #include "mega.h"
 #include <curl/curl.h>
 #include <openssl/ssl.h>
+#include <ares.h>
 
 namespace mega {
 
+struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
     string* useragent;
     CURLM* curlm;
     CURLSH* curlsh;
+    ares_channel ares;
     string proxyurl;
+    string proxyhost;
+    int proxyport;
+    string proxyip;
     string proxyusername;
     string proxypassword;
-	string dnsservers;
+    int proxyinflight;
+    std::queue<CurlHttpContext *> pendingrequests;
+
+    void send_pending_requests();
+    void drop_pending_requests();
 
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
+    static void proxy_ready_callback(void *arg, int status, int timeouts, struct hostent *host);
+    static void ares_completed_callback(void *arg, int status, int timeouts, struct hostent *host);
+    static void send_request(CurlHttpContext *httpctx);
+    static bool crackurl(string *url, string *hostname, int* port);
 
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
+
+#ifndef WINDOWS_PHONE
+    PosixWaiter* waiter;
+#else
+    WinPhoneWaiter* waiter;
+#endif
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);
@@ -64,6 +84,20 @@ public:
 
     CurlHttpIO();
     ~CurlHttpIO();
+};
+
+struct MEGA_API CurlHttpContext
+{
+    CURL* curl;
+
+    HttpReq* req;
+    CurlHttpIO* httpio;
+
+    struct curl_slist *resolve;
+    string hostname;
+    int port;
+    unsigned len;
+    const char* data;
 };
 
 } // namespace

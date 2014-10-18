@@ -155,6 +155,12 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     notifyq[q].back().path.assign(localpath, len);
 }
 
+// default: no fingerprint
+fsfp_t DirNotify::fsfingerprint()
+{
+    return 0;
+}
+
 DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
     return new DirNotify(localpath, ignore);

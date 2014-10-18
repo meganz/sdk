@@ -29,7 +29,7 @@ namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, int ctag)
+           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, int ctag)
 {
     string dbname;
 
@@ -62,6 +62,16 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 
         // FIXME: pass last segment of localdebris
         dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+    }
+
+    // set specified fsfp or get from fs if none
+    if (cfsfp)
+    {
+        fsfp = cfsfp;
+    }
+    else
+    {
+        fsfp = dirnotify->fsfingerprint();
     }
 
     localroot.init(this, FOLDERNODE, NULL, crootpath);
@@ -98,7 +108,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
-    assert(state == SYNC_CANCELED);
+    assert(state == SYNC_CANCELED || state == SYNC_FAILED);
 
     // unlock tmp lock
     delete tmpfa;
@@ -225,7 +235,7 @@ void Sync::statecacheadd(LocalNode* l)
 
 void Sync::cachenodes()
 {
-    if (statecachetable && state == SYNC_ACTIVE && (deleteq.size() || insertq.size()))
+    if (statecachetable && (state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
     {
         statecachetable->begin();
 
@@ -239,7 +249,7 @@ void Sync::cachenodes()
 
         // additions - we iterate until completion or until we get stuck 
         bool added;
-        
+
         do {
             added = false;
 
@@ -544,97 +554,106 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         {
             if (l)
             {
-                // mark as present
-                l->setnotseen(0);
-
-                if (fa->type == FILENODE)
+                if (l->type == fa->type)
                 {
-                    // has the file been overwritten or changed since the last scan?
-                    // or did the size or mtime change?
-                    if (fa->fsidvalid)
-                    {
-                        // if fsid has changed, the file was overwritten
-                        // (FIXME: handle type changes)
-                        if (l->fsid != fa->fsid)
-                        {
-                            handlelocalnode_map::iterator it;
+                    // mark as present
+                    l->setnotseen(0);
 
-                            // was the file overwritten by moving an existing file over it?
-                            if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
+                    if (fa->type == FILENODE)
+                    {
+                        // has the file been overwritten or changed since the last scan?
+                        // or did the size or mtime change?
+                        if (fa->fsidvalid)
+                        {
+                            // if fsid has changed, the file was overwritten
+                            // (FIXME: handle type changes)
+                            if (l->fsid != fa->fsid)
                             {
-                                // catch the not so unlikely case of a false fsid match due to
-                                // e.g. a file deletion/creation cycle that reuses the same inode
-                                if (it->second->mtime != fa->mtime || it->second->size != fa->size)
+                                handlelocalnode_map::iterator it;
+
+                                // was the file overwritten by moving an existing file over it?
+                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
                                 {
-                                    delete it->second;
+                                    // catch the not so unlikely case of a false fsid match due to
+                                    // e.g. a file deletion/creation cycle that reuses the same inode
+                                    if (it->second->mtime != fa->mtime || it->second->size != fa->size)
+                                    {
+                                        delete it->second;
+                                    }
+                                    else
+                                    {
+                                        // delete existing LocalNode...
+                                        delete l;
+
+                                        // ...move remote node out of the way...
+                                        client->execmovetosyncdebris();
+                                        
+                                        // ...and atomically replace with moved one
+                                        client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
+
+                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                                        it->second->setnameparent(parent, localname ? localpath : &tmppath);
+
+                                        // mark as seen / undo possible deletion
+                                        it->second->setnotseen(0);
+
+                                        statecacheadd(it->second);
+
+                                        delete fa;
+                                        return it->second;
+                                    }
                                 }
                                 else
                                 {
-                                    // delete existing LocalNode...
-                                    delete l;
-
-                                    // ...move remote node out of the way...
-                                    client->execmovetosyncdebris();
-                                    
-                                    // ...and atomically replace with moved one
-                                    client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
-
-                                    // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                    it->second->setnameparent(parent, localname ? localpath : &tmppath);
-
-                                    // mark as seen / undo possible deletion
-                                    it->second->setnotseen(0);
-
-                                    statecacheadd(it->second);
-
-                                    delete fa;
-                                    return it->second;
+                                    l->mtime = -1;  // trigger change detection
                                 }
                             }
-                            else
+                        }
+
+                        // no fsid change detected or overwrite with unknown file:
+                        if (fa->mtime != l->mtime || fa->size != l->size)
+                        {
+                            if (fa->fsidvalid && (l->fsid != fa->fsid))
                             {
-                                l->mtime = -1;  // trigger change detection
+                                l->setfsid(fa->fsid);
                             }
+
+                            m_off_t dsize = l->size;
+
+                            if (l->genfingerprint(fa))
+                            {
+                                localbytes -= dsize - l->size;
+                            }
+
+                            client->app->syncupdate_local_file_change(this, path.c_str());
+
+                            client->stopxfer(l);
+                            l->bumpnagleds();
+                            l->deleted = false;
+
+                            client->syncactivity = true;
+
+                            statecacheadd(l);
+
+                            delete fa;
+                            return l;
                         }
                     }
-
-                    // no fsid change detected or overwrite with unknown file:
-                    if (fa->mtime != l->mtime || fa->size != l->size)
+                    else
                     {
-                        if (fa->fsidvalid && (l->fsid != fa->fsid))
+                        // (we tolerate overwritten folders, because we do a
+                        // content scan anyway)
+                        if (fa->fsidvalid)
                         {
                             l->setfsid(fa->fsid);
                         }
-
-                        m_off_t dsize = l->size;
-
-                        if (l->genfingerprint(fa))
-                        {
-                            localbytes -= dsize - l->size;
-                        }
-
-                        client->app->syncupdate_local_file_change(this, path.c_str());
-
-                        client->stopxfer(l);
-                        l->bumpnagleds();
-                        l->deleted = false;
-
-                        client->syncactivity = true;
-
-                        statecacheadd(l);
-
-                        delete fa;
-                        return l;
                     }
                 }
                 else
                 {
-                    // (we tolerate overwritten folders, because we do a
-                    // content scan anyway)
-                    if (fa->fsidvalid)
-                    {
-                        l->setfsid(fa->fsid);
-                    }
+                    // node type changed: recreate
+                    delete l;
+                    l = NULL;
                 }
             }
 
@@ -644,7 +663,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
 
-                if (fa->fsidvalid && ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()))
+                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
                 {
                     client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
 
@@ -813,7 +832,7 @@ dstime Sync::procscanq(int q)
         // we return control to the application in case a filenode was added
         // (in order to avoid lengthy blocking episodes due to multiple
         // consecutive fingerprint calculations)
-        if (l && (l->type == FILENODE))
+        if (l && l != (LocalNode*)~0 && l->type == FILENODE)
         {
             break;
         }

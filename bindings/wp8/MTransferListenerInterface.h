@@ -17,5 +17,7 @@ namespace mega
 		void onTransferFinish(MegaSDK^ api, MTransfer^ transfer, MError^ e);
 		void onTransferUpdate(MegaSDK^ api, MTransfer^ transfer);
 		void onTransferTemporaryError(MegaSDK^ api, MTransfer^ transfer, MError^ e);		
+
+		bool onTransferData(MegaSDK^ api, MTransfer^ transfer, const ::Platform::Array<unsigned char>^ data);
 	};
 }

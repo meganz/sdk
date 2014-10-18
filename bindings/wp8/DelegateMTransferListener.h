@@ -25,6 +25,8 @@ namespace mega
 		void onTransferUpdate(MegaApi* api, MegaTransfer* transfer);
 		void onTransferTemporaryError(MegaApi* api, MegaTransfer* transfer, MegaError* e);
 
+		bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size);
+
 	private:
 		MegaSDK^ megaSDK;
 		MTransferListenerInterface^ listener;

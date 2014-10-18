@@ -776,6 +776,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 assert(parent->node);
                 
                 // FIXME: detect if rename permitted, copy/delete if not
+                sync->client->reqtag = sync->tag;
                 sync->client->rename(node, parent->node);
                 treestate(TREESTATE_SYNCING);
             }
@@ -808,6 +809,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     notseen = 0;
     deleted = false;
     created = false;
+    reported = false;
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
@@ -1012,7 +1014,8 @@ LocalNode::~LocalNode()
 
     if (type == FOLDERNODE)
     {
-        sync->dirnotify->delnotify(this);
+        if(sync->dirnotify)
+            sync->dirnotify->delnotify(this);
     }
 
     // remove parent association
@@ -1274,6 +1277,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     // FIXME: serialize/unserialize
     l->created = false;
+    l->reported = false;
 
     return l;
 }

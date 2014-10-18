@@ -100,6 +100,7 @@ void File::completed(Transfer* t, LocalNode* l)
         if (targetuser.size())
         {
             // drop file into targetuser's inbox
+            t->client->reqtag = l ? l->sync->tag : t->tag;
             t->client->putnodes(targetuser.c_str(), newnode, 1);
         }
         else
@@ -124,6 +125,11 @@ void File::completed(Transfer* t, LocalNode* l)
                                                                   l ? PUTNODES_SYNC : PUTNODES_APP));
         }
     }
+}
+
+void File::terminated()
+{
+
 }
 
 // do not retry crypto errors or administrative takedowns; retry other types of
@@ -273,6 +279,11 @@ void SyncFileGet::updatelocalname()
 void SyncFileGet::completed(Transfer* t, LocalNode* n)
 {
     sync->checkpath(NULL, &localname);
+    delete this;
+}
+
+void SyncFileGet::terminated()
+{
     delete this;
 }
 } // namespace

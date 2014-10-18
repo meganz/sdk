@@ -30,6 +30,8 @@ WinHttpIO::WinHttpIO()
     hWakeupEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
     waiter = NULL;
+    
+    chunkedok = false;
 }
 
 WinHttpIO::~WinHttpIO()
@@ -79,19 +81,31 @@ void WinHttpIO::setproxy(Proxy *proxy)
         proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
         WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
     }
-    else if(proxy->getProxyType() == Proxy::CUSTOM)
+    else if (proxy->getProxyType() == Proxy::CUSTOM)
     {
         string proxyURL = proxy->getProxyURL();
+        proxyURL.append("", 1);
         WINHTTP_PROXY_INFO proxyInfo;
         proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
         proxyInfo.lpszProxy = (LPWSTR)proxyURL.data();
         proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
         WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
 
-        if(proxy->credentialsNeeded())
+        if (proxy->credentialsNeeded())
         {
             proxyUsername = proxy->getUsername();
+
+            if (proxyUsername.size())
+            {
+                proxyUsername.append("", 1);
+            }
+
             proxyPassword = proxy->getPassword();
+
+            if(proxyPassword.size())
+            {
+                proxyPassword.append("", 1);
+            }
         }
     }
 
@@ -123,7 +137,6 @@ Proxy *WinHttpIO::getautoproxy()
                 {
                     proxyURL.resize(i*sizeof(wchar_t));
                     len = i;
-                    proxyURL.append("",1);
                     break;
                 }
             }
@@ -158,6 +171,7 @@ Proxy *WinHttpIO::getautoproxy()
                 autoProxyOptions.lpszAutoConfigUrl = NULL;
                 autoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP | WINHTTP_AUTO_DETECT_TYPE_DNS_A;
             }
+
             autoProxyOptions.fAutoLogonIfChallenged = TRUE;
             autoProxyOptions.lpvReserved = NULL;
             autoProxyOptions.dwReserved = 0;
@@ -170,16 +184,27 @@ Proxy *WinHttpIO::getautoproxy()
                 {
                     string proxyURL;
                     proxy->setProxyType(Proxy::CUSTOM);
-                    proxyURL.assign((const char*)proxyInfo.lpszProxy, (lstrlen(proxyInfo.lpszProxy) + 1) * sizeof(wchar_t));
+                    proxyURL.assign((const char*)proxyInfo.lpszProxy, lstrlen(proxyInfo.lpszProxy) * sizeof(wchar_t));
                     proxy->setProxyURL(&proxyURL);
                 }
             }
         }
     }
 
-    if (ieProxyConfig.lpszProxy) GlobalFree(ieProxyConfig.lpszProxy);
-    if (ieProxyConfig.lpszProxyBypass) GlobalFree(ieProxyConfig.lpszProxyBypass);
-    if (ieProxyConfig.lpszAutoConfigUrl) GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
+    if (ieProxyConfig.lpszProxy)
+    {
+        GlobalFree(ieProxyConfig.lpszProxy);
+    }
+
+    if (ieProxyConfig.lpszProxyBypass)
+    {
+        GlobalFree(ieProxyConfig.lpszProxyBypass);
+    }
+
+    if (ieProxyConfig.lpszAutoConfigUrl)
+    {
+        GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
+    }
 
     return proxy;
 }
@@ -191,12 +216,12 @@ void WinHttpIO::httpevent()
 }
 
 // (WinHTTP unfortunately uses threads, hence the need for a mutex)
-void WinHttpIO::entercs()
+void WinHttpIO::lock()
 {
     EnterCriticalSection(&csHTTP);
 }
 
-void WinHttpIO::leavecs()
+void WinHttpIO::unlock()
 {
     LeaveCriticalSection(&csHTTP);
 }
@@ -205,6 +230,12 @@ void WinHttpIO::leavecs()
 void WinHttpIO::addevents(Waiter* cwaiter, int flags)
 {
     waiter = (WinWaiter*)cwaiter;
+
+    extern PGTC pGTC;
+
+    // enabled chunked transfer encoding if GetTickCount64() exists
+    // (we are on Vista or greater)
+    if (pGTC) chunkedok = true;
 
     waiter->addhandle(hWakeupEvent, flags);
     waiter->pcsHTTP = &csHTTP;
@@ -232,14 +263,14 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         return;
     }
 
-    httpio->entercs();
+    httpio->lock();
 
     HttpReq* req = httpctx->req;
 
     // request cancellations that occured after asynccallback() was entered are caught here
     if (!req)
     {
-        httpio->leavecs();
+        httpio->unlock();
         return;
     }
 
@@ -478,7 +509,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             }
     }
 
-    httpio->leavecs();
+    httpio->unlock();
 }
 
 // POST request to URL

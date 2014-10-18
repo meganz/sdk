@@ -87,12 +87,13 @@ class MegaNode
 
         virtual int getType() = 0;
         virtual const char* getName() = 0;
-        virtual const char *getBase64Handle() = 0;
+        virtual const char* getBase64Handle() = 0;
         virtual int64_t getSize() = 0;
         virtual int64_t getCreationTime() = 0;
         virtual int64_t getModificationTime() = 0;
         virtual MegaHandle getHandle() = 0;
         virtual std::string* getNodeKey() = 0;
+        virtual const char* getBase64Key() = 0;
         virtual std::string* getAttrString() = 0;
         virtual int getTag() = 0;
         virtual bool isFile() = 0;
@@ -102,6 +103,7 @@ class MegaNode
         virtual std::string getLocalPath() = 0;
         virtual bool hasThumbnail() = 0;
         virtual bool hasPreview() = 0;
+        virtual bool isPublic() = 0;
 };
 
 class MegaUser
@@ -188,7 +190,7 @@ class MegaRequest
                 TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE, TYPE_SUBMIT_EVENT };
+                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE };
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;
@@ -423,8 +425,10 @@ class MegaApi
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
         static MegaHandle base64ToHandle(const char* base64Handle);
+        static const char* handleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
-        void retryPendingConnections(MegaRequestListener* listener = NULL);
+        void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+        static void addEntropy(unsigned char* data, unsigned int size);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -455,10 +459,13 @@ class MegaApi
         void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -468,6 +475,7 @@ class MegaApi
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+        void reportDebugEvent(const char *text, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -485,18 +493,10 @@ class MegaApi
         int syncPathState(std::string *path);
         MegaNode *getSyncedNode(std::string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder);
-        void resumeSync(const char *localFolder, MegaNode *megaFolder);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder);
         void removeSync(MegaHandle nodeMegaHandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
-        int getNumPendingUploads();
-        int getNumPendingDownloads();
-        int getTotalUploads();
-        int getTotalDownloads();
-        void resetTotalDownloads();
-        void resetTotalUploads();
-        std::string getLocalPath(MegaNode *node);
-        void updateStatics();
         void update();
         bool isIndexing();
         bool isWaiting();
@@ -504,7 +504,17 @@ class MegaApi
         void setExcludedNames(std::vector<std::string> *excludedNames);
         bool moveToLocalDebris(const char *path);
         bool isSyncable(const char *name);
-        static void removeRecursively(const char *path);
+
+        //Statistics
+        int getNumPendingUploads();
+        int getNumPendingDownloads();
+        int getTotalUploads();
+        int getTotalDownloads();
+        void resetTotalDownloads();
+        void resetTotalUploads();
+        void updateStatics();
+        long long getTotalDownloadedBytes();
+        long long getTotalUploadedBytes();
 
         //Filesystem
         enum {	ORDER_NONE, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
@@ -529,6 +539,8 @@ class MegaApi
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
+        std::string getLocalPath(MegaNode *node);
+        static void removeRecursively(const char *path);
 
         //Fingerprint
         const char* getFingerprint(const char *filePath);
@@ -584,6 +596,7 @@ public:
     virtual long long getStorageUsed(MegaHandle handle) = 0;
     virtual long long getNumFiles(MegaHandle handle) = 0;
     virtual long long getNumFolders(MegaHandle handle) = 0;
+	virtual MegaAccountDetails* copy() = 0;
 };
 
 }

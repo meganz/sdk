@@ -1,19 +1,13 @@
 #include "QTMegaTransferListener.h"
+#include <QCoreApplication>
+#include "QTMegaEvent.h"
 
 using namespace mega;
 
 QTMegaTransferListener::QTMegaTransferListener(MegaApi *megaApi, MegaTransferListener *listener) : QObject()
 {
     this->megaApi = megaApi;
-	this->listener = listener;
-	connect(this, SIGNAL(QTonTransferStartSignal(MegaApi *, MegaTransfer *)),
-			this, SLOT(QTonTransferStart(MegaApi *, MegaTransfer *)));
-	connect(this, SIGNAL(QTonTransferFinishSignal(MegaApi *, MegaTransfer *, MegaError *)),
-			this, SLOT(QTonTransferFinish(MegaApi *, MegaTransfer *, MegaError *)));
-	connect(this, SIGNAL(QTonTransferUpdateSignal(MegaApi *, MegaTransfer *)),
-			this, SLOT(QTonTransferUpdate(MegaApi *, MegaTransfer *)));
-	connect(this, SIGNAL(QTonTransferTemporaryErrorSignal(MegaApi *, MegaTransfer *, MegaError *)),
-            this, SLOT(QTonTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError *)));
+    this->listener = listener;
 }
 
 QTMegaTransferListener::~QTMegaTransferListener()
@@ -22,48 +16,53 @@ QTMegaTransferListener::~QTMegaTransferListener()
     megaApi->removeTransferListener(this);
 }
 
+
 void QTMegaTransferListener::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
-	emit QTonTransferStartSignal(api, transfer->copy());
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnTransferStart);
+    event->setTransfer(transfer->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
 void QTMegaTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *e)
 {
-	emit QTonTransferFinishSignal(api, transfer->copy(), e->copy());
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnTransferFinish);
+    event->setTransfer(transfer->copy());
+    event->setError(e->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
 void QTMegaTransferListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 {
-	emit QTonTransferUpdateSignal(api, transfer->copy());
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnTransferUpdate);
+    event->setTransfer(transfer->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
 void QTMegaTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e)
 {
-    emit QTonTransferTemporaryErrorSignal(api, transfer->copy(), e->copy());
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnTransferTemporaryError);
+    event->setTransfer(transfer->copy());
+    event->setError(e->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
-void QTMegaTransferListener::QTonTransferStart(MegaApi *api, MegaTransfer *transfer)
+void QTMegaTransferListener::customEvent(QEvent *e)
 {
-	if(listener) listener->onTransferStart(api, transfer);
-	delete transfer;
-}
-
-void QTMegaTransferListener::QTonTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *e)
-{
-	if(listener) listener->onTransferFinish(api, transfer, e);
-	delete transfer;
-	delete e;
-}
-
-void QTMegaTransferListener::QTonTransferUpdate(MegaApi *api, MegaTransfer *transfer)
-{
-	if(listener) listener->onTransferUpdate(api, transfer);
-	delete transfer;
-}
-
-void QTMegaTransferListener::QTonTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e)
-{
-	if(listener) listener->onTransferTemporaryError(api, transfer, e);
-	delete transfer;
-	delete e;
+    QTMegaEvent *event = (QTMegaEvent *)e;
+    switch(event->type())
+    {
+        case QTMegaEvent::OnTransferStart:
+            if(listener) listener->onTransferStart(event->getMegaApi(), event->getTransfer());
+            break;
+        case QTMegaEvent::OnTransferTemporaryError:
+            if(listener) listener->onTransferTemporaryError(event->getMegaApi(), event->getTransfer(), event->getError());
+            break;
+        case QTMegaEvent::OnTransferUpdate:
+            if(listener) listener->onTransferUpdate(event->getMegaApi(), event->getTransfer());
+            break;
+        case QTMegaEvent::OnTransferFinish:
+            if(listener) listener->onTransferFinish(event->getMegaApi(), event->getTransfer(), event->getError());
+            break;
+    }
 }

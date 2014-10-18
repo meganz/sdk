@@ -33,6 +33,7 @@ DEALINGS IN THE SOFTWARE.
 
 #ifndef _WIN32
 #include <openssl/ssl.h>
+#include <openssl/rand.h>
 #include <curl/curl.h>
 #include <fcntl.h>
 #endif
@@ -118,6 +119,7 @@ class MegaNodePrivate : public MegaNode
 		virtual int64_t getModificationTime();
 		virtual MegaHandle getHandle();
 		virtual std::string* getNodeKey();
+        virtual const char *getBase64Key();
 		virtual std::string* getAttrString();
 		virtual int getTag();
 		virtual bool isFile();
@@ -127,6 +129,7 @@ class MegaNodePrivate : public MegaNode
 		virtual std::string getLocalPath();
 		virtual bool hasThumbnail();
 		virtual bool hasPreview();
+        virtual bool isPublic();
 
 		static MegaNode *fromNode(Node *node);
 		virtual MegaNode *copy();
@@ -147,6 +150,7 @@ class MegaNodePrivate : public MegaNode
 		bool syncdeleted;
 		bool thumbnailAvailable;
 		bool previewAvailable;
+        bool isPublicNode;
 };
 
 
@@ -316,7 +320,8 @@ class MegaRequestPrivate : public MegaRequest
         void setListener(MegaRequestListener *listener);
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
-        
+        void setTag(int tag);
+
         virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
@@ -345,6 +350,7 @@ class MegaRequestPrivate : public MegaRequest
 		virtual MegaAccountDetails *getMegaAccountDetails() const;
         virtual int getTransfer() const;
 		virtual int getNumDetails() const;
+        virtual int getTag() const;
 	    AccountDetails * getAccountDetails() const;
         
     protected:
@@ -373,6 +379,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaNode* publicNode;
 		int numRetry;
 		int nextRetryDelay;
+        int tag;
 };
 
 class MegaAccountDetailsPrivate : public MegaAccountDetails
@@ -391,6 +398,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 		virtual long long getNumFiles(MegaHandle handle);
 		virtual long long getNumFolders(MegaHandle handle);
 	
+		virtual MegaAccountDetails* copy();
+
 	private:
 		MegaAccountDetailsPrivate(AccountDetails *details);
 		AccountDetails *details;
@@ -463,7 +472,11 @@ struct MegaFile : public File
 
 struct MegaFileGet : public MegaFile
 {
+    void prepare();
+    void updatelocalname();
+    void progress();
     void completed(Transfer*, LocalNode*);
+    void terminated();
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
 	~MegaFileGet() {}
@@ -472,6 +485,7 @@ struct MegaFileGet : public MegaFile
 struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*);
+    void terminated();
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser);
     ~MegaFilePut() {}
 };
@@ -559,8 +573,10 @@ class MegaApiImpl : public MegaApp
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
         static handle base64ToHandle(const char* base64Handle);
+        static const char* handleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
-        void retryPendingConnections(bool disconnect = false, MegaRequestListener* listener = NULL);
+        void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+        static void addEntropy(unsigned char* data, unsigned int size);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -591,10 +607,13 @@ class MegaApiImpl : public MegaApp
         void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -604,7 +623,7 @@ class MegaApiImpl : public MegaApp
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
-        void submitEvent(int eventClass, const char *message, int version, MegaRequestListener *listener = NULL);
+        void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -622,18 +641,10 @@ class MegaApiImpl : public MegaApp
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder);
-        void resumeSync(const char *localFolder, MegaNode *megaFolder);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
-        int getNumPendingUploads();
-        int getNumPendingDownloads();
-        int getTotalUploads();
-        int getTotalDownloads();
-        void resetTotalDownloads();
-        void resetTotalUploads();
-        string getLocalPath(MegaNode *node);
-        void updateStatics();
         void update();
         bool isIndexing();
         bool isWaiting();
@@ -641,7 +652,17 @@ class MegaApiImpl : public MegaApp
         void setExcludedNames(vector<string> *excludedNames);
         bool moveToLocalDebris(const char *path);
         bool is_syncable(const char* name);
-        static void removeRecursively(const char *path);
+
+        //Statistics
+        int getNumPendingUploads();
+        int getNumPendingDownloads();
+        int getTotalUploads();
+        int getTotalDownloads();
+        void resetTotalDownloads();
+        void resetTotalUploads();
+        void updateStatics();
+        long long getTotalDownloadedBytes();
+        long long getTotalUploadedBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
@@ -660,6 +681,8 @@ class MegaApiImpl : public MegaApp
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
+        string getLocalPath(MegaNode *node);
+        static void removeRecursively(const char *path);
 
         //Fingerprint
         const char* getFingerprint(const char *filePath);
@@ -726,6 +749,8 @@ protected:
         int pendingDownloads;
         int totalUploads;
         int totalDownloads;
+        long long totalDownloadedBytes;
+        long long totalUploadedBytes;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
         set<MegaGlobalListener *> globalListeners;
@@ -812,7 +837,7 @@ protected:
 
         // exported link access result
         virtual void openfilelink_result(error);
-        virtual void openfilelink_result(handle, const byte*, m_off_t, string*, const char*, m_time_t, m_time_t, int);
+        virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int);
 
         // global transfer queue updates (separate signaling towards the queued objects)
         virtual void transfer_added(Transfer*);
@@ -826,7 +851,7 @@ protected:
         virtual dstime pread_failure(error, int, void*);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
-        virtual void submitevent_result(error);
+        virtual void reportevent_result(error);
 
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);
@@ -873,9 +898,10 @@ protected:
         NodeList* search(Node* node, const char* searchString, bool recursive = 1);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener = NULL);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void getUserAttribute(MegaUser* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttribute(MegaUser* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, MegaTransferListener *listener);
         void startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener = NULL);
         void startDownload(handle nodehandle, const char* target, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener);

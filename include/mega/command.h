@@ -2,7 +2,7 @@
  * @file mega/command.h
  * @brief Request command component
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -104,10 +104,9 @@ class MEGA_API CommandGetFA : public Command
 public:
     void procresult();
 
-    CommandGetFA(int, handle);
+    CommandGetFA(int, handle, bool);
 };
 
-// log into full account (ephemeral sessions are curently unsupported)
 class MEGA_API CommandLogin : public Command
 {
     bool checksession;
@@ -243,7 +242,6 @@ public:
 class MEGA_API CommandMoveNode : public Command
 {
     handle h;
-    Node* syncn;
     syncdel_t syncdel;
 
 public:
@@ -448,12 +446,12 @@ public:
     CommandEnumerateQuotaItems(MegaClient*);
 };
 
-class MEGA_API CommandSubmitEvent : public Command
+class MEGA_API CommandReportEvent : public Command
 {
 public:
     void procresult();
 
-    CommandSubmitEvent(MegaClient*, const char*, const char*, int);
+    CommandReportEvent(MegaClient*, const char*, const char*);
 };
 } // namespace
 

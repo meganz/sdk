@@ -22,6 +22,9 @@
 #include "DelegateMTransferListener.h"
 #include "DelegateMGlobalListener.h"
 #include "DelegateMListener.h"
+#include "DelegateMTreeProcessor.h"
+#include "DelegateMGfxProcessor.h"
+#include "MRandomNumberProvider.h"
 
 #include <megaapi.h>
 #include <set>
@@ -47,8 +50,9 @@ namespace mega
 		friend class DelegateMListener;
 
 	public:
-		MegaSDK(String^ appKey, String^ userAgent);
-		MegaSDK(String^ appKey, String^ userAgent, String^ basePath);
+		MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^randomProvider);
+		MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider);
+		MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider, MGfxProcessorInterface^ gfxProcessor);
 		virtual ~MegaSDK();
 		void addListener(MListenerInterface^ listener);
 		void addRequestListener(MRequestListenerInterface^ listener);
@@ -63,7 +67,6 @@ namespace mega
 		static uint64 base64ToHandle(String^ base64Handle);
 		static String^ ebcEncryptKey(String^ encryptionKey, String^ plainKey);
 		void retryPendingConnections();
-		void retryPendingConnections(MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password, MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password);
 		String^ dumpSession();
@@ -107,14 +110,20 @@ namespace mega
 		void getPublicNode(String^ megaFileLink);
 		void getThumbnail(MNode^ node, String^ dstFilePath, MRequestListenerInterface^ listener);
 		void getThumbnail(MNode^ node, String^ dstFilePath);
+		void cancelGetThumbnail(MNode^ node, MRequestListenerInterface^ listener);
+		void cancelGetThumbnail(MNode^ node);
 		void setThumbnail(MNode^ node, String^ srcFilePath, MRequestListenerInterface^ listener);
 		void setThumbnail(MNode^ node, String^ srcFilePath);
 		void getPreview(MNode^ node, String^ dstFilePath, MRequestListenerInterface^ listener);
 		void getPreview(MNode^ node, String^ dstFilePath);
+		void cancelGetPreview(MNode^ node, MRequestListenerInterface^ listener);
+		void cancelGetPreview(MNode^ node);
 		void setPreview(MNode^ node, String^ srcFilePath, MRequestListenerInterface^ listener);
 		void setPreview(MNode^ node, String^ srcFilePath);
 		void getUserAvatar(MUser^ user, String^ dstFilePath, MRequestListenerInterface^ listener);
 		void getUserAvatar(MUser^ user, String^ dstFilePath);
+		void setAvatar(String ^dstFilePath, MRequestListenerInterface^ listener);
+		void setAvatar(String ^dstFilePath);
 		void exportNode(MNode^ node, MRequestListenerInterface^ listener);
 		void exportNode(MNode^ node);
 		void disableExport(MNode^ node, MRequestListenerInterface^ listener);
@@ -139,18 +148,25 @@ namespace mega
 		void startDownload(MNode^ node, String^ localPath);
 		void startPublicDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
 		void startPublicDownload(MNode^ node, String^ localPath);
+		void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
 		void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
 		void cancelTransfer(MTransfer^ transfer);
 		void cancelTransfers(int direction, MRequestListenerInterface^ listener);
 		void cancelTransfers(int direction);
 		void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
 		void pauseTransfers(bool pause);
+		void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
+		void submitFeedback(int rating, String^ comment);
+		void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);
+		void reportDebugEvent(String^ text);
 		void setUploadLimit(int bpslimit);
 		MTransferList^ getTransfers();
 		int getNumPendingUploads();
 		int getNumPendingDownloads();
 		int getTotalUploads();
 		int getTotalDownloads();
+		uint64 getTotalDownloadedBytes();
+		uint64 getTotalUploadedBytes();
 		void resetTotalDownloads();
 		void resetTotalUploads();
 		int getNumChildren(MNode^ parent);
@@ -178,10 +194,10 @@ namespace mega
 		MError^ checkMove(MNode^ node, MNode^ target);
 		MNode^ getRootNode();
 		MNode^ getRubbishNode();
-		//MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
-		//MNodeList^ search(MNode^ node, String^ searchString);
-		//bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
-		//bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+		MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
+		MNodeList^ search(MNode^ node, String^ searchString);
+		bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
+		bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
 
 	private:
 		std::set<DelegateMRequestListener *> activeRequestListeners;
@@ -194,11 +210,13 @@ namespace mega
 		MegaTransferListener *createDelegateMTransferListener(MTransferListenerInterface^ listener, bool singleListener = true);
 		MegaGlobalListener *createDelegateMGlobalListener(MGlobalListenerInterface^ listener);
 		MegaListener *createDelegateMListener(MListenerInterface^ listener);
+		MegaTreeProcessor *createDelegateMTreeProcessor(MTreeProcessorInterface^ processor);
 
 		void freeRequestListener(DelegateMRequestListener *listener);
 		void freeTransferListener(DelegateMTransferListener *listener);
 
 		MegaApi *megaApi;
+		DelegateMGfxProcessor *externalGfxProcessor;
 		MegaApi *getCPtr();
 	};
 }

@@ -148,6 +148,7 @@ int EdDSA::publicKey(unsigned char* pubKey) {
                                          (const unsigned char*)this->keySeed);
     if (check != 0) {
         // Something went wrong deriving keys.
+        free(privKey);
         return(0);
     }
     free(privKey);

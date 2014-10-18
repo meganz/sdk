@@ -52,6 +52,8 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
+    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+
     const char *sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
 
     rc = sqlite3_exec(db, sql, NULL, NULL, NULL);

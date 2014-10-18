@@ -99,6 +99,8 @@ struct MEGA_API WinDirNotify : public DirNotify
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 
+    fsfp_t fsfingerprint();
+
     WinDirNotify(string*, string*);
     ~WinDirNotify();
 };
