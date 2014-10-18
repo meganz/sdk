@@ -966,8 +966,8 @@ AC_ARG_WITH(freeimage,
 AC_SUBST(FI_LDFLAGS)
 AC_SUBST(FI_LIBS)
 if test x$enable_static = xyes; then
-    $FI_CXXFLAGS="$FI_CXXFLAGS -DFREEIMAGE_LIB"
-    $FI_CPPFLAGS="$FI_CPPFLAGS -DFREEIMAGE_LIB"
+    AC_DEFINE(FREEIMAGE_LIB, 1, [Define to use FreeImage as a static library.])
+    AM_CONDITIONAL([FREEIMAGE_LIB], [test "x$freeimage" = "xtrue"])
 fi
 AC_SUBST(FI_CXXFLAGS)
 AC_SUBST(FI_CPPFLAGS)
