@@ -1588,7 +1588,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    httpio->leavecs();
+    httpio->unlock();
 #endif
 
     //Start blocking thread
@@ -1907,7 +1907,7 @@ void MegaApiImpl::loop()
     
     httpio->setdnsservers(servers.c_str());
 #elif _WIN32
-    httpio->entercs();
+    httpio->lock();
 #endif
 
     while(true)
