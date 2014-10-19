@@ -396,7 +396,7 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
         {
             curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
             curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
-            curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE);
+            curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
         }
 
         if(httpio->proxyip.size())
