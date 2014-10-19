@@ -21,6 +21,8 @@
 
 #include "mega.h"
 
+#define IPV6_RETRY_INTERVAL_SECS 7200
+
 #ifdef WINDOWS_PHONE
 const char* inet_ntop(int af, const void* src, char* dst, int cnt){
 
@@ -102,6 +104,7 @@ CurlHttpIO::CurlHttpIO()
     proxyinflight = 0;
     ipv6requestsenabled = ipv6available();
     ipv6proxyenabled = ipv6requestsenabled;
+    ipv6deactivationtime = 0;
 }
 
 bool CurlHttpIO::ipv6available()
@@ -569,6 +572,16 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         return;
     }
 
+    if(!ipv6requestsenabled && ipv6available())
+    {
+        time_t currenttime;
+        time(&currenttime);
+        if((currenttime - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_SECS)
+        {
+            ipv6requestsenabled = true;
+        }
+    }
+
     req->in.clear();
     req->status = REQ_INFLIGHT;
     httpctx->ares_pending = 1;
@@ -736,6 +749,10 @@ bool CurlHttpIO::doio()
                     //MEGA servers with both protocols (IPv4 and IPv6)
                     ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
                     request_proxy_ip();
+                }
+                else if(ipv6available())
+                {
+                    time(&ipv6deactivationtime);
                 }
             }
         }
