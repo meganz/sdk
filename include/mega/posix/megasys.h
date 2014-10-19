@@ -57,6 +57,10 @@
 #include <memory.h>
 #include <time.h>
 
+#ifdef HAVE_STDBOOL_H
+    #include <stdbool.h>
+#endif
+
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <utime.h>
@@ -64,7 +68,10 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <glob.h>
-#include <dirent.h>
+
+#ifdef HAVE_DIRENT_H
+    #include <dirent.h>
+#endif
 
 #include <sys/un.h>
 #include <unistd.h>
@@ -80,11 +87,11 @@
 #endif
 
 #ifdef HAVE_SENDFILE
-#include <sys/sendfile.h>
+    #include <sys/sendfile.h>
 #endif
 
 #ifdef USE_INOTIFY
-#include <sys/inotify.h>
+    #include <sys/inotify.h>
 #endif
 
 #include <sys/select.h>

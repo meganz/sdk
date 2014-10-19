@@ -119,6 +119,7 @@ AC_LANG_CPLUSPLUS
 AC_STDC_HEADERS
 AC_HEADER_STDC
 AC_HEADER_STDBOOL
+AC_HEADER_DIRENT
 
 AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C++])
 AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
