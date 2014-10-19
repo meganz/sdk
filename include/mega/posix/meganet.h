@@ -44,6 +44,8 @@ protected:
     string proxyusername;
     string proxypassword;
     int proxyinflight;
+    bool ipv6proxyenabled;
+    bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
 
     void send_pending_requests();
@@ -56,8 +58,13 @@ protected:
     static void proxy_ready_callback(void *arg, int status, int timeouts, struct hostent *host);
     static void ares_completed_callback(void *arg, int status, int timeouts, struct hostent *host);
     static void send_request(CurlHttpContext *httpctx);
+    void request_proxy_ip();
+    static struct curl_slist* clone_curl_slist(struct curl_slist *inlist);
     static bool crackurl(string *url, string *hostname, int* port);
+    static int debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, void *userptr);
+    bool ipv6available();
 
+    bool curlipv6;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
 
@@ -93,11 +100,15 @@ struct MEGA_API CurlHttpContext
     HttpReq* req;
     CurlHttpIO* httpio;
 
-    struct curl_slist *resolve;
+    struct curl_slist *headers;
+    bool isIPv6;
     string hostname;
     int port;
+    string hostheader;
+    string hostip;
     unsigned len;
     const char* data;
+    int ares_pending;
 };
 
 } // namespace
