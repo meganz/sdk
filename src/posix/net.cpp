@@ -79,7 +79,7 @@ CurlHttpIO::CurlHttpIO()
         exit(EXIT_FAILURE);
     }
 
-    curlipv6 = data->features & CURL_VERSION_SSL;
+    curlipv6 = data->features & CURL_VERSION_IPV6;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
