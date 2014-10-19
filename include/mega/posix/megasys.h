@@ -41,8 +41,16 @@
 #include <queue>
 #include <list>
 
+#ifdef HAVE_STDDEF_H
+    #include <stddef.h>
+#endif
+
 #include <stdio.h>
-#include <stdlib.h>
+
+#ifdef HAVE_STDLIB_H
+    #include <stdlib.h>
+#endif
+
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
