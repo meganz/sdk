@@ -757,6 +757,10 @@ bool CurlHttpIO::doio()
                 }
             }
         }
+        else
+        {
+            req = NULL;
+        }
 
         curl_multi_remove_handle(curlm, msg->easy_handle);
         curl_easy_cleanup(msg->easy_handle);
