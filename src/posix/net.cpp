@@ -73,6 +73,7 @@ CurlHttpIO::CurlHttpIO()
             http = true;
             break;
         }
+        i++;
     }
 
     if(!http || !(data->features & CURL_VERSION_SSL))
