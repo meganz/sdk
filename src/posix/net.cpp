@@ -692,7 +692,7 @@ bool CurlHttpIO::doio()
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
     {
-        HttpReq* req;
+        HttpReq* req = NULL;
 
         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
         {
@@ -761,10 +761,13 @@ bool CurlHttpIO::doio()
         curl_multi_remove_handle(curlm, msg->easy_handle);
         curl_easy_cleanup(msg->easy_handle);
 
-        CurlHttpContext *httpctx = (CurlHttpContext *)req->httpiohandle;
-        curl_slist_free_all(httpctx->headers);
-        delete httpctx;
-        req->httpiohandle = NULL;
+        if(req)
+        {
+            CurlHttpContext *httpctx = (CurlHttpContext *)req->httpiohandle;
+            curl_slist_free_all(httpctx->headers);
+            delete httpctx;
+            req->httpiohandle = NULL;
+        }
     }
 
     return done;
