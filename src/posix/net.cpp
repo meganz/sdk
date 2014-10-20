@@ -83,6 +83,7 @@ CurlHttpIO::CurlHttpIO()
     }
 
     curlipv6 = data->features & CURL_VERSION_IPV6;
+    reset = false;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
@@ -146,6 +147,7 @@ void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
     {
+        dnsservers = servers;
 		ares_set_servers_csv(ares, servers);
     }
 }
@@ -238,6 +240,9 @@ void CurlHttpIO::proxy_ready_callback(void *arg, int status, int, hostent *host)
             //The IP isn't up to date and there aren't pending
             //name resolutions for proxies. Abort requests.
             httpio->drop_pending_requests();
+
+            //Reinitialize c-ares to prevent persistent hangs
+            httpio->reset = true;
         }
 
         //Nothing more to do.
@@ -299,6 +304,14 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
           (!httpctx->hostip.size())) //or unable to get the IP for this request
         {
             req->status = REQ_FAILURE;
+
+            if(!httpctx->hostip.size())
+            {
+                //Unable to get the IP.
+                //Reinitialize c-ares to prevent permanent hangs
+                httpio->reset = true;
+            }
+
             return;
         }
 
@@ -580,6 +593,17 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         if((currenttime - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_SECS)
         {
             ipv6requestsenabled = true;
+        }
+    }
+
+    if(reset)
+    {
+        reset = false;
+        ares_destroy(ares);
+        ares_init(&ares);
+        if(dnsservers.size())
+        {
+            ares_set_servers_csv(ares, dnsservers.c_str());
         }
     }
 
