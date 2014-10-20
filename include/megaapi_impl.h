@@ -592,6 +592,7 @@ class MegaApiImpl : public MegaApp
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
+        void enableDebug(bool enable);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);

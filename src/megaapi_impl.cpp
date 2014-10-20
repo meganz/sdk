@@ -1621,7 +1621,12 @@ const char* MegaApiImpl::getMyEmail()
 
     const char *result = MegaApi::strdup(u->email.c_str());
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::enableDebug(bool enable)
+{
+    debug = enable;
 }
 
 const char* MegaApiImpl::getBase64PwKey(const char *password)
@@ -3788,9 +3793,10 @@ void MegaApiImpl::reload(const char*)
 
 void MegaApiImpl::debug_log(const char* message)
 {
-    #if DEBUG
+    if(debug)
+    {
         cout << message << endl;
-    #endif
+    }
 }
 
 
