@@ -1617,7 +1617,10 @@ const char* MegaApiImpl::getMyEmail()
 	User* u;
     sdkMutex.lock();
 	if (!client->loggedin() || !(u = client->finduser(client->me)))
+	{
+		sdkMutex.unlock();
 		return NULL;
+	}
 
     const char *result = MegaApi::strdup(u->email.c_str());
     sdkMutex.unlock();
