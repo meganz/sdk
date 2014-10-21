@@ -24,8 +24,8 @@
 #define IPV6_RETRY_INTERVAL_SECS 7200
 
 #ifdef WINDOWS_PHONE
-const char* inet_ntop(int af, const void* src, char* dst, int cnt){
-
+const char* inet_ntop(int af, const void* src, char* dst, int cnt)
+{
 	struct sockaddr_in srcaddr;
 	wchar_t ip[INET6_ADDRSTRLEN];
 	int len = INET6_ADDRSTRLEN;
@@ -58,25 +58,24 @@ CurlHttpIO::CurlHttpIO()
     curl_version_info_data *data = curl_version_info(CURLVERSION_NOW);
     string curlssl = data->ssl_version;
     std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
-    if(!strstr(curlssl.c_str(), "openssl"))
+
+    if (!strstr(curlssl.c_str(), "openssl"))
     {
         cerr << "cURL built without OpenSSL support. Aborting." << endl;
         exit(EXIT_FAILURE);
     }
 
-    bool http = false;
-    int i = 0;
-    while(data->protocols[i])
+    int i;
+
+    for (i = 0; data->protocols[i]; i++)
     {
-        if(strstr(data->protocols[i], "http"))
+        if (strstr(data->protocols[i], "http"))
         {
-            http = true;
             break;
         }
-        i++;
     }
 
-    if(!http || !(data->features & CURL_VERSION_SSL))
+    if (!data->protocols[i] || !(data->features & CURL_VERSION_SSL))
     {
         cerr << "cURL built without HTTP/HTTPS support. Aborting." << endl;
         exit(EXIT_FAILURE);
@@ -111,11 +110,15 @@ CurlHttpIO::CurlHttpIO()
 bool CurlHttpIO::ipv6available()
 {
     static int ipv6_works = -1;
-    if(ipv6_works != -1)
+
+    if (ipv6_works != -1)
+    {
         return ipv6_works;
+    }
 
     int s = socket(PF_INET6, SOCK_DGRAM, 0);
-    if(s == -1)
+
+    if (s == -1)
     {
         ipv6_works = 0;
     }
@@ -682,7 +685,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 // process events
 bool CurlHttpIO::doio()
 {
-    bool done = false;
+    bool statechange = false;
 
     CURLMsg *msg;
     int dummy;
@@ -733,25 +736,27 @@ bool CurlHttpIO::doio()
                 }
 
                 success = true;
-                done = true;
             }
             else
             {
                 req->status = REQ_FAILURE;
             }
 
-            if(req->status == REQ_FAILURE && !req->httpstatus)
+            statechange = true;
+
+            if (req->status == REQ_FAILURE && !req->httpstatus)
             {
                 CurlHttpContext *ctx = (CurlHttpContext *)req->httpiohandle;
                 ipv6requestsenabled = !ctx->isIPv6 && ipv6available();
-                if(ipv6requestsenabled)
+
+                if (ipv6requestsenabled)
                 {
-                    //Change the protocol of the proxy after fails contacting
-                    //MEGA servers with both protocols (IPv4 and IPv6)
+                    // change the protocol of the proxy after fails contacting
+                    // MEGA servers with both protocols (IPv4 and IPv6)
                     ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
                     request_proxy_ip();
                 }
-                else if(ipv6available())
+                else if (ipv6available())
                 {
                     time(&ipv6deactivationtime);
                 }
@@ -765,28 +770,33 @@ bool CurlHttpIO::doio()
         curl_multi_remove_handle(curlm, msg->easy_handle);
         curl_easy_cleanup(msg->easy_handle);
 
-        if(req)
+        if (req)
         {
-            CurlHttpContext *httpctx = (CurlHttpContext *)req->httpiohandle;
+            CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             curl_slist_free_all(httpctx->headers);
             delete httpctx;
             req->httpiohandle = NULL;
         }
     }
 
-    return done;
+    return statechange;
 }
 
 // callback for incoming HTTP payload
 void CurlHttpIO::send_pending_requests()
 {
-    while(pendingrequests.size())
+    while (pendingrequests.size())
     {
-        CurlHttpContext *httpctx = pendingrequests.front();
-        if(httpctx->req)
+        CurlHttpContext* httpctx = pendingrequests.front();
+
+        if (httpctx->req)
+        {
             send_request(httpctx);
+        }
         else
+        {
             delete httpctx;
+        }
 
         pendingrequests.pop();
     }
