@@ -83,6 +83,7 @@ CurlHttpIO::CurlHttpIO()
 
     curlipv6 = data->features & CURL_VERSION_IPV6;
     reset = false;
+    statechange = false;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
@@ -307,6 +308,7 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
           (!httpctx->hostip.size())) //or unable to get the IP for this request
         {
             req->status = REQ_FAILURE;
+            httpio->statechange = true;
 
             if(!httpctx->hostip.size())
             {
@@ -438,6 +440,7 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
     else
     {
         req->status = REQ_FAILURE;
+        httpio->statechange = true;
     }
 }
 
@@ -586,6 +589,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             !crackurl(&req->posturl, &httpctx->hostname, &httpctx->port)) //Invalid request
     {
         req->status = REQ_FAILURE;
+        statechange = true;
         return;
     }
 
@@ -689,7 +693,11 @@ void CurlHttpIO::cancel(HttpReq* req)
             delete httpctx;
 
         req->httpstatus = 0;
-        req->status = REQ_FAILURE;
+        if(req->status != REQ_FAILURE)
+        {
+            req->status = REQ_FAILURE;
+            statechange = true;
+        }
 
         req->httpiohandle = NULL;
     }
@@ -709,8 +717,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 // process events
 bool CurlHttpIO::doio()
 {
-    bool statechange = false;
-
+    bool result;
     CURLMsg *msg;
     int dummy;
 
@@ -803,7 +810,9 @@ bool CurlHttpIO::doio()
         }
     }
 
-    return statechange;
+    result = statechange;
+    statechange = false;
+    return result;
 }
 
 // callback for incoming HTTP payload
@@ -832,9 +841,14 @@ void CurlHttpIO::drop_pending_requests()
     {
         CurlHttpContext *httpctx = pendingrequests.front();
         if(httpctx->req)
+        {
             httpctx->req->status = REQ_FAILURE;
+            statechange = true;
+        }
         else
+        {
             delete httpctx;
+        }
 
         pendingrequests.pop();
     }

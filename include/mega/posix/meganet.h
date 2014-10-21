@@ -67,6 +67,7 @@ protected:
 
     bool curlipv6;
     bool reset;
+    bool statechange;
     string dnsservers;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
