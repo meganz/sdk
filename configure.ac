@@ -175,7 +175,7 @@ AC_ARG_ENABLE(inotify,
 
 AS_IF([test "x$enable_inotify" = "xyes"], [
     AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
-    AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+    AC_CHECK_FUNCS([inotify_init1], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
 ])
 
 # Check for particular functions
