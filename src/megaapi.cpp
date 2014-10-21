@@ -296,6 +296,11 @@ const char* MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+void MegaApi::enableDebug(bool enable)
+{
+    pImpl->enableDebug(enable);
+}
+
 const char* MegaApi::getBase64PwKey(const char *password)
 {
     return pImpl->getBase64PwKey(password);

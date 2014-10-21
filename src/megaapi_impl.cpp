@@ -1621,7 +1621,12 @@ const char* MegaApiImpl::getMyEmail()
 
     const char *result = MegaApi::strdup(u->email.c_str());
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::enableDebug(bool enable)
+{
+    debug = enable;
 }
 
 const char* MegaApiImpl::getBase64PwKey(const char *password)
@@ -3788,9 +3793,10 @@ void MegaApiImpl::reload(const char*)
 
 void MegaApiImpl::debug_log(const char* message)
 {
-    #if DEBUG
+    if(debug)
+    {
         cout << message << endl;
-    #endif
+    }
 }
 
 
@@ -4917,8 +4923,17 @@ void MegaApiImpl::sendPendingTransfers()
                 string wFileName = fileName;
                 MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "");
 
-                client->startxfer(PUT,f);
-                if(transfer->getTag() == -1)
+                bool started = client->startxfer(PUT,f);
+                if(!started)
+                {
+                    //Unable to read the file
+                    transfer->setSyncTransfer(false);
+                    transferMap[nextTag]=transfer;
+                    transfer->setTag(nextTag);
+                    fireOnTransferStart(transfer);
+                    fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                }
+                else if(transfer->getTag() == -1)
                 {
                     //Already existing transfer
                     //Delete the new one and set the transfer as regular
@@ -4943,22 +4958,36 @@ void MegaApiImpl::sendPendingTransfers()
 				Node *node = client->nodebyhandle(nodehandle);
                 MegaNode *publicNode = transfer->getPublicNode();
                 const char *parentPath = transfer->getParentPath();
+                const char *fileName = transfer->getFileName();
                 if(!node && !publicNode) { e = API_EARGS; break; }
 
                 currentTransfer=transfer;
-                if(parentPath)
+                if(parentPath || fileName)
                 {
                     string name;
                     string securename;
-					string path = parentPath;
+                    string path;
+
+					if(parentPath)
+					{
+						path = parentPath;
+					}
+					else
+					{
+						string separator;
+						client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
+						path = ".";
+						path.append(separator);
+					}
+
 					MegaFileGet *f;
 
 					if(node)
 					{
-						if(!transfer->getFileName())
+						if(!fileName)
                             name = node->displayname();
                         else
-                            name = transfer->getFileName();
+                            name = fileName;
 
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
