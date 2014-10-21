@@ -29,6 +29,25 @@ on_exit_ok() {
     echo "Successfully compiled SDK examples!"
 }
 
+check_apps()
+{
+    if [ -z "${BASH}" ]
+    then
+        echo "Please run this script with the BASH shell"
+        exit 1
+    elif [ ${BASH_VERSINFO} -lt 3 ]
+    then
+        printf "BASH version 3 or greater is required"
+        exit 1
+    fi
+
+    APPS=(bash gcc g++ ldd libtool tar unzip autoconf make autoreconf wget)
+    for app in ${APPS[@]}; do
+        type ${app} >/dev/null 2>&1 || { echo "${app} is not installed. Please install it first and re-run the script."; exit 1; }
+        hash ${app} 2>/dev/null || { echo "${app} is not installed. Please install it first and re-run the script."; exit 1; }
+    done
+}
+
 package_download() {
     local name=$1
     local url=$2
@@ -428,6 +447,8 @@ main() {
     local work_dir=$cwd"/static_build/"
     local build_dir=$work_dir"build/"
     local install_dir=$work_dir"install/"
+
+    check_apps
 
     trap on_exit_error EXIT
 
