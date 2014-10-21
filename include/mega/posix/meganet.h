@@ -29,6 +29,7 @@
 
 namespace mega {
 
+struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
@@ -45,9 +46,11 @@ protected:
     string proxypassword;
     int proxyinflight;
     time_t ipv6deactivationtime;
+    time_t lastdnspurge;
     bool ipv6proxyenabled;
     bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
+    std::map<string, CurlDNSEntry> dnscache;
 
     void send_pending_requests();
     void drop_pending_requests();
@@ -113,6 +116,16 @@ struct MEGA_API CurlHttpContext
     unsigned len;
     const char* data;
     int ares_pending;
+};
+
+struct MEGA_API CurlDNSEntry
+{
+    CurlDNSEntry();
+
+    string ipv4;
+    time_t ipv4timestamp;
+    string ipv6;
+    time_t ipv6timestamp;
 };
 
 } // namespace

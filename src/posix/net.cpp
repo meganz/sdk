@@ -22,6 +22,7 @@
 #include "mega.h"
 
 #define IPV6_RETRY_INTERVAL_SECS 7200
+#define DNS_CACHE_TIMEOUT_SECS 1800
 
 #ifdef WINDOWS_PHONE
 const char* inet_ntop(int af, const void* src, char* dst, int cnt)
@@ -84,6 +85,8 @@ CurlHttpIO::CurlHttpIO()
     curlipv6 = data->features & CURL_VERSION_IPV6;
     reset = false;
     statechange = false;
+    time(&lastdnspurge);
+    lastdnspurge += DNS_CACHE_TIMEOUT_SECS / 2;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
@@ -151,6 +154,10 @@ void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
     {
+        time(&lastdnspurge);
+        lastdnspurge += DNS_CACHE_TIMEOUT_SECS / 2;
+        dnscache.clear();
+
         dnsservers = servers;
 		ares_set_servers_csv(ares, servers);
     }
@@ -170,8 +177,25 @@ void CurlHttpIO::addevents(Waiter* w, int)
     curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
     waiter->bumpmaxfd(t);
 
+    long curltimeout;
+    curl_multi_timeout(curlm, &curltimeout);
+    if(curltimeout >= 0)
+    {
+        curltimeout /= 100;
+        if(curltimeout < waiter->maxds)
+            waiter->maxds = curltimeout;
+    }
+
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
     waiter->bumpmaxfd(t);
+
+    timeval tv;
+    if(ares_timeout(ares, NULL, &tv))
+    {
+        dstime arestimeout = tv.tv_sec*10 + tv.tv_usec/100000;
+        if(arestimeout < waiter->maxds)
+            waiter->maxds = arestimeout;
+    }
 }
 
 void CurlHttpIO::proxy_ready_callback(void *arg, int status, int, hostent *host)
@@ -241,6 +265,8 @@ void CurlHttpIO::proxy_ready_callback(void *arg, int status, int, hostent *host)
         }
         else if(!httpio->proxyinflight)
         {
+            httpio->inetstatus(false);
+
             //The IP isn't up to date and there aren't pending
             //name resolutions for proxies. Abort requests.
             httpio->drop_pending_requests();
@@ -273,30 +299,41 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
     }
 
     //Check if result is valid
-    //IPv6 takes precedence over IPv4
-    //Discard the IP if it's IPv6 and IPv6 isn't available
-    if(!(status != ARES_SUCCESS || !host || !host->h_addr_list[0]) &&
-       (!httpctx->hostip.size() || host->h_addrtype == PF_INET6) &&
-       (!(host->h_addrtype == PF_INET6) || httpio->ipv6available()))
+    if(!(status != ARES_SUCCESS || !host || !host->h_addr_list[0]))
     {
-        //save the IP for this request
+        httpctx->isIPv6 = (host->h_addrtype == PF_INET6);
         char ip[INET6_ADDRSTRLEN];
         inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
-        httpctx->hostheader = "Host: ";
-        httpctx->hostheader.append(httpctx->hostname);
 
-        httpctx->isIPv6 = (host->h_addrtype == PF_INET6);
-        std::ostringstream oss;
-        if(httpctx->isIPv6 && ip[0] != '[')
+        //Add to DNS cache
+        CurlDNSEntry &dnsEntry = httpio->dnscache[httpctx->hostname];
+        if(httpctx->isIPv6)
         {
-            oss << "[" << ip << "]:" << httpctx->port;
+            dnsEntry.ipv6 = ip;
+            time(&dnsEntry.ipv6timestamp);
         }
         else
         {
-            oss << ip << ":" << httpctx->port;
+            dnsEntry.ipv4 = ip;
+            time(&dnsEntry.ipv4timestamp);
         }
 
-        httpctx->hostip = oss.str();
+        //IPv6 takes precedence over IPv4
+        if(!httpctx->hostip.size() || httpctx->isIPv6)
+        {
+            //save the IP for this request
+            std::ostringstream oss;
+            if(httpctx->isIPv6)
+            {
+                oss << "[" << ip << "]:" << httpctx->port;
+            }
+            else
+            {
+                oss << ip << ":" << httpctx->port;
+            }
+
+            httpctx->hostip = oss.str();
+        }
     }
 
     if(!httpctx->ares_pending)
@@ -313,6 +350,8 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
             if(!httpctx->hostip.size())
             {
                 //Unable to get the IP.
+                httpio->inetstatus(false);
+
                 //Reinitialize c-ares to prevent permanent hangs
                 httpio->reset = true;
             }
@@ -614,15 +653,79 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
     }
 
+    time_t currenttime;
+    time(&currenttime);
+
+    //Purge DNS cache if needed
+    if((currenttime - lastdnspurge) > DNS_CACHE_TIMEOUT_SECS)
+    {
+        std::map<string, CurlDNSEntry>::iterator it = dnscache.begin();
+        while(it != dnscache.end())
+        {
+            CurlDNSEntry &entry = it->second;
+            if((currenttime - entry.ipv6timestamp) >= DNS_CACHE_TIMEOUT_SECS)
+            {
+                entry.ipv6timestamp = 0;
+                entry.ipv6.clear();
+            }
+
+            if((currenttime - entry.ipv4timestamp) >= DNS_CACHE_TIMEOUT_SECS)
+            {
+                entry.ipv4timestamp = 0;
+                entry.ipv4.clear();
+            }
+
+            if(!entry.ipv4timestamp && !entry.ipv6timestamp)
+            {
+                dnscache.erase(it++);
+            }
+            else
+            {
+                it++;
+            }
+        }
+
+        lastdnspurge = currenttime;
+    }
+
     req->in.clear();
     req->status = REQ_INFLIGHT;
+    httpctx->hostheader = "Host: ";
+    httpctx->hostheader.append(httpctx->hostname);
     httpctx->ares_pending = 1;
+
+    CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
 
     if(ipv6requestsenabled)
     {
+        if((currenttime - dnsEntry.ipv6timestamp) < DNS_CACHE_TIMEOUT_SECS)
+        {
+            std::ostringstream oss;
+            httpctx->isIPv6 = true;
+            oss << "[" << dnsEntry.ipv6 << "]:" << httpctx->port;
+            httpctx->hostip = oss.str();
+            httpctx->ares_pending = 0;
+            send_request(httpctx);
+            return;
+        }
+
         httpctx->ares_pending++;
         ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
     }
+    else
+    {
+        if((currenttime - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_SECS)
+        {
+            std::ostringstream oss;
+            httpctx->isIPv6 = false;
+            oss << dnsEntry.ipv4 << ":" << httpctx->port;
+            httpctx->hostip = oss.str();
+            httpctx->ares_pending = 0;
+            send_request(httpctx);
+            return;
+        }
+    }
+
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
 }
 
@@ -721,7 +824,15 @@ bool CurlHttpIO::doio()
     CURLMsg *msg;
     int dummy;
 
-    ares_process(ares, &waiter->rfds, &waiter->wfds);
+    fd_set rfds, wfds;
+    FD_ZERO(&rfds);
+    FD_ZERO(&wfds);
+    int nfds = ares_fds(ares, &rfds, &wfds);
+    if(nfds)
+    {
+        ares_process(ares, &rfds, &wfds);
+    }
+
     curl_multi_perform(curlm, &dummy);
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
@@ -758,8 +869,6 @@ bool CurlHttpIO::doio()
                             && (req->contentlength < 0
                              || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                              ? REQ_SUCCESS : REQ_FAILURE;
-
-                inetstatus(req->status);
                 
                 if (req->status == REQ_SUCCESS)
                 {
@@ -776,9 +885,23 @@ bool CurlHttpIO::doio()
             statechange = true;
 
             if (req->status == REQ_FAILURE && !req->httpstatus)
-            {
-                CurlHttpContext *ctx = (CurlHttpContext *)req->httpiohandle;
-                ipv6requestsenabled = !ctx->isIPv6 && ipv6available();
+            {                
+                CurlHttpContext *httpctx = (CurlHttpContext *)req->httpiohandle;
+
+                //Remove the IP from the DNS cache
+                CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
+                if(httpctx->isIPv6)
+                {
+                    dnsEntry.ipv6.clear();
+                    dnsEntry.ipv6timestamp = 0;
+                }
+                else
+                {
+                    dnsEntry.ipv4.clear();
+                    dnsEntry.ipv4timestamp = 0;
+                }
+
+                ipv6requestsenabled = !httpctx->isIPv6 && ipv6available();
 
                 if (ipv6requestsenabled)
                 {
@@ -803,6 +926,8 @@ bool CurlHttpIO::doio()
 
         if (req)
         {
+            inetstatus(req->status);
+
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             curl_slist_free_all(httpctx->headers);
             delete httpctx;
@@ -921,6 +1046,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
     }
 
     return ok;
+}
+
+CurlDNSEntry::CurlDNSEntry()
+{
+    ipv4timestamp = 0;
+    ipv6timestamp = 0;
 }
 
 } // namespace
