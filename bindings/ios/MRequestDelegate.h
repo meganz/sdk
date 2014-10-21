@@ -13,7 +13,7 @@
 
 @protocol MRequestDelegate <NSObject>
 
-- (void)onRequestStart:(MegaSDK *)api request:(MRequest *)transfer;
+- (void)onRequestStart:(MegaSDK *)api request:(MRequest *)request;
 - (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error;
 - (void)onRequestUpdate:(MegaSDK *)api request:(MRequest *)request;
 - (void)onRequestTemporaryError:(MegaSDK *)api request:(MRequest *)request error:(MError *)error;

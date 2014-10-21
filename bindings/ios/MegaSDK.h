@@ -51,20 +51,20 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 
 - (NSString *)getBase64pwkeyWithPassword:(NSString *)password;
 - (NSString *)getStringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf;
-+ (uint64_t) base64ToHandle:(NSString *)base64Handle;
-+ (NSString *) ebcEncryptKeyWithEncryptionKey:(NSString *)encryptionKey plainKey:(NSString *)plainKey;
++ (uint64_t)base64ToHandle:(NSString *)base64Handle;
++ (NSString *)ebcEncryptKeyWithEncryptionKey:(NSString *)encryptionKey plainKey:(NSString *)plainKey;
 - (void)retryPendingConnections;
 //- (void)retryPendingConnectionsWithDelegate:(id<MRequestDelegate>)delegateObject;
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password delegate:(id<MRequestDelegate>)delegateObject;
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password;
 - (NSString *)dumpSession;
-//- (void)fastLoginWithEmail:(NSString *)email stringHast:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MRequestDelegate>)delegateObject;
-- (void)fastLoginWithEmail:(NSString *)email stringHast:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey;
-//- (void)fastLoginWithSession:(NSString *)session delegate:(id<MRequestDelegate>)delegateObject;
+- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MRequestDelegate>)delegateObject;
+- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey;
+- (void)fastLoginWithSession:(NSString *)session delegate:(id<MRequestDelegate>)delegateObject;
 - (void)fastLoginWithSession:(NSString *)session;
-//- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MRequestDelegate>)delegateObject
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MRequestDelegate>)delegateObject;
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name;
-//- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MRequestDelegate>)delegateObject
+- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MRequestDelegate>)delegateObject;
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
 //- (void)querySignupWithLink:(NSString *)link delegate:(id<MRequestDelegate>)delegateObject;
 - (void)querySignupWithLink:(NSString *)link;
@@ -96,11 +96,11 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 - (void)importPublicNode:(MNode *)publicNode parent:(MNode *)parent;
 //- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MRequestDelegate>)delegateObject;
 - (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink;
-//- (void)getThumbnailWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject;
+- (void)getThumbnailWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject;
 - (void)getThumbnailWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath;
 //- (void)setThumbnailWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MRequestDelegate>)delegateObject;
 - (void)setThumbnailWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath;
-//- (void)getPreviewWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject;
+- (void)getPreviewWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject;
 - (void)getPreviewWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath;
 //- (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MRequestDelegate>)delegateObject;
 - (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath;
@@ -120,7 +120,7 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 - (void)addContactWithEmail:(NSString *)email;
 //- (void)removeContactWithEmail:(NSString *)email delegate:(id<MRequestDelegate>)delegateObject;
 - (void)removeContactWithEmail:(NSString *)email;
-//- (void)logoutWithDelegate:(id<MRequestDelegate>)delegateObject;
+- (void)logoutWithDelegate:(id<MRequestDelegate>)delegateObject;
 - (void)logout;
 //- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MNode *)parent delegate:(id<MTransferDelegate>)delegateObject;
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MNode *)parent;
