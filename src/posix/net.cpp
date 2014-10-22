@@ -659,19 +659,19 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         while(it != dnscache.end())
         {
             CurlDNSEntry &entry = it->second;
-            if((Waiter::ds - entry.ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS)
+            if(entry.ipv6.size() && (Waiter::ds - entry.ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS)
             {
                 entry.ipv6timestamp = 0;
                 entry.ipv6.clear();
             }
 
-            if((Waiter::ds - entry.ipv4timestamp) >= DNS_CACHE_TIMEOUT_DS)
+            if(entry.ipv4.size() && (Waiter::ds - entry.ipv4timestamp) >= DNS_CACHE_TIMEOUT_DS)
             {
                 entry.ipv4timestamp = 0;
                 entry.ipv4.clear();
             }
 
-            if(!entry.ipv4timestamp && !entry.ipv6timestamp)
+            if(!entry.ipv6.size() && !entry.ipv4.size())
             {
                 dnscache.erase(it++);
             }
@@ -694,7 +694,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if(ipv6requestsenabled)
     {
-        if((Waiter::ds - dnsEntry.ipv6timestamp) < DNS_CACHE_TIMEOUT_DS)
+        if(dnsEntry.ipv6.size() && (Waiter::ds - dnsEntry.ipv6timestamp) < DNS_CACHE_TIMEOUT_DS)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = true;
@@ -710,7 +710,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
     else
     {
-        if((Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
+        if(dnsEntry.ipv4.size() && (Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = false;
@@ -903,7 +903,7 @@ bool CurlHttpIO::doio()
                     ipv6deactivationtime = Waiter::ds;
 
                     //For IPv6 errors, try IPv4 before sending an error to the SDK
-                    if((Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
+                    if(dnsEntry.ipv4.size() && (Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
                     {
                         curl_multi_remove_handle(curlm, msg->easy_handle);
                         curl_easy_cleanup(msg->easy_handle);
