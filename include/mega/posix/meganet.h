@@ -123,9 +123,9 @@ struct MEGA_API CurlDNSEntry
     CurlDNSEntry();
 
     string ipv4;
-    time_t ipv4timestamp;
+    dstime ipv4timestamp;
     string ipv6;
-    time_t ipv6timestamp;
+    dstime ipv6timestamp;
 };
 
 } // namespace
