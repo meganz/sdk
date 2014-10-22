@@ -130,7 +130,11 @@ bool CurlHttpIO::ipv6available()
     else
     {
         ipv6_works = curlipv6;
+#ifdef WINDOWS_PHONE
+		closesocket(s);
+#else
         close(s);
+#endif
     }
 
     return ipv6_works;
@@ -182,7 +186,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
     if(curltimeout >= 0)
     {
         curltimeout /= 100;
-        if(curltimeout < waiter->maxds)
+        if((unsigned long)curltimeout < waiter->maxds)
             waiter->maxds = curltimeout;
     }
 
