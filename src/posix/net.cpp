@@ -305,13 +305,12 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
     //Check if result is valid
     if(!(status != ARES_SUCCESS || !host || !host->h_addr_list[0]))
     {
-        httpctx->isIPv6 = (host->h_addrtype == PF_INET6);
         char ip[INET6_ADDRSTRLEN];
         inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
 
         //Add to DNS cache
         CurlDNSEntry &dnsEntry = httpio->dnscache[httpctx->hostname];
-        if(httpctx->isIPv6)
+        if(host->h_addrtype == PF_INET6)
         {
             dnsEntry.ipv6 = ip;
             time(&dnsEntry.ipv6timestamp);
@@ -323,8 +322,10 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
         }
 
         //IPv6 takes precedence over IPv4
-        if(!httpctx->hostip.size() || httpctx->isIPv6)
+        if(!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
         {
+            httpctx->isIPv6 = (host->h_addrtype == PF_INET6);
+
             //save the IP for this request
             std::ostringstream oss;
             if(httpctx->isIPv6)
@@ -483,8 +484,9 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
     else
     {
         req->status = REQ_FAILURE;
-        httpio->statechange = true;
     }
+
+    httpio->statechange = true;
 }
 
 void CurlHttpIO::request_proxy_ip()
@@ -828,15 +830,7 @@ bool CurlHttpIO::doio()
     CURLMsg *msg;
     int dummy;
 
-    fd_set rfds, wfds;
-    FD_ZERO(&rfds);
-    FD_ZERO(&wfds);
-    int nfds = ares_fds(ares, &rfds, &wfds);
-    if(nfds)
-    {
-        ares_process(ares, &rfds, &wfds);
-    }
-
+    ares_process(ares, &waiter->rfds, &waiter->wfds);
     curl_multi_perform(curlm, &dummy);
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
@@ -914,9 +908,31 @@ bool CurlHttpIO::doio()
                     ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
                     request_proxy_ip();
                 }
-                else if (ipv6available())
+                else if(httpctx->isIPv6)
                 {
-                    time(&ipv6deactivationtime);
+                    time_t currenttime;
+                    time(&currenttime);
+                    ipv6deactivationtime = currenttime;
+
+                    //For IPv6 errors, try IPv4 before sending an error to the SDK
+                    if((currenttime - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_SECS)
+                    {
+                        curl_multi_remove_handle(curlm, msg->easy_handle);
+                        curl_easy_cleanup(msg->easy_handle);
+                        curl_slist_free_all(httpctx->headers);
+
+                        req->httpio = this;
+                        req->in.clear();
+                        req->posturl.replace(req->posturl.find(httpctx->hostip), httpctx->hostip.size(), httpctx->hostname);
+                        req->status = REQ_INFLIGHT;
+                        httpctx->ares_pending = 0;
+                        httpctx->isIPv6 = false;
+                        std::ostringstream oss;
+                        oss << dnsEntry.ipv4 << ":" << httpctx->port;
+                        httpctx->hostip = oss.str();
+                        send_request(httpctx);
+                        return true;
+                    }
                 }
             }
         }
