@@ -74,12 +74,7 @@ protected:
     string dnsservers;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
-
-#ifndef WINDOWS_PHONE
-    PosixWaiter* waiter;
-#else
-    WinPhoneWaiter* waiter;
-#endif
+    WAIT_CLASS* waiter;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);

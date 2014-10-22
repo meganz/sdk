@@ -86,10 +86,8 @@ CurlHttpIO::CurlHttpIO()
     reset = false;
     statechange = false;
 
-    time_t currenttime;
-    time(&currenttime);
-    lastdnspurge = currenttime * 10;
-    lastdnspurge += DNS_CACHE_TIMEOUT_DS / 2;
+    WAIT_CLASS::bumpds();
+    lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
@@ -161,10 +159,7 @@ void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
     {
-        time_t currenttime;
-        time(&currenttime);
-        lastdnspurge = currenttime * 10;
-        lastdnspurge += DNS_CACHE_TIMEOUT_DS / 2;
+        lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
         dnscache.clear();
 
         dnsservers = servers;
@@ -177,12 +172,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
 {
     int t;
 
-#ifndef WINDOWS_PHONE
-    waiter = (PosixWaiter* )w;
-#else
-    waiter = (WinPhoneWaiter* )w;
-#endif
-
+    waiter = (WAIT_CLASS* )w;
     curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
     waiter->bumpmaxfd(t);
 
