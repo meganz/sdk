@@ -22,6 +22,9 @@
 #include "meganet.h"
 
 namespace mega {
+
+extern PGTC pGTC;
+
 WinHttpIO::WinHttpIO()
 {
     InitializeCriticalSection(&csHTTP);
@@ -230,8 +233,6 @@ void WinHttpIO::unlock()
 void WinHttpIO::addevents(Waiter* cwaiter, int flags)
 {
     waiter = (WinWaiter*)cwaiter;
-
-    extern PGTC pGTC;
 
     // enabled chunked transfer encoding if GetTickCount64() exists
     // (we are on Vista or greater)
