@@ -21,8 +21,8 @@
 
 #include "mega.h"
 
-#define IPV6_RETRY_INTERVAL_SECS 7200
-#define DNS_CACHE_TIMEOUT_SECS 1800
+#define IPV6_RETRY_INTERVAL_DS 72000
+#define DNS_CACHE_TIMEOUT_DS 18000
 
 #ifdef WINDOWS_PHONE
 const char* inet_ntop(int af, const void* src, char* dst, int cnt)
@@ -85,8 +85,11 @@ CurlHttpIO::CurlHttpIO()
     curlipv6 = data->features & CURL_VERSION_IPV6;
     reset = false;
     statechange = false;
-    time(&lastdnspurge);
-    lastdnspurge += DNS_CACHE_TIMEOUT_SECS / 2;
+
+    time_t currenttime;
+    time(&currenttime);
+    lastdnspurge = currenttime * 10;
+    lastdnspurge += DNS_CACHE_TIMEOUT_DS / 2;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
@@ -158,8 +161,10 @@ void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
     {
-        time(&lastdnspurge);
-        lastdnspurge += DNS_CACHE_TIMEOUT_SECS / 2;
+        time_t currenttime;
+        time(&currenttime);
+        lastdnspurge = currenttime * 10;
+        lastdnspurge += DNS_CACHE_TIMEOUT_DS / 2;
         dnscache.clear();
 
         dnsservers = servers;
@@ -313,12 +318,12 @@ void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct host
         if(host->h_addrtype == PF_INET6)
         {
             dnsEntry.ipv6 = ip;
-            time(&dnsEntry.ipv6timestamp);
+            dnsEntry.ipv6timestamp = Waiter::ds;
         }
         else
         {
             dnsEntry.ipv4 = ip;
-            time(&dnsEntry.ipv4timestamp);
+            dnsEntry.ipv4timestamp = Waiter::ds;
         }
 
         //IPv6 takes precedence over IPv4
@@ -640,9 +645,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if(!ipv6requestsenabled && ipv6available())
     {
-        time_t currenttime;
-        time(&currenttime);
-        if((currenttime - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_SECS)
+        if((Waiter::ds - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_DS)
         {
             ipv6requestsenabled = true;
         }
@@ -659,23 +662,20 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
     }
 
-    time_t currenttime;
-    time(&currenttime);
-
     //Purge DNS cache if needed
-    if((currenttime - lastdnspurge) > DNS_CACHE_TIMEOUT_SECS)
+    if((Waiter::ds - lastdnspurge) > DNS_CACHE_TIMEOUT_DS)
     {
         std::map<string, CurlDNSEntry>::iterator it = dnscache.begin();
         while(it != dnscache.end())
         {
             CurlDNSEntry &entry = it->second;
-            if((currenttime - entry.ipv6timestamp) >= DNS_CACHE_TIMEOUT_SECS)
+            if((Waiter::ds - entry.ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS)
             {
                 entry.ipv6timestamp = 0;
                 entry.ipv6.clear();
             }
 
-            if((currenttime - entry.ipv4timestamp) >= DNS_CACHE_TIMEOUT_SECS)
+            if((Waiter::ds - entry.ipv4timestamp) >= DNS_CACHE_TIMEOUT_DS)
             {
                 entry.ipv4timestamp = 0;
                 entry.ipv4.clear();
@@ -691,7 +691,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             }
         }
 
-        lastdnspurge = currenttime;
+        lastdnspurge = Waiter::ds;
     }
 
     req->in.clear();
@@ -704,7 +704,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if(ipv6requestsenabled)
     {
-        if((currenttime - dnsEntry.ipv6timestamp) < DNS_CACHE_TIMEOUT_SECS)
+        if((Waiter::ds - dnsEntry.ipv6timestamp) < DNS_CACHE_TIMEOUT_DS)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = true;
@@ -720,7 +720,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
     else
     {
-        if((currenttime - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_SECS)
+        if((Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = false;
@@ -910,12 +910,10 @@ bool CurlHttpIO::doio()
                 }
                 else if(httpctx->isIPv6)
                 {
-                    time_t currenttime;
-                    time(&currenttime);
-                    ipv6deactivationtime = currenttime;
+                    ipv6deactivationtime = Waiter::ds;
 
                     //For IPv6 errors, try IPv4 before sending an error to the SDK
-                    if((currenttime - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_SECS)
+                    if((Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
                     {
                         curl_multi_remove_handle(curlm, msg->easy_handle);
                         curl_easy_cleanup(msg->easy_handle);

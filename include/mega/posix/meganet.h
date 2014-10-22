@@ -45,8 +45,8 @@ protected:
     string proxyusername;
     string proxypassword;
     int proxyinflight;
-    time_t ipv6deactivationtime;
-    time_t lastdnspurge;
+    dstime ipv6deactivationtime;
+    dstime lastdnspurge;
     bool ipv6proxyenabled;
     bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
