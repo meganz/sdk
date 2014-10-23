@@ -220,8 +220,7 @@ AC_ARG_ENABLE(posix-threads,
     [enable_posix_threads=no],
     [enable_posix_threads=yes])
 if test x$enable_posix_threads != xno; then
-    HAVE_PTHREAD=yes
-    AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
+    AC_CHECK_LIB(pthread, pthread_create, [HAVE_PTHREAD=yes], [HAVE_PTHREAD=no])
 fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
