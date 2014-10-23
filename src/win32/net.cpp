@@ -63,9 +63,9 @@ void WinHttpIO::setuseragent(string* useragent)
 }
 
 
-void WinHttpIO::setproxy(Proxy *proxy)
+void WinHttpIO::setproxy(Proxy* proxy)
 {
-    Proxy *autoProxy = NULL;
+    Proxy* autoProxy = NULL;
 
     proxyUsername.clear();
     proxyPassword.clear();
@@ -115,7 +115,7 @@ void WinHttpIO::setproxy(Proxy *proxy)
     delete autoProxy;
 }
 
-Proxy *WinHttpIO::getautoproxy()
+Proxy* WinHttpIO::getautoproxy()
 {
     Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
@@ -129,7 +129,7 @@ Proxy *WinHttpIO::getautoproxy()
             string proxyURL;
             proxy->setProxyType(Proxy::CUSTOM);
             int len = lstrlen(ieProxyConfig.lpszProxy);
-            proxyURL.assign((const char *)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
+            proxyURL.assign((const char*)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
 
             // only save one proxy
             for (int i = 0; i < len; i++)
@@ -341,7 +341,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                     int t = inflate(&httpctx->z, Z_SYNC_FLUSH);
                     req->bufpos -= httpctx->z.avail_out;
 
-                    if ((char *)lpvStatusInformation + dwStatusInformationLength ==
+                    if ((char*)lpvStatusInformation + dwStatusInformationLength ==
                              httpctx->zin.data() + httpctx->zin.size())
                     {
                         httpctx->zin.clear();
@@ -454,7 +454,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             httpio->httpevent();
             break;
 
-        case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+        case WINHTTP_CALLBACK_STATUS_SENDING_REQUEST:
         {
             PCCERT_CONTEXT cert;
             DWORD len = sizeof cert;
@@ -478,8 +478,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 CertFreeCertificateContext(cert);
             }
+
+            break;
         }
-            // fall through
+
+        case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
         case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE:
             if (httpctx->postpos < httpctx->postlen)
             {
@@ -581,6 +584,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                          | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
                                          | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
                                          | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
+                                         | WINHTTP_CALLBACK_FLAG_SEND_REQUEST
                                          | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
                                          | WINHTTP_CALLBACK_FLAG_HANDLES,
                                          0);
