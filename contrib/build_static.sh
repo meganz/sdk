@@ -29,6 +29,25 @@ on_exit_ok() {
     echo "Successfully compiled SDK examples!"
 }
 
+print_distro_help()
+{
+    # yum: CentOS, Fedora, RedHat
+    type yum >/dev/null 2>&1
+    local exit_code=$?
+    if [ $exit_code -eq 0 ]; then
+        echo "Please execute the following command:  sudo yum install gcc gcc-c++ libtool unzip autoconf make wget"
+        return;
+    fi
+
+    # apt-get: Debian, Ubuntu
+    type apt-get >/dev/null 2>&1
+    local exit_code=$?
+    if [ $exit_code -eq 0 ]; then
+        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool unzip autoconf make wget"
+        return;
+    fi
+}
+
 check_apps()
 {
     if [ -z "${BASH}" ]
@@ -41,10 +60,10 @@ check_apps()
         exit 1
     fi
 
-    APPS=(bash gcc g++ ldd libtool tar unzip autoconf make autoreconf wget)
+    APPS=(bash gcc c++ ldd libtool tar unzip autoconf make autoreconf wget automake m4)
     for app in ${APPS[@]}; do
-        type ${app} >/dev/null 2>&1 || { echo "${app} is not installed. Please install it first and re-run the script."; exit 1; }
-        hash ${app} 2>/dev/null || { echo "${app} is not installed. Please install it first and re-run the script."; exit 1; }
+        type ${app} >/dev/null 2>&1 || { echo "${app} is not installed. Please install it first and re-run the script."; print_distro_help; exit 1; }
+        hash ${app} 2>/dev/null || { echo "${app} is not installed. Please install it first and re-run the script."; print_distro_help; exit 1; }
     done
 }
 
