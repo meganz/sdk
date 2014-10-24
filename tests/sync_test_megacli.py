@@ -125,6 +125,8 @@ if __name__ == "__main__":
     logging.info("3) Wait for both folders get fully synced")
     logging.info("4) Run: python %s", sys.argv[0])
     logging.info("")
+    logging.info("   Make sure you have unittest module installed:   pip install unittest-xml-reporting")
+    logging.info("")
     time.sleep(5)
 
     with SyncTestMegaCliApp(args.upsync_dir, args.downsync_dir, args.nodelete, args.large, args.check) as app:
