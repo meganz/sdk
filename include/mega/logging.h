@@ -21,6 +21,7 @@
 
 /* Usage example:
 
+   1)
     #include <fstream>  // for std::ofstream
 
     // output debug messages to file
@@ -38,11 +39,36 @@
     SimpleLogger::setOutputSettings(logDebug, true, true, true);
 
     ...
-
     LOG_debug << "test"; // will print message on screen and append line to debugfile
     LOG_info << "informing"; // will only print message on screen
 
 
+    2)
+    // set output class for all types of logs (for example - send logs to remote Log Server)
+    class MyOutput: public MegaLogger {
+    public:
+        void log(const char *time, int loglevel, const char *source, const char *message) {
+            std::cout << "{" << time << "}" << " [" << source << "] " << message << std::endl;
+        }
+    };
+
+    ...
+    MyOutput output;
+
+    // let's output both Debug (verbose) and Info (just messages) logs
+    // and send logs to remote Log Server
+    SimpleLogger::setOutputSettings(logDebug, true, true, true);
+    SimpleLogger::setOutputSettings(logInfo, false, false, false);
+    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setAllOutputs(&std::cout);
+    SimpleLogger::setOutputClass(output);
+    SimpleLogger::setOutputClass(&myOutput);
+
+    LOG_debug << "test";
+    LOG_info << "informing";
+
+
+    3)
     if MEGA_QT_LOGGING defined:
 
     QString a = QString::fromAscii("test1");
@@ -79,11 +105,19 @@ struct OutputSettings {
     bool enableSource;  // display file name and line number component for each log line
 };
 
+// Output Log Interface
+class MEGA_API MegaLogger {
+public:
+    virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
+};
+
 class MEGA_API SimpleLogger {
     enum LogLevel level;
     bool lineBreak;
     std::ostringstream ostr;
     typedef vector<std::ostream *> OutputStreams;
+    std::string t;
+    std::string fname;
 
     static const char *toStr(enum LogLevel ll)
     {
@@ -108,6 +142,7 @@ class MEGA_API SimpleLogger {
 public:
     typedef std::map<enum LogLevel, OutputStreams> OutputMap;
     static OutputMap outputs;
+    static MegaLogger *logger;
 
     typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
     static OutputSettingsMap outputSettings;
@@ -131,6 +166,12 @@ public:
         return *this;
     }
 #endif
+
+    // set output class
+    static void setOutputClass(MegaLogger *logger_class)
+    {
+        logger = logger_class;
+    }
 
     // register output stream for log level
     static void addOutput(enum LogLevel ll, std::ostream *os)
