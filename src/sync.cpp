@@ -302,9 +302,9 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
         // verify matching localroot prefix - this should always succeed for
         // internal use
         if (memcmp(ptr, localroot.localname.data(), localroot.localname.size())
-            || memcmp(ptr + localroot.localname.size(),
-                      client->fsaccess->localseparator.data(),
-                      separatorlen))
+         || memcmp(ptr + localroot.localname.size(),
+                   client->fsaccess->localseparator.data(),
+                   separatorlen))
         {
             if (parent)
             {
@@ -324,7 +324,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 
     for (;;)
     {
-        if ((nptr == end) || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen))
+        if (nptr == end || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen))
         {
             if (parent)
             {
@@ -332,8 +332,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
             }
 
             t.assign(ptr, nptr - ptr);
-            if (((it = l->children.find(&t)) == l->children.end())
-                && ((it = l->schildren.find(&t)) == l->schildren.end()))
+            if ((it = l->children.find(&t)) == l->children.end()
+             && (it = l->schildren.find(&t)) == l->schildren.end())
             {
                 // no full match: store residual path, return NULL with the
                 // matching component LocalNode in parent
@@ -518,8 +518,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
 
             string fname(localname ? *localpath : tmppath,
-                                   lastpart,
-                                   (localname ? *localpath : tmppath).size() - lastpart);
+                         lastpart,
+                         (localname ? *localpath : tmppath).size() - lastpart);
 
             LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
 
@@ -613,7 +613,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         // no fsid change detected or overwrite with unknown file:
                         if (fa->mtime != l->mtime || fa->size != l->size)
                         {
-                            if (fa->fsidvalid && (l->fsid != fa->fsid))
+                            if (fa->fsidvalid && l->fsid != fa->fsid)
                             {
                                 l->setfsid(fa->fsid);
                             }
