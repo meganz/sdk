@@ -2504,6 +2504,10 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
 {
     sdkMutex.lock();
 
+#ifdef __APPLE__
+    localfp = 0;
+#endif
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
     if(localFolder)
