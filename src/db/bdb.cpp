@@ -2,7 +2,7 @@
  * @file bdb.cpp
  * @brief Berkeley DB access layer
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -36,7 +36,7 @@ BdbAccess::BdbAccess(string* cdbpathprefix)
     else
     {
         // FIXME: Unicode support for default prefix?
-        dbpathprefix = "megaclient_statecache_";
+        dbpathprefix = "megaclient_statecache2_";
     }
 
     env = NULL;
