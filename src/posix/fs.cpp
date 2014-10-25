@@ -848,12 +848,16 @@ void PosixDirNotify::delnotify(LocalNode* l)
 
 fsfp_t PosixDirNotify::fsfingerprint()
 {
+#ifdef __MACH__
+    return 0;
+#else
     struct statfs statfsbuf;
 
     // FIXME: statfs() does not really do what we want.
     if (statfs(localbasepath.c_str(), &statfsbuf)) return 0;
 
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
+#endif
 }
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
