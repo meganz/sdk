@@ -620,7 +620,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
 
-                            if (l->genfingerprint(fa))
+                            if (l->genfingerprint(fa) && l->size >= 0)
                             {
                                 localbytes -= dsize - l->size;
                             }

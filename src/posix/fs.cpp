@@ -2,7 +2,7 @@
  * @file posix/fs.cpp
  * @brief POSIX filesystem/directory access/notification
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -311,12 +311,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     notifyerr = true;
                 }
 
-// this flag was introduced in glibc 2.13 and Linux 2.6.36
+// this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
                 if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
-                                 | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
+                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
                 {
                     if ((in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE)
                     {
@@ -327,10 +327,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                             if (lastcookie && lastcookie != in->cookie)
                             {
                                 ignore = &lastlocalnode->sync->dirnotify->ignore;
-                                if((lastname.size() < ignore->size())
-                                    || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                                    || ((lastname.size() > ignore->size())
-                                            && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+                                if (lastname.size() < ignore->size()
+                                 || memcmp(lastname.c_str(), ignore->data(), ignore->size())
+                                 || (lastname.size() > ignore->size()
+                                  && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
                                 {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
@@ -356,10 +356,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 lastcookie = 0;
 
                                 ignore = &it->second->sync->dirnotify->ignore;
-                                if((strlen(in->name) < ignore->size())
-                                    || memcmp(in->name, ignore->data(), ignore->size())
-                                    || ((strlen(in->name) > ignore->size())
-                                            && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
+
+                                if (strlen(in->name) < ignore->size()
+                                 || memcmp(in->name, ignore->data(), ignore->size())
+                                 || (strlen(in->name) > ignore->size()
+                                  && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
                                 {
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second, in->name,
@@ -378,10 +379,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         if (lastcookie)
         {
             ignore = &lastlocalnode->sync->dirnotify->ignore;
+
             if (lastname.size() < ignore->size()
-                || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                || (lastname.size() > ignore->size()
-                   && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+             || memcmp(lastname.c_str(), ignore->data(), ignore->size())
+             || (lastname.size() > ignore->size()
+              && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
             {
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
@@ -509,8 +511,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     if (!memcmp((*it)->localroot.localname.c_str(), path, s)    // prefix match
                       && (!path[s] || path[s] == '/')               // at end: end of path or path separator
                       && (memcmp(path + s + 1, (*it)->dirnotify->ignore.c_str(), (*it)->dirnotify->ignore.size())
-                          || (path[s + (*it)->dirnotify->ignore.size() + 1]
-                           && path[s + (*it)->dirnotify->ignore.size() + 1] != '/')))
+                       || (path[s + (*it)->dirnotify->ignore.size() + 1]
+                        && path[s + (*it)->dirnotify->ignore.size() + 1] != '/')))
                         {
                             paths[i] += (*it)->localroot.localname.size() + 1;
                             pathsync[i] = *it;
