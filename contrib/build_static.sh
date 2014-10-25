@@ -60,7 +60,7 @@ check_apps()
         exit 1
     fi
 
-    APPS=(bash gcc c++ ldd libtool tar unzip autoconf make autoreconf wget automake m4)
+    APPS=(bash gcc c++ libtool tar unzip autoconf make autoreconf wget automake m4)
     for app in ${APPS[@]}; do
         type ${app} >/dev/null 2>&1 || { echo "${app} is not installed. Please install it first and re-run the script."; print_distro_help; exit 1; }
         hash ${app} 2>/dev/null || { echo "${app} is not installed. Please install it first and re-run the script."; print_distro_help; exit 1; }
