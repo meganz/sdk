@@ -618,7 +618,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                 l->setfsid(fa->fsid);
                             }
 
-                            m_off_t dsize = l->size;
+                            m_off_t dsize = l->size > 0 ? l->size : 0;
 
                             if (l->genfingerprint(fa))
                             {
