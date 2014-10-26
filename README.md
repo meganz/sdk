@@ -36,11 +36,12 @@ Install the following development packages, if available, or download
 and compile their respective sources (package names are for
 Debian and RedHat derivatives, respectively):
 
-* libcurl compiled with `--enable-ares` and `--enable-ssl`
+* libcurl compiled with `--enable-ssl`
+* libcares (`libc-ares-dev`, `libcares-devel`)
 * Crypto++ (`libcrypto++-dev`, `libcryptopp-devel`)
-* Sodium (`libsodium-dev`, `libsodium-devel`)
-* SQLite (`libsqlite3-dev`, `sqlite-devel`) (optional)
-* FreeImage (`libfreeimage-dev`, `freeimage-devel`) (optional)
+* Sodium (`libsodium-dev`, `libsodium-devel`) or configure `--without-sodium`
+* SQLite (`libsqlite3-dev`, `sqlite-devel`) or configure `--without-sqlite`
+* FreeImage (`libfreeimage-dev`, `freeimage-devel`) or configure `--without-freeimage`
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux inotify and the MacOS `fsevents` interfaces.
@@ -59,10 +60,10 @@ To build the client access engine under Windows, you'll need the following:
 
 * A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
 * Crypto++
-* Sodium
 * zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
-* SQLite (optional)
-* FreeImage (optional)
+* Sodium or configure `--without-sodium`
+* SQLite or configure `--without-sqlite`
+* FreeImage or configure `--without-freeimage`
 * pthreads (MinGW)
 
 To build the reference `megacli.exe` example, you will also need to procure
