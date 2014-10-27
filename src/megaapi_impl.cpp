@@ -220,7 +220,7 @@ bool MegaNodePrivate::isPublic()
 
 MegaNodePrivate::~MegaNodePrivate()
 {
- 	delete name;
+ 	delete[] name;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
