@@ -296,9 +296,19 @@ const char* MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
-void MegaApi::enableDebug(bool enable)
+void MegaApi::setLogLevel(int logLevel)
 {
-    pImpl->enableDebug(enable);
+    MegaApiImpl::setLogLevel(logLevel);
+}
+
+void MegaApi::setLoggerClass(MegaLogger *megaLogger)
+{
+    MegaApiImpl::setLoggerClass(megaLogger);
+}
+
+void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
+{
+    MegaApiImpl::log(logLevel, message, filename, line);
 }
 
 const char* MegaApi::getBase64PwKey(const char *password)
@@ -978,3 +988,45 @@ bool MegaHashSignature::check(const char *base64Signature)
 }
 
 MegaAccountDetails::~MegaAccountDetails() { }
+
+
+void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
+{
+
+}
+
+
+bool MegaGfxProcessor::readBitmap(const char *)
+{
+    return false;
+}
+
+int MegaGfxProcessor::getWidth()
+{
+    return 0;
+}
+
+int MegaGfxProcessor::getHeight()
+{
+    return 0;
+}
+
+int MegaGfxProcessor::getBitmapDataSize(int w, int h, int px, int py, int rw, int rh)
+{
+    return 0;
+}
+
+bool MegaGfxProcessor::getBitmapData(char *bitmapData, size_t size)
+{
+    return false;
+}
+
+void MegaGfxProcessor::freeBitmap()
+{
+
+}
+
+MegaGfxProcessor::~MegaGfxProcessor()
+{
+
+}

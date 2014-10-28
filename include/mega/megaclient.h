@@ -35,7 +35,6 @@
 #include "pubkeyaction.h"
 
 namespace mega {
-extern bool debug;
 
 class MEGA_API MegaClient
 {

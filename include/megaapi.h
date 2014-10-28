@@ -37,13 +37,13 @@ class MegaApi;
 class MegaGfxProcessor
 {
 public:
-	virtual bool readBitmap(const char* path) { return false; }
-	virtual int getWidth() { return 0; }
-	virtual int getHeight() { return 0; }
-	virtual int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh) { return 0; }
-	virtual bool getBitmapData(char *bitmapData, size_t size) { return false; }
-	virtual void freeBitmap() {}
-	virtual ~MegaGfxProcessor() {};
+	virtual bool readBitmap(const char* path);
+	virtual int getWidth();
+	virtual int getHeight();
+	virtual int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh);
+	virtual bool getBitmapData(char *bitmapData, size_t size);
+	virtual void freeBitmap();
+	virtual ~MegaGfxProcessor();
 };
 
 class MegaProxy
@@ -67,6 +67,12 @@ protected:
     const char *proxyURL;
     const char *username;
     const char *password;
+};
+
+class MegaLogger
+{
+public:
+    virtual void log(const char *time, int loglevel, const char *source, const char *message);
 };
 
 class MegaNode
@@ -392,7 +398,7 @@ class MegaApi
     public:
     	enum
 		{
-			STATE_NONE,
+			STATE_NONE = 0,
 			STATE_SYNCED,
 			STATE_PENDING,
 			STATE_SYNCING,
@@ -401,9 +407,18 @@ class MegaApi
 
         enum
         {
-            EVENT_FEEDBACK,
+            EVENT_FEEDBACK = 0,
             EVENT_DEBUG,
             EVENT_INVALID
+        };
+
+        enum {
+            LOG_LEVEL_FATAL = 0,   // Very severe error event that will presumably lead the application to abort.
+            LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
+            LOG_LEVEL_WARNING, // Information representing errors in application but application will keep running
+            LOG_LEVEL_INFO,    // Mainly useful to represent current progress of application.
+            LOG_LEVEL_DEBUG,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+            LOG_LEVEL_MAX
         };
 
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
@@ -444,7 +459,11 @@ class MegaApi
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
-        void enableDebug(bool enable);
+
+        //Logging
+        static void setLogLevel(int logLevel);
+        static void setLoggerClass(MegaLogger *megaLogger);
+        static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);

@@ -62,7 +62,7 @@ CurlHttpIO::CurlHttpIO()
 
     if (!strstr(curlssl.c_str(), "openssl"))
     {
-        cerr << "cURL built without OpenSSL support. Aborting." << endl;
+        LOG_fatal << "cURL built without OpenSSL support. Aborting.";
         exit(EXIT_FAILURE);
     }
 
@@ -78,7 +78,7 @@ CurlHttpIO::CurlHttpIO()
 
     if (!data->protocols[i] || !(data->features & CURL_VERSION_SSL))
     {
-        cerr << "cURL built without HTTP/HTTPS support. Aborting." << endl;
+        LOG_fatal << "cURL built without HTTP/HTTPS support. Aborting.";
         exit(EXIT_FAILURE);
     }
 
@@ -264,10 +264,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             oss << httpctx->hostip << ":" << httpio->proxyport;
             httpio->proxyip = oss.str();
 
-            if (debug)
-            {
-                cout << "Updated proxy URL: " << httpio->proxyip << endl;
-            }
+            LOG_info << "Updated proxy URL: " << httpio->proxyip;
 
             httpio->send_pending_requests();
         }
@@ -419,18 +416,14 @@ void CurlHttpIO::send_request(CurlHttpContext*httpctx)
     int len = httpctx->len;
     const char* data = httpctx->data;
 
-    if (debug)
+    LOG_debug << "POST target URL: " << req->posturl;
+    if (req->binary)
     {
-        cout << "POST target URL: " << req->posturl << endl;
-
-        if (req->binary)
-        {
-            cout << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]" << endl;
-        }
-        else
-        {
-            cout << "Sending: " << *req->out << endl;
-        }
+        LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
+    }
+    else
+    {
+        LOG_debug << "Sending: " << *req->out;
     }
 
     req->posturl.replace(req->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
@@ -459,12 +452,9 @@ void CurlHttpIO::send_request(CurlHttpContext*httpctx)
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
 
-        if(debug)
-        {
-            curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
-            curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
-            curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-        }
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
+        curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 
         if(httpio->proxyip.size())
         {
@@ -647,11 +637,10 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
 
 int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
 {
-    if(type == CURLINFO_TEXT)
+    if(type == CURLINFO_TEXT && size)
     {
-        cout << "cURL DEBUG: ";
-        cout.width(size);
-        cout << data;
+        data[size-1] = 0;
+        LOG_verbose << "cURL DEBUG: " << data;
     }
 
     return 0;
@@ -892,22 +881,19 @@ bool CurlHttpIO::doio()
             {
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
-                if (debug)
+                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus;
+                if (req->httpstatus)
                 {
-                    cout << "CURLMSG_DONE with HTTP status: " << req->httpstatus << endl;
-
-                    if (req->httpstatus)
+                    if (req->binary)
                     {
-                        if (req->binary)
-                        {
-                            cout << "[received " << req->in.size() << " bytes of raw data]" << endl;
-                        }
-                        else
-                        {
-                            cout << "Received: " << req->in.c_str() << endl;
-                        }
+                        LOG_debug << "[received " << req->in.size() << " bytes of raw data]";
+                    }
+                    else
+                    {
+                        LOG_debug << "Received: " << req->in.c_str();
                     }
                 }
+
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200

@@ -56,8 +56,6 @@ typedef uint64_t fsfp_t;
 namespace mega {
 using namespace std;
 
-extern bool debug;
-
 // forward declaration
 struct AttrMap;
 class BackoffTimer;
@@ -330,7 +328,7 @@ typedef map<handle, char> handlecount_map;
 // maps FileFingerprints to node
 typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
 
-typedef enum { TREESTATE_NONE, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
+typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 struct Notification
 {

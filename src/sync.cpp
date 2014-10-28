@@ -24,6 +24,7 @@
 #include "mega/transfer.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
+#include "mega.h"
 
 namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
@@ -267,7 +268,10 @@ void Sync::cachenodes()
 
         statecachetable->commit();
 
-        if (insertq.size()) client->app->debug_log("LocalNode caching did not complete");
+        if (insertq.size())
+        {
+            LOG_err << "LocalNode caching did not complete";
+        }
     }
 }
 
