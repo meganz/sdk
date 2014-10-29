@@ -8,6 +8,7 @@
 
 #import "CloudDriveTableViewController.h"
 #import "NodeTableViewCell.h"
+#import "SVProgressHUD.h"
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
 #define isImage(n)  [imagesSet containsObject:n]
@@ -25,10 +26,10 @@
     [super viewDidLoad];
     if ([self.root getType] == MNodeTypeRoot) {
         [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [self.megaSDK getChildrenWithParent:[self.megaSDK getRootNode]];
+        self.nodes = [[MegaSDK sharedMegaSDK] getChildrenWithParent:[[MegaSDK sharedMegaSDK] getRootNode]];
     } else {
         [self.navigationItem setTitle:[self.root getName]];
-        self.nodes = [self.megaSDK getChildrenWithParent:self.root];
+        self.nodes = [[MegaSDK sharedMegaSDK] getChildrenWithParent:self.root];
     }
     
     //Create two directories inside DocumentDirectory: thumbnails and previews
@@ -49,13 +50,10 @@
             NSLog(@"Create directory error: %@", error);
         }
     }
-    
-    self.photoPreviews = [NSMutableArray array];
 }
 
 - (void)didReceiveMemoryWarning {
     [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
 }
 
 #pragma mark - Table view data source
@@ -80,8 +78,9 @@
     destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
-    if (!fileExists) {
-        [self.megaSDK getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:self];
+    if (!fileExists && [node getType] == MNodeTypeFile && [node hasThumbnail]) {
+        NSLog(@"REQUEST: getThumbnailWithNode index path row: %ld", (long)indexPath.row);
+        [[MegaSDK sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:self];
     }
     
     cell.nameLabel.text = [node getName];
@@ -109,26 +108,21 @@
     MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
     switch ([node getType]) {
         case MNodeTypeFolder: {
-            NSLog(@"FOLDER");
-            MNodeList *temp = [self.megaSDK getChildrenWithParent:node];
-            NSLog(@"%@", temp);
-            
             CloudDriveTableViewController *cv = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
             [cv setRoot:node];
-            cv.megaSDK = self.megaSDK;
             [self.navigationController pushViewController:cv animated:YES];
             break;
         }
         case MNodeTypeFile: {
-            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-            NSString *fileName = [[node getBase64Handle] stringByAppendingString:@".jpg"];
-            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"previews"];
-            destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-            
-            if (!fileExists) {
-                [self.megaSDK getPreviewWithNode:node destinationFilePath:destinationFilePath delegate:self];
-            }
+//            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+//            NSString *fileName = [[node getBase64Handle] stringByAppendingString:@".jpg"];
+//            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"previews"];
+//            destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
+//            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+//            
+//            if (!fileExists) {
+//                [[MegaSDK sharedMegaSDK] getPreviewWithNode:node destinationFilePath:destinationFilePath delegate:self];
+//            }
         }
             
         default:
@@ -137,12 +131,20 @@
 }
 
 - (IBAction)logout:(id)sender {
-    [self.megaSDK logoutWithDelegate:self];
+    [[MegaSDK sharedMegaSDK] logoutWithDelegate:self];
 }
 
 #pragma mark - MRequestDelegate
 
 - (void)onRequestStart:(MegaSDK *)api request:(MRequest *)request {
+    switch ([request getType]) {
+        case MRequestTypeLogout:
+            [SVProgressHUD showWithStatus:@"Logout..."];
+            break;
+            
+        default:
+            break;
+    }
 }
 
 - (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
@@ -159,10 +161,10 @@
             for (NSString *file in [fm contentsOfDirectoryAtPath:directory error:&error]) {
                 BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", directory, file] error:&error];
                 if (!success || error) {
-                    // it failed.
                     NSLog(@"remove file error %@", error);
                 }
             }
+            [SVProgressHUD dismiss];
             [self.navigationController popToRootViewControllerAnimated:NO];
             break;
         }

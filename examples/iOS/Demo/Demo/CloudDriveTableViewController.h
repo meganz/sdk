@@ -11,7 +11,6 @@
 
 @interface CloudDriveTableViewController : UITableViewController <MRequestDelegate>
 
-@property (nonatomic, strong) MegaSDK *megaSDK;
 @property (nonatomic, strong) MNode *root;
 
 @end

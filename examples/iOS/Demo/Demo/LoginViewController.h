@@ -11,6 +11,5 @@
 
 @interface LoginViewController : UIViewController <MRequestDelegate>
 
-
 @end
 

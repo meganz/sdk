@@ -35,7 +35,11 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
     MSortOrderTypeAlphabeticalDesc
 };
 
-@interface MegaSDK : NSObject
+@interface MegaSDK : NSObject 
+
++ (void)setAppKey:(NSString *)appKey;
++ (void)setUserAgent:(NSString *)userAgent;
++ (instancetype)sharedMegaSDK;
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent;
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath;
@@ -104,7 +108,7 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 - (void)getPreviewWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath;
 //- (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MRequestDelegate>)delegateObject;
 - (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath;
-//- (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject;
+- (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject;
 - (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath;
 //- (void)exportNode:(MNode *)node delegate:(id<MRequestDelegate>)delegateObject;
 - (void)exportNode:(MNode *)node;
@@ -112,7 +116,7 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 - (void)disableExportNode:(MNode *)node;
 - (void)fetchNodesWithListener:(id<MRequestDelegate>)delegateObject;
 - (void)fetchNodes;
-//- (void)getAccountDetailsWithDelegate:(id<MRequestDelegate>)delegateObject;
+- (void)getAccountDetailsWithDelegate:(id<MRequestDelegate>)delegateObject;
 - (void)getAccountDetails;
 //- (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MRequestDelegate>)delegateObject;
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;

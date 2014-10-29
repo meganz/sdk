@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="6245" systemVersion="13F34" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="FlW-YH-r6e">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="6250" systemVersion="13F34" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="FlW-YH-r6e">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6238"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6244"/>
         <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
     </dependencies>
     <scenes>
@@ -17,12 +17,12 @@
                         <rect key="frame" x="0.0" y="64" width="600" height="536"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
-                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Email" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="4EC-4o-G5t">
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="megaiostest@yopmail.com" borderStyle="roundedRect" placeholder="Email" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="4EC-4o-G5t">
                                 <rect key="frame" x="16" y="30" width="568" height="30"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits" keyboardType="emailAddress"/>
                             </textField>
-                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Password" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="Xkf-mm-cAV">
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="megaios" borderStyle="roundedRect" placeholder="Password" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="Xkf-mm-cAV">
                                 <rect key="frame" x="16" y="80" width="568" height="30"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits" secureTextEntry="YES"/>
@@ -196,6 +196,11 @@
                     </tableView>
                     <toolbarItems/>
                     <navigationItem key="navigationItem" id="DA5-VX-OPc">
+                        <barButtonItem key="leftBarButtonItem" title="My account" id="pLM-ud-8VL">
+                            <connections>
+                                <segue destination="syy-nn-HWp" kind="show" id="5M3-nJ-on4"/>
+                            </connections>
+                        </barButtonItem>
                         <barButtonItem key="rightBarButtonItem" title="Logout" id="S3a-pC-dgl">
                             <connections>
                                 <action selector="logout:" destination="iPC-QU-led" id="Mbd-sd-Tts"/>
@@ -207,6 +212,52 @@
                 <placeholder placeholderIdentifier="IBFirstResponder" id="UFk-YB-u5b" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="1899" y="-324"/>
+        </scene>
+        <!--My Account View Controller-->
+        <scene sceneID="xIR-S2-87Y">
+            <objects>
+                <viewController id="syy-nn-HWp" customClass="MyAccountViewController" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="uGR-dh-cf5"/>
+                        <viewControllerLayoutGuide type="bottom" id="acd-yi-nge"/>
+                    </layoutGuides>
+                    <view key="view" contentMode="scaleToFill" id="MB9-wQ-7ze">
+                        <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="yDK-XE-KZQ">
+                                <rect key="frame" x="250" y="72" width="88" height="88"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="88" id="o8f-tF-Kth"/>
+                                </constraints>
+                            </imageView>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="naF-lZ-sOV">
+                                <rect key="frame" x="16" y="180" width="568" height="21"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="568" id="MG6-BW-9hm"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        <constraints>
+                            <constraint firstItem="naF-lZ-sOV" firstAttribute="top" secondItem="yDK-XE-KZQ" secondAttribute="bottom" constant="20" id="1LO-Eq-JLx"/>
+                            <constraint firstItem="yDK-XE-KZQ" firstAttribute="top" secondItem="uGR-dh-cf5" secondAttribute="bottom" constant="8" id="1b3-tZ-zwV"/>
+                            <constraint firstAttribute="centerX" secondItem="yDK-XE-KZQ" secondAttribute="centerX" constant="6" id="f8l-y6-pah"/>
+                            <constraint firstItem="naF-lZ-sOV" firstAttribute="top" secondItem="uGR-dh-cf5" secondAttribute="bottom" constant="116" id="fQk-9p-IPY"/>
+                            <constraint firstAttribute="centerX" secondItem="naF-lZ-sOV" secondAttribute="centerX" id="p0D-sB-fUO"/>
+                        </constraints>
+                    </view>
+                    <connections>
+                        <outlet property="userAvatar" destination="yDK-XE-KZQ" id="GsX-JJ-DLk"/>
+                        <outlet property="userEmail" destination="naF-lZ-sOV" id="Ief-Ad-nG7"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="Dne-Vz-4Q6" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="2587" y="-324"/>
         </scene>
         <!--Navigation Controller-->
         <scene sceneID="Vez-Ys-MCc">

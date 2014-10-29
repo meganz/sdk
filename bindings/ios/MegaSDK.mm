@@ -47,6 +47,28 @@ using namespace mega;
 
 @implementation MegaSDK
 
+static NSString *_appKey = nil;
+static NSString *_userAgent = nil;
+static MegaSDK * _sharedMegaSDK = nil;
+
++ (void)setAppKey:(NSString *)appKey {
+    _appKey = appKey;
+}
+
++ (void)setUserAgent:(NSString *)userAgent {
+    _userAgent = userAgent;
+}
+
++ (instancetype)sharedMegaSDK {
+    if (!_sharedMegaSDK) {
+        NSAssert(_appKey != nil, @"setAppKey: should be called first");
+        NSAssert(_userAgent != nil, @"setUserAgent: should be called first");
+        _sharedMegaSDK = [[MegaSDK alloc] initWithAppKey:_appKey userAgent:_userAgent];
+    }
+    return _sharedMegaSDK;
+
+}
+
 - (void)dealloc {
     delete _megaApi;
 //    DeleteCriticalSection(&listenerMutex);
@@ -320,8 +342,9 @@ using namespace mega;
     self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
-//TODO: listener
-//- (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath {
+- (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath {
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
@@ -350,8 +373,9 @@ using namespace mega;
     self.megaApi->fetchNodes();
 }
 
-//TODO:listener
-//- (void)getAccountDetails {
+- (void)getAccountDetailsWithDelegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->getAccountDetails([self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)getAccountDetails {
     self.megaApi->getAccountDetails();

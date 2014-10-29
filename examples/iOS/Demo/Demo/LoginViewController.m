@@ -11,14 +11,10 @@
 #import "RegisterViewController.h"
 #import "SVProgressHUD.h"
 
-#define kUserAgent @"iOS Example/1.0"
-#define kAppKey @"hNF3ELhK"
 #define kSession @"kSession"
 #define kEmail @"kEmail"
 
 @interface LoginViewController ()
-
-@property MegaSDK *megaSDK;
 
 @property (weak, nonatomic) IBOutlet UITextField *inputEmail;
 @property (weak, nonatomic) IBOutlet UITextField *inputPassword;
@@ -30,18 +26,24 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.megaSDK = [[MegaSDK alloc] initWithAppKey:kAppKey userAgent:kUserAgent basePath:nil];
-
-    //----- LIST ALL FILES -----
-    NSLog(@"LISTING ALL FILES FOUND");
+    NSLog(@"Thumbnails found");
     
-    int Count;
+    int count;
     NSString *path;
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"previews"];
+    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
     NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
-    for (Count = 0; Count < (int)[directoryContent count]; Count++) {
-        NSLog(@"File %d: %@", (Count + 1), [directoryContent objectAtIndex:Count]);
+    for (count = 0; count < (int)[directoryContent count]; count++) {
+        NSLog(@"File %d: %@", (count + 1), [directoryContent objectAtIndex:count]);
+    }
+    
+    NSLog(@"Previews found");
+    
+    paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"previews"];
+    directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
+    for (count = 0; count < (int)[directoryContent count]; count++) {
+        NSLog(@"File %d: %@", (count + 1), [directoryContent objectAtIndex:count]);
     }
 }
 
@@ -50,7 +52,7 @@
 }
 
 - (IBAction)tapLogin:(id)sender {
-    [self.megaSDK loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
+    [[MegaSDK sharedMegaSDK] loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
 }
 
 - (IBAction)tapRegister:(id)sender {
@@ -60,13 +62,11 @@
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
     if ([segue.identifier isEqualToString:@"showCloudDrive"]) {
         CloudDriveTableViewController *cloudDriveVC = segue.destinationViewController;
-        cloudDriveVC.megaSDK = self.megaSDK;
-        [cloudDriveVC setRoot:[self.megaSDK getRootNode]];
+        [cloudDriveVC setRoot:[[MegaSDK sharedMegaSDK] getRootNode]];
     }
     
     if ([segue.identifier isEqualToString:@"pushRegister"]) {
-        RegisterViewController *registerViewController = segue.destinationViewController;
-        registerViewController.megaSDK = self.megaSDK;
+//        RegisterViewController *registerViewController = segue.destinationViewController;
     }
 }
 
@@ -108,17 +108,11 @@
     
     switch ([request getType]) {
         case MRequestTypeLogin: {
-            [self.megaSDK fetchNodesWithListener:self];
-            break;
-        }
-            
-        case MRequestTypeFastLogin: {
-            [self performSegueWithIdentifier:@"showCloudDrive" sender:self];
+            [[MegaSDK sharedMegaSDK] fetchNodesWithListener:self];
             break;
         }
             
         case MRequestTypeFetchNodes: {
-            NSLog(@"fetchnodes");
             [SVProgressHUD dismiss];
             [self performSegueWithIdentifier:@"showCloudDrive" sender:self];
             break;
