@@ -73,6 +73,7 @@ class MegaLogger
 {
 public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message);
+    virtual ~MegaLogger(){}
 };
 
 class MegaNode
@@ -443,7 +444,7 @@ class MegaApi
         static const char* handleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
-        static void addEntropy(unsigned char* data, unsigned int size);
+        static void addEntropy(char* data, unsigned int size);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);

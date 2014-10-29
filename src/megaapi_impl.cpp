@@ -1716,14 +1716,14 @@ void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, Me
     waiter->notify();
 }
 
-void MegaApiImpl::addEntropy(unsigned char *data, unsigned int size)
+void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
     if(PrnGen::rng.CanIncorporateEntropy())
-        PrnGen::rng.IncorporateEntropy(data, size);
+        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
 
 #ifdef USE_SODIUM
     if(EdDSA::rng.CanIncorporateEntropy())
-        EdDSA::rng.IncorporateEntropy(data, size);
+        EdDSA::rng.IncorporateEntropy((const byte*)data, size);
 #endif
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
