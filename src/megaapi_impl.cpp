@@ -6139,7 +6139,7 @@ ExternalLogger::ExternalLogger()
 	this->megaLogger = NULL;
 
 #ifdef DEBUG
-	SimpleLogger::setLogLevel(logDebug);
+	SimpleLogger::setLogLevel(logMax);
 #endif
 
 	SimpleLogger::setOutputClass(this);
