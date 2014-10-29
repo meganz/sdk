@@ -1,4 +1,4 @@
-#define _POSIX_SOURCE
+﻿#define _POSIX_SOURCE
 #define _LARGE_FILES
 
 #ifndef _WIN32
@@ -2733,6 +2733,35 @@ NodeList* MegaApiImpl::getInShares()
 	return nodeList;
 }
 
+bool MegaApiImpl::isShared(MegaNode *megaNode)
+{
+	if(!megaNode) return false;
+
+	sdkMutex.lock();
+	Node *node = client->nodebyhandle(megaNode->getHandle());
+	if(!node)
+	{
+		sdkMutex.unlock();
+		return false;
+	}
+
+	bool result = (node->outshares.size() != 0);
+	sdkMutex.unlock();
+
+	return result;
+}
+
+ShareList *MegaApiImpl::getOutShares()
+{
+    sdkMutex.lock();
+
+    OutShareProcessor shareProcessor;
+    processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
+    ShareList *shareList = new ShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
+
+	sdkMutex.unlock();
+	return shareList;
+}
 
 ShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 {
@@ -6173,3 +6202,31 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 	}
 	mutex.unlock();
 }
+
+
+OutShareProcessor::OutShareProcessor()
+{
+
+}
+
+bool OutShareProcessor::processNode(Node *node)
+{
+	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+	{
+		shares.push_back(it->second);
+		handles.push_back(node->nodehandle);
+	}
+
+	return true;
+}
+
+vector<Share *> &OutShareProcessor::getShares()
+{
+	return shares;
+}
+
+vector<handle> &OutShareProcessor::getHandles()
+{
+	return handles;
+}
+

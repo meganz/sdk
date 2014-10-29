@@ -523,6 +523,21 @@ class SearchTreeProcessor : public TreeProcessor
         vector<Node *> results;
 };
 
+class OutShareProcessor : public TreeProcessor
+{
+    public:
+        OutShareProcessor();
+        virtual bool processNode(Node* node);
+        virtual ~OutShareProcessor() {}
+        vector<Share *> &getShares();
+        vector<handle> &getHandles();
+
+    protected:
+        const char *search;
+        vector<Share *> shares;
+        vector<handle> handles;
+};
+
 class SizeProcessor : public TreeProcessor
 {
     protected:
@@ -694,6 +709,8 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* email);
         NodeList *getInShares(MegaUser* user);
         NodeList *getInShares();
+        bool isShared(MegaNode *node);
+        ShareList *getOutShares();
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);

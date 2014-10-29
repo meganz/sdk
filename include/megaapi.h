@@ -556,6 +556,8 @@ class MegaApi
         MegaUser* getContact(const char* email);
         NodeList *getInShares(MegaUser* user);
         NodeList *getInShares();
+        bool isShared(MegaNode *node);
+        ShareList *getOutShares();
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);

@@ -718,6 +718,16 @@ NodeList* MegaApi::getInShares()
     return pImpl->getInShares();
 }
 
+bool MegaApi::isShared(MegaNode *node)
+{
+    return pImpl->isShared(node);
+}
+
+ShareList *MegaApi::getOutShares()
+{
+    return pImpl->getOutShares();
+}
+
 ShareList* MegaApi::getOutShares(MegaNode *megaNode)
 {
     return pImpl->getOutShares(megaNode);
