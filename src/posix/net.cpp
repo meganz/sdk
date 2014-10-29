@@ -469,7 +469,10 @@ void CurlHttpIO::send_request(CurlHttpContext*httpctx)
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, httpio->proxypassword.c_str());
             }
 
-            curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+            if(httpctx->port == 443)
+            {
+                curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+            }
         }
 
         curl_multi_add_handle(httpio->curlm, curl);
