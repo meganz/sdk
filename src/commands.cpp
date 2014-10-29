@@ -28,6 +28,7 @@
 #include "mega/transfer.h"
 #include "mega/utils.h"
 #include "mega/user.h"
+#include "mega.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata)
@@ -985,7 +986,7 @@ void CommandLogin::procresult()
                     }
 
                     // add missing RSA keypair
-                    client->app->debug_log("Generating and adding missing RSA keypair");
+                    LOG_info << "Generating and adding missing RSA keypair";
                     client->setkeypair();
                 }
                 else

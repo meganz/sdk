@@ -181,5 +181,4 @@ struct DemoApp : public MegaApp
     void clearing();
 
     void notify_retry(dstime);
-    void debug_log(const char*);
 };

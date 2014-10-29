@@ -283,16 +283,13 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
             if (!size)
             {
-                if (debug)
+                if (req->binary)
                 {
-                    if (req->binary)
-                    {
-                        cout << "[received " << req->bufpos << " bytes of raw data]" << endl;
-                    }
-                    else
-                    {
-                        cout << "Received: " << req->in.c_str() << endl;
-                    }
+                    LOG_debug << "[received " << req->bufpos << " bytes of raw data]";
+                }
+                else
+                {
+                    LOG_debug << "Received: " << req->in.c_str();
                 }
 
                 req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
@@ -518,19 +515,15 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
 // POST request to URL
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
-{
-    if (debug)
+{    
+    LOG_debug << "POST target URL: " << req->posturl;
+    if (req->binary)
     {
-        cout << "POST target URL: " << req->posturl << endl;
-
-        if (req->binary)
-        {
-            cout << "[sending " << req->out->size() << " bytes of raw data]" << endl;
-        }
-        else
-        {
-            cout << "Sending: " << *req->out << endl;
-        }
+        LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
+    }
+    else
+    {
+        LOG_debug << "Sending: " << *req->out;
     }
 
     WinHttpContext* httpctx;

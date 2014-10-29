@@ -26,7 +26,7 @@ namespace mega {
 // static member initialization
 SimpleLogger::OutputMap SimpleLogger::outputs;
 SimpleLogger::OutputSettingsMap SimpleLogger::outputSettings;
-MegaLogger *SimpleLogger::logger = NULL;
+Logger *SimpleLogger::logger = NULL;
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 
@@ -45,7 +45,13 @@ SimpleLogger::SimpleLogger(enum LogLevel ll, char const* filename, int line, boo
 
     if (logger) {
         t = getTime();
-        fname = filename;
+        std::ostringstream oss;
+        oss << filename;
+        if(line >= 0)
+        {
+            oss << ":" << line;
+        }
+        fname = oss.str();
     }
 }
 
@@ -53,6 +59,9 @@ SimpleLogger::~SimpleLogger()
 {
     OutputStreams::iterator iter;
     OutputStreams vec;
+
+    if (logger)
+        logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
 
     if (lineBreak)
         ostr << std::endl;
@@ -63,9 +72,6 @@ SimpleLogger::~SimpleLogger()
     {
         **iter << ostr.str();
     }
-
-    if (logger)
-        logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
 }
 
 std::string SimpleLogger::getTime()

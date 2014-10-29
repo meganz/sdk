@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file mega/logging.h
  * @brief Logging class
  *
@@ -45,7 +45,7 @@
 
     2)
     // set output class for all types of logs (for example - send logs to remote Log Server)
-    class MyOutput: public MegaLogger {
+    class MyOutput: public Logger {
     public:
         void log(const char *time, int loglevel, const char *source, const char *message) {
             std::cout << "{" << time << "}" << " [" << source << "] " << message << std::endl;
@@ -90,11 +90,11 @@ namespace mega {
 
 // available log levels
 enum LogLevel {
-    logFatal,   // Very severe error event that will presumably lead the application to abort.
-    logError,   // Error information but will continue application to keep running.
-    logWarning, // Information representing errors in application but application will keep running
-    logInfo,    // Mainly useful to represent current progress of application.
-    logDebug,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+    logFatal = 0, // Very severe error event that will presumably lead the application to abort.
+    logError,     // Error information but will continue application to keep running.
+    logWarning,   // Information representing errors in application but application will keep running
+    logInfo,      // Mainly useful to represent current progress of application.
+    logDebug,     // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
     logMax
 };
 
@@ -106,7 +106,7 @@ struct OutputSettings {
 };
 
 // Output Log Interface
-class MEGA_API MegaLogger {
+class MEGA_API Logger {
 public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
@@ -119,19 +119,6 @@ class MEGA_API SimpleLogger {
     std::string t;
     std::string fname;
 
-    static const char *toStr(enum LogLevel ll)
-    {
-        switch (ll) {
-            case logDebug: return "debug";
-            case logInfo: return "info";
-            case logWarning: return "warn";
-            case logError: return "err";
-            case logFatal: return "FATAL";
-            default: return "";
-        }
-        return "";
-    }
-
     OutputStreams getOutput(enum LogLevel ll)
     {
         return outputs[ll];
@@ -142,7 +129,7 @@ class MEGA_API SimpleLogger {
 public:
     typedef std::map<enum LogLevel, OutputStreams> OutputMap;
     static OutputMap outputs;
-    static MegaLogger *logger;
+    static Logger *logger;
 
     typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
     static OutputSettingsMap outputSettings;
@@ -151,6 +138,20 @@ public:
 
     SimpleLogger(enum LogLevel ll, char const* filename, int line, bool lBreak = true);
     ~SimpleLogger();
+
+    static const char *toStr(enum LogLevel ll)
+    {
+        switch (ll) {
+            case logMax: return "verbose";
+            case logDebug: return "debug";
+            case logInfo: return "info";
+            case logWarning: return "warn";
+            case logError: return "err";
+            case logFatal: return "FATAL";
+            default: return "";
+        }
+        return "";
+    }
 
     template <typename T>
     SimpleLogger& operator<<(T const& obj)
@@ -168,7 +169,7 @@ public:
 #endif
 
     // set output class
-    static void setOutputClass(MegaLogger *logger_class)
+    static void setOutputClass(Logger *logger_class)
     {
         logger = logger_class;
     }
@@ -219,6 +220,18 @@ public:
 
 // enable debug level if DEBUG symbol is defined
 #ifdef DEBUG
+// output VERBOSE log with line break
+#define LOG_verbose \
+    if (SimpleLogger::logCurrentLevel < logMax) ;\
+    else \
+        SimpleLogger(logMax, __FILE__, __LINE__)
+
+// output VERBOSE log without line break
+#define LOGn_verbose \
+    if (SimpleLogger::logCurrentLevel < logMax) ;\
+    else \
+        SimpleLogger(logMax, __FILE__, __LINE__, false)
+
 // output DEBUG log with line break
 #define LOG_debug \
     if (SimpleLogger::logCurrentLevel < logDebug) ;\
@@ -231,6 +244,8 @@ public:
     else \
         SimpleLogger(logDebug, __FILE__, __LINE__, false)
 #else
+#define LOG_verbose NullLogger()
+#define LOGn_verbose NullLogger()
 #define LOG_debug NullLogger()
 #define LOGn_debug NullLogger()
 #endif // DEBUG

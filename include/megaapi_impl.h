@@ -104,6 +104,19 @@ class MegaDbAccess : public SqliteDbAccess
 		MegaDbAccess(string *basePath = NULL) : SqliteDbAccess(basePath){}
 };
 
+class ExternalLogger : public mega::Logger
+{
+public:
+    ExternalLogger();
+    void setMegaLogger(MegaLogger *logger);
+    void setLogLevel(int logLevel);
+    void postLog(int logLevel, const char *message, const char *filename, int line);
+    virtual void log(const char *time, int loglevel, const char *source, const char *message);
+
+private:
+    MegaMutex mutex;
+    MegaLogger *megaLogger;
+};
 
 class MegaNodePrivate : public MegaNode
 {
@@ -592,7 +605,9 @@ class MegaApiImpl : public MegaApp
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
-        void enableDebug(bool enable);
+        static void setLogLevel(int logLevel);
+        static void setLoggerClass(MegaLogger *megaLogger);
+        static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
@@ -717,6 +732,7 @@ protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
         static void *threadEntryPoint(void *param);
+        static ExternalLogger externalLogger;
 
         void fireOnRequestStart(MegaRequestPrivate *request);
         void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
@@ -883,10 +899,6 @@ protected:
 
         // failed request retry notification
         virtual void notify_retry(dstime);
-
-        // generic debug logging
-        virtual void debug_log(const char*);
-        //////////
 
         void sendPendingRequests();
         void sendPendingTransfers();

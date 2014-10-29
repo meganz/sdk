@@ -39,8 +39,6 @@
 
 using namespace mega;
 
-extern bool debug;
-
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring)
 : MegaNode()
 {
@@ -1510,6 +1508,8 @@ void *MegaApiImpl::threadEntryPoint(void *param)
 	return 0;
 }
 
+ExternalLogger MegaApiImpl::externalLogger;
+
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
 	init(api, appKey, processor, basePath, userAgent);
@@ -1528,12 +1528,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath,
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
 {
     this->api = api;
-
-#ifdef SHOW_LOGS
-    debug = true;
-#else
-    debug = false;
-#endif
 
     sdkMutex.init(true);
 	maxRetries = 5;
@@ -1627,9 +1621,19 @@ const char* MegaApiImpl::getMyEmail()
     return result;
 }
 
-void MegaApiImpl::enableDebug(bool enable)
+void MegaApiImpl::setLogLevel(int logLevel)
 {
-    debug = enable;
+    externalLogger.setLogLevel(logLevel);
+}
+
+void MegaApiImpl::setLoggerClass(MegaLogger *megaLogger)
+{
+    externalLogger.setMegaLogger(megaLogger);
+}
+
+void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
+{
+    externalLogger.postLog(logLevel, message, filename, line);
 }
 
 const char* MegaApiImpl::getBase64PwKey(const char *password)
@@ -3796,16 +3800,6 @@ void MegaApiImpl::reload(const char*)
 {
     fireOnReloadNeeded();
 }
-
-
-void MegaApiImpl::debug_log(const char* message)
-{
-    if(debug)
-    {
-        cout << message << endl;
-    }
-}
-
 
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
@@ -6136,4 +6130,46 @@ long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
 MegaAccountDetails* MegaAccountDetailsPrivate::copy()
 {
 	return new MegaAccountDetailsPrivate(details);
+}
+
+
+ExternalLogger::ExternalLogger()
+{
+	mutex.init(true);
+	this->megaLogger = NULL;
+
+#ifdef DEBUG
+	SimpleLogger::setLogLevel(logDebug);
+#endif
+
+	SimpleLogger::setOutputClass(this);
+}
+
+void ExternalLogger::setMegaLogger(MegaLogger *logger)
+{
+	this->megaLogger = logger;
+}
+
+void ExternalLogger::setLogLevel(int logLevel)
+{
+	SimpleLogger::setLogLevel((LogLevel)logLevel);
+}
+
+void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
+{
+	SimpleLogger((LogLevel)logLevel, filename, line) << message;
+}
+
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
+{
+	mutex.lock();
+	if(megaLogger)
+	{
+		megaLogger->log(time, loglevel, source, message);
+	}
+	else
+	{
+		cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+	}
+	mutex.unlock();
 }
