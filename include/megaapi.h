@@ -21,6 +21,7 @@ class MegaTransferListener;
 class MegaGlobalListener;
 class MegaTreeProcessor;
 class MegaAccountDetails;
+class MegaPricing;
 class MegaTransfer;
 class MegaNode;
 class MegaUser;
