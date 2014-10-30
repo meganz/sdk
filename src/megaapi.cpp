@@ -526,6 +526,11 @@ void MegaApi::getAccountDetails(MegaRequestListener *listener)
     pImpl->getAccountDetails(listener);
 }
 
+void MegaApi::getPricing(MegaRequestListener *listener)
+{
+    pImpl->getPricing(listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -999,12 +1004,10 @@ bool MegaHashSignature::check(const char *base64Signature)
 
 MegaAccountDetails::~MegaAccountDetails() { }
 
-
 void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
 
 }
-
 
 bool MegaGfxProcessor::readBitmap(const char *)
 {
@@ -1036,7 +1039,6 @@ void MegaGfxProcessor::freeBitmap()
 
 }
 
-MegaGfxProcessor::~MegaGfxProcessor()
-{
+MegaGfxProcessor::~MegaGfxProcessor() { }
+MegaPricing::~MegaPricing() { }
 
-}

@@ -761,8 +761,23 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->transferredBytes = 0;
     this->number = 0;
 
-	if(type == MegaRequest::TYPE_ACCOUNT_DETAILS) this->accountDetails = new AccountDetails();
-	else this->accountDetails = NULL;
+    if(type == MegaRequest::TYPE_ACCOUNT_DETAILS)
+    {
+        this->accountDetails = new AccountDetails();
+    }
+    else
+    {
+        this->accountDetails = NULL;
+    }
+
+    if(type == MegaRequest::TYPE_GET_PRICING)
+    {
+        this->megaPricing = new MegaPricingPrivate();
+    }
+    else
+    {
+        megaPricing = NULL;
+    }
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
@@ -806,6 +821,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->setTransferredBytes(request.getTransferredBytes());
 	this->listener = request.getListener();
 	this->accountDetails = NULL;
+    this->megaPricing = (MegaPricingPrivate *)request.getPricing();
 	if(request.getAccountDetails())
     {
 		this->accountDetails = new AccountDetails();
@@ -851,6 +867,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete publicNode;
 	delete [] file;
 	delete accountDetails;
+    delete megaPricing;
     delete [] text;
 }
 
@@ -962,6 +979,11 @@ int MegaRequestPrivate::getNumDetails() const
 int MegaRequestPrivate::getTag() const
 {
     return tag;
+}
+
+MegaPricing *MegaRequestPrivate::getPricing() const
+{
+    return megaPricing ? megaPricing->copy() : NULL;
 }
 
 void MegaRequestPrivate::setNumDetails(int numDetails)
@@ -1099,6 +1121,14 @@ void MegaRequestPrivate::setTransferredBytes(long long transferredBytes)
 void MegaRequestPrivate::setTag(int tag)
 {
     this->tag = tag;
+}
+
+void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+{
+    if(megaPricing)
+    {
+        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency);
+    }
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
@@ -2126,6 +2156,13 @@ void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 void MegaApiImpl::getAccountDetails(MegaRequestListener *listener)
 {
     getAccountDetails(true, true, true, false, false, false, listener);
+}
+
+void MegaApiImpl::getPricing(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener)
@@ -3592,6 +3629,24 @@ void MegaApiImpl::putfa_result(handle, fatype, error e)
     //MegaRequestPrivate* request = requestMap.at(client->restag);
     //if(!request) return;
     //fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char *currency)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PRICING)) return;
+
+    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency);
+}
+
+void MegaApiImpl::enumeratequotaitems_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PRICING)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::clearing()
@@ -5830,6 +5885,11 @@ void MegaApiImpl::sendPendingRequests()
             threadExit = 1;
             break;
         }
+        case MegaRequest::TYPE_GET_PRICING:
+        {
+            client->purchase_enumeratequotaitems();
+            break;
+        }
 		}
 
 		if(e)
@@ -6161,7 +6221,6 @@ MegaAccountDetails* MegaAccountDetailsPrivate::copy()
 	return new MegaAccountDetailsPrivate(details);
 }
 
-
 ExternalLogger::ExternalLogger()
 {
 	mutex.init(true);
@@ -6230,3 +6289,94 @@ vector<handle> &OutShareProcessor::getHandles()
 	return handles;
 }
 
+MegaPricingPrivate::~MegaPricingPrivate()
+{
+    for(unsigned i = 0; i < currency.size(); i++)
+    {
+        delete[] currency[i];
+    }
+}
+
+int MegaPricingPrivate::getNumProducts()
+{
+    return handles.size();
+}
+
+handle MegaPricingPrivate::getHandle(int productIndex)
+{
+    if((unsigned)productIndex < handles.size())
+        return handles[productIndex];
+
+    return UNDEF;
+}
+
+int MegaPricingPrivate::getProLevel(int productIndex)
+{
+    if((unsigned)productIndex < proLevel.size())
+        return proLevel[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBStorage(int productIndex)
+{
+    if((unsigned)productIndex < gbStorage.size())
+        return gbStorage[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBTransfer(int productIndex)
+{
+    if((unsigned)productIndex < gbTransfer.size())
+        return gbTransfer[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getMonths(int productIndex)
+{
+    if((unsigned)productIndex < months.size())
+        return months[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getAmount(int productIndex)
+{
+    if((unsigned)productIndex < amount.size())
+        return amount[productIndex];
+
+    return 0;
+}
+
+const char *MegaPricingPrivate::getCurrency(int productIndex)
+{
+    if((unsigned)productIndex < currency.size())
+        return currency[productIndex];
+
+    return NULL;
+}
+
+MegaPricing *MegaPricingPrivate::copy()
+{
+    MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
+    for(unsigned i=0; i<handles.size(); i++)
+    {
+        megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
+                                months[i], amount[i], currency[i]);
+    }
+
+    return megaPricing;
+}
+
+void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+{
+    this->handles.push_back(product);
+    this->proLevel.push_back(proLevel);
+    this->gbStorage.push_back(gbStorage);
+    this->gbTransfer.push_back(gbTransfer);
+    this->months.push_back(months);
+    this->amount.push_back(amount);
+    this->currency.push_back(MegaApi::strdup(currency));
+}

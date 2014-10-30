@@ -303,6 +303,7 @@ class MegaTransferPrivate : public MegaTransfer
 		Transfer *transfer;     
 };
 
+class MegaPricingPrivate;
 class MegaRequestPrivate : public MegaRequest
 {
 	public:
@@ -334,6 +335,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
+        void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+                        int months, int amount, const char *currency);
 
         virtual int getType() const;
 		virtual const char *getRequestString() const;
@@ -364,10 +367,12 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getTransfer() const;
 		virtual int getNumDetails() const;
         virtual int getTag() const;
+        virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;
         
     protected:
-        AccountDetails *accountDetails;        
+        AccountDetails *accountDetails;
+        MegaPricingPrivate *megaPricing;
 		int type;
         MegaHandle nodeHandle;
 		const char* link;
@@ -416,6 +421,32 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 	private:
 		MegaAccountDetailsPrivate(AccountDetails *details);
 		AccountDetails *details;
+};
+
+class MegaPricingPrivate : public MegaPricing
+{
+public:
+    virtual ~MegaPricingPrivate();
+    virtual int getNumProducts();
+    virtual MegaHandle getHandle(int productIndex);
+    virtual int getProLevel(int productIndex);
+    virtual int getGBStorage(int productIndex);
+    virtual int getGBTransfer(int productIndex);
+    virtual int getMonths(int productIndex);
+    virtual int getAmount(int productIndex);
+    virtual const char* getCurrency(int productIndex);
+    virtual MegaPricing *copy();
+
+    void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+                    int months, int amount, const char *currency);
+private:
+    vector<handle> handles;
+    vector<int> proLevel;
+    vector<int> gbStorage;
+    vector<int> gbTransfer;
+    vector<int> months;
+    vector<int> amount;
+    vector<const char *> currency;
 };
 
 class NodeListPrivate : public NodeList
@@ -649,6 +680,8 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getAccountDetails(MegaRequestListener *listener = NULL);
+        void getPricing(MegaRequestListener *listener = NULL);
+
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
@@ -850,8 +883,8 @@ protected:
         virtual void putfa_result(handle, fatype, error);
 
         // purchase transactions
-        virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*) { }
-        virtual void enumeratequotaitems_result(error) { }
+        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency);
+        virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error) { }
         virtual void checkout_result(error) { }
         virtual void checkout_result(const char*) { }

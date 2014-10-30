@@ -197,7 +197,8 @@ class MegaRequest
                 TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE };
+                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
+                TYPE_GET_PRICING};
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;
@@ -491,6 +492,8 @@ class MegaApi
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getAccountDetails(MegaRequestListener *listener = NULL);
+        void getPricing(MegaRequestListener *listener = NULL);
+
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
@@ -620,6 +623,21 @@ public:
     virtual long long getNumFiles(MegaHandle handle) = 0;
     virtual long long getNumFolders(MegaHandle handle) = 0;
 	virtual MegaAccountDetails* copy() = 0;
+};
+
+class MegaPricing
+{
+public:
+    virtual ~MegaPricing() = 0;
+    virtual int getNumProducts() = 0;
+    virtual MegaHandle getHandle(int productIndex) = 0;
+    virtual int getProLevel(int productIndex) = 0;
+    virtual int getGBStorage(int productIndex) = 0;
+    virtual int getGBTransfer(int productIndex) = 0;
+    virtual int getMonths(int productIndex) = 0;
+    virtual int getAmount(int productIndex) = 0;
+    virtual const char* getCurrency(int productIndex) = 0;
+    virtual MegaPricing *copy() = 0;
 };
 
 }
