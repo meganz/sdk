@@ -51,6 +51,8 @@ static NSString *_appKey = nil;
 static NSString *_userAgent = nil;
 static MegaSDK * _sharedMegaSDK = nil;
 
+#pragma mark - Statics methods
+
 + (void)setAppKey:(NSString *)appKey {
     _appKey = appKey;
 }
@@ -69,15 +71,6 @@ static MegaSDK * _sharedMegaSDK = nil;
 
 }
 
-- (void)dealloc {
-    delete _megaApi;
-//    DeleteCriticalSection(&listenerMutex);
-}
-
-- (MegaApi *)getCPtr {
-    return _megaApi;
-}
-
 #pragma mark - Init with app Key
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -90,6 +83,15 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi = new MegaApi((appKey != nil) ? [appKey UTF8String] : (const char *)NULL, (basePath != nil) ? [basePath UTF8String] : (const char*)NULL, (userAgent != nil) ? [userAgent UTF8String] : (const char *)NULL);
     
     return self;
+}
+
+- (void)dealloc {
+    delete _megaApi;
+    //    DeleteCriticalSection(&listenerMutex);
+}
+
+- (MegaApi *)getCPtr {
+    return _megaApi;
 }
 
 #pragma mark - Add delegates
@@ -127,6 +129,8 @@ static MegaSDK * _sharedMegaSDK = nil;
 
 }
 
+#pragma mark - Generic methods
+
 - (NSString *)getBase64pwkeyWithPassword:(NSString *)password {
     if(password == nil) return nil;
     
@@ -154,9 +158,6 @@ static MegaSDK * _sharedMegaSDK = nil;
 - (void)retryPendingConnections {
     self.megaApi->retryPendingConnections();
 }
-
-//TODO: Listener
-//- (void)retryPendingConnections
 
 #pragma mark - Login
 
@@ -188,7 +189,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->fastLogin((session != nil) ? [session UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
 }
 
-#pragma mark - Create account
+#pragma mark - Create account and confirm account
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL);
@@ -210,22 +211,26 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->querySignupLink((link != nil) ? [link UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)querySignupWithLink:(NSString *)link {
+- (void)querySignupWithLink:(NSString *)link delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->querySignupLink((link != nil) ? [link UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password {
     self.megaApi->confirmAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
 
-//TODO:LIstener
-//- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password {
+- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->confirmAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey {
     self.megaApi->fastConfirmAccount((link != nil) ? [link UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey {
+
+- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->fastConfirmAccount((link != nil) ? [link UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (NSInteger)isLoggedIn {
     return self.megaApi->isLoggedIn();
@@ -235,82 +240,99 @@ static MegaSDK * _sharedMegaSDK = nil;
     return self.megaApi->getMyEmail() ? [[NSString alloc] initWithUTF8String:self.megaApi->getMyEmail()] : nil;
 }
 
-//TODO: listener
-//- (void)createFolderWithName:(NSString *)name parent:(MNode *)parent {
+#pragma mark - Node actions
+
+- (void)createFolderWithName:(NSString *)name parent:(MNode *)parent delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->createFolder((name != nil) ? [name UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)createFolderWithName:(NSString *)name parent:(MNode *)parent {
     self.megaApi->createFolder((name != nil) ? [name UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
-//TODO:listener
-//- (void)moveNode:(MNode *)node newParent:(MNode *)newParent
+- (void)moveNode:(MNode *)node newParent:(MNode *)newParent delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->moveNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)moveNode:(MNode *)node newParent:(MNode *)newParent {
     self.megaApi->moveNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL);
 }
 
-//TODO:listener
-//- (void)copyNode:(MNode *)node newParent:(MNode *)newParent {
+- (void)copyNode:(MNode *)node newParent:(MNode *)newParent delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->copyNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)copyNode:(MNode *)node newParent:(MNode *)newParent {
     self.megaApi->copyNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL);
 }
 
-//TODO: Listener
-//- (void)renameNode:(MNode *)node newName:(NSString *)newName {
+- (void)renameNode:(MNode *)node newName:(NSString *)newName delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->renameNode((node != nil) ? [node getCPtr] : NULL, (newName != nil) ? [newName UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)renameNode:(MNode *)node newName:(NSString *)newName {
     self.megaApi->renameNode((node != nil) ? [node getCPtr] : NULL, (newName != nil) ? [newName UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)removeNode:(MNode *)node {
+
+- (void)removeNode:(MNode *)node delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->remove((node != nil) ? [node getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)removeNode:(MNode *)node {
     self.megaApi->remove((node != nil) ? [node getCPtr] : NULL);
 }
 
-//TODO:listener
-//- (void)shareNode:(MNode *)node withUser:(MUser *)user level:(NSInteger)level {
+
+- (void)shareNode:(MNode *)node withUser:(MUser *)user level:(NSInteger)level delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (user != nil) ? [user getCPtr] : NULL, (int)level, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)shareNode:(MNode *)node withUser:(MUser *)user level:(NSInteger)level {
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (user != nil) ? [user getCPtr] : NULL, (int)level);
 }
 
-//TODO:Listener
-//- (void)shareNode:(MNode *)node withEmail:(NSString *)email level:(NSInteger)level {
+- (void)shareNode:(MNode *)node withEmail:(NSString *)email level:(NSInteger)level delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)shareNode:(MNode *)node withEmail:(NSString *)email level:(NSInteger)level {
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level);
 }
 
-//TODO: listener
-//- (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink {
+- (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->folderAccess((megaFolderLink != nil) ? [megaFolderLink UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink {
     self.megaApi->folderAccess((megaFolderLink != nil) ? [megaFolderLink UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)importMegaFileLink:(NSString *)megaFileLink parent:(MNode *)parent {
+- (void)importMegaFileLink:(NSString *)megaFileLink parent:(MNode *)parent delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->importFileLink((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MNode *)parent {
     self.megaApi->importFileLink((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
-//TODO: listener
-//- (void)importPublicNode:(MNode *)publicNode parent:(MNode *)parent {
+- (void)importPublicNode:(MNode *)publicNode parent:(MNode *)parent delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->importPublicNode((publicNode != nil) ? [publicNode getCPtr] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)importPublicNode:(MNode *)publicNode parent:(MNode *)parent {
     self.megaApi->importPublicNode((publicNode != nil) ? [publicNode getCPtr] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
-//TODO:Listener
-//- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink {
+- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
+
+#pragma mark - Attributes node
 
 - (void)getThumbnailWithNode:(MNode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject {
     self.megaApi->getThumbnail((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
@@ -320,8 +342,9 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->getThumbnail((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-//TODO: listener
-//- (void)setThumbnailWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath {
+- (void)setThumbnailWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->setThumbnail((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)setThumbnailWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath {
     self.megaApi->setThumbnail((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
@@ -335,12 +358,15 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->getPreview((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-//TODO: listener
-//- (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath {
+- (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)setPreviewWithNode:(MNode *)node sourceFilePath:(NSString *)sourceFilePath {
     self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
+
+#pragma mark - Attributes user
 
 - (void)getAvatarWithUser:(MUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MRequestDelegate>)delegateObject {
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
@@ -350,15 +376,19 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-//TODO: listener
-//- (void)exportNode:(MNode *)node {
+#pragma mark - Export, import and fetch nodes
+
+- (void)exportNode:(MNode *)node delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)exportNode:(MNode *)node {
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
 }
 
-//TODO:listener
-//- (void)disableExportNode:(MNode *)node {
+- (void)disableExportNode:(MNode *)node delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)disableExportNode:(MNode *)node {
     self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL);
@@ -373,6 +403,8 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->fetchNodes();
 }
 
+#pragma mark - User account details and actions
+
 - (void)getAccountDetailsWithDelegate:(id<MRequestDelegate>)delegateObject {
     self.megaApi->getAccountDetails([self createDelegateMRequestListener:delegateObject singleListener:YES]);
 }
@@ -381,22 +413,25 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->getAccountDetails();
 }
 
-//TODO:Listener
-//- (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword {
+- (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)addContactWithEmail:(NSString *)email {
+- (void)addContactWithEmail:(NSString *)email delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)addContactWithEmail:(NSString *)email {
     self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL);
 }
 
-//TODO: listener
-//- (void)removeContactWithEmail:(NSString *)email {
+- (void)removeContactWithEmail:(NSString *)email delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->removeContact((email != nil) ? [email UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)removeContactWithEmail:(NSString *)email {
     self.megaApi->removeContact((email != nil) ? [email UTF8String] : NULL);
@@ -410,50 +445,59 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->logout();
 }
 
-//TODO:listener
-//- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MNode *)parent {
+#pragma mark - Transfer
+
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MNode *)parent delegate:(id<MTransferDelegate>)delegateObject {
+    self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMTransferListener:delegateObject singleListener:YES]);
+}
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MNode *)parent {
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
-//TODO: listener
-//- (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MNode *)parent filename:(NSString *)filename {
+- (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MNode *)parent filename:(NSString *)filename delegate:(id<MTransferDelegate>)delegateObject {
+    self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (filename != nil) ? [filename UTF8String] : NULL, [self createDelegateMTransferListener:delegateObject singleListener:YES]);
+}
 
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MNode *)parent filename:(NSString *)filename {
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (filename != nil) ? [filename UTF8String] : NULL);
 }
 
-//TODO:Listener
-//- (void)startDownloadWithNode:(MNode *)node localPath:(NSString *)localPath {
+- (void)startDownloadWithNode:(MNode *)node localPath:(NSString *)localPath delegate:(id<MTransferDelegate>)delegateObject {
+    self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, [self createDelegateMTransferListener:delegateObject singleListener:YES]);
+}
 
 - (void)startDownloadWithNode:(MNode *)node localPath:(NSString *)localPath {
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)startPublicDownloadWithNode:(MNode *)node localPath:(NSString *)localPath {
+- (void)startPublicDownloadWithNode:(MNode *)node localPath:(NSString *)localPath delegate:(id<MTransferDelegate>)delegateObject {
+    self.megaApi->startPublicDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, [self createDelegateMTransferListener:delegateObject singleListener:YES]);
+}
 
 - (void)startPublicDownloadWithNode:(MNode *)node localPath:(NSString *)localPath {
     self.megaApi->startPublicDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
-//TODO:listener
-//- (void)cancelTransferWithTransfer:(MTransfer *)transfer {
+- (void)cancelTransferWithTransfer:(MTransfer *)transfer delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)cancelTransferWithTransfer:(MTransfer *)transfer {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
-//TODO: listener
-//- (void)cancelTransfersWithDirection:(NSInteger)direction {
+- (void)cancelTransfersWithDirection:(NSInteger)direction delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->cancelTransfers((int)direction, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)cancelTransfersWithDirection:(NSInteger)direction {
     self.megaApi->cancelTransfers((int)direction);
 }
 
-//TODO:listener
-//- (void)pauseTransersWithPause:(BOOL)pause {
+- (void)pauseTransersWithPause:(BOOL)pause delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->pauseTransfers(pause, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
 
 - (void)pauseTransersWithPause:(BOOL)pause {
     self.megaApi->pauseTransfers(pause);

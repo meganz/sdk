@@ -13,7 +13,7 @@
 		4135AEAA19F5923100A8A56A /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFF219F580020081D102 /* ImageIO.framework */; };
 		4135AEAB19F5923700A8A56A /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFEE19F57FE60081D102 /* QuartzCore.framework */; };
 		4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFF019F57FF10081D102 /* AssetsLibrary.framework */; };
-		41663FAB1A01571E0035F7D6 /* MyAccountViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41663FAA1A01571E0035F7D6 /* MyAccountViewController.m */; };
+		41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41663FAA1A01571E0035F7D6 /* SettingsViewController.m */; };
 		4168127719EE6E5700C72800 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127619EE6E5700C72800 /* main.m */; };
 		4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127919EE6E5700C72800 /* AppDelegate.m */; };
 		4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127C19EE6E5700C72800 /* LoginViewController.m */; };
@@ -53,8 +53,8 @@
 /* Begin PBXFileReference section */
 		4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = MWPhotoBrowser.bundle; sourceTree = "<group>"; };
 		4135AEA119F58A2500A8A56A /* MWPhotoBrowser.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MWPhotoBrowser.xcodeproj; sourceTree = "<group>"; };
-		41663FA91A01571E0035F7D6 /* MyAccountViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MyAccountViewController.h; sourceTree = "<group>"; };
-		41663FAA1A01571E0035F7D6 /* MyAccountViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MyAccountViewController.m; sourceTree = "<group>"; };
+		41663FA91A01571E0035F7D6 /* SettingsViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SettingsViewController.h; sourceTree = "<group>"; };
+		41663FAA1A01571E0035F7D6 /* SettingsViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SettingsViewController.m; sourceTree = "<group>"; };
 		4168127119EE6E5700C72800 /* Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4168127519EE6E5700C72800 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4168127619EE6E5700C72800 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
@@ -170,8 +170,8 @@
 				41B4553619F1094300439D45 /* RegisterViewController.m */,
 				41B4553919F1218000439D45 /* NodeTableViewCell.h */,
 				41B4553A19F1218000439D45 /* NodeTableViewCell.m */,
-				41663FA91A01571E0035F7D6 /* MyAccountViewController.h */,
-				41663FAA1A01571E0035F7D6 /* MyAccountViewController.m */,
+				41663FA91A01571E0035F7D6 /* SettingsViewController.h */,
+				41663FAA1A01571E0035F7D6 /* SettingsViewController.m */,
 				4168127419EE6E5700C72800 /* Supporting Files */,
 			);
 			path = Demo;
@@ -365,7 +365,7 @@
 				416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */,
 				41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */,
 				416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */,
-				41663FAB1A01571E0035F7D6 /* MyAccountViewController.m in Sources */,
+				41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */,
 				4168127719EE6E5700C72800 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -491,6 +491,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = Demo/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -509,6 +510,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = Demo/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",

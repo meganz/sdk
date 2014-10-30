@@ -9,6 +9,7 @@
 #import "CloudDriveTableViewController.h"
 #import "NodeTableViewCell.h"
 #import "SVProgressHUD.h"
+#import "LoginViewController.h"
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
 #define isImage(n)  [imagesSet containsObject:n]
@@ -24,14 +25,14 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    if ([self.root getType] == MNodeTypeRoot) {
+    if (!self.root) {
         [self.navigationItem setTitle:@"Cloud drive"];
         self.nodes = [[MegaSDK sharedMegaSDK] getChildrenWithParent:[[MegaSDK sharedMegaSDK] getRootNode]];
     } else {
         [self.navigationItem setTitle:[self.root getName]];
         self.nodes = [[MegaSDK sharedMegaSDK] getChildrenWithParent:self.root];
     }
-    
+
     //Create two directories inside DocumentDirectory: thumbnails and previews
     NSString *path;
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
@@ -79,7 +80,6 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists && [node getType] == MNodeTypeFile && [node hasThumbnail]) {
-        NSLog(@"REQUEST: getThumbnailWithNode index path row: %ld", (long)indexPath.row);
         [[MegaSDK sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:self];
     }
     
@@ -113,17 +113,6 @@
             [self.navigationController pushViewController:cv animated:YES];
             break;
         }
-        case MNodeTypeFile: {
-//            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-//            NSString *fileName = [[node getBase64Handle] stringByAppendingString:@".jpg"];
-//            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"previews"];
-//            destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-//            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-//            
-//            if (!fileExists) {
-//                [[MegaSDK sharedMegaSDK] getPreviewWithNode:node destinationFilePath:destinationFilePath delegate:self];
-//            }
-        }
             
         default:
             break;
@@ -149,7 +138,6 @@
 
 - (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
     if ([error getErrorCode]) {
-        NSLog(@"Error %@", [error getErrorString]);
         return;
     }
     
@@ -165,7 +153,10 @@
                 }
             }
             [SVProgressHUD dismiss];
-            [self.navigationController popToRootViewControllerAnimated:NO];
+            UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+            LoginViewController *add = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
+            
+            [self presentViewController:add animated:YES completion:nil];
             break;
         }
             

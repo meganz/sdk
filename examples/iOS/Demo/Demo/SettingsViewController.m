@@ -6,16 +6,16 @@
 //  Copyright (c) 2014 MEGA. All rights reserved.
 //
 
-#import "MyAccountViewController.h"
+#import "SettingsViewController.h"
 
-@interface MyAccountViewController ()
+@interface SettingsViewController ()
 
 @property (weak, nonatomic) IBOutlet UILabel *userEmail;
 @property (weak, nonatomic) IBOutlet UIImageView *userAvatar;
 
 @end
 
-@implementation MyAccountViewController
+@implementation SettingsViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -54,18 +54,14 @@
 #pragma mark - MRequestDelegate
 
 - (void)onRequestStart:(MegaSDK *)api request:(MRequest *)request {
-    NSLog(@"Request %ld", [request getType]);
 }
 
 - (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
     if ([error getErrorCode]) {
-        NSLog(@"onRequestFinish error.");
     }
     
     switch ([request getType]) {
         case MRequestTypeAccountDetails: {
-            NSLog(@"onRequestFinish MRequestTypeAccountDetails");
-            NSLog(@"%@", request);
             break;
         }
             

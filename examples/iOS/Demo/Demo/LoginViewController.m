@@ -26,25 +26,25 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    NSLog(@"Thumbnails found");
-    
-    int count;
-    NSString *path;
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
-    NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
-    for (count = 0; count < (int)[directoryContent count]; count++) {
-        NSLog(@"File %d: %@", (count + 1), [directoryContent objectAtIndex:count]);
-    }
-    
-    NSLog(@"Previews found");
-    
-    paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"previews"];
-    directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
-    for (count = 0; count < (int)[directoryContent count]; count++) {
-        NSLog(@"File %d: %@", (count + 1), [directoryContent objectAtIndex:count]);
-    }
+//    NSLog(@"Thumbnails found");
+//    
+//    int count;
+//    NSString *path;
+//    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+//    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
+//    NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
+//    for (count = 0; count < (int)[directoryContent count]; count++) {
+//        NSLog(@"File %d: %@", (count + 1), [directoryContent objectAtIndex:count]);
+//    }
+//    
+//    NSLog(@"Previews found");
+//    
+//    paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+//    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"previews"];
+//    directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
+//    for (count = 0; count < (int)[directoryContent count]; count++) {
+//        NSLog(@"File %d: %@", (count + 1), [directoryContent objectAtIndex:count]);
+//    }
 }
 
 - (void)didReceiveMemoryWarning {
@@ -61,8 +61,7 @@
 
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
     if ([segue.identifier isEqualToString:@"showCloudDrive"]) {
-        CloudDriveTableViewController *cloudDriveVC = segue.destinationViewController;
-        [cloudDriveVC setRoot:[[MegaSDK sharedMegaSDK] getRootNode]];
+        
     }
     
     if ([segue.identifier isEqualToString:@"pushRegister"]) {

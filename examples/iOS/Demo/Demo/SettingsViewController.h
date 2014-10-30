@@ -9,7 +9,7 @@
 #import <UIKit/UIKit.h>
 #import "MegaSDK.h"
 
-@interface MyAccountViewController : UIViewController <MRequestDelegate>
+@interface SettingsViewController : UIViewController <MRequestDelegate>
 
 @property (nonatomic, strong) MegaSDK *megaSDK;
 
