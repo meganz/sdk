@@ -226,6 +226,7 @@ class MegaRequest
         virtual long long getTotalBytes() const = 0;
 		virtual MegaRequestListener *getListener() const = 0;
 		virtual MegaAccountDetails *getMegaAccountDetails() const = 0;
+        virtual MegaPricing *getPricing() const = 0;
         virtual int getTransfer() const = 0;
 		virtual int getNumDetails() const = 0;
 };
