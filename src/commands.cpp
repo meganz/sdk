@@ -1283,7 +1283,7 @@ void CommandEnumerateQuotaItems::procresult()
 
     while (client->json.enterarray())
     {
-        if (ISUNDEF((product = client->json.gethandle()))
+        if (ISUNDEF((product = client->json.gethandle(8)))
                 || ((prolevel = client->json.getint()) < 0)
                 || ((gbstorage = client->json.getint()) < 0)
                 || ((gbtransfer = client->json.getint()) < 0)
