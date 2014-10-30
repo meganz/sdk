@@ -104,7 +104,7 @@ class MegaDbAccess : public SqliteDbAccess
 		MegaDbAccess(string *basePath = NULL) : SqliteDbAccess(basePath){}
 };
 
-class ExternalLogger : public mega::Logger
+class ExternalLogger : public Logger
 {
 public:
     ExternalLogger();

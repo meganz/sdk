@@ -464,7 +464,7 @@ class MegaApi
         //Logging
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
-        static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
+        static void log(int logLevel, const char* message, const char *filename = "", int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);

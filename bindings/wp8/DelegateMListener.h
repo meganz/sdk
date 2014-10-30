@@ -5,8 +5,6 @@
 #include "MRequest.h"
 #include "MError.h"
 
-#include "megaapi.h"
-
 namespace mega
 {
 	ref class MegaSDK;
