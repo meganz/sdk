@@ -213,6 +213,7 @@
     <ClInclude Include="..\MLoggerInterface.h" />
     <ClInclude Include="..\MNode.h" />
     <ClInclude Include="..\MNodeList.h" />
+    <ClInclude Include="..\MPricing.h" />
     <ClInclude Include="..\MRandomNumberProvider.h" />
     <ClInclude Include="..\MRequest.h" />
     <ClInclude Include="..\MRequestListenerInterface.h" />
@@ -278,6 +279,7 @@
     <ClCompile Include="..\MError.cpp" />
     <ClCompile Include="..\MNode.cpp" />
     <ClCompile Include="..\MNodeList.cpp" />
+    <ClCompile Include="..\MPricing.cpp" />
     <ClCompile Include="..\MRequest.cpp" />
     <ClCompile Include="..\MShare.cpp" />
     <ClCompile Include="..\MShareList.cpp" />

@@ -142,6 +142,8 @@ namespace mega
 		void fetchNodes();
 		void getAccountDetails(MRequestListenerInterface^ listener);
 		void getAccountDetails();
+		void getPricing(MRequestListenerInterface^ listener);
+		void getPricing();
 		void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
 		void changePassword(String^ oldPassword, String^ newPassword);
 		void addContact(String^ email, MRequestListenerInterface^ listener);

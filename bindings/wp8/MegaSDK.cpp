@@ -900,6 +900,16 @@ void MegaSDK::getAccountDetails()
 	megaApi->getAccountDetails();
 }
 
+void MegaSDK::getPricing(MRequestListenerInterface^ listener)
+{
+	megaApi->getPricing(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPricing()
+{
+	megaApi->getPricing();
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
