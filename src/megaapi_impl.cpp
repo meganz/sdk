@@ -342,7 +342,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
 	this->listener = listener;
 	this->retry = 0;
 	this->maxRetries = 3;
-	this->time = 0;
+    this->time = -1;
 	this->startTime = 0;
 	this->transferredBytes = 0;
 	this->totalBytes = 0;
@@ -1490,7 +1490,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser) : MegaFile()
+MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime) : MegaFile()
 {
     // full local path
     localname = *clocalname;
@@ -1503,10 +1503,15 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
 
     // new node name
     name = *filename;
+
+    customMtime = mtime;
 }
 
 void MegaFilePut::completed(Transfer* t, LocalNode*)
 {
+    if(customMtime >= 0)
+        t->mtime = customMtime;
+
     File::completed(t,NULL);
     delete this;
 }
@@ -2337,9 +2342,9 @@ TransferList *MegaApiImpl::getTransfers()
     return result;
 }
 
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int connections, int maxSpeed, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
     {
         string path(localPath);
@@ -2354,19 +2359,26 @@ void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int conne
 	transfer->setMaxSpeed(maxSpeed);
 	transfer->setMaxRetries(maxRetries);
 	if(fileName) transfer->setFileName(fileName);
+    transfer->setTime(mtime);
 
 	transferQueue.push(transfer);
     waiter->notify();
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, listener); }
+{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, -1, listener); }
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
+{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, mtime, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, 0, fileName, listener); }
+{ return startUpload(localPath, parent, 1, 0, fileName, -1, listener); }
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
+{ return startUpload(localPath, parent, 1, 0, fileName, mtime, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, maxSpeed, (const char *)NULL, listener); }
+{ return startUpload(localPath, parent, 1, maxSpeed, (const char *)NULL, -1, listener); }
 
 void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener)
 {
@@ -5156,6 +5168,7 @@ void MegaApiImpl::sendPendingTransfers()
 			{
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
+                int64_t mtime = transfer->getTime();
 
                 if(!localPath) { e = API_EARGS; break; }
                 currentTransfer = transfer;
@@ -5164,7 +5177,7 @@ void MegaApiImpl::sendPendingTransfers()
 				client->fsaccess->path2local(&tmpString, &wLocalPath);
 
                 string wFileName = fileName;
-                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "");
+                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
 
                 bool started = client->startxfer(PUT,f);
                 if(!started)
@@ -6412,7 +6425,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 	mutex.lock();
 	if(megaLogger)
 	{
-		megaLogger->log(time, loglevel, source, message);
+        megaLogger->log(time ? time : "", loglevel, source ? source : "", message ? message : "");
 	}
 	else
 	{
