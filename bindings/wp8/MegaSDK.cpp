@@ -920,6 +920,15 @@ void MegaSDK::getPaymentUrl(uint64 productHandle)
 	megaApi->getPaymentUrl(productHandle);
 }
 
+String^ MegaSDK::exportMasterKey()
+{
+	std::string utf16key;
+	const char *utf8key = megaApi->exportMasterKey();
+	MegaApi::utf8ToUtf16(utf8key, &utf16key);
+
+	return utf8key ? ref new String((wchar_t *)utf16key.data()) : nullptr;
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
