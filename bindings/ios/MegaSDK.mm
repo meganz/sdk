@@ -21,16 +21,18 @@
 #import "DelegateMListener.h"
 
 #import <set>
+#import <pthread.h>
 
 using namespace mega;
 
-@interface MegaSDK ()
+@interface MegaSDK () {
+    pthread_mutex_t listenerMutex;
+}
 
 @property std::set<DelegateMRequestListener *>activeRequestListeners;
 @property std::set<DelegateMTransferListener *>activeTransferListeners;
 @property std::set<DelegateMGlobalListener *>activeGlobalListeners;
 @property std::set<DelegateMListener *>activeMegaListeners;
-//CRITICAL_SECTION listenerMutex;
 
 - (MegaRequestListener *)createDelegateMRequestListener:(id<MRequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMTransferListener:(id<MTransferDelegate>)delegate singleListener:(BOOL)singleListener;
@@ -76,18 +78,26 @@ static MegaSDK * _sharedMegaSDK = nil;
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
     self.megaApi = new MegaApi((appKey != nil) ? [appKey UTF8String] : (const char *)NULL, (const char *)NULL, (userAgent != nil) ? [userAgent UTF8String] : (const char *)NULL);
     
-    return  self;
+    if (pthread_mutex_init(&listenerMutex, NULL)) {
+        return nil;
+    }
+    
+    return self;
 }
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath {
     self.megaApi = new MegaApi((appKey != nil) ? [appKey UTF8String] : (const char *)NULL, (basePath != nil) ? [basePath UTF8String] : (const char*)NULL, (userAgent != nil) ? [userAgent UTF8String] : (const char *)NULL);
     
+    if (pthread_mutex_init(&listenerMutex, NULL)) {
+        return nil;
+    }
+    
     return self;
 }
 
 - (void)dealloc {
-    delete _megaApi;
-    //    DeleteCriticalSection(&listenerMutex);
+//    delete _megaApi;
+//    DeleteCriticalSection(&listenerMutex);
 }
 
 - (MegaApi *)getCPtr {
@@ -113,19 +123,62 @@ static MegaSDK * _sharedMegaSDK = nil;
 }
 
 #pragma mark - Remove delegates
-//TODO: remove delegates
+
 - (void)removeDelegate:(id<MListenerDelegate>)delegate {
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMListener *>::iterator it = self.activeMegaListeners.begin();
+    while (it != self.activeMegaListeners.end()) {
+        DelegateMListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+            self.megaApi->removeListener(delegateListener);
+            self.activeMegaListeners.erase(it++);
+        }
+        else it++;
+    }
+    pthread_mutex_unlock(&listenerMutex);
 }
 
 - (void)removeRequestDelegate:(id<MRequestDelegate>)delegate {
-
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMRequestListener *>::iterator it = self.activeRequestListeners.begin();
+    while (it != self.activeRequestListeners.end()) {
+        DelegateMRequestListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+            self.megaApi->removeRequestListener(delegateListener);
+            self.activeRequestListeners.erase(it++);
+        }
+        else it++;
+    }
+    pthread_mutex_unlock(&listenerMutex);
 }
 
 - (void)removeTransferDelegate:(id<MTransferDelegate>)delegate {
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMTransferListener *>::iterator it = self.activeTransferListeners.begin();
+    while (it != self.activeTransferListeners.end()) {
+        DelegateMTransferListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+            self.megaApi->removeTransferListener(delegateListener);
+            self.activeTransferListeners.erase(it++);
+        }
+        else it++;
+    }
+    pthread_mutex_unlock(&listenerMutex);
 
 }
 
 - (void)removeGlobalDelegate:(id<MGlobalListenerDelegate>)delegate {
+//    pthread_mutex_lock(&listenerMutex);
+//    std::set<DelegateMGlobalListener *>::iterator it = self.activeGlobalListeners.begin();
+//    while (it != self.activeGlobalListeners.end()) {
+//        DelegateMGlobalListener *delegateListener = *it;
+//        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+//            self.megaApi->removeGlobalListener(delegateListener);
+//            self.activeGlobalListeners.erase(it++);
+//        }
+//        else it++;
+//    }
+//    pthread_mutex_unlock(&listenerMutex);
 
 }
 
@@ -413,6 +466,22 @@ static MegaSDK * _sharedMegaSDK = nil;
     self.megaApi->getAccountDetails();
 }
 
+- (void)getPricingWithDelegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->getPricing([self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
+
+- (void)getPricing {
+    self.megaApi->getPricing();
+}
+
+- (void)getPaymentURLWithProductHandle:(uint64_t)productHandle delegate:(id<MRequestDelegate>)delegateObject {
+    self.megaApi->getPaymentUrl(productHandle, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
+}
+
+- (void)getPaymentULRWithProductHandle:(uint64_t)productHandle {
+    self.megaApi->getPaymentUrl(productHandle);
+}
+
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MRequestDelegate>)delegateObject {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, [self createDelegateMRequestListener:delegateObject singleListener:YES]);
 }
@@ -688,9 +757,9 @@ static MegaSDK * _sharedMegaSDK = nil;
     if (delegate == nil) return nil;
     
     DelegateMRequestListener *delegateListener = new DelegateMRequestListener(self, (__bridge void*)delegate, singleListener);
-    //Enter critical section
+    pthread_mutex_lock(&listenerMutex);
     self.activeRequestListeners.insert(delegateListener);
-    //leave critical section
+    pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
 
@@ -698,49 +767,48 @@ static MegaSDK * _sharedMegaSDK = nil;
     if (delegate == nil) return nil;
     
     DelegateMTransferListener *delegateListener = new DelegateMTransferListener(self, (__bridge void*)delegate, singleListener);
-    //Enter critical section
+    pthread_mutex_lock(&listenerMutex);
     self.activeTransferListeners.insert(delegateListener);
-    //leave critical section
+    pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
 
 - (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalListenerDelegate>)delegate {
     if (delegate == nil) return nil;
     
-    DelegateMGlobalListener *delegateListener = [[DelegateMGlobalListener alloc] initDelegateMGlobalListenerWithMegaSDK:self delegate:delegate];
-    //Enter critical section
+    DelegateMGlobalListener *delegateListener = new DelegateMGlobalListener(self, (__bridge void*)delegate);
+    pthread_mutex_lock(&listenerMutex);
     self.activeGlobalListeners.insert(delegateListener);
-    //leave critical section
-    return (__bridge MegaGlobalListener *)delegateListener;
+    pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
 }
 
 - (MegaListener *)createDelegateMListener:(id<MListenerDelegate>)delegate {
     if (delegate == nil) return nil;
     
     DelegateMListener *delegateListener = new DelegateMListener(self, (__bridge void*)delegate);
-    //Enter critical section
+    pthread_mutex_lock(&listenerMutex);
     self.activeMegaListeners.insert(delegateListener);
-    //leave critical section
+    pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
 
 - (void)freeRequestListener:(DelegateMRequestListener *)delegate {
     if (delegate == nil) return;
     
-//    EnterCriticalSection(&listenerMutex);
+    pthread_mutex_lock(&listenerMutex);
     self.activeRequestListeners.erase(delegate);
-//    LeaveCriticalSection(&listenerMutex);
-//    delete delegate;
+    pthread_mutex_unlock(&listenerMutex);
+    delete delegate;
 }
 
 - (void)freeTransferListener:(DelegateMTransferListener *)delegate {
     if (delegate == nil) return;
     
-    //    EnterCriticalSection(&listenerMutex);
+    pthread_mutex_lock(&listenerMutex);
     self.activeTransferListeners.erase(delegate);
-    //    LeaveCriticalSection(&listenerMutex);
-    //    delete delegate;
-
+    pthread_mutex_unlock(&listenerMutex);
+    delete delegate;
 }
 
 @end

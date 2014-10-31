@@ -117,6 +117,10 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 - (void)fetchNodes;
 - (void)getAccountDetailsWithDelegate:(id<MRequestDelegate>)delegateObject;
 - (void)getAccountDetails;
+- (void)getPricingWithDelegate:(id<MRequestDelegate>)delegateObject;
+- (void)getPricing;
+- (void)getPaymentURLWithProductHandle:(uint64_t) productHandle delegate:(id<MRequestDelegate>)delegateObject;
+- (void)getPaymentULRWithProductHandle:(uint64_t) productHandle;
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MRequestDelegate>)delegateObject;
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
 - (void)addContactWithEmail:(NSString *)email delegate:(id<MRequestDelegate>)delegateObject;

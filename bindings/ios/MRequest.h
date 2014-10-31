@@ -8,6 +8,7 @@
 #import <Foundation/Foundation.h>
 #import "MNode.h"
 #import "MAccountDetails.h"
+#import "MPricing.h"
 
 typedef NS_ENUM (NSInteger, MRequestType) {
     MRequestTypeLogin,
@@ -46,7 +47,9 @@ typedef NS_ENUM (NSInteger, MRequestType) {
     MRequestTypePauseTransfer,
     MRequestTypeCancelTransfer,
     MRequestTypeCancelTransfers,
-    MRequestTypeDelete
+    MRequestTypeDelete,
+    MRequestTypeGetPricing,
+    MRequestTypeGetPaymentURL
 };
 
 typedef NS_ENUM (NSInteger, MNodeAccessLevel) {
@@ -80,5 +83,6 @@ typedef NS_ENUM (NSInteger, MNodeAccessLevel) {
 - (NSNumber *)getTransferredBytes;
 - (NSNumber *)getTotalBytes;
 - (MAccountDetails *)getMAccountDetails;
+- (MPricing *)getPricing;
 
 @end

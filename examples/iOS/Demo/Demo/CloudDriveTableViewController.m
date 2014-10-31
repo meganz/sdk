@@ -113,6 +113,17 @@
             [self.navigationController pushViewController:cv animated:YES];
             break;
         }
+           
+        case MNodeTypeFile: {
+            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+            NSString *fileName = [node getName];
+            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
+            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+
+            if (!fileExists) {
+                [[MegaSDK sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath delegate:self];
+            }
+        }
             
         default:
             break;
@@ -182,5 +193,25 @@
 
 - (void)onRequestTemporaryError:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
 }
+
+
+#pragma mark - MTransferDelegate
+
+- (void)onTransferStart:(MegaSDK *)api transfer:(MTransfer *)transfer {
+    NSLog(@"onTransferStart");
+}
+
+- (void)onTransferUpdate:(MegaSDK *)api transfer:(MTransfer *)transfer {
+    NSLog(@"onTransferUpdate");
+}
+
+- (void)onTransferFinish:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+    NSLog(@"onTransferFinish");
+}
+
+-(void)onTransferTemporaryError:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+    NSLog(@"onTransferTemporaryError");
+}
+
 
 @end

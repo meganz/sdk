@@ -55,7 +55,7 @@ using namespace mega;
 }
 
 - (NSString *)getBase64Handle {
-    if (!self.megaNode) return  nil;
+    if (!self.megaNode) return nil;
     
     return self.megaNode ? [[NSString alloc] initWithUTF8String:self.megaNode->getBase64Handle()] : nil;
 }

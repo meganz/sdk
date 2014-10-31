@@ -7,42 +7,32 @@
 
 #import "DelegateMGlobalListener.h"
 
-@interface DelegateMGlobalListener ()
-
-@property MegaSDK *megaSDK;
-@property (nonatomic, weak) id<MGlobalListenerDelegate>delegate;
-
-@end
-
-@implementation DelegateMGlobalListener
-@synthesize delegate;
-
-- (instancetype)initDelegateMGlobalListenerWithMegaSDK:(MegaSDK *)megaSDK delegate:(id<MGlobalListenerDelegate>)delegateObject {
-    self = [super init];
-    if (self) {
-        _megaSDK = megaSDK;
-        delegate = delegateObject;
-    }
-    
-    return self;
+DelegateMGlobalListener::DelegateMGlobalListener(MegaSDK *megaSDK, void *listener) {
+    this->megaSDK = megaSDK;
+    this->listener = listener;
 }
 
-- (void)onUsersUpdate:(MegaApi *)api {
-    if (delegate != nil) {
-        [delegate onUsersUpdate:self.megaSDK];
+void *DelegateMGlobalListener::getUserListener() {
+    return listener;
+}
+
+void DelegateMGlobalListener::onUsersUpdate(MegaApi *api) {
+    if (listener !=nil) {
+        id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
+        [delegate onUsersUpdate:this->megaSDK];
     }
 }
 
-- (void)onNodesUpdate:(MegaApi *)api {
-    if (delegate != nil) {
-        [delegate onNodesUpdate:self.megaSDK];
+void DelegateMGlobalListener::onNodesUpdate(MegaApi *api) {
+    if (listener !=nil) {
+        id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
+        [delegate onNodesUpdate:this->megaSDK];
     }
 }
 
-- (void)onReloadNeeded:(MegaApi *)api {
-    if (delegate != nil) {
-        [delegate onReloadNeeded:self.megaSDK];
+void DelegateMGlobalListener::onReloadNeeded(MegaApi* api) {
+    if (listener !=nil) {
+        id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
+        [delegate onReloadNeeded:this->megaSDK];
     }
 }
-
-@end

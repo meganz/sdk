@@ -7,6 +7,7 @@
 
 #import "MRequest.h"
 #import "MNode+init.h"
+#import "MPricing+init.h"
 
 @interface MRequest()
 
@@ -135,6 +136,10 @@
 
 - (MAccountDetails *)getMAccountDetails {
     return nil;
+}
+
+- (MPricing *)getPricing {
+    return self.megaRequest ? [[MPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
 }
 
 @end

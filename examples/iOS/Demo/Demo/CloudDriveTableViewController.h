@@ -9,7 +9,7 @@
 #import <UIKit/UIKit.h>
 #import "MegaSDK.h"
 
-@interface CloudDriveTableViewController : UITableViewController <MRequestDelegate>
+@interface CloudDriveTableViewController : UITableViewController <MRequestDelegate, MTransferDelegate>
 
 @property (nonatomic, strong) MNode *root;
 
