@@ -910,6 +910,16 @@ void MegaSDK::getPricing()
 	megaApi->getPricing();
 }
 
+void MegaSDK::getPaymentUrl(uint64 productHandle, MRequestListenerInterface^ listener)
+{
+	megaApi->getPaymentUrl(productHandle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPaymentUrl(uint64 productHandle)
+{
+	megaApi->getPaymentUrl(productHandle);
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
