@@ -44,10 +44,15 @@ PosixWaiter::PosixWaiter()
 {
     //Pipe to be able to leave the select() call
     if (pipe(m_pipe) < 0)
-        cout << "Error creating pipe" << endl;
+    {
+        LOG_fatal << "Error creating pipe";
+        exit(EXIT_FAILURE);
+    }
 
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
-        cout << "fcntl error" << endl;
+    {
+        LOG_err << "fcntl error";
+    }
 }
 
 void PosixWaiter::init(dstime ds)

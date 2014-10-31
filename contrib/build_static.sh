@@ -29,6 +29,44 @@ on_exit_ok() {
     echo "Successfully compiled SDK examples!"
 }
 
+print_distro_help()
+{
+    # yum: CentOS, Fedora, RedHat
+    type yum >/dev/null 2>&1
+    local exit_code=$?
+    if [ $exit_code -eq 0 ]; then
+        echo "Please execute the following command:  sudo yum install gcc gcc-c++ libtool unzip autoconf make wget glibc-devel-static"
+        return;
+    fi
+
+    # apt-get: Debian, Ubuntu
+    type apt-get >/dev/null 2>&1
+    local exit_code=$?
+    if [ $exit_code -eq 0 ]; then
+        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool unzip autoconf make wget"
+        return;
+    fi
+}
+
+check_apps()
+{
+    if [ -z "${BASH}" ]
+    then
+        echo "Please run this script with the BASH shell"
+        exit 1
+    elif [ ${BASH_VERSINFO} -lt 3 ]
+    then
+        printf "BASH version 3 or greater is required"
+        exit 1
+    fi
+
+    APPS=(bash gcc c++ libtool tar unzip autoconf make autoreconf wget automake m4)
+    for app in ${APPS[@]}; do
+        type ${app} >/dev/null 2>&1 || { echo "${app} is not installed. Please install it first and re-run the script."; print_distro_help; exit 1; }
+        hash ${app} 2>/dev/null || { echo "${app} is not installed. Please install it first and re-run the script."; print_distro_help; exit 1; }
+    done
+}
+
 package_download() {
     local name=$1
     local url=$2
@@ -36,9 +74,11 @@ package_download() {
 
     echo "Downloading $name"
 
-    if [ ! -f $file ]; then
-        wget --no-check-certificate -c $url -O $file &> $name.download.log || exit 1
+    if [ -f $file ]; then
+        rm -f $file || true
     fi
+
+    wget --no-check-certificate -c $url -O $file --progress=bar:force || exit 1
 }
 
 package_extract() {
@@ -120,9 +160,10 @@ package_build() {
 package_install() {
     local name=$1
     local dir=$2
+    local install_dir=$3
 
-    if [ "$#" -eq 3 ]; then
-        local target=$3
+    if [ "$#" -eq 4 ]; then
+        local target=$4
     else
         local target=""
     fi
@@ -138,6 +179,13 @@ package_install() {
         exit 1
     fi
     cd $cwd
+
+    # some packages install libraries to "lib64" folder
+    local lib64=$install_dir/lib64
+    local lib=$install_dir/lib
+    if [ -d $lib64 ]; then
+        cp -f $lib64/* $lib/
+    fi
 }
 
 openssl_pkg() {
@@ -170,7 +218,7 @@ openssl_pkg() {
     fi
 
     package_build $name $openssl_dir
-    package_install $name $openssl_dir
+    package_install $name $openssl_dir $install_dir
 }
 
 cryptopp_pkg() {
@@ -185,7 +233,7 @@ cryptopp_pkg() {
     package_download $name $cryptopp_url $cryptopp_file
     package_extract $name $cryptopp_file $cryptopp_dir
     package_build $name $cryptopp_dir static
-    package_install $name $cryptopp_dir
+    package_install $name $cryptopp_dir $install_dir
 }
 
 sodium_pkg() {
@@ -202,7 +250,7 @@ sodium_pkg() {
     package_extract $name $sodium_file $sodium_dir
     package_configure $name $sodium_dir $install_dir "$sodium_params"
     package_build $name $sodium_dir
-    package_install $name $sodium_dir
+    package_install $name $sodium_dir $install_dir
 }
 
 zlib_pkg() {
@@ -221,13 +269,13 @@ zlib_pkg() {
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         package_configure $name $zlib_dir $install_dir "$zlib_params"
         package_build $name $zlib_dir
-        package_install $name $zlib_dir
+        package_install $name $zlib_dir $install_dir
     else
         export BINARY_PATH=$install_dir/bin
         export INCLUDE_PATH=$install_dir/include
         export LIBRARY_PATH=$install_dir/lib
         package_build $name $zlib_dir "-f win32/Makefile.gcc"
-        package_install $name $zlib_dir  "-f win32/Makefile.gcc"
+        package_install $name $zlib_dir $install_dir "-f win32/Makefile.gcc"
         unset BINARY_PATH
         unset INCLUDE_PATH
         unset LIBRARY_PATH
@@ -248,7 +296,7 @@ sqlite_pkg() {
     package_extract $name $sqlite_file $sqlite_dir
     package_configure $name $sqlite_dir $install_dir "$sqlite_params"
     package_build $name $sqlite_dir
-    package_install $name $sqlite_dir
+    package_install $name $sqlite_dir $install_dir
 }
 
 cares_pkg() {
@@ -265,7 +313,7 @@ cares_pkg() {
     package_extract $name $cares_file $cares_dir
     package_configure $name $cares_dir $install_dir "$cares_params"
     package_build $name $cares_dir
-    package_install $name $cares_dir
+    package_install $name $cares_dir $install_dir
 }
 
 curl_pkg() {
@@ -285,7 +333,7 @@ curl_pkg() {
     package_extract $name $curl_file $curl_dir
     package_configure $name $curl_dir $install_dir "$curl_params"
     package_build $name $curl_dir
-    package_install $name $curl_dir
+    package_install $name $curl_dir $install_dir
 }
 
 readline_pkg() {
@@ -302,7 +350,7 @@ readline_pkg() {
     package_extract $name $readline_file $readline_dir
     package_configure $name $readline_dir $install_dir "$readline_params"
     package_build $name $readline_dir
-    package_install $name $readline_dir
+    package_install $name $readline_dir $install_dir
 }
 
 termcap_pkg() {
@@ -319,7 +367,7 @@ termcap_pkg() {
     package_extract $name $termcap_file $termcap_dir
     package_configure $name $termcap_dir $install_dir "$termcap_params"
     package_build $name $termcap_dir
-    package_install $name $termcap_dir
+    package_install $name $termcap_dir $install_dir
 }
 
 freeimage_pkg() {
@@ -426,6 +474,8 @@ main() {
     local work_dir=$cwd"/static_build/"
     local build_dir=$work_dir"build/"
     local install_dir=$work_dir"install/"
+
+    check_apps
 
     trap on_exit_error EXIT
 

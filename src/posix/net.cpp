@@ -21,9 +21,12 @@
 
 #include "mega.h"
 
-#ifdef WINDOWS_PHONE
-const char* inet_ntop(int af, const void* src, char* dst, int cnt){
+#define IPV6_RETRY_INTERVAL_DS 72000
+#define DNS_CACHE_TIMEOUT_DS 18000
 
+#ifdef WINDOWS_PHONE
+const char* inet_ntop(int af, const void* src, char* dst, int cnt)
+{
 	struct sockaddr_in srcaddr;
 	wchar_t ip[INET6_ADDRSTRLEN];
 	int len = INET6_ADDRSTRLEN;
@@ -50,8 +53,42 @@ const char* inet_ntop(int af, const void* src, char* dst, int cnt){
 #endif
 
 namespace mega {
+
 CurlHttpIO::CurlHttpIO()
 {
+    curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
+    string curlssl = data->ssl_version;
+    std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
+
+    if (!strstr(curlssl.c_str(), "openssl"))
+    {
+        LOG_fatal << "cURL built without OpenSSL support. Aborting.";
+        exit(EXIT_FAILURE);
+    }
+
+    int i;
+
+    for (i = 0; data->protocols[i]; i++)
+    {
+        if (strstr(data->protocols[i], "http"))
+        {
+            break;
+        }
+    }
+
+    if (!data->protocols[i] || !(data->features & CURL_VERSION_SSL))
+    {
+        LOG_fatal << "cURL built without HTTP/HTTPS support. Aborting.";
+        exit(EXIT_FAILURE);
+    }
+
+    curlipv6 = data->features & CURL_VERSION_IPV6;
+    reset = false;
+    statechange = false;
+
+    WAIT_CLASS::bumpds();
+    lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
 
@@ -69,7 +106,39 @@ CurlHttpIO::CurlHttpIO()
 
     contenttypebinary = curl_slist_append(NULL, "Content-Type: application/octet-stream");
     contenttypebinary = curl_slist_append(contenttypebinary, "Expect:");
+
     proxyinflight = 0;
+    ipv6requestsenabled = ipv6available();
+    ipv6proxyenabled = ipv6requestsenabled;
+    ipv6deactivationtime = 0;
+}
+
+bool CurlHttpIO::ipv6available()
+{
+    static int ipv6_works = -1;
+
+    if (ipv6_works != -1)
+    {
+        return ipv6_works;
+    }
+
+    int s = socket(PF_INET6, SOCK_DGRAM, 0);
+
+    if (s == -1)
+    {
+        ipv6_works = 0;
+    }
+    else
+    {
+        ipv6_works = curlipv6;
+#ifdef WINDOWS_PHONE
+		closesocket(s);
+#else
+        close(s);
+#endif
+    }
+
+    return ipv6_works;
 }
 
 CurlHttpIO::~CurlHttpIO()
@@ -90,6 +159,10 @@ void CurlHttpIO::setdnsservers(const char* servers)
 {
 	if (servers)
     {
+        lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
+        dnscache.clear();
+
+        dnsservers = servers;
 		ares_set_servers_csv(ares, servers);
     }
 }
@@ -99,151 +172,272 @@ void CurlHttpIO::addevents(Waiter* w, int)
 {
     int t;
 
-#ifndef WINDOWS_PHONE
-    waiter = (PosixWaiter* )w;
-#else
-    waiter = (WinPhoneWaiter* )w;
-#endif
-
+    waiter = (WAIT_CLASS*)w;
     curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
     waiter->bumpmaxfd(t);
 
+    long curltimeout;
+    
+    curl_multi_timeout(curlm, &curltimeout);
+
+    if (curltimeout >= 0)
+    {
+        curltimeout /= 100;
+        if ((unsigned long)curltimeout < waiter->maxds)
+            waiter->maxds = curltimeout;
+    }
+
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
     waiter->bumpmaxfd(t);
+
+    timeval tv;
+
+    if (ares_timeout(ares, NULL, &tv))
+    {
+        dstime arestimeout = tv.tv_sec * 10 + tv.tv_usec / 100000;
+
+        if (arestimeout < waiter->maxds)
+        {
+            waiter->maxds = arestimeout;
+        }
+    }
 }
 
-void CurlHttpIO::proxy_ready_callback(void *arg, int status, int, hostent *host)
+void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 {
-    //the name of a proxy has been resolved
-    CurlHttpIO *httpio = (CurlHttpIO *)arg;
+    // the name of a proxy has been resolved
+    CurlHttpContext* httpctx = (CurlHttpContext*)arg;
+    CurlHttpIO* httpio = httpctx->httpio;
 
-    httpio->proxyinflight--; //reduce the number of inflight proxy requests
+    httpctx->ares_pending--;
 
-    if(!httpio->proxyhost.size() || //the proxy was disabled during the name resolution.
-        httpio->proxyip.size())     //or we already have the correct ip
-        return;
-
-    if(status != ARES_SUCCESS || !host || !host->h_addr_list[0])
+    if (!httpctx->ares_pending)
     {
-        //error getting the IP of the proxy
-        if(!httpio->proxyinflight)
+        httpio->proxyinflight--;
+    }
+
+    if (!httpio->proxyhost.size() // the proxy was disabled during the name resolution.
+     || httpio->proxyip.size())   // or we already have the correct ip
+    {
+        if (!httpctx->ares_pending)
         {
-            //there aren't more inflight proxies
-            //drop all requests
-            httpio->drop_pending_requests();
+            // name resolution finished.
+            // nothing more to do.
+            // free resources and continue sending requests.
+            delete httpctx;
+            httpio->send_pending_requests();
         }
+
         return;
     }
 
-    //is this the required proxy name?
-    //(there could be several active proxy requests)
-    if(httpio->proxyhost != host->h_name)
+    // check if result is valid
+    // IPv6 takes precedence over IPv4
+    // discard the IP if it's IPv6 and IPv6 isn't available
+    if (status == ARES_SUCCESS && host && host->h_addr_list[0]
+     && httpio->proxyhost == httpctx->hostname
+     && (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
+     && (host->h_addrtype != PF_INET6 || httpio->ipv6available()))
     {
-        int i=0;
-        while(host->h_aliases[i])
+        // save the IP of the proxy
+        char ip[INET6_ADDRSTRLEN];
+
+        inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof ip);
+        httpctx->hostip = ip;
+        httpctx->isIPv6 = host->h_addrtype == PF_INET6;
+
+        if (httpctx->isIPv6 && ip[0] != '[')
         {
-            if(httpio->proxyhost == host->h_aliases[i])
-                break;
-            i++;
+            httpctx->hostip.insert(0, "[");
+            httpctx->hostip.append("]");
+        }
+    }
+
+    if (!httpctx->ares_pending)
+    {
+        // name resolution finished
+        // if the IP is valid, use it and continue sending requests.
+        if (httpio->proxyhost == httpctx->hostname && httpctx->hostip.size())
+        {
+            std::ostringstream oss;
+            
+            oss << httpctx->hostip << ":" << httpio->proxyport;
+            httpio->proxyip = oss.str();
+
+            LOG_info << "Updated proxy URL: " << httpio->proxyip;
+
+            httpio->send_pending_requests();
+        }
+        else if (!httpio->proxyinflight)
+        {
+            httpio->inetstatus(false);
+
+            // the IP isn't up to date and there aren't pending
+            // name resolutions for proxies. Abort requests.
+            httpio->drop_pending_requests();
+
+            // reinitialize c-ares to prevent persistent hangs
+            httpio->reset = true;
         }
 
-        if(!host->h_aliases[i])
+        // nothing more to do - free resources
+        delete httpctx;
+    }
+}
+
+void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct hostent* host)
+{
+    CurlHttpContext* httpctx = (CurlHttpContext*)arg;
+    CurlHttpIO* httpio = httpctx->httpio;
+    HttpReq* req = httpctx->req;
+    httpctx->ares_pending--;
+
+    if (!req) // the request was cancelled
+    {
+        if (!httpctx->ares_pending)
         {
-            //this isn't the required proxy name
-            if(!httpio->proxyinflight)
+            delete httpctx;
+        }
+
+        return;
+    }
+
+    // check if result is valid
+    if (status == ARES_SUCCESS && host && host->h_addr_list[0])
+    {
+        char ip[INET6_ADDRSTRLEN];
+
+        inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
+
+        //Add to DNS cache
+        CurlDNSEntry &dnsEntry = httpio->dnscache[httpctx->hostname];
+
+        if (host->h_addrtype == PF_INET6)
+        {
+            dnsEntry.ipv6 = ip;
+            dnsEntry.ipv6timestamp = Waiter::ds;
+        }
+        else
+        {
+            dnsEntry.ipv4 = ip;
+            dnsEntry.ipv4timestamp = Waiter::ds;
+        }
+
+        // IPv6 takes precedence over IPv4
+        if (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
+        {
+            httpctx->isIPv6 = (host->h_addrtype == PF_INET6);
+
+            //save the IP for this request
+            std::ostringstream oss;
+            if(httpctx->isIPv6)
             {
-                //there aren't more inflight proxies
-                //drop all requests
-                httpio->drop_pending_requests();
+                oss << "[" << ip << "]:" << httpctx->port;
             }
+            else
+            {
+                oss << ip << ":" << httpctx->port;
+            }
+
+            httpctx->hostip = oss.str();
+        }
+    }
+
+    if (!httpctx->ares_pending)
+    {
+        // name resolution finished
+        // check for fatal errors
+        if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
+         || !httpctx->hostip.size()) // or unable to get the IP for this request
+        {
+            req->status = REQ_FAILURE;
+            httpio->statechange = true;
+
+            if (!httpctx->hostip.size())
+            {
+                // unable to get the IP.
+                httpio->inetstatus(false);
+
+                // reinitialize c-ares to prevent permanent hangs
+                httpio->reset = true;
+            }
+
             return;
         }
+
+        // if there is no proxy or we already have the IP of the proxy, send the request.
+        // otherwise, queue the request until we get the IP of the proxy
+        if (!httpio->proxyurl.size() || httpio->proxyip.size())
+        {
+            send_request(httpctx);
+        }
+        else
+        {
+            httpio->pendingrequests.push(httpctx);
+
+            if (!httpio->proxyinflight)
+            {
+                // c-ares failed to get the IP of the proxy.
+                // queue this request and retry.
+                httpio->ipv6proxyenabled = !httpio->ipv6proxyenabled && httpio->ipv6available();
+                httpio->request_proxy_ip();
+                return;
+            }
+        }
     }
-
-
-    //set the IP of the proxy and start using it
-    char ip[INET6_ADDRSTRLEN];
-    inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
-    std::ostringstream oss;
-    oss << ip << ":" << httpio->proxyport;
-    httpio->proxyip = oss.str();
-    httpio->send_pending_requests();
 }
 
-void CurlHttpIO::ares_completed_callback(void *arg, int status, int, struct hostent *host)
+struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
 {
-    CurlHttpContext* httpctx = (CurlHttpContext *)arg;
-    CurlHttpIO *httpio = httpctx->httpio;
-    HttpReq* req = httpctx->req;
-    if(!req) //The request was cancelled
+    struct curl_slist* outlist = NULL;
+    struct curl_slist* tmp;
+
+    while (inlist)
     {
-        delete httpctx;
-        return;
+        tmp = curl_slist_append(outlist, inlist->data);
+
+        if (!tmp)
+        {
+            curl_slist_free_all(outlist);
+            return NULL;
+        }
+
+        outlist = tmp;
+        inlist = inlist->next;
     }
 
-    if(status != ARES_SUCCESS || !host || !host->h_addr_list[0] ||   //unable to get the destination host
-            (httpio->proxyurl.size() && !httpio->proxyhost.size()))  //or malformed proxy string
-    {
-        req->status = REQ_FAILURE;
-        return;
-    }
-
-    if(httpio->proxyhost.size() && !httpio->proxyip.size() && !httpio->proxyinflight)
-    {
-        //c-ares failed getting the IP of the proxy. Queue this request and retry.
-        httpio->proxyinflight++;
-        httpio->pendingrequests.push(httpctx);
-        ares_gethostbyname(httpio->ares, httpio->proxyhost.c_str(), PF_INET, proxy_ready_callback, httpio);
-        return;
-    }
-
-    //save the IP for this request
-    char ip[INET6_ADDRSTRLEN];    
-    inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
-    std::ostringstream oss;
-    oss << httpctx->hostname << ":" << httpctx->port << ":" << ip;
-    string dnsrecord = oss.str();
-    httpctx->resolve = curl_slist_append(NULL, dnsrecord.c_str());
-
-    //If there is no proxy or we already have the IP of the proxy, send the request.
-    //Otherwise, queue the request until we get the IP of the proxy
-    if(!httpio->proxyurl.size() || httpio->proxyip.size())
-        send_request(httpctx);
-    else
-        httpio->pendingrequests.push(httpctx);
+    return outlist;
 }
 
-void CurlHttpIO::send_request(CurlHttpContext *httpctx)
+void CurlHttpIO::send_request(CurlHttpContext*httpctx)
 {
-    CurlHttpIO *httpio = httpctx->httpio;
+    CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
     int len = httpctx->len;
     const char* data = httpctx->data;
 
-    if (debug)
+    LOG_debug << "POST target URL: " << req->posturl;
+    if (req->binary)
     {
-        cout << "POST target URL: " << req->posturl << endl;
-
-        if (req->binary)
-        {
-            cout << "[sending " << req->out->size() << " bytes of raw data]" << endl;
-        }
-        else
-        {
-            cout << "Sending: " << *req->out << endl;
-        }
+        LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
+    }
+    else
+    {
+        LOG_debug << "Sending: " << *req->out;
     }
 
-    CURL* curl;
+    req->posturl.replace(req->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
+    httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
+    httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
 
+    CURL* curl;
     if ((curl = curl_easy_init()))
     {
-        curl_easy_setopt(curl, CURLOPT_RESOLVE, httpctx->resolve);
         curl_easy_setopt(curl, CURLOPT_URL, req->posturl.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent->c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
         curl_easy_setopt(curl, CURLOPT_ENCODING, "");
         curl_easy_setopt(curl, CURLOPT_SHARE, httpio->curlsh);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
@@ -258,6 +452,10 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
 
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
+        curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
         if(httpio->proxyip.size())
         {
             curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
@@ -271,7 +469,10 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, httpio->proxypassword.c_str());
             }
 
-            curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+            if(httpctx->port == 443)
+            {
+                curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+            }
         }
 
         curl_multi_add_handle(httpio->curlm, curl);
@@ -282,97 +483,286 @@ void CurlHttpIO::send_request(CurlHttpContext *httpctx)
     {
         req->status = REQ_FAILURE;
     }
+
+    httpio->statechange = true;
 }
 
-bool CurlHttpIO::crackurl(string *url, string *hostname, int *port)
+void CurlHttpIO::request_proxy_ip()
+{
+    if(!proxyhost.size())
+    {
+        return;
+    }
+
+    proxyinflight++;
+
+    proxyip.clear();
+
+    CurlHttpContext* httpctx = new CurlHttpContext;
+    httpctx->httpio = this;
+    httpctx->hostname = proxyhost;
+    httpctx->ares_pending = 1;
+
+    if (ipv6proxyenabled)
+    {
+        httpctx->ares_pending++;
+        ares_gethostbyname(ares, proxyhost.c_str(), PF_INET6, proxy_ready_callback, httpctx);
+    }
+
+    ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
+}
+
+bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
 {
     *port = 0;
+
+    hostname->clear();
+
+    if (!url || !url->size() || !hostname || !port)
+    {
+        return false;
+    }
+
     size_t starthost, endhost, startport, endport;
 
     starthost = url->find("://");
-    if(starthost != string::npos)
-        starthost += 3;
-    else
-        starthost = 0;
 
-    startport = url->find(":", starthost);
-    if(startport != string::npos)
+    if (starthost != string::npos)
+    {
+        starthost += 3;
+    }
+    else
+    {
+        starthost = 0;
+    }
+
+    if ((*url)[starthost] == '[' && url->size() > 0)
+    {
+        starthost++;
+    }
+
+    startport = url->find("]:", starthost);
+
+    if (startport == string::npos)
+    {
+        startport = url->find(":", starthost);
+
+        if (startport != string::npos)
+        {
+            endhost = startport;
+        }
+    }
+    else
     {
         endhost = startport;
         startport++;
+    }
+
+    if (startport != string::npos)
+    {
+        startport++;
 
         endport = url->find("/", startport);
-        if(endport == string::npos)
-            endport = url->size();
 
-        if(endport <= startport || (endport - startport) > 5)
+        if (endport == string::npos)
+        {
+            endport = url->size();
+        }
+
+        if (endport <= startport || endport - startport > 5)
+        {
             *port = -1;
+        }
         else
         {
-            for(unsigned int i = startport; i < endport; i++)
+            for (unsigned int i = startport; i < endport; i++)
             {
                 int c = url->data()[i];
+
                 if(c < '0' || c > '9')
                 {
                     *port = -1;
-                     break;
+                    break;
                 }
             }
         }
 
-        if(!*port)
+        if (!*port)
         {
             *port = atoi(url->data() + startport);
-            if(*port > 65535)
+
+            if (*port > 65535)
+            {
                 *port = -1;
+            }
         }
     }
     else
     {
-        endhost = url->find("/", starthost);
-        if(endhost == string::npos)
-            endhost = url->size();
+        endhost = url->find("]/", starthost);
+
+        if (endhost == string::npos)
+        {
+            endhost = url->find("/", starthost);
+
+            if(endhost == string::npos)
+            {
+                endhost = url->size();
+            }
+        }
     }
 
-    if(!*port)
+    if (!*port)
     {
-        if(!url->compare(0, 8, "https://"))
+        if (!url->compare(0, 8, "https://"))
+        {
             *port = 443;
-        else if(!url->compare(0, 7, "http://"))
+        }
+        else if (!url->compare(0, 7, "http://"))
+        {
             *port = 80;
+        }
         else
+        {
             *port = -1;
+        }
     }
 
     *hostname = url->substr(starthost, endhost - starthost);
-    if(*port <= 0 || starthost == string::npos || starthost >= endhost)
+
+    if (*port <= 0 || starthost == string::npos || starthost >= endhost)
+    {
         return false;
+    }
 
     return true;
+}
+
+int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
+{
+    if(type == CURLINFO_TEXT && size)
+    {
+        data[size-1] = 0;
+        LOG_verbose << "cURL DEBUG: " << data;
+    }
+
+    return 0;
 }
 
 // POST request to URL
 void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
-    CurlHttpContext *httpctx = new CurlHttpContext;
+    CurlHttpContext* httpctx = new CurlHttpContext;
     httpctx->curl = NULL;
     httpctx->httpio = this;
     httpctx->req = req;
     httpctx->len = len;
     httpctx->data = data;
-    httpctx->resolve = NULL;
+    httpctx->headers = NULL;
+    httpctx->ares_pending = 0;
 
-    req->httpiohandle = (void *)httpctx;
+    req->httpiohandle = (void*)httpctx;
 
-    if((proxyurl.size() && !proxyhost.size()) || //Malformed proxy string
-            !crackurl(&req->posturl, &httpctx->hostname, &httpctx->port)) //Invalid request
+    if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
+     || !crackurl(&req->posturl, &httpctx->hostname, &httpctx->port)) // invalid request
     {
         req->status = REQ_FAILURE;
+        statechange = true;
         return;
+    }
+
+    if (!ipv6requestsenabled && ipv6available())
+    {
+        if ((Waiter::ds - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_DS)
+        {
+            ipv6requestsenabled = true;
+        }
+    }
+
+    if (reset)
+    {
+        reset = false;
+        ares_destroy(ares);
+        ares_init(&ares);
+
+        if (dnsservers.size())
+        {
+            ares_set_servers_csv(ares, dnsservers.c_str());
+        }
+    }
+
+    // purge DNS cache if needed
+    if (Waiter::ds - lastdnspurge > DNS_CACHE_TIMEOUT_DS)
+    {
+        std::map<string, CurlDNSEntry>::iterator it = dnscache.begin();
+
+        while (it != dnscache.end())
+        {
+            CurlDNSEntry &entry = it->second;
+
+            if (entry.ipv6.size() && Waiter::ds - entry.ipv6timestamp >= DNS_CACHE_TIMEOUT_DS)
+            {
+                entry.ipv6timestamp = 0;
+                entry.ipv6.clear();
+            }
+
+            if (entry.ipv4.size() && Waiter::ds - entry.ipv4timestamp >= DNS_CACHE_TIMEOUT_DS)
+            {
+                entry.ipv4timestamp = 0;
+                entry.ipv4.clear();
+            }
+
+            if (!entry.ipv6.size() && !entry.ipv4.size())
+            {
+                dnscache.erase(it++);
+            }
+            else
+            {
+                it++;
+            }
+        }
+
+        lastdnspurge = Waiter::ds;
     }
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
+    httpctx->hostheader = "Host: ";
+    httpctx->hostheader.append(httpctx->hostname);
+    httpctx->ares_pending = 1;
+
+    CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
+
+    if (ipv6requestsenabled)
+    {
+        if (dnsEntry.ipv6.size() && Waiter::ds - dnsEntry.ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
+        {
+            std::ostringstream oss;
+            httpctx->isIPv6 = true;
+            oss << "[" << dnsEntry.ipv6 << "]:" << httpctx->port;
+            httpctx->hostip = oss.str();
+            httpctx->ares_pending = 0;
+            send_request(httpctx);
+            return;
+        }
+
+        httpctx->ares_pending++;
+        ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
+    }
+    else
+    {
+        if (dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+        {
+            std::ostringstream oss;
+            httpctx->isIPv6 = false;
+            oss << dnsEntry.ipv4 << ":" << httpctx->port;
+            httpctx->hostip = oss.str();
+            httpctx->ares_pending = 0;
+            send_request(httpctx);
+            return;
+        }
+    }
+
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
 }
 
@@ -381,16 +771,16 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     //clear the previous proxy IP
     proxyip.clear();
 
-    if(proxy->getProxyType() != Proxy::CUSTOM || !proxy->getProxyURL().size())
+    if (proxy->getProxyType() != Proxy::CUSTOM || !proxy->getProxyURL().size())
     {
-        //automatic proxy is not supported
-        //invalidate inflight proxy changes
+        // automatic proxy is not supported
+        // invalidate inflight proxy changes
         proxyhost.clear();
 
-        //don't use a proxy
+        // don't use a proxy
         proxyurl.clear();
 
-        //send pending requests without a proxy
+        // send pending requests without a proxy
         send_pending_requests();
         return;
     }
@@ -399,21 +789,22 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
 
-    if(!crackurl(&proxyurl, &proxyhost, &proxyport))
+    if (!crackurl(&proxyurl, &proxyhost, &proxyport))
     {
-        //malformed proxy string
-        //invalidate inflight proxy changes
+        // malformed proxy string
+        // invalidate inflight proxy changes
 
-        //mark the proxy as invalid (proxyurl set but proxyhost not set)
+        // mark the proxy as invalid (proxyurl set but proxyhost not set)
         proxyhost.clear();
 
-        //drop all pending requests
+        // drop all pending requests
         drop_pending_requests();
         return;
     }
 
-    proxyinflight++;
-    ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, this);
+    ipv6requestsenabled = ipv6available();
+    ipv6proxyenabled = ipv6requestsenabled;
+    request_proxy_ip();
 }
 
 Proxy* CurlHttpIO::getautoproxy()
@@ -428,21 +819,29 @@ void CurlHttpIO::cancel(HttpReq* req)
 {
     if (req->httpiohandle)
     {
-        CurlHttpContext *httpctx = (CurlHttpContext *)req->httpiohandle;
+        CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
 
         if(httpctx->curl)
         {
             curl_multi_remove_handle(curlm, httpctx->curl);
             curl_easy_cleanup(httpctx->curl);
-            curl_slist_free_all(httpctx->resolve);
+            curl_slist_free_all(httpctx->headers);
         }
 
         httpctx->req = NULL;
-        if(req->status == REQ_FAILURE || httpctx->curl)
+
+        if (req->status == REQ_FAILURE || httpctx->curl)
+        {
             delete httpctx;
+        }
 
         req->httpstatus = 0;
-        req->status = REQ_FAILURE;
+
+        if (req->status != REQ_FAILURE)
+        {
+            req->status = REQ_FAILURE;
+            statechange = true;
+        }
 
         req->httpiohandle = NULL;
     }
@@ -452,9 +851,13 @@ void CurlHttpIO::cancel(HttpReq* req)
 m_off_t CurlHttpIO::postpos(void* handle)
 {
     double bytes = 0;
-    CurlHttpContext* httpctx = (CurlHttpContext *)handle;
+
+    CurlHttpContext* httpctx = (CurlHttpContext*)handle;
+
     if(httpctx->curl)
+    {
         curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
+    }
 
     return (m_off_t)bytes;
 }
@@ -462,9 +865,8 @@ m_off_t CurlHttpIO::postpos(void* handle)
 // process events
 bool CurlHttpIO::doio()
 {
-    bool done = false;
-
-    CURLMsg *msg;
+    bool result;
+    CURLMsg* msg;
     int dummy;
 
     ares_process(ares, &waiter->rfds, &waiter->wfds);
@@ -472,7 +874,7 @@ bool CurlHttpIO::doio()
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
     {
-        HttpReq* req;
+        HttpReq* req = NULL;
 
         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
         {
@@ -482,29 +884,25 @@ bool CurlHttpIO::doio()
             {
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
-                if (debug)
+                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus;
+                if (req->httpstatus)
                 {
-                    cout << "CURLMSG_DONE with HTTP status: " << req->httpstatus << endl;
-
-                    if (req->httpstatus)
+                    if (req->binary)
                     {
-                        if (req->binary)
-                        {
-                            cout << "[received " << req->in.size() << " bytes of raw data]" << endl;
-                        }
-                        else
-                        {
-                            cout << "Received: " << req->in.c_str() << endl;
-                        }
+                        LOG_debug << "[received " << req->in.size() << " bytes of raw data]";
+                    }
+                    else
+                    {
+                        LOG_debug << "Received: " << req->in.c_str();
                     }
                 }
 
+
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
-                            && req->contentlength == (req->buf ? req->bufpos : (int)req->in.size()))
+                            && (req->contentlength < 0
+                             || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                              ? REQ_SUCCESS : REQ_FAILURE;
-
-                inetstatus(req->status);
                 
                 if (req->status == REQ_SUCCESS)
                 {
@@ -512,35 +910,105 @@ bool CurlHttpIO::doio()
                 }
 
                 success = true;
-                done = true;
             }
             else
             {
                 req->status = REQ_FAILURE;
             }
+
+            statechange = true;
+
+            if (req->status == REQ_FAILURE && !req->httpstatus)
+            {                
+                CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+
+                //Remove the IP from the DNS cache
+                CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
+                if(httpctx->isIPv6)
+                {
+                    dnsEntry.ipv6.clear();
+                    dnsEntry.ipv6timestamp = 0;
+                }
+                else
+                {
+                    dnsEntry.ipv4.clear();
+                    dnsEntry.ipv4timestamp = 0;
+                }
+
+                ipv6requestsenabled = !httpctx->isIPv6 && ipv6available();
+
+                if (ipv6requestsenabled)
+                {
+                    // change the protocol of the proxy after fails contacting
+                    // MEGA servers with both protocols (IPv4 and IPv6)
+                    ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
+                    request_proxy_ip();
+                }
+                else if(httpctx->isIPv6)
+                {
+                    ipv6deactivationtime = Waiter::ds;
+
+                    //For IPv6 errors, try IPv4 before sending an error to the SDK
+                    if(dnsEntry.ipv4.size() && (Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
+                    {
+                        curl_multi_remove_handle(curlm, msg->easy_handle);
+                        curl_easy_cleanup(msg->easy_handle);
+                        curl_slist_free_all(httpctx->headers);
+
+                        req->httpio = this;
+                        req->in.clear();
+                        req->posturl.replace(req->posturl.find(httpctx->hostip), httpctx->hostip.size(), httpctx->hostname);
+                        req->status = REQ_INFLIGHT;
+                        httpctx->ares_pending = 0;
+                        httpctx->isIPv6 = false;
+                        std::ostringstream oss;
+                        oss << dnsEntry.ipv4 << ":" << httpctx->port;
+                        httpctx->hostip = oss.str();
+                        send_request(httpctx);
+                        return true;
+                    }
+                }
+            }
+        }
+        else
+        {
+            req = NULL;
         }
 
         curl_multi_remove_handle(curlm, msg->easy_handle);
         curl_easy_cleanup(msg->easy_handle);
 
-        CurlHttpContext *httpctx = (CurlHttpContext *)req->httpiohandle;
-        curl_slist_free_all(httpctx->resolve);
-        delete httpctx;
+        if (req)
+        {
+            inetstatus(req->status);
+
+            CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+            curl_slist_free_all(httpctx->headers);
+            delete httpctx;
+            req->httpiohandle = NULL;
+        }
     }
 
-    return done;
+    result = statechange;
+    statechange = false;
+    return result;
 }
 
 // callback for incoming HTTP payload
 void CurlHttpIO::send_pending_requests()
 {
-    while(pendingrequests.size())
+    while (pendingrequests.size())
     {
-        CurlHttpContext *httpctx = pendingrequests.front();
-        if(httpctx->req)
+        CurlHttpContext* httpctx = pendingrequests.front();
+
+        if (httpctx->req)
+        {
             send_request(httpctx);
+        }
         else
+        {
             delete httpctx;
+        }
 
         pendingrequests.pop();
     }
@@ -550,11 +1018,17 @@ void CurlHttpIO::drop_pending_requests()
 {
     while(pendingrequests.size())
     {
-        CurlHttpContext *httpctx = pendingrequests.front();
+        CurlHttpContext* httpctx = pendingrequests.front();
+
         if(httpctx->req)
+        {
             httpctx->req->status = REQ_FAILURE;
+            statechange = true;
+        }
         else
+        {
             delete httpctx;
+        }
 
         pendingrequests.pop();
     }
@@ -627,6 +1101,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
     }
 
     return ok;
+}
+
+CurlDNSEntry::CurlDNSEntry()
+{
+    ipv4timestamp = 0;
+    ipv6timestamp = 0;
 }
 
 } // namespace

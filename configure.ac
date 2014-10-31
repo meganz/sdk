@@ -119,6 +119,7 @@ AC_LANG_CPLUSPLUS
 AC_STDC_HEADERS
 AC_HEADER_STDC
 AC_HEADER_STDBOOL
+AC_HEADER_DIRENT
 
 AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C++])
 AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
@@ -174,7 +175,7 @@ AC_ARG_ENABLE(inotify,
 
 AS_IF([test "x$enable_inotify" = "xyes"], [
     AC_CHECK_HEADERS([sys/inotify.h mcheck.h])
-    AC_CHECK_FUNCS([inotify_init], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
+    AC_CHECK_FUNCS([inotify_init1], [AC_DEFINE([USE_INOTIFY], [1], [Use inotify API])])
 ])
 
 # Check for particular functions
@@ -219,8 +220,7 @@ AC_ARG_ENABLE(posix-threads,
     [enable_posix_threads=no],
     [enable_posix_threads=yes])
 if test x$enable_posix_threads != xno; then
-    HAVE_PTHREAD=yes
-    AC_CHECK_LIB(pthread, pthread_create, , [HAVE_PTHREAD=no])
+    AC_CHECK_LIB(pthread, pthread_create, [HAVE_PTHREAD=yes], [HAVE_PTHREAD=no])
 fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
@@ -965,10 +965,16 @@ AC_ARG_WITH(freeimage,
   )
 AC_SUBST(FI_LDFLAGS)
 AC_SUBST(FI_LIBS)
+if test x$enable_static = xyes; then
+    AC_DEFINE(FREEIMAGE_LIB, [1], [Define to use FreeImage as a static library.])
+    AM_CONDITIONAL([FREEIMAGE_LIB], [test "x$freeimage" = "xtrue"])
+else
+    AM_CONDITIONAL([FREEIMAGE_LIB], [test "x$freeimage" = "xnone"])
+fi
 AC_SUBST(FI_CXXFLAGS)
 AC_SUBST(FI_CPPFLAGS)
 if test "x$freeimage" = "xtrue" ; then
-    AC_DEFINE(USE_FREEIMAGE, 1, [Define to use FreeImage library.])
+    AC_DEFINE(USE_FREEIMAGE, [1], [Define to use FreeImage library.])
 fi
 AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
@@ -992,7 +998,7 @@ if test "x$enable_examples" = "xyes" ; then
         TERMCAP_CPPFLAGS="-I$with_termcap"
         ;;
        esac
-      ], []
+      ]
     )
     AC_SUBST(TERMCAP_LDFLAGS)
     AC_SUBST(TERMCAP_LIBS)

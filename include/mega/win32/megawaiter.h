@@ -22,6 +22,10 @@
 #ifndef WAIT_CLASS
 #define WAIT_CLASS WinWaiter
 
+typedef ULONGLONG (WINAPI * PGTC)();
+
+extern PGTC pGTC;
+
 namespace mega {
 class MEGA_API WinWaiter : public Waiter
 {

@@ -2,7 +2,7 @@
  * @file filefingerprint.cpp
  * @brief Sparse file fingerprint
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -37,7 +37,7 @@ bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
     // https://code.google.com/p/android/issues/detail?id=18624
 
 #ifndef WINDOWS_PHONE
-    // Disabled on Windows Phone too because SetFileTime isn't available
+    // disabled on Windows Phone too because SetFileTime() isn't available
 
     // mtime differs - cannot be equal
     if (abs(lhs.mtime-rhs.mtime) > 2)
@@ -94,11 +94,12 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        if(!fa->frawread((byte*)newcrc, size, 0))
+        if (!fa->frawread((byte*)newcrc, size, 0))
         {
             size = -1;
             return true;
         }
+
         memset((byte*)newcrc + size, 0, sizeof crc - size);
     }
     else if (size <= MAXFULL)
@@ -120,6 +121,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
             crc32.add(buf + begin, end - begin);
             crc32.get((byte*)&crcval);
+
             newcrc[i] = htonl(crcval);
         }
     }

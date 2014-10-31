@@ -234,6 +234,15 @@
     <ClInclude Include="..\DelegateMGfxProcessor.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MLoggerInterface.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DelegateMLogger.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MPricing.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -408,6 +417,12 @@
       <Filter>Bindings</Filter>
     </ClCompile>
     <ClCompile Include="..\DelegateMGfxProcessor.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DelegateMLogger.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MPricing.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

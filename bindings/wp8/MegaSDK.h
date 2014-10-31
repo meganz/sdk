@@ -24,6 +24,7 @@
 #include "DelegateMListener.h"
 #include "DelegateMTreeProcessor.h"
 #include "DelegateMGfxProcessor.h"
+#include "DelegateMLogger.h"
 #include "MRandomNumberProvider.h"
 
 #include <megaapi.h>
@@ -40,6 +41,15 @@ namespace mega
 		ORDER_CREATION_ASC, ORDER_CREATION_DESC,
 		ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
 		ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC
+	};
+
+	public enum class MLogLevel {
+		LOG_LEVEL_FATAL = 0, 
+		LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
+		LOG_LEVEL_WARNING, // Information representing errors in application but application will keep running
+		LOG_LEVEL_INFO,    // Mainly useful to represent current progress of application.
+		LOG_LEVEL_DEBUG,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+		LOG_LEVEL_MAX
 	};
 
 	public ref class MegaSDK sealed
@@ -132,6 +142,10 @@ namespace mega
 		void fetchNodes();
 		void getAccountDetails(MRequestListenerInterface^ listener);
 		void getAccountDetails();
+		void getPricing(MRequestListenerInterface^ listener);
+		void getPricing();
+		void getPaymentUrl(uint64 productHandle, MRequestListenerInterface^ listener);
+		void getPaymentUrl(uint64 productHandle);
 		void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
 		void changePassword(String^ oldPassword, String^ newPassword);
 		void addContact(String^ email, MRequestListenerInterface^ listener);
@@ -184,6 +198,8 @@ namespace mega
 		MUser^ getContact(String^ email);
 		MNodeList^ getInShares(MUser^ user);
 		MNodeList^ getInShares();
+		bool isShared(MNode^ node);
+		MShareList^ getOutShares();
 		MShareList^ getOutShares(MNode^ node);
 		String^ getFileFingerprint(String^ filePath);
 		String^ getNodeFingerprint(MNode^ node);
@@ -198,6 +214,13 @@ namespace mega
 		MNodeList^ search(MNode^ node, String^ searchString);
 		bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
 		bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
+
+		//Logging
+		static void setLogLevel(MLogLevel logLevel);
+		static void setLoggerClass(MLoggerInterface^ megaLogger);
+		static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
+		static void log(MLogLevel logLevel, String^ message, String^ filename);
+		static void log(MLogLevel logLevel, String^ message);
 
 	private:
 		std::set<DelegateMRequestListener *> activeRequestListeners;
@@ -217,6 +240,7 @@ namespace mega
 
 		MegaApi *megaApi;
 		DelegateMGfxProcessor *externalGfxProcessor;
+		static DelegateMLogger* externalLogger;
 		MegaApi *getCPtr();
 	};
 }

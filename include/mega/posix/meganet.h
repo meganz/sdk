@@ -29,6 +29,7 @@
 
 namespace mega {
 
+struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
@@ -44,7 +45,12 @@ protected:
     string proxyusername;
     string proxypassword;
     int proxyinflight;
+    dstime ipv6deactivationtime;
+    dstime lastdnspurge;
+    bool ipv6proxyenabled;
+    bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
+    std::map<string, CurlDNSEntry> dnscache;
 
     void send_pending_requests();
     void drop_pending_requests();
@@ -56,16 +62,19 @@ protected:
     static void proxy_ready_callback(void *arg, int status, int timeouts, struct hostent *host);
     static void ares_completed_callback(void *arg, int status, int timeouts, struct hostent *host);
     static void send_request(CurlHttpContext *httpctx);
+    void request_proxy_ip();
+    static struct curl_slist* clone_curl_slist(struct curl_slist *inlist);
     static bool crackurl(string *url, string *hostname, int* port);
+    static int debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, void *userptr);
+    bool ipv6available();
 
+    bool curlipv6;
+    bool reset;
+    bool statechange;
+    string dnsservers;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
-
-#ifndef WINDOWS_PHONE
-    PosixWaiter* waiter;
-#else
-    WinPhoneWaiter* waiter;
-#endif
+    WAIT_CLASS* waiter;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);
@@ -93,11 +102,25 @@ struct MEGA_API CurlHttpContext
     HttpReq* req;
     CurlHttpIO* httpio;
 
-    struct curl_slist *resolve;
+    struct curl_slist *headers;
+    bool isIPv6;
     string hostname;
     int port;
+    string hostheader;
+    string hostip;
     unsigned len;
     const char* data;
+    int ares_pending;
+};
+
+struct MEGA_API CurlDNSEntry
+{
+    CurlDNSEntry();
+
+    string ipv4;
+    dstime ipv4timestamp;
+    string ipv6;
+    dstime ipv6timestamp;
 };
 
 } // namespace

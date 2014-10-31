@@ -22,6 +22,9 @@
 #include "meganet.h"
 
 namespace mega {
+
+extern PGTC pGTC;
+
 WinHttpIO::WinHttpIO()
 {
     InitializeCriticalSection(&csHTTP);
@@ -30,6 +33,8 @@ WinHttpIO::WinHttpIO()
     hWakeupEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
     waiter = NULL;
+    
+    chunkedok = false;
 }
 
 WinHttpIO::~WinHttpIO()
@@ -58,9 +63,9 @@ void WinHttpIO::setuseragent(string* useragent)
 }
 
 
-void WinHttpIO::setproxy(Proxy *proxy)
+void WinHttpIO::setproxy(Proxy* proxy)
 {
-    Proxy *autoProxy = NULL;
+    Proxy* autoProxy = NULL;
 
     proxyUsername.clear();
     proxyPassword.clear();
@@ -110,7 +115,7 @@ void WinHttpIO::setproxy(Proxy *proxy)
     delete autoProxy;
 }
 
-Proxy *WinHttpIO::getautoproxy()
+Proxy* WinHttpIO::getautoproxy()
 {
     Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
@@ -124,7 +129,7 @@ Proxy *WinHttpIO::getautoproxy()
             string proxyURL;
             proxy->setProxyType(Proxy::CUSTOM);
             int len = lstrlen(ieProxyConfig.lpszProxy);
-            proxyURL.assign((const char *)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
+            proxyURL.assign((const char*)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
 
             // only save one proxy
             for (int i = 0; i < len; i++)
@@ -214,12 +219,12 @@ void WinHttpIO::httpevent()
 }
 
 // (WinHTTP unfortunately uses threads, hence the need for a mutex)
-void WinHttpIO::entercs()
+void WinHttpIO::lock()
 {
     EnterCriticalSection(&csHTTP);
 }
 
-void WinHttpIO::leavecs()
+void WinHttpIO::unlock()
 {
     LeaveCriticalSection(&csHTTP);
 }
@@ -228,6 +233,10 @@ void WinHttpIO::leavecs()
 void WinHttpIO::addevents(Waiter* cwaiter, int flags)
 {
     waiter = (WinWaiter*)cwaiter;
+
+    // enabled chunked transfer encoding if GetTickCount64() exists
+    // (we are on Vista or greater)
+    if (pGTC) chunkedok = true;
 
     waiter->addhandle(hWakeupEvent, flags);
     waiter->pcsHTTP = &csHTTP;
@@ -255,14 +264,14 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         return;
     }
 
-    httpio->entercs();
+    httpio->lock();
 
     HttpReq* req = httpctx->req;
 
     // request cancellations that occured after asynccallback() was entered are caught here
     if (!req)
     {
-        httpio->leavecs();
+        httpio->unlock();
         return;
     }
 
@@ -274,16 +283,13 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
             if (!size)
             {
-                if (debug)
+                if (req->binary)
                 {
-                    if (req->binary)
-                    {
-                        cout << "[received " << req->bufpos << " bytes of raw data]" << endl;
-                    }
-                    else
-                    {
-                        cout << "Received: " << req->in.c_str() << endl;
-                    }
+                    LOG_debug << "[received " << req->bufpos << " bytes of raw data]";
+                }
+                else
+                {
+                    LOG_debug << "Received: " << req->in.c_str();
                 }
 
                 req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
@@ -332,7 +338,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                     int t = inflate(&httpctx->z, Z_SYNC_FLUSH);
                     req->bufpos -= httpctx->z.avail_out;
 
-                    if ((char *)lpvStatusInformation + dwStatusInformationLength ==
+                    if ((char*)lpvStatusInformation + dwStatusInformationLength ==
                              httpctx->zin.data() + httpctx->zin.size())
                     {
                         httpctx->zin.clear();
@@ -445,7 +451,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             httpio->httpevent();
             break;
 
-        case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+        case WINHTTP_CALLBACK_STATUS_SENDING_REQUEST:
         {
             PCCERT_CONTEXT cert;
             DWORD len = sizeof cert;
@@ -469,8 +475,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 CertFreeCertificateContext(cert);
             }
+
+            break;
         }
-            // fall through
+
+        case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
         case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE:
             if (httpctx->postpos < httpctx->postlen)
             {
@@ -501,24 +510,20 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             }
     }
 
-    httpio->leavecs();
+    httpio->unlock();
 }
 
 // POST request to URL
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
-{
-    if (debug)
+{    
+    LOG_debug << "POST target URL: " << req->posturl;
+    if (req->binary)
     {
-        cout << "POST target URL: " << req->posturl << endl;
-
-        if (req->binary)
-        {
-            cout << "[sending " << req->out->size() << " bytes of raw data]" << endl;
-        }
-        else
-        {
-            cout << "Sending: " << *req->out << endl;
-        }
+        LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
+    }
+    else
+    {
+        LOG_debug << "Sending: " << *req->out;
     }
 
     WinHttpContext* httpctx;
@@ -572,6 +577,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                          | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
                                          | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
                                          | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
+                                         | WINHTTP_CALLBACK_FLAG_SEND_REQUEST
                                          | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
                                          | WINHTTP_CALLBACK_FLAG_HANDLES,
                                          0);

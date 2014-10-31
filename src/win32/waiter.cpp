@@ -25,9 +25,7 @@
 namespace mega {
 dstime Waiter::ds;
 
-typedef ULONGLONG (WINAPI * PGTC)();
-
-static PGTC pGTC;
+PGTC pGTC;
 static ULONGLONG tickhigh;
 static DWORD prevt;
 

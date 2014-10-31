@@ -29,6 +29,7 @@ HttpIO::HttpIO()
     noinetds = 0;
     inetback = false;
     lastdata = NEVER;
+    chunkedok = true;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -60,6 +61,7 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
     httpio = client->httpio;
     bufpos = 0;
+    inpurge = 0;
     contentlength = -1;
 
     httpio->post(this, data, len);
@@ -83,6 +85,8 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
+
+    inpurge = 0;
 }
 
 HttpReq::~HttpReq()
@@ -121,6 +125,22 @@ void HttpReq::put(void* data, unsigned len)
     bufpos += len;
 }
 
+char* HttpReq::data()
+{
+    return (char*)in.data() + inpurge;
+}
+
+size_t HttpReq::size()
+{
+    return in.size() - inpurge;
+}
+
+// set amount of purgeable in data at 0
+void HttpReq::purge(size_t numbytes)
+{
+    inpurge += numbytes;
+}
+
 // set total response size
 void HttpReq::setcontentlength(m_off_t len)
 {
@@ -146,6 +166,14 @@ byte* HttpReq::reserveput(unsigned* len)
     }
     else
     {
+        if (inpurge)
+        {
+            // FIXME: optimize erase()/resize() -> single copy/resize()
+            in.erase(0, inpurge);
+            bufpos -= inpurge;
+            inpurge = 0;
+        }
+
         if (bufpos + *len > in.size())
         {
             in.resize(bufpos + *len);
@@ -183,7 +211,7 @@ bool HttpReqDL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     dlpos = pos;
     size = (unsigned)(npos - pos);
 
-    if (!buf || (buflen != size))
+    if (!buf || buflen != size)
     {
         // (re)allocate buffer
         if (buf)

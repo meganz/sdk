@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file mega/logging.h
  * @brief Logging class
  *
@@ -21,6 +21,7 @@
 
 /* Usage example:
 
+   1)
     #include <fstream>  // for std::ofstream
 
     // output debug messages to file
@@ -38,11 +39,36 @@
     SimpleLogger::setOutputSettings(logDebug, true, true, true);
 
     ...
-
     LOG_debug << "test"; // will print message on screen and append line to debugfile
     LOG_info << "informing"; // will only print message on screen
 
 
+    2)
+    // set output class for all types of logs (for example - send logs to remote Log Server)
+    class MyOutput: public Logger {
+    public:
+        void log(const char *time, int loglevel, const char *source, const char *message) {
+            std::cout << "{" << time << "}" << " [" << source << "] " << message << std::endl;
+        }
+    };
+
+    ...
+    MyOutput output;
+
+    // let's output both Debug (verbose) and Info (just messages) logs
+    // and send logs to remote Log Server
+    SimpleLogger::setOutputSettings(logDebug, true, true, true);
+    SimpleLogger::setOutputSettings(logInfo, false, false, false);
+    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setAllOutputs(&std::cout);
+    SimpleLogger::setOutputClass(output);
+    SimpleLogger::setOutputClass(&myOutput);
+
+    LOG_debug << "test";
+    LOG_info << "informing";
+
+
+    3)
     if MEGA_QT_LOGGING defined:
 
     QString a = QString::fromAscii("test1");
@@ -64,11 +90,11 @@ namespace mega {
 
 // available log levels
 enum LogLevel {
-    logFatal,   // Very severe error event that will presumably lead the application to abort.
-    logError,   // Error information but will continue application to keep running.
-    logWarning, // Information representing errors in application but application will keep running
-    logInfo,    // Mainly useful to represent current progress of application.
-    logDebug,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+    logFatal = 0, // Very severe error event that will presumably lead the application to abort.
+    logError,     // Error information but will continue application to keep running.
+    logWarning,   // Information representing errors in application but application will keep running
+    logInfo,      // Mainly useful to represent current progress of application.
+    logDebug,     // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
     logMax
 };
 
@@ -79,24 +105,19 @@ struct OutputSettings {
     bool enableSource;  // display file name and line number component for each log line
 };
 
+// Output Log Interface
+class MEGA_API Logger {
+public:
+    virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
+};
+
 class MEGA_API SimpleLogger {
     enum LogLevel level;
     bool lineBreak;
     std::ostringstream ostr;
     typedef vector<std::ostream *> OutputStreams;
-
-    static const char *toStr(enum LogLevel ll)
-    {
-        switch (ll) {
-            case logDebug: return "debug";
-            case logInfo: return "info";
-            case logWarning: return "warn";
-            case logError: return "err";
-            case logFatal: return "FATAL";
-            default: return "";
-        }
-        return "";
-    }
+    std::string t;
+    std::string fname;
 
     OutputStreams getOutput(enum LogLevel ll)
     {
@@ -108,6 +129,7 @@ class MEGA_API SimpleLogger {
 public:
     typedef std::map<enum LogLevel, OutputStreams> OutputMap;
     static OutputMap outputs;
+    static Logger *logger;
 
     typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
     static OutputSettingsMap outputSettings;
@@ -116,6 +138,20 @@ public:
 
     SimpleLogger(enum LogLevel ll, char const* filename, int line, bool lBreak = true);
     ~SimpleLogger();
+
+    static const char *toStr(enum LogLevel ll)
+    {
+        switch (ll) {
+            case logMax: return "verbose";
+            case logDebug: return "debug";
+            case logInfo: return "info";
+            case logWarning: return "warn";
+            case logError: return "err";
+            case logFatal: return "FATAL";
+            default: return "";
+        }
+        return "";
+    }
 
     template <typename T>
     SimpleLogger& operator<<(T const& obj)
@@ -131,6 +167,12 @@ public:
         return *this;
     }
 #endif
+
+    // set output class
+    static void setOutputClass(Logger *logger_class)
+    {
+        logger = logger_class;
+    }
 
     // register output stream for log level
     static void addOutput(enum LogLevel ll, std::ostream *os)
@@ -178,6 +220,18 @@ public:
 
 // enable debug level if DEBUG symbol is defined
 #ifdef DEBUG
+// output VERBOSE log with line break
+#define LOG_verbose \
+    if (SimpleLogger::logCurrentLevel < logMax) ;\
+    else \
+        SimpleLogger(logMax, __FILE__, __LINE__)
+
+// output VERBOSE log without line break
+#define LOGn_verbose \
+    if (SimpleLogger::logCurrentLevel < logMax) ;\
+    else \
+        SimpleLogger(logMax, __FILE__, __LINE__, false)
+
 // output DEBUG log with line break
 #define LOG_debug \
     if (SimpleLogger::logCurrentLevel < logDebug) ;\
@@ -190,6 +244,8 @@ public:
     else \
         SimpleLogger(logDebug, __FILE__, __LINE__, false)
 #else
+#define LOG_verbose NullLogger()
+#define LOGn_verbose NullLogger()
 #define LOG_debug NullLogger()
 #define LOGn_debug NullLogger()
 #endif // DEBUG

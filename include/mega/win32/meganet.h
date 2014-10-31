@@ -26,7 +26,6 @@
 #include "mega.h"
 
 namespace mega {
-extern bool debug;
 
 class MEGA_API WinHttpIO: public HttpIO
 {
@@ -57,8 +56,8 @@ public:
 
     void addevents(Waiter*, int);
 
-    void entercs();
-    void leavecs();
+    void lock();
+    void unlock();
 
     void httpevent();
 

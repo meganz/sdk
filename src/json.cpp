@@ -2,7 +2,7 @@
  * @file json.cpp
  * @brief Linear non-strict JSON scanner
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -35,6 +35,11 @@ bool JSON::storeobject(string* s)
     while (*pos > 0 && *pos <= ' ')
     {
         pos++;
+    }
+
+    if (*pos == ']' || *pos == '}')
+    {
+        return false;
     }
 
     if (*pos == ',')

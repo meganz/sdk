@@ -296,6 +296,21 @@ const char* MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+void MegaApi::setLogLevel(int logLevel)
+{
+    MegaApiImpl::setLogLevel(logLevel);
+}
+
+void MegaApi::setLoggerClass(MegaLogger *megaLogger)
+{
+    MegaApiImpl::setLoggerClass(megaLogger);
+}
+
+void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
+{
+    MegaApiImpl::log(logLevel, message, filename, line);
+}
+
 const char* MegaApi::getBase64PwKey(const char *password)
 {
     return pImpl->getBase64PwKey(password);
@@ -326,7 +341,7 @@ void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRe
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
 }
 
-void MegaApi::addEntropy(unsigned char *data, unsigned int size)
+void MegaApi::addEntropy(char *data, unsigned int size)
 {
     MegaApiImpl::addEntropy(data, size);
 }
@@ -509,6 +524,16 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
     pImpl->getAccountDetails(listener);
+}
+
+void MegaApi::getPricing(MegaRequestListener *listener)
+{
+    pImpl->getPricing(listener);
+}
+
+void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener)
+{
+    pImpl->getPaymentUrl(productHandle, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
@@ -701,6 +726,16 @@ NodeList* MegaApi::getInShares(MegaUser *megaUser)
 NodeList* MegaApi::getInShares()
 {
     return pImpl->getInShares();
+}
+
+bool MegaApi::isShared(MegaNode *node)
+{
+    return pImpl->isShared(node);
+}
+
+ShareList *MegaApi::getOutShares()
+{
+    return pImpl->getOutShares();
 }
 
 ShareList* MegaApi::getOutShares(MegaNode *megaNode)
@@ -973,3 +1008,42 @@ bool MegaHashSignature::check(const char *base64Signature)
 }
 
 MegaAccountDetails::~MegaAccountDetails() { }
+
+void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
+{
+
+}
+
+bool MegaGfxProcessor::readBitmap(const char *)
+{
+    return false;
+}
+
+int MegaGfxProcessor::getWidth()
+{
+    return 0;
+}
+
+int MegaGfxProcessor::getHeight()
+{
+    return 0;
+}
+
+int MegaGfxProcessor::getBitmapDataSize(int w, int h, int px, int py, int rw, int rh)
+{
+    return 0;
+}
+
+bool MegaGfxProcessor::getBitmapData(char *bitmapData, size_t size)
+{
+    return false;
+}
+
+void MegaGfxProcessor::freeBitmap()
+{
+
+}
+
+MegaGfxProcessor::~MegaGfxProcessor() { }
+MegaPricing::~MegaPricing() { }
+

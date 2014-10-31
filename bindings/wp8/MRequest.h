@@ -2,6 +2,7 @@
 
 #include "MNode.h"
 #include "MAccountDetails.h"
+#include "MPricing.h"
 
 #include "megaapi.h"
 
@@ -25,7 +26,8 @@ namespace mega
 		TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
 		TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
 		TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-		TYPE_DELETE
+		TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
+		TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL
 	};
 
 	public ref class MRequest sealed
@@ -57,6 +59,7 @@ namespace mega
 		uint64 getTransferredBytes();
 		uint64 getTotalBytes();
 		MAccountDetails^ getMAccountDetails();
+		MPricing^ getPricing();
 
 	private:
 		MRequest(MegaRequest *megaRequest, bool cMemoryOwn);

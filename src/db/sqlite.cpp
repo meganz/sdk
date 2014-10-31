@@ -2,7 +2,7 @@
  * @file sqlite.cpp
  * @brief SQLite DB access layer
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -41,7 +41,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     //The previous implementation was closing the first database
     //when the second one was opened.
     sqlite3* db;
-    string dbdir = dbpath + "megaclient_statecache_" + *name + ".db";
+    string dbdir = dbpath + "megaclient_statecache2_" + *name + ".db";
 
     int rc;
 
