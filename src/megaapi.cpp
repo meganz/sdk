@@ -536,6 +536,11 @@ void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *liste
     pImpl->getPaymentUrl(productHandle, listener);
 }
 
+const char *MegaApi::exportMasterKey()
+{
+    return pImpl->exportMasterKey();
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

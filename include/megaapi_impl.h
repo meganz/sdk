@@ -682,6 +682,7 @@ class MegaApiImpl : public MegaApp
         void getAccountDetails(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentUrl(handle productHandle, MegaRequestListener *listener = NULL);
+        const char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);

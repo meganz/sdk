@@ -2175,6 +2175,23 @@ void MegaApiImpl::getPaymentUrl(handle productHandle, MegaRequestListener *liste
     waiter->notify();
 }
 
+const char *MegaApiImpl::exportMasterKey()
+{
+    sdkMutex.lock();
+    byte session[64];
+    char* buf = NULL;
+    int size;
+    size = client->dumpsession(session, sizeof session);
+    if (size > 0)
+    {
+        buf = new char[16*4/3+4];
+        Base64::btoa(session, 16, buf);
+    }
+
+    sdkMutex.unlock();
+    return buf;
+}
+
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ACCOUNT_DETAILS, listener);
