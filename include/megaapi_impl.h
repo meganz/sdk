@@ -681,6 +681,7 @@ class MegaApiImpl : public MegaApp
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getAccountDetails(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
+        void getPaymentUrl(handle productHandle, MegaRequestListener *listener = NULL);
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
@@ -885,9 +886,9 @@ protected:
         // purchase transactions
         virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency);
         virtual void enumeratequotaitems_result(error e);
-        virtual void additem_result(error) { }
-        virtual void checkout_result(error) { }
-        virtual void checkout_result(const char*) { }
+        virtual void additem_result(error);
+        virtual void checkout_result(error);
+        virtual void checkout_result(const char*);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);

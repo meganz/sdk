@@ -531,6 +531,11 @@ void MegaApi::getPricing(MegaRequestListener *listener)
     pImpl->getPricing(listener);
 }
 
+void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener)
+{
+    pImpl->getPaymentUrl(productHandle, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

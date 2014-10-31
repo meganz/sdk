@@ -1,6 +1,8 @@
 ﻿#define _POSIX_SOURCE
 #define _LARGE_FILES
 
+#include <iomanip>
+
 #ifndef _WIN32
 #define _LARGEFILE64_SOURCE
 #include <signal.h>
@@ -770,7 +772,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->accountDetails = NULL;
     }
 
-    if(type == MegaRequest::TYPE_GET_PRICING)
+    if((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_URL))
     {
         this->megaPricing = new MegaPricingPrivate();
     }
@@ -2161,6 +2163,14 @@ void MegaApiImpl::getAccountDetails(MegaRequestListener *listener)
 void MegaApiImpl::getPricing(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getPaymentUrl(handle productHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_URL, listener);
+    request->setNodeHandle(productHandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -3635,7 +3645,11 @@ void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, 
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_PRICING)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)))
+    {
+        return;
+    }
 
     request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency);
 }
@@ -3644,9 +3658,136 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_PRICING)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)))
+    {
+        return;
+    }
+
+    if(request->getType() == MegaRequest::TYPE_GET_PRICING)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+    }
+    else
+    {
+        MegaPricing *pricing = request->getPricing();
+        int i;
+        for(i = 0; i < pricing->getNumProducts(); i++)
+        {
+            if(pricing->getHandle(i) == request->getNodeHandle())
+            {
+                request->setNumber(i);
+                requestMap.erase(request->getTag());
+                int nextTag = client->nextreqtag();
+                request->setTag(nextTag);
+                requestMap[nextTag]=request;
+                client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
+                                         pricing->getCurrency(i), 0, NULL, NULL);
+                break;
+            }
+        }
+
+        if(i == pricing->getNumProducts())
+        {
+            fireOnRequestFinish(request, MegaError(API_ENOENT));
+        }
+        delete pricing;
+    }
+}
+
+void MegaApiImpl::additem_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
+
+    if(e != API_OK)
+    {
+        client->purchase_begin();
+        fireOnRequestFinish(request, MegaError(e));
+    }
+
+    requestMap.erase(request->getTag());
+    int nextTag = client->nextreqtag();
+    request->setTag(nextTag);
+    requestMap[nextTag]=request;
+    client->purchase_checkout(1);
+}
+
+void MegaApiImpl::checkout_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
 
     fireOnRequestFinish(request, MegaError(e));
+}
+
+string urlEncode(const string &value) {
+    ostringstream result;
+    result.fill('0');
+    result << hex;
+
+    for(unsigned int i = 0; i < value.size(); i++)
+    {
+        char c = value[i];
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+        {
+            result << c;
+        }
+        else
+        {
+            result << '%' << setw(2) << (int)c;
+        }
+    }
+
+    return result.str();
+}
+
+void MegaApiImpl::checkout_result(const char *response)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
+
+    MegaPricing *pricing = request->getPricing();
+    if(strcmp(response, pricing->getCurrency(request->getNumber())))
+    {
+        fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        delete pricing;
+        return;
+    }
+    delete pricing;
+
+    client->json.pos++;
+    client->json.enterobject();
+    ostringstream oss;
+    oss << "https://www.paypal.com/cgi-bin/webscr?";
+    string buffer;
+    int i = 0;
+    while(client->json.storeobject(&buffer))
+    {
+        if (i)
+        {
+            oss << "&";
+        }
+
+        i++;
+        oss << buffer;
+
+        client->json.pos++;
+        if(!client->json.storeobject(&buffer))
+        {
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        }
+
+        buffer = urlEncode(buffer);
+        oss << "=" << buffer;
+    }
+
+
+    request->setLink(oss.str().c_str());
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 void MegaApiImpl::clearing()
@@ -5886,6 +6027,7 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
         case MegaRequest::TYPE_GET_PRICING:
+        case MegaRequest::TYPE_GET_PAYMENT_URL:
         {
             client->purchase_enumeratequotaitems();
             break;

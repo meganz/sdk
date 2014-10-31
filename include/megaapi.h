@@ -199,7 +199,7 @@ class MegaRequest
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
                 TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-                TYPE_GET_PRICING};
+                TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL};
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;
@@ -495,6 +495,7 @@ class MegaApi
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getAccountDetails(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
+        void getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener = NULL);
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);

@@ -1321,19 +1321,51 @@ void CommandEnumerateQuotaItems::procresult()
     client->app->enumeratequotaitems_result(API_OK);
 }
 
-CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* chan, int itemclass,
+CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
-                                               char* curreny, unsigned tax,
-                                               char* country, char* affiliate)
+                                               const char* currency, unsigned tax,
+                                               const char* country, const char* affiliate)
 {
+    string sprice;
+    sprice.resize(128);
+    sprintf((char *)sprice.data(), "%.2f", price/100.0);
     cmd("uts");
+    arg("it", itemclass);
+    arg("si", (byte*)&item, 8);
+    arg("p", sprice.c_str());
+    arg("c", currency);
+    if (affiliate)
+    {
+        arg("aff", affiliate);
+    }
+    else
+    {
+        arg("aff", (m_off_t)0);
+    }
 
-    // FIXME: implement
+    tag = client->reqtag;
+
+    //TODO: Complete this (tax? country?)
 }
 
 void CommandPurchaseAddItem::procresult()
 {
-    // FIXME: implement
+    if (client->json.isnumeric())
+    {
+        return client->app->additem_result((error)client->json.getint());
+    }
+
+    handle item = client->json.gethandle(8);
+    if (item != UNDEF)
+    {
+        client->purchase_basket.push_back(item);
+        client->app->additem_result(API_OK);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->additem_result(API_EINTERNAL);
+    }
 }
 
 CommandPurchaseCheckout::CommandPurchaseCheckout(MegaClient* client, int gateway)

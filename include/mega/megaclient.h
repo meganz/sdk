@@ -229,7 +229,7 @@ public:
     void purchase_begin();
 
     // add item to basket
-    void purchase_additem(int, handle, unsigned, char*, unsigned, char*, char*);
+    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, const char *);
 
     // submit purchased products for payment
     void purchase_checkout(int);

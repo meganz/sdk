@@ -4139,8 +4139,8 @@ void MegaClient::purchase_begin()
 
 // submit purchased product for payment
 void MegaClient::purchase_additem(int itemclass, handle item, unsigned price,
-                                  char* currency, unsigned tax, char* country,
-                                  char* affiliate)
+                                  const char* currency, unsigned tax, const char* country,
+                                  const char* affiliate)
 {
     reqs[r].add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, affiliate));
 }

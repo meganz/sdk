@@ -427,7 +427,7 @@ class MEGA_API CommandPurchaseAddItem : public Command
 public:
     void procresult();
 
-    CommandPurchaseAddItem(MegaClient*, int, handle, unsigned, char*, unsigned, char*, char*);
+    CommandPurchaseAddItem(MegaClient*, int, handle, unsigned, const char*currency, unsigned, const char*, const char*);
 };
 
 class MEGA_API CommandPurchaseCheckout : public Command
