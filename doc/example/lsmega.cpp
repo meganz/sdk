@@ -26,7 +26,6 @@ using namespace mega;
 struct LsApp : public MegaApp
 {
     void nodes_updated(Node**, int);
-    void debug_log(const char*);
     void login_result(error e);
 
     void request_error(error e);
@@ -44,12 +43,6 @@ static const char* accesslevels[] = { "read-only", "read/write", "full access" }
 void LsApp::nodes_updated(Node** n, int count)
 {
     if (ISUNDEF(cwd)) cwd = client->rootnodes[0];
-}
-
-// callback for displaying debug logs
-void LsApp::debug_log(const char* message)
-{
-    cout << "DEBUG: " << message << endl;
 }
 
 // this callback function is called when we have login result (success or error)

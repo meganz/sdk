@@ -180,9 +180,6 @@ struct MEGA_API MegaApp
     // failed request retry notification
     virtual void notify_retry(dstime) { }
 
-    // generic debug logging
-    virtual void debug_log(const char*) { }
-
     virtual ~MegaApp() { }
 };
 } // namespace

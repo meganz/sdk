@@ -21,6 +21,7 @@ class MegaTransferListener;
 class MegaGlobalListener;
 class MegaTreeProcessor;
 class MegaAccountDetails;
+class MegaPricing;
 class MegaTransfer;
 class MegaNode;
 class MegaUser;
@@ -37,13 +38,13 @@ class MegaApi;
 class MegaGfxProcessor
 {
 public:
-	virtual bool readBitmap(const char* path) { return false; }
-	virtual int getWidth() { return 0; }
-	virtual int getHeight() { return 0; }
-	virtual int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh) { return 0; }
-	virtual bool getBitmapData(char *bitmapData, size_t size) { return false; }
-	virtual void freeBitmap() {}
-	virtual ~MegaGfxProcessor() {};
+	virtual bool readBitmap(const char* path);
+	virtual int getWidth();
+	virtual int getHeight();
+	virtual int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh);
+	virtual bool getBitmapData(char *bitmapData, size_t size);
+	virtual void freeBitmap();
+	virtual ~MegaGfxProcessor();
 };
 
 class MegaProxy
@@ -67,6 +68,13 @@ protected:
     const char *proxyURL;
     const char *username;
     const char *password;
+};
+
+class MegaLogger
+{
+public:
+    virtual void log(const char *time, int loglevel, const char *source, const char *message);
+    virtual ~MegaLogger(){}
 };
 
 class MegaNode
@@ -190,7 +198,8 @@ class MegaRequest
                 TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
                 TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
                 TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE };
+                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
+                TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL};
 
 		virtual ~MegaRequest() = 0;
 		virtual MegaRequest *copy() = 0;
@@ -218,6 +227,7 @@ class MegaRequest
         virtual long long getTotalBytes() const = 0;
 		virtual MegaRequestListener *getListener() const = 0;
 		virtual MegaAccountDetails *getMegaAccountDetails() const = 0;
+        virtual MegaPricing *getPricing() const = 0;
         virtual int getTransfer() const = 0;
 		virtual int getNumDetails() const = 0;
 };
@@ -392,7 +402,7 @@ class MegaApi
     public:
     	enum
 		{
-			STATE_NONE,
+			STATE_NONE = 0,
 			STATE_SYNCED,
 			STATE_PENDING,
 			STATE_SYNCING,
@@ -401,9 +411,18 @@ class MegaApi
 
         enum
         {
-            EVENT_FEEDBACK,
+            EVENT_FEEDBACK = 0,
             EVENT_DEBUG,
             EVENT_INVALID
+        };
+
+        enum {
+            LOG_LEVEL_FATAL = 0,   // Very severe error event that will presumably lead the application to abort.
+            LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
+            LOG_LEVEL_WARNING, // Information representing errors in application but application will keep running
+            LOG_LEVEL_INFO,    // Mainly useful to represent current progress of application.
+            LOG_LEVEL_DEBUG,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+            LOG_LEVEL_MAX
         };
 
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
@@ -428,7 +447,7 @@ class MegaApi
         static const char* handleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
-        static void addEntropy(unsigned char* data, unsigned int size);
+        static void addEntropy(char* data, unsigned int size);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -444,7 +463,11 @@ class MegaApi
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
-        void enableDebug(bool enable);
+
+        //Logging
+        static void setLogLevel(int logLevel);
+        static void setLoggerClass(MegaLogger *megaLogger);
+        static void log(int logLevel, const char* message, const char *filename = "", int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
@@ -471,6 +494,10 @@ class MegaApi
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getAccountDetails(MegaRequestListener *listener = NULL);
+        void getPricing(MegaRequestListener *listener = NULL);
+        void getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener = NULL);
+        const char *exportMasterKey();
+
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
@@ -480,7 +507,9 @@ class MegaApi
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
+        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
+        void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
@@ -537,6 +566,8 @@ class MegaApi
         MegaUser* getContact(const char* email);
         NodeList *getInShares(MegaUser* user);
         NodeList *getInShares();
+        bool isShared(MegaNode *node);
+        ShareList *getOutShares();
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
@@ -598,6 +629,21 @@ public:
     virtual long long getNumFiles(MegaHandle handle) = 0;
     virtual long long getNumFolders(MegaHandle handle) = 0;
 	virtual MegaAccountDetails* copy() = 0;
+};
+
+class MegaPricing
+{
+public:
+    virtual ~MegaPricing() = 0;
+    virtual int getNumProducts() = 0;
+    virtual MegaHandle getHandle(int productIndex) = 0;
+    virtual int getProLevel(int productIndex) = 0;
+    virtual int getGBStorage(int productIndex) = 0;
+    virtual int getGBTransfer(int productIndex) = 0;
+    virtual int getMonths(int productIndex) = 0;
+    virtual int getAmount(int productIndex) = 0;
+    virtual const char* getCurrency(int productIndex) = 0;
+    virtual MegaPricing *copy() = 0;
 };
 
 }

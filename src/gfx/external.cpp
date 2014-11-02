@@ -56,6 +56,8 @@ bool GfxProcExternal::isgfx(string* name)
 
 bool GfxProcExternal::readbitmap(FileAccess* fa, string* localname, int size)
 {
+    if(!processor) return false;
+
 	bool result = processor->readBitmap(localname->c_str());
 	if(!result) return false;
 

@@ -26,7 +26,6 @@
 #include "mega.h"
 
 namespace mega {
-extern bool debug;
 
 class MEGA_API WinHttpIO: public HttpIO
 {

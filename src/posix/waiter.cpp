@@ -45,12 +45,13 @@ PosixWaiter::PosixWaiter()
     // pipe to be able to leave the select() call
     if (pipe(m_pipe) < 0)
     {
-        cout << "Error creating pipe" << endl;
+        LOG_fatal << "Error creating pipe";
+        exit(EXIT_FAILURE);
     }
 
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
     {
-        cout << "fcntl error" << endl;
+        LOG_err << "fcntl error";
     }
 }
 
@@ -105,7 +106,7 @@ int PosixWaiter::wait()
     int numfd;
     timeval tv;
 
-    // pipe added to rfds to be able to leave select() when needed
+    //Pipe added to rfds to be able to leave select() when needed
     FD_SET(m_pipe[0], &rfds);
     bumpmaxfd(m_pipe[0]);
 

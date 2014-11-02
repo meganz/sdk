@@ -104,6 +104,19 @@ class MegaDbAccess : public SqliteDbAccess
 		MegaDbAccess(string *basePath = NULL) : SqliteDbAccess(basePath){}
 };
 
+class ExternalLogger : public Logger
+{
+public:
+    ExternalLogger();
+    void setMegaLogger(MegaLogger *logger);
+    void setLogLevel(int logLevel);
+    void postLog(int logLevel, const char *message, const char *filename, int line);
+    virtual void log(const char *time, int loglevel, const char *source, const char *message);
+
+private:
+    MegaMutex mutex;
+    MegaLogger *megaLogger;
+};
 
 class MegaNodePrivate : public MegaNode
 {
@@ -290,6 +303,7 @@ class MegaTransferPrivate : public MegaTransfer
 		Transfer *transfer;     
 };
 
+class MegaPricingPrivate;
 class MegaRequestPrivate : public MegaRequest
 {
 	public:
@@ -321,6 +335,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
+        void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+                        int months, int amount, const char *currency);
 
         virtual int getType() const;
 		virtual const char *getRequestString() const;
@@ -351,10 +367,12 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getTransfer() const;
 		virtual int getNumDetails() const;
         virtual int getTag() const;
+        virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;
         
     protected:
-        AccountDetails *accountDetails;        
+        AccountDetails *accountDetails;
+        MegaPricingPrivate *megaPricing;
 		int type;
         MegaHandle nodeHandle;
 		const char* link;
@@ -403,6 +421,32 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 	private:
 		MegaAccountDetailsPrivate(AccountDetails *details);
 		AccountDetails *details;
+};
+
+class MegaPricingPrivate : public MegaPricing
+{
+public:
+    virtual ~MegaPricingPrivate();
+    virtual int getNumProducts();
+    virtual MegaHandle getHandle(int productIndex);
+    virtual int getProLevel(int productIndex);
+    virtual int getGBStorage(int productIndex);
+    virtual int getGBTransfer(int productIndex);
+    virtual int getMonths(int productIndex);
+    virtual int getAmount(int productIndex);
+    virtual const char* getCurrency(int productIndex);
+    virtual MegaPricing *copy();
+
+    void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
+                    int months, int amount, const char *currency);
+private:
+    vector<handle> handles;
+    vector<int> proLevel;
+    vector<int> gbStorage;
+    vector<int> gbTransfer;
+    vector<int> months;
+    vector<int> amount;
+    vector<const char *> currency;
 };
 
 class NodeListPrivate : public NodeList
@@ -486,8 +530,11 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*);
     void terminated();
-    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser);
+    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1);
     ~MegaFilePut() {}
+
+protected:
+    int64_t customMtime;
 };
 
 class TreeProcessor
@@ -508,6 +555,21 @@ class SearchTreeProcessor : public TreeProcessor
     protected:
         const char *search;
         vector<Node *> results;
+};
+
+class OutShareProcessor : public TreeProcessor
+{
+    public:
+        OutShareProcessor();
+        virtual bool processNode(Node* node);
+        virtual ~OutShareProcessor() {}
+        vector<Share *> &getShares();
+        vector<handle> &getHandles();
+
+    protected:
+        const char *search;
+        vector<Share *> shares;
+        vector<handle> handles;
 };
 
 class SizeProcessor : public TreeProcessor
@@ -576,7 +638,7 @@ class MegaApiImpl : public MegaApp
         static const char* handleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
-        static void addEntropy(unsigned char* data, unsigned int size);
+        static void addEntropy(char* data, unsigned int size);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -592,7 +654,9 @@ class MegaApiImpl : public MegaApp
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
-        void enableDebug(bool enable);
+        static void setLogLevel(int logLevel);
+        static void setLoggerClass(MegaLogger *megaLogger);
+        static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
@@ -619,6 +683,10 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getAccountDetails(MegaRequestListener *listener = NULL);
+        void getPricing(MegaRequestListener *listener = NULL);
+        void getPaymentUrl(handle productHandle, MegaRequestListener *listener = NULL);
+        const char *exportMasterKey();
+
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(const char* email, MegaRequestListener* listener=NULL);
@@ -628,7 +696,9 @@ class MegaApiImpl : public MegaApp
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
+        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
+        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
@@ -679,6 +749,8 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* email);
         NodeList *getInShares(MegaUser* user);
         NodeList *getInShares();
+        bool isShared(MegaNode *node);
+        ShareList *getOutShares();
         ShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
@@ -717,6 +789,7 @@ protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
         static void *threadEntryPoint(void *param);
+        static ExternalLogger externalLogger;
 
         void fireOnRequestStart(MegaRequestPrivate *request);
         void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
@@ -817,11 +890,11 @@ protected:
         virtual void putfa_result(handle, fatype, error);
 
         // purchase transactions
-        virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*) { }
-        virtual void enumeratequotaitems_result(error) { }
-        virtual void additem_result(error) { }
-        virtual void checkout_result(error) { }
-        virtual void checkout_result(const char*) { }
+        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency);
+        virtual void enumeratequotaitems_result(error e);
+        virtual void additem_result(error);
+        virtual void checkout_result(error);
+        virtual void checkout_result(const char*);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
@@ -884,10 +957,6 @@ protected:
         // failed request retry notification
         virtual void notify_retry(dstime);
 
-        // generic debug logging
-        virtual void debug_log(const char*);
-        //////////
-
         void sendPendingRequests();
         void sendPendingTransfers();
         char *stringToArray(string &buffer);
@@ -903,7 +972,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, MegaTransferListener *listener);
+        void startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
         void startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener = NULL);
         void startDownload(handle nodehandle, const char* target, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener);
 };

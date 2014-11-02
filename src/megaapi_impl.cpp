@@ -1,5 +1,7 @@
-#define _POSIX_SOURCE
+﻿#define _POSIX_SOURCE
 #define _LARGE_FILES
+
+#include <iomanip>
 
 #ifndef _WIN32
 #define _LARGEFILE64_SOURCE
@@ -38,8 +40,6 @@
 #endif
 
 using namespace mega;
-
-extern bool debug;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring)
 : MegaNode()
@@ -342,7 +342,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
 	this->listener = listener;
 	this->retry = 0;
 	this->maxRetries = 3;
-	this->time = 0;
+    this->time = -1;
 	this->startTime = 0;
 	this->transferredBytes = 0;
 	this->totalBytes = 0;
@@ -763,8 +763,23 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->transferredBytes = 0;
     this->number = 0;
 
-	if(type == MegaRequest::TYPE_ACCOUNT_DETAILS) this->accountDetails = new AccountDetails();
-	else this->accountDetails = NULL;
+    if(type == MegaRequest::TYPE_ACCOUNT_DETAILS)
+    {
+        this->accountDetails = new AccountDetails();
+    }
+    else
+    {
+        this->accountDetails = NULL;
+    }
+
+    if((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_URL))
+    {
+        this->megaPricing = new MegaPricingPrivate();
+    }
+    else
+    {
+        megaPricing = NULL;
+    }
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
@@ -808,6 +823,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->setTransferredBytes(request.getTransferredBytes());
 	this->listener = request.getListener();
 	this->accountDetails = NULL;
+    this->megaPricing = (MegaPricingPrivate *)request.getPricing();
 	if(request.getAccountDetails())
     {
 		this->accountDetails = new AccountDetails();
@@ -853,6 +869,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete publicNode;
 	delete [] file;
 	delete accountDetails;
+    delete megaPricing;
     delete [] text;
 }
 
@@ -964,6 +981,11 @@ int MegaRequestPrivate::getNumDetails() const
 int MegaRequestPrivate::getTag() const
 {
     return tag;
+}
+
+MegaPricing *MegaRequestPrivate::getPricing() const
+{
+    return megaPricing ? megaPricing->copy() : NULL;
 }
 
 void MegaRequestPrivate::setNumDetails(int numDetails)
@@ -1101,6 +1123,14 @@ void MegaRequestPrivate::setTransferredBytes(long long transferredBytes)
 void MegaRequestPrivate::setTag(int tag)
 {
     this->tag = tag;
+}
+
+void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+{
+    if(megaPricing)
+    {
+        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency);
+    }
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
@@ -1460,7 +1490,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser) : MegaFile()
+MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime) : MegaFile()
 {
     // full local path
     localname = *clocalname;
@@ -1473,10 +1503,15 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
 
     // new node name
     name = *filename;
+
+    customMtime = mtime;
 }
 
 void MegaFilePut::completed(Transfer* t, LocalNode*)
 {
+    if(customMtime >= 0)
+        t->mtime = customMtime;
+
     File::completed(t,NULL);
     delete this;
 }
@@ -1510,6 +1545,8 @@ void *MegaApiImpl::threadEntryPoint(void *param)
 	return 0;
 }
 
+ExternalLogger MegaApiImpl::externalLogger;
+
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
 	init(api, appKey, processor, basePath, userAgent);
@@ -1528,12 +1565,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath,
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
 {
     this->api = api;
-
-#ifdef SHOW_LOGS
-    debug = true;
-#else
-    debug = false;
-#endif
 
     sdkMutex.init(true);
 	maxRetries = 5;
@@ -1627,9 +1658,19 @@ const char* MegaApiImpl::getMyEmail()
     return result;
 }
 
-void MegaApiImpl::enableDebug(bool enable)
+void MegaApiImpl::setLogLevel(int logLevel)
 {
-    debug = enable;
+    externalLogger.setLogLevel(logLevel);
+}
+
+void MegaApiImpl::setLoggerClass(MegaLogger *megaLogger)
+{
+    externalLogger.setMegaLogger(megaLogger);
+}
+
+void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
+{
+    externalLogger.postLog(logLevel, message, filename, line);
 }
 
 const char* MegaApiImpl::getBase64PwKey(const char *password)
@@ -1712,14 +1753,14 @@ void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, Me
     waiter->notify();
 }
 
-void MegaApiImpl::addEntropy(unsigned char *data, unsigned int size)
+void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
     if(PrnGen::rng.CanIncorporateEntropy())
-        PrnGen::rng.IncorporateEntropy(data, size);
+        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
 
 #ifdef USE_SODIUM
     if(EdDSA::rng.CanIncorporateEntropy())
-        EdDSA::rng.IncorporateEntropy(data, size);
+        EdDSA::rng.IncorporateEntropy((const byte*)data, size);
 #endif
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
@@ -2124,6 +2165,38 @@ void MegaApiImpl::getAccountDetails(MegaRequestListener *listener)
     getAccountDetails(true, true, true, false, false, false, listener);
 }
 
+void MegaApiImpl::getPricing(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getPaymentUrl(handle productHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_URL, listener);
+    request->setNodeHandle(productHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+const char *MegaApiImpl::exportMasterKey()
+{
+    sdkMutex.lock();
+    byte session[64];
+    char* buf = NULL;
+    int size;
+    size = client->dumpsession(session, sizeof session);
+    if (size > 0)
+    {
+        buf = new char[16*4/3+4];
+        Base64::btoa(session, 16, buf);
+    }
+
+    sdkMutex.unlock();
+    return buf;
+}
+
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ACCOUNT_DETAILS, listener);
@@ -2269,9 +2342,9 @@ TransferList *MegaApiImpl::getTransfers()
     return result;
 }
 
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int connections, int maxSpeed, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
     {
         string path(localPath);
@@ -2286,19 +2359,26 @@ void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int conne
 	transfer->setMaxSpeed(maxSpeed);
 	transfer->setMaxRetries(maxRetries);
 	if(fileName) transfer->setFileName(fileName);
+    transfer->setTime(mtime);
 
 	transferQueue.push(transfer);
     waiter->notify();
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, listener); }
+{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, -1, listener); }
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
+{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, mtime, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, 0, fileName, listener); }
+{ return startUpload(localPath, parent, 1, 0, fileName, -1, listener); }
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
+{ return startUpload(localPath, parent, 1, 0, fileName, mtime, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, maxSpeed, (const char *)NULL, listener); }
+{ return startUpload(localPath, parent, 1, maxSpeed, (const char *)NULL, -1, listener); }
 
 void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener)
 {
@@ -2729,6 +2809,35 @@ NodeList* MegaApiImpl::getInShares()
 	return nodeList;
 }
 
+bool MegaApiImpl::isShared(MegaNode *megaNode)
+{
+	if(!megaNode) return false;
+
+	sdkMutex.lock();
+	Node *node = client->nodebyhandle(megaNode->getHandle());
+	if(!node)
+	{
+		sdkMutex.unlock();
+		return false;
+	}
+
+	bool result = (node->outshares.size() != 0);
+	sdkMutex.unlock();
+
+	return result;
+}
+
+ShareList *MegaApiImpl::getOutShares()
+{
+    sdkMutex.lock();
+
+    OutShareProcessor shareProcessor;
+    processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
+    ShareList *shareList = new ShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
+
+	sdkMutex.unlock();
+	return shareList;
+}
 
 ShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 {
@@ -3561,6 +3670,155 @@ void MegaApiImpl::putfa_result(handle, fatype, error e)
     //fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char *currency)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)))
+    {
+        return;
+    }
+
+    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency);
+}
+
+void MegaApiImpl::enumeratequotaitems_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)))
+    {
+        return;
+    }
+
+    if(request->getType() == MegaRequest::TYPE_GET_PRICING)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+    }
+    else
+    {
+        MegaPricing *pricing = request->getPricing();
+        int i;
+        for(i = 0; i < pricing->getNumProducts(); i++)
+        {
+            if(pricing->getHandle(i) == request->getNodeHandle())
+            {
+                request->setNumber(i);
+                requestMap.erase(request->getTag());
+                int nextTag = client->nextreqtag();
+                request->setTag(nextTag);
+                requestMap[nextTag]=request;
+                client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
+                                         pricing->getCurrency(i), 0, NULL, NULL);
+                break;
+            }
+        }
+
+        if(i == pricing->getNumProducts())
+        {
+            fireOnRequestFinish(request, MegaError(API_ENOENT));
+        }
+        delete pricing;
+    }
+}
+
+void MegaApiImpl::additem_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
+
+    if(e != API_OK)
+    {
+        client->purchase_begin();
+        fireOnRequestFinish(request, MegaError(e));
+    }
+
+    requestMap.erase(request->getTag());
+    int nextTag = client->nextreqtag();
+    request->setTag(nextTag);
+    requestMap[nextTag]=request;
+    client->purchase_checkout(1);
+}
+
+void MegaApiImpl::checkout_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+string urlEncode(const string &value) {
+    ostringstream result;
+    result.fill('0');
+    result << hex;
+
+    for(unsigned int i = 0; i < value.size(); i++)
+    {
+        char c = value[i];
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+        {
+            result << c;
+        }
+        else
+        {
+            result << '%' << setw(2) << (int)c;
+        }
+    }
+
+    return result.str();
+}
+
+void MegaApiImpl::checkout_result(const char *response)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
+
+    MegaPricing *pricing = request->getPricing();
+    if(strcmp(response, pricing->getCurrency(request->getNumber())))
+    {
+        fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        delete pricing;
+        return;
+    }
+    delete pricing;
+
+    client->json.pos++;
+    client->json.enterobject();
+    ostringstream oss;
+    oss << "https://www.paypal.com/cgi-bin/webscr?";
+    string buffer;
+    int i = 0;
+    while(client->json.storeobject(&buffer))
+    {
+        if (i)
+        {
+            oss << "&";
+        }
+
+        i++;
+        oss << buffer;
+
+        client->json.pos++;
+        if(!client->json.storeobject(&buffer))
+        {
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        }
+
+        buffer = urlEncode(buffer);
+        oss << "=" << buffer;
+    }
+
+
+    request->setLink(oss.str().c_str());
+    fireOnRequestFinish(request, MegaError(API_OK));
+}
+
 void MegaApiImpl::clearing()
 {
 
@@ -3796,16 +4054,6 @@ void MegaApiImpl::reload(const char*)
 {
     fireOnReloadNeeded();
 }
-
-
-void MegaApiImpl::debug_log(const char* message)
-{
-    if(debug)
-    {
-        cout << message << endl;
-    }
-}
-
 
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
@@ -4920,6 +5168,7 @@ void MegaApiImpl::sendPendingTransfers()
 			{
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
+                int64_t mtime = transfer->getTime();
 
                 if(!localPath) { e = API_EARGS; break; }
                 currentTransfer = transfer;
@@ -4928,7 +5177,7 @@ void MegaApiImpl::sendPendingTransfers()
 				client->fsaccess->path2local(&tmpString, &wLocalPath);
 
                 string wFileName = fileName;
-                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "");
+                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
 
                 bool started = client->startxfer(PUT,f);
                 if(!started)
@@ -5807,6 +6056,12 @@ void MegaApiImpl::sendPendingRequests()
             threadExit = 1;
             break;
         }
+        case MegaRequest::TYPE_GET_PRICING:
+        case MegaRequest::TYPE_GET_PAYMENT_URL:
+        {
+            client->purchase_enumeratequotaitems();
+            break;
+        }
 		}
 
 		if(e)
@@ -6136,4 +6391,164 @@ long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
 MegaAccountDetails* MegaAccountDetailsPrivate::copy()
 {
 	return new MegaAccountDetailsPrivate(details);
+}
+
+ExternalLogger::ExternalLogger()
+{
+	mutex.init(true);
+	this->megaLogger = NULL;
+
+#ifdef DEBUG
+    SimpleLogger::setLogLevel(logDebug);
+#endif
+
+	SimpleLogger::setOutputClass(this);
+}
+
+void ExternalLogger::setMegaLogger(MegaLogger *logger)
+{
+	this->megaLogger = logger;
+}
+
+void ExternalLogger::setLogLevel(int logLevel)
+{
+	SimpleLogger::setLogLevel((LogLevel)logLevel);
+}
+
+void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
+{
+	SimpleLogger((LogLevel)logLevel, filename, line) << message;
+}
+
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
+{
+	mutex.lock();
+	if(megaLogger)
+	{
+        megaLogger->log(time ? time : "", loglevel, source ? source : "", message ? message : "");
+	}
+	else
+	{
+		cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+	}
+	mutex.unlock();
+}
+
+
+OutShareProcessor::OutShareProcessor()
+{
+
+}
+
+bool OutShareProcessor::processNode(Node *node)
+{
+	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+	{
+		shares.push_back(it->second);
+		handles.push_back(node->nodehandle);
+	}
+
+	return true;
+}
+
+vector<Share *> &OutShareProcessor::getShares()
+{
+	return shares;
+}
+
+vector<handle> &OutShareProcessor::getHandles()
+{
+	return handles;
+}
+
+MegaPricingPrivate::~MegaPricingPrivate()
+{
+    for(unsigned i = 0; i < currency.size(); i++)
+    {
+        delete[] currency[i];
+    }
+}
+
+int MegaPricingPrivate::getNumProducts()
+{
+    return handles.size();
+}
+
+handle MegaPricingPrivate::getHandle(int productIndex)
+{
+    if((unsigned)productIndex < handles.size())
+        return handles[productIndex];
+
+    return UNDEF;
+}
+
+int MegaPricingPrivate::getProLevel(int productIndex)
+{
+    if((unsigned)productIndex < proLevel.size())
+        return proLevel[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBStorage(int productIndex)
+{
+    if((unsigned)productIndex < gbStorage.size())
+        return gbStorage[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBTransfer(int productIndex)
+{
+    if((unsigned)productIndex < gbTransfer.size())
+        return gbTransfer[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getMonths(int productIndex)
+{
+    if((unsigned)productIndex < months.size())
+        return months[productIndex];
+
+    return 0;
+}
+
+int MegaPricingPrivate::getAmount(int productIndex)
+{
+    if((unsigned)productIndex < amount.size())
+        return amount[productIndex];
+
+    return 0;
+}
+
+const char *MegaPricingPrivate::getCurrency(int productIndex)
+{
+    if((unsigned)productIndex < currency.size())
+        return currency[productIndex];
+
+    return NULL;
+}
+
+MegaPricing *MegaPricingPrivate::copy()
+{
+    MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
+    for(unsigned i=0; i<handles.size(); i++)
+    {
+        megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
+                                months[i], amount[i], currency[i]);
+    }
+
+    return megaPricing;
+}
+
+void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+{
+    this->handles.push_back(product);
+    this->proLevel.push_back(proLevel);
+    this->gbStorage.push_back(gbStorage);
+    this->gbTransfer.push_back(gbTransfer);
+    this->months.push_back(months);
+    this->amount.push_back(amount);
+    this->currency.push_back(MegaApi::strdup(currency));
 }

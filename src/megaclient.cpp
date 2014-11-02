@@ -22,7 +22,6 @@
 #include "mega.h"
 
 namespace mega {
-bool debug;
 
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
@@ -71,7 +70,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
         if (!asymkey.decrypt(buf, sl, tk, tl))
         {
             delete[] buf;
-            app->debug_log("Corrupt or invalid RSA node key detected");
+            LOG_warn << "Corrupt or invalid RSA node key detected";
             return false;
         }
 
@@ -93,7 +92,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
     {
         if (Base64::atob(sk, tk, tl) != tl)
         {
-            app->debug_log("Corrupt or invalid symmetric node key");
+            LOG_warn << "Corrupt or invalid symmetric node key";
             return false;
         }
 
@@ -125,7 +124,7 @@ void MegaClient::mergenewshares(bool notify)
                 {
                     if (!checkaccess(n, OWNERPRELOGIN))
                     {
-                        app->debug_log("Attempt to create dislocated outbound share foiled");
+                        LOG_warn << "Attempt to create dislocated outbound share foiled";
                         auth = false;
                     }
                     else
@@ -136,7 +135,7 @@ void MegaClient::mergenewshares(bool notify)
 
                         if (memcmp(buf, s->auth, sizeof buf))
                         {
-                            app->debug_log("Attempt to create forged outbound share foiled");
+                            LOG_warn << "Attempt to create forged outbound share foiled";
                             auth = false;
                         }
                     }
@@ -228,12 +227,12 @@ void MegaClient::mergenewshares(bool notify)
                             }
                             else
                             {
-                                app->debug_log("Invalid inbound share location");
+                                LOG_warn << "Invalid inbound share location";
                             }
                         }
                         else
                         {
-                            app->debug_log("Invalid null peer on inbound share");
+                            LOG_warn << "Invalid null peer on inbound share";
                         }
                     }
                 }
@@ -296,7 +295,7 @@ int MegaClient::hexval(char c)
 // set warn level
 void MegaClient::warn(const char* msg)
 {
-    app->debug_log(msg);
+    LOG_warn << msg;
     warned = true;
 }
 
@@ -463,7 +462,7 @@ void MegaClient::exec()
 
     if (httpio->inetisback())
     {
-        app->debug_log("Internet connectivity returned - resetting all backoff timers");
+        LOG_info << "Internet connectivity returned - resetting all backoff timers";
         abortbackoff();
     }
 
@@ -801,7 +800,7 @@ void MegaClient::exec()
                             }
                             else if (e == API_ETOOMANY)
                             {
-                                app->debug_log("Too many pending updates - reloading local state");
+                                LOG_warn << "Too many pending updates - reloading local state";
                                 fetchnodes();
                             }
                         }
@@ -2121,7 +2120,7 @@ void MegaClient::finalizesc(bool complete)
         sctable->abort();
         sctable->truncate();
 
-        app->debug_log("Cache update DB write error - disabling caching");
+        LOG_err << "Cache update DB write error - disabling caching";
 
         delete sctable;
         sctable = NULL;
@@ -3625,19 +3624,19 @@ void MegaClient::readokelement(JSON* j)
             case EOO:
                 if (ISUNDEF(h))
                 {
-                    app->debug_log("Missing outgoing share handle in ok element");
+                    LOG_warn << "Missing outgoing share handle in ok element";
                     return;
                 }
 
                 if (!k)
                 {
-                    app->debug_log("Missing outgoing share key in ok element");
+                    LOG_warn << "Missing outgoing share key in ok element";
                     return;
                 }
 
                 if (!have_ha)
                 {
-                    app->debug_log("Missing outbound share signature");
+                    LOG_warn << "Missing outbound share signature";
                     return;
                 }
 
@@ -3703,19 +3702,19 @@ void MegaClient::readoutshareelement(JSON* j)
             case EOO:
                 if (ISUNDEF(h))
                 {
-                    app->debug_log("Missing outgoing share node");
+                    LOG_warn << "Missing outgoing share node";
                     return;
                 }
 
                 if (ISUNDEF(uh))
                 {
-                    app->debug_log("Missing outgoing share user");
+                    LOG_warn << "Missing outgoing share user";
                     return;
                 }
 
                 if (r == ACCESS_UNKNOWN)
                 {
-                    app->debug_log("Missing outgoing share access");
+                    LOG_warn << "Missing outgoing share access";
                     return;
                 }
 
@@ -4179,8 +4178,8 @@ void MegaClient::purchase_begin()
 
 // submit purchased product for payment
 void MegaClient::purchase_additem(int itemclass, handle item, unsigned price,
-                                  char* currency, unsigned tax, char* country,
-                                  char* affiliate)
+                                  const char* currency, unsigned tax, const char* country,
+                                  const char* affiliate)
 {
     reqs[r].add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, affiliate));
 }
@@ -4350,7 +4349,7 @@ void MegaClient::proccr(JSON* j)
 
     if (!j->enterarray())
     {
-        app->debug_log("Malformed CR - outer array");
+        LOG_err << "Malformed CR - outer array";
         return;
     }
 
@@ -4374,7 +4373,7 @@ void MegaClient::proccr(JSON* j)
         }
         else
         {
-            app->debug_log("Malformed SNK CR - nodes part");
+            LOG_err << "Malformed SNK CR - nodes part";
             return;
         }
 
@@ -4385,7 +4384,7 @@ void MegaClient::proccr(JSON* j)
         }
         else
         {
-            app->debug_log("Malformed CR - linkage part");
+            LOG_err << "Malformed CR - linkage part";
             return;
         }
     }
@@ -4499,7 +4498,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     {
         if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
         {
-            app->debug_log("Attempt to obtain node key for invalid/third-party share foiled");
+            LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled";
             (*shares)[si] = NULL;
         }
     }
@@ -4531,13 +4530,13 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 
             if (si >= shares->size())
             {
-                app->debug_log("Share index out of range");
+                LOG_err << "Share index out of range";
                 return;
             }
 
             if (ni >= nodes->size())
             {
-                app->debug_log("Node index out of range");
+                LOG_err << "Node index out of range";
                 return;
             }
 
@@ -4591,7 +4590,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
             }
             else
             {
-                app->debug_log("Attempt to obtain key of node outside share foiled");
+                LOG_warn << "Attempt to obtain key of node outside share foiled";
             }
         }
     }
@@ -4840,7 +4839,7 @@ int MegaClient::inited25519()
     // Make the new key pair and their storage arrays.
     if (!signkey.genKeySeed())
     {
-        app->debug_log("Error generating an Ed25519 key seed.");
+        LOG_err << "Error generating an Ed25519 key seed.";
         return(0);
     }
 
@@ -4849,7 +4848,7 @@ int MegaClient::inited25519()
     if (!signkey.publicKey(pubKey))
     {
         free(pubKey);
-        app->debug_log("Error deriving the Ed25519 public key.");
+        LOG_err << "Error deriving the Ed25519 public key.";
         return(0);
     }
 
@@ -4869,7 +4868,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     User* u;
     node_vector dp;
 
-    app->debug_log("Loading session from local cache");
+    LOG_info << "Loading session from local cache";
 
     sctable->rewind();
 
@@ -4891,7 +4890,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
                 else
                 {
-                    app->debug_log("Failed - node record read error");
+                    LOG_err << "Failed - node record read error";
                     return false;
                 }
                 break;
@@ -4903,7 +4902,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
                 else
                 {
-                    app->debug_log("Failed - user record read error");
+                    LOG_err << "Failed - user record read error";
                     return false;
                 }
         }
@@ -4937,7 +4936,7 @@ void MegaClient::fetchnodes()
     // only initial load from local cache
     if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
-        app->debug_log("Session loaded from local cache");
+        LOG_info << "Session loaded from local cache";
 
         restag = reqtag;
 
@@ -5501,8 +5500,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 {
                     if (!l->reported)
                     {
-                        app->debug_log("Sync: Undecryptable child node");
-                        app->debug_log((*it)->keystring.c_str());
+                        LOG_warn << "Sync: Undecryptable child node. " << (*it)->keystring.c_str();
 
                         l->reported = true;
 
@@ -5524,8 +5522,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 // ...or a node name attribute missing
                 if ((ait = (*it)->attrs.map.find('n')) == (*it)->attrs.map.end())
                 {
-                    app->debug_log("Node name missing, not syncing subtree");
-                    app->debug_log(l->name.c_str());
+                    LOG_warn << "Node name missing, not syncing subtree: " << l->name.c_str();
 
                     if (!l->reported)
                     {
@@ -5695,8 +5692,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 // FIXME: remove created flag and associated safeguards after
                 // positively verifying the absence of a related repetitive node creation bug
-                app->debug_log("Internal error: Duplicate node creation");
-                app->debug_log(ll->name.c_str());
+                LOG_err << "Internal error: Duplicate node creation: " << ll->name.c_str();
 
                 char report[256];
 
@@ -6317,7 +6313,8 @@ void MegaClient::setchunkfailed(string* url)
 
 bool MegaClient::toggledebug()
 {
-    return debug = !debug;
+     SimpleLogger::setLogLevel((SimpleLogger::logCurrentLevel == logDebug) ? logError : logDebug);
+     return SimpleLogger::logCurrentLevel == logDebug;
 }
 
 void MegaClient::reportevent(const char* event, const char* details)

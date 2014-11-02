@@ -3241,18 +3241,7 @@ void DemoApp::reload(const char* reason)
 // reload initiated
 void DemoApp::clearing()
 {
-    if (debug)
-    {
-        cout << "Clearing all nodes/users..." << endl;
-    }
-}
-
-void DemoApp::debug_log(const char* message)
-{
-    if (debug)
-    {
-        cout << "DEBUG: " << message << endl;
-    }
+    LOG_debug << "Clearing all nodes/users...";
 }
 
 // nodes have been modified
@@ -3296,10 +3285,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 // nodes now (almost) current, i.e. no server-client notifications pending
 void DemoApp::nodes_current()
 {
-    if (debug)
-    {
-           cout << "Nodes current." << endl;
-    }
+    LOG_debug << "Nodes current.";
 }
 
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)

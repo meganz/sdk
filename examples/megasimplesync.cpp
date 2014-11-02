@@ -34,7 +34,6 @@ class SyncApp : public MegaApp
     handle cwd;
     bool initial_fetch;
 
-    void debug_log(const char*);
     void login_result(error e);
 
     void fetchnodes_result(error e);
@@ -61,7 +60,6 @@ class SyncApp : public MegaApp
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
 public:
-    bool debug;
     SyncApp(string local_folder_, string remote_folder_);
 };
 
@@ -297,12 +295,6 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
     local_folder(local_folder_), remote_folder(remote_folder_), cwd(UNDEF), initial_fetch(true)
 {}
 
-// callback for displaying debug logs
-void SyncApp::debug_log(const char* message)
-{
-    LOG_debug << "DEBUG: " << message;
-}
-
 // this callback function is called when we have login result (success or
 // error)
 // TODO: check for errors
@@ -504,7 +496,7 @@ int main(int argc, char *argv[])
     SyncApp *app;
 
     // use logInfo level
-    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setLogLevel(logInfo);
     // set output to stdout
     SimpleLogger::setAllOutputs(&std::cout);
 
@@ -522,8 +514,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    app->debug = true;
-
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
         NULL, NULL,
@@ -532,14 +522,9 @@ int main(int argc, char *argv[])
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))
     {
-        if (!strcmp(getenv("MEGA_DEBUG"), "1"))
+        if (!strcmp(getenv("MEGA_DEBUG"), "1") || !strcmp(getenv("MEGA_DEBUG"), "2"))
         {
-            app->debug = true;
-        }
-        else if (!strcmp(getenv("MEGA_DEBUG"), "2"))
-        {
-            app->debug = true;
-            client->toggledebug();
+            SimpleLogger::setLogLevel(logDebug);
         }
     }
 

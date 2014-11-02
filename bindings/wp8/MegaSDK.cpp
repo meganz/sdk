@@ -5,6 +5,8 @@ using namespace Platform;
 
 #define REQUIRED_ENTROPY 64
 
+DelegateMLogger* MegaSDK::externalLogger = new DelegateMLogger(nullptr);
+
 MegaSDK::~MegaSDK()
 {
 	delete megaApi;
@@ -26,7 +28,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy(randomData, REQUIRED_ENTROPY);
+	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
 
 	std::string utf8appKey;
 	if(appKey != nullptr) 
@@ -51,7 +53,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy(randomData, REQUIRED_ENTROPY);
+	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
 
 	std::string utf8appKey;
 	if (appKey != nullptr)
@@ -81,7 +83,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy(randomData, REQUIRED_ENTROPY);
+	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
 
 	std::string utf8appKey;
 	if (appKey != nullptr)
@@ -898,6 +900,35 @@ void MegaSDK::getAccountDetails()
 	megaApi->getAccountDetails();
 }
 
+void MegaSDK::getPricing(MRequestListenerInterface^ listener)
+{
+	megaApi->getPricing(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPricing()
+{
+	megaApi->getPricing();
+}
+
+void MegaSDK::getPaymentUrl(uint64 productHandle, MRequestListenerInterface^ listener)
+{
+	megaApi->getPaymentUrl(productHandle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPaymentUrl(uint64 productHandle)
+{
+	megaApi->getPaymentUrl(productHandle);
+}
+
+String^ MegaSDK::exportMasterKey()
+{
+	std::string utf16key;
+	const char *utf8key = megaApi->exportMasterKey();
+	MegaApi::utf8ToUtf16(utf8key, &utf16key);
+
+	return utf8key ? ref new String((wchar_t *)utf16key.data()) : nullptr;
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
@@ -1307,6 +1338,16 @@ MNodeList^ MegaSDK::getInShares()
 	return ref new MNodeList(megaApi->getInShares(), true);
 }
 
+bool MegaSDK::isShared(MNode^ node)
+{
+	return megaApi->isShared(node->getCPtr());
+}
+
+MShareList^ MegaSDK::getOutShares()
+{
+	return ref new MShareList(megaApi->getOutShares(), true);
+}
+
 MShareList^ MegaSDK::getOutShares(MNode^ node)
 {
 	return ref new MShareList(megaApi->getOutShares((node != nullptr) ? node->getCPtr() : NULL), true);
@@ -1499,4 +1540,51 @@ bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor)
 	bool ret = megaApi->processMegaTree((node != nullptr) ? node->getCPtr() : NULL, delegateProcessor, true);
 	delete delegateProcessor;
 	return ret;
+}
+
+void MegaSDK::setLogLevel(MLogLevel logLevel)
+{
+	MegaApi::setLogLevel((int)logLevel);
+}
+
+void MegaSDK::setLoggerClass(MLoggerInterface^ megaLogger)
+{
+	DelegateMLogger *newLogger = new DelegateMLogger(megaLogger);
+	delete externalLogger;
+	externalLogger = newLogger;
+}
+
+void MegaSDK::log(MLogLevel logLevel, String^ message, String^ filename, int line)
+{
+	std::string utf8message;
+	if (message != nullptr)
+		MegaApi::utf16ToUtf8(message->Data(), message->Length(), &utf8message);
+
+	std::string utf8filename;
+	if (message != nullptr)
+		MegaApi::utf16ToUtf8(filename->Data(), filename->Length(), &utf8filename);
+
+	MegaApi::log((int)logLevel, (message != nullptr) ? utf8message.c_str() : NULL, (filename != nullptr) ? utf8filename.c_str() : NULL, line);
+}
+
+void MegaSDK::log(MLogLevel logLevel, String^ message, String^ filename)
+{
+	std::string utf8message;
+	if (message != nullptr)
+		MegaApi::utf16ToUtf8(message->Data(), message->Length(), &utf8message);
+
+	std::string utf8filename;
+	if (message != nullptr)
+		MegaApi::utf16ToUtf8(filename->Data(), filename->Length(), &utf8filename);
+
+	MegaApi::log((int)logLevel, (message != nullptr) ? utf8message.c_str() : NULL, (filename != nullptr) ? utf8filename.c_str() : NULL);
+}
+
+void MegaSDK::log(MLogLevel logLevel, String^ message)
+{
+	std::string utf8message;
+	if (message != nullptr)
+		MegaApi::utf16ToUtf8(message->Data(), message->Length(), &utf8message);
+
+	MegaApi::log((int)logLevel, (message != nullptr) ? utf8message.c_str() : NULL);
 }
