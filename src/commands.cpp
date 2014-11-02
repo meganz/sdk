@@ -135,8 +135,8 @@ void CommandGetFA::procresult()
             case EOO:
                 if (p)
                 {
+                    it->second->req.disconnect();
                     Node::copystring(&it->second->req.posturl, p);
-                    it->second->req.setreq(NULL,REQ_BINARY);
                     it->second->req.in.clear();
                     it->second->inbytes = 0;
                     it->second->req.postchunked(client);

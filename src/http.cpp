@@ -87,6 +87,8 @@ void HttpReq::disconnect()
     {
         httpio->cancel(this);
     }
+
+    chunked = false;
 }
 
 HttpReq::HttpReq(bool b)
@@ -123,7 +125,6 @@ void HttpReq::setreq(const char* u, contenttype_t t)
     }
 
     type = t;
-    chunked = false;
 }
 
 // add data to fixed or variable buffer
