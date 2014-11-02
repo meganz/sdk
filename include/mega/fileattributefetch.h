@@ -2,7 +2,7 @@
  * @file mega/fileattributefetch.h
  * @brief Classes for file attributes fetching
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -32,14 +32,15 @@ namespace mega {
 struct MEGA_API FileAttributeFetchChannel
 {
     handle fahref;
+
     BackoffTimer bt;
+    BackoffTimer timeout;
+
+    size_t inbytes;
+
     HttpReq req;
 
-    // index of next element to complete (starts at 0)
-    size_t completed;
-
-    // post request to target URL
-    void dispatch(MegaClient*, int, const char*);
+    faf_map fafs[2];
 
     // parse fetch result and remove completed attributes from pending
     void parse(MegaClient*, int, bool);
@@ -52,12 +53,10 @@ struct MEGA_API FileAttributeFetch
 {
     handle nodehandle;
     fatype type;
-    int fac;        // attribute cluster ID
-    unsigned char dispatched;
-    unsigned char retries;
+    int retries;
     int tag;
 
-    FileAttributeFetch(handle, fatype, int, int);
+    FileAttributeFetch(handle, fatype, int);
 };
 } // namespace
 

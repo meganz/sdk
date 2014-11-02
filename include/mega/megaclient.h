@@ -283,10 +283,6 @@ private:
     putfa_list::iterator curfa;
     BackoffTimer btpfa;
 
-    // pending file attribute reads, grouped by queued file attribute
-    // retrievals
-    fareq_set fareqs;
-
     // next internal upload handle
     handle nextuh;
 
@@ -427,18 +423,16 @@ public:
 
     // file attribute fetch channels
     fafc_map fafcs;
+    BackoffTimer faftimeout;
 
-    // file attribute fetches
-    faf_map fafs;
+    // generate attribute string based on the pending attributes for this upload
+    void pendingattrstring(handle, string*);
 
     // active/pending direct reads
     handledrn_map hdrns;
     dsdrn_map dsdrns;
     dr_list drq;
     drs_list drss;
-
-    // generate attribute string based on the pending attributes for this upload
-    void pendingattrstring(handle, string*);
 
     // merge newly received share into nodes
     void mergenewshares(bool);

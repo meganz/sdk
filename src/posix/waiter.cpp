@@ -2,7 +2,7 @@
  * @file posix/wait.cpp
  * @brief POSIX event/timeout handling
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -42,12 +42,16 @@ dstime Waiter::ds;
 
 PosixWaiter::PosixWaiter()
 {
-    //Pipe to be able to leave the select() call
+    // pipe to be able to leave the select() call
     if (pipe(m_pipe) < 0)
+    {
         cout << "Error creating pipe" << endl;
+    }
 
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
+    {
         cout << "fcntl error" << endl;
+    }
 }
 
 void PosixWaiter::init(dstime ds)
@@ -101,7 +105,7 @@ int PosixWaiter::wait()
     int numfd;
     timeval tv;
 
-    //Pipe added to rfds to be able to leave select() when needed
+    // pipe added to rfds to be able to leave select() when needed
     FD_SET(m_pipe[0], &rfds);
     bumpmaxfd(m_pipe[0]);
 
@@ -115,9 +119,9 @@ int PosixWaiter::wait()
 
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 
-    //Empty pipe
+    // empty pipe
     uint8_t buf;
-    while (read(m_pipe[0], &buf, 1) == 1);
+    while (read(m_pipe[0], &buf, sizeof buf) > 0);
 
     // timeout or error
     if (numfd <= 0)

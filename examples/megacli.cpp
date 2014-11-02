@@ -3475,8 +3475,8 @@ void megacli()
                 {
                     if ((*it)->fa)
                     {
-                        xferrate[(*it)->transfer->type] += (*it)->progressreported * 10
-                                / (1024 * (Waiter::ds - (*it)->starttime + 1));
+                        xferrate[(*it)->transfer->type]
+                            += (*it)->progressreported * 10 / (1024 * (Waiter::ds - (*it)->starttime + 1));
                     }
                 }
 
@@ -3489,6 +3489,7 @@ void megacli()
                     if (xferrate[GET])
                     {
                         sprintf(dynamicprompt + 6, "In: %u KB/s", xferrate[GET]);
+
                         if (xferrate[PUT])
                         {
                             strcat(dynamicprompt + 9, "/");

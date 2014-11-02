@@ -1,6 +1,6 @@
 /**
  * @file posix/net.cpp
- * @brief POSIX network access layer (using cURL)
+ * @brief POSIX network access layer (using cURL + c-ares)
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -27,26 +27,26 @@
 #ifdef WINDOWS_PHONE
 const char* inet_ntop(int af, const void* src, char* dst, int cnt)
 {
-	struct sockaddr_in srcaddr;
-	wchar_t ip[INET6_ADDRSTRLEN];
-	int len = INET6_ADDRSTRLEN;
+    struct sockaddr_in srcaddr;
+    wchar_t ip[INET6_ADDRSTRLEN];
+    int len = INET6_ADDRSTRLEN;
 
-	memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-	memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
 
-	srcaddr.sin_family = af;
+    srcaddr.sin_family = af;
 
-	if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0) 
-	{
-		return NULL;
-	}
+    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0) 
+    {
+        return NULL;
+    }
 
-	if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
-	{
-		return NULL;
-	}
+    if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
+    {
+        return NULL;
+    }
 
-	return dst;
+    return dst;
 }
 #else
 #include <netdb.h>
@@ -157,13 +157,13 @@ void CurlHttpIO::setuseragent(string* u)
 
 void CurlHttpIO::setdnsservers(const char* servers)
 {
-	if (servers)
+    if (servers)
     {
         lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
         dnscache.clear();
 
         dnsservers = servers;
-		ares_set_servers_csv(ares, servers);
+        ares_set_servers_csv(ares, servers);
     }
 }
 
@@ -184,7 +184,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
     {
         curltimeout /= 100;
         if ((unsigned long)curltimeout < waiter->maxds)
-            waiter->maxds = curltimeout;
+        waiter->maxds = curltimeout;
     }
 
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
@@ -312,8 +312,8 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
         inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
 
-        //Add to DNS cache
-        CurlDNSEntry &dnsEntry = httpio->dnscache[httpctx->hostname];
+        // add to DNS cache
+        CurlDNSEntry& dnsEntry = httpio->dnscache[httpctx->hostname];
 
         if (host->h_addrtype == PF_INET6)
         {
@@ -329,11 +329,11 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         // IPv6 takes precedence over IPv4
         if (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
         {
-            httpctx->isIPv6 = (host->h_addrtype == PF_INET6);
+            httpctx->isIPv6 = host->h_addrtype == PF_INET6;
 
             //save the IP for this request
             std::ostringstream oss;
-            if(httpctx->isIPv6)
+            if (httpctx->isIPv6)
             {
                 oss << "[" << ip << "]:" << httpctx->port;
             }
@@ -412,7 +412,7 @@ struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
     return outlist;
 }
 
-void CurlHttpIO::send_request(CurlHttpContext*httpctx)
+void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
@@ -438,17 +438,29 @@ void CurlHttpIO::send_request(CurlHttpContext*httpctx)
     httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
 
     CURL* curl;
+
     if ((curl = curl_easy_init()))
     {
+        curl_easy_setopt(curl, CURLOPT_POST, 1);
         curl_easy_setopt(curl, CURLOPT_URL, req->posturl.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
+        
+        if (req->chunked)
+        {
+            curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data);
+            curl_easy_setopt(curl, CURLOPT_READDATA, (void*)req);                     
+            curl_slist_append(httpctx->headers, "Transfer-Encoding: chunked");
+        }
+        else
+        {
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data ? data : req->out->data());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
+        }
+
         curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent->c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
         curl_easy_setopt(curl, CURLOPT_ENCODING, "");
         curl_easy_setopt(curl, CURLOPT_SHARE, httpio->curlsh);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, check_header);
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*)req);
@@ -459,21 +471,21 @@ void CurlHttpIO::send_request(CurlHttpContext*httpctx)
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
 
-        if(debug)
+        if (debug)
         {
             curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
             curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
             curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
         }
 
-        if(httpio->proxyip.size())
+        if (httpio->proxyip.size())
         {
             curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
 
             curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
 
-            if(httpio->proxyusername.size())
+            if (httpio->proxyusername.size())
             {
                 curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, httpio->proxyusername.c_str());
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, httpio->proxypassword.c_str());
@@ -496,7 +508,7 @@ void CurlHttpIO::send_request(CurlHttpContext*httpctx)
 
 void CurlHttpIO::request_proxy_ip()
 {
-    if(!proxyhost.size())
+    if (!proxyhost.size())
     {
         return;
     }
@@ -586,7 +598,7 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
             {
                 int c = url->data()[i];
 
-                if(c < '0' || c > '9')
+                if (c < '0' || c > '9')
                 {
                     *port = -1;
                     break;
@@ -612,7 +624,7 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
         {
             endhost = url->find("/", starthost);
 
-            if(endhost == string::npos)
+            if (endhost == string::npos)
             {
                 endhost = url->size();
             }
@@ -647,7 +659,7 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
 
 int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
 {
-    if(type == CURLINFO_TEXT)
+    if (type == CURLINFO_TEXT)
     {
         cout << "cURL DEBUG: ";
         cout.width(size);
@@ -706,7 +718,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
         while (it != dnscache.end())
         {
-            CurlDNSEntry &entry = it->second;
+            CurlDNSEntry& entry = it->second;
 
             if (entry.ipv6.size() && Waiter::ds - entry.ipv6timestamp >= DNS_CACHE_TIMEOUT_DS)
             {
@@ -739,7 +751,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->hostheader.append(httpctx->hostname);
     httpctx->ares_pending = 1;
 
-    CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
+    CurlDNSEntry& dnsEntry = dnscache[httpctx->hostname];
 
     if (ipv6requestsenabled)
     {
@@ -776,7 +788,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
 void CurlHttpIO::setproxy(Proxy* proxy)
 {
-    //clear the previous proxy IP
+    // clear the previous proxy IP
     proxyip.clear();
 
     if (proxy->getProxyType() != Proxy::CUSTOM || !proxy->getProxyURL().size())
@@ -829,7 +841,7 @@ void CurlHttpIO::cancel(HttpReq* req)
     {
         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
 
-        if(httpctx->curl)
+        if (httpctx->curl)
         {
             curl_multi_remove_handle(curlm, httpctx->curl);
             curl_easy_cleanup(httpctx->curl);
@@ -862,7 +874,7 @@ m_off_t CurlHttpIO::postpos(void* handle)
 
     CurlHttpContext* httpctx = (CurlHttpContext*)handle;
 
-    if(httpctx->curl)
+    if (httpctx->curl)
     {
         curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
     }
@@ -914,7 +926,7 @@ bool CurlHttpIO::doio()
                             && (req->contentlength < 0
                              || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                              ? REQ_SUCCESS : REQ_FAILURE;
-                
+
                 if (req->status == REQ_SUCCESS)
                 {
                     lastdata = Waiter::ds;
@@ -933,9 +945,10 @@ bool CurlHttpIO::doio()
             {                
                 CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
 
-                //Remove the IP from the DNS cache
+                // remove the IP from the DNS cache
                 CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
-                if(httpctx->isIPv6)
+
+                if (httpctx->isIPv6)
                 {
                     dnsEntry.ipv6.clear();
                     dnsEntry.ipv6timestamp = 0;
@@ -955,12 +968,12 @@ bool CurlHttpIO::doio()
                     ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
                     request_proxy_ip();
                 }
-                else if(httpctx->isIPv6)
+                else if (httpctx->isIPv6)
                 {
                     ipv6deactivationtime = Waiter::ds;
 
-                    //For IPv6 errors, try IPv4 before sending an error to the SDK
-                    if(dnsEntry.ipv4.size() && (Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS)
+                    // for IPv6 errors, try IPv4 before sending an error to the engine
+                    if (dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
                     {
                         curl_multi_remove_handle(curlm, msg->easy_handle);
                         curl_easy_cleanup(msg->easy_handle);
@@ -1027,11 +1040,11 @@ void CurlHttpIO::send_pending_requests()
 
 void CurlHttpIO::drop_pending_requests()
 {
-    while(pendingrequests.size())
+    while (pendingrequests.size())
     {
         CurlHttpContext* httpctx = pendingrequests.front();
 
-        if(httpctx->req)
+        if (httpctx->req)
         {
             httpctx->req->status = REQ_FAILURE;
             statechange = true;
@@ -1045,9 +1058,53 @@ void CurlHttpIO::drop_pending_requests()
     }
 }
 
+// unpause potentially paused connection after more data was added to req->out, calling read_data() again
+void CurlHttpIO::sendchunked(HttpReq* req)
+{
+    if (req->httpiohandle)
+    {
+        CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+
+        if (httpctx->curl)
+        {
+            curl_easy_pause(httpctx->curl, CURLPAUSE_CONT);
+        }
+    }
+}
+
+size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
+{
+    if (!((HttpReq*)source)->out)
+    {
+        return 0;
+    }
+
+    curl_off_t nread = ((HttpReq*)source)->out->size();
+    
+    if (nread > nmemb)
+    {
+        nread = nmemb;
+    }
+    
+    if (!nread)
+    {
+        return CURL_READFUNC_PAUSE;
+    }
+    
+    memcpy(ptr, ((HttpReq*)source)->out->data(), nread);
+    ((HttpReq*)source)->out->erase(0, nread);
+    
+    return nread;
+}
+
 size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 {
-    ((HttpReq*)target)->put(ptr, nmemb);
+    if (((HttpReq*)target)->chunked)
+    {
+        ((CurlHttpIO*)((HttpReq*)target)->httpio)->statechange = true;
+    }
+
+    ((HttpReq*)target)->put(ptr, nmemb, true);
     ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
 
     return nmemb;

@@ -1,8 +1,8 @@
 /**
  * @file mega/posix/meganet.h
- * @brief POSIX network access layer (using cURL)
+ * @brief POSIX network access layer (using cURL + c-ares)
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -55,17 +55,18 @@ protected:
     void send_pending_requests();
     void drop_pending_requests();
 
+    static size_t read_data(void*, size_t, size_t, void*);
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
-    static void proxy_ready_callback(void *arg, int status, int timeouts, struct hostent *host);
-    static void ares_completed_callback(void *arg, int status, int timeouts, struct hostent *host);
-    static void send_request(CurlHttpContext *httpctx);
+    static void proxy_ready_callback(void*, int, int, struct hostent*);
+    static void ares_completed_callback(void*, int, int, struct hostent*);
+    static void send_request(CurlHttpContext*);
     void request_proxy_ip();
-    static struct curl_slist* clone_curl_slist(struct curl_slist *inlist);
-    static bool crackurl(string *url, string *hostname, int* port);
-    static int debug_callback(CURL *handle, curl_infotype type, char *data, size_t size, void *userptr);
+    static struct curl_slist* clone_curl_slist(struct curl_slist*);
+    static bool crackurl(string*, string*, int*);
+    static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     bool ipv6available();
 
     bool curlipv6;
@@ -79,6 +80,7 @@ protected:
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);
     void cancel(HttpReq*);
+    void sendchunked(HttpReq*);
 
     m_off_t postpos(void*);
 
@@ -87,9 +89,9 @@ public:
     void addevents(Waiter*, int);
 
     void setuseragent(string*);
-    void setproxy(Proxy *);
-    Proxy *getautoproxy();
-	void setdnsservers(const char *dnsservers);
+    void setproxy(Proxy*);
+    Proxy* getautoproxy();
+    void setdnsservers(const char*);
 
     CurlHttpIO();
     ~CurlHttpIO();

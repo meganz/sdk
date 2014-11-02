@@ -68,6 +68,9 @@ struct MEGA_API HttpIO : public EventTrigger
     // cancel request
     virtual void cancel(HttpReq*) = 0;
 
+    // send queued chunked data
+    virtual void sendchunked(HttpReq*) = 0;
+
     // real-time POST progress information
     virtual m_off_t postpos(void*) = 0;
 
@@ -112,6 +115,8 @@ struct MEGA_API HttpReq
 
     string posturl;
 
+    bool chunked;
+
     string* out;
     string in;
     size_t inpurge;
@@ -136,9 +141,10 @@ struct MEGA_API HttpReq
 
     // post request to the network
     void post(MegaClient*, const char* = NULL, unsigned = 0);
+    void postchunked(MegaClient*);
 
-    // store chunk of incoming data
-    void put(void*, unsigned);
+    // store chunk of incoming data with optional purging
+    void put(void*, unsigned, bool = false);
 
     // start and size of unpurged data block - must be called with !buf and httpio locked
     char* data();
@@ -174,7 +180,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
 
-    virtual bool prepare(FileAccess *, const char*, SymmCipher *, chunkmac_map *, uint64_t, m_off_t, m_off_t) = 0;
+    virtual bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
     virtual void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) { }
 
     HttpReqXfer() : HttpReq(true) { }
@@ -183,7 +189,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
 // file chunk upload
 struct MEGA_API HttpReqUL : public HttpReqXfer
 {
-    bool prepare(FileAccess *, const char*, SymmCipher *, chunkmac_map *, uint64_t, m_off_t, m_off_t);
+    bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
 
@@ -195,8 +201,8 @@ struct MEGA_API HttpReqDL : public HttpReqXfer
 {
     m_off_t dlpos;
 
-    bool prepare(FileAccess *, const char*, SymmCipher *, chunkmac_map *, uint64_t, m_off_t, m_off_t);
-    void finalize(FileAccess *, SymmCipher *, chunkmac_map *, uint64_t, m_off_t, m_off_t);
+    bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
 
     ~HttpReqDL() { }
 };
