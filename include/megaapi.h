@@ -220,7 +220,8 @@ class MegaRequest
 		virtual const char* getFile() const = 0;
 		virtual int getNumRetry() const = 0;
 		virtual int getNextRetryDelay() const = 0;
-        virtual MegaNode *getPublicNode() = 0;
+        virtual MegaNode *getPublicNode() const = 0;
+        virtual MegaNode *getPublicMegaNode() const = 0;
         virtual int getParamType() const = 0;
         virtual bool getFlag() const = 0;
         virtual long long getTransferredBytes() const = 0;
@@ -266,6 +267,7 @@ class MegaTransfer
 		virtual long long getDeltaSize() const = 0;
         virtual int64_t getUpdateTime() const = 0;
         virtual MegaNode *getPublicNode() const = 0;
+        virtual MegaNode *getPublicMegaNode() const = 0;
         virtual bool isSyncTransfer() const = 0;
         virtual bool isStreamingTransfer() const = 0;
 		virtual char *getLastBytes() const = 0;
