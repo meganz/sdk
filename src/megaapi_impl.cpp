@@ -1,13 +1,6 @@
 ﻿#define _POSIX_SOURCE
 #define _LARGE_FILES
 
-#include <iomanip>
-
-#ifndef _WIN32
-#define _LARGEFILE64_SOURCE
-#include <signal.h>
-#endif
-
 #define _GNU_SOURCE 1
 #define _FILE_OFFSET_BITS 64
 
@@ -17,6 +10,15 @@
 #define PREFER_STDARG
 #include "megaapi_impl.h"
 #include "megaapi.h"
+
+
+#include <iomanip>
+
+#ifndef _WIN32
+#define _LARGEFILE64_SOURCE
+#include <signal.h>
+#endif
+
 
 #ifdef __APPLE__
     #include <xlocale.h>
@@ -1946,14 +1948,14 @@ void MegaApiImpl::loop()
 #elif TARGET_OS_IPHONE
     string servers;
     if ((_res.options & RES_INIT) == 0) res_init();
-    
+
     for (int i = 0; i < _res.nscount; i++)
     {
         const char *ip = inet_ntoa(_res.nsaddr_list[i].sin_addr);
         if (i > 0) servers.append(",");
         servers.append(ip);
     }
-    
+
     httpio->setdnsservers(servers.c_str());
 #elif _WIN32
     httpio->lock();
@@ -3149,7 +3151,7 @@ bool SearchTreeProcessor::processNode(Node* node)
 	if(!node) return true;
 	if(!search) return false;
 
-	if(strcasestr(node->displayname(), search)!=NULL) 
+	if(strcasestr(node->displayname(), search)!=NULL)
 		results.push_back(node);
 
 	return true;
@@ -3178,7 +3180,7 @@ long long SizeProcessor::getTotalBytes()
 }
 
 void MegaApiImpl::transfer_added(Transfer *t)
-{       
+{
 	MegaTransferPrivate *transfer = currentTransfer;
     if(!transfer)
     {
@@ -3207,7 +3209,7 @@ void MegaApiImpl::transfer_added(Transfer *t)
 }
 
 void MegaApiImpl::transfer_removed(Transfer *t)
-{    
+{
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
 
@@ -3215,7 +3217,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
     {
         if(pendingDownloads > 0)
             pendingDownloads--;
-            
+
         if(totalDownloads > 0)
             totalDownloads--;
     }
@@ -3223,7 +3225,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
     {
         if(pendingUploads > 0)
             pendingUploads--;
-            
+
         if(totalUploads > 0)
             totalUploads--;
     }
@@ -5796,7 +5798,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			int type = request->getParamType();
 			Node *node = client->nodebyhandle(request->getNodeHandle());
-			
+
 			if (!node) { e = API_EARGS; break; }
 
 			e = client->getfa(node, type, 1);
