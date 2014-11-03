@@ -12,26 +12,24 @@
 #import "megaapi.h"
 #import "MegaSDK.h"
 
-using namespace mega;
-
-class DelegateMListener : public MegaListener {
+class DelegateMListener : public mega::MegaListener {
 
 public:
     
     DelegateMListener(MegaSDK *megaSDK, void *listener);
     void *getUserListener();
     
-    void onRequestStart(MegaApi *api, MegaRequest *request);
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e);
-    void onRequestUpdate(MegaApi *api, MegaRequest *request);
-    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e);
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer);
-    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *e);
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e);
-    void onUsersUpdate(MegaApi *api);
-    void onNodesUpdate(MegaApi *api);
-    void onReloadNeeded(MegaApi *api);
+    void onRequestStart(mega::MegaApi *api, mega::MegaRequest *request);
+    void onRequestFinish(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
+    void onRequestUpdate(mega::MegaApi *api, mega::MegaRequest *request);
+    void onRequestTemporaryError(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
+    void onTransferStart(mega::MegaApi *api, mega::MegaTransfer *transfer);
+    void onTransferFinish(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError *e);
+    void onTransferUpdate(mega::MegaApi *api, mega::MegaTransfer *transfer);
+    void onTransferTemporaryError(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError *e);
+    void onUsersUpdate(mega::MegaApi *api);
+    void onNodesUpdate(mega::MegaApi *api);
+    void onReloadNeeded(mega::MegaApi *api);
     
 private:
     MegaSDK *megaSDK;

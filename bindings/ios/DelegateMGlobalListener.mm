@@ -16,21 +16,21 @@ void *DelegateMGlobalListener::getUserListener() {
     return listener;
 }
 
-void DelegateMGlobalListener::onUsersUpdate(MegaApi *api) {
+void DelegateMGlobalListener::onUsersUpdate(mega::MegaApi *api) {
     if (listener !=nil) {
         id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
         [delegate onUsersUpdate:this->megaSDK];
     }
 }
 
-void DelegateMGlobalListener::onNodesUpdate(MegaApi *api) {
+void DelegateMGlobalListener::onNodesUpdate(mega::MegaApi *api) {
     if (listener !=nil) {
         id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
         [delegate onNodesUpdate:this->megaSDK];
     }
 }
 
-void DelegateMGlobalListener::onReloadNeeded(MegaApi* api) {
+void DelegateMGlobalListener::onReloadNeeded(mega::MegaApi* api) {
     if (listener !=nil) {
         id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
         [delegate onReloadNeeded:this->megaSDK];

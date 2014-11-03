@@ -8,18 +8,16 @@
 #import "megaapi.h"
 #import "MegaSDK.h"
 
-using namespace mega;
-
-class DelegateMGlobalListener : public MegaGlobalListener {
+class DelegateMGlobalListener : public mega::MegaGlobalListener {
     
 public:
     
     DelegateMGlobalListener(MegaSDK *megaSDK, void *listener);
     void *getUserListener();
     
-    void onUsersUpdate(MegaApi* api);
-    void onNodesUpdate(MegaApi* api);
-    void onReloadNeeded(MegaApi* api);
+    void onUsersUpdate(mega::MegaApi* api);
+    void onNodesUpdate(mega::MegaApi* api);
+    void onReloadNeeded(mega::MegaApi* api);
     
 private:
     MegaSDK *megaSDK;

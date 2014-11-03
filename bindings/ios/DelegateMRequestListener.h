@@ -9,19 +9,17 @@
 #import "megaapi.h"
 #import "MegaSDK.h"
 
-using namespace mega;
-
-class DelegateMRequestListener : public MegaRequestListener {
+class DelegateMRequestListener : public mega::MegaRequestListener {
 
 public:
     
     DelegateMRequestListener(MegaSDK *megaSDK, void *listener, bool singleListener = true);
     void *getUserListener();
     
-    void onRequestStart(MegaApi *api, MegaRequest *request);
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e);
-    void onRequestUpdate(MegaApi *api, MegaRequest *request);
-    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e);
+    void onRequestStart(mega::MegaApi *api, mega::MegaRequest *request);
+    void onRequestFinish(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
+    void onRequestUpdate(mega::MegaApi *api, mega::MegaRequest *request);
+    void onRequestTemporaryError(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
     
 private:
     MegaSDK *megaSDK;

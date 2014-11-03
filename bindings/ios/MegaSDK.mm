@@ -96,8 +96,8 @@ static MegaSDK * _sharedMegaSDK = nil;
 }
 
 - (void)dealloc {
-//    delete _megaApi;
-//    DeleteCriticalSection(&listenerMutex);
+    delete _megaApi;
+    pthread_mutex_destroy(&listenerMutex);
 }
 
 - (MegaApi *)getCPtr {
@@ -168,17 +168,17 @@ static MegaSDK * _sharedMegaSDK = nil;
 }
 
 - (void)removeGlobalDelegate:(id<MGlobalListenerDelegate>)delegate {
-//    pthread_mutex_lock(&listenerMutex);
-//    std::set<DelegateMGlobalListener *>::iterator it = self.activeGlobalListeners.begin();
-//    while (it != self.activeGlobalListeners.end()) {
-//        DelegateMGlobalListener *delegateListener = *it;
-//        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
-//            self.megaApi->removeGlobalListener(delegateListener);
-//            self.activeGlobalListeners.erase(it++);
-//        }
-//        else it++;
-//    }
-//    pthread_mutex_unlock(&listenerMutex);
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMGlobalListener *>::iterator it = self.activeGlobalListeners.begin();
+    while (it != self.activeGlobalListeners.end()) {
+        DelegateMGlobalListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+            self.megaApi->removeGlobalListener(delegateListener);
+            self.activeGlobalListeners.erase(it++);
+        }
+        else it++;
+    }
+    pthread_mutex_unlock(&listenerMutex);
 
 }
 

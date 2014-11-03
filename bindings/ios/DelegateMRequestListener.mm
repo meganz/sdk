@@ -49,11 +49,18 @@ void DelegateMRequestListener::onRequestUpdate(MegaApi *api, MegaRequest *reques
     if (listener != nil) {
         MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            id<MRequestDelegate> delegate = (__bridge  id<MRequestDelegate>) listener;
+            id<MRequestDelegate> delegate = (__bridge  id<MRequestDelegate>)listener;
             [delegate onRequestUpdate:this->megaSDK request:[[MRequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMRequestListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) {
+    if (listener != nil) {
+        MegaRequest *tempRequest = request->copy();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            id<MRequestDelegate> delegate = (__bridge  id<MRequestDelegate>)listener;
+            [delegate onRequestTemporaryError:this->megaSDK request:[[MRequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e cMemoryOwn:YES]];
+        });
+    }
 }

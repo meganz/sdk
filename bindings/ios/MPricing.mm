@@ -16,8 +16,6 @@ using namespace mega;
 @property MegaPricing *pricing;
 @property BOOL cMemoryOwn;
 
-- (MegaAccountDetails *)getCPtr;
-
 @end
 
 @implementation MPricing
@@ -31,6 +29,10 @@ using namespace mega;
     }
     
     return self;
+}
+
+- (MegaPricing *)getCPtr {
+    return self.pricing;
 }
 
 - (void)dealloc {

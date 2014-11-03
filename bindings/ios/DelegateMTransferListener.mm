@@ -39,7 +39,21 @@ void DelegateMTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *tra
 }
 
 void DelegateMTransferListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {
+    if (listener != nil) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            id<MTransferDelegate> delegate = (__bridge  id<MTransferDelegate>)listener;
+            [delegate onTransferUpdate:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
+        });
+    }
 }
 
 void DelegateMTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
+    if (listener != nil) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            id<MTransferDelegate> delegate = (__bridge  id<MTransferDelegate>)listener;
+            [delegate onTransferTemporaryError:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e cMemoryOwn:YES]];
+        });
+    }
 }
