@@ -102,7 +102,7 @@ CommandGetFA::CommandGetFA(int p, handle fahref, bool chunked)
 
     if (chunked)
     {
-        arg("r",1);
+        arg("r", 1);
     }
 }
 
@@ -135,10 +135,11 @@ void CommandGetFA::procresult()
             case EOO:
                 if (p)
                 {
-                    string url;
-
-                    Node::copystring(&url, p);
-                    it->second->dispatch(client, part, url.c_str());
+                    it->second->req.disconnect();
+                    Node::copystring(&it->second->req.posturl, p);
+                    it->second->req.in.clear();
+                    it->second->inbytes = 0;
+                    it->second->req.postchunked(client);
                 }
                 else
                 {

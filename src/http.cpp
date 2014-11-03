@@ -67,12 +67,28 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     httpio->post(this, data, len);
 }
 
+// attempt to send chunked data, remove from out
+void HttpReq::postchunked(MegaClient* client)
+{
+    if (!chunked)
+    {
+        chunked = true;
+        post(client);
+    }
+    else
+    {
+        httpio->sendchunked(this);
+    }
+}
+
 void HttpReq::disconnect()
 {
     if (httpio)
     {
         httpio->cancel(this);
     }
+
+    chunked = false;
 }
 
 HttpReq::HttpReq(bool b)
@@ -87,6 +103,8 @@ HttpReq::HttpReq(bool b)
     out = &outbuf;
 
     inpurge = 0;
+    
+    chunked = false;
 }
 
 HttpReq::~HttpReq()
@@ -101,12 +119,16 @@ HttpReq::~HttpReq()
 
 void HttpReq::setreq(const char* u, contenttype_t t)
 {
-    posturl = u;
+    if (u)
+    {
+        posturl = u;
+    }
+
     type = t;
 }
 
 // add data to fixed or variable buffer
-void HttpReq::put(void* data, unsigned len)
+void HttpReq::put(void* data, unsigned len, bool purge)
 {
     if (buf)
     {
@@ -119,6 +141,12 @@ void HttpReq::put(void* data, unsigned len)
     }
     else
     {
+        if (inpurge && purge)
+        {
+            in.erase(0, inpurge);
+            inpurge = 0;
+        }
+
         in.append((char*)data, len);
     }
     

@@ -1,13 +1,6 @@
 ﻿#define _POSIX_SOURCE
 #define _LARGE_FILES
 
-#include <iomanip>
-
-#ifndef _WIN32
-#define _LARGEFILE64_SOURCE
-#include <signal.h>
-#endif
-
 #define _GNU_SOURCE 1
 #define _FILE_OFFSET_BITS 64
 
@@ -17,6 +10,15 @@
 #define PREFER_STDARG
 #include "megaapi_impl.h"
 #include "megaapi.h"
+
+
+#include <iomanip>
+
+#ifndef _WIN32
+#define _LARGEFILE64_SOURCE
+#include <signal.h>
+#endif
+
 
 #ifdef __APPLE__
     #include <xlocale.h>
@@ -342,7 +344,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
 	this->listener = listener;
 	this->retry = 0;
 	this->maxRetries = 3;
-	this->time = 0;
+    this->time = -1;
 	this->startTime = 0;
 	this->transferredBytes = 0;
 	this->totalBytes = 0;
@@ -1490,7 +1492,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser) : MegaFile()
+MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime) : MegaFile()
 {
     // full local path
     localname = *clocalname;
@@ -1503,10 +1505,15 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
 
     // new node name
     name = *filename;
+
+    customMtime = mtime;
 }
 
 void MegaFilePut::completed(Transfer* t, LocalNode*)
 {
+    if(customMtime >= 0)
+        t->mtime = customMtime;
+
     File::completed(t,NULL);
     delete this;
 }
@@ -1941,14 +1948,14 @@ void MegaApiImpl::loop()
 #elif TARGET_OS_IPHONE
     string servers;
     if ((_res.options & RES_INIT) == 0) res_init();
-    
+
     for (int i = 0; i < _res.nscount; i++)
     {
         const char *ip = inet_ntoa(_res.nsaddr_list[i].sin_addr);
         if (i > 0) servers.append(",");
         servers.append(ip);
     }
-    
+
     httpio->setdnsservers(servers.c_str());
 #elif _WIN32
     httpio->lock();
@@ -2175,6 +2182,23 @@ void MegaApiImpl::getPaymentUrl(handle productHandle, MegaRequestListener *liste
     waiter->notify();
 }
 
+const char *MegaApiImpl::exportMasterKey()
+{
+    sdkMutex.lock();
+    byte session[64];
+    char* buf = NULL;
+    int size;
+    size = client->dumpsession(session, sizeof session);
+    if (size > 0)
+    {
+        buf = new char[16*4/3+4];
+        Base64::btoa(session, 16, buf);
+    }
+
+    sdkMutex.unlock();
+    return buf;
+}
+
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ACCOUNT_DETAILS, listener);
@@ -2320,9 +2344,9 @@ TransferList *MegaApiImpl::getTransfers()
     return result;
 }
 
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int connections, int maxSpeed, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
     {
         string path(localPath);
@@ -2337,19 +2361,26 @@ void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int conne
 	transfer->setMaxSpeed(maxSpeed);
 	transfer->setMaxRetries(maxRetries);
 	if(fileName) transfer->setFileName(fileName);
+    transfer->setTime(mtime);
 
 	transferQueue.push(transfer);
     waiter->notify();
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, listener); }
+{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, -1, listener); }
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
+{ return startUpload(localPath, parent, 1, 0, (const char *)NULL, mtime, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, 0, fileName, listener); }
+{ return startUpload(localPath, parent, 1, 0, fileName, -1, listener); }
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
+{ return startUpload(localPath, parent, 1, 0, fileName, mtime, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, 1, maxSpeed, (const char *)NULL, listener); }
+{ return startUpload(localPath, parent, 1, maxSpeed, (const char *)NULL, -1, listener); }
 
 void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener)
 {
@@ -3120,7 +3151,7 @@ bool SearchTreeProcessor::processNode(Node* node)
 	if(!node) return true;
 	if(!search) return false;
 
-	if(strcasestr(node->displayname(), search)!=NULL) 
+	if(strcasestr(node->displayname(), search)!=NULL)
 		results.push_back(node);
 
 	return true;
@@ -3149,7 +3180,7 @@ long long SizeProcessor::getTotalBytes()
 }
 
 void MegaApiImpl::transfer_added(Transfer *t)
-{       
+{
 	MegaTransferPrivate *transfer = currentTransfer;
     if(!transfer)
     {
@@ -3178,7 +3209,7 @@ void MegaApiImpl::transfer_added(Transfer *t)
 }
 
 void MegaApiImpl::transfer_removed(Transfer *t)
-{    
+{
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
 
@@ -3186,7 +3217,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
     {
         if(pendingDownloads > 0)
             pendingDownloads--;
-            
+
         if(totalDownloads > 0)
             totalDownloads--;
     }
@@ -3194,7 +3225,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
     {
         if(pendingUploads > 0)
             pendingUploads--;
-            
+
         if(totalUploads > 0)
             totalUploads--;
     }
@@ -5139,6 +5170,7 @@ void MegaApiImpl::sendPendingTransfers()
 			{
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
+                int64_t mtime = transfer->getTime();
 
                 if(!localPath) { e = API_EARGS; break; }
                 currentTransfer = transfer;
@@ -5147,7 +5179,7 @@ void MegaApiImpl::sendPendingTransfers()
 				client->fsaccess->path2local(&tmpString, &wLocalPath);
 
                 string wFileName = fileName;
-                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "");
+                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
 
                 bool started = client->startxfer(PUT,f);
                 if(!started)
@@ -5766,7 +5798,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			int type = request->getParamType();
 			Node *node = client->nodebyhandle(request->getNodeHandle());
-			
+
 			if (!node) { e = API_EARGS; break; }
 
 			e = client->getfa(node, type, 1);
@@ -6369,7 +6401,7 @@ ExternalLogger::ExternalLogger()
 	this->megaLogger = NULL;
 
 #ifdef DEBUG
-	SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setLogLevel(logDebug);
 #endif
 
 	SimpleLogger::setOutputClass(this);
@@ -6395,7 +6427,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 	mutex.lock();
 	if(megaLogger)
 	{
-		megaLogger->log(time, loglevel, source, message);
+        megaLogger->log(time ? time : "", loglevel, source ? source : "", message ? message : "");
 	}
 	else
 	{

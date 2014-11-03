@@ -27,40 +27,15 @@ namespace mega {
 FileAttributeFetchChannel::FileAttributeFetchChannel()
 {
     req.binary = true;
+    req.status = REQ_FAILURE;
 }
 
-FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int c, int ctag)
+FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
 {
     nodehandle = h;
     type = t;
-    fac = c;
     retries = 0;
     tag = ctag;
-}
-
-// post pending requests for this cluster to supplied URL
-void FileAttributeFetchChannel::dispatch(MegaClient* client, int fac, const char* targeturl)
-{
-    req.out->clear();
-
-    // dispatch all pending fetches for this channel's cluster
-    for (faf_map::iterator it = client->fafs.begin(); it != client->fafs.end(); it++)
-    {
-        if (it->second->fac == fac)
-        {
-            // prevent reallocations
-            req.out->reserve(client->fafs.size() * sizeof(handle));
-
-            it->second->dispatched = 1;
-
-            req.out->append((char*)&it->first, sizeof(handle));
-        }
-    }
-
-    completed = 0;
-    
-    req.posturl = targeturl;
-    req.post(client);
 }
 
 // communicate received file attributes to the application
@@ -100,25 +75,26 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
             break;
         }
 
-        it = client->fafs.find(((FaHeader*)ptr)->h);
+        it = fafs[1].find(((FaHeader*)ptr)->h);
 
         ptr += sizeof(FaHeader);
 
         // locate fetch request (could have been deleted by the application in the meantime)
-        if (it != client->fafs.end())
+        if (it != fafs[1].end())
         {
             // locate related node (could have been deleted)
             if ((n = client->nodebyhandle(it->second->nodehandle)))
             {
+                client->restag = it->second->tag;
+
                 if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
                 {
                     n->key.cbc_decrypt((byte*)ptr, falen);
 
-                    client->restag = it->second->tag;
                     client->app->fa_complete(n, it->second->type, ptr, falen);
 
                     delete it->second;
-                    client->fafs.erase(it);
+                    fafs[1].erase(it);
                 }
                 else
                 {

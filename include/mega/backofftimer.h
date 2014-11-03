@@ -41,6 +41,9 @@ public:
     // set absolute backoff
     void backoff(dstime);
 
+    // set absolute trigger time
+    void set(dstime);
+
     // check if timer has elapsed
     bool armed() const;
 
