@@ -19,6 +19,9 @@
  * program.
  */
 
+// FIXME: Work around WinHTTP's inability to POST additional data
+// after having read from the HTTP connection
+
 #include "meganet.h"
 
 namespace mega {
@@ -285,7 +288,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 if (req->binary)
                 {
-                    LOG_debug << "[received " << req->bufpos << " bytes of raw data]";
+                    LOG_debug << "[received " << req->in.size() << " bytes of raw data]";
                 }
                 else
                 {
@@ -507,6 +510,8 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                     httpio->cancel(req);
                     httpio->httpevent();
                 }
+
+                httpctx->postdata = NULL;
             }
     }
 
@@ -515,8 +520,8 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
 // POST request to URL
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
-{    
-    LOG_debug << "POST target URL: " << req->posturl;
+{
+    LOG_debug << "POST target URL: " << req->posturl << " chunked: " << req->chunked;
     if (req->binary)
     {
         LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
@@ -561,11 +566,11 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
             if (httpctx->hRequest)
             {
-                if(proxyUsername.size())
+                if (proxyUsername.size())
                 {
                     WinHttpSetCredentials(httpctx->hRequest, WINHTTP_AUTH_TARGET_PROXY,
-                                  WINHTTP_AUTH_SCHEME_BASIC,
-                                  (LPWSTR)proxyUsername.data(), (LPWSTR)proxyPassword.data(), NULL);
+                                          WINHTTP_AUTH_SCHEME_BASIC,
+                                          (LPWSTR)proxyUsername.data(), (LPWSTR)proxyPassword.data(), NULL);
                 }
 
                 WinHttpSetTimeouts(httpctx->hRequest, 20000, 20000, 0, 0);
@@ -582,12 +587,20 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                          | WINHTTP_CALLBACK_FLAG_HANDLES,
                                          0);
 
-                LPCWSTR pwszHeaders = (req->type == REQ_JSON || !req->buf)
-                                      ? L"Content-Type: application/json\r\nAccept-Encoding: gzip"
-                                      : L"Content-Type: application/octet-stream";
+                LPCWSTR pwszHeaders = req->type == REQ_JSON || !req->buf
+                                    ? L"Content-Type: application/json\r\nAccept-Encoding: gzip"
+                                    : L"Content-Type: application/octet-stream";
 
                 // data is sent in HTTP_POST_CHUNK_SIZE instalments to ensure
                 // semi-smooth UI progress info
+                if (req->chunkedout.size())
+                {
+                    req->outbuf.append(req->chunkedout);
+                    req->chunkedout.clear();
+                }
+
+                req->chunked = 0;
+
                 httpctx->postlen = data ? len : req->out->size();
                 httpctx->postdata = data ? data : req->out->data();
 
@@ -634,6 +647,11 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
 
     req->status = REQ_FAILURE;
+}
+
+// unfortunately, WinHTTP does not allow alternating reads/writes :(
+void WinHttpIO::sendchunked(HttpReq*)
+{
 }
 
 // cancel pending HTTP request

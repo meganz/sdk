@@ -140,6 +140,7 @@ void CommandGetFA::procresult()
                     it->second->req.in.clear();
                     it->second->inbytes = 0;
                     it->second->req.postchunked(client);
+                    it->second->timeout.backoff(150);
                 }
                 else
                 {

@@ -122,6 +122,7 @@ struct MEGA_API HttpReq
     size_t inpurge;
 
     string outbuf;
+    string chunkedout;
 
     byte* buf;
     m_off_t buflen, bufpos;

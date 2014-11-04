@@ -673,6 +673,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->ares_pending = 0;
 
+    req->outbuf.append(req->chunkedout);
+    req->chunkedout.clear();
+
     req->httpiohandle = (void*)httpctx;
 
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
@@ -908,7 +911,6 @@ bool CurlHttpIO::doio()
                         LOG_debug << "Received: " << req->in.c_str();
                     }
                 }
-
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
