@@ -40,6 +40,9 @@ DEALINGS IN THE SOFTWARE.
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
+#ifdef TARGET_OS_IPHONE
+#include "mega/gfx/GfxProcCG.h"
+#endif
 #endif
 
 ////////////////////////////// SETTINGS //////////////////////////////
@@ -77,7 +80,6 @@ class MegaGfxProc : public GfxProcQT {};
 #elif USE_FREEIMAGE
 class MegaGfxProc : public GfxProcFreeImage {};
 #elif TARGET_OS_IPHONE
-#include "mega/gfx/GfxProcCG.h"
 class MegaGfxProc : public GfxProcCG {};
 #else
 class MegaGfxProc : public GfxProcExternal {};
