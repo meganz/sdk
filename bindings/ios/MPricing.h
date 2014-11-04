@@ -17,6 +17,6 @@
 - (NSInteger)getGBTransfer:(NSInteger)productIndex;
 - (NSInteger)getMonths:(NSInteger)productIndex;
 - (NSInteger)getAmount:(NSInteger)productIndex;
-- (NSString *)getCurrency:(NSInteger) productIndex;
+- (NSString *)getCurrency:(NSInteger)productIndex;
 
 @end

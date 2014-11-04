@@ -7,32 +7,29 @@
 
 #import "DelegateMGlobalListener.h"
 
-DelegateMGlobalListener::DelegateMGlobalListener(MegaSDK *megaSDK, void *listener) {
+DelegateMGlobalListener::DelegateMGlobalListener(MegaSDK *megaSDK, id<MGlobalListenerDelegate>listener) {
     this->megaSDK = megaSDK;
     this->listener = listener;
 }
 
-void *DelegateMGlobalListener::getUserListener() {
+id<MGlobalListenerDelegate> DelegateMGlobalListener::getUserListener() {
     return listener;
 }
 
 void DelegateMGlobalListener::onUsersUpdate(mega::MegaApi *api) {
     if (listener !=nil) {
-        id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
-        [delegate onUsersUpdate:this->megaSDK];
+        [listener onUsersUpdate:this->megaSDK];
     }
 }
 
 void DelegateMGlobalListener::onNodesUpdate(mega::MegaApi *api) {
     if (listener !=nil) {
-        id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
-        [delegate onNodesUpdate:this->megaSDK];
+        [listener onNodesUpdate:this->megaSDK];
     }
 }
 
 void DelegateMGlobalListener::onReloadNeeded(mega::MegaApi* api) {
     if (listener !=nil) {
-        id<MGlobalListenerDelegate> delegate = (__bridge id<MGlobalListenerDelegate>)listener;
-        [delegate onReloadNeeded:this->megaSDK];
+        [listener onReloadNeeded:this->megaSDK];
     }
 }

@@ -10,78 +10,78 @@
 #import "MError+init.h"
 #import "MRequest+init.h"
 
-DelegateMListener::DelegateMListener(MegaSDK *megaSDK, void *listener) {
+DelegateMListener::DelegateMListener(MegaSDK *megaSDK, id<MListenerDelegate>listener) {
     this->megaSDK = megaSDK;
     this->listener = listener;
 }
 
-void *DelegateMListener::getUserListener() {
+id<MListenerDelegate>DelegateMListener::getUserListener() {
     return listener;
 }
 
 void DelegateMListener::onRequestStart(MegaApi *api, MegaRequest *request) {
     if (listener != nil) {
-        id<MRequestDelegate> delegate = (__bridge id<MRequestDelegate>)listener;
-        [delegate onRequestStart:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES]];
+        [listener onRequestStart:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES]];
     }
 }
 
 void DelegateMListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) {
     if (listener != nil) {
-        id<MRequestDelegate> delegate = (__bridge id<MRequestDelegate>)listener;
-        [delegate onRequestFinish:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
-        //TODO:free
-        //        if (singleListener)
-        //            megaSDK->freeRequestListener(this);
+        [listener onRequestFinish:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
     }
 }
 
 void DelegateMListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
+    if (listener != nil) {
+        [listener onRequestUpdate:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES]];
+    }
 }
 
 void DelegateMListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) {
+    if (listener != nil) {
+        [listener onRequestTemporaryError:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
+    }
+
 }
 
 void DelegateMListener::onTransferStart(MegaApi *api, MegaTransfer *transfer) {
     if (listener != nil) {
-        id<MTransferDelegate> delegate = (__bridge id<MTransferDelegate>)listener;
-        [delegate onTransferStart:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES]];
+        [listener onTransferStart:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES]];
     }
 }
 
 void DelegateMListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
     if (listener != nil) {
-        id<MTransferDelegate> delegate = (__bridge id<MTransferDelegate>)listener;
-        [delegate onTransferFinish:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
-        //TODO: free
-        //        if (singleListener)
-        //            megaSDK->freeRequestListener(this);
+        [listener onTransferFinish:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
     }
 }
 
 void DelegateMListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {
+    if (listener != nil) {
+        [listener onTransferUpdate:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES]];
+    }
 }
 
 void DelegateMListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
+    if (listener != nil) {
+        [listener onTransferTemporaryError:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
+    }
 }
 
 void DelegateMListener::onUsersUpdate(MegaApi *api) {
     if (listener != nil) {
-        id<MListenerDelegate> delegate = (__bridge id<MListenerDelegate>)listener;
-        [delegate onUsersUpdate:this->megaSDK];
+        [listener onUsersUpdate:this->megaSDK];
     }
 }
 
 void DelegateMListener::onNodesUpdate(MegaApi *api) {
     if (listener != nil) {
-        id<MListenerDelegate> delegate = (__bridge id<MListenerDelegate>)listener;
-        [delegate onNodesUpdate:this->megaSDK];
+        [listener onNodesUpdate:this->megaSDK];
     }
 }
 
 void DelegateMListener::onReloadNeeded(MegaApi *api) {
     if (listener != nil) {
-        id<MListenerDelegate> delegate = (__bridge id<MListenerDelegate>)listener;
-        [delegate onReloadNeeded:this->megaSDK];
+        [listener onReloadNeeded:this->megaSDK];
     }
 }

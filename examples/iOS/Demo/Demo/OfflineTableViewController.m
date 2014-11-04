@@ -33,6 +33,8 @@
 }
 
 - (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    
     self.offlineDocuments = [NSMutableArray new];
     self.offlineImages = [NSMutableArray new];
     

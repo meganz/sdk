@@ -91,6 +91,7 @@
 
 /* Begin PBXFileReference section */
 		416812A419EE73CF00C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
+		41AB68ED1A093C3D003FE608 /* MegaSDK+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MegaSDK+init.h"; sourceTree = "<group>"; };
 		41B0CE781A038EB9008D6044 /* MPricing+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MPricing+init.h"; sourceTree = "<group>"; };
 		41B538CA1A0284CB00EABDC9 /* MPricing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MPricing.h; sourceTree = "<group>"; };
 		41B538CB1A0284CB00EABDC9 /* MPricing.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MPricing.mm; sourceTree = "<group>"; };
@@ -537,6 +538,7 @@
 				940BF0AC19EDBD62007E7FA2 /* MUser+init.h */,
 				940BF0AE19EDBD62007E7FA2 /* MUserList+init.h */,
 				41B0CE781A038EB9008D6044 /* MPricing+init.h */,
+				41AB68ED1A093C3D003FE608 /* MegaSDK+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";

@@ -29,18 +29,15 @@ using namespace mega;
     pthread_mutex_t listenerMutex;
 }
 
-@property std::set<DelegateMRequestListener *>activeRequestListeners;
-@property std::set<DelegateMTransferListener *>activeTransferListeners;
-@property std::set<DelegateMGlobalListener *>activeGlobalListeners;
-@property std::set<DelegateMListener *>activeMegaListeners;
+@property (nonatomic, assign) std::set<DelegateMRequestListener *>activeRequestListeners;
+@property (nonatomic, assign) std::set<DelegateMTransferListener *>activeTransferListeners;
+@property (nonatomic, assign) std::set<DelegateMGlobalListener *>activeGlobalListeners;
+@property (nonatomic, assign) std::set<DelegateMListener *>activeMegaListeners;
 
 - (MegaRequestListener *)createDelegateMRequestListener:(id<MRequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMTransferListener:(id<MTransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalListenerDelegate>)delegate;
 - (MegaListener *)createDelegateMListener:(id<MListenerDelegate>)delegate;
-
-- (void)freeRequestListener:(DelegateMRequestListener *)delegate;
-- (void)freeTransferListener:(DelegateMTransferListener *)delegate;
 
 @property MegaApi *megaApi;
 - (MegaApi *) getCPtr;
@@ -129,7 +126,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     std::set<DelegateMListener *>::iterator it = self.activeMegaListeners.begin();
     while (it != self.activeMegaListeners.end()) {
         DelegateMListener *delegateListener = *it;
-        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+        if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeListener(delegateListener);
             self.activeMegaListeners.erase(it++);
         }
@@ -143,7 +140,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     std::set<DelegateMRequestListener *>::iterator it = self.activeRequestListeners.begin();
     while (it != self.activeRequestListeners.end()) {
         DelegateMRequestListener *delegateListener = *it;
-        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+        if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeRequestListener(delegateListener);
             self.activeRequestListeners.erase(it++);
         }
@@ -157,7 +154,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     std::set<DelegateMTransferListener *>::iterator it = self.activeTransferListeners.begin();
     while (it != self.activeTransferListeners.end()) {
         DelegateMTransferListener *delegateListener = *it;
-        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+        if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeTransferListener(delegateListener);
             self.activeTransferListeners.erase(it++);
         }
@@ -172,7 +169,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     std::set<DelegateMGlobalListener *>::iterator it = self.activeGlobalListeners.begin();
     while (it != self.activeGlobalListeners.end()) {
         DelegateMGlobalListener *delegateListener = *it;
-        if (delegateListener->getUserListener() == (__bridge void *)(delegate)) {
+        if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeGlobalListener(delegateListener);
             self.activeGlobalListeners.erase(it++);
         }
@@ -756,9 +753,9 @@ static MegaSDK * _sharedMegaSDK = nil;
 - (MegaRequestListener *)createDelegateMRequestListener:(id<MRequestDelegate>)delegate singleListener:(BOOL)singleListener {
     if (delegate == nil) return nil;
     
-    DelegateMRequestListener *delegateListener = new DelegateMRequestListener(self, (__bridge void*)delegate, singleListener);
+    DelegateMRequestListener *delegateListener = new DelegateMRequestListener(self, delegate, singleListener);
     pthread_mutex_lock(&listenerMutex);
-    self.activeRequestListeners.insert(delegateListener);
+    _activeRequestListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
@@ -766,9 +763,10 @@ static MegaSDK * _sharedMegaSDK = nil;
 - (MegaTransferListener *)createDelegateMTransferListener:(id<MTransferDelegate>)delegate singleListener:(BOOL)singleListener {
     if (delegate == nil) return nil;
     
-    DelegateMTransferListener *delegateListener = new DelegateMTransferListener(self, (__bridge void*)delegate, singleListener);
+    DelegateMTransferListener *delegateListener = new DelegateMTransferListener(self, delegate, singleListener);
     pthread_mutex_lock(&listenerMutex);
-    self.activeTransferListeners.insert(delegateListener);
+    _activeTransferListeners.insert(delegateListener);
+    NSLog(@"active transfer listener size %lu", (unsigned long)self.activeTransferListeners.size());
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
@@ -776,9 +774,9 @@ static MegaSDK * _sharedMegaSDK = nil;
 - (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalListenerDelegate>)delegate {
     if (delegate == nil) return nil;
     
-    DelegateMGlobalListener *delegateListener = new DelegateMGlobalListener(self, (__bridge void*)delegate);
+    DelegateMGlobalListener *delegateListener = new DelegateMGlobalListener(self, delegate);
     pthread_mutex_lock(&listenerMutex);
-    self.activeGlobalListeners.insert(delegateListener);
+    _activeGlobalListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
@@ -786,9 +784,9 @@ static MegaSDK * _sharedMegaSDK = nil;
 - (MegaListener *)createDelegateMListener:(id<MListenerDelegate>)delegate {
     if (delegate == nil) return nil;
     
-    DelegateMListener *delegateListener = new DelegateMListener(self, (__bridge void*)delegate);
+    DelegateMListener *delegateListener = new DelegateMListener(self, delegate);
     pthread_mutex_lock(&listenerMutex);
-    self.activeMegaListeners.insert(delegateListener);
+    _activeMegaListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
@@ -797,7 +795,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     if (delegate == nil) return;
     
     pthread_mutex_lock(&listenerMutex);
-    self.activeRequestListeners.erase(delegate);
+    _activeRequestListeners.erase(delegate);
     pthread_mutex_unlock(&listenerMutex);
     delete delegate;
 }
@@ -806,7 +804,7 @@ static MegaSDK * _sharedMegaSDK = nil;
     if (delegate == nil) return;
     
     pthread_mutex_lock(&listenerMutex);
-    self.activeTransferListeners.erase(delegate);
+    _activeTransferListeners.erase(delegate);
     pthread_mutex_unlock(&listenerMutex);
     delete delegate;
 }

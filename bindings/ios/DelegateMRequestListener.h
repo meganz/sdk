@@ -13,8 +13,8 @@ class DelegateMRequestListener : public mega::MegaRequestListener {
 
 public:
     
-    DelegateMRequestListener(MegaSDK *megaSDK, void *listener, bool singleListener = true);
-    void *getUserListener();
+    DelegateMRequestListener(MegaSDK *megaSDK, id<MRequestDelegate>listener, bool singleListener = true);
+    id<MRequestDelegate>getUserListener();
     
     void onRequestStart(mega::MegaApi *api, mega::MegaRequest *request);
     void onRequestFinish(mega::MegaApi *api, mega::MegaRequest *request, mega::MegaError *e);
@@ -23,6 +23,6 @@ public:
     
 private:
     MegaSDK *megaSDK;
-    void *listener;
+    id<MRequestDelegate>listener;
     bool singleListener;
 };

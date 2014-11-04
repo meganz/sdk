@@ -46,33 +46,33 @@ using namespace mega;
 }
 
 - (uint64_t)getHandle:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getHandle(productIndex) : INVALID_HANDLE;
+    return self.pricing ? self.pricing->getHandle((int)productIndex) : INVALID_HANDLE;
 }
 
 - (NSInteger)getProLevel:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getProLevel(productIndex) : 0;
+    return self.pricing ? self.pricing->getProLevel((int)productIndex) : 0;
 }
 
 - (NSInteger)getGBStorage:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getGBStorage(productIndex) : 0;
+    return self.pricing ? self.pricing->getGBStorage((int)productIndex) : 0;
 }
 
 - (NSInteger)getGBTransfer:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getGBTransfer(productIndex) : 0;
+    return self.pricing ? self.pricing->getGBTransfer((int)productIndex) : 0;
 }
 
 - (NSInteger)getMonths:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getMonths(productIndex) : 0;
+    return self.pricing ? self.pricing->getMonths((int)productIndex) : 0;
 }
 
 - (NSInteger)getAmount:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getAmount(productIndex) : 0;
+    return self.pricing ? self.pricing->getAmount((int)productIndex) : 0;
 }
 
 - (NSString *)getCurrency:(NSInteger)productIndex {
     if (!self.pricing) return nil;
     
-    return self.pricing->getCurrency(productIndex) ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency(productIndex)] : nil;
+    return self.pricing->getCurrency((int)productIndex) ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency((int)productIndex)] : nil;
 }
 
 @end

@@ -13,8 +13,8 @@ class DelegateMTransferListener : public mega::MegaTransferListener {
 
 public:
     
-    DelegateMTransferListener(MegaSDK *megaSDK, void *listener, bool singleListener = true);
-    void *getUserListener();
+    DelegateMTransferListener(MegaSDK *megaSDK, id<MTransferDelegate>listener, bool singleListener = true);
+    id<MTransferDelegate>getUserListener();
     
     void onTransferStart(mega::MegaApi *api, mega::MegaTransfer *transfer);
     void onTransferFinish(mega::MegaApi *api, mega::MegaTransfer *transfer, mega::MegaError *e);
@@ -23,6 +23,6 @@ public:
 
 private:
     MegaSDK *megaSDK;
-    void *listener;
+    id<MTransferDelegate>listener;
     bool singleListener;
 };

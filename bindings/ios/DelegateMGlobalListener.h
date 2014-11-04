@@ -12,8 +12,8 @@ class DelegateMGlobalListener : public mega::MegaGlobalListener {
     
 public:
     
-    DelegateMGlobalListener(MegaSDK *megaSDK, void *listener);
-    void *getUserListener();
+    DelegateMGlobalListener(MegaSDK *megaSDK, id<MGlobalListenerDelegate> listener);
+    id<MGlobalListenerDelegate> getUserListener();
     
     void onUsersUpdate(mega::MegaApi* api);
     void onNodesUpdate(mega::MegaApi* api);
@@ -21,5 +21,5 @@ public:
     
 private:
     MegaSDK *megaSDK;
-    void *listener;
+    id<MGlobalListenerDelegate> listener;
 };
