@@ -11,7 +11,6 @@
 		4135AE9C19F5882E00A8A56A /* MWPhotoBrowser.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */; };
 		4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4135AEA619F58A2500A8A56A /* libMWPhotoBrowser.a */; };
 		4135AEA919F5922300A8A56A /* MessageUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFEC19F57FDC0081D102 /* MessageUI.framework */; };
-		4135AEAA19F5923100A8A56A /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFF219F580020081D102 /* ImageIO.framework */; };
 		4135AEAB19F5923700A8A56A /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFEE19F57FE60081D102 /* QuartzCore.framework */; };
 		4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFF019F57FF10081D102 /* AssetsLibrary.framework */; };
 		41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41663FAA1A01571E0035F7D6 /* SettingsViewController.m */; };
@@ -29,6 +28,8 @@
 		416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */; };
 		416812AF19EE8FAC00C72800 /* SVProgressHUD.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 416812AC19EE8FAC00C72800 /* SVProgressHUD.bundle */; };
 		416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812AE19EE8FAC00C72800 /* SVProgressHUD.m */; };
+		41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
+		41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
 		41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B4553A19F1218000439D45 /* NodeTableViewCell.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
 /* End PBXBuildFile section */
@@ -83,7 +84,8 @@
 		417BBFEC19F57FDC0081D102 /* MessageUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MessageUI.framework; path = System/Library/Frameworks/MessageUI.framework; sourceTree = SDKROOT; };
 		417BBFEE19F57FE60081D102 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		417BBFF019F57FF10081D102 /* AssetsLibrary.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AssetsLibrary.framework; path = System/Library/Frameworks/AssetsLibrary.framework; sourceTree = SDKROOT; };
-		417BBFF219F580020081D102 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
+		41AB68FD1A094459003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
 		41B4553919F1218000439D45 /* NodeTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NodeTableViewCell.h; sourceTree = "<group>"; };
 		41B4553A19F1218000439D45 /* NodeTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NodeTableViewCell.m; sourceTree = "<group>"; };
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
@@ -94,9 +96,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */,
+				41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */,
 				4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */,
 				4135AEAB19F5923700A8A56A /* QuartzCore.framework in Frameworks */,
-				4135AEAA19F5923100A8A56A /* ImageIO.framework in Frameworks */,
 				4135AEA919F5922300A8A56A /* MessageUI.framework in Frameworks */,
 				4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */,
 				41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */,
@@ -206,7 +209,8 @@
 		4168129C19EE6E6D00C72800 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				417BBFF219F580020081D102 /* ImageIO.framework */,
+				41AB68FD1A094459003FE608 /* ImageIO.framework */,
+				41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */,
 				417BBFF019F57FF10081D102 /* AssetsLibrary.framework */,
 				417BBFEE19F57FE60081D102 /* QuartzCore.framework */,
 				417BBFEC19F57FDC0081D102 /* MessageUI.framework */,

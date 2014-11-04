@@ -38,6 +38,10 @@ DEALINGS IN THE SOFTWARE.
 #include <fcntl.h>
 #endif
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -72,6 +76,9 @@ typedef CppMutex MegaMutex;
 class MegaGfxProc : public GfxProcQT {};
 #elif USE_FREEIMAGE
 class MegaGfxProc : public GfxProcFreeImage {};
+#elif TARGET_OS_IPHONE
+#include "mega/gfx/GfxProcCG.h"
+class MegaGfxProc : public GfxProcCG {};
 #else
 class MegaGfxProc : public GfxProcExternal {};
 #endif

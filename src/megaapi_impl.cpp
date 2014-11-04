@@ -23,7 +23,6 @@
 #ifdef __APPLE__
     #include <xlocale.h>
     #include <strings.h>
-    #include <TargetConditionals.h>
 
     #ifdef TARGET_OS_IPHONE
     #include <resolv.h>
