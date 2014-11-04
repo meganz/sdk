@@ -198,19 +198,15 @@
 #pragma mark - MTransferDelegate
 
 - (void)onTransferStart:(MegaSDK *)api transfer:(MTransfer *)transfer {
-    NSLog(@"onTransferStart");
 }
 
 - (void)onTransferUpdate:(MegaSDK *)api transfer:(MTransfer *)transfer {
-    NSLog(@"onTransferUpdate");
 }
 
 - (void)onTransferFinish:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
-    NSLog(@"onTransferFinish");
 }
 
 -(void)onTransferTemporaryError:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
-    NSLog(@"onTransferTemporaryError");
 }
 
 
