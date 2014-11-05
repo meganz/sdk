@@ -1049,7 +1049,7 @@ void CurlHttpIO::drop_pending_requests()
     }
 }
 
-// unpause potentially paused connection after more data was added to req->out, calling read_data() again
+// unpause potentially paused connection after more data was added to req->chunkedout, calling read_data() again
 void CurlHttpIO::sendchunked(HttpReq* req)
 {
     if (req->httpiohandle)
@@ -1058,6 +1058,9 @@ void CurlHttpIO::sendchunked(HttpReq* req)
 
         if (httpctx->curl)
         {
+            req->out->append(req->chunkedout);
+            req->chunkedout.clear();
+
             curl_easy_pause(httpctx->curl, CURLPAUSE_CONT);
         }
     }

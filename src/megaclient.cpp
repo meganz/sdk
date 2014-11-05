@@ -23,10 +23,10 @@
 
 namespace mega {
 
+// FIXME: re-encrypt nodes leaving an outbound share
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
-// FIXME: replicate folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
 
 // root URL for API access
@@ -2141,6 +2141,10 @@ void MegaClient::faf_failed(int fac)
     if (cit != fafcs.end())
     {
         cit->second->req.disconnect();
+
+        // since the request will be recycled, clear output buffers
+        cit->second->req.outbuf.clear();
+        cit->second->req.chunkedout.clear();
 
 	for (faf_map::iterator it = cit->second->fafs[1].begin(); it != cit->second->fafs[1].end(); )
         {
