@@ -26,6 +26,7 @@
 #include "mega.h"
 
 namespace mega {
+extern bool debug;
 
 class MEGA_API WinHttpIO: public HttpIO
 {
@@ -49,6 +50,8 @@ public:
 
     void post(HttpReq*, const char* = 0, unsigned = 0);
     void cancel(HttpReq*);
+
+    void sendchunked(HttpReq*);
 
     m_off_t postpos(void*);
 

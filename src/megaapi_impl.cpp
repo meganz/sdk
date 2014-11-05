@@ -441,6 +441,11 @@ MegaNode *MegaTransferPrivate::getPublicNode() const
 	return publicNode;
 }
 
+MegaNode *MegaTransferPrivate::getPublicMegaNode() const
+{
+	return publicNode->copy();
+}
+
 bool MegaTransferPrivate::isSyncTransfer() const
 {
 	return syncTransfer;
@@ -567,9 +572,13 @@ void MegaTransferPrivate::setUpdateTime(int64_t updateTime)
 }
 void MegaTransferPrivate::setPublicNode(MegaNode *publicNode)
 {
-    if(this->publicNode) delete this->publicNode;
-    if(!publicNode) this->publicNode = NULL;
-    else this->publicNode = publicNode->copy();
+    if(this->publicNode)
+    	delete this->publicNode;
+
+    if(!publicNode)
+    	this->publicNode = NULL;
+    else
+    	this->publicNode = publicNode->copy();
 }
 
 void MegaTransferPrivate::setSyncTransfer(bool syncTransfer)
@@ -994,9 +1003,14 @@ void MegaRequestPrivate::setNumDetails(int numDetails)
 	this->numDetails = numDetails;
 }
 
-MegaNode *MegaRequestPrivate::getPublicNode()
+MegaNode *MegaRequestPrivate::getPublicNode() const
 {
 	return publicNode;
+}
+
+MegaNode *MegaRequestPrivate::getPublicMegaNode() const
+{
+	return publicNode->copy();
 }
 
 void MegaRequestPrivate::setNodeHandle(uint64_t nodeHandle)

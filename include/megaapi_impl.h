@@ -278,6 +278,7 @@ class MegaTransferPrivate : public MegaTransfer
 		virtual long long getDeltaSize() const;
         virtual int64_t getUpdateTime() const;
         virtual MegaNode *getPublicNode() const;
+        virtual MegaNode *getPublicMegaNode() const;
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
 		virtual char *getLastBytes() const;
@@ -364,7 +365,8 @@ class MegaRequestPrivate : public MegaRequest
 		virtual const char* getFile() const;
 		virtual int getNumRetry() const;
 		virtual int getNextRetryDelay() const;
-        virtual MegaNode *getPublicNode();
+        virtual MegaNode *getPublicNode() const;
+        virtual MegaNode *getPublicMegaNode() const;
         virtual int getParamType() const;
         virtual const char *getText() const;
         virtual int getNumber() const;

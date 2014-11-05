@@ -23,10 +23,10 @@
 
 namespace mega {
 
+// FIXME: re-encrypt nodes leaving an outbound share
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
-// FIXME: replicate folder timestamps
 // FIXME: prevent synced folder from being moved into another synced folder
 
 // root URL for API access
@@ -570,34 +570,39 @@ void MegaClient::exec()
             {
                 fc = cit->second;
 
-                if (fc->req.status == REQ_FAILURE
-                 && fc->bt.armed() && (fc->fafs[0].size() || fc->req.out->size()))
+                httpio->lock();
+
+                if (fc->req.status != REQ_INFLIGHT
+                 && fc->bt.armed() && (fc->fafs[0].size() || fc->req.chunkedout.size()))
                 {
                     // fetches pending for this unconnected channel - dispatch fresh connection
                     reqs[r].add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
                     fc->req.status = REQ_INFLIGHT;
+                    fc->req.chunked = true;
                     fc->req.in.clear();
                 }
 
-                // send fresh requests for this channel
-                if (fc->req.status == REQ_INFLIGHT && fc->fafs[0].size())
+                // send (continuously, if chunked mode available) fresh requests for this channel
+                if (fc->req.chunked && fc->req.status == REQ_INFLIGHT && fc->fafs[0].size())
                 {
-                    fc->req.out->reserve(fc->req.out->size() + fc->fafs[0].size() * sizeof(handle));
+                    fc->req.chunkedout.reserve(fc->req.chunkedout.size() + fc->fafs[0].size() * sizeof(handle));
 
                     for (faf_map::iterator it = fc->fafs[0].begin(); it != fc->fafs[0].end(); )
                     {
                         if (fc->req.status == REQ_INFLIGHT && !fc->fafs[1].size())
                         {
-                            fc->timeout.backoff(100);
+                            fc->timeout.backoff(30);
                         }
 
-                        fc->req.out->append((char*)&it->first, sizeof(handle));
+                        fc->req.chunkedout.append((char*)&it->first, sizeof(handle));
                         fc->fafs[1][it->first] = it->second;
                         fc->fafs[0].erase(it++);
                     }
 
                     httpio->sendchunked(&fc->req);
                 }
+
+                httpio->unlock();
 
                 // is this request currently in flight?
                 switch (fc->req.status)
@@ -1355,7 +1360,7 @@ int MegaClient::wait()
                     cit->second->timeout.update(&nds);
                 }
             }
-            else if (cit->second->req.status == REQ_FAILURE)
+            else
             {
                 cit->second->bt.update(&nds);
             }
@@ -2136,6 +2141,10 @@ void MegaClient::faf_failed(int fac)
     if (cit != fafcs.end())
     {
         cit->second->req.disconnect();
+
+        // since the request will be recycled, clear output buffers
+        cit->second->req.outbuf.clear();
+        cit->second->req.chunkedout.clear();
 
 	for (faf_map::iterator it = cit->second->fafs[1].begin(); it != cit->second->fafs[1].end(); )
         {
