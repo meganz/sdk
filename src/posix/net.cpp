@@ -209,6 +209,8 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     CurlHttpContext* httpctx = (CurlHttpContext*)arg;
     CurlHttpIO* httpio = httpctx->httpio;
 
+    LOG_verbose << "c-ares info received (proxy)";
+
     httpctx->ares_pending--;
 
     if (!httpctx->ares_pending)
@@ -221,11 +223,17 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     {
         if (!httpctx->ares_pending)
         {
+            LOG_verbose << "Proxy ready";
+
             // name resolution finished.
             // nothing more to do.
             // free resources and continue sending requests.
             delete httpctx;
             httpio->send_pending_requests();
+        }
+        else
+        {
+            LOG_verbose << "Proxy ready. Waiting for c-ares";
         }
 
         return;
@@ -239,6 +247,8 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
      && (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
      && (host->h_addrtype != PF_INET6 || httpio->ipv6available()))
     {
+        LOG_verbose << "Received a valid IP for the proxy";
+
         // save the IP of the proxy
         char ip[INET6_ADDRSTRLEN];
 
@@ -255,6 +265,8 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 
     if (!httpctx->ares_pending)
     {
+        LOG_verbose << "c-ares request finished";
+
         // name resolution finished
         // if the IP is valid, use it and continue sending requests.
         if (httpio->proxyhost == httpctx->hostname && httpctx->hostip.size())
@@ -270,6 +282,8 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
         }
         else if (!httpio->proxyinflight)
         {
+            LOG_err << "Invalid proxy IP";
+
             httpio->inetstatus(false);
 
             // the IP isn't up to date and there aren't pending
@@ -279,9 +293,17 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             // reinitialize c-ares to prevent persistent hangs
             httpio->reset = true;
         }
+        else
+        {
+            LOG_debug << "Waiting for the IP of the proxy";
+        }
 
         // nothing more to do - free resources
         delete httpctx;
+    }
+    else
+    {
+        LOG_verbose << "Waiting for the completion of the c-ares request (proxy)";
     }
 }
 
@@ -292,10 +314,13 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     HttpReq* req = httpctx->req;
     httpctx->ares_pending--;
 
+    LOG_verbose << "c-ares info received";
+
     if (!req) // the request was cancelled
-    {
+    {        
         if (!httpctx->ares_pending)
         {
+            LOG_debug << "Request cancelled";
             delete httpctx;
         }
 
@@ -306,8 +331,9 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     if (status == ARES_SUCCESS && host && host->h_addr_list[0])
     {
         char ip[INET6_ADDRSTRLEN];
-
         inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
+
+        LOG_verbose << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
 
         // add to DNS cache
         CurlDNSEntry& dnsEntry = httpio->dnscache[httpctx->hostname];
@@ -342,9 +368,20 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             httpctx->hostip = oss.str();
         }
     }
+    else if(status != ARES_SUCCESS)
+    {
+        LOG_verbose << "c-ares error. code: " << status;
+    }
+    else
+    {
+        LOG_err << "Unknown c-ares error";
+    }
+
 
     if (!httpctx->ares_pending)
     {
+        LOG_verbose << "Name resolution finished";
+
         // name resolution finished
         // check for fatal errors
         if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
@@ -355,6 +392,8 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
             if (!httpctx->hostip.size())
             {
+                LOG_debug << "Unable to get the IP for " << httpctx->hostname;
+
                 // unable to get the IP.
                 httpio->inetstatus(false);
 
@@ -377,13 +416,23 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
             if (!httpio->proxyinflight)
             {
+                LOG_err << "Unable to get the IP of the proxy";
+
                 // c-ares failed to get the IP of the proxy.
                 // queue this request and retry.
                 httpio->ipv6proxyenabled = !httpio->ipv6proxyenabled && httpio->ipv6available();
                 httpio->request_proxy_ip();
                 return;
             }
+            else
+            {
+                LOG_verbose << "Waiting for the IP of the proxy";
+            }
         }
+    }
+    else
+    {
+        LOG_verbose << "Waiting for the completion of the c-ares request";
     }
 }
 
@@ -518,9 +567,11 @@ void CurlHttpIO::request_proxy_ip()
     if (ipv6proxyenabled)
     {
         httpctx->ares_pending++;
+        LOG_debug << "Resolving IPv6 address for proxy: " << proxyhost;
         ares_gethostbyname(ares, proxyhost.c_str(), PF_INET6, proxy_ready_callback, httpctx);
     }
 
+    LOG_debug << "Resolving IPv4 address for proxy: " << proxyhost;
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
 }
 
@@ -678,30 +729,66 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     req->httpiohandle = (void*)httpctx;
 
+    bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
-     || !crackurl(&req->posturl, &httpctx->hostname, &httpctx->port)) // invalid request
+     || !(validrequest = crackurl(&req->posturl, &httpctx->hostname, &httpctx->port))) // invalid request
     {
+        if(validrequest)
+        {
+            LOG_err << "Malformed proxy string: " << proxyurl;
+        }
+        else
+        {
+            LOG_err << "Invalid request: " << req->posturl;
+        }
+
         req->status = REQ_FAILURE;
         statechange = true;
         return;
     }
 
-    if (!ipv6requestsenabled && ipv6available())
+    if (!ipv6requestsenabled && ipv6available() && ((Waiter::ds - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_DS))
     {
-        if ((Waiter::ds - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_DS)
-        {
-            ipv6requestsenabled = true;
-        }
+        ipv6requestsenabled = true;
     }
 
     if (reset)
     {
+        LOG_err << "Error in c-ares. Reinitializing...";
+
+        struct ares_options options;
+        int optmask;
+        if(ares_save_options(ares, &options, &optmask) == ARES_SUCCESS)
+        {
+            if(optmask & ARES_OPT_SERVERS)
+            {
+                string invalidservers;
+                for(int i=0; i < options.nservers; i++)
+                {
+                    char *ip = inet_ntoa(options.servers[i]);
+                    if(ip)
+                    {
+                        invalidservers.append(ip);
+                        if(i != (options.nservers -1))
+                        {
+                            invalidservers.append(";");
+                        }
+                    }
+                }
+
+                LOG_err << "Invalid DNS servers: " << invalidservers;
+            }
+            ares_destroy_options(&options);
+        }
+
+
         reset = false;
         ares_destroy(ares);
         ares_init(&ares);
 
         if (dnsservers.size())
         {
+            LOG_info << "Using custom DNS servers: " << dnsservers;
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
     }
@@ -762,6 +849,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
 
         httpctx->ares_pending++;
+        LOG_debug << "Resolving IPv6 address for " << httpctx->hostname;
         ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
     }
     else
@@ -778,6 +866,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
     }
 
+    LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
 }
 
