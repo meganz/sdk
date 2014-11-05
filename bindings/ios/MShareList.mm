@@ -8,6 +8,8 @@
 #import "MShareList.h"
 #import "MShare+init.h"
 
+using namespace mega;
+
 @interface MShareList ()
 
 @property ShareList *shareList;

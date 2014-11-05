@@ -8,6 +8,8 @@
 #import "MTransfer.h"
 #import "MNode+init.h"
 
+using namespace mega;
+
 @interface MTransfer ()
 
 @property MegaTransfer *megaTransfer;
@@ -17,7 +19,7 @@
 
 @implementation MTransfer
 
-- (instancetype)initWithMegaTransfer:(mega::MegaTransfer *)megaTransfer cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithMegaTransfer:(MegaTransfer *)megaTransfer cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
     if (self != nil) {

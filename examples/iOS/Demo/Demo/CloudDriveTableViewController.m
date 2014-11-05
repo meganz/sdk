@@ -10,6 +10,7 @@
 #import "NodeTableViewCell.h"
 #import "SVProgressHUD.h"
 #import "LoginViewController.h"
+#import "MegaSDKManager.h"
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
 #define isImage(n)  [imagesSet containsObject:n]
@@ -27,13 +28,12 @@
     [super viewDidLoad];
     if (!self.root) {
         [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [[MegaSDK sharedMegaSDK] getChildrenWithParent:[[MegaSDK sharedMegaSDK] getRootNode]];
+        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
     } else {
         [self.navigationItem setTitle:[self.root getName]];
-        self.nodes = [[MegaSDK sharedMegaSDK] getChildrenWithParent:self.root];
+        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.root];
     }
 
-    //Create two directories inside DocumentDirectory: thumbnails and previews
     NSString *path;
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
     path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
@@ -80,7 +80,7 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists && [node getType] == MNodeTypeFile && [node hasThumbnail]) {
-        [[MegaSDK sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:self];
+        [[MegaSDKManager sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:self];
     }
     
     cell.nameLabel.text = [node getName];
@@ -108,9 +108,9 @@
     MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
     switch ([node getType]) {
         case MNodeTypeFolder: {
-            CloudDriveTableViewController *cv = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
-            [cv setRoot:node];
-            [self.navigationController pushViewController:cv animated:YES];
+            CloudDriveTableViewController *cdvc = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
+            [cdvc setRoot:node];
+            [self.navigationController pushViewController:cdvc animated:YES];
             break;
         }
            
@@ -121,7 +121,7 @@
             BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
 
             if (!fileExists) {
-                [[MegaSDK sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath delegate:self];
+                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath delegate:self];
             }
         }
             
@@ -131,7 +131,7 @@
 }
 
 - (IBAction)logout:(id)sender {
-    [[MegaSDK sharedMegaSDK] logoutWithDelegate:self];
+    [[MegaSDKManager sharedMegaSDK] logoutWithDelegate:self];
 }
 
 #pragma mark - MRequestDelegate
@@ -165,9 +165,9 @@
             }
             [SVProgressHUD dismiss];
             UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
-            LoginViewController *add = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
+            LoginViewController *lvc = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
             
-            [self presentViewController:add animated:YES completion:nil];
+            [self presentViewController:lvc animated:YES completion:nil];
             break;
         }
             

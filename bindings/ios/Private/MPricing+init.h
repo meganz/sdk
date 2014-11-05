@@ -9,11 +9,9 @@
 #import "MPricing.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MPricing (init)
 
-- (instancetype)initWithMegaPricing:(MegaPricing *)pricing cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaPricing *)getCPtr;
+- (instancetype)initWithMegaPricing:(mega::MegaPricing *)pricing cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaPricing *)getCPtr;
 
 @end

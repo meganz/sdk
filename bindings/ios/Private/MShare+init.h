@@ -7,12 +7,9 @@
 
 #import "MShare.h"
 #import "megaapi.h"
-
-using namespace mega;
-
 @interface MShare (init)
 
-- (instancetype)initWithMegaShare:(MegaShare *)megaShare cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaShare *) getCPtr;
+- (instancetype)initWithMegaShare:(mega::MegaShare *)megaShare cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaShare *) getCPtr;
 
 @end

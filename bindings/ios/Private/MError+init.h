@@ -8,11 +8,9 @@
 #import "MError.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MError (init)
 
-- (instancetype)initWithMegaError:(MegaError *)megaError cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaError *)getCPtr;
+- (instancetype)initWithMegaError:(mega::MegaError *)megaError cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaError *)getCPtr;
 
 @end

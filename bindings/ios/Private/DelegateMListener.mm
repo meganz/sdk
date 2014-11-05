@@ -10,6 +10,8 @@
 #import "MError+init.h"
 #import "MRequest+init.h"
 
+using namespace mega;
+
 DelegateMListener::DelegateMListener(MegaSDK *megaSDK, id<MListenerDelegate>listener) {
     this->megaSDK = megaSDK;
     this->listener = listener;

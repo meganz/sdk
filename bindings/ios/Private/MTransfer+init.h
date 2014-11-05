@@ -8,11 +8,9 @@
 #import "MTransfer.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MTransfer (init)
 
-- (instancetype)initWithMegaTransfer:(MegaTransfer *)megaTransfer cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaTransfer *)getCPtr;
+- (instancetype)initWithMegaTransfer:(mega::MegaTransfer *)megaTransfer cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaTransfer *)getCPtr;
 
 @end

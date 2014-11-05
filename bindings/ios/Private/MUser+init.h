@@ -8,11 +8,9 @@
 #import "MUser.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MUser (init)
 
-- (instancetype)initWithMegaUser:(MegaUser *)megaUser cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaUser *)getCPtr;
+- (instancetype)initWithMegaUser:(mega::MegaUser *)megaUser cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaUser *)getCPtr;
 
 @end

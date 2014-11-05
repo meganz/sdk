@@ -40,35 +40,11 @@ using namespace mega;
 - (MegaListener *)createDelegateMListener:(id<MListenerDelegate>)delegate;
 
 @property MegaApi *megaApi;
-- (MegaApi *) getCPtr;
+- (MegaApi *)getCPtr;
 
 @end
 
 @implementation MegaSDK
-
-static NSString *_appKey = nil;
-static NSString *_userAgent = nil;
-static MegaSDK * _sharedMegaSDK = nil;
-
-#pragma mark - Statics methods
-
-+ (void)setAppKey:(NSString *)appKey {
-    _appKey = appKey;
-}
-
-+ (void)setUserAgent:(NSString *)userAgent {
-    _userAgent = userAgent;
-}
-
-+ (instancetype)sharedMegaSDK {
-    if (!_sharedMegaSDK) {
-        NSAssert(_appKey != nil, @"setAppKey: should be called first");
-        NSAssert(_userAgent != nil, @"setUserAgent: should be called first");
-        _sharedMegaSDK = [[MegaSDK alloc] initWithAppKey:_appKey userAgent:_userAgent];
-    }
-    return _sharedMegaSDK;
-
-}
 
 #pragma mark - Init with app Key
 

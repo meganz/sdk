@@ -8,11 +8,9 @@
 #import "MShareList.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MShareList (init)
 
-- (instancetype)initWithShareList:(ShareList *)shareList cMemoryOwn:(BOOL)cMemoryOwn;
-- (ShareList *)getCPtr;
+- (instancetype)initWithShareList:(mega::ShareList *)shareList cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::ShareList *)getCPtr;
 
 @end

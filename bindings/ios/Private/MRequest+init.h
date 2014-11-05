@@ -8,11 +8,9 @@
 #import "MRequest.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MRequest (init)
 
-- (instancetype)initWithMegaRequest:(MegaRequest *)megaNode cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaRequest *)getCPtr;
+- (instancetype)initWithMegaRequest:(mega::MegaRequest *)megaNode cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaRequest *)getCPtr;
 
 @end

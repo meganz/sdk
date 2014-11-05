@@ -8,6 +8,8 @@
 #import "MNodeList.h"
 #import "MNode+init.h"
 
+using namespace mega;
+
 @interface MNodeList ()
 
 @property NodeList *nodeList;

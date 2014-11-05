@@ -9,6 +9,7 @@
 #import "LoginViewController.h"
 #import "CloudDriveTableViewController.h"
 #import "SVProgressHUD.h"
+#import "MegaSDKManager.h"
 
 #define kSession @"kSession"
 #define kEmail @"kEmail"
@@ -31,7 +32,7 @@
 }
 
 - (IBAction)tapLogin:(id)sender {
-    [[MegaSDK sharedMegaSDK] loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
+    [[MegaSDKManager sharedMegaSDK] loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
 }
 
 #pragma mark - MRequestDelegate
@@ -72,7 +73,7 @@
     
     switch ([request getType]) {
         case MRequestTypeLogin: {
-            [[MegaSDK sharedMegaSDK] fetchNodesWithListener:self];
+            [api fetchNodesWithListener:self];
             break;
         }
             

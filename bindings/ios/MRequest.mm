@@ -9,6 +9,8 @@
 #import "MNode+init.h"
 #import "MPricing+init.h"
 
+using namespace mega;
+
 @interface MRequest()
 
 @property MegaRequest *megaRequest;

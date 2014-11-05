@@ -8,6 +8,8 @@
 #import "MUserList.h"
 #import "MUser+init.h"
 
+using namespace mega;
+
 @interface MUserList ()
 
 @property UserList *userList;

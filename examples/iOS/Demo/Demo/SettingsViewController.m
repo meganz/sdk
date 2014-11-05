@@ -7,6 +7,7 @@
 //
 
 #import "SettingsViewController.h"
+#import "MegaSDKManager.h"
 
 @interface SettingsViewController ()
 
@@ -19,8 +20,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    [[MegaSDK sharedMegaSDK] getAccountDetailsWithDelegate:self];
-    self.userEmail.text = [[MegaSDK sharedMegaSDK] getMyEmail];
+    self.userEmail.text = [[MegaSDKManager sharedMegaSDK] getMyEmail];
     [self setUserAvatar];
     
 }
@@ -34,7 +34,7 @@
 
 - (void)setUserAvatar {
     
-    MUser *user = [[MegaSDK sharedMegaSDK] getContactWithEmail:self.userEmail.text];
+    MUser *user = [[MegaSDKManager sharedMegaSDK] getContactWithEmail:self.userEmail.text];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
     NSString *fileName = [self.userEmail.text stringByAppendingString:@".jpg"];
     NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
@@ -42,7 +42,7 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists) {
-        [[MegaSDK sharedMegaSDK] getAvatarWithUser:user destinationFilePath:destinationFilePath delegate:self];
+        [[MegaSDKManager sharedMegaSDK] getAvatarWithUser:user destinationFilePath:destinationFilePath delegate:self];
     } else {
         [self.userAvatar setImage:[UIImage imageNamed:destinationFilePath]];
         

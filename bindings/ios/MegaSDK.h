@@ -37,10 +37,6 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 
 @interface MegaSDK : NSObject 
 
-+ (void)setAppKey:(NSString *)appKey;
-+ (void)setUserAgent:(NSString *)userAgent;
-+ (instancetype)sharedMegaSDK;
-
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent;
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath;
 

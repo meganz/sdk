@@ -8,11 +8,9 @@
 #import "MNodeList.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MNodeList (init)
 
-- (instancetype)initWithNodeList:(NodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn;
-- (NodeList *)getCPtr;
+- (instancetype)initWithNodeList:(mega::NodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::NodeList *)getCPtr;
 
 @end

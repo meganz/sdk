@@ -8,11 +8,9 @@
 #import "MUserList.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MUserList (init)
 
-- (instancetype)initWithUserList:(UserList *)userList cMemoryOwn:(BOOL)cMemoryOwn;
-- (UserList *)getCPtr;
+- (instancetype)initWithUserList:(mega::UserList *)userList cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::UserList *)getCPtr;
 
 @end

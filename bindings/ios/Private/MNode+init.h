@@ -8,11 +8,9 @@
 #import "MNode.h"
 #import "megaapi.h"
 
-using namespace mega;
-
 @interface MNode (init)
 
-- (instancetype)initWithMegaNode:(MegaNode *)megaNode cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaNode *)getCPtr;
+- (instancetype)initWithMegaNode:(mega::MegaNode *)megaNode cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaNode *)getCPtr;
 
 @end

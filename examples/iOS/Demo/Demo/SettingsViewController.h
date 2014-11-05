@@ -11,6 +11,4 @@
 
 @interface SettingsViewController : UIViewController <MRequestDelegate>
 
-@property (nonatomic, strong) MegaSDK *megaSDK;
-
 @end

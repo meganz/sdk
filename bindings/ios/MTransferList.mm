@@ -8,6 +8,8 @@
 #import "MTransferList.h"
 #import "MTransfer+init.h"
 
+using namespace mega;
+
 @interface MTransferList ()
 
 @property TransferList *transferList;
