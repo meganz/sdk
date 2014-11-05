@@ -7,8 +7,8 @@
 //
 
 #import "MegaSDK.h"
-#import "../DelegateMRequestListener.h"
-#import "../DelegateMTransferListener.h"
+#import "DelegateMRequestListener.h"
+#import "DelegateMTransferListener.h"
 
 @interface MegaSDK (init)
 
