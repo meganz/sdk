@@ -385,20 +385,28 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         // name resolution finished
         // check for fatal errors
         if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
-         || !httpctx->hostip.size()) // or unable to get the IP for this request
+         || (!httpctx->hostip.size() && !httpio->proxyip.size())) // or unable to get the IP for this request
         {
-            req->status = REQ_FAILURE;
-            httpio->statechange = true;
-
-            if (!httpctx->hostip.size())
+            if(!httpio->proxyinflight)
             {
-                LOG_debug << "Unable to get the IP for " << httpctx->hostname;
+                req->status = REQ_FAILURE;
+                httpio->statechange = true;
 
-                // unable to get the IP.
-                httpio->inetstatus(false);
+                if (!httpctx->hostip.size())
+                {
+                    LOG_debug << "Unable to get the IP for " << httpctx->hostname;
 
-                // reinitialize c-ares to prevent permanent hangs
-                httpio->reset = true;
+                    // unable to get the IP.
+                    httpio->inetstatus(false);
+
+                    // reinitialize c-ares to prevent permanent hangs
+                    httpio->reset = true;
+                }
+            }
+            else
+            {
+                httpio->pendingrequests.push(httpctx);
+                LOG_debug << "Waiting for the IP of the proxy (1)";
             }
 
             return;
@@ -426,7 +434,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             }
             else
             {
-                LOG_verbose << "Waiting for the IP of the proxy";
+                LOG_debug << "Waiting for the IP of the proxy (2)";
             }
         }
     }
@@ -475,9 +483,24 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         LOG_debug << "Sending: " << *req->out;
     }
 
-    req->posturl.replace(req->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
-    httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
+    if(httpctx->hostip.size())
+    {
+        req->posturl.replace(req->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
+        httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
+    }
+    else
+    {
+        if(httpio->proxyip.size())
+        {
+            LOG_debug << "Using the hostname instead of the IP";
+        }
+        else
+        {
+            LOG_err << "No IP nor proxy available";
+        }
+    }
+
 
     CURL* curl;
 
@@ -722,6 +745,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->len = len;
     httpctx->data = data;
     httpctx->headers = NULL;
+    httpctx->isIPv6 = false;
     httpctx->ares_pending = 0;
 
     req->outbuf.append(req->chunkedout);
@@ -829,6 +853,15 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
+
+    if(proxyip.size())
+    {
+        //If we are using a proxy, don't resolve the IP
+        LOG_debug << "Sending the request through the proxy";
+        send_request(httpctx);
+        return;
+    }
+
     httpctx->hostheader = "Host: ";
     httpctx->hostheader.append(httpctx->hostname);
     httpctx->ares_pending = 1;
@@ -1061,7 +1094,11 @@ bool CurlHttpIO::doio()
 
                         req->httpio = this;
                         req->in.clear();
-                        req->posturl.replace(req->posturl.find(httpctx->hostip), httpctx->hostip.size(), httpctx->hostname);
+                        if(httpctx->hostip.size())
+                        {
+                            req->posturl.replace(req->posturl.find(httpctx->hostip), httpctx->hostip.size(), httpctx->hostname);
+                        }
+
                         req->status = REQ_INFLIGHT;
                         httpctx->ares_pending = 0;
                         httpctx->isIPv6 = false;
