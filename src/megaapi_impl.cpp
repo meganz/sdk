@@ -6413,11 +6413,6 @@ ExternalLogger::ExternalLogger()
 {
 	mutex.init(true);
 	this->megaLogger = NULL;
-
-#ifdef DEBUG
-    SimpleLogger::setLogLevel(logDebug);
-#endif
-
 	SimpleLogger::setOutputClass(this);
 }
 
