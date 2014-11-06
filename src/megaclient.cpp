@@ -2251,6 +2251,12 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
                 return API_EEXIST;
             }
         }
+        else
+        {
+            FileAttributeFetch** fafp = &(*fafcp)->fafs[1][fah];
+            restag = (*fafp)->tag;
+            return API_EEXIST;
+        }
 
         return API_OK;
     }
