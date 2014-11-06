@@ -3691,14 +3691,13 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries)
 
 void MegaApiImpl::putfa_result(handle, fatype, error e)
 {
-    //There isn't any request triggering these callbacks in the intermediate layer
-    return;
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || request->getType() != MegaRequest::TYPE_SET_ATTR_FILE)
+        return;
 
-    //MegaError megaError(e);
-    //if(requestMap.find(client->restag) == requestMap.end()) return;
-    //MegaRequestPrivate* request = requestMap.at(client->restag);
-    //if(!request) return;
-    //fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char *currency)
