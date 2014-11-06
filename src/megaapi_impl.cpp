@@ -3629,49 +3629,64 @@ void MegaApiImpl::share_result(int, error)
 
 void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return;
-
-    FileAccess *f = client->fsaccess->newfileaccess();
-    string filePath(request->getFile());
-    string localPath;
-    fsAccess->path2local(&filePath, &localPath);
-
-    totalDownloadedBytes += len;
-
-	fsAccess->unlinklocal(&localPath);
-    if(!f->fopen(&localPath, false, true))
+    int tag = client->restag;
+    while(tag)
     {
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_EWRITE));
-        return;
-    }
+        if(requestMap.find(tag) == requestMap.end()) return;
+        MegaRequestPrivate* request = requestMap.at(tag);
+        if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return;
 
-    if(!f->fwrite((const byte*)data, len, 0))
-    {
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_EWRITE));
-        return;
-    }
+        tag = request->getNumber();
 
-	delete f;
-    fireOnRequestFinish(request, MegaError(API_OK));
+        FileAccess *f = client->fsaccess->newfileaccess();
+        string filePath(request->getFile());
+        string localPath;
+        fsAccess->path2local(&filePath, &localPath);
+
+        totalDownloadedBytes += len;
+
+        fsAccess->unlinklocal(&localPath);
+        if(!f->fopen(&localPath, false, true))
+        {
+            delete f;
+            fireOnRequestFinish(request, MegaError(API_EWRITE));
+            continue;
+        }
+
+        if(!f->fwrite((const byte*)data, len, 0))
+        {
+            delete f;
+            fireOnRequestFinish(request, MegaError(API_EWRITE));
+            continue;
+        }
+
+        delete f;
+        fireOnRequestFinish(request, MegaError(API_OK));
+    }
 }
 
 int MegaApiImpl::fa_failed(handle, fatype, int retries)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return 1;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return 1;
+    int tag = client->restag;
+    while(tag)
+    {
+        if(requestMap.find(tag) == requestMap.end()) return 1;
+        MegaRequestPrivate* request = requestMap.at(tag);
+        if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
+            return 1;
 
-	if(retries > 3)
-	{
-        fireOnRequestFinish(request, MegaError(API_EINTERNAL));
-		return 1;
-	}
-    fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
-	return 0;
+        tag = request->getNumber();
+        if(retries > 3)
+        {
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        }
+        else
+        {
+            fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
+        }
+    }
+
+    return (retries > 3);
 }
 
 void MegaApiImpl::putfa_result(handle, fatype, error e)
@@ -5732,6 +5747,39 @@ void MegaApiImpl::sendPendingRequests()
 			if(!dstFilePath || !node) { e = API_EARGS; break; }
 
 			e = client->getfa(node, type);
+            if(e == API_EEXIST)
+            {
+                e = API_OK;
+                int prevtag = client->restag;
+                MegaRequestPrivate* req = NULL;
+                while(prevtag)
+                {
+                    if(requestMap.find(prevtag) == requestMap.end())
+                    {
+                        LOG_err << "Invalid duplicate getattr request";
+                        req = NULL;
+                        e = API_EINTERNAL;
+                        break;
+                    }
+
+                    req = requestMap.at(prevtag);
+                    if(!req || (req->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
+                    {
+                        LOG_err << "Invalid duplicate getattr type";
+                        req = NULL;
+                        e = API_EINTERNAL;
+                        break;
+                    }
+
+                    prevtag = req->getNumber();
+                }
+
+                if(req)
+                {
+                    LOG_debug << "Duplicate getattr detected";
+                    req->setNumber(request->getTag());
+                }
+            }
 			break;
 		}
 		case MegaRequest::TYPE_GET_ATTR_USER:

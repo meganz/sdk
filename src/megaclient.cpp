@@ -2245,6 +2245,11 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
 
                 faftimeout.arm();
             }
+            else
+            {
+                restag = (*fafp)->tag;
+                return API_EEXIST;
+            }
         }
 
         return API_OK;
