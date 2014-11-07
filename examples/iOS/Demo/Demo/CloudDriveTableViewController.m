@@ -102,6 +102,10 @@
     return cell;
 }
 
+- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
+    return YES;
+}
+
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -127,6 +131,18 @@
             
         default:
             break;
+    }
+}
+
+
+- (UITableViewCellEditingStyle)tableView:(UITableView *)tableView editingStyleForRowAtIndexPath:(NSIndexPath *)indexPath {
+    return (UITableViewCellEditingStyleDelete);
+}
+
+- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (editingStyle==UITableViewCellEditingStyleDelete) {
+        MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
+        [[MegaSDKManager sharedMegaSDK] removeNode:node delegate:self];
     }
 }
 
@@ -181,6 +197,17 @@
                 }
             }
             break;
+        }
+            
+        case MRequestTypeRemove: {
+            if (!self.root) {
+                [self.navigationItem setTitle:@"Cloud drive"];
+                self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
+            } else {
+                [self.navigationItem setTitle:[self.root getName]];
+                self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.root];
+            }
+            [self.tableView reloadData];
         }
             
         default:
