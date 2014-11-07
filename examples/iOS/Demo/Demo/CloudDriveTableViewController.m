@@ -19,6 +19,8 @@
 
 @property (nonatomic, strong) MNodeList *nodes;
 @property (nonatomic, strong) NSMutableArray *photoPreviews;
+@property (weak, nonatomic) IBOutlet UIBarButtonItem *logoutItem;
+@property (strong, nonatomic) IBOutlet UIBarButtonItem *addItem;
 
 @end
 
@@ -26,6 +28,10 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    
+    NSArray *buttonsItems = @[self.logoutItem, self.addItem];
+    self.navigationItem.rightBarButtonItems = buttonsItems;
+    
     if (!self.root) {
         [self.navigationItem setTitle:@"Cloud drive"];
         self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
@@ -148,6 +154,21 @@
 
 - (IBAction)logout:(id)sender {
     [[MegaSDKManager sharedMegaSDK] logoutWithDelegate:self];
+}
+
+- (IBAction)optionAdd:(id)sender {
+    UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil
+                                                             delegate:self
+                                                    cancelButtonTitle:@"Cancel"
+                                               destructiveButtonTitle:nil
+                                                    otherButtonTitles:@"Create folder", nil];
+    [actionSheet showFromTabBar:self.tabBarController.tabBar];
+}
+
+#pragma mark - Action sheet delegate
+
+- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
+
 }
 
 #pragma mark - MRequestDelegate

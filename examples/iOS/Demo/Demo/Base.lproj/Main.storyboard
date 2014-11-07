@@ -156,8 +156,17 @@
                         </barButtonItem>
                     </navigationItem>
                     <simulatedToolbarMetrics key="simulatedBottomBarMetrics"/>
+                    <connections>
+                        <outlet property="addItem" destination="Hmf-dX-KOK" id="tQZ-BO-fDr"/>
+                        <outlet property="logoutItem" destination="Sri-5N-TSl" id="H5F-3U-h8F"/>
+                    </connections>
                 </tableViewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="UFk-YB-u5b" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                <barButtonItem systemItem="add" id="Hmf-dX-KOK">
+                    <connections>
+                        <action selector="optionAdd:" destination="iPC-QU-led" id="CNA-Fp-dgW"/>
+                    </connections>
+                </barButtonItem>
             </objects>
             <point key="canvasLocation" x="3554" y="-1204"/>
         </scene>
