@@ -206,20 +206,6 @@ public:
 
 };
 
-// an empty logger class
-class MEGA_API NullLogger {
-public:
-    template<typename T>
-    inline NullLogger& operator<<(T const& obj)
-    {
-        // suppress unused warning
-        (void)obj;
-        return *this;
-    }
-};
-
-// enable debug level if DEBUG symbol is defined
-#ifdef DEBUG
 // output VERBOSE log with line break
 #define LOG_verbose \
     if (SimpleLogger::logCurrentLevel < logMax) ;\
@@ -243,12 +229,6 @@ public:
     if (SimpleLogger::logCurrentLevel < logDebug) ;\
     else \
         SimpleLogger(logDebug, __FILE__, __LINE__, false)
-#else
-#define LOG_verbose NullLogger()
-#define LOGn_verbose NullLogger()
-#define LOG_debug NullLogger()
-#define LOGn_debug NullLogger()
-#endif // DEBUG
 
 #define LOG_info \
     if (SimpleLogger::logCurrentLevel < logInfo) ;\
