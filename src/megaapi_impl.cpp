@@ -1202,6 +1202,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CANCEL_TRANSFERS: return "canceltransfers";
         case TYPE_DELETE: return "delete";
         case TYPE_REPORT_EVENT: return "reportevent";
+        case TYPE_CANCEL_ATTR_FILE: return "cancelattrfile";
+        case TYPE_GET_PRICING: return "getpricing";
+        case TYPE_GET_PAYMENT_URL: return "getpaymenturl";
 	}
 	return "unknown";
 }
@@ -4448,6 +4451,7 @@ void MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
 
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
+    LOG_info << "Request (" << request->getRequestString() << ") starting";
 	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
 		(*it)->onRequestStart(api, request);
 
@@ -4462,6 +4466,14 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+    if(e.getErrorCode())
+    {
+        LOG_warn << "Request (" << request->getRequestString() << ") finished with error: " << e.getErrorString();
+    }
+    else
+    {
+        LOG_info << "Request (" << request->getRequestString() << ") finished";
+    }
 
 	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
 		(*it)->onRequestFinish(api, request, megaError);
@@ -4519,6 +4531,15 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+    if(e.getErrorCode())
+    {
+        LOG_warn << "Transfer (" << transfer->getType() << ") finished with error: " << e.getErrorString()
+                    << " File: " << transfer->getFileName();
+    }
+    else
+    {
+        LOG_info << "Transfer (" << transfer->getType() << ") finished. File: " << transfer->getFileName();
+    }
 
 	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
 		(*it)->onTransferFinish(api, transfer, megaError);
@@ -6128,7 +6149,10 @@ void MegaApiImpl::sendPendingRequests()
 		}
 
 		if(e)
+        {
+            LOG_err << "Error starting request: " << e;
             fireOnRequestFinish(request, MegaError(e));
+        }
 
 		sdkMutex.unlock();
 	}

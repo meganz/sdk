@@ -908,9 +908,15 @@ void MegaClient::exec()
         // (this covers mountovers, some device removals and some failures)
         for (it = syncs.begin(); it != syncs.end(); it++)
         {
-            if ((*it)->fsfp && (*it)->fsfp != (*it)->dirnotify->fsfingerprint())
+            if ((*it)->fsfp)
             {
-                (*it)->changestate(SYNC_FAILED);
+                fsfp_t current = (*it)->dirnotify->fsfingerprint();
+                if ((*it)->fsfp != current)
+                {
+                    LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
+                            << "  Current: " << current;
+                    (*it)->changestate(SYNC_FAILED);
+                }
             }
         }
 
@@ -1012,6 +1018,7 @@ void MegaClient::exec()
                                     }
                                     else
                                     {
+                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
                                         syncup(&sync->localroot, &nds);
                                         sync->cachenodes();
 
@@ -1099,6 +1106,7 @@ void MegaClient::exec()
                         // make sure that the remote synced folder still exists
                         if (!(*it)->localroot.node)
                         {
+                            LOG_err << "The remote root node doesn't exist";
                             (*it)->changestate(SYNC_FAILED);
                         }
                         else

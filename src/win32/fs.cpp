@@ -648,6 +648,7 @@ fsfp_t WinDirNotify::fsfingerprint()
 	if (!GetFileInformationByHandle(hDirectory, &fi))
 #endif
     {
+        LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
         return 0;
     }
 

@@ -503,9 +503,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         client->fsaccess->local2path(&tmppath, &path);
     }
 
+    LOG_verbose << "Scanning: " << path;
+
     // postpone moving nodes into nonexistent parents
     if (parent && !parent->node)
     {
+        LOG_warn << "Parent doesn't exist yet";
         return (LocalNode*)~0;
     }
 
@@ -730,6 +733,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 if (isroot)
                 {
                     // root node cannot be a file
+                    LOG_err << "The local root node is a file";
                     changestate(SYNC_FAILED);
                 }
                 else 
@@ -818,8 +822,11 @@ dstime Sync::procscanq(int q)
 
     while (t--)
     {
+        LOG_verbose << "Scanning... Remaining files: " << t;
+
         if (dirnotify->notifyq[q].front().timestamp > dsmin)
         {
+            LOG_verbose << "Scanning postponed. Modification too recent";
             return dirnotify->notifyq[q].front().timestamp - dsmin;
         }
 
@@ -828,7 +835,11 @@ dstime Sync::procscanq(int q)
             l = checkpath(l, &dirnotify->notifyq[q].front().path);
 
             // defer processing because of a missing parent node?
-            if (l == (LocalNode*)~0) return 0;
+            if (l == (LocalNode*)~0)
+            {
+                LOG_verbose << "Scanning deferred";
+                return 0;
+            }
         }
 
         dirnotify->notifyq[q].pop_front();
