@@ -36,7 +36,7 @@ using namespace mega;
 
 - (MegaRequestListener *)createDelegateMRequestListener:(id<MRequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMTransferListener:(id<MTransferDelegate>)delegate singleListener:(BOOL)singleListener;
-- (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalListenerDelegate>)delegate;
+- (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMListener:(id<MListenerDelegate>)delegate;
 
 @property MegaApi *megaApi;
@@ -91,7 +91,7 @@ using namespace mega;
     self.megaApi->addTransferListener([self createDelegateMTransferListener:delegate singleListener:YES]);
 }
 
-- (void)addGlobalDelegate:(id<MGlobalListenerDelegate>)delegate {
+- (void)addGlobalDelegate:(id<MGlobalDelegate>)delegate {
     self.megaApi->addGlobalListener([self createDelegateMGlobalListener:delegate]);
 }
 
@@ -140,7 +140,7 @@ using namespace mega;
 
 }
 
-- (void)removeGlobalDelegate:(id<MGlobalListenerDelegate>)delegate {
+- (void)removeGlobalDelegate:(id<MGlobalDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMGlobalListener *>::iterator it = self.activeGlobalListeners.begin();
     while (it != self.activeGlobalListeners.end()) {
@@ -747,7 +747,7 @@ using namespace mega;
     return delegateListener;
 }
 
-- (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalListenerDelegate>)delegate {
+- (MegaGlobalListener *)createDelegateMGlobalListener:(id<MGlobalDelegate>)delegate {
     if (delegate == nil) return nil;
     
     DelegateMGlobalListener *delegateListener = new DelegateMGlobalListener(self, delegate);

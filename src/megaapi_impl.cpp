@@ -3524,7 +3524,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 // user addition/update (users never get deleted)
 void MegaApiImpl::users_updated(User** u, int count)
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
     fireOnUsersUpdate(NULL);
 #else
     UserList* userList = new UserListPrivate(u, count);
@@ -4075,7 +4075,7 @@ void MegaApiImpl::reload(const char*)
 // at which point their pointers will become invalid at that point.)
 void MegaApiImpl::nodes_updated(Node** n, int count)
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
     fireOnNodesUpdate(NULL);
 #else
     NodeList *nodeList = NULL;
@@ -4559,7 +4559,7 @@ void MegaApiImpl::fireOnUsersUpdate(UserList *users)
 {
 	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
         (*it)->onUsersUpdate(api);
 #else
         (*it)->onUsersUpdate(api, users);
@@ -4567,7 +4567,7 @@ void MegaApiImpl::fireOnUsersUpdate(UserList *users)
     }
 	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
         (*it)->onUsersUpdate(api);
 #else
         (*it)->onUsersUpdate(api, users);
@@ -4579,7 +4579,7 @@ void MegaApiImpl::fireOnNodesUpdate(NodeList *nodes)
 {
 	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
         (*it)->onNodesUpdate(api);
 #else
         (*it)->onNodesUpdate(api, nodes);
@@ -4587,7 +4587,7 @@ void MegaApiImpl::fireOnNodesUpdate(NodeList *nodes)
     }
 	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
         (*it)->onNodesUpdate(api);
 #else
         (*it)->onNodesUpdate(api, nodes);
@@ -4606,7 +4606,7 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnSyncStateChanged()
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
     return;
 #else
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
@@ -4616,7 +4616,7 @@ void MegaApiImpl::fireOnSyncStateChanged()
 
 void MegaApiImpl::fireOnFileSyncStateChanged(const char *filePath, int newState)
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
     return;
 #else
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)

@@ -19,7 +19,7 @@
 #import "MRequestDelegate.h"
 #import "MListenerDelegate.h"
 #import "MTransferDelegate.h"
-#import "MGlobalListenerDelegate.h"
+#import "MGlobalDelegate.h"
 
 typedef NS_ENUM (NSInteger, MSortOrderType) {
     MSortOrderTypeNone,
@@ -43,11 +43,11 @@ typedef NS_ENUM (NSInteger, MSortOrderType) {
 - (void)addDelegate:(id<MListenerDelegate>)delegate;
 - (void)addRequestDelegate:(id<MRequestDelegate>)delegate;
 - (void)addMTransferDelegate:(id<MTransferDelegate>)delegate;
-- (void)addGlobalDelegate:(id<MGlobalListenerDelegate>)delegate;
+- (void)addGlobalDelegate:(id<MGlobalDelegate>)delegate;
 - (void)removeDelegate:(id<MListenerDelegate>)delegate;
 - (void)removeRequestDelegate:(id<MRequestDelegate>)delegate;
 - (void)removeTransferDelegate:(id<MTransferDelegate>)delegate;
-- (void)removeGlobalDelegate:(id<MGlobalListenerDelegate>)delegate;
+- (void)removeGlobalDelegate:(id<MGlobalDelegate>)delegate;
 
 - (NSString *)getBase64pwkeyWithPassword:(NSString *)password;
 - (NSString *)getStringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf;

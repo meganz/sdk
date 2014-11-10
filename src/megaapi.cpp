@@ -203,7 +203,7 @@ MegaTransferListener::~MegaTransferListener()
 { }
 
 //Global callbacks
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
 void MegaGlobalListener::onUsersUpdate(MegaApi*)
 { }
 void MegaGlobalListener::onNodesUpdate(MegaApi*)
@@ -238,7 +238,7 @@ void MegaListener::onTransferUpdate(MegaApi *, MegaTransfer *)
 void MegaListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError *)
 { }
 
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
 void MegaListener::onUsersUpdate(MegaApi*)
 { }
 void MegaListener::onNodesUpdate(MegaApi*)

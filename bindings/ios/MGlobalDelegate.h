@@ -7,7 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
-@protocol MGlobalListenerDelegate <NSObject>
+@protocol MGlobalDelegate <NSObject>
 
 - (void)onUsersUpdate:(MegaSDK *)api;
 - (void)onNodesUpdate:(MegaSDK *)api;

@@ -15,7 +15,9 @@
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
 #define isImage(n)  [imagesSet containsObject:n]
 
-@interface CloudDriveTableViewController ()
+@interface CloudDriveTableViewController () {
+    UIAlertView *folderAlert;
+}
 
 @property (nonatomic, strong) MNodeList *nodes;
 @property (nonatomic, strong) NSMutableArray *photoPreviews;
@@ -32,14 +34,9 @@
     NSArray *buttonsItems = @[self.logoutItem, self.addItem];
     self.navigationItem.rightBarButtonItems = buttonsItems;
     
-    if (!self.root) {
-        [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
-    } else {
-        [self.navigationItem setTitle:[self.root getName]];
-        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.root];
-    }
-
+    [self reloadUI];
+    [[MegaSDKManager sharedMegaSDK] addGlobalDelegate:(id<MGlobalDelegate>)self];
+    
     NSString *path;
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
     path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
@@ -86,7 +83,7 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists && [node getType] == MNodeTypeFile && [node hasThumbnail]) {
-        [[MegaSDKManager sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:self];
+        [[MegaSDKManager sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:(id<MRequestDelegate>)self];
     }
     
     cell.nameLabel.text = [node getName];
@@ -131,7 +128,7 @@
             BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
 
             if (!fileExists) {
-                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath delegate:self];
+                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath delegate:(id<MTransferDelegate>)self];
             }
         }
             
@@ -148,12 +145,12 @@
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
     if (editingStyle==UITableViewCellEditingStyleDelete) {
         MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
-        [[MegaSDKManager sharedMegaSDK] removeNode:node delegate:self];
+        [[MegaSDKManager sharedMegaSDK] removeNode:node delegate:(id<MRequestDelegate>)self];
     }
 }
 
 - (IBAction)logout:(id)sender {
-    [[MegaSDKManager sharedMegaSDK] logoutWithDelegate:self];
+    [[MegaSDKManager sharedMegaSDK] logoutWithDelegate:(id<MRequestDelegate>)self];
 }
 
 - (IBAction)optionAdd:(id)sender {
@@ -168,7 +165,35 @@
 #pragma mark - Action sheet delegate
 
 - (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if (buttonIndex == 0) {
+        folderAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"newFolderTitle", @"Create new folder") message:NSLocalizedString(@"newFolderName", @"Enter name for new folder") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"createFolder", @"Create"), nil];
+                              [folderAlert setAlertViewStyle:UIAlertViewStylePlainTextInput];
+                              [folderAlert textFieldAtIndex:0].text = @"";
+                              [folderAlert show];
+        [folderAlert show];
+    }
+}
 
+#pragma mark - Alert delegate
+
+- (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
+    if (buttonIndex == 1) {
+        [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.root delegate:(id<MRequestDelegate>)self];
+    }
+}
+
+#pragma mark - Private methods
+
+- (void)reloadUI {
+    if (!self.root) {
+        [self.navigationItem setTitle:@"Cloud drive"];
+        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
+    } else {
+        [self.navigationItem setTitle:[self.root getName]];
+        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.root];
+    }
+    
+    [self.tableView reloadData];
 }
 
 #pragma mark - MRequestDelegate
@@ -220,17 +245,6 @@
             break;
         }
             
-        case MRequestTypeRemove: {
-            if (!self.root) {
-                [self.navigationItem setTitle:@"Cloud drive"];
-                self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
-            } else {
-                [self.navigationItem setTitle:[self.root getName]];
-                self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.root];
-            }
-            [self.tableView reloadData];
-        }
-            
         default:
             break;
     }
@@ -240,6 +254,20 @@
 }
 
 - (void)onRequestTemporaryError:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+}
+
+#pragma mark - MGlobalListener
+
+- (void)onUsersUpdate:(MegaSDK *)api {
+
+}
+
+- (void)onReloadNeeded:(MegaSDK *)api {
+
+}
+
+- (void)onNodesUpdate:(MegaSDK *)api {
+    [self reloadUI];
 }
 
 

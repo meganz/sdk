@@ -38,11 +38,8 @@ DEALINGS IN THE SOFTWARE.
 #include <fcntl.h>
 #endif
 
-#ifdef __APPLE__
-#include <TargetConditionals.h>
 #ifdef TARGET_OS_IPHONE
 #include "mega/gfx/GfxProcCG.h"
-#endif
 #endif
 
 ////////////////////////////// SETTINGS //////////////////////////////

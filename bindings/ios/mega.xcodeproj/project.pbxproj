@@ -221,7 +221,7 @@
 		940BF08A19EDBD62007E7FA2 /* MAccountDetails.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MAccountDetails.h; sourceTree = "<group>"; };
 		940BF08B19EDBD62007E7FA2 /* MegaSDK.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MegaSDK.h; sourceTree = "<group>"; };
 		940BF08C19EDBD62007E7FA2 /* MError.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MError.h; sourceTree = "<group>"; };
-		940BF08D19EDBD62007E7FA2 /* MGlobalListenerDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MGlobalListenerDelegate.h; sourceTree = "<group>"; };
+		940BF08D19EDBD62007E7FA2 /* MGlobalDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MGlobalDelegate.h; sourceTree = "<group>"; };
 		940BF08E19EDBD62007E7FA2 /* MListenerDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MListenerDelegate.h; sourceTree = "<group>"; };
 		940BF08F19EDBD62007E7FA2 /* MNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MNode.h; sourceTree = "<group>"; };
 		940BF09019EDBD62007E7FA2 /* MNodeList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MNodeList.h; sourceTree = "<group>"; };
@@ -376,22 +376,22 @@
 				940BEFFF19ED97B9007E7FA2 /* MegaSDK.mm */,
 				940BF08C19EDBD62007E7FA2 /* MError.h */,
 				940BF00019ED97B9007E7FA2 /* MError.mm */,
-				940BF08D19EDBD62007E7FA2 /* MGlobalListenerDelegate.h */,
+				940BF08D19EDBD62007E7FA2 /* MGlobalDelegate.h */,
 				940BF08E19EDBD62007E7FA2 /* MListenerDelegate.h */,
+				940BF09219EDBD62007E7FA2 /* MRequestDelegate.h */,
+				940BF09619EDBD62007E7FA2 /* MTransferDelegate.h */,
 				940BF08F19EDBD62007E7FA2 /* MNode.h */,
 				940BF00119ED97B9007E7FA2 /* MNode.mm */,
 				940BF09019EDBD62007E7FA2 /* MNodeList.h */,
 				940BF00219ED97B9007E7FA2 /* MNodeList.mm */,
 				940BF09119EDBD62007E7FA2 /* MRequest.h */,
 				940BF00319ED97B9007E7FA2 /* MRequest.mm */,
-				940BF09219EDBD62007E7FA2 /* MRequestDelegate.h */,
 				940BF09319EDBD62007E7FA2 /* MShare.h */,
 				940BF00419ED97B9007E7FA2 /* MShare.mm */,
 				940BF09419EDBD62007E7FA2 /* MShareList.h */,
 				940BF00519ED97B9007E7FA2 /* MShareList.mm */,
 				940BF09519EDBD62007E7FA2 /* MTransfer.h */,
 				940BF00619ED97B9007E7FA2 /* MTransfer.mm */,
-				940BF09619EDBD62007E7FA2 /* MTransferDelegate.h */,
 				940BF09719EDBD62007E7FA2 /* MTransferList.h */,
 				940BF00719ED97B9007E7FA2 /* MTransferList.mm */,
 				940BF09819EDBD62007E7FA2 /* MTreeProcesorProtocol.h */,
