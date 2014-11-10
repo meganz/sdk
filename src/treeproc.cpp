@@ -21,7 +21,6 @@
 
 #include "mega/treeproc.h"
 #include "mega/megaclient.h"
-#include "mega/base64.h"
 
 namespace mega {
 // create share keys
@@ -40,9 +39,14 @@ void TreeProcShareKeys::get(Command* c)
     snk.get(c);
 }
 
-void TreeProcNodeKeys::proc(MegaClient* client, Node* n)
+void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
 {
-    client->nodekeyrewrite.push_back(n->nodehandle);
+    if (n->foreignkey)
+    {
+        client->nodekeyrewrite.push_back(n->nodehandle);
+
+        n->foreignkey = false;
+    }
 }
 
 // total disk space / node count
@@ -69,7 +73,7 @@ void TreeProcDU::proc(MegaClient*, Node* n)
 // mark node as removed and notify
 void TreeProcDel::proc(MegaClient* client, Node* n)
 {
-    n->removed = 1;
+    n->changed.removed = true;
     client->notifynode(n);
 }
 

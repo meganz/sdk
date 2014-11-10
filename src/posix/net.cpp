@@ -474,6 +474,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     const char* data = httpctx->data;
 
     LOG_debug << "POST target URL: " << req->posturl;
+
     if (req->binary)
     {
         LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
@@ -771,7 +772,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         return;
     }
 
-    if (!ipv6requestsenabled && ipv6available() && ((Waiter::ds - ipv6deactivationtime) > IPV6_RETRY_INTERVAL_DS))
+    if (!ipv6requestsenabled && ipv6available() && Waiter::ds - ipv6deactivationtime > IPV6_RETRY_INTERVAL_DS)
     {
         ipv6requestsenabled = true;
     }
@@ -782,17 +783,21 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
         struct ares_options options;
         int optmask;
-        if(ares_save_options(ares, &options, &optmask) == ARES_SUCCESS)
+
+        if (ares_save_options(ares, &options, &optmask) == ARES_SUCCESS)
         {
-            if(optmask & ARES_OPT_SERVERS)
+            if (optmask & ARES_OPT_SERVERS)
             {
                 string invalidservers;
-                for(int i=0; i < options.nservers; i++)
+
+                for (int i=0; i < options.nservers; i++)
                 {
-                    char *ip = inet_ntoa(options.servers[i]);
-                    if(ip)
+                    char* ip = inet_ntoa(options.servers[i]);
+
+                    if (ip)
                     {
                         invalidservers.append(ip);
+
                         if(i != (options.nservers -1))
                         {
                             invalidservers.append(";");
@@ -802,9 +807,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
                 LOG_err << "Invalid DNS servers: " << invalidservers;
             }
+
             ares_destroy_options(&options);
         }
-
 
         reset = false;
         ares_destroy(ares);

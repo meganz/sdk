@@ -126,10 +126,11 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // app-private pointer
     void* appdata;
 
-    bool removed;
+    bool foreignkey;
 
     struct
     {
+        bool removed : 1;
         bool attrs : 1;
         bool owner : 1;
         bool ctime : 1;

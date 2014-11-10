@@ -25,7 +25,6 @@ namespace mega {
 
 // FIXME: re-encrypt nodes leaving an outbound share
 // FIXME: generate cr element for file imports
-// FIXME: skip own nodes for k / nk rewrites
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
@@ -2102,7 +2101,7 @@ void MegaClient::updatesc()
             // 3. write new or modified nodes, purge deleted nodes
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
-                if ((*it)->removed && (*it)->dbid)
+                if ((*it)->changed.removed && (*it)->dbid)
                 {
                     if (!(complete = sctable->del((*it)->dbid)))
                     {
@@ -2846,7 +2845,7 @@ void MegaClient::notifypurge(void)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-             && (*it)->localroot.node->removed)
+             && (*it)->localroot.node->changed.removed)
             {
                 delsync(*it);
             }
@@ -2861,7 +2860,7 @@ void MegaClient::notifypurge(void)
         {
             Node* n = nodenotify[i];
 
-            if (n->removed)
+            if (n->changed.removed)
             {
                 // remove inbound share
                 if (n->inshare)
@@ -3456,11 +3455,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         {
             if ((n = nodebyhandle(h)))
             {
-                if (n->removed)
+                if (n->changed.removed)
                 {
                     // node marked for deletion is being resurrected, possibly
                     // with a new parent (server-client move operation)
-                    n->removed = 0;
+                    n->changed.removed = false;
 
                     if (!ISUNDEF(ph))
                     {
@@ -4192,19 +4191,23 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
-    TreeProcNodeKeys rewrite;
+    TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
 
-    reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+    if (nodekeyrewrite.size())
+    {
+        reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+    }
 }
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
 {
-    if (a == ACCESS_UNKNOWN)
+    if (a == ACCESS_UNKNOWN && n->outshares.size() == 1)
     {
         // rewrite keys of foreign nodes located in the outbound share that is getting canceled
+        // FIXME: verify that it is really getting canceled to prevent benign premature rewrite
         rewriteforeignkeys(n);
     }
 
@@ -4335,12 +4338,12 @@ void MegaClient::notifynode(Node* n)
         // FIXME: aggregate subtrees!
         if (n->localnode && n->localnode->parent)
         {
-            n->localnode->deleted = n->removed;
+            n->localnode->deleted = n->changed.removed;
         }
 
         if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
         {
-            n->parent->localnode->deleted = n->removed;
+            n->parent->localnode->deleted = n->changed.removed;
         }
     }
 

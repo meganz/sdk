@@ -28,7 +28,6 @@
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
-#include "mega.h"
 
 namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
@@ -62,9 +61,10 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     inshare = NULL;
     sharekey = NULL;
+    foreignkey = false;
 
-    removed = 0;
     memset(&changed,-1,sizeof changed);
+    changed.removed = false;
 
     if (client)
     {
@@ -594,7 +594,11 @@ bool Node::applykey()
                 {
                     continue;
                 }
+
                 sc = n->sharekey;
+
+                // this key will be rewritten when the node leaves the outbound share
+                foreignkey = true;
             }
         }
 
@@ -620,8 +624,8 @@ bool Node::applykey()
 
     if (client->decryptkey(k, key,
                            (type == FILENODE)
-                               ? FILENODEKEYLENGTH + 0
-                               : FOLDERNODEKEYLENGTH + 0,
+                          ? FILENODEKEYLENGTH + 0
+                          : FOLDERNODEKEYLENGTH + 0,
                            sc, 0, nodehandle))
     {
         keystring.clear();
@@ -670,6 +674,7 @@ bool Node::setparent(Node* p)
             {
                 break;
             }
+
             p = p->parent;
         }
 
@@ -1195,7 +1200,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length
     {
-        LOG_err << "LocalNode unserialization failed - short data";
+        //sync->client->app->debug_log("LocalNode unserialization failed - short data");
         return NULL;
     }
 
@@ -1232,7 +1237,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     if (ptr + localnamelen > end)
     {
-        LOG_err << "LocalNode unserialization failed - name too long";
+        //sync->client->app->debug_log("LocalNode unserialization failed - name too long");
         return NULL;
     }
 
@@ -1244,13 +1249,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     {
         if (ptr + 4 * sizeof(int32_t) > end + 1)
         {
-            LOG_err << "LocalNode unserialization failed - short fingerprint";
+            //sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
             return NULL;
         }
 
         if (!Serialize64::unserialize((byte*)ptr + 4 * sizeof(int32_t), end - ptr - 4 * sizeof(int32_t), &mtime))
         {
-            LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
+            //sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
             return NULL;
         }
     }

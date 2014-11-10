@@ -570,6 +570,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
     LOG_debug << "POST target URL: " << req->posturl << " chunked: " << req->chunked;
+
     if (req->binary)
     {
         LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
@@ -600,7 +601,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (MultiByteToWideChar(CP_UTF8, 0, req->posturl.c_str(), -1, szURL,
                             sizeof szURL / sizeof *szURL)
-            && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
+     && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
     {
         if ((httpctx->hConnect = WinHttpConnect(hSession, szHost, urlComp.nPort, 0)))
         {
@@ -627,14 +628,14 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
                 WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,
                                          WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE
-                                         | WINHTTP_CALLBACK_FLAG_READ_COMPLETE
-                                         | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
-                                         | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
-                                         | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
-                                         | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
-                                         | WINHTTP_CALLBACK_FLAG_SEND_REQUEST
-                                         | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
-                                         | WINHTTP_CALLBACK_FLAG_HANDLES,
+                                       | WINHTTP_CALLBACK_FLAG_READ_COMPLETE
+                                       | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
+                                       | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
+                                       | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
+                                       | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
+                                       | WINHTTP_CALLBACK_FLAG_SEND_REQUEST
+                                       | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
+                                       | WINHTTP_CALLBACK_FLAG_HANDLES,
                                          0);
 
                 LPCWSTR pwszHeaders = req->type == REQ_JSON || !req->buf
