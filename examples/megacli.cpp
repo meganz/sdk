@@ -974,7 +974,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                 cout << "unsupported type, please upgrade";
         }
 
-        cout << ")" << (n->removed ? " (DELETED)" : "") << endl;
+        cout << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
 
         if (!recurse)
         {
@@ -3257,7 +3257,7 @@ void DemoApp::nodes_updated(Node** n, int count)
         {
             if ((*n)->type < 6)
             {
-                c[!(*n)->removed][(*n)->type]++;
+                c[!(*n)->changed.removed][(*n)->type]++;
                 n++;
             }
         }
