@@ -95,7 +95,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->nodehandle = node->nodehandle;
     this->attrstring.assign(node->attrstring.data(), node->attrstring.size());
     this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
-    this->removed = node->removed;
+    this->removed = node->changed.removed;
 	this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);
@@ -4103,7 +4103,7 @@ void MegaApiImpl::nodes_updated(Node** n, int count)
         for(int i=0; i<count; i++)
         {
             Node *node = n[i];
-            if(node->changed.parent || node->changed.attrs || node->removed)
+            if(node->changed.parent || node->changed.attrs || node->changed.removed)
             {
                 node->changed.parent = false;
                 node->changed.attrs = false;
