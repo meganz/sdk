@@ -99,12 +99,12 @@ using namespace mega;
 
 - (void)removeDelegate:(id<MListenerDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
-    std::set<DelegateMListener *>::iterator it = self.activeMegaListeners.begin();
-    while (it != self.activeMegaListeners.end()) {
+    std::set<DelegateMListener *>::iterator it = _activeMegaListeners.begin();
+    while (it != _activeMegaListeners.end()) {
         DelegateMListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeListener(delegateListener);
-            self.activeMegaListeners.erase(it++);
+            _activeMegaListeners.erase(it++);
         }
         else it++;
     }
@@ -113,12 +113,12 @@ using namespace mega;
 
 - (void)removeRequestDelegate:(id<MRequestDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
-    std::set<DelegateMRequestListener *>::iterator it = self.activeRequestListeners.begin();
+    std::set<DelegateMRequestListener *>::iterator it = _activeRequestListeners.begin();
     while (it != self.activeRequestListeners.end()) {
         DelegateMRequestListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeRequestListener(delegateListener);
-            self.activeRequestListeners.erase(it++);
+            _activeRequestListeners.erase(it++);
         }
         else it++;
     }
@@ -127,12 +127,12 @@ using namespace mega;
 
 - (void)removeTransferDelegate:(id<MTransferDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
-    std::set<DelegateMTransferListener *>::iterator it = self.activeTransferListeners.begin();
-    while (it != self.activeTransferListeners.end()) {
+    std::set<DelegateMTransferListener *>::iterator it = _activeTransferListeners.begin();
+    while (it != _activeTransferListeners.end()) {
         DelegateMTransferListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeTransferListener(delegateListener);
-            self.activeTransferListeners.erase(it++);
+            _activeTransferListeners.erase(it++);
         }
         else it++;
     }
@@ -142,12 +142,12 @@ using namespace mega;
 
 - (void)removeGlobalDelegate:(id<MGlobalDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
-    std::set<DelegateMGlobalListener *>::iterator it = self.activeGlobalListeners.begin();
-    while (it != self.activeGlobalListeners.end()) {
+    std::set<DelegateMGlobalListener *>::iterator it = _activeGlobalListeners.begin();
+    while (it != _activeGlobalListeners.end()) {
         DelegateMGlobalListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeGlobalListener(delegateListener);
-            self.activeGlobalListeners.erase(it++);
+            _activeGlobalListeners.erase(it++);
         }
         else it++;
     }
@@ -742,7 +742,6 @@ using namespace mega;
     DelegateMTransferListener *delegateListener = new DelegateMTransferListener(self, delegate, singleListener);
     pthread_mutex_lock(&listenerMutex);
     _activeTransferListeners.insert(delegateListener);
-    NSLog(@"active transfer listener size %lu", (unsigned long)self.activeTransferListeners.size());
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
