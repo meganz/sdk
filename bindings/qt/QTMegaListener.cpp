@@ -155,5 +155,7 @@ void QTMegaListener::customEvent(QEvent *e)
         case QTMegaEvent::OnSyncFileStateChanged:
             if(listener) listener->onSyncFileStateChanged(event->getMegaApi(), event->getFilePath(), event->getNewState());
             break;
+        default:
+            break;
     }
 }

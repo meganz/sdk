@@ -64,5 +64,7 @@ void QTMegaTransferListener::customEvent(QEvent *e)
         case QTMegaEvent::OnTransferFinish:
             if(listener) listener->onTransferFinish(event->getMegaApi(), event->getTransfer(), event->getError());
             break;
+        default:
+            break;
     }
 }

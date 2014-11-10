@@ -63,5 +63,7 @@ void QTMegaRequestListener::customEvent(QEvent *e)
         case QTMegaEvent::OnRequestTemporaryError:
             if(listener) listener->onRequestTemporaryError(event->getMegaApi(), event->getRequest(), event->getError());
             break;
+        default:
+            break;
     }
 }
