@@ -34,7 +34,7 @@ src/win32/.deps src/win32/.dirstamp
 third_party/utf8proc/.deps third_party/utf8proc/.dirstamp third_party/utf8proc/.libs
 tests/.deps tests/.dirstamp
 doc/api doc/sphinx_api doc/_build
-megacli1 megacli2 sync_in sync_out static_build out
+megacli1 megacli2 sync_in sync_out out
 "
 for file in $TARGETS
 do
