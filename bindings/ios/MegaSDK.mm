@@ -84,11 +84,11 @@ using namespace mega;
 }
 
 - (void)addRequestDelegate:(id<MRequestDelegate>)delegate {
-    self.megaApi->addRequestListener([self createDelegateMRequestListener:delegate singleListener:YES]);
+    self.megaApi->addRequestListener([self createDelegateMRequestListener:delegate singleListener:NO]);
 }
 
 - (void)addMTransferDelegate:(id<MTransferDelegate>)delegate {
-    self.megaApi->addTransferListener([self createDelegateMTransferListener:delegate singleListener:YES]);
+    self.megaApi->addTransferListener([self createDelegateMTransferListener:delegate singleListener:NO]);
 }
 
 - (void)addGlobalDelegate:(id<MGlobalDelegate>)delegate {

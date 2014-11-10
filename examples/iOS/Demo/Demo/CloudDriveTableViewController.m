@@ -34,9 +34,6 @@
     NSArray *buttonsItems = @[self.logoutItem, self.addItem];
     self.navigationItem.rightBarButtonItems = buttonsItems;
     
-    [self reloadUI];
-    [[MegaSDKManager sharedMegaSDK] addGlobalDelegate:(id<MGlobalDelegate>)self];
-    
     NSString *path;
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
     path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
@@ -54,6 +51,17 @@
             NSLog(@"Create directory error: %@", error);
         }
     }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [[MegaSDKManager sharedMegaSDK] addDelegate:self];
+    [[MegaSDKManager sharedMegaSDK] retryPendingConnections];
+    [self reloadUI];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [[MegaSDKManager sharedMegaSDK] removeDelegate:self];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -76,14 +84,15 @@
     
     MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
     
+    NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    NSString *fileName = [[node getBase64Handle] stringByAppendingString:@".jpg"];
+    NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
     NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
     destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists && [node getType] == MNodeTypeFile && [node hasThumbnail]) {
-        [[MegaSDKManager sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath delegate:(id<MRequestDelegate>)self];
+        [[MegaSDKManager sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath];
     }
     
     cell.nameLabel.text = [node getName];
@@ -122,13 +131,14 @@
         }
            
         case MNodeTypeFile: {
+            NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
             NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-            NSString *fileName = [node getName];
+            NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
             NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
             BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
 
             if (!fileExists) {
-                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath delegate:(id<MTransferDelegate>)self];
+                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath];
             }
         }
             
@@ -145,7 +155,7 @@
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
     if (editingStyle==UITableViewCellEditingStyleDelete) {
         MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
-        [[MegaSDKManager sharedMegaSDK] removeNode:node delegate:(id<MRequestDelegate>)self];
+        [[MegaSDKManager sharedMegaSDK] removeNode:node];
     }
 }
 
@@ -178,7 +188,7 @@
 
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
     if (buttonIndex == 1) {
-        [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.root delegate:(id<MRequestDelegate>)self];
+        [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.root];
     }
 }
 
@@ -217,14 +227,22 @@
     switch ([request getType]) {
         case MRequestTypeLogout: {
             NSFileManager *fm = [NSFileManager defaultManager];
-            NSString *directory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+            NSString *cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
             NSError *error = nil;
-            for (NSString *file in [fm contentsOfDirectoryAtPath:directory error:&error]) {
-                BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", directory, file] error:&error];
+            for (NSString *file in [fm contentsOfDirectoryAtPath:cacheDirectory error:&error]) {
+                BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", cacheDirectory, file] error:&error];
                 if (!success || error) {
                     NSLog(@"remove file error %@", error);
                 }
             }
+            NSString *documentDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+            for (NSString *file in [fm contentsOfDirectoryAtPath:documentDirectory error:&error]) {
+                BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", documentDirectory, file] error:&error];
+                if (!success || error) {
+                    NSLog(@"remove file error %@", error);
+                }
+            }
+            
             [SVProgressHUD dismiss];
             UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
             LoginViewController *lvc = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];

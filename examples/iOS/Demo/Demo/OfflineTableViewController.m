@@ -10,7 +10,7 @@
 #import "NodeTableViewCell.h"
 #import <MediaPlayer/MediaPlayer.h>
 
-#define kName @"kName"
+#define kBase64Handle @"kBase64Handle"
 #define kCreationDate @"kCreationDate"
 #define kIndex @"kIndex"
 
@@ -35,40 +35,14 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     
-    self.offlineDocuments = [NSMutableArray new];
-    self.offlineImages = [NSMutableArray new];
-    
-    int i;
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *path = [paths objectAtIndex:0];
-    NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
-    int offsetIndex = 0;
-    
-    for (i = 0; i < (int)[directoryContent count]; i++) {
-        NSString *filePath = [path stringByAppendingPathComponent:[directoryContent objectAtIndex:i]];
-        NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
-        NSMutableDictionary *tempDictionary = [NSMutableDictionary new];
-        
-        NSDate *date = (NSDate*)[attributes objectForKey: NSFileCreationDate];
-        NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
-        
-        [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
-        if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
-            [tempDictionary setValue:filename forKey:kName];
-            NSString *dateString = [NSDateFormatter localizedStringFromDate:date
-                                           dateStyle:NSDateFormatterShortStyle
-                                           timeStyle:NSDateFormatterNoStyle];
-            [tempDictionary setValue:dateString forKey:kCreationDate];
-            [self.offlineDocuments addObject:tempDictionary];
-            
-            if (isImage(filename.lowercaseString.pathExtension)) {
-                offsetIndex++;
-                [self.offlineImages addObject:[MWPhoto photoWithImage:[UIImage imageNamed:filePath]]];
+    [[MegaSDKManager sharedMegaSDK] addMTransferDelegate:self];
+    [self reloadUI];
+    [[MegaSDKManager sharedMegaSDK] retryPendingConnections];
+}
 
-            } 
-        }
-    }
-    [self.tableView reloadData];
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [[MegaSDKManager sharedMegaSDK] removeTransferDelegate:self];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -90,18 +64,24 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NodeTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"nodeCell" forIndexPath:indexPath];
     
-    NSString *name = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kName];
+    NSString *base64Handle = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kBase64Handle];
+    MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:base64Handle]];
+    NSString *name = [node getName];
     
     cell.nameLabel.text = name;
     cell.creationLabel.text = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kCreationDate];
     
     if (isImage(name.lowercaseString.pathExtension)) {
-        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-        NSString *path = [paths objectAtIndex:0];
-        NSString *filePath = [path stringByAppendingPathComponent:name];
-        UIImage *resizeImage = [self imageByScalingAndCroppingForSize:CGSizeMake(110, 110) image:[UIImage imageWithContentsOfFile:filePath]];
+        NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
+        NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+        NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
+        NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
+        destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
+        BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
         
-        [cell.thumbnailImageView setImage:resizeImage];
+        if (fileExists) {
+            [cell.thumbnailImageView setImage:[UIImage imageNamed:destinationFilePath]];
+        }
     } else if (isVideo(name.lowercaseString.pathExtension)){
         [cell.thumbnailImageView setImage:[UIImage imageNamed:@"video"]];
     } else {
@@ -114,7 +94,9 @@
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSString *name = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kName];
+    NSString *base64Handle = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kBase64Handle];
+    MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:base64Handle]];
+    NSString *name = [node getName];
     if (isImage(name.lowercaseString.pathExtension)) {
         MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
         
@@ -139,7 +121,7 @@
     } else if (isVideo(name.lowercaseString.pathExtension)) {
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
         NSString *path = [paths objectAtIndex:0];
-        NSString *filePath = [path stringByAppendingPathComponent:name];
+        NSString *filePath = [path stringByAppendingPathComponent:base64Handle];
         NSURL *fileURL = [NSURL fileURLWithPath:filePath];
         
         MPMoviePlayerViewController *videoPlayerView = [[MPMoviePlayerViewController alloc] initWithContentURL:fileURL];
@@ -158,60 +140,63 @@
     return nil;
 }
 
-- (UIImage*)imageByScalingAndCroppingForSize:(CGSize)targetSize image:(UIImage *)image {
-    UIImage *newImage = nil;
-    CGSize imageSize = image.size;
-    CGFloat width = imageSize.width;
-    CGFloat height = imageSize.height;
-    CGFloat targetWidth = targetSize.width;
-    CGFloat targetHeight = targetSize.height;
-    CGFloat scaleFactor = 0.0;
-    CGFloat scaledWidth = targetWidth;
-    CGFloat scaledHeight = targetHeight;
-    CGPoint thumbnailPoint = CGPointMake(0.0,0.0);
+#pragma mark - Private methods
+
+- (void)reloadUI {
     
-    if (CGSizeEqualToSize(imageSize, targetSize) == NO) {
-        CGFloat widthFactor = targetWidth / width;
-        CGFloat heightFactor = targetHeight / height;
+    
+    self.offlineDocuments = [NSMutableArray new];
+    self.offlineImages = [NSMutableArray new];
+    
+    int i;
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *path = [paths objectAtIndex:0];
+    NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
+    int offsetIndex = 0;
+    
+    for (i = 0; i < (int)[directoryContent count]; i++) {
+        NSString *filePath = [path stringByAppendingPathComponent:[directoryContent objectAtIndex:i]];
+        NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
+        NSMutableDictionary *tempDictionary = [NSMutableDictionary new];
         
-        if (widthFactor > heightFactor) {
-            scaleFactor = widthFactor;
-        }
-        else {
-            scaleFactor = heightFactor;
-        }
+        NSDate *date = (NSDate*)[attributes objectForKey: NSFileCreationDate];
+        NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
-        scaledWidth  = width * scaleFactor;
-        scaledHeight = height * scaleFactor;
-        
-        if (widthFactor > heightFactor) {
-            thumbnailPoint.y = (targetHeight - scaledHeight) * 0.5;
-        }
-        else {
-            if (widthFactor < heightFactor) {
-                thumbnailPoint.x = (targetWidth - scaledWidth) * 0.5;
-            }
+        [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
+        if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
+            [tempDictionary setValue:filename forKey:kBase64Handle];
+            NSString *dateString = [NSDateFormatter localizedStringFromDate:date
+                                                                  dateStyle:NSDateFormatterShortStyle
+                                                                  timeStyle:NSDateFormatterNoStyle];
+            [tempDictionary setValue:dateString forKey:kCreationDate];
+            [self.offlineDocuments addObject:tempDictionary];
+            
+            MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:filename]];
+            NSString *nodeName = [node getName];
+            
+            if (isImage(nodeName.lowercaseString.pathExtension)) {
+                offsetIndex++;
+                [self.offlineImages addObject:[MWPhoto photoWithImage:[UIImage imageNamed:filePath]]];
+                
+            } 
         }
     }
-    
-    UIGraphicsBeginImageContext(targetSize);
-    
-    CGRect thumbnailRect = CGRectZero;
-    thumbnailRect.origin = thumbnailPoint;
-    thumbnailRect.size.width  = scaledWidth;
-    thumbnailRect.size.height = scaledHeight;
-    
-    [image drawInRect:thumbnailRect];
-    
-    newImage = UIGraphicsGetImageFromCurrentImageContext();
-    
-    if(newImage == nil) {
-        NSLog(@"could not scale image");
-    }
-    
-    UIGraphicsEndImageContext();
-    
-    return newImage;
+    [self.tableView reloadData];
+}
+
+#pragma mark - MTransferDelegate
+
+- (void)onTransferStart:(MegaSDK *)api transfer:(MTransfer *)transfer {
+}
+
+- (void)onTransferUpdate:(MegaSDK *)api transfer:(MTransfer *)transfer {
+}
+
+- (void)onTransferFinish:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+    [self reloadUI];
+}
+
+-(void)onTransferTemporaryError:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
 }
 
 @end

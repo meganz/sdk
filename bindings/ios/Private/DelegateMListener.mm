@@ -23,32 +23,37 @@ id<MListenerDelegate>DelegateMListener::getUserListener() {
 
 void DelegateMListener::onRequestStart(MegaApi *api, MegaRequest *request) {
     if (listener != nil) {
+        MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestStart:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES]];
+            [listener onRequestStart:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:tempRequest cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) {
     if (listener != nil) {
+        MegaRequest *tempRequest = request->copy();
+        MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestFinish:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
+            [listener onRequestFinish:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
     if (listener != nil) {
+        MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestUpdate:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES]];
+            [listener onRequestUpdate:this->megaSDK request:[[MRequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) {
     if (listener != nil) {
+        MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestTemporaryError:this->megaSDK request:[[MRequest alloc]initWithMegaRequest:request->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
+            [listener onRequestTemporaryError:this->megaSDK request:[[MRequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e cMemoryOwn:YES]];
         });
     }
 
@@ -56,32 +61,38 @@ void DelegateMListener::onRequestTemporaryError(MegaApi *api, MegaRequest *reque
 
 void DelegateMListener::onTransferStart(MegaApi *api, MegaTransfer *transfer) {
     if (listener != nil) {
+        MegaTransfer *tempTransfer = transfer->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferStart:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES]];
+            [listener onTransferStart:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
     if (listener != nil) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferFinish:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
+            [listener onTransferFinish:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {
     if (listener != nil) {
+        MegaTransfer *tempTransfer = transfer->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferUpdate:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES]];
+            [listener onTransferUpdate:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
         });
     }
 }
 
 void DelegateMListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
     if (listener != nil) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferTemporaryError:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:transfer->copy() cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e->copy() cMemoryOwn:YES]];
+            [listener onTransferTemporaryError:this->megaSDK transfer:[[MTransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }
 }

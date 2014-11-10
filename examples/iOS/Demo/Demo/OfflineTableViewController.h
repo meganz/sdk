@@ -8,7 +8,8 @@
 
 #import <UIKit/UIKit.h>
 #import "MWPhotoBrowser.h"
+#import "MegaSDKManager.h"
 
-@interface OfflineTableViewController : UITableViewController <MWPhotoBrowserDelegate>
+@interface OfflineTableViewController : UITableViewController <MWPhotoBrowserDelegate, MTransferDelegate>
 
 @end
