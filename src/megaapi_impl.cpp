@@ -6499,15 +6499,40 @@ void ExternalLogger::setLogLevel(int logLevel)
 
 void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
 {
+	if(!message)
+	{
+		message = "";
+	}
+
+	if(!filename)
+	{
+		filename = "";
+	}
+
 	SimpleLogger((LogLevel)logLevel, filename, line) << message;
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
+	if(!time)
+	{
+		time = "";
+	}
+
+	if(!source)
+	{
+		source = "";
+	}
+
+	if(!message)
+	{
+		message = "";
+	}
+
 	mutex.lock();
 	if(megaLogger)
 	{
-        megaLogger->log(time ? time : "", loglevel, source ? source : "", message ? message : "");
+        megaLogger->log(time, loglevel, source, message);
 	}
 	else
 	{
