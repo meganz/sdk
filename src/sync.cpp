@@ -508,7 +508,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     // postpone moving nodes into nonexistent parents
     if (parent && !parent->node)
     {
-        LOG_warn << "Parent doesn't exist yet";
+        LOG_warn << "Parent doesn't exist yet: " << path;
         return (LocalNode*)~0;
     }
 
