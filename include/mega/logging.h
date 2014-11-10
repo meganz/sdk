@@ -154,6 +154,17 @@ public:
     }
 
     template <typename T>
+    SimpleLogger& operator<<(T* obj)
+    {
+        if(obj != NULL)
+            ostr << obj;
+        else
+            ostr << "(NULL)";
+
+        return *this;
+    }
+
+    template <typename T>
     SimpleLogger& operator<<(T const& obj)
     {
         ostr << obj;
