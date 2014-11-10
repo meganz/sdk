@@ -135,7 +135,7 @@ Proxy* WinHttpIO::getautoproxy()
         {
             string proxyURL;
             proxy->setProxyType(Proxy::CUSTOM);
-            int len = lstrlen(ieProxyConfig.lpszProxy);
+            int len = wcslen(ieProxyConfig.lpszProxy);
             proxyURL.assign((const char*)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
 
             // only save one proxy
@@ -194,7 +194,7 @@ Proxy* WinHttpIO::getautoproxy()
                 {
                     string proxyURL;
                     proxy->setProxyType(Proxy::CUSTOM);
-                    proxyURL.assign((const char*)proxyInfo.lpszProxy, lstrlen(proxyInfo.lpszProxy) * sizeof(wchar_t));
+                    proxyURL.assign((const char*)proxyInfo.lpszProxy, wcslen(proxyInfo.lpszProxy) * sizeof(wchar_t));
                     proxy->setProxyURL(&proxyURL);
                 }
             }

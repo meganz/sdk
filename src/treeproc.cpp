@@ -2,7 +2,7 @@
  * @file treeproc.cpp
  * @brief Node tree processor
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -21,6 +21,7 @@
 
 #include "mega/treeproc.h"
 #include "mega/megaclient.h"
+#include "mega/base64.h"
 
 namespace mega {
 // create share keys
@@ -37,6 +38,11 @@ void TreeProcShareKeys::proc(MegaClient*, Node* n)
 void TreeProcShareKeys::get(Command* c)
 {
     snk.get(c);
+}
+
+void TreeProcNodeKeys::proc(MegaClient* client, Node* n)
+{
+    client->nodekeyrewrite.push_back(n->nodehandle);
 }
 
 // total disk space / node count

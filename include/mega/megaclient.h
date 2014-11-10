@@ -660,6 +660,9 @@ public:
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);
 
+    // rewrite foreign keys of the node (tree)
+    void rewriteforeignkeys(Node* n);
+
     // simple string hash
     static void stringhash(const char*, byte*, SymmCipher*);
     static uint64_t stringhash64(string*, SymmCipher*);

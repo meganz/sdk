@@ -25,6 +25,7 @@ namespace mega {
 
 // FIXME: re-encrypt nodes leaving an outbound share
 // FIXME: generate cr element for file imports
+// FIXME: skip own nodes for k / nk rewrites
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
@@ -3127,6 +3128,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel)
         n->changed.parent = true;
         notifynode(n);
 
+        // rewrite keys of foreign nodes that are moved out of an outbound share
+        rewriteforeignkeys(n);
+
         reqs[r].add(new CommandMoveNode(this, n, p, syncdel));
     }
 
@@ -4185,10 +4189,25 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
     }
 }
 
+// rewrite keys of foreign nodes due to loss of underlying shareufskey
+void MegaClient::rewriteforeignkeys(Node* n)
+{
+    TreeProcNodeKeys rewrite;
+    proctree(n, &rewrite);
+
+    reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+}
+
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
 {
+    if (a == ACCESS_UNKNOWN)
+    {
+        // rewrite keys of foreign nodes located in the outbound share that is getting canceled
+        rewriteforeignkeys(n);
+    }
+
     queuepubkeyreq(finduser(user, 1), new PubKeyActionCreateShare(n->nodehandle, a, reqtag));
 }
 
