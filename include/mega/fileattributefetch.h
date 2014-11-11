@@ -38,6 +38,7 @@ struct MEGA_API FileAttributeFetchChannel
 
     HttpReq req;
     dstime urltime;
+    string posturl;
     size_t inbytes;
     
     faf_map fafs[2];

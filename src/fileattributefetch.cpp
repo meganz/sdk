@@ -68,6 +68,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
 
     inbytes = 0;
     req.in.clear();
+    req.posturl = posturl;
     req.post(client);
 
     timeout.backoff(150);

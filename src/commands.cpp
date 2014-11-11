@@ -135,7 +135,7 @@ void CommandGetFA::procresult()
                 {
                     if (p)
                     {
-                        Node::copystring(&it->second->req.posturl, p);
+                        Node::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
                         it->second->dispatch(client);
                     }
