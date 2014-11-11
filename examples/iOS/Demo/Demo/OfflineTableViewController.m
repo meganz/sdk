@@ -10,8 +10,7 @@
 #import "NodeTableViewCell.h"
 #import <MediaPlayer/MediaPlayer.h>
 
-#define kBase64Handle @"kBase64Handle"
-#define kCreationDate @"kCreationDate"
+#define kMNode @"kMNode"
 #define kIndex @"kIndex"
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
@@ -64,12 +63,15 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NodeTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"nodeCell" forIndexPath:indexPath];
     
-    NSString *base64Handle = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kBase64Handle];
-    MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:base64Handle]];
+    MNode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMNode];
     NSString *name = [node getName];
     
     cell.nameLabel.text = name;
-    cell.creationLabel.text = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kCreationDate];
+
+    NSString *dateString = [NSDateFormatter localizedStringFromDate:[node getModificationTime]
+                                                          dateStyle:NSDateFormatterShortStyle
+                                                          timeStyle:NSDateFormatterNoStyle];
+    cell.creationLabel.text = dateString;
     
     if (isImage(name.lowercaseString.pathExtension)) {
         NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
@@ -77,11 +79,7 @@
         NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
         NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
         destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-        BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-        
-        if (fileExists) {
-            [cell.thumbnailImageView setImage:[UIImage imageNamed:destinationFilePath]];
-        }
+        [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
     } else if (isVideo(name.lowercaseString.pathExtension)){
         [cell.thumbnailImageView setImage:[UIImage imageNamed:@"video"]];
     } else {
@@ -94,8 +92,7 @@
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSString *base64Handle = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kBase64Handle];
-    MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:base64Handle]];
+    MNode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMNode];
     NSString *name = [node getName];
     if (isImage(name.lowercaseString.pathExtension)) {
         MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
@@ -121,7 +118,7 @@
     } else if (isVideo(name.lowercaseString.pathExtension)) {
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
         NSString *path = [paths objectAtIndex:0];
-        NSString *filePath = [path stringByAppendingPathComponent:base64Handle];
+        NSString *filePath = [path stringByAppendingPathComponent:[node getBase64Handle]];
         NSURL *fileURL = [NSURL fileURLWithPath:filePath];
         
         MPMoviePlayerViewController *videoPlayerView = [[MPMoviePlayerViewController alloc] initWithContentURL:fileURL];
@@ -156,28 +153,23 @@
     
     for (i = 0; i < (int)[directoryContent count]; i++) {
         NSString *filePath = [path stringByAppendingPathComponent:[directoryContent objectAtIndex:i]];
-        NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
-        NSMutableDictionary *tempDictionary = [NSMutableDictionary new];
-        
-        NSDate *date = (NSDate*)[attributes objectForKey: NSFileCreationDate];
         NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
-        [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
         if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
-            [tempDictionary setValue:filename forKey:kBase64Handle];
-            NSString *dateString = [NSDateFormatter localizedStringFromDate:date
-                                                                  dateStyle:NSDateFormatterShortStyle
-                                                                  timeStyle:NSDateFormatterNoStyle];
-            [tempDictionary setValue:dateString forKey:kCreationDate];
+            MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:filename]];
+            
+            if (node == nil) continue;
+            
+            NSMutableDictionary *tempDictionary = [NSMutableDictionary new];
+            [tempDictionary setValue:node forKey:kMNode];
+            [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
             [self.offlineDocuments addObject:tempDictionary];
             
-            MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:filename]];
-            NSString *nodeName = [node getName];
-            
-            if (isImage(nodeName.lowercaseString.pathExtension)) {
+            if (isImage([node getName].lowercaseString.pathExtension)) {
                 offsetIndex++;
-                [self.offlineImages addObject:[MWPhoto photoWithImage:[UIImage imageNamed:filePath]]];
-                
+                MWPhoto *photo = [MWPhoto photoWithURL:[NSURL fileURLWithPath:filePath]];
+                photo.caption = [node getName];
+                [self.offlineImages addObject:photo];
             } 
         }
     }

@@ -30,6 +30,7 @@
 		416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812AE19EE8FAC00C72800 /* SVProgressHUD.m */; };
 		41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
 		41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
+		41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
 		41B2AEE11A0A8CC3006C40FB /* MegaSDKManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AEE01A0A8CC3006C40FB /* MegaSDKManager.m */; };
 		41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B4553A19F1218000439D45 /* NodeTableViewCell.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
@@ -87,6 +88,7 @@
 		417BBFF019F57FF10081D102 /* AssetsLibrary.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AssetsLibrary.framework; path = System/Library/Frameworks/AssetsLibrary.framework; sourceTree = SDKROOT; };
 		41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
 		41AB68FD1A094459003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		41ACFBC61A1155AC00905ACF /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
 		41B2AEDF1A0A8CC3006C40FB /* MegaSDKManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MegaSDKManager.h; path = MegaSDKManager/MegaSDKManager.h; sourceTree = "<group>"; };
 		41B2AEE01A0A8CC3006C40FB /* MegaSDKManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MegaSDKManager.m; path = MegaSDKManager/MegaSDKManager.m; sourceTree = "<group>"; };
 		41B4553919F1218000439D45 /* NodeTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NodeTableViewCell.h; sourceTree = "<group>"; };
@@ -99,6 +101,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */,
 				41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */,
 				41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */,
 				4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */,
@@ -213,6 +216,7 @@
 		4168129C19EE6E6D00C72800 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				41ACFBC61A1155AC00905ACF /* MapKit.framework */,
 				41AB68FD1A094459003FE608 /* ImageIO.framework */,
 				41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */,
 				417BBFF019F57FF10081D102 /* AssetsLibrary.framework */,
@@ -515,6 +519,7 @@
 					"$(inherited)",
 					"/Users/javiernavarro/Documents/Source/MEGA/jnavarrom/sdk/bindings/ios/build/Debug-iphoneos",
 				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios/** ../../../include/** Demo/vendor/MWPhotoBrowser/**";
@@ -534,6 +539,7 @@
 					"$(inherited)",
 					"/Users/javiernavarro/Documents/Source/MEGA/jnavarrom/sdk/bindings/ios/build/Debug-iphoneos",
 				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios/** ../../../include/** Demo/vendor/MWPhotoBrowser/**";

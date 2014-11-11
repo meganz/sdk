@@ -125,7 +125,7 @@
     switch ([node getType]) {
         case MNodeTypeFolder: {
             CloudDriveTableViewController *cdvc = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
-            [cdvc setRoot:node];
+            [cdvc setParentNode:node];
             [self.navigationController pushViewController:cdvc animated:YES];
             break;
         }
@@ -188,19 +188,19 @@
 
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
     if (buttonIndex == 1) {
-        [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.root];
+        [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
     }
 }
 
 #pragma mark - Private methods
 
 - (void)reloadUI {
-    if (!self.root) {
+    if (!self.parentNode) {
         [self.navigationItem setTitle:@"Cloud drive"];
         self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
     } else {
-        [self.navigationItem setTitle:[self.root getName]];
-        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.root];
+        [self.navigationItem setTitle:[self.parentNode getName]];
+        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.parentNode];
     }
     
     [self.tableView reloadData];

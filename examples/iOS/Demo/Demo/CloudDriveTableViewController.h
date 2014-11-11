@@ -11,6 +11,6 @@
 
 @interface CloudDriveTableViewController : UITableViewController <MListenerDelegate, UIActionSheetDelegate, UIAlertViewDelegate>
 
-@property (nonatomic, strong) MNode *root;
+@property (nonatomic, strong) MNode *parentNode;
 
 @end

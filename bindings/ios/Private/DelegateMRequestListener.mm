@@ -56,8 +56,9 @@ void DelegateMRequestListener::onRequestUpdate(MegaApi *api, MegaRequest *reques
 void DelegateMRequestListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) {
     if (listener != nil) {
         MegaRequest *tempRequest = request->copy();
+        MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestTemporaryError:this->megaSDK request:[[MRequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:e cMemoryOwn:YES]];
+            [listener onRequestTemporaryError:this->megaSDK request:[[MRequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }
 }
