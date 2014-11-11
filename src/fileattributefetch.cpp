@@ -27,7 +27,8 @@ namespace mega {
 FileAttributeFetchChannel::FileAttributeFetchChannel()
 {
     req.binary = true;
-    req.status = REQ_FAILURE;
+    req.status = REQ_READY;
+    urltime = 0;
 }
 
 FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
@@ -36,6 +37,40 @@ FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
     type = t;
     retries = 0;
     tag = ctag;
+}
+
+void FileAttributeFetchChannel::dispatch(MegaClient* client)
+{
+    faf_map::iterator it;
+ 
+    // reserve space
+    req.outbuf.clear();
+    req.outbuf.reserve((fafs[0].size() + fafs[1].size()) * sizeof(handle));
+
+    for (int i = 2; i--; )
+    {
+        for (it = fafs[i].begin(); it != fafs[i].end(); )
+        {
+            req.outbuf.append((char*)&it->first, sizeof(handle));
+
+            if (!i)
+            {
+                // move from fresh to pending
+                fafs[1][it->first] = it->second;
+                fafs[0].erase(it++);
+            }
+            else
+            {
+                it++;
+            }
+        }
+    }
+
+    inbytes = 0;
+    req.in.clear();
+    req.post(client);
+
+    timeout.backoff(150);
 }
 
 // communicate received file attributes to the application

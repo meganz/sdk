@@ -110,15 +110,13 @@ void CommandGetFA::procresult()
 {
     fafc_map::iterator it = client->fafcs.find(part);
 
-    // (can never happen)
-    if (it == client->fafcs.end())
-    {
-        return;
-    }
-
     if (client->json.isnumeric())
     {
-        it->second->req.status = REQ_FAILURE;
+        if (it != client->fafcs.end())
+        {
+            it->second->req.status = REQ_FAILURE;
+        }
+
         return;
     }
 
@@ -133,19 +131,20 @@ void CommandGetFA::procresult()
                 break;
 
             case EOO:
-                if (p)
+                if (it != client->fafcs.end())
                 {
-                    it->second->req.disconnect();
-                    Node::copystring(&it->second->req.posturl, p);
-                    it->second->req.in.clear();
-                    it->second->inbytes = 0;
-                    it->second->req.postchunked(client);
-                    it->second->timeout.backoff(150);
+                    if (p)
+                    {
+                        Node::copystring(&it->second->req.posturl, p);
+                        it->second->urltime = Waiter::ds;
+                        it->second->dispatch(client);
+                    }
+                    else
+                    {
+                        it->second->req.status = REQ_FAILURE;
+                    }
                 }
-                else
-                {
-                    it->second->req.status = REQ_FAILURE;
-                }
+
                 return;
 
             default:

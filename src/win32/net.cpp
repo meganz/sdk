@@ -336,8 +336,8 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         }
 
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
-
             LOG_verbose << "Read complete";
+
             if (dwStatusInformationLength)
             {
                 LOG_verbose << dwStatusInformationLength << " bytes received";
@@ -396,6 +396,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             else
             {
                 LOG_verbose << "Headers available";
+
                 req->httpstatus = statusCode;
 
                 if (req->httpio)
@@ -461,6 +462,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
                 {
                     LOG_err << "Unable to query data. Code: " << GetLastError();
+
                     httpio->cancel(req);
                     httpio->httpevent();
                 }
@@ -476,7 +478,9 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
         {
             DWORD e = GetLastError();
+
             LOG_err << "Request error. Code: " << e;
+
             if (httpio->waiter && e != ERROR_WINHTTP_TIMEOUT)
             {
                 httpio->inetstatus(false);
@@ -484,7 +488,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         }
         // fall through
         case WINHTTP_CALLBACK_STATUS_SECURE_FAILURE:
-            if(dwInternetStatus == WINHTTP_CALLBACK_STATUS_SECURE_FAILURE)
+            if (dwInternetStatus == WINHTTP_CALLBACK_STATUS_SECURE_FAILURE)
             {
                 LOG_err << "Security check failed. Code: " << lpvStatusInformation;
             }

@@ -422,7 +422,6 @@ public:
 
     // file attribute fetch channels
     fafc_map fafcs;
-    BackoffTimer faftimeout;
 
     // generate attribute string based on the pending attributes for this upload
     void pendingattrstring(handle, string*);
