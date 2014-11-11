@@ -68,10 +68,10 @@
     
     cell.nameLabel.text = name;
 
-    NSString *dateString = [NSDateFormatter localizedStringFromDate:[node getModificationTime]
+    NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node getModificationTime]
                                                           dateStyle:NSDateFormatterShortStyle
                                                           timeStyle:NSDateFormatterNoStyle];
-    cell.creationLabel.text = dateString;
+    cell.modificationLabel.text = modificationTimeString;
     
     if (isImage(name.lowercaseString.pathExtension)) {
         NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];

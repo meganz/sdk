@@ -20,9 +20,8 @@
 }
 
 @property (nonatomic, strong) MNodeList *nodes;
-@property (nonatomic, strong) NSMutableArray *photoPreviews;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *logoutItem;
-@property (strong, nonatomic) IBOutlet UIBarButtonItem *addItem;
+@property (weak, nonatomic) IBOutlet UIBarButtonItem *addItem;
 
 @end
 
@@ -104,11 +103,20 @@
         [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
     }
     
-    NSString *dateString = [NSDateFormatter localizedStringFromDate:[node getCreationTime]
-                                                          dateStyle:NSDateFormatterShortStyle
-                                                          timeStyle:NSDateFormatterNoStyle];
+    if ([node getType] == MNodeTypeFile) {
+        NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node getModificationTime]
+                                                                          dateStyle:NSDateFormatterShortStyle
+                                                                          timeStyle:NSDateFormatterNoStyle];
+        
+        cell.modificationLabel.text = modificationTimeString;
+    } else {
+        NSString *creationTimeString = [NSDateFormatter localizedStringFromDate:[node getCreationTime]
+                                                                              dateStyle:NSDateFormatterShortStyle
+                                                                              timeStyle:NSDateFormatterNoStyle];
+        
+        cell.modificationLabel.text = creationTimeString;
+    }
     
-    cell.creationLabel.text = dateString;
     cell.nodeHandle = [node getHandle];
     
     return cell;
@@ -160,7 +168,7 @@
 }
 
 - (IBAction)logout:(id)sender {
-    [[MegaSDKManager sharedMegaSDK] logoutWithDelegate:(id<MRequestDelegate>)self];
+    [[MegaSDKManager sharedMegaSDK] logout];
 }
 
 - (IBAction)optionAdd:(id)sender {

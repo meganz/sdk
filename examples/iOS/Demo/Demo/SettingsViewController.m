@@ -7,7 +7,6 @@
 //
 
 #import "SettingsViewController.h"
-#import "MegaSDKManager.h"
 
 @interface SettingsViewController ()
 

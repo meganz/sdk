@@ -12,7 +12,7 @@
 
 @property (weak, nonatomic) IBOutlet UIImageView *thumbnailImageView;
 @property (weak, nonatomic) IBOutlet UILabel *nameLabel;
-@property (weak, nonatomic) IBOutlet UILabel *creationLabel;
+@property (weak, nonatomic) IBOutlet UILabel *modificationLabel;
 @property (weak, nonatomic) IBOutlet UILabel *downloadingLabel;
 @property (weak, nonatomic) IBOutlet UILabel *percentageLabel;
 @property (nonatomic) uint64_t nodeHandle;

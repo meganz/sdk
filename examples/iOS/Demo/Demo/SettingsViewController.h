@@ -7,7 +7,7 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "MegaSDK.h"
+#import "MegaSDKManager.h"
 
 @interface SettingsViewController : UIViewController <MRequestDelegate>
 
