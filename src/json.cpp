@@ -22,6 +22,7 @@
 #include "mega/json.h"
 #include "mega/base64.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 // store array or object in string s
@@ -58,6 +59,10 @@ bool JSON::storeobject(string* s)
         else if ((*ptr == ']') || (*ptr == '}'))
         {
             openobject[*ptr == ']']--;
+            if(openobject[*ptr == ']'] < 0)
+            {
+                LOG_err << "Parse error (])";
+            }
         }
         else if (*ptr == '"')
         {
@@ -71,6 +76,7 @@ bool JSON::storeobject(string* s)
 
             if (!*ptr)
             {
+                LOG_err << "Parse error (\")";
                 return false;
             }
         }
@@ -87,6 +93,7 @@ bool JSON::storeobject(string* s)
         }
         else if (*ptr != ':' && *ptr != ',')
         {
+            LOG_err << "Parse error (unexpected " << *ptr << ")";
             return false;
         }
 
@@ -227,6 +234,7 @@ bool JSON::storebinary(string* dst)
 
         if (!(ptr = strchr(pos + 1, '"')))
         {
+            LOG_err << "Parse error (storebinary)";
             return false;
         }
 
@@ -303,6 +311,7 @@ m_off_t JSON::getint()
 
     if ((*ptr < '0' || *ptr > '9') && *ptr != '-')
     {
+        LOG_err << "Parse error (getint)";
         return -1;
     }
 
@@ -322,6 +331,7 @@ double JSON::getfloat()
 
     if ((*pos < '0' || *pos > '9') && *pos != '-' && *pos != '.')
     {
+        LOG_err << "Parse error (getfloat)";
         return -1;
     }
 
@@ -382,6 +392,7 @@ bool JSON::leavearray()
         return true;
     }
 
+    LOG_err << "Parse error (leavearray)";
     return false;
 }
 
@@ -435,6 +446,7 @@ bool JSON::leaveobject()
         return true;
     }
 
+    LOG_err << "Parse error (leaveobject)";
     return false;
 }
 

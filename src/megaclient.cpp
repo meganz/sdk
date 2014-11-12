@@ -2029,6 +2029,7 @@ void MegaClient::initsc()
             }
         }
 
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
 
@@ -2045,6 +2046,7 @@ void MegaClient::updatesc()
 
         if (t.size() != sizeof cachedscsn)
         {
+            LOG_err << "Invalid scsn size";
             return;
         }
 
@@ -2074,20 +2076,27 @@ void MegaClient::updatesc()
             // 3. write new or modified nodes, purge deleted nodes
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
+                char base64[12];
                 if ((*it)->changed.removed && (*it)->dbid)
                 {
+                    LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->del((*it)->dbid)))
                     {
                         break;
                     }
                 }
-                else if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
+                else
                 {
-                    break;
+                    LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
+                    {
+                        break;
+                    }
                 }
             }
         }
 
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes and " << usernotify.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
 
@@ -4908,8 +4917,6 @@ void MegaClient::fetchnodes()
     // only initial load from local cache
     if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
-        LOG_info << "Session loaded from local cache";
-
         restag = reqtag;
 
         syncsup = false;
@@ -4917,6 +4924,7 @@ void MegaClient::fetchnodes()
         app->nodes_updated(NULL, nodes.size());
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
+        LOG_info << "Session loaded from local cache. SCSN: " << scsn;
     }
     else if (!fetchingnodes)
     {
@@ -5553,7 +5561,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             if (ll->type != rit->second->type)
             {
                 insync = false;
-
+                LOG_warn << "Type changed: " << localname;
                 movetosyncdebris(rit->second);
             }
             else

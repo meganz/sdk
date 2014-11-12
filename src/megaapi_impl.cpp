@@ -3262,6 +3262,8 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     fsAccess->local2path(&(t->files.front()->localname), &path);
     transfer->setPath(path.c_str());
     transfer->setTotalBytes(t->size);
+
+    LOG_info << "Starting " << (t->type ? "upload" : "download") << ". File: " << path.c_str();
 }
 
 void MegaApiImpl::transfer_update(Transfer *tr)
