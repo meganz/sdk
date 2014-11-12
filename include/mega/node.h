@@ -41,9 +41,6 @@ struct MEGA_API NodeCore
     // full folder/file key, symmetrically or asymmetrically encrypted
     string nodekey;
 
-    // new node's client-controlled timestamp (should be last modification)
-    m_time_t clienttimestamp;
-
     // node attributes
     string attrstring;
 };
@@ -134,7 +131,6 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
         bool attrs : 1;
         bool owner : 1;
         bool ctime : 1;
-        bool clienttimestamp : 1;
         bool fileattrstring : 1;
         bool inshare : 1;
         bool outshares : 1;
@@ -180,7 +176,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, m_time_t);
+    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 };
 

@@ -66,12 +66,19 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
         }
     }
 
-    inbytes = 0;
-    req.in.clear();
-    req.posturl = posturl;
-    req.post(client);
+    if (req.outbuf.size())
+    {
+        inbytes = 0;
+        req.in.clear();
+        req.posturl = posturl;
+        req.post(client);
 
-    timeout.backoff(150);
+        timeout.backoff(150);
+    }
+    else
+    {
+        timeout.reset();
+    }
 }
 
 // communicate received file attributes to the application
@@ -101,7 +108,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
         {
             if (final || falen > 16*1048576)
             {
-                client->faf_failed(fac);
+                break; 
             }
             else
             {
@@ -132,14 +139,32 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
                     delete it->second;
                     fafs[1].erase(it);
                 }
-                else
-                {
-                    return client->faf_failed(fac);
-                }
             }
         }
 
         ptr += falen;
+    }
+}
+
+// notify the application of the request failure and remove records no longer needed
+void FileAttributeFetchChannel::failed(MegaClient* client)
+{
+    for (faf_map::iterator it = fafs[1].begin(); it != fafs[1].end(); )
+    {
+        client->restag = it->second->tag;
+
+        if (client->app->fa_failed(it->second->nodehandle, it->second->type, it->second->retries))
+        {
+            // no retry desired
+            delete it->second;
+            fafs[1].erase(it++);
+        }
+        else
+        {
+            // retry
+            it->second->retries++;
+            it++;
+        }
     }
 }
 } // namespace

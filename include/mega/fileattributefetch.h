@@ -49,6 +49,9 @@ struct MEGA_API FileAttributeFetchChannel
     // parse fetch result and remove completed attributes from pending
     void parse(MegaClient*, int, bool);
 
+    // notify app of nodes that failed to receive their requested attribute
+    void failed(MegaClient*);
+
     FileAttributeFetchChannel();
 };
 

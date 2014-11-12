@@ -701,8 +701,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("k", (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size());
         }
 
-        arg("ts", nn[i].clienttimestamp);
-
         endobject();
     }
 

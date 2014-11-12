@@ -69,7 +69,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
         if (!asymkey.decrypt(buf, sl, tk, tl))
         {
             delete[] buf;
-            LOG_warn << "Corrupt or invalid RSA node key detected";
+            LOG_warn << "Corrupt or invalid RSA node key";
             return false;
         }
 
@@ -413,8 +413,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
         sessionid[i] = 'a' + PrnGen::genuint32(26);
     }
 
-    // initialize random API request sequence ID (to guard against replaying
-    // older requests)
+    // initialize random API request sequence ID (server API is idempotent)
     for (i = sizeof reqid; i--; )
     {
         reqid[i] = 'a' + PrnGen::genuint32(26);
@@ -450,6 +449,7 @@ MegaClient::~MegaClient()
 
     delete pendingcs;
     delete pendingsc;
+    delete badhostcs;
     delete sctable;
     delete dbaccess;
 }
@@ -567,42 +567,15 @@ void MegaClient::exec()
             {
                 fc = cit->second;
 
-                if (fc->req.status == REQ_READY && fc->bt.armed() && (fc->fafs[1].size() || fc->fafs[0].size()))
-                {
-                    fc->req.in.clear();
-
-                    if (Waiter::ds - fc->urltime > 600)
-                    {
-                        // fetches pending for this unconnected channel - dispatch fresh connection
-                        reqs[r].add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
-                        fc->req.status = REQ_INFLIGHT;
-                    }
-                    else
-                    {
-                        // redispatch cached URL if not older than one minute
-                        fc->dispatch(this);
-                    }
-                }
-
                 // is this request currently in flight?
                 switch (fc->req.status)
                 {
                     case REQ_SUCCESS:
                         fc->parse(this, cit->first, true);
 
-                        if (fc->fafs[1].size())
-                        {
-                            // some attributes were not returned - fail and retry
-                            faf_failed(cit->first);
-                        }
-                        else
-                        {
-                            // attribute request completed - reset backoff timer
-                            fc->bt.reset();
-                        }
-
-                        fc->timeout.reset();
-                        fc->req.status = REQ_READY;
+                        // notify app in case some attributes were not returned, then redispatch
+                        fc->failed(this);
+                        fc->bt.reset();
                         break;
 
                     case REQ_INFLIGHT:
@@ -618,13 +591,31 @@ void MegaClient::exec()
                         }
 
                         if (!fc->timeout.armed()) break;
+
                         // timeout! fall through...
+                        fc->req.disconnect();
                     case REQ_FAILURE:
-                        faf_failed(cit->first);
+                        fc->failed(this);
                         fc->bt.backoff();
-                        fc->req.status = REQ_READY;
                     default:
                         ;
+                }
+
+                if (fc->req.status != REQ_INFLIGHT && fc->bt.armed() && (fc->fafs[1].size() || fc->fafs[0].size()))
+                {
+                    fc->req.in.clear();
+
+                    if (Waiter::ds - fc->urltime > 600)
+                    {
+                        // fetches pending for this unconnected channel - dispatch fresh connection
+                        reqs[r].add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
+                        fc->req.status = REQ_INFLIGHT;
+                    }
+                    else
+                    {
+                        // redispatch cached URL if not older than one minute
+                        fc->dispatch(this);
+                    }
                 }
             }
         }
@@ -860,7 +851,6 @@ void MegaClient::exec()
         {
             if (badhostcs->status == REQ_FAILURE || badhostcs->status == REQ_SUCCESS)
             {
-                delete badhostcs->out;
                 delete badhostcs;
                 badhostcs = NULL;
             }
@@ -926,11 +916,12 @@ void MegaClient::exec()
             if (it == syncs.end())
             {
                 syncsup = true;
+                syncactivity = true;
             }
         }
 
         // process active syncs
-        // sync timer: full rescan in case of filesystemnotification failures
+        // sync timer: full rescan in case of filesystem notification failures
         if (syncscanfailed && syncscanbt.armed())
         {
             syncscanfailed = false;
@@ -1143,8 +1134,8 @@ void MegaClient::exec()
                     // perform aggregate ops that require all scanqs to be fully processed
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
-                        if (((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                            || (*it)->dirnotify->notifyq[DirNotify::RETRY].size()))
+                        if ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                          || (*it)->dirnotify->notifyq[DirNotify::RETRY].size())
                         {
                             if (!syncnagleretry)
                             {
@@ -1291,7 +1282,7 @@ void MegaClient::exec()
         badhostcs = new HttpReq();
         badhostcs->posturl = APIURL;
         badhostcs->posturl.append("pf?h");
-        badhostcs->out = new string(badhosts);
+        badhostcs->outbuf = badhosts;
         badhostcs->type = REQ_JSON;
         badhostcs->post(this);
         badhosts.clear();
@@ -1355,7 +1346,7 @@ int MegaClient::wait()
             {
                 cit->second->timeout.update(&nds);
             }
-            else if (cit->second->req.status == REQ_READY && (cit->second->fafs[1].size() || cit->second->fafs[0].size()))
+            else if (cit->second->fafs[1].size() || cit->second->fafs[0].size())
             {
                 cit->second->bt.update(&nds);
             }
@@ -1838,10 +1829,8 @@ void MegaClient::logout()
         {
     	    for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
     	    {
-        	delete it->second;
+                delete it->second;
     	    }
-
-    	    cit->second->fafs[i].clear();
         }
 
         delete cit->second;
@@ -2125,35 +2114,6 @@ void MegaClient::finalizesc(bool complete)
 
 }
 
-// notify the application of the request failure and remove records no longer needed
-void MegaClient::faf_failed(int fac)
-{
-    fafc_map::iterator cit = fafcs.find(fac);
-
-    if (cit != fafcs.end())
-    {
-        cit->second->req.disconnect();
-
-        for (faf_map::iterator it = cit->second->fafs[1].begin(); it != cit->second->fafs[1].end(); )
-        {
-            restag = it->second->tag;
-
-            if (app->fa_failed(it->second->nodehandle, it->second->type, it->second->retries))
-            {
-                // no retry desired
-                delete it->second;
-                cit->second->fafs[1].erase(it++);
-            }
-            else
-            {
-                // retry
-                it->second->retries++;
-                it++;
-            }
-        }
-    }
-}
-
 // queue node file attribute for retrieval or cancel retrieval
 error MegaClient::getfa(Node* n, fatype t, int cancel)
 {
@@ -2310,6 +2270,7 @@ bool MegaClient::moretransfers(direction_t d)
             {
                 t += Waiter::ds - (*it)->starttime;
             }
+
             c += (*it)->progressreported;
             r += (*it)->transfer->size - (*it)->progressreported;
             total++;
@@ -2356,7 +2317,7 @@ void MegaClient::sc_updatenode()
     handle h = UNDEF;
     handle u = 0;
     const char* a = NULL;
-    m_time_t ts = -1, tm = -1;
+    m_time_t ts = -1;
 
     for (;;)
     {
@@ -2378,10 +2339,6 @@ void MegaClient::sc_updatenode()
                 ts = jsonsc.getint();
                 break;
 
-            case MAKENAMEID3('t', 'm', 'd'):
-                tm = ts + jsonsc.getint();
-                break;
-
             case EOO:
                 if (!ISUNDEF(h))
                 {
@@ -2399,12 +2356,6 @@ void MegaClient::sc_updatenode()
                         {
                             Node::copystring(&n->attrstring, a);
                             n->changed.attrs = true;
-                        }
-
-                        if (tm + 1)
-                        {
-                            n->clienttimestamp = tm;
-                            n->changed.clienttimestamp = true;
                         }
 
                         if (ts + 1)
@@ -3312,7 +3263,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         const char *sk = NULL;
         accesslevel_t rl = ACCESS_UNKNOWN;
         m_off_t s = NEVER;
-        m_time_t ts = -1, tmd = 0, sts = -1;
+        m_time_t ts = -1, sts = -1;
         nameid name;
         int nni = -1;
 
@@ -3356,15 +3307,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     ts = j->getint();
                     break;
 
-                case MAKENAMEID3('t', 'm', 'd'):  // user-controlled last modified time
-                    tmd = j->getint();
-                    break;
-
                 case MAKENAMEID2('f', 'a'):  // file attributes
                     fa = j->getvalue();
                     break;
 
-                // inbound share attributes
+                    // inbound share attributes
                 case 'r':   // share access level
                     rl = (accesslevel_t)j->getint();
                     break;
@@ -3507,7 +3454,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts, ts + tmd);
+                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
 
                 n->tag = tag;
 
@@ -5006,6 +4953,19 @@ void MegaClient::purgenodesusersabortsc()
         delete it->second;
     }
 
+    for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
+    {
+        for (int i = 2; i--; )
+        {
+            for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
+            {
+                delete it->second;
+            }
+
+            cit->second->fafs[i].clear();
+        }
+    }
+
     todebris.clear();
     nodes.clear();
 
@@ -5829,7 +5789,6 @@ void MegaClient::syncupdate()
                     // this is a file - copy, use original key & attributes
                     // FIXME: move instead of creating a copy if it is in
                     // rubbish to reduce node creation load
-                    nnp->clienttimestamp = l->mtime;
                     nnp->nodekey = n->nodekey;
                     tattrs.map = n->attrs.map;
 
@@ -5838,7 +5797,6 @@ void MegaClient::syncupdate()
                 else
                 {
                     // this is a folder - create, use fresh key & attributes
-                    nnp->clienttimestamp = time(NULL);
                     nnp->nodekey.resize(FOLDERNODEKEYLENGTH);
                     PrnGen::genblock((byte*)nnp->nodekey.data(), FOLDERNODEKEYLENGTH);
                     tattrs.map.clear();
@@ -6189,7 +6147,6 @@ void MegaClient::execmovetosyncdebris()
             nn->nodehandle = i;
             nn->parenthandle = i ? 0 : UNDEF;
 
-            nn->clienttimestamp = ts;
             nn->nodekey.resize(FOLDERNODEKEYLENGTH);
             PrnGen::genblock((byte*)nn->nodekey.data(), FOLDERNODEKEYLENGTH);
 

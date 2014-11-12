@@ -1112,7 +1112,6 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         t->type = n->type;
         t->nodehandle = n->nodehandle;
         t->parenthandle = n->parent->nodehandle;
-        t->clienttimestamp = n->clienttimestamp;
 
         // copy key (if file) or generate new key (if folder)
         if (n->type == FILENODE)
@@ -2335,7 +2334,6 @@ static void process_line(char* l)
                                     newnode->source = NEW_NODE;
                                     newnode->type = FOLDERNODE;
                                     newnode->nodehandle = 0;
-                                    newnode->clienttimestamp = time(NULL);
                                     newnode->parenthandle = UNDEF;
 
                                     // generate fresh random key for this folder node
@@ -3158,7 +3156,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->source = NEW_PUBLIC;
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
-        newnode->clienttimestamp = 0;
         newnode->parenthandle = UNDEF;
 
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
