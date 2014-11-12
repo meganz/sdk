@@ -17,6 +17,8 @@
 
 @interface CloudDriveTableViewController () {
     UIAlertView *folderAlert;
+    UIAlertView *renameAlert;
+    NSInteger indexNodeSelected;
 }
 
 @property (nonatomic, strong) MNodeList *nodes;
@@ -121,6 +123,9 @@
     
     cell.nodeHandle = [node getHandle];
     
+    cell.leftUtilityButtons = [self leftButtons];
+    cell.delegate = self;
+    
     return cell;
 }
 
@@ -140,17 +145,17 @@
             break;
         }
            
-        case MNodeTypeFile: {
-            NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
-            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-            NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
-            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
-            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-
-            if (!fileExists) {
-                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath];
-            }
-        }
+//        case MNodeTypeFile: {
+//            NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
+//            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+//            NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
+//            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
+//            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+//
+//            if (!fileExists) {
+//                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath];
+//            }
+//        }
             
         default:
             break;
@@ -182,14 +187,68 @@
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
 
+#pragma mark - SWTableViewDelegate
+
+- (void)swipeableTableViewCell:(SWTableViewCell *)cell didTriggerLeftUtilityButtonWithIndex:(NSInteger)index {
+
+//    UITableView* table = (UITableView *)[cell superview];
+    NSIndexPath* pathOfTheCell = [self.tableView indexPathForCell:cell];
+    indexNodeSelected = [pathOfTheCell row];
+    MNode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
+    switch (index) {
+        case 0: {
+            if ([node getType] == MNodeTypeFile) {
+                NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
+                NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+                NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
+                NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
+                BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+                
+                if (!fileExists) {
+                    [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath];
+                }
+            }
+            break;
+        }
+        case 1:
+            NSLog(@"share button was pressed");
+            break;
+        case 2:
+            renameAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"renameFileTitle", @"Rename file") message:NSLocalizedString(@"renameFileMessage", @"Enter new name for file") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"renameFile", @"Rename"), nil];
+            [renameAlert setAlertViewStyle:UIAlertViewStylePlainTextInput];
+            [renameAlert textFieldAtIndex:0].text = [[[node getName] lastPathComponent] stringByDeletingPathExtension];
+            renameAlert.tag = 2;
+            [renameAlert show];
+
+            NSLog(@"rename button was pressed");
+            break;
+        default:
+            break;
+    }
+}
+
+// utility button open/close event
+- (void)swipeableTableViewCell:(SWTableViewCell *)cell scrollingToState:(SWCellState)state {
+
+}
+
+- (BOOL)swipeableTableViewCellShouldHideUtilityButtonsOnSwipe:(SWTableViewCell *)cell {
+    return  YES;
+}
+
+- (BOOL)swipeableTableViewCell:(SWTableViewCell *)cell canSwipeToState:(SWCellState)state {
+    return YES;
+}
+
 #pragma mark - Action sheet delegate
 
 - (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
     if (buttonIndex == 0) {
-        folderAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"newFolderTitle", @"Create new folder") message:NSLocalizedString(@"newFolderName", @"Enter name for new folder") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"createFolder", @"Create"), nil];
+        folderAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"newFolderTitle", @"Create new folder") message:NSLocalizedString(@"newFolderMessage", @"Enter name for new folder") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"createFolder", @"Create"), nil];
                               [folderAlert setAlertViewStyle:UIAlertViewStylePlainTextInput];
                               [folderAlert textFieldAtIndex:0].text = @"";
                               [folderAlert show];
+        folderAlert.tag = 1;
         [folderAlert show];
     } else if (buttonIndex == 1) {
         [self showImagePickerForSourceType:UIImagePickerControllerSourceTypePhotoLibrary];
@@ -199,8 +258,24 @@
 #pragma mark - Alert delegate
 
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
-    if (buttonIndex == 1) {
-        [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
+    // Create folder
+    if (alertView.tag == 1) {
+        if (buttonIndex == 1) {
+            [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
+        }
+    }
+    
+    // Rename file
+    if (alertView.tag == 2) {
+        if (buttonIndex == 1) {
+            MNode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
+            if ([[[node getName] pathExtension] isEqualToString:@""]) {
+                [[MegaSDKManager sharedMegaSDK] renameNode:node newName:[alertView textFieldAtIndex:0].text];
+            } else {
+                NSString *newName = [[alertView textFieldAtIndex:0].text stringByAppendingFormat:@".%@", [[node getName] pathExtension]];
+                [[MegaSDKManager sharedMegaSDK] renameNode:node newName:newName];
+            }
+        }
     }
 }
 
@@ -264,6 +339,25 @@
     
     self.imagePickerController = imagePickerController;
     [self.tabBarController presentViewController:self.imagePickerController animated:YES completion:nil];
+}
+
+- (NSArray *)leftButtons {
+    NSMutableArray *leftUtilityButtons = [NSMutableArray new];
+    
+    [leftUtilityButtons sw_addUtilityButtonWithColor:
+     [UIColor colorWithRed:236/255.0f green:240/255.0f blue:241/255.0f alpha:1.0f]
+                                                icon:[UIImage imageNamed:@"saveFile"]];
+    [leftUtilityButtons sw_addUtilityButtonWithColor:
+     [UIColor colorWithRed:149/255.0f green:165/255.0f blue:166/255.0f alpha:1.0f]
+                                                icon:[UIImage imageNamed:@"shareFile"]];
+//    [leftUtilityButtons sw_addUtilityButtonWithColor:
+//     [UIColor colorWithRed:189/255.0f green:195/255.0f blue:199/255.0f alpha:1.0f]
+//                                                icon:[UIImage imageNamed:@"moveFile"]];
+    [leftUtilityButtons sw_addUtilityButtonWithColor:
+    [UIColor colorWithRed:127/255.0f green:140/255.0f blue:141/255.0f alpha:1.0f]
+                                                icon:[UIImage imageNamed:@"renameFile"]];
+    
+    return leftUtilityButtons;
 }
 
 #pragma mark - MRequestDelegate
