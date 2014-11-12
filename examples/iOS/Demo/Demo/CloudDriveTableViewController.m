@@ -190,8 +190,6 @@
 #pragma mark - SWTableViewDelegate
 
 - (void)swipeableTableViewCell:(SWTableViewCell *)cell didTriggerLeftUtilityButtonWithIndex:(NSInteger)index {
-
-//    UITableView* table = (UITableView *)[cell superview];
     NSIndexPath* pathOfTheCell = [self.tableView indexPathForCell:cell];
     indexNodeSelected = [pathOfTheCell row];
     MNode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
@@ -210,9 +208,10 @@
             }
             break;
         }
-        case 1:
-            NSLog(@"share button was pressed");
+        case 1: {
+            [[MegaSDKManager sharedMegaSDK] exportNode:node];
             break;
+        }
         case 2:
             renameAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"renameFileTitle", @"Rename file") message:NSLocalizedString(@"renameFileMessage", @"Enter new name for file") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"renameFile", @"Rename"), nil];
             [renameAlert setAlertViewStyle:UIAlertViewStylePlainTextInput];
@@ -368,6 +367,10 @@
             [SVProgressHUD showWithStatus:@"Logout..."];
             break;
             
+        case MRequestTypeExport:
+            [SVProgressHUD showWithStatus:@"Generate link..."];
+            break;
+        
         default:
             break;
     }
@@ -414,6 +417,14 @@
                     [self.tableView endUpdates];
                 }
             }
+            break;
+        }
+        case MRequestTypeExport: {
+            [SVProgressHUD dismiss];
+            NSArray *itemsArray = [NSArray arrayWithObjects:[request getLink], nil];
+            UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:itemsArray applicationActivities:nil];
+            activityVC.excludedActivityTypes = @[UIActivityTypePrint, UIActivityTypeCopyToPasteboard, UIActivityTypeAssignToContact, UIActivityTypeSaveToCameraRoll];
+            [self presentViewController:activityVC animated:YES completion:nil ];
             break;
         }
             
