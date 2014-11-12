@@ -29,6 +29,10 @@
 #include "mega/config.h"
 #endif
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #include <inttypes.h>
 
 #include <iostream>
