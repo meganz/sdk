@@ -31,8 +31,7 @@
 
 namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
-           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts,
-           m_time_t tm)
+           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
 
@@ -56,7 +55,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     copystring(&fileattrstring, fa);
 
-    clienttimestamp = tm;
     ctime = ts;
 
     inshare = NULL;
@@ -162,7 +160,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     handle u;
     const byte* k = NULL;
     const char* fa;
-    m_time_t tm;
     m_time_t ts;
     const byte* skey;
     const char* ptr = d->data();
@@ -171,7 +168,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     Node* n;
     int i;
 
-    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof tm + sizeof ll > end)
+    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
         return NULL;
     }
@@ -205,7 +202,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     ptr += MegaClient::USERHANDLE;
 
     // FIME: use m_time_t / Serialize64 instead
-    tm = (uint32_t)MemAccess::get<time_t>(ptr);
     ptr += sizeof(time_t);
 
     ts = (uint32_t)MemAccess::get<time_t>(ptr);
@@ -228,10 +224,12 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     {
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
+
         if ((ptr + ll > end) || ptr[ll])
         {
             return NULL;
         }
+
         fa = ptr;
         ptr += ll;
     }
@@ -271,7 +269,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts, tm);
+    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 
     if (k)
     {
@@ -356,8 +354,8 @@ bool Node::serialize(string* d)
 
     d->append((char*)&owner, MegaClient::USERHANDLE);
 
-    // FIXME: use Serialize64, store ts and ts-clienttimestamp for a more compact representation
-    time_t ts = clienttimestamp;
+    // FIXME: use Serialize64
+    time_t ts = 0;
     d->append((char*)&ts, sizeof(ts));
 
     ts = ctime;
@@ -509,7 +507,7 @@ void Node::setfingerprint()
         if (!isvalid)
         {
             memcpy(crc, nodekey.data(), sizeof crc);
-            mtime = clienttimestamp;
+            mtime = ctime;
         }
 
         fingerprint_it = client->fingerprints.insert((FileFingerprint*)this);

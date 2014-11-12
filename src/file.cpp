@@ -73,7 +73,6 @@ void File::completed(Transfer* t, LocalNode* l)
 
         // file's crypto key
         newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
-        newnode->clienttimestamp = t->mtime;
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 
