@@ -4065,7 +4065,6 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		newnode->source = NEW_PUBLIC;
 		newnode->type = FILENODE;
 		newnode->nodehandle = ph;
-        newnode->clienttimestamp = mtime;
 		newnode->parenthandle = UNDEF;
 		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
 		newnode->attrstring = *a;
@@ -5483,7 +5482,6 @@ void MegaApiImpl::sendPendingRequests()
 			newnode->type = FOLDERNODE;
 			newnode->nodehandle = 0;
 			newnode->parenthandle = UNDEF;
-            newnode->clienttimestamp = time(NULL);
 
 			// generate fresh random key for this folder node
 			PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
@@ -5653,7 +5651,6 @@ void MegaApiImpl::sendPendingRequests()
             newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
             newnode->attrstring.assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
             newnode->nodehandle = publicNode->getHandle();
-            newnode->clienttimestamp = publicNode->getModificationTime();
             newnode->source = NEW_PUBLIC;
             newnode->type = FILENODE;
             newnode->parenthandle = UNDEF;
@@ -6297,7 +6294,6 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		t->type = n->type;
 		t->nodehandle = n->nodehandle;
         t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
-        t->clienttimestamp = n->clienttimestamp;
 
 		// copy key (if file) or generate new key (if folder)
 		if (n->type == FILENODE) t->nodekey = n->nodekey;
