@@ -6499,6 +6499,9 @@ void ExternalLogger::setLogLevel(int logLevel)
 
 void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
 {
+    if(SimpleLogger::logCurrentLevel < logLevel)
+        return;
+
 	if(!message)
 	{
 		message = "";
