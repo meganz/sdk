@@ -53,12 +53,12 @@ typedef NS_ENUM (NSInteger, MRequestType) {
 };
 
 typedef NS_ENUM (NSInteger, MNodeAccessLevel) {
-    MNodeAccessLevel_ACCESS_UNKNOWN = -1,
-    MNodeAccessLevel_RDONLY = 0,            // cannot add, rename or delete
-    MNodeAccessLevel_RDWR,                  // cannot rename or delete
-    MNodeAccessLevel_FULL,                  // all operations that do not require ownership permitted
-    MNodeAccessLevel_OWNER,                 // node is in caller's ROOT, INCOMING or RUBBISH trees
-    MNodeAccessLevel_OWNERPRELOGIN
+    MNodeAccessLevelAccessUnknown = -1,
+    MNodeAccessLevelRdOnly = 0,            // cannot add, rename or delete
+    MNodeAccessLevelRdWr,                  // cannot rename or delete
+    MNodeAccessLevelFull,                  // all operations that do not require ownership permitted
+    MNodeAccessLevelOwner,                 // node is in caller's ROOT, INCOMING or RUBBISH trees
+    MNodeAccessLevelOwnerPreLogin
 };
 
 @interface MRequest : NSObject

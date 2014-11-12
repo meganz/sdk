@@ -10,7 +10,7 @@
 #import "NodeTableViewCell.h"
 #import "SVProgressHUD.h"
 #import "LoginViewController.h"
-#import "MegaSDKManager.h"
+#import <AssetsLibrary/AssetsLibrary.h>
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
 #define isImage(n)  [imagesSet containsObject:n]
@@ -22,6 +22,8 @@
 @property (nonatomic, strong) MNodeList *nodes;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *logoutItem;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *addItem;
+
+@property (nonatomic) UIImagePickerController *imagePickerController;
 
 @end
 
@@ -176,7 +178,7 @@
                                                              delegate:self
                                                     cancelButtonTitle:@"Cancel"
                                                destructiveButtonTitle:nil
-                                                    otherButtonTitles:@"Create folder", nil];
+                                                    otherButtonTitles:@"Create folder", @"Upload photo", nil];
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
 
@@ -189,6 +191,8 @@
                               [folderAlert textFieldAtIndex:0].text = @"";
                               [folderAlert show];
         [folderAlert show];
+    } else if (buttonIndex == 1) {
+        [self showImagePickerForSourceType:UIImagePickerControllerSourceTypePhotoLibrary];
     }
 }
 
@@ -198,6 +202,43 @@
     if (buttonIndex == 1) {
         [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
     }
+}
+
+#pragma mark - UIImagePickerControllerDelegate
+
+// This method is called when an image has been chosen from the library or taken from the camera.
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
+    NSURL *assetURL = [info objectForKey:UIImagePickerControllerReferenceURL];
+    
+    ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
+    [library assetForURL:assetURL resultBlock:^(ALAsset *asset)  {
+        NSString *name = asset.defaultRepresentation.filename;
+        NSDate *creationTime = [asset valueForProperty:ALAssetPropertyDate];
+        UIImageView *imageView = [[UIImageView alloc] init];
+        imageView.image= [info objectForKey:@"UIImagePickerControllerOriginalImage"];
+        NSData *webData = UIImagePNGRepresentation(imageView.image);
+        
+        
+        NSString *localFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:name];
+        [webData writeToFile:localFilePath atomically:YES];
+        
+        NSError *error = nil;
+        NSDictionary *attributesDictionary = [NSDictionary dictionaryWithObject:creationTime forKey:NSFileModificationDate];
+        [[NSFileManager defaultManager] setAttributes:attributesDictionary ofItemAtPath:localFilePath error:&error];
+        if (error) {
+            NSLog(@"Error change modification date of file %@", error);
+        }
+        
+        [[MegaSDKManager sharedMegaSDK] startUploadWithLocalPath:localFilePath parent:self.parentNode];
+    } failureBlock:nil];
+    
+    [self dismissViewControllerAnimated:YES completion:NULL];
+    self.imagePickerController = nil;
+}
+
+
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker {
+    [self dismissViewControllerAnimated:YES completion:NULL];
 }
 
 #pragma mark - Private methods
@@ -212,6 +253,17 @@
     }
     
     [self.tableView reloadData];
+}
+
+- (void)showImagePickerForSourceType:(UIImagePickerControllerSourceType)sourceType {
+    
+    UIImagePickerController *imagePickerController = [[UIImagePickerController alloc] init];
+    imagePickerController.modalPresentationStyle = UIModalPresentationCurrentContext;
+    imagePickerController.sourceType = sourceType;
+    imagePickerController.delegate = self;
+    
+    self.imagePickerController = imagePickerController;
+    [self.tabBarController presentViewController:self.imagePickerController animated:YES completion:nil];
 }
 
 #pragma mark - MRequestDelegate
@@ -306,6 +358,15 @@
 }
 
 - (void)onTransferFinish:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+    if ([transfer getType] == MTransferTypeUpload) {
+        NSError *e = nil;
+        NSString *localFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:[transfer getFileName]];
+        BOOL success = [[NSFileManager defaultManager] removeItemAtPath:localFilePath error:&e];
+        if (!success || e) {
+            NSLog(@"remove file error %@", e);
+        }
+    }
+
 }
 
 -(void)onTransferTemporaryError:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
