@@ -918,6 +918,7 @@ void MegaClient::exec()
             if (it == syncs.end())
             {
                 syncsup = true;
+                syncactivity = true;
             }
         }
 
