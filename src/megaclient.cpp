@@ -567,42 +567,16 @@ void MegaClient::exec()
             {
                 fc = cit->second;
 
-                if (fc->req.status == REQ_READY && fc->bt.armed() && (fc->fafs[1].size() || fc->fafs[0].size()))
-                {
-                    fc->req.in.clear();
-
-                    if (Waiter::ds - fc->urltime > 600)
-                    {
-                        // fetches pending for this unconnected channel - dispatch fresh connection
-                        reqs[r].add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
-                        fc->req.status = REQ_INFLIGHT;
-                    }
-                    else
-                    {
-                        // redispatch cached URL if not older than one minute
-                        fc->dispatch(this);
-                    }
-                }
-
                 // is this request currently in flight?
                 switch (fc->req.status)
                 {
                     case REQ_SUCCESS:
                         fc->parse(this, cit->first, true);
 
-                        if (fc->fafs[1].size())
-                        {
-                            // some attributes were not returned - fail and retry
-                            faf_failed(cit->first);
-                        }
-                        else
-                        {
-                            // attribute request completed - reset backoff timer
-                            fc->bt.reset();
-                        }
-
-                        fc->timeout.reset();
-                        fc->req.status = REQ_READY;
+                        // notify app in case some attributes were not returned, and redispatch
+                        fc->failed(this);
+                        fc->bt.reset();
+                        fc->dispatch(this);
                         break;
 
                     case REQ_INFLIGHT:
@@ -618,13 +592,31 @@ void MegaClient::exec()
                         }
 
                         if (!fc->timeout.armed()) break;
+
                         // timeout! fall through...
+                        fc->req.disconnect();
                     case REQ_FAILURE:
-                        faf_failed(cit->first);
+                        fc->failed(this);
                         fc->bt.backoff();
-                        fc->req.status = REQ_READY;
                     default:
                         ;
+                }
+
+                if (fc->req.status != REQ_INFLIGHT && fc->bt.armed() && (fc->fafs[1].size() || fc->fafs[0].size()))
+                {
+                    fc->req.in.clear();
+
+                    if (Waiter::ds - fc->urltime > 600)
+                    {
+                        // fetches pending for this unconnected channel - dispatch fresh connection
+                        reqs[r].add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
+                        fc->req.status = REQ_INFLIGHT;
+                    }
+                    else
+                    {
+                        // redispatch cached URL if not older than one minute
+                        fc->dispatch(this);
+                    }
                 }
             }
         }
@@ -1355,7 +1347,7 @@ int MegaClient::wait()
             {
                 cit->second->timeout.update(&nds);
             }
-            else if (cit->second->req.status == REQ_READY && (cit->second->fafs[1].size() || cit->second->fafs[0].size()))
+            else if (cit->second->fafs[1].size() || cit->second->fafs[0].size())
             {
                 cit->second->bt.update(&nds);
             }
@@ -2123,35 +2115,6 @@ void MegaClient::finalizesc(bool complete)
         sctable = NULL;
     }
 
-}
-
-// notify the application of the request failure and remove records no longer needed
-void MegaClient::faf_failed(int fac)
-{
-    fafc_map::iterator cit = fafcs.find(fac);
-
-    if (cit != fafcs.end())
-    {
-        cit->second->req.disconnect();
-
-        for (faf_map::iterator it = cit->second->fafs[1].begin(); it != cit->second->fafs[1].end(); )
-        {
-            restag = it->second->tag;
-
-            if (app->fa_failed(it->second->nodehandle, it->second->type, it->second->retries))
-            {
-                // no retry desired
-                delete it->second;
-                cit->second->fafs[1].erase(it++);
-            }
-            else
-            {
-                // retry
-                it->second->retries++;
-                it++;
-            }
-        }
-    }
 }
 
 // queue node file attribute for retrieval or cancel retrieval

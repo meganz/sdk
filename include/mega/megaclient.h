@@ -584,9 +584,6 @@ public:
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
 
-    // file attribute fetch failed
-    void faf_failed(int);
-
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
