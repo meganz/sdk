@@ -2170,6 +2170,13 @@ error MegaClient::getfa(Node* n, fatype t, int cancel)
                 {
                     delete it->second;
                     cit->second->fafs[i].erase(it);
+
+                    // none left: tear down connection
+                    if (!cit->second->fafs[1].size() && cit->second->req.status == REQ_INFLIGHT)
+                    {
+                        cit->second->req.disconnect();
+                    }
+
                     return API_OK;
                 }
             }

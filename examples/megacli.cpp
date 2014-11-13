@@ -1420,7 +1420,7 @@ static void process_line(char* l)
                 cout << "      get exportedfilelink#key [offset [length]]" << endl;
                 cout << "      getq [cancelslot]" << endl;
                 cout << "      pause [get|put] [hard] [status]" << endl;
-                cout << "      getfa type [path]" << endl;
+                cout << "      getfa type [path] [cancel]" << endl;
                 cout << "      mkdir remotepath" << endl;
                 cout << "      rm remotepath" << endl;
                 cout << "      mv srcremotepath dstremotepath" << endl;
@@ -2376,6 +2376,7 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             Node* n;
+                            int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
 
                             if (words.size() < 3)
                             {
@@ -2397,7 +2398,7 @@ static void process_line(char* l)
                                 {
                                     if (n->hasfileattribute(type))
                                     {
-                                        client->getfa(n, type);
+                                        client->getfa(n, type, cancel);
                                         c++;
                                     }
                                 }
@@ -2407,18 +2408,18 @@ static void process_line(char* l)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
-                                            client->getfa(*it, type);
+                                            client->getfa(*it, type, cancel);
                                             c++;
                                         }
                                     }
                                 }
 
-                                cout << "Fetching " << c << " file attribute(s) of type " << type << "..." << endl;
+                                cout << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
                             }
                         }
                         else
                         {
-                            cout << "      getfa type [path]" << endl;
+                            cout << "      getfa type [path] [cancel]" << endl;
                         }
 
                         return;
