@@ -92,7 +92,7 @@ struct MEGA_API DirAccess
     virtual bool dopen(string*, FileAccess*, bool) = 0;
 
     // get next record
-    virtual bool dnext(string*, nodetype_t* = NULL) = 0;
+    virtual bool dnext(string*, string*, bool = true, nodetype_t* = NULL) = 0;
 
     virtual ~DirAccess() { }
 };

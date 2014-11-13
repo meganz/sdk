@@ -394,7 +394,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
         {
             size_t t = localpath->size();
 
-            while (da->dnext(&localname))
+            while (da->dnext(localpath, &localname, client->followsymlinks))
             {
                 name = localname;
                 client->fsaccess->local2name(&name);

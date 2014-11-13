@@ -1439,6 +1439,7 @@ static void process_line(char* l)
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
                 cout << "      logout" << endl;
+                cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
                 cout << "      quit" << endl;
@@ -1910,7 +1911,7 @@ static void process_line(char* l)
 
                             if (da->dopen(&localname, NULL, true))
                             {
-                                while (da->dnext(&localname, &type))
+                                while (da->dnext(NULL, &localname, &type))
                                 {
                                     client->fsaccess->local2path(&localname, &name);
                                     cout << "Queueing " << name << "..." << endl;
@@ -2896,6 +2897,19 @@ static void process_line(char* l)
                         else
                         {
                             cout << "Internal error." << endl;
+                        }
+
+                        return;
+                    }
+                    else if (words[0] == "symlink")
+                    {
+                        if (client->followsymlinks ^= true)
+                        {
+                            cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
+                        }
+                        else
+                        {
+                            cout << "No longer following symlinks." << endl;
                         }
 
                         return;

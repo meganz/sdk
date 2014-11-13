@@ -377,6 +377,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncscanstate = false;
     me = UNDEF;
     syncadding = 0;
+    followsymlinks = false;
 
     init();
 

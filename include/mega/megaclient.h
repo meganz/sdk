@@ -151,6 +151,10 @@ public:
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
+    // if set, symlinks will be followed except in recursive deletions
+    // (give the user ample warning about possible sync repercussions)
+    bool followsymlinks;
+
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
 

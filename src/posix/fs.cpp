@@ -914,7 +914,7 @@ bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
     return dp != NULL;
 }
 
-bool PosixDirAccess::dnext(string* name, nodetype_t* type)
+bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
 {
     if (globbing)
     {
@@ -938,23 +938,38 @@ bool PosixDirAccess::dnext(string* name, nodetype_t* type)
     }
 
     dirent* d;
+    size_t pathsize = path->size();
+    struct stat statbuf;
+
+    path->append("/");
 
     while ((d = readdir(dp)))
     {
-        if ((d->d_type == DT_DIR || d->d_type == DT_REG)
-         && (d->d_type != DT_DIR || *d->d_name != '.'
-         || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2]))))
+        if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            *name = d->d_name;
+            path->append(d->d_name);
 
-            if (type)
+            if (followsymlinks ? !stat(path->c_str(), &statbuf) : !lstat(path->c_str(), &statbuf))
             {
-                *type = d->d_type == DT_DIR ? FOLDERNODE : FILENODE;
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode))
+                {
+                    path->resize(pathsize);
+                    *name = d->d_name;
+
+                    if (type)
+                    {
+                        *type = S_ISREG(statbuf.st_mode) ? FILENODE : FOLDERNODE;
+                    }
+
+                    return true;
+                }
             }
 
-            return true;
+            path->resize(pathsize+1);
         }
     }
+
+    path->resize(pathsize);
 
     return false;
 }
@@ -971,6 +986,7 @@ PosixDirAccess::~PosixDirAccess()
     {
         closedir(dp);
     }
+
     if (globbing)
     {
         globfree(&globbuf);
