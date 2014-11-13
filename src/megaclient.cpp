@@ -597,6 +597,7 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         fc->failed(this);
                         fc->bt.backoff();
+                        fc->urltime = 0;
                     default:
                         ;
                 }
