@@ -350,11 +350,11 @@ using namespace mega;
     self.megaApi->importPublicNode((publicNode != nil) ? [publicNode getCPtr] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegateObject {
+- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegateObject {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegateObject singleListener:YES]);
 }
 
-- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink {
+- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
@@ -439,7 +439,7 @@ using namespace mega;
     self.megaApi->getAccountDetails();
 }
 
-- (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegateObject {
+- (void)pricingWithDelegate:(id<MEGARequestDelegate>)delegateObject {
     self.megaApi->getPricing([self createDelegateMEGARequestListener:delegateObject singleListener:YES]);
 }
 
@@ -700,7 +700,7 @@ using namespace mega;
     return self.megaApi->hasFingerprint([fingerprint UTF8String]);
 }
 
-- (NSInteger)getAccessWithNode:(MEGANode *)node {
+- (NSInteger)accessLevelWithNode:(MEGANode *)node {
     if (node == nil) return -1;
     
     return self.megaApi->getAccess([node getCPtr]);

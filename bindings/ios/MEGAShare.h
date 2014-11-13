@@ -17,9 +17,9 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 
 @interface MEGAShare : NSObject
 
-- (NSString *)getUser;
-- (uint64_t)getNodeHandle;
-- (NSInteger)getAccess;
-- (NSDate *)getTimestamp;
+@property (readonly) NSString *user;
+@property (readonly) uint64_t nodeHandle;
+@property (readonly) MEGAShareType accessType;
+@property (readonly) NSDate *timestamp;
 
 @end

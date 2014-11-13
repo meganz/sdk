@@ -10,7 +10,8 @@
 
 @interface MEGAUserList : NSObject
 
-- (MEGAUser *)getUserAtPosition:(NSInteger)position;
-- (NSNumber *)size;
+@property (readonly) NSNumber *size;
+
+- (MEGAUser *)userAtPosition:(NSInteger)position;
 
 @end

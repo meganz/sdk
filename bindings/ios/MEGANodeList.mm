@@ -40,7 +40,7 @@ using namespace mega;
     return self.nodeList;
 }
 
-- (MEGANode *)getNodeAtPosition:(NSInteger)position {
+- (MEGANode *)nodeAtPosition:(NSInteger)position {
     return  self.nodeList ? [[MEGANode alloc] initWithMegaNode:self.nodeList->get((int)position)->copy() cMemoryOwn:YES] : nil;
 }
 

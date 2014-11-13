@@ -44,105 +44,105 @@ using namespace mega;
     return self.megaTransfer;
 }
 
-- (MEGATransferType)getType {
+- (MEGATransferType)type {
     return (MEGATransferType) (self.megaTransfer ? self.megaTransfer->getType() : 0);
 }
 
-- (NSString *)getTransferString {
+- (NSString *)transfer {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getTransferString()] : nil;
 }
 
-- (NSDate *)getStartTime {
+- (NSDate *)startTime {
     return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getStartTime()] : nil;
 }
 
-- (NSNumber *)getTransferredBytes {
+- (NSNumber *)transferredBytes {
     return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getTransferredBytes()] : nil;
 }
 
-- (NSNumber *)getTotalBytes {
+- (NSNumber *)totalBytes {
     return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getTotalBytes()] : nil;
 }
 
-- (NSString *)getPath {
+- (NSString *)path {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getPath()] : nil;
 }
 
-- (NSString *)getParentPath {
+- (NSString *)parentPath {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getParentPath()] : nil;
 }
 
-- (uint64_t)getNodeHandle {
+- (uint64_t)nodeHandle {
     return self.megaTransfer ? self.megaTransfer->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (uint64_t)getParentHandle {
+- (uint64_t)parentHandle {
     return self.megaTransfer ? self.megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)getNumConnections {
+- (NSInteger)numberConnections {
     return self.megaTransfer ? self.megaTransfer->getNumConnections() : 0;
 }
 
-- (uint64_t)getStartPos {
+- (uint64_t)startPosition {
     return self.megaTransfer ? self.megaTransfer->getStartPos() : 0;
 }
 
-- (uint64_t)getEndPos {
+- (uint64_t)endPosition {
     return self.megaTransfer ? self.megaTransfer->getEndPos() : 0;
 }
 
-- (NSInteger)getMaxSpeed {
+- (NSInteger)maximunSpeed {
     return self.megaTransfer ? self.megaTransfer->getMaxSpeed() : 0;
 }
 
-- (NSString *)getFileName {
+- (NSString *)fileName {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getFileName()] : nil;
 }
 
-- (NSInteger)getNumRetry {
+- (NSInteger)numberRetry {
     return self.megaTransfer ? self.megaTransfer->getNumRetry() : 0;
 }
 
-- (NSInteger)getMaxRetries {
+- (NSInteger)maximunRetries {
     return self.megaTransfer ? self.megaTransfer->getMaxRetries() : 0;
 }
 
-- (NSDate *)getTime {
+- (NSDate *)time {
     return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getTime()] : nil;
 }
 
-- (NSString *)getBase64Key {
+- (NSString *)base64Key {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getBase64Key()] : nil;
 }
 
-- (NSInteger)getTag {
+- (NSInteger)tag {
     return self.megaTransfer ? self.megaTransfer->getTag() : 0;
 }
 
-- (NSNumber *)getSpeed {
+- (NSNumber *)speed {
     return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getSpeed()] : nil;
 }
 
-- (NSNumber *)getDeltaSize {
+- (NSNumber *)deltaSize {
     return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getDeltaSize()] : nil;
 }
 
-- (NSDate *)getUpdateTime {
+- (NSDate *)updateTime {
     return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getUpdateTime()] : nil;
 }
 
-- (MEGANode *)getPublicNode {
+- (MEGANode *)publicNode {
     return self.megaTransfer && self.megaTransfer->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicNode()->copy() cMemoryOwn:YES] : nil;
 }
 

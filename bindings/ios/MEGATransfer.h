@@ -15,30 +15,31 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 
 @interface MEGATransfer : NSObject
 
+@property (readonly) MEGATransferType type;
+@property (readonly) NSString *transfer;
+@property (readonly) NSDate *startTime;
+@property (readonly) NSNumber *transferredBytes;
+@property (readonly) NSNumber *totalBytes;
+@property (readonly) NSString *path;
+@property (readonly) NSString *parentPath;
+@property (readonly) uint64_t nodeHandle;
+@property (readonly) uint64_t parentHandle;
+@property (readonly) NSInteger numberConnections;
+@property (readonly) uint64_t startPosition;
+@property (readonly) uint64_t endPosition;
+@property (readonly) NSInteger maximunSpeed;
+@property (readonly) NSString *fileName;
+@property (readonly) NSInteger numberRetry;
+@property (readonly) NSInteger maximunRetries;
+@property (readonly) NSDate *time;
+@property (readonly) NSString *base64Key;
+@property (readonly) NSInteger tag;
+@property (readonly) NSNumber *speed;
+@property (readonly) NSNumber *deltaSize;
+@property (readonly) NSDate *updateTime;
+@property (readonly) MEGANode *publicNode;
+
 - (instancetype)clone;
-- (MEGATransferType)getType;
-- (NSString *)getTransferString;
-- (NSDate *)getStartTime;
-- (NSNumber *)getTransferredBytes;
-- (NSNumber *)getTotalBytes;
-- (NSString *)getPath;
-- (NSString *)getParentPath;
-- (uint64_t)getNodeHandle;
-- (uint64_t)getParentHandle;
-- (NSInteger)getNumConnections;
-- (uint64_t)getStartPos;
-- (uint64_t)getEndPos;
-- (NSInteger)getMaxSpeed;
-- (NSString *)getFileName;
-- (NSInteger)getNumRetry;
-- (NSInteger)getMaxRetries;
-- (NSDate *) getTime;
-- (NSString *)getBase64Key;
-- (NSInteger)getTag;
-- (NSNumber *)getSpeed;
-- (NSNumber *)getDeltaSize;
-- (NSDate *)getUpdateTime;
-- (MEGANode *)getPublicNode;
 - (BOOL)isSyncTransfer;
 - (BOOL)isStreamingTransfer;
 

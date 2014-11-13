@@ -19,15 +19,16 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 
 @interface MEGANode : NSObject
 
+@property (readonly) MEGANodeType type;
+@property (readonly) NSString *name;
+@property (readonly) NSString *base64Handle;
+@property (readonly) NSNumber *size;
+@property (readonly) NSDate *creationTime;
+@property (readonly) NSDate *modificationTime;
+@property (readonly) uint64_t handle;
+@property (readonly) NSInteger tag;
+
 - (instancetype)clone;
-- (MEGANodeType)getType;
-- (NSString *)getName;
-- (NSString *)getBase64Handle;
-- (NSNumber *)getSize;
-- (NSDate *)getCreationTime;
-- (NSDate *)getModificationTime;
-- (uint64_t)getHandle;
-- (NSInteger)getTag;
 - (BOOL)isFile;
 - (BOOL)isFolder;
 - (BOOL)isRemoved;

@@ -40,21 +40,21 @@ using namespace mega;
     return self.megaShare;
 }
 
-- (NSString *)getUser {
+- (NSString *)user {
     if (!self.megaShare) return nil;
     
     return self.megaShare->getUser() ? [[NSString alloc] initWithUTF8String:self.megaShare->getUser()] : nil;
 }
 
-- (uint64_t)getNodeHandle {
+- (uint64_t)nodeHandle {
     return self.megaShare ? self.megaShare->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)getAccess {
+- (NSInteger)accessType {
     return self.megaShare ? self.megaShare->getAccess() : MegaShare::ACCESS_UNKNOWN;
 }
 
-- (NSDate *)getTimestamp {
+- (NSDate *)timestamp {
     return self.megaShare ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaShare->getTimestamp()] : nil;
 }
 

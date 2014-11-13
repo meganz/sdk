@@ -10,7 +10,8 @@
 
 @interface MEGATransferList : NSObject
 
+@property (readonly) NSNumber *size;
+
 - (MEGATransfer *)getTransferAtPosition:(NSInteger)position;
-- (NSNumber *)size;
 
 @end

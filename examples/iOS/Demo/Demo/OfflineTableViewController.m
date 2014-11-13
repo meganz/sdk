@@ -64,19 +64,19 @@
     NodeTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"nodeCell" forIndexPath:indexPath];
     
     MEGANode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMEGANode];
-    NSString *name = [node getName];
+    NSString *name = [node name];
     
     cell.nameLabel.text = name;
 
-    NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node getModificationTime]
+    NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node modificationTime]
                                                           dateStyle:NSDateFormatterShortStyle
                                                           timeStyle:NSDateFormatterNoStyle];
     cell.modificationLabel.text = modificationTimeString;
     
     if (isImage(name.lowercaseString.pathExtension)) {
-        NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
+        NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
         NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-        NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
+        NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
         NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
         destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
         [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
@@ -93,7 +93,7 @@
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     MEGANode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMEGANode];
-    NSString *name = [node getName];
+    NSString *name = [node name];
     if (isImage(name.lowercaseString.pathExtension)) {
         MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
         
@@ -118,7 +118,7 @@
     } else if (isVideo(name.lowercaseString.pathExtension)) {
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
         NSString *path = [paths objectAtIndex:0];
-        NSString *filePath = [path stringByAppendingPathComponent:[node getBase64Handle]];
+        NSString *filePath = [path stringByAppendingPathComponent:[node base64Handle]];
         NSURL *fileURL = [NSURL fileURLWithPath:filePath];
         
         MPMoviePlayerViewController *videoPlayerView = [[MPMoviePlayerViewController alloc] initWithContentURL:fileURL];
@@ -165,10 +165,10 @@
             [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
             [self.offlineDocuments addObject:tempDictionary];
             
-            if (isImage([node getName].lowercaseString.pathExtension)) {
+            if (isImage([node name].lowercaseString.pathExtension)) {
                 offsetIndex++;
                 MWPhoto *photo = [MWPhoto photoWithURL:[NSURL fileURLWithPath:filePath]];
-                photo.caption = [node getName];
+                photo.caption = [node name];
                 [self.offlineImages addObject:photo];
             } 
         }

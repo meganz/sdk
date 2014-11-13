@@ -45,37 +45,37 @@ using namespace mega;
     return self.megaRequest;
 }
 
-- (MEGARequestType)getType {
+- (MEGARequestType)type {
     return (MEGARequestType) (self.megaRequest ? self.megaRequest->getType() : -1);
 }
 
-- (NSString *)getRequestString {
+- (NSString *)requestString {
     if(!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getRequestString()] : nil;
 }
 
-- (uint64_t)getNodeHandle {
+- (uint64_t)nodeHandle {
     return self.megaRequest ? self.megaRequest->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSString *)getLink {
+- (NSString *)link {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest->getLink() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getLink()] : nil;
 }
 
-- (uint64_t)getParentHandle {
+- (uint64_t)parentHandle {
     return self.megaRequest ? self.megaRequest->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSString *)getSessionKey {
+- (NSString *)sessionKey {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getSessionKey()] : nil;
 }
 
-- (NSString *)getName {
+- (NSString *)name {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getName()] : nil;
@@ -87,60 +87,60 @@ using namespace mega;
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getEmail()] : nil;
 }
 
-- (NSString *)getPassword {
+- (NSString *)password {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPassword()] : nil;
 }
 
-- (NSString *)getNewPassword {
+- (NSString *)newPassword {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getNewPassword()] : nil;
 }
 
-- (NSString *)getPrivateKey {
+- (NSString *)privateKey {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPrivateKey()] : nil;
 }
 
-- (MEGANodeAccessLevel)getAccess {
+- (MEGANodeAccessLevel)accessLevel {
     return (MEGANodeAccessLevel) (self.megaRequest ? self.megaRequest->getAccess() : -1);
 }
 
-- (NSString *)getFile {
+- (NSString *)file {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest->getFile() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getFile()] : nil;
     
 }
 
-- (MEGANode *)getPublicNode {
+- (MEGANode *)publicNode {
     return self.megaRequest && self.megaRequest->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicNode()->copy() cMemoryOwn:YES] : nil;
 }
 
-- (NSInteger)getParamType {
+- (NSInteger)paramType {
     return  self.megaRequest ? self.megaRequest->getParamType() : 0;
 }
 
-- (BOOL)getFlag {
+- (BOOL)flag {
     return self.megaRequest ? self.megaRequest->getFlag() : NO;
 }
 
-- (NSNumber *)getTransferredBytes {
+- (NSNumber *)transferredBytes {
     return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getTransferredBytes()] : nil;
 }
 
-- (NSNumber *)getTotalBytes {
+- (NSNumber *)totalBytes {
     return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getTotalBytes()] : nil;
 }
 
-- (MEGAAcountDetails *)getMEGAAcountDetails {
+- (MEGAAcountDetails *)megaAcountDetails {
     return nil;
 }
 
-- (MEGAPricing *)getPricing {
+- (MEGAPricing *)pricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
 }
 

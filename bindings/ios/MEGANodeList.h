@@ -10,7 +10,8 @@
 
 @interface MEGANodeList : NSObject
 
-- (MEGANode *)getNodeAtPosition:(NSInteger)position;
-- (NSNumber *)size;
+@property (readonly) NSNumber *size;
+
+- (MEGANode *)nodeAtPosition:(NSInteger)position;
 
 @end

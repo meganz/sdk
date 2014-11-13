@@ -16,8 +16,8 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
 
 @interface MEGAUser : NSObject
 
-- (NSString *)getEmail;
-- (MEGAUserVisibility)getVisibility;
-- (NSDate *)getTimestamp;
+@property (readonly) NSString *email;
+@property (readonly) MEGAUserVisibility accessVisibility;
+@property (readonly) NSDate *timestamp;
 
 @end

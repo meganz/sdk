@@ -40,17 +40,17 @@ using namespace mega;
     return self.megaUser;
 }
 
-- (NSString *)getEmail{
+- (NSString *)email{
     if (!self.megaUser) return nil;
     
     return self.megaUser ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
 }
 
-- (MEGAUserVisibility)getVisibility {
+- (MEGAUserVisibility)accessVisibility {
     return (MEGAUserVisibility) (self.megaUser ? self.megaUser->getVisibility() : ::mega::MegaUser::VISIBILITY_UNKNOWN);
 }
 
-- (NSDate *)getTimestamp {
+- (NSDate *)timestamp {
     return self.megaUser ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaUser->getTimestamp()] : nil;
 }
 

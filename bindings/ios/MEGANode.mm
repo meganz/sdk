@@ -44,23 +44,23 @@ using namespace mega;
     return self.megaNode;
 }
 
-- (MEGANodeType)getType {
+- (MEGANodeType)type {
     return (MEGANodeType) (self.megaNode ? self.megaNode->getType() : MegaNode::TYPE_UNKNOWN);
 }
 
-- (NSString *)getName {
+- (NSString *)name {
     if(!self.megaNode) return nil;
     
     return self.megaNode ? [[NSString alloc] initWithUTF8String:self.megaNode->getName()] : nil;
 }
 
-- (NSString *)getBase64Handle {
+- (NSString *)base64Handle {
     if (!self.megaNode) return nil;
     
     return self.megaNode ? [[NSString alloc] initWithUTF8String:self.megaNode->getBase64Handle()] : nil;
 }
 
-- (NSNumber *)getSize {
+- (NSNumber *)size {
     return self.megaNode ? [[NSNumber alloc] initWithUnsignedLongLong:self.megaNode->getSize()] : nil;
 }
 
@@ -68,15 +68,15 @@ using namespace mega;
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getCreationTime()] : nil;
 }
 
-- (NSDate *)getModificationTime {
+- (NSDate *)modificationTime {
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getModificationTime()] : nil;
 }
 
-- (uint64_t)getHandle {
+- (uint64_t)handle {
     return self.megaNode ? self.megaNode->getHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)getTag {
+- (NSInteger)tag {
     return self.megaNode ? self.megaNode->getTag() : 0;
 }
 

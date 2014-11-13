@@ -93,8 +93,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent;
 - (void)importPublicNode:(MEGANode *)publicNode parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)importPublicNode:(MEGANode *)publicNode parent:(MEGANode *)parent;
-- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegateObject;
-- (void)getPublicNodeWithMegaFileLink:(NSString *)megaFileLink;
+- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegateObject;
+- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink;
 - (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
 - (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegateObject;
@@ -113,8 +113,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)fetchNodes;
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)getAccountDetails;
-- (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegateObject;
-- (void)getPricing;
+- (void)pricingWithDelegate:(id<MEGARequestDelegate>)delegateObject;
+- (void)pricing;
 - (void)getPaymentURLWithProductHandle:(uint64_t) productHandle delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)getPaymentULRWithProductHandle:(uint64_t) productHandle;
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegateObject;
@@ -169,7 +169,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (NSString *)getNodeFinferprintWithNode:(MEGANode *)node;
 - (MEGANode *)getNodeWithFingerprint:(NSString *)fingerprint;
 - (BOOL)hasFingerprint:(NSString *)fingerprint;
-- (NSInteger)getAccessWithNode:(MEGANode *)node;
+- (NSInteger)accessLevelWithNode:(MEGANode *)node;
 - (MEGAError *)checkAccessWithNode:(MEGANode *)node level:(NSInteger)level;
 - (MEGAError *)checkMoveWithMnode:(MEGANode *)node target:(MEGANode *)target;
 - (MEGANode *)getRootNode;

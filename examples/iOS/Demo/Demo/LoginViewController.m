@@ -70,7 +70,7 @@
         return;
     }
     
-    switch ([request getType]) {
+    switch ([request type]) {
         case MEGARequestTypeLogin: {
             [api fetchNodesWithListener:self];
             break;
@@ -88,8 +88,8 @@
 }
 
 - (void)onRequestUpdate:(MEGASdk *)api request:(MEGARequest *)request {
-    if ([request getType] == MEGARequestTypeFetchNodes){
-        float progress = [[request getTransferredBytes] floatValue] / [[request getTotalBytes] floatValue];
+    if ([request type] == MEGARequestTypeFetchNodes){
+        float progress = [[request transferredBytes] floatValue] / [[request totalBytes] floatValue];
         if (progress > 0 && progress <0.99) {
             [SVProgressHUD showProgress:progress status:@"Fetching nodes"];
         } else if (progress > 0.99 || progress < 0) {

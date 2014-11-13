@@ -63,26 +63,27 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 
 @interface MEGARequest : NSObject
 
+@property (readonly) MEGARequestType type;
+@property (readonly) NSString *requestString;
+@property (readonly) uint64_t nodeHandle;
+@property (readonly) NSString *link;
+@property (readonly) uint64_t parentHandle;
+@property (readonly) NSString *sessionKey;
+@property (readonly) NSString *name;
+@property (readonly) NSString *getEmail;
+@property (readonly) NSString *password;
+@property (readonly) NSString *newPassword;
+@property (readonly) NSString *privateKey;
+@property (readonly) MEGANodeAccessLevel accessLevel;
+@property (readonly) NSString *file;
+@property (readonly) MEGANode *publicNode;
+@property (readonly) NSInteger paramType;
+@property (readonly) BOOL flag;
+@property (readonly) NSNumber *transferredBytes;
+@property (readonly) NSNumber *totalBytes;
+@property (readonly) MEGAAcountDetails *megaAcountDetails;
+@property (readonly) MEGAPricing *pricing;
+
 - (instancetype)clone;
-- (MEGARequestType)getType;
-- (NSString *)getRequestString;
-- (uint64_t)getNodeHandle;
-- (NSString *)getLink;
-- (uint64_t)getParentHandle;
-- (NSString *)getSessionKey;
-- (NSString *)getName;
-- (NSString *)getEmail;
-- (NSString *)getPassword;
-- (NSString *)getNewPassword;
-- (NSString *)getPrivateKey;
-- (MEGANodeAccessLevel)getAccess;
-- (NSString *)getFile;
-- (MEGANode *)getPublicNode;
-- (NSInteger)getParamType;
-- (BOOL)getFlag;
-- (NSNumber *)getTransferredBytes;
-- (NSNumber *)getTotalBytes;
-- (MEGAAcountDetails *)getMEGAAcountDetails;
-- (MEGAPricing *)getPricing;
 
 @end

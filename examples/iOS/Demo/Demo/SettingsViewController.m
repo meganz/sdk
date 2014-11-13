@@ -59,7 +59,7 @@
     if ([error getErrorCode]) {
     }
     
-    switch ([request getType]) {
+    switch ([request type]) {
         case MEGARequestTypeAccountDetails: {
             break;
         }

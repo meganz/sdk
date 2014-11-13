@@ -10,7 +10,8 @@
 
 @interface MEGAShareList : NSObject
 
+@property (readonly) NSNumber *size;
+
 - (MEGAShare *)getShareAtPosition:(NSInteger)position;
-- (NSNumber *)size;
 
 @end
