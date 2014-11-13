@@ -7,11 +7,11 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "MegaSDKManager.h"
+#import "MEGASdkManager.h"
 #import "SWTableViewCell.h"
 
-@interface CloudDriveTableViewController : UITableViewController <MListenerDelegate, UIActionSheetDelegate, UIAlertViewDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate, SWTableViewCellDelegate>
+@interface CloudDriveTableViewController : UITableViewController <MEGADelegate, UIActionSheetDelegate, UIAlertViewDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate, SWTableViewCellDelegate>
 
-@property (nonatomic, strong) MNode *parentNode;
+@property (nonatomic, strong) MEGANode *parentNode;
 
 @end

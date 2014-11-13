@@ -7,7 +7,7 @@
 //
 
 #import "AppDelegate.h"
-#import "MegaSDKManager.h"
+#import "MEGASdkManager.h"
 
 #define kUserAgent @"iOS Example/1.0"
 #define kAppKey @"hNF3ELhK"
@@ -22,9 +22,9 @@
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
     
-    [MegaSDKManager setAppKey:kAppKey];
-    [MegaSDKManager setUserAgent:kUserAgent];
-    [MegaSDKManager sharedMegaSDK];
+    [MEGASdkManager setAppKey:kAppKey];
+    [MEGASdkManager setUserAgent:kUserAgent];
+    [MEGASdkManager sharedMEGASdk];
     
     return YES;
 }

@@ -1,5 +1,5 @@
 //
-//  MyAccountViewController.m
+//  SettingsViewController.m
 //  Demo
 //
 //  Created by Javier Navarro on 29/10/14.
@@ -19,7 +19,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.userEmail.text = [[MegaSDKManager sharedMegaSDK] getMyEmail];
+    self.userEmail.text = [[MEGASdkManager sharedMEGASdk] getMyEmail];
     [self setUserAvatar];
     
 }
@@ -33,7 +33,7 @@
 
 - (void)setUserAvatar {
     
-    MUser *user = [[MegaSDKManager sharedMegaSDK] getContactWithEmail:self.userEmail.text];
+    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] getContactWithEmail:self.userEmail.text];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
     NSString *fileName = [self.userEmail.text stringByAppendingString:@".jpg"];
     NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
@@ -41,7 +41,7 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists) {
-        [[MegaSDKManager sharedMegaSDK] getAvatarWithUser:user destinationFilePath:destinationFilePath delegate:self];
+        [[MEGASdkManager sharedMEGASdk] getAvatarWithUser:user destinationFilePath:destinationFilePath delegate:self];
     } else {
         [self.userAvatar setImage:[UIImage imageNamed:destinationFilePath]];
         
@@ -50,21 +50,21 @@
     }
 }
 
-#pragma mark - MRequestDelegate
+#pragma mark - MEGARequestDelegate
 
-- (void)onRequestStart:(MegaSDK *)api request:(MRequest *)request {
+- (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
 }
 
-- (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+- (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
     if ([error getErrorCode]) {
     }
     
     switch ([request getType]) {
-        case MRequestTypeAccountDetails: {
+        case MEGARequestTypeAccountDetails: {
             break;
         }
             
-        case MRequestTypeGetAttrUser: {
+        case MEGARequestTypeGetAttrUser: {
             [self setUserAvatar];
         }
             
@@ -73,10 +73,10 @@
     }
 }
 
-- (void)onRequestUpdate:(MegaSDK *)api request:(MRequest *)request {
+- (void)onRequestUpdate:(MEGASdk *)api request:(MEGARequest *)request {
 }
 
-- (void)onRequestTemporaryError:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+- (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
 @end

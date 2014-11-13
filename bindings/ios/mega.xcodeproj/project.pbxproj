@@ -11,11 +11,11 @@
 		41AB68F21A094194003FE608 /* GfxProcCG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41AB68F11A094194003FE608 /* GfxProcCG.cpp */; };
 		41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */; };
 		41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FB1A09444E003FE608 /* ImageIO.framework */; };
-		41B2AED91A0A859C006C40FB /* DelegateMGlobalListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED21A0A859C006C40FB /* DelegateMGlobalListener.mm */; };
-		41B2AEDA1A0A859C006C40FB /* DelegateMListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED41A0A859C006C40FB /* DelegateMListener.mm */; };
-		41B2AEDB1A0A859C006C40FB /* DelegateMRequestListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED61A0A859C006C40FB /* DelegateMRequestListener.mm */; };
-		41B2AEDC1A0A859C006C40FB /* DelegateMTransferListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED81A0A859C006C40FB /* DelegateMTransferListener.mm */; };
-		41B538CC1A0284CB00EABDC9 /* MPricing.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B538CB1A0284CB00EABDC9 /* MPricing.mm */; };
+		41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */; };
+		41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */; };
+		41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */; };
+		41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */; };
+		41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */; };
 		41D4EADB19EED5070097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADA19EED5070097C00F /* libresolv.dylib */; };
 		940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8D19ED9245007E7FA2 /* libcares.a */; };
 		940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8E19ED9245007E7FA2 /* libcrypto.a */; };
@@ -63,18 +63,18 @@
 		940BEFF419ED9351007E7FA2 /* net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE419ED9351007E7FA2 /* net.cpp */; };
 		940BEFF519ED9351007E7FA2 /* waiter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE519ED9351007E7FA2 /* waiter.cpp */; };
 		940BEFF719ED9351007E7FA2 /* posixthread.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE819ED9351007E7FA2 /* posixthread.cpp */; };
-		940BF00E19ED97B9007E7FA2 /* MAccountDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFFE19ED97B9007E7FA2 /* MAccountDetails.mm */; };
-		940BF00F19ED97B9007E7FA2 /* MegaSDK.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFFF19ED97B9007E7FA2 /* MegaSDK.mm */; };
-		940BF01019ED97B9007E7FA2 /* MError.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00019ED97B9007E7FA2 /* MError.mm */; };
-		940BF01119ED97B9007E7FA2 /* MNode.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00119ED97B9007E7FA2 /* MNode.mm */; };
-		940BF01219ED97B9007E7FA2 /* MNodeList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00219ED97B9007E7FA2 /* MNodeList.mm */; };
-		940BF01319ED97B9007E7FA2 /* MRequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00319ED97B9007E7FA2 /* MRequest.mm */; };
-		940BF01419ED97B9007E7FA2 /* MShare.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00419ED97B9007E7FA2 /* MShare.mm */; };
-		940BF01519ED97B9007E7FA2 /* MShareList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00519ED97B9007E7FA2 /* MShareList.mm */; };
-		940BF01619ED97B9007E7FA2 /* MTransfer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00619ED97B9007E7FA2 /* MTransfer.mm */; };
-		940BF01719ED97B9007E7FA2 /* MTransferList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00719ED97B9007E7FA2 /* MTransferList.mm */; };
-		940BF01819ED97B9007E7FA2 /* MUser.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00819ED97B9007E7FA2 /* MUser.mm */; };
-		940BF01919ED97B9007E7FA2 /* MUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MUserList.mm */; };
+		940BF00E19ED97B9007E7FA2 /* MEGAAccountDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFFE19ED97B9007E7FA2 /* MEGAAccountDetails.mm */; };
+		940BF00F19ED97B9007E7FA2 /* MEGASdk.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFFF19ED97B9007E7FA2 /* MEGASdk.mm */; };
+		940BF01019ED97B9007E7FA2 /* MEGAError.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00019ED97B9007E7FA2 /* MEGAError.mm */; };
+		940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00119ED97B9007E7FA2 /* MEGANode.mm */; };
+		940BF01219ED97B9007E7FA2 /* MEGANodeList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */; };
+		940BF01319ED97B9007E7FA2 /* MEGARequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00319ED97B9007E7FA2 /* MEGARequest.mm */; };
+		940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00419ED97B9007E7FA2 /* MEGAShare.mm */; };
+		940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00519ED97B9007E7FA2 /* MEGAShareList.mm */; };
+		940BF01619ED97B9007E7FA2 /* MEGATransfer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00619ED97B9007E7FA2 /* MEGATransfer.mm */; };
+		940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */; };
+		940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00819ED97B9007E7FA2 /* MEGAUser.mm */; };
+		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
 		940BF02B19EDB683007E7FA2 /* utf8proc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BF02719EDB683007E7FA2 /* utf8proc.cpp */; };
 		940BF03119EDB720007E7FA2 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BF02F19EDB6DB007E7FA2 /* libz.dylib */; settings = {ATTRIBUTES = (Required, ); }; };
 		940BF03219EDB8F2007E7FA2 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */; };
@@ -94,21 +94,21 @@
 
 /* Begin PBXFileReference section */
 		416812A419EE73CF00C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
-		41AB68ED1A093C3D003FE608 /* MegaSDK+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MegaSDK+init.h"; sourceTree = "<group>"; };
+		41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGASdk+init.h"; sourceTree = "<group>"; };
 		41AB68F11A094194003FE608 /* GfxProcCG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GfxProcCG.cpp; sourceTree = "<group>"; };
 		41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
 		41AB68FB1A09444E003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
-		41B0CE781A038EB9008D6044 /* MPricing+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MPricing+init.h"; sourceTree = "<group>"; };
-		41B2AED11A0A859C006C40FB /* DelegateMGlobalListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMGlobalListener.h; sourceTree = "<group>"; };
-		41B2AED21A0A859C006C40FB /* DelegateMGlobalListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMGlobalListener.mm; sourceTree = "<group>"; };
-		41B2AED31A0A859C006C40FB /* DelegateMListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMListener.h; sourceTree = "<group>"; };
-		41B2AED41A0A859C006C40FB /* DelegateMListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMListener.mm; sourceTree = "<group>"; };
-		41B2AED51A0A859C006C40FB /* DelegateMRequestListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMRequestListener.h; sourceTree = "<group>"; };
-		41B2AED61A0A859C006C40FB /* DelegateMRequestListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMRequestListener.mm; sourceTree = "<group>"; };
-		41B2AED71A0A859C006C40FB /* DelegateMTransferListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMTransferListener.h; sourceTree = "<group>"; };
-		41B2AED81A0A859C006C40FB /* DelegateMTransferListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMTransferListener.mm; sourceTree = "<group>"; };
-		41B538CA1A0284CB00EABDC9 /* MPricing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MPricing.h; sourceTree = "<group>"; };
-		41B538CB1A0284CB00EABDC9 /* MPricing.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MPricing.mm; sourceTree = "<group>"; };
+		41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAPricing+init.h"; sourceTree = "<group>"; };
+		41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGAGlobalListener.h; sourceTree = "<group>"; };
+		41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGAGlobalListener.mm; sourceTree = "<group>"; };
+		41B2AED31A0A859C006C40FB /* DelegateMEGAListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = DelegateMEGAListener.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGAListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED51A0A859C006C40FB /* DelegateMEGARequestListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGARequestListener.h; sourceTree = "<group>"; };
+		41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGARequestListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED71A0A859C006C40FB /* DelegateMEGATransferListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGATransferListener.h; sourceTree = "<group>"; };
+		41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGATransferListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B538CA1A0284CB00EABDC9 /* MEGAPricing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAPricing.h; sourceTree = "<group>"; };
+		41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAPricing.mm; sourceTree = "<group>"; };
 		41D4EADA19EED5070097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
 		940BEF8D19ED9245007E7FA2 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = 3rdparty/lib/libcares.a; sourceTree = "<group>"; };
 		940BEF8E19ED9245007E7FA2 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = 3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
@@ -156,18 +156,18 @@
 		940BEFE419ED9351007E7FA2 /* net.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = net.cpp; sourceTree = "<group>"; };
 		940BEFE519ED9351007E7FA2 /* waiter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = waiter.cpp; sourceTree = "<group>"; };
 		940BEFE819ED9351007E7FA2 /* posixthread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = posixthread.cpp; sourceTree = "<group>"; };
-		940BEFFE19ED97B9007E7FA2 /* MAccountDetails.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MAccountDetails.mm; sourceTree = "<group>"; };
-		940BEFFF19ED97B9007E7FA2 /* MegaSDK.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MegaSDK.mm; sourceTree = "<group>"; };
-		940BF00019ED97B9007E7FA2 /* MError.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MError.mm; sourceTree = "<group>"; };
-		940BF00119ED97B9007E7FA2 /* MNode.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MNode.mm; sourceTree = "<group>"; };
-		940BF00219ED97B9007E7FA2 /* MNodeList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MNodeList.mm; sourceTree = "<group>"; };
-		940BF00319ED97B9007E7FA2 /* MRequest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MRequest.mm; sourceTree = "<group>"; };
-		940BF00419ED97B9007E7FA2 /* MShare.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MShare.mm; sourceTree = "<group>"; };
-		940BF00519ED97B9007E7FA2 /* MShareList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MShareList.mm; sourceTree = "<group>"; };
-		940BF00619ED97B9007E7FA2 /* MTransfer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MTransfer.mm; sourceTree = "<group>"; };
-		940BF00719ED97B9007E7FA2 /* MTransferList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MTransferList.mm; sourceTree = "<group>"; };
-		940BF00819ED97B9007E7FA2 /* MUser.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MUser.mm; sourceTree = "<group>"; };
-		940BF00919ED97B9007E7FA2 /* MUserList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MUserList.mm; sourceTree = "<group>"; };
+		940BEFFE19ED97B9007E7FA2 /* MEGAAccountDetails.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAAccountDetails.mm; sourceTree = "<group>"; };
+		940BEFFF19ED97B9007E7FA2 /* MEGASdk.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGASdk.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00019ED97B9007E7FA2 /* MEGAError.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAError.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00119ED97B9007E7FA2 /* MEGANode.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGANode.mm; sourceTree = "<group>"; };
+		940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGANodeList.mm; sourceTree = "<group>"; };
+		940BF00319ED97B9007E7FA2 /* MEGARequest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGARequest.mm; sourceTree = "<group>"; };
+		940BF00419ED97B9007E7FA2 /* MEGAShare.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAShare.mm; sourceTree = "<group>"; };
+		940BF00519ED97B9007E7FA2 /* MEGAShareList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAShareList.mm; sourceTree = "<group>"; };
+		940BF00619ED97B9007E7FA2 /* MEGATransfer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGATransfer.mm; sourceTree = "<group>"; };
+		940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGATransferList.mm; sourceTree = "<group>"; };
+		940BF00819ED97B9007E7FA2 /* MEGAUser.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAUser.mm; sourceTree = "<group>"; };
+		940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAUserList.mm; sourceTree = "<group>"; };
 		940BF02719EDB683007E7FA2 /* utf8proc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = utf8proc.cpp; sourceTree = "<group>"; };
 		940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
 		940BF02F19EDB6DB007E7FA2 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
@@ -218,33 +218,33 @@
 		940BF08319EDBCAD007E7FA2 /* mega.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega.h; sourceTree = "<group>"; };
 		940BF08419EDBCAD007E7FA2 /* megaapi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megaapi.h; sourceTree = "<group>"; };
 		940BF08519EDBCAD007E7FA2 /* megaapi_impl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megaapi_impl.h; sourceTree = "<group>"; };
-		940BF08A19EDBD62007E7FA2 /* MAccountDetails.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MAccountDetails.h; sourceTree = "<group>"; };
-		940BF08B19EDBD62007E7FA2 /* MegaSDK.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MegaSDK.h; sourceTree = "<group>"; };
-		940BF08C19EDBD62007E7FA2 /* MError.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MError.h; sourceTree = "<group>"; };
-		940BF08D19EDBD62007E7FA2 /* MGlobalDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MGlobalDelegate.h; sourceTree = "<group>"; };
-		940BF08E19EDBD62007E7FA2 /* MListenerDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MListenerDelegate.h; sourceTree = "<group>"; };
-		940BF08F19EDBD62007E7FA2 /* MNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MNode.h; sourceTree = "<group>"; };
-		940BF09019EDBD62007E7FA2 /* MNodeList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MNodeList.h; sourceTree = "<group>"; };
-		940BF09119EDBD62007E7FA2 /* MRequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MRequest.h; sourceTree = "<group>"; };
-		940BF09219EDBD62007E7FA2 /* MRequestDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MRequestDelegate.h; sourceTree = "<group>"; };
-		940BF09319EDBD62007E7FA2 /* MShare.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MShare.h; sourceTree = "<group>"; };
-		940BF09419EDBD62007E7FA2 /* MShareList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MShareList.h; sourceTree = "<group>"; };
-		940BF09519EDBD62007E7FA2 /* MTransfer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MTransfer.h; sourceTree = "<group>"; };
-		940BF09619EDBD62007E7FA2 /* MTransferDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MTransferDelegate.h; sourceTree = "<group>"; };
-		940BF09719EDBD62007E7FA2 /* MTransferList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MTransferList.h; sourceTree = "<group>"; };
+		940BF08A19EDBD62007E7FA2 /* MEGAAccountDetails.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAAccountDetails.h; sourceTree = "<group>"; };
+		940BF08B19EDBD62007E7FA2 /* MEGASdk.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGASdk.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08C19EDBD62007E7FA2 /* MEGAError.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAError.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08D19EDBD62007E7FA2 /* MEGAGlobalDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAGlobalDelegate.h; sourceTree = "<group>"; };
+		940BF08E19EDBD62007E7FA2 /* MEGADelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGADelegate.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08F19EDBD62007E7FA2 /* MEGANode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGANode.h; sourceTree = "<group>"; };
+		940BF09019EDBD62007E7FA2 /* MEGANodeList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGANodeList.h; sourceTree = "<group>"; };
+		940BF09119EDBD62007E7FA2 /* MEGARequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGARequest.h; sourceTree = "<group>"; };
+		940BF09219EDBD62007E7FA2 /* MEGARequestDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGARequestDelegate.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09319EDBD62007E7FA2 /* MEGAShare.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAShare.h; sourceTree = "<group>"; };
+		940BF09419EDBD62007E7FA2 /* MEGAShareList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAShareList.h; sourceTree = "<group>"; };
+		940BF09519EDBD62007E7FA2 /* MEGATransfer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGATransfer.h; sourceTree = "<group>"; };
+		940BF09619EDBD62007E7FA2 /* MEGATransferDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGATransferDelegate.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09719EDBD62007E7FA2 /* MEGATransferList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGATransferList.h; sourceTree = "<group>"; };
 		940BF09819EDBD62007E7FA2 /* MTreeProcesorProtocol.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MTreeProcesorProtocol.h; sourceTree = "<group>"; };
-		940BF09919EDBD62007E7FA2 /* MUser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MUser.h; sourceTree = "<group>"; };
-		940BF09A19EDBD62007E7FA2 /* MUserList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MUserList.h; sourceTree = "<group>"; };
-		940BF09C19EDBD62007E7FA2 /* MError+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MError+init.h"; sourceTree = "<group>"; };
-		940BF09E19EDBD62007E7FA2 /* MNode+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MNode+init.h"; sourceTree = "<group>"; };
-		940BF0A019EDBD62007E7FA2 /* MNodeList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MNodeList+init.h"; sourceTree = "<group>"; };
-		940BF0A219EDBD62007E7FA2 /* MRequest+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MRequest+init.h"; sourceTree = "<group>"; };
-		940BF0A419EDBD62007E7FA2 /* MShare+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MShare+init.h"; sourceTree = "<group>"; };
-		940BF0A619EDBD62007E7FA2 /* MShareList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MShareList+init.h"; sourceTree = "<group>"; };
-		940BF0A819EDBD62007E7FA2 /* MTransfer+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MTransfer+init.h"; sourceTree = "<group>"; };
-		940BF0AA19EDBD62007E7FA2 /* MTransferList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MTransferList+init.h"; sourceTree = "<group>"; };
-		940BF0AC19EDBD62007E7FA2 /* MUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MUser+init.h"; sourceTree = "<group>"; };
-		940BF0AE19EDBD62007E7FA2 /* MUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MUserList+init.h"; sourceTree = "<group>"; };
+		940BF09919EDBD62007E7FA2 /* MEGAUser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAUser.h; sourceTree = "<group>"; };
+		940BF09A19EDBD62007E7FA2 /* MEGAUserList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAUserList.h; sourceTree = "<group>"; };
+		940BF09C19EDBD62007E7FA2 /* MEGAError+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = "MEGAError+init.h"; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09E19EDBD62007E7FA2 /* MEGANode+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGANode+init.h"; sourceTree = "<group>"; };
+		940BF0A019EDBD62007E7FA2 /* MEGANodeList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGANodeList+init.h"; sourceTree = "<group>"; };
+		940BF0A219EDBD62007E7FA2 /* MEGARequest+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGARequest+init.h"; sourceTree = "<group>"; };
+		940BF0A419EDBD62007E7FA2 /* MEGAShare+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAShare+init.h"; sourceTree = "<group>"; };
+		940BF0A619EDBD62007E7FA2 /* MEGAShareList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAShareList+init.h"; sourceTree = "<group>"; };
+		940BF0A819EDBD62007E7FA2 /* MEGATransfer+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGATransfer+init.h"; sourceTree = "<group>"; };
+		940BF0AA19EDBD62007E7FA2 /* MEGATransferList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGATransferList+init.h"; sourceTree = "<group>"; };
+		940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUser+init.h"; sourceTree = "<group>"; };
+		940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserList+init.h"; sourceTree = "<group>"; };
 		9472044319ED916F00F6805F /* libmega.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libmega.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -370,37 +370,37 @@
 			isa = PBXGroup;
 			children = (
 				940BF09B19EDBD62007E7FA2 /* Private */,
-				940BF08A19EDBD62007E7FA2 /* MAccountDetails.h */,
-				940BEFFE19ED97B9007E7FA2 /* MAccountDetails.mm */,
-				940BF08B19EDBD62007E7FA2 /* MegaSDK.h */,
-				940BEFFF19ED97B9007E7FA2 /* MegaSDK.mm */,
-				940BF08C19EDBD62007E7FA2 /* MError.h */,
-				940BF00019ED97B9007E7FA2 /* MError.mm */,
-				940BF08D19EDBD62007E7FA2 /* MGlobalDelegate.h */,
-				940BF08E19EDBD62007E7FA2 /* MListenerDelegate.h */,
-				940BF09219EDBD62007E7FA2 /* MRequestDelegate.h */,
-				940BF09619EDBD62007E7FA2 /* MTransferDelegate.h */,
-				940BF08F19EDBD62007E7FA2 /* MNode.h */,
-				940BF00119ED97B9007E7FA2 /* MNode.mm */,
-				940BF09019EDBD62007E7FA2 /* MNodeList.h */,
-				940BF00219ED97B9007E7FA2 /* MNodeList.mm */,
-				940BF09119EDBD62007E7FA2 /* MRequest.h */,
-				940BF00319ED97B9007E7FA2 /* MRequest.mm */,
-				940BF09319EDBD62007E7FA2 /* MShare.h */,
-				940BF00419ED97B9007E7FA2 /* MShare.mm */,
-				940BF09419EDBD62007E7FA2 /* MShareList.h */,
-				940BF00519ED97B9007E7FA2 /* MShareList.mm */,
-				940BF09519EDBD62007E7FA2 /* MTransfer.h */,
-				940BF00619ED97B9007E7FA2 /* MTransfer.mm */,
-				940BF09719EDBD62007E7FA2 /* MTransferList.h */,
-				940BF00719ED97B9007E7FA2 /* MTransferList.mm */,
+				940BF08A19EDBD62007E7FA2 /* MEGAAccountDetails.h */,
+				940BEFFE19ED97B9007E7FA2 /* MEGAAccountDetails.mm */,
+				940BF08B19EDBD62007E7FA2 /* MEGASdk.h */,
+				940BEFFF19ED97B9007E7FA2 /* MEGASdk.mm */,
+				940BF08C19EDBD62007E7FA2 /* MEGAError.h */,
+				940BF00019ED97B9007E7FA2 /* MEGAError.mm */,
+				940BF08D19EDBD62007E7FA2 /* MEGAGlobalDelegate.h */,
+				940BF08E19EDBD62007E7FA2 /* MEGADelegate.h */,
+				940BF09219EDBD62007E7FA2 /* MEGARequestDelegate.h */,
+				940BF09619EDBD62007E7FA2 /* MEGATransferDelegate.h */,
+				940BF08F19EDBD62007E7FA2 /* MEGANode.h */,
+				940BF00119ED97B9007E7FA2 /* MEGANode.mm */,
+				940BF09019EDBD62007E7FA2 /* MEGANodeList.h */,
+				940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */,
+				940BF09119EDBD62007E7FA2 /* MEGARequest.h */,
+				940BF00319ED97B9007E7FA2 /* MEGARequest.mm */,
+				940BF09319EDBD62007E7FA2 /* MEGAShare.h */,
+				940BF00419ED97B9007E7FA2 /* MEGAShare.mm */,
+				940BF09419EDBD62007E7FA2 /* MEGAShareList.h */,
+				940BF00519ED97B9007E7FA2 /* MEGAShareList.mm */,
+				940BF09519EDBD62007E7FA2 /* MEGATransfer.h */,
+				940BF00619ED97B9007E7FA2 /* MEGATransfer.mm */,
+				940BF09719EDBD62007E7FA2 /* MEGATransferList.h */,
+				940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */,
 				940BF09819EDBD62007E7FA2 /* MTreeProcesorProtocol.h */,
-				940BF09919EDBD62007E7FA2 /* MUser.h */,
-				940BF00819ED97B9007E7FA2 /* MUser.mm */,
-				940BF09A19EDBD62007E7FA2 /* MUserList.h */,
-				940BF00919ED97B9007E7FA2 /* MUserList.mm */,
-				41B538CA1A0284CB00EABDC9 /* MPricing.h */,
-				41B538CB1A0284CB00EABDC9 /* MPricing.mm */,
+				940BF09919EDBD62007E7FA2 /* MEGAUser.h */,
+				940BF00819ED97B9007E7FA2 /* MEGAUser.mm */,
+				940BF09A19EDBD62007E7FA2 /* MEGAUserList.h */,
+				940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */,
+				41B538CA1A0284CB00EABDC9 /* MEGAPricing.h */,
+				41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -528,26 +528,26 @@
 		940BF09B19EDBD62007E7FA2 /* Private */ = {
 			isa = PBXGroup;
 			children = (
-				41B2AED11A0A859C006C40FB /* DelegateMGlobalListener.h */,
-				41B2AED21A0A859C006C40FB /* DelegateMGlobalListener.mm */,
-				41B2AED31A0A859C006C40FB /* DelegateMListener.h */,
-				41B2AED41A0A859C006C40FB /* DelegateMListener.mm */,
-				41B2AED51A0A859C006C40FB /* DelegateMRequestListener.h */,
-				41B2AED61A0A859C006C40FB /* DelegateMRequestListener.mm */,
-				41B2AED71A0A859C006C40FB /* DelegateMTransferListener.h */,
-				41B2AED81A0A859C006C40FB /* DelegateMTransferListener.mm */,
-				940BF09C19EDBD62007E7FA2 /* MError+init.h */,
-				940BF09E19EDBD62007E7FA2 /* MNode+init.h */,
-				940BF0A019EDBD62007E7FA2 /* MNodeList+init.h */,
-				940BF0A219EDBD62007E7FA2 /* MRequest+init.h */,
-				940BF0A419EDBD62007E7FA2 /* MShare+init.h */,
-				940BF0A619EDBD62007E7FA2 /* MShareList+init.h */,
-				940BF0A819EDBD62007E7FA2 /* MTransfer+init.h */,
-				940BF0AA19EDBD62007E7FA2 /* MTransferList+init.h */,
-				940BF0AC19EDBD62007E7FA2 /* MUser+init.h */,
-				940BF0AE19EDBD62007E7FA2 /* MUserList+init.h */,
-				41B0CE781A038EB9008D6044 /* MPricing+init.h */,
-				41AB68ED1A093C3D003FE608 /* MegaSDK+init.h */,
+				41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */,
+				41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */,
+				41B2AED31A0A859C006C40FB /* DelegateMEGAListener.h */,
+				41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */,
+				41B2AED51A0A859C006C40FB /* DelegateMEGARequestListener.h */,
+				41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */,
+				41B2AED71A0A859C006C40FB /* DelegateMEGATransferListener.h */,
+				41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */,
+				940BF09C19EDBD62007E7FA2 /* MEGAError+init.h */,
+				940BF09E19EDBD62007E7FA2 /* MEGANode+init.h */,
+				940BF0A019EDBD62007E7FA2 /* MEGANodeList+init.h */,
+				940BF0A219EDBD62007E7FA2 /* MEGARequest+init.h */,
+				940BF0A419EDBD62007E7FA2 /* MEGAShare+init.h */,
+				940BF0A619EDBD62007E7FA2 /* MEGAShareList+init.h */,
+				940BF0A819EDBD62007E7FA2 /* MEGATransfer+init.h */,
+				940BF0AA19EDBD62007E7FA2 /* MEGATransferList+init.h */,
+				940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */,
+				940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */,
+				41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */,
+				41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -638,24 +638,24 @@
 			files = (
 				940BEFC619ED92C2007E7FA2 /* megaapi.cpp in Sources */,
 				940BEFF219ED9351007E7FA2 /* consolewaiter.cpp in Sources */,
-				940BF01519ED97B9007E7FA2 /* MShareList.mm in Sources */,
+				940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */,
 				940BF02B19EDB683007E7FA2 /* utf8proc.cpp in Sources */,
-				41B2AEDA1A0A859C006C40FB /* DelegateMListener.mm in Sources */,
+				41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */,
 				940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */,
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
-				940BF01119ED97B9007E7FA2 /* MNode.mm in Sources */,
-				940BF01419ED97B9007E7FA2 /* MShare.mm in Sources */,
-				940BF01219ED97B9007E7FA2 /* MNodeList.mm in Sources */,
+				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
+				940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */,
+				940BF01219ED97B9007E7FA2 /* MEGANodeList.mm in Sources */,
 				940BEFC419ED92C2007E7FA2 /* logging.cpp in Sources */,
 				940BEFF519ED9351007E7FA2 /* waiter.cpp in Sources */,
 				940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */,
 				940BEFC119ED92C2007E7FA2 /* gfx.cpp in Sources */,
-				41B2AED91A0A859C006C40FB /* DelegateMGlobalListener.mm in Sources */,
-				940BF01019ED97B9007E7FA2 /* MError.mm in Sources */,
+				41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */,
+				940BF01019ED97B9007E7FA2 /* MEGAError.mm in Sources */,
 				940BEFBD19ED92C2007E7FA2 /* file.cpp in Sources */,
-				940BF00E19ED97B9007E7FA2 /* MAccountDetails.mm in Sources */,
+				940BF00E19ED97B9007E7FA2 /* MEGAAccountDetails.mm in Sources */,
 				940BEFF119ED9351007E7FA2 /* console.cpp in Sources */,
-				940BF01719ED97B9007E7FA2 /* MTransferList.mm in Sources */,
+				940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */,
 				940BEFC319ED92C2007E7FA2 /* json.cpp in Sources */,
 				940BEFD519ED92C2007E7FA2 /* waiterbase.cpp in Sources */,
 				940BEFCB19ED92C2007E7FA2 /* request.cpp in Sources */,
@@ -666,26 +666,26 @@
 				940BEFC019ED92C2007E7FA2 /* filesystem.cpp in Sources */,
 				940BEFB919ED92C2007E7FA2 /* base64.cpp in Sources */,
 				940BEFC819ED92C2007E7FA2 /* node.cpp in Sources */,
-				940BF00F19ED97B9007E7FA2 /* MegaSDK.mm in Sources */,
+				940BF00F19ED97B9007E7FA2 /* MEGASdk.mm in Sources */,
 				940BEFBC19ED92C2007E7FA2 /* db.cpp in Sources */,
 				940BEFCE19ED92C2007E7FA2 /* sharenodekeys.cpp in Sources */,
-				940BF01319ED97B9007E7FA2 /* MRequest.mm in Sources */,
+				940BF01319ED97B9007E7FA2 /* MEGARequest.mm in Sources */,
 				940BEFCC19ED92C2007E7FA2 /* serialize64.cpp in Sources */,
 				940BEFC919ED92C2007E7FA2 /* proxy.cpp in Sources */,
 				940BEFBE19ED92C2007E7FA2 /* fileattributefetch.cpp in Sources */,
 				940BEFBA19ED92C2007E7FA2 /* command.cpp in Sources */,
 				940BEFD019ED92C2007E7FA2 /* transfer.cpp in Sources */,
-				41B2AEDC1A0A859C006C40FB /* DelegateMTransferListener.mm in Sources */,
-				41B538CC1A0284CB00EABDC9 /* MPricing.mm in Sources */,
+				41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */,
+				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
 				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
 				940BEFF319ED9351007E7FA2 /* fs.cpp in Sources */,
 				940BEFC719ED92C2007E7FA2 /* megaclient.cpp in Sources */,
 				940BEFEB19ED9351007E7FA2 /* sodium.cpp in Sources */,
-				41B2AEDB1A0A859C006C40FB /* DelegateMRequestListener.mm in Sources */,
+				41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */,
 				940BEFBB19ED92C2007E7FA2 /* commands.cpp in Sources */,
-				940BF01819ED97B9007E7FA2 /* MUser.mm in Sources */,
+				940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */,
 				940BEFC519ED92C2007E7FA2 /* megaapi_impl.cpp in Sources */,
-				940BF01619ED97B9007E7FA2 /* MTransfer.mm in Sources */,
+				940BF01619ED97B9007E7FA2 /* MEGATransfer.mm in Sources */,
 				940BEFED19ED9351007E7FA2 /* sqlite.cpp in Sources */,
 				940BEFCF19ED92C2007E7FA2 /* sync.cpp in Sources */,
 				940BEFD219ED92C2007E7FA2 /* treeproc.cpp in Sources */,
@@ -694,7 +694,7 @@
 				940BEFEE19ED9351007E7FA2 /* external.cpp in Sources */,
 				940BEFD319ED92C2007E7FA2 /* user.cpp in Sources */,
 				940BEFEA19ED9351007E7FA2 /* cryptopp.cpp in Sources */,
-				940BF01919ED97B9007E7FA2 /* MUserList.mm in Sources */,
+				940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */,
 				940BEFD119ED92C2007E7FA2 /* transferslot.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

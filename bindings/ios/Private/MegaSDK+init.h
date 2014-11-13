@@ -1,18 +1,18 @@
 //
-//  MegaSDK+init.h
+//  MEGASdk+init.h
 //  mega
 //
 //  Created by Javier Navarro on 04/11/14.
 //  Copyright (c) 2014 MEGA. All rights reserved.
 //
 
-#import "MegaSDK.h"
-#import "DelegateMRequestListener.h"
-#import "DelegateMTransferListener.h"
+#import "MEGASdk.h"
+#import "DelegateMEGARequestListener.h"
+#import "DelegateMEGATransferListener.h"
 
-@interface MegaSDK (init)
+@interface MEGASdk (init)
 
-- (void)freeRequestListener:(DelegateMRequestListener *)delegate;
-- (void)freeTransferListener:(DelegateMTransferListener *)delegate;
+- (void)freeRequestListener:(DelegateMEGARequestListener *)delegate;
+- (void)freeTransferListener:(DelegateMEGATransferListener *)delegate;
 
 @end

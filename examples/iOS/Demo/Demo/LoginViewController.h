@@ -7,9 +7,9 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "MegaSDK.h"
+#import "MEGASdkManager.h"
 
-@interface LoginViewController : UIViewController <MRequestDelegate>
+@interface LoginViewController : UIViewController <MEGARequestDelegate>
 
 @end
 

@@ -10,7 +10,7 @@
 #import "NodeTableViewCell.h"
 #import <MediaPlayer/MediaPlayer.h>
 
-#define kMNode @"kMNode"
+#define kMEGANode @"kMEGANode"
 #define kIndex @"kIndex"
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
@@ -34,14 +34,14 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     
-    [[MegaSDKManager sharedMegaSDK] addMTransferDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] addMEGATransferDelegate:self];
     [self reloadUI];
-    [[MegaSDKManager sharedMegaSDK] retryPendingConnections];
+    [[MEGASdkManager sharedMEGASdk] retryPendingConnections];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    [[MegaSDKManager sharedMegaSDK] removeTransferDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] removeTransferDelegate:self];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -63,7 +63,7 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NodeTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"nodeCell" forIndexPath:indexPath];
     
-    MNode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMNode];
+    MEGANode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMEGANode];
     NSString *name = [node getName];
     
     cell.nameLabel.text = name;
@@ -92,7 +92,7 @@
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    MNode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMNode];
+    MEGANode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMEGANode];
     NSString *name = [node getName];
     if (isImage(name.lowercaseString.pathExtension)) {
         MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
@@ -156,12 +156,12 @@
         NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
         if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
-            MNode *node = [[MegaSDKManager sharedMegaSDK] getNodeWithHandle:[MegaSDK base64ToHandle:filename]];
+            MEGANode *node = [[MEGASdkManager sharedMEGASdk] getNodeWithHandle:[MEGASdk base64ToHandle:filename]];
             
             if (node == nil) continue;
             
             NSMutableDictionary *tempDictionary = [NSMutableDictionary new];
-            [tempDictionary setValue:node forKey:kMNode];
+            [tempDictionary setValue:node forKey:kMEGANode];
             [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
             [self.offlineDocuments addObject:tempDictionary];
             
@@ -176,19 +176,19 @@
     [self.tableView reloadData];
 }
 
-#pragma mark - MTransferDelegate
+#pragma mark - MEGATransferDelegate
 
-- (void)onTransferStart:(MegaSDK *)api transfer:(MTransfer *)transfer {
+- (void)onTransferStart:(MEGASdk *)api transfer:(MEGATransfer *)transfer {
 }
 
-- (void)onTransferUpdate:(MegaSDK *)api transfer:(MTransfer *)transfer {
+- (void)onTransferUpdate:(MEGASdk *)api transfer:(MEGATransfer *)transfer {
 }
 
-- (void)onTransferFinish:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+- (void)onTransferFinish:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
     [self reloadUI];
 }
 
--(void)onTransferTemporaryError:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+-(void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
 }
 
 @end

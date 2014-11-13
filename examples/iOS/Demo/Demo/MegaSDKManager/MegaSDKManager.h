@@ -1,5 +1,5 @@
 //
-//  MegaSDKManager.h
+//  MEGASdkManager.h
 //  Demo
 //
 //  Created by Javier Navarro on 05/11/14.
@@ -7,14 +7,14 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "MegaSDK.h"
+#import "MEGASdk.h"
 
-@interface MegaSDKManager : NSObject
+@interface MEGASdkManager : NSObject
 
-@property (nonatomic, strong) MegaSDK *megaSDK;
+@property (nonatomic, strong) MEGASdk *megaSDK;
 
 + (void)setAppKey:(NSString *)appKey;
 + (void)setUserAgent:(NSString *)userAgent;
-+ (MegaSDK *)sharedMegaSDK;
++ (MEGASdk *)sharedMEGASdk;
 
 @end

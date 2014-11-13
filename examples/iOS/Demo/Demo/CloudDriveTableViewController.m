@@ -21,7 +21,7 @@
     NSInteger indexNodeSelected;
 }
 
-@property (nonatomic, strong) MNodeList *nodes;
+@property (nonatomic, strong) MEGANodeList *nodes;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *logoutItem;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *addItem;
 
@@ -57,14 +57,14 @@
 }
 
 - (void)viewWillAppear:(BOOL)animated {
-    [[MegaSDKManager sharedMegaSDK] addDelegate:self];
-    [[MegaSDKManager sharedMegaSDK] retryPendingConnections];
+    [[MEGASdkManager sharedMEGASdk] addDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] retryPendingConnections];
     [self reloadUI];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    [[MegaSDKManager sharedMegaSDK] removeDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] removeDelegate:self];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -85,7 +85,7 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NodeTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"nodeCell" forIndexPath:indexPath];
     
-    MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
+    MEGANode *node = [self.nodes getNodeAtPosition:indexPath.row];
     
     NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
@@ -94,12 +94,12 @@
     destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
-    if (!fileExists && [node getType] == MNodeTypeFile && [node hasThumbnail]) {
-        [[MegaSDKManager sharedMegaSDK] getThumbnailWithNode:node destinationFilePath:destinationFilePath];
+    if (!fileExists && [node getType] == MEGANodeTypeFile && [node hasThumbnail]) {
+        [[MEGASdkManager sharedMEGASdk] getThumbnailWithNode:node destinationFilePath:destinationFilePath];
     }
     
     cell.nameLabel.text = [node getName];
-    if ([node getType] == MNodeTypeFolder) {
+    if ([node getType] == MEGANodeTypeFolder) {
         [cell.thumbnailImageView setImage:[UIImage imageNamed:@"folder"]];
     } else if (!fileExists && isImage([node getName].lowercaseString.lastPathComponent.pathExtension)) {
         [cell.thumbnailImageView setImage:[UIImage imageNamed:@"image"]];
@@ -107,7 +107,7 @@
         [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
     }
     
-    if ([node getType] == MNodeTypeFile) {
+    if ([node getType] == MEGANodeTypeFile) {
         NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node getModificationTime]
                                                                           dateStyle:NSDateFormatterShortStyle
                                                                           timeStyle:NSDateFormatterNoStyle];
@@ -136,16 +136,16 @@
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
+    MEGANode *node = [self.nodes getNodeAtPosition:indexPath.row];
     switch ([node getType]) {
-        case MNodeTypeFolder: {
+        case MEGANodeTypeFolder: {
             CloudDriveTableViewController *cdvc = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
             [cdvc setParentNode:node];
             [self.navigationController pushViewController:cdvc animated:YES];
             break;
         }
            
-//        case MNodeTypeFile: {
+//        case MEGANodeTypeFile: {
 //            NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
 //            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
 //            NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
@@ -153,7 +153,7 @@
 //            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
 //
 //            if (!fileExists) {
-//                [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath];
+//                [[MEGASdkManager sharedMEGASdk] startDownloadWithNode:node localPath:destinationFilePath];
 //            }
 //        }
             
@@ -169,13 +169,13 @@
 
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
     if (editingStyle==UITableViewCellEditingStyleDelete) {
-        MNode *node = [self.nodes getNodeAtPosition:indexPath.row];
-        [[MegaSDKManager sharedMegaSDK] removeNode:node];
+        MEGANode *node = [self.nodes getNodeAtPosition:indexPath.row];
+        [[MEGASdkManager sharedMEGASdk] removeNode:node];
     }
 }
 
 - (IBAction)logout:(id)sender {
-    [[MegaSDKManager sharedMegaSDK] logout];
+    [[MEGASdkManager sharedMEGASdk] logout];
 }
 
 - (IBAction)optionAdd:(id)sender {
@@ -192,10 +192,10 @@
 - (void)swipeableTableViewCell:(SWTableViewCell *)cell didTriggerLeftUtilityButtonWithIndex:(NSInteger)index {
     NSIndexPath* pathOfTheCell = [self.tableView indexPathForCell:cell];
     indexNodeSelected = [pathOfTheCell row];
-    MNode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
+    MEGANode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
     switch (index) {
         case 0: {
-            if ([node getType] == MNodeTypeFile) {
+            if ([node getType] == MEGANodeTypeFile) {
                 NSString *extension = [@"." stringByAppendingString:[[node getName] pathExtension]];
                 NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
                 NSString *fileName = [[node getBase64Handle] stringByAppendingString:extension];
@@ -203,13 +203,13 @@
                 BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
                 
                 if (!fileExists) {
-                    [[MegaSDKManager sharedMegaSDK] startDownloadWithNode:node localPath:destinationFilePath];
+                    [[MEGASdkManager sharedMEGASdk] startDownloadWithNode:node localPath:destinationFilePath];
                 }
             }
             break;
         }
         case 1: {
-            [[MegaSDKManager sharedMegaSDK] exportNode:node];
+            [[MEGASdkManager sharedMEGASdk] exportNode:node];
             break;
         }
         case 2:
@@ -260,19 +260,19 @@
     // Create folder
     if (alertView.tag == 1) {
         if (buttonIndex == 1) {
-            [[MegaSDKManager sharedMegaSDK] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
+            [[MEGASdkManager sharedMEGASdk] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
         }
     }
     
     // Rename file
     if (alertView.tag == 2) {
         if (buttonIndex == 1) {
-            MNode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
+            MEGANode *node = [self.nodes getNodeAtPosition:indexNodeSelected];
             if ([[[node getName] pathExtension] isEqualToString:@""]) {
-                [[MegaSDKManager sharedMegaSDK] renameNode:node newName:[alertView textFieldAtIndex:0].text];
+                [[MEGASdkManager sharedMEGASdk] renameNode:node newName:[alertView textFieldAtIndex:0].text];
             } else {
                 NSString *newName = [[alertView textFieldAtIndex:0].text stringByAppendingFormat:@".%@", [[node getName] pathExtension]];
-                [[MegaSDKManager sharedMegaSDK] renameNode:node newName:newName];
+                [[MEGASdkManager sharedMEGASdk] renameNode:node newName:newName];
             }
         }
     }
@@ -303,7 +303,7 @@
             NSLog(@"Error change modification date of file %@", error);
         }
         
-        [[MegaSDKManager sharedMegaSDK] startUploadWithLocalPath:localFilePath parent:self.parentNode];
+        [[MEGASdkManager sharedMEGASdk] startUploadWithLocalPath:localFilePath parent:self.parentNode];
     } failureBlock:nil];
     
     [self dismissViewControllerAnimated:YES completion:NULL];
@@ -320,10 +320,10 @@
 - (void)reloadUI {
     if (!self.parentNode) {
         [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:[[MegaSDKManager sharedMegaSDK] getRootNode]];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] getChildrenWithParent:[[MEGASdkManager sharedMEGASdk] getRootNode]];
     } else {
         [self.navigationItem setTitle:[self.parentNode getName]];
-        self.nodes = [[MegaSDKManager sharedMegaSDK] getChildrenWithParent:self.parentNode];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] getChildrenWithParent:self.parentNode];
     }
     
     [self.tableView reloadData];
@@ -359,15 +359,15 @@
     return leftUtilityButtons;
 }
 
-#pragma mark - MRequestDelegate
+#pragma mark - MEGARequestDelegate
 
-- (void)onRequestStart:(MegaSDK *)api request:(MRequest *)request {
+- (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     switch ([request getType]) {
-        case MRequestTypeLogout:
+        case MEGARequestTypeLogout:
             [SVProgressHUD showWithStatus:@"Logout..."];
             break;
             
-        case MRequestTypeExport:
+        case MEGARequestTypeExport:
             [SVProgressHUD showWithStatus:@"Generate link..."];
             break;
         
@@ -376,13 +376,13 @@
     }
 }
 
-- (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+- (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
     if ([error getErrorCode]) {
         return;
     }
     
     switch ([request getType]) {
-        case MRequestTypeLogout: {
+        case MEGARequestTypeLogout: {
             NSFileManager *fm = [NSFileManager defaultManager];
             NSString *cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
             NSError *error = nil;
@@ -408,7 +408,7 @@
             break;
         }
             
-        case MRequestTypeGetAttrFile: {
+        case MEGARequestTypeGetAttrFile: {
             for (int i = 0; i < [[self.tableView visibleCells] count]; i++) {
                 if ([request getNodeHandle] == [[[self.tableView visibleCells] objectAtIndex:i] nodeHandle]) {
                     NSIndexPath *indexPath = [self.tableView indexPathForCell:[[self.tableView visibleCells] objectAtIndex:i]];
@@ -419,7 +419,7 @@
             }
             break;
         }
-        case MRequestTypeExport: {
+        case MEGARequestTypeExport: {
             [SVProgressHUD dismiss];
             NSArray *itemsArray = [NSArray arrayWithObjects:[request getLink], nil];
             UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:itemsArray applicationActivities:nil];
@@ -433,37 +433,37 @@
     }
 }
 
-- (void)onRequestUpdate:(MegaSDK *)api request:(MRequest *)request {
+- (void)onRequestUpdate:(MEGASdk *)api request:(MEGARequest *)request {
 }
 
-- (void)onRequestTemporaryError:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+- (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
 #pragma mark - MGlobalListener
 
-- (void)onUsersUpdate:(MegaSDK *)api {
+- (void)onUsersUpdate:(MEGASdk *)api {
 
 }
 
-- (void)onReloadNeeded:(MegaSDK *)api {
+- (void)onReloadNeeded:(MEGASdk *)api {
 
 }
 
-- (void)onNodesUpdate:(MegaSDK *)api {
+- (void)onNodesUpdate:(MEGASdk *)api {
     [self reloadUI];
 }
 
 
-#pragma mark - MTransferDelegate
+#pragma mark - MEGATransferDelegate
 
-- (void)onTransferStart:(MegaSDK *)api transfer:(MTransfer *)transfer {
+- (void)onTransferStart:(MEGASdk *)api transfer:(MEGATransfer *)transfer {
 }
 
-- (void)onTransferUpdate:(MegaSDK *)api transfer:(MTransfer *)transfer {
+- (void)onTransferUpdate:(MEGASdk *)api transfer:(MEGATransfer *)transfer {
 }
 
-- (void)onTransferFinish:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
-    if ([transfer getType] == MTransferTypeUpload) {
+- (void)onTransferFinish:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
+    if ([transfer getType] == MEGATransferTypeUpload) {
         NSError *e = nil;
         NSString *localFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:[transfer getFileName]];
         BOOL success = [[NSFileManager defaultManager] removeItemAtPath:localFilePath error:&e];
@@ -474,7 +474,7 @@
 
 }
 
--(void)onTransferTemporaryError:(MegaSDK *)api transfer:(MTransfer *)transfer error:(MError *)error {
+-(void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
 }
 
 

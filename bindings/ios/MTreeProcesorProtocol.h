@@ -6,10 +6,10 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "MNode.h"
+#import "MEGANode.h"
 
 @protocol MTreeProcesorProtocol <NSObject>
 
-- (BOOL)proccessMNode:(MNode *)node;
+- (BOOL)proccessMEGANode:(MEGANode *)node;
 
 @end

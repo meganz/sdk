@@ -1,5 +1,5 @@
 //
-//  MyAccountViewController.h
+//  SettingsViewController.h
 //  Demo
 //
 //  Created by Javier Navarro on 29/10/14.
@@ -7,8 +7,8 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "MegaSDKManager.h"
+#import "MEGASdkManager.h"
 
-@interface SettingsViewController : UIViewController <MRequestDelegate>
+@interface SettingsViewController : UIViewController <MEGARequestDelegate>
 
 @end

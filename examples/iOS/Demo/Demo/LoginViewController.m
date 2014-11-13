@@ -9,7 +9,6 @@
 #import "LoginViewController.h"
 #import "CloudDriveTableViewController.h"
 #import "SVProgressHUD.h"
-#import "MegaSDKManager.h"
 
 #define kSession @"kSession"
 #define kEmail @"kEmail"
@@ -32,20 +31,20 @@
 }
 
 - (IBAction)tapLogin:(id)sender {
-    [[MegaSDKManager sharedMegaSDK] loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
+    [[MEGASdkManager sharedMEGASdk] loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
 }
 
-#pragma mark - MRequestDelegate
+#pragma mark - MEGARequestDelegate
 
-- (void)onRequestStart:(MegaSDK *)api request:(MRequest *)request {
+- (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     [SVProgressHUD show];
 }
 
-- (void)onRequestFinish:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+- (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
     if ([error getErrorCode]) {
         [SVProgressHUD dismiss];
         switch ([error getErrorCode]) {
-            case MErrorTypeApiEArgs:{
+            case MEGAErrorTypeApiEArgs:{
                 UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Error"
                                                                 message:@"Email or password invalid."
                                                                delegate:self
@@ -55,7 +54,7 @@
                 break;
             }
                 
-            case MErrorTypeApiENoent:{
+            case MEGAErrorTypeApiENoent:{
                 UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Error"
                                                                 message:@"Email or password invalid."
                                                                delegate:self
@@ -72,12 +71,12 @@
     }
     
     switch ([request getType]) {
-        case MRequestTypeLogin: {
+        case MEGARequestTypeLogin: {
             [api fetchNodesWithListener:self];
             break;
         }
             
-        case MRequestTypeFetchNodes: {
+        case MEGARequestTypeFetchNodes: {
             [SVProgressHUD dismiss];
             [self performSegueWithIdentifier:@"showCloudDrive" sender:self];
             break;
@@ -88,8 +87,8 @@
     }
 }
 
-- (void)onRequestUpdate:(MegaSDK *)api request:(MRequest *)request {
-    if ([request getType] == MRequestTypeFetchNodes){
+- (void)onRequestUpdate:(MEGASdk *)api request:(MEGARequest *)request {
+    if ([request getType] == MEGARequestTypeFetchNodes){
         float progress = [[request getTransferredBytes] floatValue] / [[request getTotalBytes] floatValue];
         if (progress > 0 && progress <0.99) {
             [SVProgressHUD showProgress:progress status:@"Fetching nodes"];
@@ -99,7 +98,7 @@
     }
 }
 
-- (void)onRequestTemporaryError:(MegaSDK *)api request:(MRequest *)request error:(MError *)error {
+- (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
 #pragma mark - Dismiss keyboard
