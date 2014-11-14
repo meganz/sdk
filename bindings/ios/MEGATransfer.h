@@ -24,10 +24,8 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly) NSString *parentPath;
 @property (readonly) uint64_t nodeHandle;
 @property (readonly) uint64_t parentHandle;
-@property (readonly) NSInteger numberConnections;
 @property (readonly) uint64_t startPosition;
 @property (readonly) uint64_t endPosition;
-@property (readonly) NSInteger maximunSpeed;
 @property (readonly) NSString *fileName;
 @property (readonly) NSInteger numberRetry;
 @property (readonly) NSInteger maximunRetries;

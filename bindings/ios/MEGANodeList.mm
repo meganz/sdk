@@ -12,14 +12,14 @@ using namespace mega;
 
 @interface MEGANodeList ()
 
-@property NodeList *nodeList;
+@property MegaNodeList *nodeList;
 @property BOOL cMemoryOwn;
 
 @end
 
 @implementation MEGANodeList
 
-- (instancetype)initWithNodeList:(NodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithNodeList:(MegaNodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
     if (self != nil) {
@@ -36,7 +36,7 @@ using namespace mega;
     }
 }
 
-- (NodeList *)getCPtr {
+- (MegaNodeList *)getCPtr {
     return self.nodeList;
 }
 

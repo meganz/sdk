@@ -12,14 +12,14 @@ using namespace mega;
 
 @interface MEGAUserList ()
 
-@property UserList *userList;
+@property MegaUserList *userList;
 @property BOOL cMemoryOwn;
 
 @end
 
 @implementation MEGAUserList
 
-- (instancetype)initWithUserList:(UserList *)userList cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithUserList:(MegaUserList *)userList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
     if (self != nil) {
@@ -36,7 +36,7 @@ using namespace mega;
     }
 }
 
-- (UserList *)getCPtr {
+- (MegaUserList *)getCPtr {
     return self.userList;
 }
 

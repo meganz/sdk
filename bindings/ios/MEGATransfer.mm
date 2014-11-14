@@ -86,20 +86,12 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)numberConnections {
-    return self.megaTransfer ? self.megaTransfer->getNumConnections() : 0;
-}
-
 - (uint64_t)startPosition {
     return self.megaTransfer ? self.megaTransfer->getStartPos() : 0;
 }
 
 - (uint64_t)endPosition {
     return self.megaTransfer ? self.megaTransfer->getEndPos() : 0;
-}
-
-- (NSInteger)maximunSpeed {
-    return self.megaTransfer ? self.megaTransfer->getMaxSpeed() : 0;
 }
 
 - (NSString *)fileName {

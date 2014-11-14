@@ -10,7 +10,7 @@
 
 @interface MEGANodeList (init)
 
-- (instancetype)initWithNodeList:(mega::NodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn;
-- (mega::NodeList *)getCPtr;
+- (instancetype)initWithNodeList:(mega::MegaNodeList *)nodelist cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaNodeList *)getCPtr;
 
 @end

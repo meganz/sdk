@@ -32,7 +32,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 - (BOOL)isFile;
 - (BOOL)isFolder;
 - (BOOL)isRemoved;
-- (BOOL)isSyncDeleted;
 - (BOOL)hasThumbnail;
 - (BOOL)hasPreview;
 

@@ -12,14 +12,14 @@ using namespace mega;
 
 @interface MEGAShareList ()
 
-@property ShareList *shareList;
+@property MegaShareList *shareList;
 @property BOOL cMemoryOwn;
 
 @end
 
 @implementation MEGAShareList
 
-- (instancetype)initWithShareList:(ShareList *)shareList cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithShareList:(MegaShareList *)shareList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
     if (self != nil) {
@@ -36,7 +36,7 @@ using namespace mega;
     }
 }
 
-- (ShareList *)getCPtr {
+- (MegaShareList *)getCPtr {
     return self.shareList;
 }
 

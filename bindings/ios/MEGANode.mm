@@ -92,10 +92,6 @@ using namespace mega;
     return self.megaNode ? self.megaNode->isRemoved() : NO;
 }
 
-- (BOOL)isSyncDeleted {
-    return self.megaNode ? self.megaNode->isSyncDeleted() : NO;
-}
-
 - (BOOL)hasThumbnail {
     return self.megaNode ? self.megaNode->hasThumbnail() : NO;
 }

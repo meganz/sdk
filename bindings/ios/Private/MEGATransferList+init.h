@@ -10,7 +10,7 @@
 
 @interface MEGATransferList (init)
 
-- (instancetype)initWithTransferList:(mega::TransferList *)transferList cMemoryOwn:(BOOL)cMemoryOwn;
-- (mega::TransferList *)getCPtr;
+- (instancetype)initWithTransferList:(mega::MegaTransferList *)transferList cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaTransferList *)getCPtr;
 
 @end

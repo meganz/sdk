@@ -287,7 +287,7 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
-
+#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
@@ -548,7 +548,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         }
     }
 #endif
-
+#endif
     return r;
 }
 

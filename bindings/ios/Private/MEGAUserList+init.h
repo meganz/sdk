@@ -10,7 +10,7 @@
 
 @interface MEGAUserList (init)
 
-- (instancetype)initWithUserList:(mega::UserList *)userList cMemoryOwn:(BOOL)cMemoryOwn;
-- (mega::UserList *)getCPtr;
+- (instancetype)initWithUserList:(mega::MegaUserList *)userList cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaUserList *)getCPtr;
 
 @end

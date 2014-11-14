@@ -12,14 +12,14 @@ using namespace mega;
 
 @interface MEGATransferList ()
 
-@property TransferList *transferList;
+@property MegaTransferList *transferList;
 @property BOOL cMemoryOwn;
 
 @end
 
 @implementation MEGATransferList
 
-- (instancetype)initWithTransferList:(TransferList *)transferList cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithTransferList:(MegaTransferList *)transferList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
     if (self != nil) {
@@ -36,7 +36,7 @@ using namespace mega;
     }
 }
 
-- (TransferList *)getCPtr {
+- (MegaTransferList *)getCPtr {
     return self.transferList;
 }
 

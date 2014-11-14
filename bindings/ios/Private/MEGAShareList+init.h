@@ -10,7 +10,7 @@
 
 @interface MEGAShareList (init)
 
-- (instancetype)initWithShareList:(mega::ShareList *)shareList cMemoryOwn:(BOOL)cMemoryOwn;
-- (mega::ShareList *)getCPtr;
+- (instancetype)initWithShareList:(mega::MegaShareList *)shareList cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaShareList *)getCPtr;
 
 @end
