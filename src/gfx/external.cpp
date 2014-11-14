@@ -62,7 +62,17 @@ bool GfxProcExternal::readbitmap(FileAccess* fa, string* localname, int size)
 	if(!result) return false;
 
 	w = processor->getWidth();
+    if(w <= 0)
+    {
+        return false;
+    }
+
 	h = processor->getHeight();
+    if(h <= 0)
+    {
+        return false;
+    }
+
 	return true;
 }
 
@@ -76,7 +86,7 @@ bool GfxProcExternal::resizebitmap(int rw, int rh, string* jpegout)
 
     int size = processor->getBitmapDataSize(w, h, px, py, rw, rh);
     jpegout->resize(size);
-    if(!size) return false;
+    if(size <= 0) return false;
 
     return processor->getBitmapData((char *)jpegout->data(), jpegout->size());
 }

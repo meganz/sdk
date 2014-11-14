@@ -34,16 +34,16 @@ public:
     MegaRequest* getRequest();
     MegaTransfer* getTransfer();
     MegaError* getError();
-    NodeList* getNodes();
-    UserList* getUsers();
+    MegaNodeList* getNodes();
+    MegaUserList* getUsers();
     const char* getFilePath();
     int getNewState();
 
     void setRequest(MegaRequest *request);
     void setTransfer(MegaTransfer *transfer);
     void setError(MegaError *error);
-    void setNodes(NodeList *nodes);
-    void setUsers(UserList *users);
+    void setNodes(MegaNodeList *nodes);
+    void setUsers(MegaUserList *users);
     void setFilePath(const char* filePath);
     void setNewState(int newState);
 
@@ -52,8 +52,8 @@ private:
     MegaRequest *request;
     MegaTransfer *transfer;
     MegaError *error;
-    NodeList *nodes;
-    UserList *users;
+    MegaNodeList *nodes;
+    MegaUserList *users;
     const char* filePath;
     int newState;
 };
