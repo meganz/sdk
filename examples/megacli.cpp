@@ -2958,6 +2958,11 @@ static void process_line(char* l)
                         cout << "* FreeImage" << endl;
 #endif
 
+#ifdef ENABLE_SYNC
+                        cout << "* sync subsystem" << endl;
+#endif
+
+
                         cwd = UNDEF;
 
                         return;
@@ -3581,7 +3586,7 @@ void megacli()
 int main()
 {
     SimpleLogger::setAllOutputs(&std::cout);
-    
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp, new CONSOLE_WAIT_CLASS,
