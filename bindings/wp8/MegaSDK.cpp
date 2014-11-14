@@ -205,10 +205,15 @@ String^ MegaSDK::getBase64PwKey(String^ password)
 
 	std::string utf16base64PwKey;
 	const char *utf8base64PwKey = megaApi->getBase64PwKey(utf8password.c_str());
+	if (!utf8base64PwKey)
+	{
+		return nullptr;
+	}
+
 	MegaApi::utf8ToUtf16(utf8base64PwKey, &utf16base64PwKey);
 	delete[] utf8base64PwKey;
 
-	return utf8base64PwKey ? ref new String((wchar_t *)utf16base64PwKey.c_str()) : nullptr;
+	return ref new String((wchar_t *)utf16base64PwKey.c_str());
 }
 
 String^ MegaSDK::getStringHash(String^ base64pwkey, String^ inBuf)
@@ -223,10 +228,15 @@ String^ MegaSDK::getStringHash(String^ base64pwkey, String^ inBuf)
 
 	std::string utf16stringHash;
 	const char *utf8stringHash = megaApi->getStringHash(utf8base64pwkey.c_str(), utf8inBuf.c_str());
+	if (!utf8stringHash)
+	{
+		return nullptr;
+	}
+
 	MegaApi::utf8ToUtf16(utf8stringHash, &utf16stringHash);
 	delete [] utf8stringHash;
 
-	return utf8stringHash ? ref new String((wchar_t *)utf16stringHash.c_str()) : nullptr;
+	return ref new String((wchar_t *)utf16stringHash.c_str());
 }
 
 uint64 MegaSDK::base64ToHandle(String^ base64Handle)
@@ -293,11 +303,16 @@ void MegaSDK::login(String^ email, String^ password, MRequestListenerInterface^ 
 String^ MegaSDK::dumpSession()
 {
 	const char *utf8session = megaApi->dumpSession();
+	if (!utf8session)
+	{
+		return nullptr;
+	}
+
 	std::string utf16session;
 	MegaApi::utf8ToUtf16(utf8session, &utf16session);
 	delete[] utf8session;
 
-	return utf8session ? ref new String((wchar_t *)utf16session.c_str()) : nullptr;
+	return ref new String((wchar_t *)utf16session.c_str());
 }
 
 void MegaSDK::fastLogin(String^ email, String^ stringHash, String^ base64pwkey)
@@ -521,10 +536,15 @@ String^ MegaSDK::getMyEmail()
 {
 	std::string utf16email;
 	const char *utf8email = megaApi->getMyEmail();
+	if (!utf8email)
+	{
+		return nullptr;
+	}
+
 	MegaApi::utf8ToUtf16(utf8email, &utf16email);
 	delete[] utf8email;
 
-	return utf8email ? ref new String((wchar_t *)utf16email.c_str()) : nullptr;
+	return ref new String((wchar_t *)utf16email.c_str());
 }
 
 void MegaSDK::createFolder(String^ name, MNode^ parent, MRequestListenerInterface^ listener)
@@ -924,9 +944,15 @@ String^ MegaSDK::exportMasterKey()
 {
 	std::string utf16key;
 	const char *utf8key = megaApi->exportMasterKey();
-	MegaApi::utf8ToUtf16(utf8key, &utf16key);
+	if (!utf8key)
+	{
+		return nullptr;
+	}
 
-	return utf8key ? ref new String((wchar_t *)utf16key.data()) : nullptr;
+	MegaApi::utf8ToUtf16(utf8key, &utf16key);
+	delete[] utf8key;
+
+	return ref new String((wchar_t *)utf16key.data());
 }
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
@@ -1276,10 +1302,15 @@ String^ MegaSDK::getNodePath(MNode^ node)
 
 	std::string utf16path;
 	const char *utf8path = megaApi->getNodePath(node->getCPtr());
+	if (!utf8path)
+	{
+		return nullptr;
+	}
+
 	MegaApi::utf8ToUtf16(utf8path, &utf16path);
 	delete[] utf8path;
 
-	return utf8path ? ref new String((wchar_t *)utf16path.c_str()) : nullptr;
+	return ref new String((wchar_t *)utf16path.c_str());
 }
 
 MNode^ MegaSDK::getNodeByPath(String^ path, MNode^ n)
@@ -1361,12 +1392,16 @@ String^ MegaSDK::getFileFingerprint(String^ filePath)
 	MegaApi::utf16ToUtf8(filePath->Data(), filePath->Length(), &utf8filePath);
 
 	const char *utf8fingerprint = megaApi->getFingerprint(utf8filePath.c_str());
-	
+	if (!utf8fingerprint)
+	{
+		return nullptr;
+	}
+
 	std::string utf16fingerprint;
 	MegaApi::utf8ToUtf16(utf8fingerprint, &utf16fingerprint);
 	delete[] utf8fingerprint;
 
-	return utf8fingerprint ? ref new String((wchar_t *)utf16fingerprint.c_str()) : nullptr;
+	return ref new String((wchar_t *)utf16fingerprint.c_str());
 }
 
 String^ MegaSDK::getNodeFingerprint(MNode ^node)
