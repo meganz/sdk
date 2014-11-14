@@ -162,7 +162,7 @@ uint64 MTransfer::getUpdateTime()
 
 MNode^ MTransfer::getPublicNode()
 {
-	return megaTransfer && megaTransfer->getPublicNode() ? ref new MNode(megaTransfer->getPublicNode()->copy(), true) : nullptr;
+	return megaTransfer && megaTransfer->getPublicNode() ? ref new MNode(megaTransfer->getPublicMegaNode(), true) : nullptr;
 }
 
 bool MTransfer::isSyncTransfer()
