@@ -239,6 +239,7 @@ void DemoApp::transfer_prepare(Transfer* t)
     }
 }
 
+#ifdef ENABLE_SYNC
 static void syncstat(Sync* sync)
 {
     cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
@@ -401,6 +402,7 @@ bool DemoApp::sync_syncable(const char* name, string* localpath, string* localna
 {
     return is_syncable(name);
 }
+#endif
 
 AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint)
@@ -1425,7 +1427,9 @@ static void process_line(char* l)
                 cout << "      rm remotepath" << endl;
                 cout << "      mv srcremotepath dstremotepath" << endl;
                 cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+#ifdef ENABLE_SYNC
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+#endif
                 cout << "      export remotepath [del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
                 cout << "      invite dstemail [del]" << endl;
@@ -1981,6 +1985,7 @@ static void process_line(char* l)
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
                         return;
                     }
+#ifdef ENABLE_SYNC
                     else if (words[0] == "sync")
                     {
                         if (words.size() == 3)
@@ -2070,6 +2075,7 @@ static void process_line(char* l)
 
                         return;
                     }
+#endif
                     break;
 
                 case 5:

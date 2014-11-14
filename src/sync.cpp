@@ -19,6 +19,7 @@
  * program.
  */
 
+#ifdef ENABLE_SYNC
 #include "mega/sync.h"
 #include "mega/megaapp.h"
 #include "mega/transfer.h"
@@ -945,3 +946,4 @@ bool Sync::movetolocaldebris(string* localpath)
     return false;
 }
 } // namespace
+#endif

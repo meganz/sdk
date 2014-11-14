@@ -145,6 +145,7 @@ struct DemoApp : public MegaApp
     void transfer_limit(Transfer*);
     void transfer_complete(Transfer*);
 
+#ifdef ENABLE_SYNC
     void syncupdate_state(Sync*, syncstate_t);
     void syncupdate_scanning(bool);
     void syncupdate_local_folder_addition(Sync*, const char*);
@@ -166,6 +167,7 @@ struct DemoApp : public MegaApp
 
     bool sync_syncable(Node*);
     bool sync_syncable(const char*, string*, string*);
+#endif
 
     void changepw_result(error);
 

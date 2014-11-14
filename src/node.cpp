@@ -42,12 +42,14 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     parent = NULL;
 
+#ifdef ENABLE_SYNC
     localnode = NULL;
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
     todebris_it = client->todebris.end();
     tounlink_it = client->tounlink.end();
+#endif
 
     type = t;
 
@@ -112,6 +114,7 @@ Node::~Node()
         client->fingerprints.erase(fingerprint_it);
     }
 
+#ifdef ENABLE_SYNC
     // remove from todebris node_set
     if (todebris_it != client->todebris.end())
     {
@@ -123,6 +126,7 @@ Node::~Node()
     {
         client->tounlink.erase(tounlink_it);
     }
+#endif
 
     // delete outshares, including pointers from users for this node
     for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
@@ -146,6 +150,7 @@ Node::~Node()
     delete inshare;
     delete sharekey;
 
+#ifdef ENABLE_SYNC
     // sync: remove reference from local filesystem node
     if (localnode)
     {
@@ -155,6 +160,7 @@ Node::~Node()
 
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
+#endif
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
@@ -669,6 +675,7 @@ bool Node::setparent(Node* p)
 
     child_it = parent->children.insert(parent->children.end(), this);
 
+#ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
     if (!localnode || localnode->parent)
     {
@@ -689,6 +696,7 @@ bool Node::setparent(Node* p)
             client->proctree(this, &tdsg);
         }
     }
+#endif
 
     return true;
 }
@@ -714,6 +722,7 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+#ifdef ENABLE_SYNC
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
@@ -1292,5 +1301,5 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     return l;
 }
-
+#endif
 } // namespace

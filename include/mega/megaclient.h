@@ -144,12 +144,14 @@ public:
     // pause flags
     bool xferpaused[2];
 
+#ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
     bool syncadded;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+#endif
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -491,6 +493,7 @@ public:
     // generate & return upload handle
     handle getuploadhandle();
 
+#ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -567,6 +570,7 @@ public:
     
     // commit all queueud deletions
     void execsyncdeletions();
+#endif
 
     // recursively cancel transfers in a subtree
     void stopxfers(LocalNode*);

@@ -77,6 +77,7 @@ void TreeProcDel::proc(MegaClient* client, Node* n)
     client->notifynode(n);
 }
 
+#ifdef ENABLE_SYNC
 // stop sync get
 void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
 {
@@ -86,4 +87,5 @@ void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
         n->syncget = NULL;
     }
 }
+#endif
 } // namespace

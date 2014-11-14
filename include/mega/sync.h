@@ -22,6 +22,7 @@
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
+#ifdef ENABLE_SYNC
 #include "megaclient.h"
 
 namespace mega {
@@ -119,4 +120,5 @@ protected :
 };
 } // namespace
 
+#endif
 #endif

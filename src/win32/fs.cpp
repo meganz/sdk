@@ -632,10 +632,12 @@ void WinFileSystemAccess::osversion(string* u) const
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, string*)
 {
+#ifdef ENABLE_SYNC
     if (!l->parent)
     {
         localrootnode = l;
     }
+#endif
 }
 
 fsfp_t WinDirNotify::fsfingerprint()

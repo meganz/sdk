@@ -155,6 +155,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // own position in fingerprint set (only valid for file nodes)
     fingerprint_set::iterator fingerprint_it;
 
+#ifdef ENABLE_SYNC
     // related synced item or NULL
     LocalNode* localnode;
 
@@ -170,6 +171,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
     node_set::iterator tounlink_it;
+#endif
 
     // source tag
     int tag;
@@ -184,6 +186,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     ~Node();
 };
 
+#ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File, Cachable
 {
     class Sync* sync;
@@ -276,6 +279,7 @@ struct MEGA_API LocalNode : public File, Cachable
 
     ~LocalNode();
 };
+#endif
 } // namespace
 
 #endif
