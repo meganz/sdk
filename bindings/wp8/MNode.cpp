@@ -47,7 +47,7 @@ String^ MNode::getBase64Handle()
 
 	std::string utf16base64Handle;
 	const char *utf8base64Handle = megaNode->getBase64Handle();
-	if (!utf16base64Handle)
+	if (!utf8base64Handle)
 		return nullptr;
 
 	MegaApi::utf8ToUtf16(utf8base64Handle, &utf16base64Handle);
