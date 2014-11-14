@@ -135,7 +135,7 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return self.megaTransfer && self.megaTransfer->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicNode()->copy() cMemoryOwn:YES] : nil;
+    return self.megaTransfer && self.megaTransfer->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 - (BOOL)isSyncTransfer {

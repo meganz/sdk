@@ -57,7 +57,13 @@ using namespace mega;
 - (NSString *)base64Handle {
     if (!self.megaNode) return nil;
     
-    return self.megaNode ? [[NSString alloc] initWithUTF8String:self.megaNode->getBase64Handle()] : nil;
+    const char *val = self.megaNode->getBase64Handle();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 - (NSNumber *)size {

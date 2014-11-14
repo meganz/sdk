@@ -47,6 +47,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 @property (readonly) NSInteger totalDownloads;
 @property (readonly) NSNumber *totalsDownloadedBytes;
 @property (readonly) NSNumber *totalsUploadedBytes;
+@property (readonly) NSString *masterKey;
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent;
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath;

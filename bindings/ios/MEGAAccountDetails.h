@@ -16,10 +16,14 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
 
 @interface MEGAAcountDetails : NSObject
 
-- (NSNumber *)getUsedStorage;
-- (NSNumber *)getMaxStorage;
-- (NSNumber *)getOwnUsedTransfer;
-- (NSNumber *)getMaxTransfer;
-- (MEGAAccountType)getProLevel;
+@property (readonly) NSNumber *storageUsed;
+@property (readonly) NSNumber *storageMax;
+@property (readonly) NSNumber *transferOwnUsed;
+@property (readonly) NSNumber *transferMax;
+@property (readonly) MEGAAccountType type;
+
+- (NSNumber *)storageUsedWithHandle:(uint64_t)handle;
+- (NSNumber *)numberFilesWithHandle:(uint64_t)handle;
+- (NSNumber *)numberFoldersWithHandle:(uint64_t)handle;
 
 @end

@@ -7,16 +7,18 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "MEGAAccountDetails.h"
 
 @interface MEGAPricing : NSObject
 
-- (NSInteger)getNumProducts;
-- (uint64_t)getHandle:(NSInteger)productIndex;
-- (NSInteger)getProLevel:(NSInteger)productIndex;
-- (NSInteger)getGBStorage:(NSInteger)productIndex;
-- (NSInteger)getGBTransfer:(NSInteger)productIndex;
-- (NSInteger)getMonths:(NSInteger)productIndex;
-- (NSInteger)getAmount:(NSInteger)productIndex;
-- (NSString *)getCurrency:(NSInteger)productIndex;
+@property (readonly) NSInteger products;
+
+- (uint64_t)handleAtProductIndex:(NSInteger)index;
+- (MEGAAccountType)proLevelAtProductIndex:(NSInteger)index;
+- (NSInteger)storageGBAtProductIndex:(NSInteger)index;
+- (NSInteger)transferGBAtProductIndex:(NSInteger)index;
+- (NSInteger)monthsAtProductIndex:(NSInteger)index;
+- (NSInteger)amountAtProductIndex:(NSInteger)index;
+- (NSString *)currencyAtProductIndex:(NSInteger)index;
 
 @end

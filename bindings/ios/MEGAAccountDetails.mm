@@ -43,24 +43,36 @@ using namespace mega;
     return self.accountDetails;
 }
 
-- (NSNumber *)getUsedStorage {
+- (NSNumber *)storageUsed {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed()] : nil;
 }
 
-- (NSNumber *)getMaxStorage {
+- (NSNumber *)storageMax {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageMax()] : nil;
 }
 
-- (NSNumber *)getOwnUsedTransfer {
+- (NSNumber *)transferOwnUsed {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getTransferOwnUsed()] : nil;
 }
 
-- (NSNumber *)getMaxTransfer {
+- (NSNumber *)transferMax {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getTransferMax()] : nil;
 }
 
-- (MEGAAccountType)getProLevel {
+- (MEGAAccountType)type {
     return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel() : 0);
+}
+
+- (NSNumber *)storageUsedWithHandle:(uint64_t)handle {
+    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed(handle)] : nil;
+}
+
+- (NSNumber *)numberFilesWithHandle:(uint64_t)handle {
+    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFiles(handle)] : nil;
+}
+
+- (NSNumber *)numberFoldersWithHandle:(uint64_t)handle {
+    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFolders(handle)] : nil;
 }
 
 @end

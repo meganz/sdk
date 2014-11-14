@@ -12,7 +12,7 @@
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
-    MEGARequestTypeMkdir,
+    MEGARequestTypeCreateFolder,
     MEGARequestTypeMove,
     MEGARequestTypeCopy,
     MEGARequestTypeRename,

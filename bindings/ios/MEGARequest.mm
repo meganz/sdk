@@ -117,7 +117,7 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return self.megaRequest && self.megaRequest->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicNode()->copy() cMemoryOwn:YES] : nil;
+    return self.megaRequest && self.megaRequest->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)paramType {

@@ -41,38 +41,38 @@ using namespace mega;
     }
 }
 
-- (NSInteger)getNumProducts {
+- (NSInteger)products {
     return self.pricing ? self.pricing->getNumProducts() : 0;
 }
 
-- (uint64_t)getHandle:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getHandle((int)productIndex) : INVALID_HANDLE;
+- (uint64_t)handleAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getHandle((int)index) : INVALID_HANDLE;
 }
 
-- (NSInteger)getProLevel:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getProLevel((int)productIndex) : 0;
+- (MEGAAccountType)proLevelAtProductIndex:(NSInteger)index {
+    return (MEGAAccountType) (self.pricing ? self.pricing->getProLevel((int)index) : 0);
 }
 
-- (NSInteger)getGBStorage:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getGBStorage((int)productIndex) : 0;
+- (NSInteger)storageGBAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getGBStorage((int)index) : 0;
 }
 
-- (NSInteger)getGBTransfer:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getGBTransfer((int)productIndex) : 0;
+- (NSInteger)transferGBAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getGBTransfer((int)index) : 0;
 }
 
-- (NSInteger)getMonths:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getMonths((int)productIndex) : 0;
+- (NSInteger)monthsAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getMonths((int)index) : 0;
 }
 
-- (NSInteger)getAmount:(NSInteger)productIndex {
-    return self.pricing ? self.pricing->getAmount((int)productIndex) : 0;
+- (NSInteger)amountAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getAmount((int)index) : 0;
 }
 
-- (NSString *)getCurrency:(NSInteger)productIndex {
+- (NSString *)currencyAtProductIndex:(NSInteger)index {
     if (!self.pricing) return nil;
     
-    return self.pricing->getCurrency((int)productIndex) ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency((int)productIndex)] : nil;
+    return self.pricing->getCurrency((int)index) ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency((int)index)] : nil;
 }
 
 @end

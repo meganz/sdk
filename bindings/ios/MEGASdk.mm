@@ -160,13 +160,25 @@ using namespace mega;
 - (NSString *)base64pwkeyWithPassword:(NSString *)password {
     if(password == nil) return nil;
     
-    return self.megaApi->getBase64PwKey([password UTF8String]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getBase64PwKey([password UTF8String])] : nil;
+    const char *val = self.megaApi->getBase64PwKey([password UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 - (NSString *)stringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf {
     if(base64pwkey == nil || inBuf == nil)  return  nil;
     
-    return self.megaApi->getStringHash([base64pwkey UTF8String], [inBuf UTF8String]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getStringHash([base64pwkey UTF8String], [inBuf UTF8String])] : nil;
+    const char *val = self.megaApi->getStringHash([base64pwkey UTF8String], [inBuf UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 + (uint64_t)base64ToHandle:(NSString *)base64Handle {
@@ -178,7 +190,13 @@ using namespace mega;
 + (NSString *)ebcEncryptKeyWithEncryptionKey:(NSString *)encryptionKey plainKey:(NSString *)plainKey {
     if(encryptionKey == nil || plainKey == nil) return nil;
     
-    return MegaApi::ebcEncryptKey([encryptionKey UTF8String], [plainKey UTF8String]) ? [[NSString alloc] initWithUTF8String:MegaApi::ebcEncryptKey([encryptionKey UTF8String], [plainKey UTF8String])] : nil;
+    const char *val = MegaApi::ebcEncryptKey([encryptionKey UTF8String], [plainKey UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 - (void)retryPendingConnections {
@@ -196,7 +214,13 @@ using namespace mega;
 }
 
 - (NSString *)dumpSession {
-    return self.megaApi->dumpSession() ? [[NSString alloc] initWithUTF8String:self.megaApi->dumpSession()] : nil;
+    const char *val = self.megaApi->dumpSession();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey {
@@ -263,7 +287,13 @@ using namespace mega;
 }
 
 - (NSString *)myEmail {
-    return self.megaApi->getMyEmail() ? [[NSString alloc] initWithUTF8String:self.megaApi->getMyEmail()] : nil;
+    const char *val = self.megaApi->getMyEmail();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 #pragma mark - Node actions
@@ -455,6 +485,16 @@ using namespace mega;
     self.megaApi->getPaymentUrl(productHandle);
 }
 
+- (NSString *)masterKey {
+    const char *val = self.megaApi->exportMasterKey();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
+}
+
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegateObject {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, [self createDelegateMEGARequestListener:delegateObject singleListener:YES]);
 }
@@ -624,7 +664,13 @@ using namespace mega;
 - (NSString *)nodePathWithNode:(MEGANode *)node {
     if (node == nil) return nil;
     
-    return self.megaApi->getNodePath([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getNodePath([node getCPtr])] : nil;
+    const char *val = self.megaApi->getNodePath([node getCPtr]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 - (MEGANode *)nodeWithPath:(NSString *)path node:(MEGANode *)node {
@@ -677,7 +723,13 @@ using namespace mega;
 - (NSString *)fingerprintWithFilePath:(NSString *)filePath {
     if (filePath == nil) return nil;
     
-    return self.megaApi->getFingerprint([filePath UTF8String]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getFingerprint([filePath UTF8String])] : nil;
+    const char *val = self.megaApi->getFingerprint([filePath UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
 }
 
 - (NSString *)finferprintWithNode:(MEGANode *)node {
