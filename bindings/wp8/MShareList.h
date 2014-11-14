@@ -19,9 +19,8 @@ namespace mega
 		int size();
 
 	private:
-		MShareList(ShareList *shareList, bool cMemoryOwn);
-		ShareList *shareList;
+		MShareList(MegaShareList *shareList, bool cMemoryOwn);
+		MegaShareList *shareList;
 		bool cMemoryOwn;
-		ShareList *getCPtr();
 	};
 }

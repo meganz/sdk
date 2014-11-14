@@ -47,7 +47,6 @@ namespace mega
 		MErrorType getErrorCode();
 		String^ getErrorString();
 		String^ toString();
-		int getNextAttempt();
 		static String^ getErrorString(int errorCode);
 
 	private:

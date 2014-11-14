@@ -3,7 +3,7 @@
 using namespace mega;
 using namespace Platform;
 
-MTransferList::MTransferList(TransferList *transferList, bool cMemoryOwn)
+MTransferList::MTransferList(MegaTransferList *transferList, bool cMemoryOwn)
 {
 	this->transferList = transferList;
 	this->cMemoryOwn = cMemoryOwn;

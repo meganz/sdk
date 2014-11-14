@@ -1,6 +1,7 @@
 #pragma once
 
 #include "megaapi.h"
+#include "MAccountDetails.h"
 
 namespace mega
 {
@@ -15,7 +16,7 @@ namespace mega
 		virtual ~MPricing();
 		int getNumProducts();
 		MegaHandle getHandle(int productIndex);
-		int getProLevel(int productIndex);
+		MAccountType getProLevel(int productIndex);
 		int getGBStorage(int productIndex);
 		int getGBTransfer(int productIndex);
 		int getMonths(int productIndex);

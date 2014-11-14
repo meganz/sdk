@@ -3,7 +3,7 @@
 using namespace mega;
 using namespace Platform;
 
-MUserList::MUserList(UserList *userList, bool cMemoryOwn)
+MUserList::MUserList(MegaUserList *userList, bool cMemoryOwn)
 {
 	this->userList = userList;
 	this->cMemoryOwn = cMemoryOwn;

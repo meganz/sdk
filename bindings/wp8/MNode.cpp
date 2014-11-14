@@ -92,11 +92,6 @@ bool MNode::isRemoved()
 	return megaNode ? megaNode->isRemoved() : false;
 }
 
-bool MNode::isSyncDeleted()
-{
-	return megaNode ? megaNode->isSyncDeleted() : false;
-}
-
 bool MNode::hasThumbnail()
 {
 	return megaNode ? megaNode->hasThumbnail() : false;

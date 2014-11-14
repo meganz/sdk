@@ -1029,5 +1029,6 @@ void MegaLogger::log(const char *time, int loglevel, const char *source, const c
 
 }
 
+MegaGfxProcessor::~MegaGfxProcessor() { }
 MegaPricing::~MegaPricing() { }
 

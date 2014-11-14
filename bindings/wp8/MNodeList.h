@@ -19,9 +19,8 @@ namespace mega
 		int size();
 
 	private:
-		MNodeList(NodeList *nodeList, bool cMemoryOwn);
-		NodeList *nodeList;
-		NodeList *getCPtr();
+		MNodeList(MegaNodeList *nodeList, bool cMemoryOwn);
+		MegaNodeList *nodeList;
 		bool cMemoryOwn;
 	};
 }
