@@ -1911,7 +1911,7 @@ static void process_line(char* l)
 
                             if (da->dopen(&localname, NULL, true))
                             {
-                                while (da->dnext(NULL, &localname, &type))
+                                while (da->dnext(NULL, &localname, true, &type))
                                 {
                                     client->fsaccess->local2path(&localname, &name);
                                     cout << "Queueing " << name << "..." << endl;
