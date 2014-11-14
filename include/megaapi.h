@@ -1539,6 +1539,7 @@ class MegaApi
         void setUploadLimit(int bpslimit);
         MegaTransferList *getTransfers();
 
+#ifdef ENABLE_SYNC
         //Sync
         int syncPathState(std::string *path);
         MegaNode *getSyncedNode(std::string *path);
@@ -1547,13 +1548,16 @@ class MegaApi
         void removeSync(MegaHandle nodeMegaHandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
-        void update();
         bool isIndexing();
-        bool isWaiting();
         bool isSynced(MegaNode *n);
         void setExcludedNames(std::vector<std::string> *excludedNames);
         bool moveToLocalDebris(const char *path);
         bool isSyncable(const char *name);
+        std::string getLocalPath(MegaNode *node);
+#endif
+
+        void update();
+        bool isWaiting();
 
         //Statistics
         int getNumPendingUploads();
@@ -1591,7 +1595,6 @@ class MegaApi
         MegaShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
-        std::string getLocalPath(MegaNode *node);
         static void removeRecursively(const char *path);
 
         //Fingerprint
