@@ -37,20 +37,31 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 
 @interface MEGASdk : NSObject 
 
+@property (readonly) NSString *myEmail;
+@property (readonly) MEGANode *rootNode;
+@property (readonly) MEGANode *rubbishNode;
+@property (readonly) MEGATransferList *transfers;
+@property (readonly) NSInteger pendingUploads;
+@property (readonly) NSInteger pendingDownloads;
+@property (readonly) NSInteger totalUploads;
+@property (readonly) NSInteger totalDownloads;
+@property (readonly) NSNumber *totalsDownloadedBytes;
+@property (readonly) NSNumber *totalsUploadedBytes;
+
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent;
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath;
 
-- (void)addDelegate:(id<MEGADelegate>)delegate;
-- (void)addRequestDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)addMEGADelegate:(id<MEGADelegate>)delegate;
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate;
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
-- (void)addGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
-- (void)removeDelegate:(id<MEGADelegate>)delegate;
-- (void)removeRequestDelegate:(id<MEGARequestDelegate>)delegate;
-- (void)removeTransferDelegate:(id<MEGATransferDelegate>)delegate;
-- (void)removeGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
+- (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
+- (void)removeMEGADelegate:(id<MEGADelegate>)delegate;
+- (void)removeMEGARequestDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)removeMEGATransferDelegate:(id<MEGATransferDelegate>)delegate;
+- (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
 
-- (NSString *)getBase64pwkeyWithPassword:(NSString *)password;
-- (NSString *)getStringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf;
+- (NSString *)base64pwkeyWithPassword:(NSString *)password;
+- (NSString *)stringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf;
 + (uint64_t)base64ToHandle:(NSString *)base64Handle;
 + (NSString *)ebcEncryptKeyWithEncryptionKey:(NSString *)encryptionKey plainKey:(NSString *)plainKey;
 - (void)retryPendingConnections;
@@ -72,7 +83,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
 - (NSInteger)isLoggedIn;
-- (NSString *)getMyEmail;
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent;
 - (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent delegate:(id<MEGARequestDelegate>)delegateObject;
@@ -87,8 +97,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level;
 - (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level;
-- (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink delegate:(id<MEGARequestDelegate>)delegateObject;
-- (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink;
+- (void)folderAccessWithMegaFolderLink:(NSString *)megaFolderLink delegate:(id<MEGARequestDelegate>)delegateObject;
+- (void)folderAccessWithMegaFolderLink:(NSString *)megaFolderLink;
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent;
 - (void)importPublicNode:(MEGANode *)publicNode parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegateObject;
@@ -115,8 +125,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)getAccountDetails;
 - (void)pricingWithDelegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)pricing;
-- (void)getPaymentURLWithProductHandle:(uint64_t) productHandle delegate:(id<MEGARequestDelegate>)delegateObject;
-- (void)getPaymentULRWithProductHandle:(uint64_t) productHandle;
+- (void)getPaymentURLWithProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegateObject;
+- (void)getPaymentULRWithProductHandle:(uint64_t)productHandle;
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
 - (void)addContactWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegateObject;
@@ -139,40 +149,30 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)cancelTransfersWithDirection:(NSInteger)direction;
 - (void)pauseTransersWithPause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegateObject;
 - (void)pauseTransersWithPause:(BOOL)pause;
-- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
-- (MEGATransferList *)getTransfers;
-- (NSInteger)getNumPendingUploads;
-- (NSInteger)getNumPendingDownloads;
-- (NSInteger)getTotalUploads;
-- (NSInteger)getTotalDownloads;
-- (NSNumber *)getTotalsDownloadedBytes;
-- (NSNumber *)getTotalsUploadedBytes;
-- (void)resetTotalDownloads;
+- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;- (void)resetTotalDownloads;
 - (void)resetTotalUploads;
-- (NSInteger)getNumChildrenWithParent:(MEGANode *)parent;
-- (NSInteger)getNumChildFilesWithParent:(MEGANode *)parent;
-- (NSInteger)getNumChildFoldersWithParent:(MEGANode *)parent;
-- (MEGANodeList *)getChildrenWithParent:(MEGANode *)parent order:(NSInteger)order;
-- (MEGANodeList *)getChildrenWithParent:(MEGANode *)parent;
-- (MEGANode *)getChildNodeWithParent:(MEGANode *)parent name:(NSString *)name;
-- (MEGANode *)getParentNodeWithNode:(MEGANode *)node;
-- (NSString *)getNodePathWithNode:(MEGANode *)node;
-- (MEGANode *)getNodeWithPath:(NSString *)path node:(MEGANode *)node;
-- (MEGANode *)getNodeWithPath:(NSString *)path;
-- (MEGANode *)getNodeWithHandle:(uint64_t)handle;
-- (MEGAUserList *)getContacts;
-- (MEGAUser *)getContactWithEmail:(NSString *)email;
-- (MEGANodeList *)getInSharesWithUser:(MEGAUser *)user;
-- (MEGANodeList *)getInShares;
-- (MEGAShareList *)getOutSharesWithNode:(MEGANode *)node;
-- (NSString *)getFileFingerprintWithFilePath:(NSString *)filePath;
-- (NSString *)getNodeFinferprintWithNode:(MEGANode *)node;
-- (MEGANode *)getNodeWithFingerprint:(NSString *)fingerprint;
+- (NSInteger)numberChildrenWithParent:(MEGANode *)parent;
+- (NSInteger)numberChildFilesWithParent:(MEGANode *)parent;
+- (NSInteger)numberChildFoldersWithParent:(MEGANode *)parent;
+- (MEGANodeList *)childrenWithParent:(MEGANode *)parent order:(NSInteger)order;
+- (MEGANodeList *)childrenWithParent:(MEGANode *)parent;
+- (MEGANode *)childNodeWithParent:(MEGANode *)parent name:(NSString *)name;
+- (MEGANode *)parentNodeWithNode:(MEGANode *)node;
+- (NSString *)nodePathWithNode:(MEGANode *)node;
+- (MEGANode *)nodeWithPath:(NSString *)path node:(MEGANode *)node;
+- (MEGANode *)nodeWithPath:(NSString *)path;
+- (MEGANode *)nodeWithHandle:(uint64_t)handle;
+- (MEGAUserList *)contacts;
+- (MEGAUser *)contactWithEmail:(NSString *)email;
+- (MEGANodeList *)inSharesWithUser:(MEGAUser *)user;
+- (MEGANodeList *)inShares;
+- (MEGAShareList *)outSharesWithNode:(MEGANode *)node;
+- (NSString *)fingerprintWithFilePath:(NSString *)filePath;
+- (NSString *)finferprintWithNode:(MEGANode *)node;
+- (MEGANode *)nodeWithFingerprint:(NSString *)fingerprint;
 - (BOOL)hasFingerprint:(NSString *)fingerprint;
 - (NSInteger)accessLevelWithNode:(MEGANode *)node;
 - (MEGAError *)checkAccessWithNode:(MEGANode *)node level:(NSInteger)level;
 - (MEGAError *)checkMoveWithMnode:(MEGANode *)node target:(MEGANode *)target;
-- (MEGANode *)getRootNode;
-- (MEGANode *)getRubbishNode;
 
 @end

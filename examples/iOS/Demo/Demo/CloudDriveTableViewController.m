@@ -57,14 +57,14 @@
 }
 
 - (void)viewWillAppear:(BOOL)animated {
-    [[MEGASdkManager sharedMEGASdk] addDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] addMEGADelegate:self];
     [[MEGASdkManager sharedMEGASdk] retryPendingConnections];
     [self reloadUI];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    [[MEGASdkManager sharedMEGASdk] removeDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] removeMEGADelegate:self];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -320,10 +320,10 @@
 - (void)reloadUI {
     if (!self.parentNode) {
         [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [[MEGASdkManager sharedMEGASdk] getChildrenWithParent:[[MEGASdkManager sharedMEGASdk] getRootNode]];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenWithParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
     } else {
         [self.navigationItem setTitle:[self.parentNode name]];
-        self.nodes = [[MEGASdkManager sharedMEGASdk] getChildrenWithParent:self.parentNode];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenWithParent:self.parentNode];
     }
     
     [self.tableView reloadData];
@@ -377,7 +377,7 @@
 }
 
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
-    if ([error getErrorCode]) {
+    if ([error type]) {
         return;
     }
     

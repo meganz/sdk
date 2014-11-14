@@ -35,9 +35,10 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
 
 @interface MEGAError : NSObject
 
+@property (readonly) MEGAErrorType type;
+@property (readonly) NSString *name;
+
 - (instancetype)clone;
-- (MEGAErrorType)getErrorCode;
-- (NSString *)getErrorString;
-- (NSString *)getErrorStringWithErrorCode: (NSInteger) errorCode;
+- (NSString *)nameWithErrorCode:(NSInteger)errorCode;
 
 @end

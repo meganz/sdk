@@ -79,11 +79,11 @@ using namespace mega;
 
 #pragma mark - Add delegates
 
-- (void)addDelegate:(id<MEGADelegate>)delegate {
+- (void)addMEGADelegate:(id<MEGADelegate>)delegate {
     self.megaApi->addListener([self createDelegateMEGAListener:delegate]);
 }
 
-- (void)addRequestDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->addRequestListener([self createDelegateMEGARequestListener:delegate singleListener:NO]);
 }
 
@@ -91,13 +91,13 @@ using namespace mega;
     self.megaApi->addTransferListener([self createDelegateMEGATransferListener:delegate singleListener:NO]);
 }
 
-- (void)addGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+- (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
     self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate]);
 }
 
 #pragma mark - Remove delegates
 
-- (void)removeDelegate:(id<MEGADelegate>)delegate {
+- (void)removeMEGADelegate:(id<MEGADelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGAListener *>::iterator it = _activeMegaListeners.begin();
     while (it != _activeMegaListeners.end()) {
@@ -111,7 +111,7 @@ using namespace mega;
     pthread_mutex_unlock(&listenerMutex);
 }
 
-- (void)removeRequestDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)removeMEGARequestDelegate:(id<MEGARequestDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGARequestListener *>::iterator it = _activeRequestListeners.begin();
     while (it != self.activeRequestListeners.end()) {
@@ -125,7 +125,7 @@ using namespace mega;
     pthread_mutex_unlock(&listenerMutex);
 }
 
-- (void)removeTransferDelegate:(id<MEGATransferDelegate>)delegate {
+- (void)removeMEGATransferDelegate:(id<MEGATransferDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGATransferListener *>::iterator it = _activeTransferListeners.begin();
     while (it != _activeTransferListeners.end()) {
@@ -140,7 +140,7 @@ using namespace mega;
 
 }
 
-- (void)removeGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+- (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGAGlobalListener *>::iterator it = _activeGlobalListeners.begin();
     while (it != _activeGlobalListeners.end()) {
@@ -157,13 +157,13 @@ using namespace mega;
 
 #pragma mark - Generic methods
 
-- (NSString *)getBase64pwkeyWithPassword:(NSString *)password {
+- (NSString *)base64pwkeyWithPassword:(NSString *)password {
     if(password == nil) return nil;
     
     return self.megaApi->getBase64PwKey([password UTF8String]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getBase64PwKey([password UTF8String])] : nil;
 }
 
-- (NSString *)getStringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf {
+- (NSString *)stringHashWithBase64pwkey:(NSString *)base64pwkey inBuf:(NSString *)inBuf {
     if(base64pwkey == nil || inBuf == nil)  return  nil;
     
     return self.megaApi->getStringHash([base64pwkey UTF8String], [inBuf UTF8String]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getStringHash([base64pwkey UTF8String], [inBuf UTF8String])] : nil;
@@ -262,7 +262,7 @@ using namespace mega;
     return self.megaApi->isLoggedIn();
 }
 
-- (NSString *)getMyEmail {
+- (NSString *)myEmail {
     return self.megaApi->getMyEmail() ? [[NSString alloc] initWithUTF8String:self.megaApi->getMyEmail()] : nil;
 }
 
@@ -326,11 +326,11 @@ using namespace mega;
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level);
 }
 
-- (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink delegate:(id<MEGARequestDelegate>)delegateObject {
+- (void)folderAccessWithMegaFolderLink:(NSString *)megaFolderLink delegate:(id<MEGARequestDelegate>)delegateObject {
     self.megaApi->folderAccess((megaFolderLink != nil) ? [megaFolderLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegateObject singleListener:YES]);
 }
 
-- (void)folderAccessWithMegaFileLink:(NSString *)megaFolderLink {
+- (void)folderAccessWithMegaFolderLink:(NSString *)megaFolderLink {
     self.megaApi->folderAccess((megaFolderLink != nil) ? [megaFolderLink UTF8String] : NULL);
 }
 
@@ -549,31 +549,31 @@ using namespace mega;
     self.megaApi->setUploadLimit((int)bpsLimit);
 }
 
-- (MEGATransferList *)getTransfers {
+- (MEGATransferList *)transfers {
     return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers() cMemoryOwn:YES];
 }
 
-- (NSInteger)getNumPendingUploads {
+- (NSInteger)pendingUploads {
     return self.megaApi->getNumPendingUploads();
 }
 
-- (NSInteger)getNumPendingDownloads {
+- (NSInteger)pendingDownloads {
     return self.megaApi->getNumPendingDownloads();
 }
 
-- (NSInteger)getTotalUploads {
+- (NSInteger)totalUploads {
     return self.megaApi->getTotalUploads();
 }
 
-- (NSInteger)getTotalDownloads {
+- (NSInteger)totalDownloads {
     return self.megaApi->getTotalDownloads();
 }
 
-- (NSNumber *)getTotalsDownloadedBytes {
+- (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }
 
-- (NSNumber *)getTotalsUploadedBytes {
+- (NSNumber *)totalsUploadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
 }
 
@@ -585,27 +585,27 @@ using namespace mega;
     self.megaApi->resetTotalUploads();
 }
 
-- (NSInteger)getNumChildrenWithParent:(MEGANode *)parent {
+- (NSInteger)numberChildrenWithParent:(MEGANode *)parent {
     return self.megaApi->getNumChildren((parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (NSInteger)getNumChildFilesWithParent:(MEGANode *)parent {
+- (NSInteger)numberChildFilesWithParent:(MEGANode *)parent {
     return self.megaApi->getNumChildFiles((parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (NSInteger)getNumChildFoldersWithParent:(MEGANode *)parent {
+- (NSInteger)numberChildFoldersWithParent:(MEGANode *)parent {
     return self.megaApi->getNumChildFolders((parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (MEGANodeList *)getChildrenWithParent:(MEGANode *)parent order:(NSInteger)order {
+- (MEGANodeList *)childrenWithParent:(MEGANode *)parent order:(NSInteger)order {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL, (int)order) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)getChildrenWithParent:(MEGANode *)parent {
+- (MEGANodeList *)childrenWithParent:(MEGANode *)parent {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL) cMemoryOwn:YES];
 }
 
-- (MEGANode *)getChildNodeWithParent:(MEGANode *)parent name:(NSString *)name {
+- (MEGANode *)childNodeWithParent:(MEGANode *)parent name:(NSString *)name {
     if (parent == nil || name == nil) return nil;
     
     MegaNode *node = self.megaApi->getChildNode([parent getCPtr], [name UTF8String]);
@@ -613,7 +613,7 @@ using namespace mega;
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)getParentNodeWithNode:(MEGANode *)node {
+- (MEGANode *)parentNodeWithNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     MegaNode *parent = self.megaApi->getParentNode([node getCPtr]);
@@ -621,13 +621,13 @@ using namespace mega;
     return parent ? [[MEGANode alloc] initWithMegaNode:parent cMemoryOwn:YES] : nil;
 }
 
-- (NSString *)getNodePathWithNode:(MEGANode *)node {
+- (NSString *)nodePathWithNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     return self.megaApi->getNodePath([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getNodePath([node getCPtr])] : nil;
 }
 
-- (MEGANode *)getNodeWithPath:(NSString *)path node:(MEGANode *)node {
+- (MEGANode *)nodeWithPath:(NSString *)path node:(MEGANode *)node {
     if (path == nil || node == nil) return nil;
     
     MegaNode *n = self.megaApi->getNodeByPath([path UTF8String], [node getCPtr]);
@@ -635,7 +635,7 @@ using namespace mega;
     return n ? [[MEGANode alloc] initWithMegaNode:n cMemoryOwn:YES] : Nil;
 }
 
-- (MEGANode *)getNodeWithPath:(NSString *)path {
+- (MEGANode *)nodeWithPath:(NSString *)path {
     if (path == nil) return nil;
     
     MegaNode *node = self.megaApi->getNodeByPath([path UTF8String]);
@@ -643,7 +643,7 @@ using namespace mega;
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)getNodeWithHandle:(uint64_t)handle {
+- (MEGANode *)nodeWithHandle:(uint64_t)handle {
     if (handle == ::mega::INVALID_HANDLE) return nil;
     
     MegaNode *node = self.megaApi->getNodeByHandle(handle);
@@ -651,42 +651,42 @@ using namespace mega;
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGAUserList *)getContacts {
+- (MEGAUserList *)contacts {
     return [[MEGAUserList alloc] initWithUserList:self.megaApi->getContacts() cMemoryOwn:YES];
 }
 
-- (MEGAUser *)getContactWithEmail:(NSString *)email {
+- (MEGAUser *)contactWithEmail:(NSString *)email {
     if (email == nil) return nil;
     
     MegaUser *user = self.megaApi->getContact([email UTF8String]);
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
-- (MEGANodeList *)getInSharesWithUser:(MEGAUser *)user {
+- (MEGANodeList *)inSharesWithUser:(MEGAUser *)user {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares((user != nil) ? [user getCPtr] : NULL) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)getInShares {
+- (MEGANodeList *)inShares {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares() cMemoryOwn:YES];
 }
 
-- (MEGAShareList *)getOutSharesWithNode:(MEGANode *)node {
+- (MEGAShareList *)outSharesWithNode:(MEGANode *)node {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
-- (NSString *)getFileFingerprintWithFilePath:(NSString *)filePath {
+- (NSString *)fingerprintWithFilePath:(NSString *)filePath {
     if (filePath == nil) return nil;
     
     return self.megaApi->getFingerprint([filePath UTF8String]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getFingerprint([filePath UTF8String])] : nil;
 }
 
-- (NSString *)getNodeFinferprintWithNode:(MEGANode *)node {
+- (NSString *)finferprintWithNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     return self.megaApi->getFingerprint([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getFingerprint([node getCPtr])] : nil;
 }
 
-- (MEGANode *)getNodeWithFingerprint:(NSString *)fingerprint {
+- (MEGANode *)nodeWithFingerprint:(NSString *)fingerprint {
     if (fingerprint == nil) return nil;
     
     MegaNode *node = self.megaApi->getNodeByFingerprint([fingerprint UTF8String]);
@@ -716,12 +716,12 @@ using namespace mega;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove((node != nil) ? [node getCPtr] : NULL, (target != nil) ? [target getCPtr] : NULL).copy() cMemoryOwn:YES];
 }
 
-- (MEGANode *)getRootNode {
+- (MEGANode *)rootNode {
     MegaNode *node = self.megaApi->getRootNode();
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)getRubbishNode {
+- (MEGANode *)rubbishNode {
     MegaNode *node = self.megaApi->getRubbishNode();
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }

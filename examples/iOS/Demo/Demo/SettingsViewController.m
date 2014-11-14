@@ -19,7 +19,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.userEmail.text = [[MEGASdkManager sharedMEGASdk] getMyEmail];
+    self.userEmail.text = [[MEGASdkManager sharedMEGASdk] myEmail];
     [self setUserAvatar];
     
 }
@@ -33,7 +33,7 @@
 
 - (void)setUserAvatar {
     
-    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] getContactWithEmail:self.userEmail.text];
+    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactWithEmail:self.userEmail.text];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
     NSString *fileName = [self.userEmail.text stringByAppendingString:@".jpg"];
     NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
@@ -56,7 +56,7 @@
 }
 
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
-    if ([error getErrorCode]) {
+    if ([error type]) {
     }
     
     switch ([request type]) {

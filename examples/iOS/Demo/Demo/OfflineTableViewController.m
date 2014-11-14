@@ -41,7 +41,7 @@
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    [[MEGASdkManager sharedMEGASdk] removeTransferDelegate:self];
+    [[MEGASdkManager sharedMEGASdk] removeMEGATransferDelegate:self];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -156,7 +156,7 @@
         NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
         if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
-            MEGANode *node = [[MEGASdkManager sharedMEGASdk] getNodeWithHandle:[MEGASdk base64ToHandle:filename]];
+            MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[MEGASdk base64ToHandle:filename]];
             
             if (node == nil) continue;
             

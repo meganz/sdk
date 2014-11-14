@@ -41,9 +41,9 @@
 }
 
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
-    if ([error getErrorCode]) {
+    if ([error type]) {
         [SVProgressHUD dismiss];
-        switch ([error getErrorCode]) {
+        switch ([error type]) {
             case MEGAErrorTypeApiEArgs:{
                 UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Error"
                                                                 message:@"Email or password invalid."

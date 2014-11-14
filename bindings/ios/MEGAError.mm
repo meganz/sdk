@@ -44,15 +44,15 @@ using namespace mega;
     return self.megaError;
 }
 
-- (MEGAErrorType)getErrorCode {
+- (MEGAErrorType)type {
     return (MEGAErrorType) (self.megaError ? self.megaError->getErrorCode() : 0);
 }
 
-- (NSString *)getErrorString {
+- (NSString *)name {
     return [[NSString alloc] initWithUTF8String:self.megaError->getErrorString()];
 }
 
-- (NSString *)getErrorStringWithErrorCode:(NSInteger)errorCode {
+- (NSString *)nameWithErrorCode:(NSInteger)errorCode {
     return MegaError::getErrorString((int)errorCode) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode)] : nil;
 }
 
