@@ -823,6 +823,7 @@ PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotif
 
 void PosixDirNotify::addnotify(LocalNode* l, string* path)
 {
+#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     int wd;
 
@@ -836,15 +837,18 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
         fsaccess->wdnodes[wd] = l;
     }
 #endif
+#endif
 }
 
 void PosixDirNotify::delnotify(LocalNode* l)
 {
+#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
     {
         inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
     }
+#endif
 #endif
 }
 
