@@ -1,0 +1,848 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		416812A519EE73CF00C72800 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A419EE73CF00C72800 /* libc++.dylib */; };
+		41AB68F21A094194003FE608 /* GfxProcCG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41AB68F11A094194003FE608 /* GfxProcCG.cpp */; };
+		41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */; };
+		41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FB1A09444E003FE608 /* ImageIO.framework */; };
+		41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */; };
+		41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */; };
+		41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */; };
+		41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */; };
+		41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */; };
+		41D4EADB19EED5070097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADA19EED5070097C00F /* libresolv.dylib */; };
+		940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8D19ED9245007E7FA2 /* libcares.a */; };
+		940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8E19ED9245007E7FA2 /* libcrypto.a */; };
+		940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8F19ED9245007E7FA2 /* libcryptopp.a */; };
+		940BEF9519ED9245007E7FA2 /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF9019ED9245007E7FA2 /* libcurl.a */; };
+		940BEF9619ED9245007E7FA2 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF9119ED9245007E7FA2 /* libssl.a */; };
+		940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9819ED92C2007E7FA2 /* attrmap.cpp */; };
+		940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */; };
+		940BEFB919ED92C2007E7FA2 /* base64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9A19ED92C2007E7FA2 /* base64.cpp */; };
+		940BEFBA19ED92C2007E7FA2 /* command.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9B19ED92C2007E7FA2 /* command.cpp */; };
+		940BEFBB19ED92C2007E7FA2 /* commands.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9C19ED92C2007E7FA2 /* commands.cpp */; };
+		940BEFBC19ED92C2007E7FA2 /* db.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9D19ED92C2007E7FA2 /* db.cpp */; };
+		940BEFBD19ED92C2007E7FA2 /* file.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9E19ED92C2007E7FA2 /* file.cpp */; };
+		940BEFBE19ED92C2007E7FA2 /* fileattributefetch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */; };
+		940BEFBF19ED92C2007E7FA2 /* filefingerprint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA019ED92C2007E7FA2 /* filefingerprint.cpp */; };
+		940BEFC019ED92C2007E7FA2 /* filesystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA119ED92C2007E7FA2 /* filesystem.cpp */; };
+		940BEFC119ED92C2007E7FA2 /* gfx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA219ED92C2007E7FA2 /* gfx.cpp */; };
+		940BEFC219ED92C2007E7FA2 /* http.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA319ED92C2007E7FA2 /* http.cpp */; };
+		940BEFC319ED92C2007E7FA2 /* json.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA419ED92C2007E7FA2 /* json.cpp */; };
+		940BEFC419ED92C2007E7FA2 /* logging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA519ED92C2007E7FA2 /* logging.cpp */; };
+		940BEFC519ED92C2007E7FA2 /* megaapi_impl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA619ED92C2007E7FA2 /* megaapi_impl.cpp */; };
+		940BEFC619ED92C2007E7FA2 /* megaapi.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA719ED92C2007E7FA2 /* megaapi.cpp */; };
+		940BEFC719ED92C2007E7FA2 /* megaclient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA819ED92C2007E7FA2 /* megaclient.cpp */; };
+		940BEFC819ED92C2007E7FA2 /* node.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA919ED92C2007E7FA2 /* node.cpp */; };
+		940BEFC919ED92C2007E7FA2 /* proxy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFAA19ED92C2007E7FA2 /* proxy.cpp */; };
+		940BEFCA19ED92C2007E7FA2 /* pubkeyaction.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFAB19ED92C2007E7FA2 /* pubkeyaction.cpp */; };
+		940BEFCB19ED92C2007E7FA2 /* request.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFAC19ED92C2007E7FA2 /* request.cpp */; };
+		940BEFCC19ED92C2007E7FA2 /* serialize64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFAD19ED92C2007E7FA2 /* serialize64.cpp */; };
+		940BEFCD19ED92C2007E7FA2 /* share.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFAE19ED92C2007E7FA2 /* share.cpp */; };
+		940BEFCE19ED92C2007E7FA2 /* sharenodekeys.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFAF19ED92C2007E7FA2 /* sharenodekeys.cpp */; };
+		940BEFCF19ED92C2007E7FA2 /* sync.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB019ED92C2007E7FA2 /* sync.cpp */; };
+		940BEFD019ED92C2007E7FA2 /* transfer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB119ED92C2007E7FA2 /* transfer.cpp */; };
+		940BEFD119ED92C2007E7FA2 /* transferslot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB219ED92C2007E7FA2 /* transferslot.cpp */; };
+		940BEFD219ED92C2007E7FA2 /* treeproc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB319ED92C2007E7FA2 /* treeproc.cpp */; };
+		940BEFD319ED92C2007E7FA2 /* user.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB419ED92C2007E7FA2 /* user.cpp */; };
+		940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB519ED92C2007E7FA2 /* utils.cpp */; };
+		940BEFD519ED92C2007E7FA2 /* waiterbase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFB619ED92C2007E7FA2 /* waiterbase.cpp */; };
+		940BEFEA19ED9351007E7FA2 /* cryptopp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFD719ED9351007E7FA2 /* cryptopp.cpp */; };
+		940BEFEB19ED9351007E7FA2 /* sodium.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFD819ED9351007E7FA2 /* sodium.cpp */; };
+		940BEFED19ED9351007E7FA2 /* sqlite.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFDB19ED9351007E7FA2 /* sqlite.cpp */; };
+		940BEFEE19ED9351007E7FA2 /* external.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFDD19ED9351007E7FA2 /* external.cpp */; };
+		940BEFF119ED9351007E7FA2 /* console.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE119ED9351007E7FA2 /* console.cpp */; };
+		940BEFF219ED9351007E7FA2 /* consolewaiter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE219ED9351007E7FA2 /* consolewaiter.cpp */; };
+		940BEFF319ED9351007E7FA2 /* fs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE319ED9351007E7FA2 /* fs.cpp */; };
+		940BEFF419ED9351007E7FA2 /* net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE419ED9351007E7FA2 /* net.cpp */; };
+		940BEFF519ED9351007E7FA2 /* waiter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE519ED9351007E7FA2 /* waiter.cpp */; };
+		940BEFF719ED9351007E7FA2 /* posixthread.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFE819ED9351007E7FA2 /* posixthread.cpp */; };
+		940BF00E19ED97B9007E7FA2 /* MEGAAccountDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFFE19ED97B9007E7FA2 /* MEGAAccountDetails.mm */; };
+		940BF00F19ED97B9007E7FA2 /* MEGASdk.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFFF19ED97B9007E7FA2 /* MEGASdk.mm */; };
+		940BF01019ED97B9007E7FA2 /* MEGAError.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00019ED97B9007E7FA2 /* MEGAError.mm */; };
+		940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00119ED97B9007E7FA2 /* MEGANode.mm */; };
+		940BF01219ED97B9007E7FA2 /* MEGANodeList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */; };
+		940BF01319ED97B9007E7FA2 /* MEGARequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00319ED97B9007E7FA2 /* MEGARequest.mm */; };
+		940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00419ED97B9007E7FA2 /* MEGAShare.mm */; };
+		940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00519ED97B9007E7FA2 /* MEGAShareList.mm */; };
+		940BF01619ED97B9007E7FA2 /* MEGATransfer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00619ED97B9007E7FA2 /* MEGATransfer.mm */; };
+		940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */; };
+		940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00819ED97B9007E7FA2 /* MEGAUser.mm */; };
+		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
+		940BF02B19EDB683007E7FA2 /* utf8proc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BF02719EDB683007E7FA2 /* utf8proc.cpp */; };
+		940BF03119EDB720007E7FA2 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BF02F19EDB6DB007E7FA2 /* libz.dylib */; settings = {ATTRIBUTES = (Required, ); }; };
+		940BF03219EDB8F2007E7FA2 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9472044119ED916F00F6805F /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "include/$(PRODUCT_NAME)";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		416812A419EE73CF00C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
+		41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGASdk+init.h"; sourceTree = "<group>"; };
+		41AB68F11A094194003FE608 /* GfxProcCG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GfxProcCG.cpp; sourceTree = "<group>"; };
+		41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
+		41AB68FB1A09444E003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAPricing+init.h"; sourceTree = "<group>"; };
+		41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = DelegateMEGAGlobalListener.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGAGlobalListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED31A0A859C006C40FB /* DelegateMEGAListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = DelegateMEGAListener.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGAListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED51A0A859C006C40FB /* DelegateMEGARequestListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = DelegateMEGARequestListener.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGARequestListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED71A0A859C006C40FB /* DelegateMEGATransferListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = DelegateMEGATransferListener.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGATransferListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B538CA1A0284CB00EABDC9 /* MEGAPricing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAPricing.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAPricing.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41D4EADA19EED5070097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
+		940BEF8D19ED9245007E7FA2 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = 3rdparty/lib/libcares.a; sourceTree = "<group>"; };
+		940BEF8E19ED9245007E7FA2 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = 3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
+		940BEF8F19ED9245007E7FA2 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = 3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
+		940BEF9019ED9245007E7FA2 /* libcurl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcurl.a; path = 3rdparty/lib/libcurl.a; sourceTree = "<group>"; };
+		940BEF9119ED9245007E7FA2 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = 3rdparty/lib/libssl.a; sourceTree = "<group>"; };
+		940BEF9819ED92C2007E7FA2 /* attrmap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = attrmap.cpp; path = ../../src/attrmap.cpp; sourceTree = "<group>"; };
+		940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = backofftimer.cpp; path = ../../src/backofftimer.cpp; sourceTree = "<group>"; };
+		940BEF9A19ED92C2007E7FA2 /* base64.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = base64.cpp; path = ../../src/base64.cpp; sourceTree = "<group>"; };
+		940BEF9B19ED92C2007E7FA2 /* command.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = command.cpp; path = ../../src/command.cpp; sourceTree = "<group>"; };
+		940BEF9C19ED92C2007E7FA2 /* commands.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = commands.cpp; path = ../../src/commands.cpp; sourceTree = "<group>"; };
+		940BEF9D19ED92C2007E7FA2 /* db.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = db.cpp; path = ../../src/db.cpp; sourceTree = "<group>"; };
+		940BEF9E19ED92C2007E7FA2 /* file.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = file.cpp; path = ../../src/file.cpp; sourceTree = "<group>"; };
+		940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fileattributefetch.cpp; path = ../../src/fileattributefetch.cpp; sourceTree = "<group>"; };
+		940BEFA019ED92C2007E7FA2 /* filefingerprint.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = filefingerprint.cpp; path = ../../src/filefingerprint.cpp; sourceTree = "<group>"; };
+		940BEFA119ED92C2007E7FA2 /* filesystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = filesystem.cpp; path = ../../src/filesystem.cpp; sourceTree = "<group>"; };
+		940BEFA219ED92C2007E7FA2 /* gfx.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = gfx.cpp; path = ../../src/gfx.cpp; sourceTree = "<group>"; };
+		940BEFA319ED92C2007E7FA2 /* http.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = http.cpp; path = ../../src/http.cpp; sourceTree = "<group>"; };
+		940BEFA419ED92C2007E7FA2 /* json.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = json.cpp; path = ../../src/json.cpp; sourceTree = "<group>"; };
+		940BEFA519ED92C2007E7FA2 /* logging.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = logging.cpp; path = ../../src/logging.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFA619ED92C2007E7FA2 /* megaapi_impl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = megaapi_impl.cpp; path = ../../src/megaapi_impl.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFA719ED92C2007E7FA2 /* megaapi.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = megaapi.cpp; path = ../../src/megaapi.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFA819ED92C2007E7FA2 /* megaclient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = megaclient.cpp; path = ../../src/megaclient.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFA919ED92C2007E7FA2 /* node.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = node.cpp; path = ../../src/node.cpp; sourceTree = "<group>"; };
+		940BEFAA19ED92C2007E7FA2 /* proxy.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = proxy.cpp; path = ../../src/proxy.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFAB19ED92C2007E7FA2 /* pubkeyaction.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = pubkeyaction.cpp; path = ../../src/pubkeyaction.cpp; sourceTree = "<group>"; };
+		940BEFAC19ED92C2007E7FA2 /* request.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = request.cpp; path = ../../src/request.cpp; sourceTree = "<group>"; };
+		940BEFAD19ED92C2007E7FA2 /* serialize64.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = serialize64.cpp; path = ../../src/serialize64.cpp; sourceTree = "<group>"; };
+		940BEFAE19ED92C2007E7FA2 /* share.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = share.cpp; path = ../../src/share.cpp; sourceTree = "<group>"; };
+		940BEFAF19ED92C2007E7FA2 /* sharenodekeys.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = sharenodekeys.cpp; path = ../../src/sharenodekeys.cpp; sourceTree = "<group>"; };
+		940BEFB019ED92C2007E7FA2 /* sync.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = sync.cpp; path = ../../src/sync.cpp; sourceTree = "<group>"; };
+		940BEFB119ED92C2007E7FA2 /* transfer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = transfer.cpp; path = ../../src/transfer.cpp; sourceTree = "<group>"; };
+		940BEFB219ED92C2007E7FA2 /* transferslot.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = transferslot.cpp; path = ../../src/transferslot.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFB319ED92C2007E7FA2 /* treeproc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = treeproc.cpp; path = ../../src/treeproc.cpp; sourceTree = "<group>"; };
+		940BEFB419ED92C2007E7FA2 /* user.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = user.cpp; path = ../../src/user.cpp; sourceTree = "<group>"; };
+		940BEFB519ED92C2007E7FA2 /* utils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = utils.cpp; path = ../../src/utils.cpp; sourceTree = "<group>"; };
+		940BEFB619ED92C2007E7FA2 /* waiterbase.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = waiterbase.cpp; path = ../../src/waiterbase.cpp; sourceTree = "<group>"; };
+		940BEFD719ED9351007E7FA2 /* cryptopp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = cryptopp.cpp; sourceTree = "<group>"; };
+		940BEFD819ED9351007E7FA2 /* sodium.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sodium.cpp; sourceTree = "<group>"; };
+		940BEFDB19ED9351007E7FA2 /* sqlite.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sqlite.cpp; sourceTree = "<group>"; };
+		940BEFDD19ED9351007E7FA2 /* external.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = external.cpp; sourceTree = "<group>"; };
+		940BEFE119ED9351007E7FA2 /* console.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = console.cpp; sourceTree = "<group>"; };
+		940BEFE219ED9351007E7FA2 /* consolewaiter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = consolewaiter.cpp; sourceTree = "<group>"; };
+		940BEFE319ED9351007E7FA2 /* fs.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = fs.cpp; sourceTree = "<group>"; };
+		940BEFE419ED9351007E7FA2 /* net.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = net.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		940BEFE519ED9351007E7FA2 /* waiter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = waiter.cpp; sourceTree = "<group>"; };
+		940BEFE819ED9351007E7FA2 /* posixthread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = posixthread.cpp; sourceTree = "<group>"; };
+		940BEFFE19ED97B9007E7FA2 /* MEGAAccountDetails.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAAccountDetails.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BEFFF19ED97B9007E7FA2 /* MEGASdk.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGASdk.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00019ED97B9007E7FA2 /* MEGAError.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAError.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00119ED97B9007E7FA2 /* MEGANode.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGANode.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGANodeList.mm; sourceTree = "<group>"; };
+		940BF00319ED97B9007E7FA2 /* MEGARequest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGARequest.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00419ED97B9007E7FA2 /* MEGAShare.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAShare.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00519ED97B9007E7FA2 /* MEGAShareList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAShareList.mm; sourceTree = "<group>"; };
+		940BF00619ED97B9007E7FA2 /* MEGATransfer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGATransfer.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGATransferList.mm; sourceTree = "<group>"; };
+		940BF00819ED97B9007E7FA2 /* MEGAUser.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAUser.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAUserList.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF02719EDB683007E7FA2 /* utf8proc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = utf8proc.cpp; sourceTree = "<group>"; };
+		940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
+		940BF02F19EDB6DB007E7FA2 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
+		940BF03D19EDBCAD007E7FA2 /* account.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = account.h; sourceTree = "<group>"; };
+		940BF03E19EDBCAD007E7FA2 /* attrmap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = attrmap.h; sourceTree = "<group>"; };
+		940BF03F19EDBCAD007E7FA2 /* backofftimer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = backofftimer.h; sourceTree = "<group>"; };
+		940BF04019EDBCAD007E7FA2 /* base64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = base64.h; sourceTree = "<group>"; };
+		940BF04119EDBCAD007E7FA2 /* command.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = command.h; sourceTree = "<group>"; };
+		940BF04219EDBCAD007E7FA2 /* config-android.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "config-android.h"; sourceTree = "<group>"; };
+		940BF04419EDBCAD007E7FA2 /* console.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = console.h; sourceTree = "<group>"; };
+		940BF04619EDBCAD007E7FA2 /* cryptopp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cryptopp.h; sourceTree = "<group>"; };
+		940BF04A19EDBCAD007E7FA2 /* sqlite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sqlite.h; sourceTree = "<group>"; };
+		940BF04B19EDBCAD007E7FA2 /* db.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = db.h; sourceTree = "<group>"; };
+		940BF04C19EDBCAD007E7FA2 /* file.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = file.h; sourceTree = "<group>"; };
+		940BF04D19EDBCAD007E7FA2 /* fileattributefetch.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fileattributefetch.h; sourceTree = "<group>"; };
+		940BF04E19EDBCAD007E7FA2 /* filefingerprint.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filefingerprint.h; sourceTree = "<group>"; };
+		940BF04F19EDBCAD007E7FA2 /* filesystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filesystem.h; sourceTree = "<group>"; };
+		940BF05119EDBCAD007E7FA2 /* external.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = external.h; sourceTree = "<group>"; };
+		940BF05419EDBCAD007E7FA2 /* gfx.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gfx.h; sourceTree = "<group>"; };
+		940BF05519EDBCAD007E7FA2 /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = http.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF05619EDBCAD007E7FA2 /* json.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = json.h; sourceTree = "<group>"; };
+		940BF05719EDBCAD007E7FA2 /* logging.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = logging.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF05819EDBCAD007E7FA2 /* megaapp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megaapp.h; sourceTree = "<group>"; };
+		940BF05919EDBCAD007E7FA2 /* megaclient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = megaclient.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF05A19EDBCAD007E7FA2 /* node.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = node.h; sourceTree = "<group>"; };
+		940BF05C19EDBCAD007E7FA2 /* megaconsole.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megaconsole.h; sourceTree = "<group>"; };
+		940BF05D19EDBCAD007E7FA2 /* megaconsolewaiter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megaconsolewaiter.h; sourceTree = "<group>"; };
+		940BF05E19EDBCAD007E7FA2 /* megafs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megafs.h; sourceTree = "<group>"; };
+		940BF05F19EDBCAD007E7FA2 /* meganet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = meganet.h; sourceTree = "<group>"; };
+		940BF06019EDBCAD007E7FA2 /* megasys.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megasys.h; sourceTree = "<group>"; };
+		940BF06119EDBCAD007E7FA2 /* megawaiter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = megawaiter.h; sourceTree = "<group>"; };
+		940BF06219EDBCAD007E7FA2 /* proxy.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = proxy.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF06319EDBCAD007E7FA2 /* pubkeyaction.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pubkeyaction.h; sourceTree = "<group>"; };
+		940BF06419EDBCAD007E7FA2 /* request.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = request.h; sourceTree = "<group>"; };
+		940BF06519EDBCAD007E7FA2 /* serialize64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = serialize64.h; sourceTree = "<group>"; };
+		940BF06619EDBCAD007E7FA2 /* share.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = share.h; sourceTree = "<group>"; };
+		940BF06719EDBCAD007E7FA2 /* sharenodekeys.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sharenodekeys.h; sourceTree = "<group>"; };
+		940BF06819EDBCAD007E7FA2 /* sync.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sync.h; sourceTree = "<group>"; };
+		940BF06B19EDBCAD007E7FA2 /* posixthread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = posixthread.h; sourceTree = "<group>"; };
+		940BF06D19EDBCAD007E7FA2 /* thread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = thread.h; sourceTree = "<group>"; };
+		940BF06E19EDBCAD007E7FA2 /* transfer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = transfer.h; sourceTree = "<group>"; };
+		940BF06F19EDBCAD007E7FA2 /* transferslot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = transferslot.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF07019EDBCAD007E7FA2 /* treeproc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = treeproc.h; sourceTree = "<group>"; };
+		940BF07119EDBCAD007E7FA2 /* types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = types.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF07219EDBCAD007E7FA2 /* user.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = user.h; sourceTree = "<group>"; };
+		940BF07319EDBCAD007E7FA2 /* utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
+		940BF07419EDBCAD007E7FA2 /* waiter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = waiter.h; sourceTree = "<group>"; };
+		940BF08319EDBCAD007E7FA2 /* mega.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega.h; sourceTree = "<group>"; };
+		940BF08419EDBCAD007E7FA2 /* megaapi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = megaapi.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08519EDBCAD007E7FA2 /* megaapi_impl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = megaapi_impl.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08A19EDBD62007E7FA2 /* MEGAAccountDetails.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAAccountDetails.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08B19EDBD62007E7FA2 /* MEGASdk.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGASdk.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08C19EDBD62007E7FA2 /* MEGAError.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAError.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08D19EDBD62007E7FA2 /* MEGAGlobalDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAGlobalDelegate.h; sourceTree = "<group>"; };
+		940BF08E19EDBD62007E7FA2 /* MEGADelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGADelegate.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF08F19EDBD62007E7FA2 /* MEGANode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGANode.h; sourceTree = "<group>"; };
+		940BF09019EDBD62007E7FA2 /* MEGANodeList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGANodeList.h; sourceTree = "<group>"; };
+		940BF09119EDBD62007E7FA2 /* MEGARequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGARequest.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09219EDBD62007E7FA2 /* MEGARequestDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGARequestDelegate.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09319EDBD62007E7FA2 /* MEGAShare.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAShare.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09419EDBD62007E7FA2 /* MEGAShareList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAShareList.h; sourceTree = "<group>"; };
+		940BF09519EDBD62007E7FA2 /* MEGATransfer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGATransfer.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09619EDBD62007E7FA2 /* MEGATransferDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGATransferDelegate.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09719EDBD62007E7FA2 /* MEGATransferList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGATransferList.h; sourceTree = "<group>"; };
+		940BF09819EDBD62007E7FA2 /* MTreeProcesorProtocol.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MTreeProcesorProtocol.h; sourceTree = "<group>"; };
+		940BF09919EDBD62007E7FA2 /* MEGAUser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAUser.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09A19EDBD62007E7FA2 /* MEGAUserList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAUserList.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09C19EDBD62007E7FA2 /* MEGAError+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = "MEGAError+init.h"; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		940BF09E19EDBD62007E7FA2 /* MEGANode+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGANode+init.h"; sourceTree = "<group>"; };
+		940BF0A019EDBD62007E7FA2 /* MEGANodeList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGANodeList+init.h"; sourceTree = "<group>"; };
+		940BF0A219EDBD62007E7FA2 /* MEGARequest+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGARequest+init.h"; sourceTree = "<group>"; };
+		940BF0A419EDBD62007E7FA2 /* MEGAShare+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAShare+init.h"; sourceTree = "<group>"; };
+		940BF0A619EDBD62007E7FA2 /* MEGAShareList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAShareList+init.h"; sourceTree = "<group>"; };
+		940BF0A819EDBD62007E7FA2 /* MEGATransfer+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGATransfer+init.h"; sourceTree = "<group>"; };
+		940BF0AA19EDBD62007E7FA2 /* MEGATransferList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGATransferList+init.h"; sourceTree = "<group>"; };
+		940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUser+init.h"; sourceTree = "<group>"; };
+		940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserList+init.h"; sourceTree = "<group>"; };
+		9472044319ED916F00F6805F /* libmega.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libmega.a; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9472044019ED916F00F6805F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */,
+				41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */,
+				41D4EADB19EED5070097C00F /* libresolv.dylib in Frameworks */,
+				416812A519EE73CF00C72800 /* libc++.dylib in Frameworks */,
+				940BF03219EDB8F2007E7FA2 /* libsqlite3.dylib in Frameworks */,
+				940BF03119EDB720007E7FA2 /* libz.dylib in Frameworks */,
+				940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */,
+				940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */,
+				940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */,
+				940BEF9519ED9245007E7FA2 /* libcurl.a in Frameworks */,
+				940BEF9619ED9245007E7FA2 /* libssl.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		940BEF9719ED9259007E7FA2 /* sdk */ = {
+			isa = PBXGroup;
+			children = (
+				940BF03919EDBCAD007E7FA2 /* include */,
+				940BF02119EDB683007E7FA2 /* third_party */,
+				940BEFD619ED9351007E7FA2 /* crypto */,
+				940BEFD919ED9351007E7FA2 /* db */,
+				940BEFDC19ED9351007E7FA2 /* gfx */,
+				940BEFE019ED9351007E7FA2 /* posix */,
+				940BEFE619ED9351007E7FA2 /* thread */,
+				940BEF9819ED92C2007E7FA2 /* attrmap.cpp */,
+				940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */,
+				940BEF9A19ED92C2007E7FA2 /* base64.cpp */,
+				940BEF9B19ED92C2007E7FA2 /* command.cpp */,
+				940BEF9C19ED92C2007E7FA2 /* commands.cpp */,
+				940BEF9D19ED92C2007E7FA2 /* db.cpp */,
+				940BEF9E19ED92C2007E7FA2 /* file.cpp */,
+				940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */,
+				940BEFA019ED92C2007E7FA2 /* filefingerprint.cpp */,
+				940BEFA119ED92C2007E7FA2 /* filesystem.cpp */,
+				940BEFA219ED92C2007E7FA2 /* gfx.cpp */,
+				940BEFA319ED92C2007E7FA2 /* http.cpp */,
+				940BEFA419ED92C2007E7FA2 /* json.cpp */,
+				940BEFA519ED92C2007E7FA2 /* logging.cpp */,
+				940BEFA619ED92C2007E7FA2 /* megaapi_impl.cpp */,
+				940BEFA719ED92C2007E7FA2 /* megaapi.cpp */,
+				940BEFA819ED92C2007E7FA2 /* megaclient.cpp */,
+				940BEFA919ED92C2007E7FA2 /* node.cpp */,
+				940BEFAA19ED92C2007E7FA2 /* proxy.cpp */,
+				940BEFAB19ED92C2007E7FA2 /* pubkeyaction.cpp */,
+				940BEFAC19ED92C2007E7FA2 /* request.cpp */,
+				940BEFAD19ED92C2007E7FA2 /* serialize64.cpp */,
+				940BEFAE19ED92C2007E7FA2 /* share.cpp */,
+				940BEFAF19ED92C2007E7FA2 /* sharenodekeys.cpp */,
+				940BEFB019ED92C2007E7FA2 /* sync.cpp */,
+				940BEFB119ED92C2007E7FA2 /* transfer.cpp */,
+				940BEFB219ED92C2007E7FA2 /* transferslot.cpp */,
+				940BEFB319ED92C2007E7FA2 /* treeproc.cpp */,
+				940BEFB419ED92C2007E7FA2 /* user.cpp */,
+				940BEFB519ED92C2007E7FA2 /* utils.cpp */,
+				940BEFB619ED92C2007E7FA2 /* waiterbase.cpp */,
+			);
+			name = sdk;
+			sourceTree = "<group>";
+		};
+		940BEFD619ED9351007E7FA2 /* crypto */ = {
+			isa = PBXGroup;
+			children = (
+				940BEFD719ED9351007E7FA2 /* cryptopp.cpp */,
+				940BEFD819ED9351007E7FA2 /* sodium.cpp */,
+			);
+			name = crypto;
+			path = ../../src/crypto;
+			sourceTree = "<group>";
+		};
+		940BEFD919ED9351007E7FA2 /* db */ = {
+			isa = PBXGroup;
+			children = (
+				940BEFDB19ED9351007E7FA2 /* sqlite.cpp */,
+			);
+			name = db;
+			path = ../../src/db;
+			sourceTree = "<group>";
+		};
+		940BEFDC19ED9351007E7FA2 /* gfx */ = {
+			isa = PBXGroup;
+			children = (
+				41AB68F11A094194003FE608 /* GfxProcCG.cpp */,
+				940BEFDD19ED9351007E7FA2 /* external.cpp */,
+			);
+			name = gfx;
+			path = ../../src/gfx;
+			sourceTree = "<group>";
+		};
+		940BEFE019ED9351007E7FA2 /* posix */ = {
+			isa = PBXGroup;
+			children = (
+				940BEFE119ED9351007E7FA2 /* console.cpp */,
+				940BEFE219ED9351007E7FA2 /* consolewaiter.cpp */,
+				940BEFE319ED9351007E7FA2 /* fs.cpp */,
+				940BEFE419ED9351007E7FA2 /* net.cpp */,
+				940BEFE519ED9351007E7FA2 /* waiter.cpp */,
+			);
+			name = posix;
+			path = ../../src/posix;
+			sourceTree = "<group>";
+		};
+		940BEFE619ED9351007E7FA2 /* thread */ = {
+			isa = PBXGroup;
+			children = (
+				940BEFE819ED9351007E7FA2 /* posixthread.cpp */,
+			);
+			name = thread;
+			path = ../../src/thread;
+			sourceTree = "<group>";
+		};
+		940BEFF919ED9723007E7FA2 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				940BF09B19EDBD62007E7FA2 /* Private */,
+				940BF08A19EDBD62007E7FA2 /* MEGAAccountDetails.h */,
+				940BEFFE19ED97B9007E7FA2 /* MEGAAccountDetails.mm */,
+				940BF08B19EDBD62007E7FA2 /* MEGASdk.h */,
+				940BEFFF19ED97B9007E7FA2 /* MEGASdk.mm */,
+				940BF08C19EDBD62007E7FA2 /* MEGAError.h */,
+				940BF00019ED97B9007E7FA2 /* MEGAError.mm */,
+				940BF08D19EDBD62007E7FA2 /* MEGAGlobalDelegate.h */,
+				940BF08E19EDBD62007E7FA2 /* MEGADelegate.h */,
+				940BF09219EDBD62007E7FA2 /* MEGARequestDelegate.h */,
+				940BF09619EDBD62007E7FA2 /* MEGATransferDelegate.h */,
+				940BF08F19EDBD62007E7FA2 /* MEGANode.h */,
+				940BF00119ED97B9007E7FA2 /* MEGANode.mm */,
+				940BF09019EDBD62007E7FA2 /* MEGANodeList.h */,
+				940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */,
+				940BF09119EDBD62007E7FA2 /* MEGARequest.h */,
+				940BF00319ED97B9007E7FA2 /* MEGARequest.mm */,
+				940BF09319EDBD62007E7FA2 /* MEGAShare.h */,
+				940BF00419ED97B9007E7FA2 /* MEGAShare.mm */,
+				940BF09419EDBD62007E7FA2 /* MEGAShareList.h */,
+				940BF00519ED97B9007E7FA2 /* MEGAShareList.mm */,
+				940BF09519EDBD62007E7FA2 /* MEGATransfer.h */,
+				940BF00619ED97B9007E7FA2 /* MEGATransfer.mm */,
+				940BF09719EDBD62007E7FA2 /* MEGATransferList.h */,
+				940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */,
+				940BF09819EDBD62007E7FA2 /* MTreeProcesorProtocol.h */,
+				940BF09919EDBD62007E7FA2 /* MEGAUser.h */,
+				940BF00819ED97B9007E7FA2 /* MEGAUser.mm */,
+				940BF09A19EDBD62007E7FA2 /* MEGAUserList.h */,
+				940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */,
+				41B538CA1A0284CB00EABDC9 /* MEGAPricing.h */,
+				41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */,
+			);
+			name = bindings;
+			sourceTree = "<group>";
+		};
+		940BF02119EDB683007E7FA2 /* third_party */ = {
+			isa = PBXGroup;
+			children = (
+				940BF02519EDB683007E7FA2 /* utf8proc */,
+			);
+			name = third_party;
+			path = ../../third_party;
+			sourceTree = "<group>";
+		};
+		940BF02519EDB683007E7FA2 /* utf8proc */ = {
+			isa = PBXGroup;
+			children = (
+				940BF02719EDB683007E7FA2 /* utf8proc.cpp */,
+			);
+			path = utf8proc;
+			sourceTree = "<group>";
+		};
+		940BF03919EDBCAD007E7FA2 /* include */ = {
+			isa = PBXGroup;
+			children = (
+				940BF03C19EDBCAD007E7FA2 /* mega */,
+				940BF08319EDBCAD007E7FA2 /* mega.h */,
+				940BF08419EDBCAD007E7FA2 /* megaapi.h */,
+				940BF08519EDBCAD007E7FA2 /* megaapi_impl.h */,
+			);
+			name = include;
+			path = ../../include;
+			sourceTree = "<group>";
+		};
+		940BF03C19EDBCAD007E7FA2 /* mega */ = {
+			isa = PBXGroup;
+			children = (
+				940BF03D19EDBCAD007E7FA2 /* account.h */,
+				940BF03E19EDBCAD007E7FA2 /* attrmap.h */,
+				940BF03F19EDBCAD007E7FA2 /* backofftimer.h */,
+				940BF04019EDBCAD007E7FA2 /* base64.h */,
+				940BF04119EDBCAD007E7FA2 /* command.h */,
+				940BF04219EDBCAD007E7FA2 /* config-android.h */,
+				940BF04419EDBCAD007E7FA2 /* console.h */,
+				940BF04519EDBCAD007E7FA2 /* crypto */,
+				940BF04819EDBCAD007E7FA2 /* db */,
+				940BF04B19EDBCAD007E7FA2 /* db.h */,
+				940BF04C19EDBCAD007E7FA2 /* file.h */,
+				940BF04D19EDBCAD007E7FA2 /* fileattributefetch.h */,
+				940BF04E19EDBCAD007E7FA2 /* filefingerprint.h */,
+				940BF04F19EDBCAD007E7FA2 /* filesystem.h */,
+				940BF05019EDBCAD007E7FA2 /* gfx */,
+				940BF05419EDBCAD007E7FA2 /* gfx.h */,
+				940BF05519EDBCAD007E7FA2 /* http.h */,
+				940BF05619EDBCAD007E7FA2 /* json.h */,
+				940BF05719EDBCAD007E7FA2 /* logging.h */,
+				940BF05819EDBCAD007E7FA2 /* megaapp.h */,
+				940BF05919EDBCAD007E7FA2 /* megaclient.h */,
+				940BF05A19EDBCAD007E7FA2 /* node.h */,
+				940BF05B19EDBCAD007E7FA2 /* posix */,
+				940BF06219EDBCAD007E7FA2 /* proxy.h */,
+				940BF06319EDBCAD007E7FA2 /* pubkeyaction.h */,
+				940BF06419EDBCAD007E7FA2 /* request.h */,
+				940BF06519EDBCAD007E7FA2 /* serialize64.h */,
+				940BF06619EDBCAD007E7FA2 /* share.h */,
+				940BF06719EDBCAD007E7FA2 /* sharenodekeys.h */,
+				940BF06819EDBCAD007E7FA2 /* sync.h */,
+				940BF06919EDBCAD007E7FA2 /* thread */,
+				940BF06D19EDBCAD007E7FA2 /* thread.h */,
+				940BF06E19EDBCAD007E7FA2 /* transfer.h */,
+				940BF06F19EDBCAD007E7FA2 /* transferslot.h */,
+				940BF07019EDBCAD007E7FA2 /* treeproc.h */,
+				940BF07119EDBCAD007E7FA2 /* types.h */,
+				940BF07219EDBCAD007E7FA2 /* user.h */,
+				940BF07319EDBCAD007E7FA2 /* utils.h */,
+				940BF07419EDBCAD007E7FA2 /* waiter.h */,
+			);
+			path = mega;
+			sourceTree = "<group>";
+		};
+		940BF04519EDBCAD007E7FA2 /* crypto */ = {
+			isa = PBXGroup;
+			children = (
+				940BF04619EDBCAD007E7FA2 /* cryptopp.h */,
+			);
+			path = crypto;
+			sourceTree = "<group>";
+		};
+		940BF04819EDBCAD007E7FA2 /* db */ = {
+			isa = PBXGroup;
+			children = (
+				940BF04A19EDBCAD007E7FA2 /* sqlite.h */,
+			);
+			path = db;
+			sourceTree = "<group>";
+		};
+		940BF05019EDBCAD007E7FA2 /* gfx */ = {
+			isa = PBXGroup;
+			children = (
+				940BF05119EDBCAD007E7FA2 /* external.h */,
+			);
+			path = gfx;
+			sourceTree = "<group>";
+		};
+		940BF05B19EDBCAD007E7FA2 /* posix */ = {
+			isa = PBXGroup;
+			children = (
+				940BF05C19EDBCAD007E7FA2 /* megaconsole.h */,
+				940BF05D19EDBCAD007E7FA2 /* megaconsolewaiter.h */,
+				940BF05E19EDBCAD007E7FA2 /* megafs.h */,
+				940BF05F19EDBCAD007E7FA2 /* meganet.h */,
+				940BF06019EDBCAD007E7FA2 /* megasys.h */,
+				940BF06119EDBCAD007E7FA2 /* megawaiter.h */,
+			);
+			path = posix;
+			sourceTree = "<group>";
+		};
+		940BF06919EDBCAD007E7FA2 /* thread */ = {
+			isa = PBXGroup;
+			children = (
+				940BF06B19EDBCAD007E7FA2 /* posixthread.h */,
+			);
+			path = thread;
+			sourceTree = "<group>";
+		};
+		940BF09B19EDBD62007E7FA2 /* Private */ = {
+			isa = PBXGroup;
+			children = (
+				41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */,
+				41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */,
+				41B2AED31A0A859C006C40FB /* DelegateMEGAListener.h */,
+				41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */,
+				41B2AED51A0A859C006C40FB /* DelegateMEGARequestListener.h */,
+				41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */,
+				41B2AED71A0A859C006C40FB /* DelegateMEGATransferListener.h */,
+				41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */,
+				940BF09C19EDBD62007E7FA2 /* MEGAError+init.h */,
+				940BF09E19EDBD62007E7FA2 /* MEGANode+init.h */,
+				940BF0A019EDBD62007E7FA2 /* MEGANodeList+init.h */,
+				940BF0A219EDBD62007E7FA2 /* MEGARequest+init.h */,
+				940BF0A419EDBD62007E7FA2 /* MEGAShare+init.h */,
+				940BF0A619EDBD62007E7FA2 /* MEGAShareList+init.h */,
+				940BF0A819EDBD62007E7FA2 /* MEGATransfer+init.h */,
+				940BF0AA19EDBD62007E7FA2 /* MEGATransferList+init.h */,
+				940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */,
+				940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */,
+				41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */,
+				41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */,
+			);
+			path = Private;
+			sourceTree = "<group>";
+		};
+		9472043A19ED916F00F6805F = {
+			isa = PBXGroup;
+			children = (
+				41AB68FB1A09444E003FE608 /* ImageIO.framework */,
+				41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */,
+				41D4EADA19EED5070097C00F /* libresolv.dylib */,
+				416812A419EE73CF00C72800 /* libc++.dylib */,
+				940BF02F19EDB6DB007E7FA2 /* libz.dylib */,
+				940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */,
+				940BEFF919ED9723007E7FA2 /* bindings */,
+				940BEF9719ED9259007E7FA2 /* sdk */,
+				940BEF8D19ED9245007E7FA2 /* libcares.a */,
+				940BEF8E19ED9245007E7FA2 /* libcrypto.a */,
+				940BEF8F19ED9245007E7FA2 /* libcryptopp.a */,
+				940BEF9019ED9245007E7FA2 /* libcurl.a */,
+				940BEF9119ED9245007E7FA2 /* libssl.a */,
+				9472044419ED916F00F6805F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9472044419ED916F00F6805F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9472044319ED916F00F6805F /* libmega.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9472044219ED916F00F6805F /* mega */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9472045419ED916F00F6805F /* Build configuration list for PBXNativeTarget "mega" */;
+			buildPhases = (
+				9472043F19ED916F00F6805F /* Sources */,
+				9472044019ED916F00F6805F /* Frameworks */,
+				9472044119ED916F00F6805F /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = mega;
+			productName = mega;
+			productReference = 9472044319ED916F00F6805F /* libmega.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9472043B19ED916F00F6805F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0600;
+				ORGANIZATIONNAME = MEGA;
+				TargetAttributes = {
+					9472044219ED916F00F6805F = {
+						CreatedOnToolsVersion = 6.0.1;
+					};
+				};
+			};
+			buildConfigurationList = 9472043E19ED916F00F6805F /* Build configuration list for PBXProject "mega" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 9472043A19ED916F00F6805F;
+			productRefGroup = 9472044419ED916F00F6805F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9472044219ED916F00F6805F /* mega */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9472043F19ED916F00F6805F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				940BEFC619ED92C2007E7FA2 /* megaapi.cpp in Sources */,
+				940BEFF219ED9351007E7FA2 /* consolewaiter.cpp in Sources */,
+				940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */,
+				940BF02B19EDB683007E7FA2 /* utf8proc.cpp in Sources */,
+				41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */,
+				940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */,
+				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
+				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
+				940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */,
+				940BF01219ED97B9007E7FA2 /* MEGANodeList.mm in Sources */,
+				940BEFC419ED92C2007E7FA2 /* logging.cpp in Sources */,
+				940BEFF519ED9351007E7FA2 /* waiter.cpp in Sources */,
+				940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */,
+				940BEFC119ED92C2007E7FA2 /* gfx.cpp in Sources */,
+				41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */,
+				940BF01019ED97B9007E7FA2 /* MEGAError.mm in Sources */,
+				940BEFBD19ED92C2007E7FA2 /* file.cpp in Sources */,
+				940BF00E19ED97B9007E7FA2 /* MEGAAccountDetails.mm in Sources */,
+				940BEFF119ED9351007E7FA2 /* console.cpp in Sources */,
+				940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */,
+				940BEFC319ED92C2007E7FA2 /* json.cpp in Sources */,
+				940BEFD519ED92C2007E7FA2 /* waiterbase.cpp in Sources */,
+				940BEFCB19ED92C2007E7FA2 /* request.cpp in Sources */,
+				940BEFBF19ED92C2007E7FA2 /* filefingerprint.cpp in Sources */,
+				940BEFC219ED92C2007E7FA2 /* http.cpp in Sources */,
+				940BEFF719ED9351007E7FA2 /* posixthread.cpp in Sources */,
+				940BEFCD19ED92C2007E7FA2 /* share.cpp in Sources */,
+				940BEFC019ED92C2007E7FA2 /* filesystem.cpp in Sources */,
+				940BEFB919ED92C2007E7FA2 /* base64.cpp in Sources */,
+				940BEFC819ED92C2007E7FA2 /* node.cpp in Sources */,
+				940BF00F19ED97B9007E7FA2 /* MEGASdk.mm in Sources */,
+				940BEFBC19ED92C2007E7FA2 /* db.cpp in Sources */,
+				940BEFCE19ED92C2007E7FA2 /* sharenodekeys.cpp in Sources */,
+				940BF01319ED97B9007E7FA2 /* MEGARequest.mm in Sources */,
+				940BEFCC19ED92C2007E7FA2 /* serialize64.cpp in Sources */,
+				940BEFC919ED92C2007E7FA2 /* proxy.cpp in Sources */,
+				940BEFBE19ED92C2007E7FA2 /* fileattributefetch.cpp in Sources */,
+				940BEFBA19ED92C2007E7FA2 /* command.cpp in Sources */,
+				940BEFD019ED92C2007E7FA2 /* transfer.cpp in Sources */,
+				41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */,
+				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
+				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
+				940BEFF319ED9351007E7FA2 /* fs.cpp in Sources */,
+				940BEFC719ED92C2007E7FA2 /* megaclient.cpp in Sources */,
+				940BEFEB19ED9351007E7FA2 /* sodium.cpp in Sources */,
+				41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */,
+				940BEFBB19ED92C2007E7FA2 /* commands.cpp in Sources */,
+				940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */,
+				940BEFC519ED92C2007E7FA2 /* megaapi_impl.cpp in Sources */,
+				940BF01619ED97B9007E7FA2 /* MEGATransfer.mm in Sources */,
+				940BEFED19ED9351007E7FA2 /* sqlite.cpp in Sources */,
+				940BEFCF19ED92C2007E7FA2 /* sync.cpp in Sources */,
+				940BEFD219ED92C2007E7FA2 /* treeproc.cpp in Sources */,
+				940BEFCA19ED92C2007E7FA2 /* pubkeyaction.cpp in Sources */,
+				41AB68F21A094194003FE608 /* GfxProcCG.cpp in Sources */,
+				940BEFEE19ED9351007E7FA2 /* external.cpp in Sources */,
+				940BEFD319ED92C2007E7FA2 /* user.cpp in Sources */,
+				940BEFEA19ED9351007E7FA2 /* cryptopp.cpp in Sources */,
+				940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */,
+				940BEFD119ED92C2007E7FA2 /* transferslot.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9472045219ED916F00F6805F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		9472045319ED916F00F6805F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		9472045519ED916F00F6805F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					_DARWIN_C_SOURCE,
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					"3rdparty/include/**",
+					../../third_party/utf8proc,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/3rdparty/lib",
+				);
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				USER_HEADER_SEARCH_PATHS = "../../include/** Private .";
+			};
+			name = Debug;
+		};
+		9472045619ED916F00F6805F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = _DARWIN_C_SOURCE;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					"3rdparty/include/**",
+					../../third_party/utf8proc,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/3rdparty/lib",
+				);
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				USER_HEADER_SEARCH_PATHS = "../../include/** Private .";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9472043E19ED916F00F6805F /* Build configuration list for PBXProject "mega" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9472045219ED916F00F6805F /* Debug */,
+				9472045319ED916F00F6805F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9472045419ED916F00F6805F /* Build configuration list for PBXNativeTarget "mega" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9472045519ED916F00F6805F /* Debug */,
+				9472045619ED916F00F6805F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 9472043B19ED916F00F6805F /* Project object */;
+}

@@ -5,6 +5,10 @@
 #include <vector>
 #include <inttypes.h>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 namespace mega
 {   		
 typedef uint64_t MegaHandle;
@@ -1375,7 +1379,7 @@ class MegaGlobalListener
 {
     public:
         //Global callbacks
-    #if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+    #if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
         virtual void onUsersUpdate(MegaApi* api);
         virtual void onNodesUpdate(MegaApi* api);
     #else
@@ -1398,7 +1402,7 @@ class MegaListener
         virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-    #if defined(__ANDROID__) || defined(WINDOWS_PHONE)
+    #if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
         virtual void onUsersUpdate(MegaApi* api);
         virtual void onNodesUpdate(MegaApi* api);
     #else
