@@ -19,9 +19,8 @@ namespace mega
 		int size();
 
 	private:
-		MUserList(UserList *userList, bool cMemoryOwn);
-		UserList *userList;
-		UserList *getCPtr();
+		MUserList(MegaUserList *userList, bool cMemoryOwn);
+		MegaUserList *userList;
 		bool cMemoryOwn;
 	};
 }

@@ -31,10 +31,8 @@ namespace mega
 		String^ getParentPath();
 		uint64 getNodeHandle();
 		uint64 getParentHandle();
-		int getNumConnections();
 		uint64 getStartPos();
 		uint64 getEndPos();
-		int getMaxSpeed();
 		String^ getFileName();
 		int getNumRetry();
 		int getMaxRetries();

@@ -93,11 +93,6 @@ uint64 MTransfer::getParentHandle()
 	return megaTransfer ? megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-int MTransfer::getNumConnections() 
-{
-	return megaTransfer ? megaTransfer->getNumConnections() : 0;
-}
-
 uint64 MTransfer::getStartPos() 
 {
 	return megaTransfer ? megaTransfer->getStartPos() : 0;
@@ -106,11 +101,6 @@ uint64 MTransfer::getStartPos()
 uint64 MTransfer::getEndPos()
 {
 	return megaTransfer ? megaTransfer->getEndPos() : 0;
-}
-
-int MTransfer::getMaxSpeed()
-{
-	return megaTransfer ? megaTransfer->getMaxSpeed() : 0;
 }
 
 String^ MTransfer::getFileName() 
