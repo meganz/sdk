@@ -2,7 +2,7 @@
  * @file mega/treeproc.h
  * @brief Node tree processor
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -42,13 +42,13 @@ public:
     void proc(MegaClient*, Node*);
 };
 
-class TreeProcListOutShares : public TreeProc
+class MEGA_API TreeProcListOutShares : public TreeProc
 {
 public:
     void proc(MegaClient*, Node*);
 };
 
-class TreeProcCopy : public TreeProc
+class MEGA_API TreeProcCopy : public TreeProc
 {
 public:
     NewNode* nn;
@@ -84,11 +84,19 @@ public:
     TreeProcShareKeys(Node* = NULL);
 };
 
+class MEGA_API TreeProcForeignKeys : public TreeProc
+{
+public:
+    void proc(MegaClient*, Node*);
+};
+
+#ifdef ENABLE_SYNC
 class MEGA_API TreeProcDelSyncGet : public TreeProc
 {
 public:
     void proc(MegaClient*, Node*);
 };
+#endif
 } // namespace
 
 #endif

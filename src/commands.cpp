@@ -110,15 +110,13 @@ void CommandGetFA::procresult()
 {
     fafc_map::iterator it = client->fafcs.find(part);
 
-    // (can never happen)
-    if (it == client->fafcs.end())
-    {
-        return;
-    }
-
     if (client->json.isnumeric())
     {
-        it->second->req.status = REQ_FAILURE;
+        if (it != client->fafcs.end())
+        {
+            it->second->req.status = REQ_FAILURE;
+        }
+
         return;
     }
 
@@ -133,19 +131,20 @@ void CommandGetFA::procresult()
                 break;
 
             case EOO:
-                if (p)
+                if (it != client->fafcs.end())
                 {
-                    it->second->req.disconnect();
-                    Node::copystring(&it->second->req.posturl, p);
-                    it->second->req.in.clear();
-                    it->second->inbytes = 0;
-                    it->second->req.postchunked(client);
-                    it->second->timeout.backoff(150);
+                    if (p)
+                    {
+                        Node::copystring(&it->second->posturl, p);
+                        it->second->urltime = Waiter::ds;
+                        it->second->dispatch(client);
+                    }
+                    else
+                    {
+                        it->second->req.status = REQ_FAILURE;
+                    }
                 }
-                else
-                {
-                    it->second->req.status = REQ_FAILURE;
-                }
+
                 return;
 
             default:
@@ -702,8 +701,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("k", (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size());
         }
 
-        arg("ts", nn[i].clienttimestamp);
-
         endobject();
     }
 
@@ -751,18 +748,23 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
 
+#ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
             return client->putnodes_sync_result(e, nn, 0);
         }
-        else if (source == PUTNODES_APP)
+        else
+#endif
+        if (source == PUTNODES_APP)
         {
             return client->app->putnodes_result(e, type, nn);
         }
+#ifdef ENABLE_SYNC
         else
         {
             return client->putnodes_syncdebris_result(e, nn);
         }
+#endif
     }
 
     e = API_EINTERNAL;
@@ -789,19 +791,23 @@ void CommandPutNodes::procresult()
             case EOO:
                 client->applykeys();
 
+#ifdef ENABLE_SYNC
                 if (source == PUTNODES_SYNC)
                 {
                     client->putnodes_sync_result(e, nn, nnsize);
                 }
-                else if (source == PUTNODES_APP)
+                else
+#endif
+                if (source == PUTNODES_APP)
                 {
                     client->app->putnodes_result(e, type, nn);
                 }
+#ifdef ENABLE_SYNC
                 else
                 {
                     client->putnodes_syncdebris_result(e, nn);
                 }
-
+#endif
                 return;
         }
     }
@@ -829,7 +835,7 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-
+#ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
             Node* syncn = client->nodebyhandle(h);
@@ -860,7 +866,7 @@ void CommandMoveNode::procresult()
                 }
             }
         }
-
+#endif
         client->app->rename_result(h, e);
     }
     else
@@ -2445,7 +2451,9 @@ void CommandFetchNodes::procresult()
 
                 client->mergenewshares(0);
                 client->applykeys();
+#ifdef ENABLE_SYNC
                 client->syncsup = false;
+#endif
                 client->app->fetchnodes_result(API_OK);
                 client->initsc();
 

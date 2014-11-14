@@ -34,7 +34,7 @@ struct MEGA_API WinDirAccess : public DirAccess
 
 public:
     bool dopen(string*, FileAccess*, bool);
-    bool dnext(string*, nodetype_t* = NULL);
+    bool dnext(string*, string*, bool, nodetype_t*);
 
     WinDirAccess();
     virtual ~WinDirAccess();

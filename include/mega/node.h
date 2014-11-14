@@ -41,9 +41,6 @@ struct MEGA_API NodeCore
     // full folder/file key, symmetrically or asymmetrically encrypted
     string nodekey;
 
-    // new node's client-controlled timestamp (should be last modification)
-    m_time_t clienttimestamp;
-
     // node attributes
     string attrstring;
 };
@@ -126,14 +123,14 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // app-private pointer
     void* appdata;
 
-    bool removed;
+    bool foreignkey;
 
     struct
     {
+        bool removed : 1;
         bool attrs : 1;
         bool owner : 1;
         bool ctime : 1;
-        bool clienttimestamp : 1;
         bool fileattrstring : 1;
         bool inshare : 1;
         bool outshares : 1;
@@ -158,6 +155,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // own position in fingerprint set (only valid for file nodes)
     fingerprint_set::iterator fingerprint_it;
 
+#ifdef ENABLE_SYNC
     // related synced item or NULL
     LocalNode* localnode;
 
@@ -170,6 +168,11 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // location in the todebris node_set
     node_set::iterator todebris_it;
 
+    // location in the tounlink node_set
+    // FIXME: merge todebris / tounlink
+    node_set::iterator tounlink_it;
+#endif
+
     // source tag
     int tag;
 
@@ -179,10 +182,11 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, m_time_t);
+    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 };
 
+#ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File, Cachable
 {
     class Sync* sync;
@@ -275,6 +279,7 @@ struct MEGA_API LocalNode : public File, Cachable
 
     ~LocalNode();
 };
+#endif
 } // namespace
 
 #endif

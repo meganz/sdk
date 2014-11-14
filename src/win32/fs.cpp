@@ -632,10 +632,12 @@ void WinFileSystemAccess::osversion(string* u) const
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, string*)
 {
+#ifdef ENABLE_SYNC
     if (!l->parent)
     {
         localrootnode = l;
     }
+#endif
 }
 
 fsfp_t WinDirNotify::fsfingerprint()
@@ -648,6 +650,7 @@ fsfp_t WinDirNotify::fsfingerprint()
 	if (!GetFileInformationByHandle(hDirectory, &fi))
 #endif
     {
+        LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
         return 0;
     }
 
@@ -873,7 +876,8 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
     return true;
 }
 
-bool WinDirAccess::dnext(string* name, nodetype_t* type)
+// FIXME: implement followsymlinks
+bool WinDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
 {
     for (;;)
     {

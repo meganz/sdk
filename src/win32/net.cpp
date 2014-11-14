@@ -86,6 +86,7 @@ void WinHttpIO::setproxy(Proxy* proxy)
         proxyInfo.lpszProxy = WINHTTP_NO_PROXY_NAME;
         proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
         WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
+        LOG_info << "Proxy disabled";
     }
     else if (proxy->getProxyType() == Proxy::CUSTOM)
     {
@@ -97,6 +98,7 @@ void WinHttpIO::setproxy(Proxy* proxy)
         proxyInfo.lpszProxyBypass = WINHTTP_NO_PROXY_BYPASS;
         WinHttpSetOption(hSession, WINHTTP_OPTION_PROXY, &proxyInfo, sizeof(proxyInfo));
 
+        LOG_info << "Proxy enabled";
         if (proxy->credentialsNeeded())
         {
             proxyUsername = proxy->getUsername();
@@ -112,6 +114,8 @@ void WinHttpIO::setproxy(Proxy* proxy)
             {
                 proxyPassword.append("", 1);
             }
+
+            LOG_info << "Proxy requires authentication";
         }
     }
 
@@ -131,7 +135,7 @@ Proxy* WinHttpIO::getautoproxy()
         {
             string proxyURL;
             proxy->setProxyType(Proxy::CUSTOM);
-            int len = lstrlen(ieProxyConfig.lpszProxy);
+            int len = wcslen(ieProxyConfig.lpszProxy);
             proxyURL.assign((const char*)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
 
             // only save one proxy
@@ -190,7 +194,7 @@ Proxy* WinHttpIO::getautoproxy()
                 {
                     string proxyURL;
                     proxy->setProxyType(Proxy::CUSTOM);
-                    proxyURL.assign((const char*)proxyInfo.lpszProxy, lstrlen(proxyInfo.lpszProxy) * sizeof(wchar_t));
+                    proxyURL.assign((const char*)proxyInfo.lpszProxy, wcslen(proxyInfo.lpszProxy) * sizeof(wchar_t));
                     proxy->setProxyURL(&proxyURL);
                 }
             }
@@ -256,6 +260,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
     if (dwInternetStatus == WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING)
     {
+        LOG_verbose << "Closing request";
         assert(!httpctx->req);
 
         if (httpctx->gzip)
@@ -274,6 +279,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
     // request cancellations that occured after asynccallback() was entered are caught here
     if (!req)
     {
+        LOG_verbose << "Request cancelled";
         httpio->unlock();
         return;
     }
@@ -288,34 +294,39 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 if (req->binary)
                 {
-                    LOG_debug << "[received " << req->in.size() << " bytes of raw data]";
+                    LOG_debug << "[received " << (req->buf ? req->buflen : req->in.size()) << " bytes of raw data]";
                 }
                 else
                 {
                     LOG_debug << "Received: " << req->in.c_str();
                 }
 
+                LOG_debug << "Request finished with HTTP status: " << req->httpstatus;
+
                 req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
                 httpio->success = true;
             }
             else
             {
+                LOG_verbose << "Data available. Remaining: " << size << " bytes";
+
                 char* ptr;
 
                 if (httpctx->gzip)
-                {
+                {                    
                     m_off_t zprevsize = httpctx->zin.size();
                     httpctx->zin.resize(zprevsize + size);
                     ptr = (char*)httpctx->zin.data() + zprevsize;
                 }
                 else
-                {
+                {                    
                     ptr = (char*)req->reserveput((unsigned*)&size);
                     req->bufpos += size;
                 }
 
                 if (!WinHttpReadData(hInternet, ptr, size, NULL))
                 {
+                    LOG_err << "Unable to get more data. Code: " << GetLastError();
                     httpio->cancel(req);
                 }
             }
@@ -325,15 +336,18 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         }
 
         case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
+            LOG_verbose << "Read complete";
+
             if (dwStatusInformationLength)
             {
+                LOG_verbose << dwStatusInformationLength << " bytes received";
                 if (req->httpio)
                 {
                     req->httpio->lastdata = Waiter::ds;
                 }
             
                 if (httpctx->gzip)
-                {
+                {                    
                     httpctx->z.next_in = (Bytef*)lpvStatusInformation;
                     httpctx->z.avail_in = dwStatusInformationLength;
 
@@ -349,12 +363,14 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                     if (t != Z_OK && (t != Z_STREAM_END || httpctx->z.avail_out))
                     {
+                        LOG_err << "GZIP error";
                         httpio->cancel(req);
                     }
                 }
 
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
                 {
+                    LOG_err << "Error on WinHttpQueryDataAvailable. Code: " << GetLastError();
                     httpio->cancel(req);
                     httpio->httpevent();
                 }
@@ -373,11 +389,14 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                                      &statusCodeSize,
                                      WINHTTP_NO_HEADER_INDEX))
             {
+                LOG_err << "Error getting headers. Code: " << GetLastError();
                 httpio->cancel(req);
                 httpio->httpevent();
             }
             else
             {
+                LOG_verbose << "Headers available";
+
                 req->httpstatus = statusCode;
 
                 if (req->httpio)
@@ -398,6 +417,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                                             &contentLengthSize,
                                             WINHTTP_NO_HEADER_INDEX))
                     {
+                        LOG_verbose << "Content-Length: " << contentLength;
                         req->setcontentlength(contentLength);
 
                         // check for gzip content encoding
@@ -414,6 +434,8 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                         if (httpctx->gzip)
                         {
+                            LOG_verbose << "Using GZIP";
+
                             httpctx->z.zalloc = Z_NULL;
                             httpctx->z.zfree = Z_NULL;
                             httpctx->z.opaque = Z_NULL;
@@ -426,11 +448,21 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                             httpctx->z.avail_out = contentLength;
                             httpctx->z.next_out = (unsigned char*)req->in.data();
                         }
+                        else
+                        {
+                            LOG_verbose << "Not using GZIP";
+                        }
+                    }
+                    else
+                    {
+                        LOG_verbose << "Content-Length not available";
                     }
                 }
 
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
                 {
+                    LOG_err << "Unable to query data. Code: " << GetLastError();
+
                     httpio->cancel(req);
                     httpio->httpevent();
                 }
@@ -444,12 +476,23 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         }
 
         case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
-            if (httpio->waiter && GetLastError() != ERROR_WINHTTP_TIMEOUT)
+        {
+            DWORD e = GetLastError();
+
+            LOG_err << "Request error. Code: " << e;
+
+            if (httpio->waiter && e != ERROR_WINHTTP_TIMEOUT)
             {
                 httpio->inetstatus(false);
             }
-            // fall through
+        }
+        // fall through
         case WINHTTP_CALLBACK_STATUS_SECURE_FAILURE:
+            if (dwInternetStatus == WINHTTP_CALLBACK_STATUS_SECURE_FAILURE)
+            {
+                LOG_err << "Security check failed. Code: " << lpvStatusInformation;
+            }
+
             httpio->cancel(req);
             httpio->httpevent();
             break;
@@ -470,6 +513,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                   && memcmp(pkey->pbData, "\x30\x82\x01\x0a\x02\x82\x01\x01\x00" APISSLMODULUS2
                                           "\x02" APISSLEXPONENTSIZE APISSLEXPONENT, 270)))
                 {
+                    LOG_err << "Certificate error. Possible MITM attack!!";
                     CertFreeCertificateContext(cert);
                     httpio->cancel(req);
                     httpio->httpevent();
@@ -477,6 +521,10 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 }
 
                 CertFreeCertificateContext(cert);
+            }
+            else
+            {
+                LOG_verbose << "Unable to get server certificate. Code: " << GetLastError();
             }
 
             break;
@@ -486,6 +534,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE:
             if (httpctx->postpos < httpctx->postlen)
             {
+                LOG_verbose << "Chunk written";
                 unsigned pos = httpctx->postpos;
                 unsigned t = httpctx->postlen - pos;
 
@@ -498,6 +547,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 if (!WinHttpWriteData(httpctx->hRequest, (LPVOID)(httpctx->postdata + pos), t, NULL))
                 {
+                    LOG_err << "Error writting data. Code: " << GetLastError();
                     req->httpio->cancel(req);
                 }
 
@@ -505,8 +555,10 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             }
             else
             {
+                LOG_verbose << "Request written";
                 if (!WinHttpReceiveResponse(httpctx->hRequest, NULL))
                 {
+                    LOG_err << "Error receiving response. Code: " << GetLastError();
                     httpio->cancel(req);
                     httpio->httpevent();
                 }
@@ -522,6 +574,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
     LOG_debug << "POST target URL: " << req->posturl << " chunked: " << req->chunked;
+
     if (req->binary)
     {
         LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
@@ -552,7 +605,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (MultiByteToWideChar(CP_UTF8, 0, req->posturl.c_str(), -1, szURL,
                             sizeof szURL / sizeof *szURL)
-            && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
+     && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
     {
         if ((httpctx->hConnect = WinHttpConnect(hSession, szHost, urlComp.nPort, 0)))
         {
@@ -568,6 +621,8 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
             {
                 if (proxyUsername.size())
                 {
+                    LOG_verbose << "Setting proxy credentials";
+
                     WinHttpSetCredentials(httpctx->hRequest, WINHTTP_AUTH_TARGET_PROXY,
                                           WINHTTP_AUTH_SCHEME_BASIC,
                                           (LPWSTR)proxyUsername.data(), (LPWSTR)proxyPassword.data(), NULL);
@@ -577,14 +632,14 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
                 WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,
                                          WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE
-                                         | WINHTTP_CALLBACK_FLAG_READ_COMPLETE
-                                         | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
-                                         | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
-                                         | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
-                                         | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
-                                         | WINHTTP_CALLBACK_FLAG_SEND_REQUEST
-                                         | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
-                                         | WINHTTP_CALLBACK_FLAG_HANDLES,
+                                       | WINHTTP_CALLBACK_FLAG_READ_COMPLETE
+                                       | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
+                                       | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
+                                       | WINHTTP_CALLBACK_FLAG_SECURE_FAILURE
+                                       | WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE
+                                       | WINHTTP_CALLBACK_FLAG_SEND_REQUEST
+                                       | WINHTTP_CALLBACK_FLAG_WRITE_COMPLETE
+                                       | WINHTTP_CALLBACK_FLAG_HANDLES,
                                          0);
 
                 LPCWSTR pwszHeaders = req->type == REQ_JSON || !req->buf
@@ -606,6 +661,8 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
                 if (urlComp.nPort == 80)
                 {
+                    LOG_verbose << "HTTP connection";
+
                     // HTTP connection: send a chunk of data immediately
                     httpctx->postpos = (httpctx->postlen < HTTP_POST_CHUNK_SIZE)
                                       ? httpctx->postlen
@@ -613,6 +670,8 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                 }
                 else
                 {
+                    LOG_verbose << "HTTPS connection";
+
                     // HTTPS connection: ignore certificate errors, send no data yet
                     DWORD flags = SECURITY_FLAG_IGNORE_CERT_CN_INVALID
                                 | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
@@ -630,22 +689,32 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                        httpctx->postlen,
                                        (DWORD_PTR)httpctx))
                 {
+                    LOG_verbose << "Request sent";
                     req->status = REQ_INFLIGHT;
                     return;
                 }
+
+                LOG_err << "Error sending request: " << req->posturl << "  Code: " << GetLastError();
+            }
+            else
+            {
+                LOG_err << "Error opening request: " << req->posturl << "  Code: " << GetLastError();
             }
         }
         else
         {
+            LOG_err << "Error connecting to " << req->posturl << "  Code: " << GetLastError();
             httpctx->hRequest = NULL;
         }
     }
     else
     {
+        LOG_err << "Error parsing POST URL: " << req->posturl << "  Code: " << GetLastError();
         httpctx->hRequest = NULL;
         httpctx->hConnect = NULL;
     }
 
+    LOG_err << "Request failed";
     req->status = REQ_FAILURE;
 }
 

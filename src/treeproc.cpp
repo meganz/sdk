@@ -2,7 +2,7 @@
  * @file treeproc.cpp
  * @brief Node tree processor
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -39,6 +39,16 @@ void TreeProcShareKeys::get(Command* c)
     snk.get(c);
 }
 
+void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
+{
+    if (n->foreignkey)
+    {
+        client->nodekeyrewrite.push_back(n->nodehandle);
+
+        n->foreignkey = false;
+    }
+}
+
 // total disk space / node count
 TreeProcDU::TreeProcDU()
 {
@@ -63,10 +73,11 @@ void TreeProcDU::proc(MegaClient*, Node* n)
 // mark node as removed and notify
 void TreeProcDel::proc(MegaClient* client, Node* n)
 {
-    n->removed = 1;
+    n->changed.removed = true;
     client->notifynode(n);
 }
 
+#ifdef ENABLE_SYNC
 // stop sync get
 void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
 {
@@ -76,4 +87,5 @@ void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
         n->syncget = NULL;
     }
 }
+#endif
 } // namespace

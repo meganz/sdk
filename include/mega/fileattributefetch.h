@@ -36,14 +36,21 @@ struct MEGA_API FileAttributeFetchChannel
     BackoffTimer bt;
     BackoffTimer timeout;
 
-    size_t inbytes;
-
     HttpReq req;
-
+    dstime urltime;
+    string posturl;
+    size_t inbytes;
+    
     faf_map fafs[2];
+
+    // dispatch new and retrying attributes by POSTing to existing URL
+    void dispatch(MegaClient*);
 
     // parse fetch result and remove completed attributes from pending
     void parse(MegaClient*, int, bool);
+
+    // notify app of nodes that failed to receive their requested attribute
+    void failed(MegaClient*);
 
     FileAttributeFetchChannel();
 };

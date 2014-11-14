@@ -239,6 +239,7 @@ void DemoApp::transfer_prepare(Transfer* t)
     }
 }
 
+#ifdef ENABLE_SYNC
 static void syncstat(Sync* sync)
 {
     cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
@@ -401,6 +402,7 @@ bool DemoApp::sync_syncable(const char* name, string* localpath, string* localna
 {
     return is_syncable(name);
 }
+#endif
 
 AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint)
@@ -974,7 +976,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                 cout << "unsupported type, please upgrade";
         }
 
-        cout << ")" << (n->removed ? " (DELETED)" : "") << endl;
+        cout << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
 
         if (!recurse)
         {
@@ -1112,7 +1114,6 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         t->type = n->type;
         t->nodehandle = n->nodehandle;
         t->parenthandle = n->parent->nodehandle;
-        t->clienttimestamp = n->clienttimestamp;
 
         // copy key (if file) or generate new key (if folder)
         if (n->type == FILENODE)
@@ -1421,12 +1422,14 @@ static void process_line(char* l)
                 cout << "      get exportedfilelink#key [offset [length]]" << endl;
                 cout << "      getq [cancelslot]" << endl;
                 cout << "      pause [get|put] [hard] [status]" << endl;
-                cout << "      getfa type [path]" << endl;
+                cout << "      getfa type [path] [cancel]" << endl;
                 cout << "      mkdir remotepath" << endl;
                 cout << "      rm remotepath" << endl;
                 cout << "      mv srcremotepath dstremotepath" << endl;
                 cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+#ifdef ENABLE_SYNC
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+#endif
                 cout << "      export remotepath [del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
                 cout << "      invite dstemail [del]" << endl;
@@ -1440,6 +1443,7 @@ static void process_line(char* l)
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
                 cout << "      logout" << endl;
+                cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
                 cout << "      quit" << endl;
@@ -1911,7 +1915,7 @@ static void process_line(char* l)
 
                             if (da->dopen(&localname, NULL, true))
                             {
-                                while (da->dnext(&localname, &type))
+                                while (da->dnext(NULL, &localname, true, &type))
                                 {
                                     client->fsaccess->local2path(&localname, &name);
                                     cout << "Queueing " << name << "..." << endl;
@@ -1981,6 +1985,7 @@ static void process_line(char* l)
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
                         return;
                     }
+#ifdef ENABLE_SYNC
                     else if (words[0] == "sync")
                     {
                         if (words.size() == 3)
@@ -2070,6 +2075,7 @@ static void process_line(char* l)
 
                         return;
                     }
+#endif
                     break;
 
                 case 5:
@@ -2335,7 +2341,6 @@ static void process_line(char* l)
                                     newnode->source = NEW_NODE;
                                     newnode->type = FOLDERNODE;
                                     newnode->nodehandle = 0;
-                                    newnode->clienttimestamp = time(NULL);
                                     newnode->parenthandle = UNDEF;
 
                                     // generate fresh random key for this folder node
@@ -2378,6 +2383,7 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             Node* n;
+                            int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
 
                             if (words.size() < 3)
                             {
@@ -2399,7 +2405,7 @@ static void process_line(char* l)
                                 {
                                     if (n->hasfileattribute(type))
                                     {
-                                        client->getfa(n, type);
+                                        client->getfa(n, type, cancel);
                                         c++;
                                     }
                                 }
@@ -2409,18 +2415,18 @@ static void process_line(char* l)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
-                                            client->getfa(*it, type);
+                                            client->getfa(*it, type, cancel);
                                             c++;
                                         }
                                     }
                                 }
 
-                                cout << "Fetching " << c << " file attribute(s) of type " << type << "..." << endl;
+                                cout << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
                             }
                         }
                         else
                         {
-                            cout << "      getfa type [path]" << endl;
+                            cout << "      getfa type [path] [cancel]" << endl;
                         }
 
                         return;
@@ -2901,6 +2907,19 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "symlink")
+                    {
+                        if (client->followsymlinks ^= true)
+                        {
+                            cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
+                        }
+                        else
+                        {
+                            cout << "No longer following symlinks." << endl;
+                        }
+
+                        return;
+                    }
                     else if (words[0] == "version")
                     {
                         cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
@@ -2938,6 +2957,11 @@ static void process_line(char* l)
 #ifdef USE_FREEIMAGE
                         cout << "* FreeImage" << endl;
 #endif
+
+#ifdef ENABLE_SYNC
+                        cout << "* sync subsystem" << endl;
+#endif
+
 
                         cwd = UNDEF;
 
@@ -3158,7 +3182,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->source = NEW_PUBLIC;
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
-        newnode->clienttimestamp = 0;
         newnode->parenthandle = UNDEF;
 
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
@@ -3257,7 +3280,7 @@ void DemoApp::nodes_updated(Node** n, int count)
         {
             if ((*n)->type < 6)
             {
-                c[!(*n)->removed][(*n)->type]++;
+                c[!(*n)->changed.removed][(*n)->type]++;
                 n++;
             }
         }
@@ -3562,6 +3585,8 @@ void megacli()
 
 int main()
 {
+    SimpleLogger::setAllOutputs(&std::cout);
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp, new CONSOLE_WAIT_CLASS,

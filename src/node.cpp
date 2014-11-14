@@ -28,12 +28,10 @@
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
-#include "mega.h"
 
 namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
-           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts,
-           m_time_t tm)
+           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
 
@@ -44,11 +42,14 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     parent = NULL;
 
+#ifdef ENABLE_SYNC
     localnode = NULL;
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
     todebris_it = client->todebris.end();
+    tounlink_it = client->tounlink.end();
+#endif
 
     type = t;
 
@@ -57,14 +58,14 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     copystring(&fileattrstring, fa);
 
-    clienttimestamp = tm;
     ctime = ts;
 
     inshare = NULL;
     sharekey = NULL;
+    foreignkey = false;
 
-    removed = 0;
     memset(&changed,-1,sizeof changed);
+    changed.removed = false;
 
     if (client)
     {
@@ -113,11 +114,19 @@ Node::~Node()
         client->fingerprints.erase(fingerprint_it);
     }
 
+#ifdef ENABLE_SYNC
     // remove from todebris node_set
     if (todebris_it != client->todebris.end())
     {
         client->todebris.erase(todebris_it);
     }
+
+    // remove from tounlink node_set
+    if (tounlink_it != client->tounlink.end())
+    {
+        client->tounlink.erase(tounlink_it);
+    }
+#endif
 
     // delete outshares, including pointers from users for this node
     for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
@@ -141,6 +150,7 @@ Node::~Node()
     delete inshare;
     delete sharekey;
 
+#ifdef ENABLE_SYNC
     // sync: remove reference from local filesystem node
     if (localnode)
     {
@@ -150,6 +160,7 @@ Node::~Node()
 
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
+#endif
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
@@ -162,7 +173,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     handle u;
     const byte* k = NULL;
     const char* fa;
-    m_time_t tm;
     m_time_t ts;
     const byte* skey;
     const char* ptr = d->data();
@@ -171,7 +181,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     Node* n;
     int i;
 
-    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof tm + sizeof ll > end)
+    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
         return NULL;
     }
@@ -205,7 +215,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     ptr += MegaClient::USERHANDLE;
 
     // FIME: use m_time_t / Serialize64 instead
-    tm = (uint32_t)MemAccess::get<time_t>(ptr);
     ptr += sizeof(time_t);
 
     ts = (uint32_t)MemAccess::get<time_t>(ptr);
@@ -228,10 +237,12 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     {
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
+
         if ((ptr + ll > end) || ptr[ll])
         {
             return NULL;
         }
+
         fa = ptr;
         ptr += ll;
     }
@@ -271,7 +282,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts, tm);
+    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 
     if (k)
     {
@@ -356,8 +367,8 @@ bool Node::serialize(string* d)
 
     d->append((char*)&owner, MegaClient::USERHANDLE);
 
-    // FIXME: use Serialize64, store ts and ts-clienttimestamp for a more compact representation
-    time_t ts = clienttimestamp;
+    // FIXME: use Serialize64
+    time_t ts = 0;
     d->append((char*)&ts, sizeof(ts));
 
     ts = ctime;
@@ -509,7 +520,7 @@ void Node::setfingerprint()
         if (!isvalid)
         {
             memcpy(crc, nodekey.data(), sizeof crc);
-            mtime = clienttimestamp;
+            mtime = ctime;
         }
 
         fingerprint_it = client->fingerprints.insert((FileFingerprint*)this);
@@ -594,7 +605,11 @@ bool Node::applykey()
                 {
                     continue;
                 }
+
                 sc = n->sharekey;
+
+                // this key will be rewritten when the node leaves the outbound share
+                foreignkey = true;
             }
         }
 
@@ -620,8 +635,8 @@ bool Node::applykey()
 
     if (client->decryptkey(k, key,
                            (type == FILENODE)
-                               ? FILENODEKEYLENGTH + 0
-                               : FOLDERNODEKEYLENGTH + 0,
+                          ? FILENODEKEYLENGTH + 0
+                          : FOLDERNODEKEYLENGTH + 0,
                            sc, 0, nodehandle))
     {
         keystring.clear();
@@ -660,6 +675,7 @@ bool Node::setparent(Node* p)
 
     child_it = parent->children.insert(parent->children.end(), this);
 
+#ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
     if (!localnode || localnode->parent)
     {
@@ -670,6 +686,7 @@ bool Node::setparent(Node* p)
             {
                 break;
             }
+
             p = p->parent;
         }
 
@@ -679,6 +696,7 @@ bool Node::setparent(Node* p)
             client->proctree(this, &tdsg);
         }
     }
+#endif
 
     return true;
 }
@@ -704,6 +722,7 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+#ifdef ENABLE_SYNC
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
@@ -1040,7 +1059,7 @@ LocalNode::~LocalNode()
         }
         else
         {
-            sync->client->movetosyncdebris(node);
+            sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
 }
@@ -1137,7 +1156,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         // place
         if (node)
         {
-            sync->client->movetosyncdebris(node);
+            sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execmovetosyncdebris();
         }
 
@@ -1195,7 +1214,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length
     {
-        LOG_err << "LocalNode unserialization failed - short data";
+        //sync->client->app->debug_log("LocalNode unserialization failed - short data");
         return NULL;
     }
 
@@ -1232,7 +1251,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     if (ptr + localnamelen > end)
     {
-        LOG_err << "LocalNode unserialization failed - name too long";
+        //sync->client->app->debug_log("LocalNode unserialization failed - name too long");
         return NULL;
     }
 
@@ -1244,13 +1263,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     {
         if (ptr + 4 * sizeof(int32_t) > end + 1)
         {
-            LOG_err << "LocalNode unserialization failed - short fingerprint";
+            //sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
             return NULL;
         }
 
         if (!Serialize64::unserialize((byte*)ptr + 4 * sizeof(int32_t), end - ptr - 4 * sizeof(int32_t), &mtime))
         {
-            LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
+            //sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
             return NULL;
         }
     }
@@ -1282,5 +1301,5 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     return l;
 }
-
+#endif
 } // namespace

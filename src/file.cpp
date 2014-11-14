@@ -73,16 +73,15 @@ void File::completed(Transfer* t, LocalNode* l)
 
         // file's crypto key
         newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
-        newnode->clienttimestamp = t->mtime;
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
-
+#ifdef ENABLE_SYNC
         if ((newnode->localnode = l))
         {
             l->newnode = newnode;
             newnode->syncid = l->syncid;
         }
-
+#endif
         AttrMap attrs;
 
         // store filename
@@ -100,7 +99,7 @@ void File::completed(Transfer* t, LocalNode* l)
         if (targetuser.size())
         {
             // drop file into targetuser's inbox
-            t->client->reqtag = l ? l->sync->tag : t->tag;
+            t->client->reqtag = t->tag;
             t->client->putnodes(targetuser.c_str(), newnode, 1);
         }
         else
@@ -112,17 +111,22 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th = t->client->rootnodes[0];
             }
-
+#ifdef ENABLE_SYNC
             if (l)
             {
                 t->client->syncadding++;
             }
-
+#endif
             t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,
+#ifdef ENABLE_SYNC
                                                                   l ? l->sync->tag : t->tag,
                                                                   l ? PUTNODES_SYNC : PUTNODES_APP));
+#else
+                                                                  t->tag,
+                                                                  PUTNODES_APP));
+#endif
         }
     }
 }
@@ -160,6 +164,7 @@ void File::displayname(string* dname)
     }
 }
 
+#ifdef ENABLE_SYNC
 SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
 {
     sync = csync;
@@ -286,4 +291,5 @@ void SyncFileGet::terminated()
 {
     delete this;
 }
+#endif
 } // namespace

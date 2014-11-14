@@ -27,7 +27,8 @@ namespace mega {
 FileAttributeFetchChannel::FileAttributeFetchChannel()
 {
     req.binary = true;
-    req.status = REQ_FAILURE;
+    req.status = REQ_READY;
+    urltime = 0;
 }
 
 FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
@@ -36,6 +37,48 @@ FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
     type = t;
     retries = 0;
     tag = ctag;
+}
+
+void FileAttributeFetchChannel::dispatch(MegaClient* client)
+{
+    faf_map::iterator it;
+ 
+    // reserve space
+    req.outbuf.clear();
+    req.outbuf.reserve((fafs[0].size() + fafs[1].size()) * sizeof(handle));
+
+    for (int i = 2; i--; )
+    {
+        for (it = fafs[i].begin(); it != fafs[i].end(); )
+        {
+            req.outbuf.append((char*)&it->first, sizeof(handle));
+
+            if (!i)
+            {
+                // move from fresh to pending
+                fafs[1][it->first] = it->second;
+                fafs[0].erase(it++);
+            }
+            else
+            {
+                it++;
+            }
+        }
+    }
+
+    if (req.outbuf.size())
+    {
+        inbytes = 0;
+        req.in.clear();
+        req.posturl = posturl;
+        req.post(client);
+
+        timeout.backoff(150);
+    }
+    else
+    {
+        timeout.reset();
+    }
 }
 
 // communicate received file attributes to the application
@@ -65,7 +108,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
         {
             if (final || falen > 16*1048576)
             {
-                client->faf_failed(fac);
+                break; 
             }
             else
             {
@@ -96,14 +139,32 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
                     delete it->second;
                     fafs[1].erase(it);
                 }
-                else
-                {
-                    return client->faf_failed(fac);
-                }
             }
         }
 
         ptr += falen;
+    }
+}
+
+// notify the application of the request failure and remove records no longer needed
+void FileAttributeFetchChannel::failed(MegaClient* client)
+{
+    for (faf_map::iterator it = fafs[1].begin(); it != fafs[1].end(); )
+    {
+        client->restag = it->second->tag;
+
+        if (client->app->fa_failed(it->second->nodehandle, it->second->type, it->second->retries))
+        {
+            // no retry desired
+            delete it->second;
+            fafs[1].erase(it++);
+        }
+        else
+        {
+            // retry
+            it->second->retries++;
+            it++;
+        }
     }
 }
 } // namespace
