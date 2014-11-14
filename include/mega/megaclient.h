@@ -554,10 +554,19 @@ public:
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, string*, bool);
 
-    // move nodes to //bin/SyncDebris/yyyy-mm-dd/
-    void movetosyncdebris(Node*);
+    // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
+    void movetosyncdebris(Node*, bool);
+
+    // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
     node_set todebris;
+
+    // unlink queued nodes directly (for inbound share syncing)
+    void execsyncunlink();
+    node_set tounlink;
+    
+    // commit all queueud deletions
+    void execsyncdeletions();
 
     // recursively cancel transfers in a subtree
     void stopxfers(LocalNode*);

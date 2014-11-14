@@ -23,6 +23,7 @@
 
 namespace mega {
 
+// FIXME: disable syncs if inbound share permissions change from FULL
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
@@ -1042,10 +1043,7 @@ void MegaClient::exec()
                 }
 
                 // delete files that were overwritten by folders in checkpath()
-                if (todebris.size())
-                {
-                    execmovetosyncdebris();
-                }
+                execsyncdeletions();  
 
                 if (synccreate.size())
                 {
@@ -1189,10 +1187,7 @@ void MegaClient::exec()
                             }
 
                             // delete files that were overwritten by folders in syncup()
-                            if (todebris.size())
-                            {
-                                execmovetosyncdebris();
-                            }
+                            execsyncdeletions();  
 
                             if (synccreate.size())
                             {
@@ -1265,10 +1260,7 @@ void MegaClient::exec()
                                 syncscanbt.backoff(10 + totalnodes / 128);
                             }
 
-                            if (todebris.size())
-                            {
-                                execmovetosyncdebris();
-                            }
+                            execsyncdeletions();  
                         }
                     }
                 }
@@ -4984,6 +4976,7 @@ void MegaClient::purgenodesusersabortsc()
     }
 
     todebris.clear();
+    tounlink.clear();
     nodes.clear();
 
     for (newshare_list::iterator it = newshares.begin(); it != newshares.end(); it++)
@@ -5571,7 +5564,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             {
                 insync = false;
                 LOG_warn << "Type changed: " << localname;
-                movetosyncdebris(rit->second);
+                movetosyncdebris(rit->second, l->sync->inshare);
             }
             else
             {
@@ -5800,7 +5793,7 @@ void MegaClient::syncupdate()
                     // overwriting an existing remote node? send it to SyncDebris.
                     if (l->node)
                     {
-                        movetosyncdebris(l->node);
+                        movetosyncdebris(l->node, l->sync->inshare);
                     }
 
                     // this is a file - copy, use original key & attributes
@@ -6023,7 +6016,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn)
+void MegaClient::movetosyncdebris(Node* dn, bool unlink)
 {
     dn->syncdeleted = SYNCDEL_DELETED;
 
@@ -6042,11 +6035,54 @@ void MegaClient::movetosyncdebris(Node* dn)
     // no: enqueue this one
     if (!n)
     {
-        dn->todebris_it = todebris.insert(dn).first;
+        if (unlink)
+        {
+            dn->tounlink_it = tounlink.insert(dn).first;
+        }
+        else
+        {
+            dn->todebris_it = todebris.insert(dn).first;        
+        }
     }
 }
 
+void MegaClient::execsyncdeletions()
+{                
+    if (todebris.size())
+    {
+        execmovetosyncdebris();
+    }
+
+    if (tounlink.size())
+    {
+        execsyncunlink();
+    }
+}
+
+void MegaClient::execsyncunlink()
+{
+    Node* n;
+    Node* tn;
+    node_set::iterator it;
+
+    // delete tounlink nodes
+    do {
+        n = tn = *tounlink.begin();
+
+        while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
+
+        if (!n)
+        {
+            unlink(tn);
+        }
+
+        tn->tounlink_it = tounlink.end();
+        tounlink.erase(tounlink.begin());
+    } while (tounlink.size());
+}
+
 // immediately moves pending todebris items to //bin
+// also deletes tounlink items directly
 void MegaClient::execmovetosyncdebris()
 {
     Node* n;
@@ -6193,6 +6229,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     }
 
     Node* n;
+    bool inshare;
 
     // any active syncs below?
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -6212,6 +6249,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 
     // any active syncs above?
     n = remotenode;
+    inshare = false;
 
     do {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -6221,6 +6259,15 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             {
                 return API_EEXIST;
             }
+        }
+        
+        if (n->inshare && !inshare)
+        {
+            // we need FULL access to sync
+            // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shars
+            if (n->inshare->access != FULL) return API_EACCESS;
+
+            inshare = true;
         }
     } while ((n = n->parent));
 
@@ -6239,7 +6286,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     {
         if (fa->type == FOLDERNODE)
         {
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, tag);
+            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag);
 
             if (sync->scan(rootpath, fa))
             {

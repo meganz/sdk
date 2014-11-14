@@ -30,13 +30,14 @@ namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, int ctag)
+           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
 {
     string dbname;
 
     client = cclient;
     tag = ctag;
-
+    inshare = cinshare;
+    
     tmpfa = NULL;
 
     localbytes = 0;

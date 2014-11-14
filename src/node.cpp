@@ -47,6 +47,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     syncdeleted = SYNCDEL_NONE;
     todebris_it = client->todebris.end();
+    tounlink_it = client->tounlink.end();
 
     type = t;
 
@@ -115,6 +116,12 @@ Node::~Node()
     if (todebris_it != client->todebris.end())
     {
         client->todebris.erase(todebris_it);
+    }
+
+    // remove from tounlink node_set
+    if (tounlink_it != client->tounlink.end())
+    {
+        client->tounlink.erase(tounlink_it);
     }
 
     // delete outshares, including pointers from users for this node
@@ -1043,7 +1050,7 @@ LocalNode::~LocalNode()
         }
         else
         {
-            sync->client->movetosyncdebris(node);
+            sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
 }
@@ -1140,7 +1147,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         // place
         if (node)
         {
-            sync->client->movetosyncdebris(node);
+            sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execmovetosyncdebris();
         }
 

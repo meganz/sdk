@@ -167,6 +167,10 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // location in the todebris node_set
     node_set::iterator todebris_it;
 
+    // location in the tounlink node_set
+    // FIXME: merge todebris / tounlink
+    node_set::iterator tounlink_it;
+
     // source tag
     int tag;
 

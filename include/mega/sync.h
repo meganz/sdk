@@ -39,6 +39,9 @@ public:
     // are we conducting a full tree scan? (during initialization and if event notification failed)
     bool fullscan;
 
+    // syncing to an inbound share?
+    bool inshare;
+    
     // deletion queue
     set<int32_t> deleteq;
 
@@ -107,7 +110,7 @@ public:
     // original filesystem fingerprint
     fsfp_t fsfp;
     
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
     ~Sync();
 
 protected :
