@@ -138,11 +138,14 @@ class MegaNodePrivate : public MegaNode
 		virtual bool isFile();
 		virtual bool isFolder();
 		virtual bool isRemoved();
-		virtual bool isSyncDeleted();
-		virtual std::string getLocalPath();
 		virtual bool hasThumbnail();
 		virtual bool hasPreview();
         virtual bool isPublic();
+
+#ifdef ENABLE_SYNC
+        virtual bool isSyncDeleted();
+        virtual std::string getLocalPath();
+#endif
 
 		static MegaNode *fromNode(Node *node);
 		virtual MegaNode *copy();
@@ -157,13 +160,16 @@ class MegaNodePrivate : public MegaNode
 		MegaHandle nodehandle;
 		std::string nodekey;
 		std::string attrstring;
-		std::string localPath;
 		int tag;
 		bool removed;
-		bool syncdeleted;
 		bool thumbnailAvailable;
 		bool previewAvailable;
         bool isPublicNode;
+
+#ifdef ENABLE_SYNC
+        bool syncdeleted;
+        std::string localPath;
+#endif
 };
 
 
@@ -227,7 +233,6 @@ class MegaTransferPrivate : public MegaTransfer
 		void setNumConnections(int connections);
 		void setStartPos(long long startPos);
 		void setEndPos(long long endPos);
-		void setMaxSpeed(int maxSpeed);
 		void setNumRetry(int retry);
 		void setMaxRetries(int retry);
         void setTime(int64_t time);
@@ -240,9 +245,8 @@ class MegaTransferPrivate : public MegaTransfer
         void setUpdateTime(int64_t updateTime);
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
-		void setLastBytes(char *lastBytes);
-  
-		virtual int getSlot() const;
+        void setLastBytes(char *lastBytes);
+
 		virtual int getType() const;
 		virtual const char * getTransferString() const;
 		virtual const char* toString() const;
@@ -254,10 +258,8 @@ class MegaTransferPrivate : public MegaTransfer
 		virtual const char* getParentPath() const;
         virtual MegaHandle getNodeHandle() const;
         virtual MegaHandle getParentHandle() const;
-		virtual int getNumConnections() const;
 		virtual long long getStartPos() const;
 		virtual long long getEndPos() const;
-		virtual int getMaxSpeed() const;
 		virtual const char* getFileName() const;
 		virtual MegaTransferListener* getListener() const;
 		virtual int getNumRetry() const;
@@ -272,10 +274,9 @@ class MegaTransferPrivate : public MegaTransfer
         virtual MegaNode *getPublicMegaNode() const;
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
-		virtual char *getLastBytes() const;
-		
+        virtual char *getLastBytes() const;
+
 	protected:		
-		int slot;
 		int type;
 		int tag;
         bool syncTransfer;
@@ -292,12 +293,10 @@ class MegaTransferPrivate : public MegaTransfer
 		const char* parentPath;
 		const char* fileName;
 		const char* base64Key;
-		char *lastBytes;
+        char *lastBytes;
         MegaNode *publicNode;
-		int numConnections;
 		long long startPos;
 		long long endPos;
-		int maxSpeed;
 		int retry;
 		int maxRetries;
 		MegaTransferListener *listener;
@@ -331,7 +330,7 @@ class MegaRequestPrivate : public MegaRequest
         void setText(const char* text);
         void setNumber(int number);
         void setFlag(bool flag);
-        void setTransfer(int transfer);
+        void setTransferTag(int transfer);
         void setListener(MegaRequestListener *listener);
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
@@ -355,7 +354,6 @@ class MegaRequestPrivate : public MegaRequest
 		virtual int getAccess() const;
 		virtual const char* getFile() const;
 		virtual int getNumRetry() const;
-		virtual int getNextRetryDelay() const;
         virtual MegaNode *getPublicNode() const;
         virtual MegaNode *getPublicMegaNode() const;
         virtual int getParamType() const;
@@ -366,8 +364,8 @@ class MegaRequestPrivate : public MegaRequest
         virtual long long getTotalBytes() const;
 		virtual MegaRequestListener *getListener() const;
 		virtual MegaAccountDetails *getMegaAccountDetails() const;
-        virtual int getTransfer() const;
-		virtual int getNumDetails() const;
+        virtual int getTransferTag() const;
+        virtual int getNumDetails() const;
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;
@@ -398,7 +396,6 @@ class MegaRequestPrivate : public MegaRequest
 		int numDetails;
         MegaNode* publicNode;
 		int numRetry;
-		int nextRetryDelay;
         int tag;
 };
 
@@ -451,12 +448,12 @@ private:
     vector<const char *> currency;
 };
 
-class NodeListPrivate : public NodeList
+class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
-		NodeListPrivate();
-		NodeListPrivate(Node** newlist, int size);
-		virtual ~NodeListPrivate();
+        MegaNodeListPrivate();
+        MegaNodeListPrivate(Node** newlist, int size);
+        virtual ~MegaNodeListPrivate();
 		virtual MegaNode* get(int i);
 		virtual int size();
 	
@@ -465,12 +462,12 @@ class NodeListPrivate : public NodeList
 		int s;
 };
 
-class UserListPrivate : public UserList
+class MegaUserListPrivate : public MegaUserList
 {
 	public:
-		UserListPrivate();
-		UserListPrivate(User** newlist, int size);
-		virtual ~UserListPrivate();
+        MegaUserListPrivate();
+        MegaUserListPrivate(User** newlist, int size);
+        virtual ~MegaUserListPrivate();
 		virtual MegaUser* get(int i);
 		virtual int size();
 	
@@ -479,12 +476,12 @@ class UserListPrivate : public UserList
 		int s;
 };
 
-class ShareListPrivate : public ShareList
+class MegaShareListPrivate : public MegaShareList
 {
 	public:
-		ShareListPrivate();
-		ShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
-		virtual ~ShareListPrivate();
+        MegaShareListPrivate();
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        virtual ~MegaShareListPrivate();
 		virtual MegaShare* get(int i);
 		virtual int size();
 		
@@ -493,12 +490,12 @@ class ShareListPrivate : public ShareList
 		int s;
 };
 
-class TransferListPrivate : public TransferList
+class MegaTransferListPrivate : public MegaTransferList
 {
 	public:
-		TransferListPrivate();
-		TransferListPrivate(MegaTransfer** newlist, int size);
-		virtual ~TransferListPrivate();
+        MegaTransferListPrivate();
+        MegaTransferListPrivate(MegaTransfer** newlist, int size);
+        virtual ~MegaTransferListPrivate();
 		virtual MegaTransfer* get(int i);
 		virtual int size();
 	
@@ -708,8 +705,9 @@ class MegaApiImpl : public MegaApp
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, MegaRequestListener* listener=NULL);
         void setUploadLimit(int bpslimit);
-        TransferList *getTransfers();
+        MegaTransferList *getTransfers();
 
+#ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
@@ -718,13 +716,15 @@ class MegaApiImpl : public MegaApp
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
-        void update();
-        bool isIndexing();
-        bool isWaiting();
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         bool moveToLocalDebris(const char *path);
+        string getLocalPath(MegaNode *node);
         bool is_syncable(const char* name);
+        bool isIndexing();
+#endif
+        void update();
+        bool isWaiting();
 
         //Statistics
         int getNumPendingUploads();
@@ -741,22 +741,21 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
-        NodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getChildren(MegaNode *parent, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
         const char* getNodePath(MegaNode *node);
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
         MegaNode *getNodeByHandle(handle handler);
-        UserList* getContacts();
+        MegaUserList* getContacts();
         MegaUser* getContact(const char* email);
-        NodeList *getInShares(MegaUser* user);
-        NodeList *getInShares();
+        MegaNodeList *getInShares(MegaUser* user);
+        MegaNodeList *getInShares();
         bool isShared(MegaNode *node);
-        ShareList *getOutShares();
-        ShareList *getOutShares(MegaNode *node);
+        MegaShareList *getOutShares();
+        MegaShareList *getOutShares(MegaNode *node);
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
-        string getLocalPath(MegaNode *node);
         static void removeRecursively(const char *path);
 
         //Fingerprint
@@ -772,7 +771,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();
-        NodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
+        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
@@ -802,8 +801,8 @@ protected:
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
-        void fireOnUsersUpdate(UserList *users);
-        void fireOnNodesUpdate(NodeList *nodes);
+        void fireOnUsersUpdate(MegaUserList *users);
+        void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnReloadNeeded();
         void fireOnSyncStateChanged();
         void fireOnFileSyncStateChanged(const char *filePath, int newState);
@@ -929,6 +928,7 @@ protected:
 
         virtual void reportevent_result(error);
 
+#ifdef ENABLE_SYNC
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);
         virtual void syncupdate_scanning(bool scanning);
@@ -949,6 +949,7 @@ protected:
         virtual bool sync_syncable(Node*);
         virtual bool sync_syncable(const char*name, string*, string*);
         virtual void syncupdate_local_lockretry(bool);
+#endif
 
         // suggest reload due to possible race condition with other clients
         virtual void reload(const char*);
@@ -967,16 +968,14 @@ protected:
         Node* getChildNodeInternal(Node *parent, const char* name);
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
-        NodeList* search(Node* node, const char* searchString, bool recursive = 1);
+        MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener = NULL);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, int connections, int maxSpeed, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, int maxSpeed, MegaTransferListener *listener = NULL);
-        void startDownload(handle nodehandle, const char* target, int connections, long startPos, long endPos, const char* base64key, MegaTransferListener *listener);
+        void startDownload(handle nodehandle, const char* target, long startPos, long endPos, const char* base64key, MegaTransferListener *listener);
 };
 
 class MegaHashSignatureImpl

@@ -40,12 +40,12 @@ MegaError *QTMegaEvent::getError()
     return error;
 }
 
-NodeList *QTMegaEvent::getNodes()
+MegaNodeList *QTMegaEvent::getNodes()
 {
     return nodes;
 }
 
-UserList *QTMegaEvent::getUsers()
+MegaUserList *QTMegaEvent::getUsers()
 {
     return users;
 }
@@ -75,12 +75,12 @@ void QTMegaEvent::setError(MegaError *error)
     this->error = error;
 }
 
-void QTMegaEvent::setNodes(NodeList *nodes)
+void QTMegaEvent::setNodes(MegaNodeList *nodes)
 {
     this->nodes = nodes;
 }
 
-void QTMegaEvent::setUsers(UserList *users)
+void QTMegaEvent::setUsers(MegaUserList *users)
 {
     this->users = users;
 }

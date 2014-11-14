@@ -169,7 +169,6 @@ typedef list<struct File*> file_list;
 // ROOT - the cloud drive root node
 // INCOMING - inbox
 // RUBBISH - rubbish bin
-// MAIL - mail message
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
 // node type key lengths
