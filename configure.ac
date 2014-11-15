@@ -240,6 +240,15 @@ if test x$enable_gcc_hardening != xno; then
 ])
 fi
 
+# sync subsystem
+AC_ARG_ENABLE(sync,
+    AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
+    [enable_sync=$enableval],
+    [enable_sync=yes])
+if test x$enable_sync = xyes; then
+    AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
+fi
+
 SAVE_LDFLAGS=$LDFLAGS
 SAVE_CXXFLAGS=$CXXFLAGS
 SAVE_CPPFLAGS=$CPPFLAGS
@@ -1146,6 +1155,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
+  sync subsystem    $enable_sync
   example apps:     $enable_examples
 
   inotify:          $enable_inotify

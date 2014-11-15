@@ -19,13 +19,14 @@
  * program.
  */
 
+#include "mega.h"
+
 #ifdef ENABLE_SYNC
 #include "mega/sync.h"
 #include "mega/megaapp.h"
 #include "mega/transfer.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
-#include "mega.h"
 
 namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
@@ -38,7 +39,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     client = cclient;
     tag = ctag;
     inshare = cinshare;
-    
+
     tmpfa = NULL;
 
     localbytes = 0;
@@ -250,7 +251,7 @@ void Sync::cachenodes()
 
         deleteq.clear();
 
-        // additions - we iterate until completion or until we get stuck 
+        // additions - we iterate until completion or until we get stuck
         bool added;
 
         do {
@@ -596,7 +597,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                                         // ...move remote node out of the way...
                                         client->execmovetosyncdebris();
-                                        
+
                                         // ...and atomically replace with moved one
                                         client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
 
@@ -738,7 +739,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     LOG_err << "The local root node is a file";
                     changestate(SYNC_FAILED);
                 }
-                else 
+                else
                 {
                     if (l->size > 0)
                     {

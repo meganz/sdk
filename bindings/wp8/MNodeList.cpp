@@ -3,7 +3,7 @@
 using namespace mega;
 using namespace Platform;
 
-MNodeList::MNodeList(NodeList *nodeList, bool cMemoryOwn)
+MNodeList::MNodeList(MegaNodeList *nodeList, bool cMemoryOwn)
 {
 	this->nodeList = nodeList;
 	this->cMemoryOwn = cMemoryOwn;

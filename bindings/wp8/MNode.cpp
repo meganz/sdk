@@ -47,9 +47,13 @@ String^ MNode::getBase64Handle()
 
 	std::string utf16base64Handle;
 	const char *utf8base64Handle = megaNode->getBase64Handle();
-	MegaApi::utf8ToUtf16(utf8base64Handle, &utf16base64Handle);
+	if (!utf8base64Handle)
+		return nullptr;
 
-	return utf8base64Handle ? ref new String((wchar_t *)utf16base64Handle.data()) : nullptr;
+	MegaApi::utf8ToUtf16(utf8base64Handle, &utf16base64Handle);
+	delete [] utf8base64Handle;
+
+	return ref new String((wchar_t *)utf16base64Handle.data());
 }
 
 uint64 MNode::getSize()
@@ -90,11 +94,6 @@ bool MNode::isFolder()
 bool MNode::isRemoved()
 {
 	return megaNode ? megaNode->isRemoved() : false;
-}
-
-bool MNode::isSyncDeleted()
-{
-	return megaNode ? megaNode->isSyncDeleted() : false;
 }
 
 bool MNode::hasThumbnail()
