@@ -239,6 +239,32 @@ void MegaClient::mergenewshares(bool notify)
                     }
                 }
             }
+
+#ifdef ENABLE_SYNC
+            if (n->inshare && s->access != FULL)
+            {
+                // check if the low(ered) access level is affecting any syncs
+                // a) have we just cut off full access to a subtree of a sync?
+                do {
+                    if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
+                    {
+                        LOG_warn << "Existing inbound share sync or part thereof lost full access";
+                        n->localnode->sync->changestate(SYNC_FAILED);
+                    }
+                } while ((n = n->parent));
+                
+                // b) have we just lost full access to the subtree a sync is in?
+                for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                {
+                    if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
+                    {
+                        LOG_warn << "Existing inbound share sync lost full access";
+                        (*it)->changestate(SYNC_FAILED);
+                    }
+                }
+
+            }
+#endif
         }
 
         delete s;
@@ -5183,7 +5209,7 @@ void MegaClient::updateputs()
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node), return
 // EEXIST otherwise
-// (FIXME: perform same check for local paths!)
+// (FIXME: perform the same check for local paths!)
 error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
 {
 #ifdef ENABLE_SYNC
@@ -5235,6 +5261,32 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             inshare = true;
         }
     } while ((n = n->parent));
+
+    if (inshare)
+    {
+        // this sync is located in an inbound share - make sure that there
+        // are no access restrictions in place anywhere in the sync's tree
+        for (user_map::iterator uit = users.begin(); uit != users.end(); uit++)
+        {
+            User* u = &uit->second;
+
+            if (u->sharing.size())
+            {
+                for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+                {
+                    if ((n = nodebyhandle(*sit)) && n->inshare && n->inshare->access != FULL)
+                    {
+                        do {
+                            if (n == remotenode)
+                            {
+                                return API_EACCESS;
+                            }
+                        } while ((n = n->parent));
+                    }
+                }
+            }
+        }
+    }
 
     if (rootpath->size() >= fsaccess->localseparator.size()
      && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
