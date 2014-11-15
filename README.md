@@ -107,7 +107,9 @@ than once. Any dupes, whether by nesting syncs or through filesystem links,
 will lead to unexpected results and loss of data.
 
 * No in-place versioning. Deleted remote files can be found in
-`//bin/SyncDebris`, deleted local files in a sync-specific hidden debris
+`//bin/SyncDebris` (only when syncing to the logged in account's own
+cloud drive - there is no SyncDebris facility on syncs to inbound
+shares), deleted local files in a sync-specific hidden debris
 folder located in the local sync's root folder.
 
 * No delta writes. Changed files are always overwritten as a whole, which
@@ -115,3 +117,6 @@ means that it is not a good idea to sync e.g. live database tables.
 
 * No direct peer-to-peer syncing. Even two machines in the same local subnet
 will still sync via the remote storage infrastructure.
+
+* No support for unidirectional syncing (backup-only, restore-only).
+Syncing to an inbound share requires it to have full access rights.
