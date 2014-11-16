@@ -438,7 +438,6 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
 	this->transferredBytes = 0;
 	this->totalBytes = 0;
 	this->fileName = NULL;
-	this->base64Key = NULL;
 	this->transfer = NULL;
 	this->speed = 0;
 	this->deltaSize = 0;
@@ -453,7 +452,6 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
     path = NULL;
     parentPath = NULL;
     fileName = NULL;
-    base64Key = NULL;
     publicNode = NULL;
 	lastBytes = NULL;
 
@@ -474,7 +472,6 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
 	this->setTransferredBytes(transfer.getTransferredBytes());
 	this->setTotalBytes(transfer.getTotalBytes());
 	this->setFileName(transfer.getFileName());
-	this->setBase64Key(transfer.getBase64Key());
 	this->setSpeed(transfer.getSpeed());
 	this->setDeltaSize(transfer.getDeltaSize());
 	this->setUpdateTime(transfer.getUpdateTime());
@@ -608,11 +605,6 @@ const char* MegaTransferPrivate::getFileName() const
 	return fileName;
 }
 
-const char* MegaTransferPrivate::getBase64Key() const
-{
-	return base64Key;
-}
-
 char * MegaTransferPrivate::getLastBytes() const
 {
     return lastBytes;
@@ -705,12 +697,6 @@ void MegaTransferPrivate::setFileName(const char* fileName)
     this->fileName =  MegaApi::strdup(fileName);
 }
 
-void MegaTransferPrivate::setBase64Key(const char* base64Key)
-{
-	if(this->base64Key) delete [] this->base64Key;
-    this->base64Key =  MegaApi::strdup(base64Key);
-}
-
 void MegaTransferPrivate::setNodeHandle(uint64_t nodeHandle)
 {
 	this->nodeHandle = nodeHandle;
@@ -769,7 +755,6 @@ MegaTransferPrivate::~MegaTransferPrivate()
 	delete[] path;
 	delete[] parentPath;
 	delete [] fileName;
-    delete [] base64Key;
     delete publicNode;
 }
 
@@ -1635,7 +1620,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     this->api = api;
 
     sdkMutex.init(true);
-	maxRetries = 5;
+    maxRetries = 10;
 	currentTransfer = NULL;
     pausetime = 0;
     pendingUploads = 0;
@@ -2440,7 +2425,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(localPath, parent, fileName, -1, listener); }
 
-void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, long startPos, long endPos, const char* base64key, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, long startPos, long endPos, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -2459,7 +2444,6 @@ void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, long s
     }
 
 	transfer->setNodeHandle(nodehandle);
-	transfer->setBase64Key(base64key);
 	transfer->setStartPos(startPos);
 	transfer->setEndPos(endPos);
 	transfer->setMaxRetries(maxRetries);
@@ -2469,7 +2453,7 @@ void MegaApiImpl::startDownload(handle nodehandle, const char* localPath, long s
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload((node != NULL) ? node->getHandle() : UNDEF, localFolder, 0, 0, NULL, listener); }
+{ startDownload((node != NULL) ? node->getHandle() : UNDEF, localFolder, 0, 0, listener); }
 
 void MegaApiImpl::startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener)
 {
@@ -3343,7 +3327,6 @@ void MegaApiImpl::transfer_update(Transfer *tr)
         if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported ||
            (tr->slot->progressreported == tr->size))
         {
-            transfer->setTime(tr->slot->lastdata);
             if(!transfer->getStartTime()) transfer->setStartTime(Waiter::ds);
             transfer->setDeltaSize(tr->slot->progressreported - transfer->getTransferredBytes());
 
@@ -3378,9 +3361,9 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e)
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaError megaError(e);
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
-
-	if(tr->slot) transfer->setTime(tr->slot->lastdata);
-
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setDeltaSize(0);
+    transfer->setSpeed(0);
     fireOnTransferTemporaryError(transfer, megaError);
 }
 
@@ -3388,6 +3371,9 @@ void MegaApiImpl::transfer_limit(Transfer* t)
 {
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setDeltaSize(0);
+    transfer->setSpeed(0);
     fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA));
 }
 
@@ -3421,7 +3407,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         speed = (10*transfer->getTotalBytes())/deltaTime;
 
     transfer->setSpeed(speed);
-    transfer->setTime(currentTime);
+    transfer->setUpdateTime(currentTime);
     transfer->setDeltaSize(tr->size - transfer->getTransferredBytes());
     if(tr->type == GET)
         totalDownloadedBytes += transfer->getDeltaSize();
@@ -3435,6 +3421,10 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
 {
 	MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+	transfer->setUpdateTime(Waiter::ds);
+	transfer->setDeltaSize(0);
+	transfer->setSpeed(0);
+	transfer->setLastBytes(NULL);
 	if (retry < transfer->getMaxRetries())
 	{
         fireOnTransferTemporaryError(transfer, MegaError(e));
@@ -3450,6 +3440,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
 bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
 {
 	MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+	transfer->setUpdateTime(Waiter::ds);
     transfer->setLastBytes((char *)buffer);
     transfer->setDeltaSize(len);
     totalDownloadedBytes += len;

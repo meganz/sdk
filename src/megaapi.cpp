@@ -90,6 +90,11 @@ MegaError::MegaError(const MegaError &megaError)
 	errorCode = megaError.getErrorCode();
 }
 
+MegaError::~MegaError()
+{
+
+}
+
 MegaError* MegaError::copy()
 {
 	return new MegaError(*this);
@@ -273,10 +278,12 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent);
 }
 
+#ifdef ENABLE_SYNC
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
 {
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd);
 }
+#endif
 
 MegaApi::~MegaApi()
 {

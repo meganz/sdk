@@ -244,7 +244,6 @@ class MegaTransferPrivate : public MegaTransfer
         void setTime(int64_t time);
 		void setFileName(const char* fileName);
 		void setSlot(int id);
-		void setBase64Key(const char* base64Key);
 		void setTag(int tag);
 		void setSpeed(long long speed);
 		void setDeltaSize(long long deltaSize);
@@ -271,7 +270,6 @@ class MegaTransferPrivate : public MegaTransfer
 		virtual int getNumRetry() const;
 		virtual int getMaxRetries() const;
         virtual int64_t getTime() const;
-		virtual const char* getBase64Key() const;
 		virtual int getTag() const;
 		virtual long long getSpeed() const;
 		virtual long long getDeltaSize() const;
@@ -298,7 +296,6 @@ class MegaTransferPrivate : public MegaTransfer
 		const char* path;
 		const char* parentPath;
 		const char* fileName;
-		const char* base64Key;
         char *lastBytes;
         MegaNode *publicNode;
 		long long startPos;
@@ -981,7 +978,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void startDownload(handle nodehandle, const char* target, long startPos, long endPos, const char* base64key, MegaTransferListener *listener);
+        void startDownload(handle nodehandle, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
 
 class MegaHashSignatureImpl
