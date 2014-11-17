@@ -628,7 +628,7 @@ class MegaUser
          * The email can be used to recover the MegaUser object later using MegaApi::getContact
          *
          * The MegaUser object retains the ownership of the returned string, it will be valid until
-         * the MegaUer object is deleted.
+         * the MegaUser object is deleted.
          *
          * @return The email associated with the contact.
          */
@@ -949,6 +949,10 @@ class MegaRequest
 
         /**
          * @brief Returns a readable string that shows the type of request
+         *
+         * This function returns a pointer to a statically allocated buffer.
+         * You don't have to free the returned pointer
+         *
          * @return Readable string showing the type of request
          */
 		virtual const char *getRequestString() const = 0;
@@ -981,6 +985,15 @@ class MegaRequest
 
         /**
          * @brief Returns a link related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::querySignupLink - Returns the confirmation link
+         * - MegaApi::confirmAccount - Returns the confirmation link
+         * - MegaApi::fastConfirmAccount - Returns the confirmation link
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return Link related to the request
          */
 		virtual const char* getLink() const = 0;
@@ -993,36 +1006,96 @@ class MegaRequest
 
         /**
          * @brief Returns a session key related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fastLogin - Returns session key used to access the account
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return Session key related to the request
          */
         virtual const char* getSessionKey() const = 0;
 
         /**
          * @brief Returns a name related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createAccount - Returns the name of the user
+         * - MegaApi::fastCreateAccount - Returns the name of the user
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::querySignupLink - Returns the name of the user
+         * - MegaApi::confirmAccount - Returns the name of the user
+         * - MegaApi::fastConfirmAccount - Returns the name of the user
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return Name related to the request
          */
 		virtual const char* getName() const = 0;
 
         /**
          * @brief Returns an email related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::login - Returns the email of the account
+         * - MegaApi::fastLogin - Returns the email of the account
+         * - MegaApi::createAccount - Returns the email for the account
+         * - MegaApi::fastCreateAccount - Returns the email for the account
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::querySignupLink - Returns the email of the account
+         * - MegaApi::confirmAccount - Returns the email of the account
+         * - MegaApi::fastConfirmAccount - Returns the email of the account
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return Email related to the request
          */
 		virtual const char* getEmail() const = 0;
 
         /**
          * @brief Returns a password related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::login - Returns the password of the account
+         * - MegaApi::fastLogin - Returns the hash of the email
+         * - MegaApi::createAccount - Returns the password for the account
+         * - MegaApi::confirmAccount - Returns the password for the account
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return Password related to the request
          */
 		virtual const char* getPassword() const = 0;
 
         /**
          * @brief Returns a new password related to the request
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return New password related to the request
          */
 		virtual const char* getNewPassword() const = 0;
 
         /**
          * @brief Returns a private key related to the request
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fastLogin - Returns the base64pwKey parameter
+         * - MegaApi::fastCreateAccount - Returns the base64pwKey parameter
+         * - MegaApi::fastConfirmAccount - Returns the base64pwKey parameter
+         *
          * @return Private key related to the request
          */
 		virtual const char* getPrivateKey() const = 0;
@@ -1035,6 +1108,10 @@ class MegaRequest
 
         /**
          * @brief Returns the path of a file related to the request
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * @return Path of a file related to the request
          */
         virtual const char* getFile() const = 0;
@@ -1078,7 +1155,21 @@ class MegaRequest
         virtual int getParamType() const = 0;
 
         /**
+         * @brief Returns a number related tothis request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::retryPendingConnections - Returns if transfers are retried
+         *
+         * @return Number related to this request
+         */
+        virtual int getNumber() const = 0;
+
+        /**
          * @brief Returns a flag related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::retryPendingConnections - Returns if request are disconnected
+         *
          * @return Flag related to the request
          */
         virtual bool getFlag() const = 0;
@@ -1719,11 +1810,6 @@ class MegaTransferListener
 class MegaGlobalListener
 {
     public:
-    #if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-        virtual void onUsersUpdate(MegaApi* api);
-        virtual void onNodesUpdate(MegaApi* api);
-    #else
-
         /**
          * @brief This function is called when there are new or updated contacts in the account
          * @param api MegaApi object connected to the account
@@ -1737,7 +1823,6 @@ class MegaGlobalListener
          * @param nodes List that contains the new or updated nodes
          */
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    #endif
 
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
@@ -1901,10 +1986,6 @@ class MegaListener
          */
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error);
 
-    #if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-        virtual void onUsersUpdate(MegaApi* api);
-        virtual void onNodesUpdate(MegaApi* api);
-    #else
         /**
          * @brief This function is called when there are new or updated contacts in the account
          * @param api MegaApi object connected to the account
@@ -1918,7 +1999,6 @@ class MegaListener
          * @param nodes List that contains the new or updated nodes
          */
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    #endif
 
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
@@ -2171,33 +2251,336 @@ class MegaApi
          */
         void removeGlobalListener(MegaGlobalListener* listener);
 
+        /**
+         * @brief Generates a private key based on the access password
+         *
+         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
+         * required to log in, this function allows to do this step in a separate function. You should run this function
+         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param password Access password
+         * @return Base64-encoded private key
+         */
         const char* getBase64PwKey(const char *password);
-        const char* getStringHash(const char* base64pwkey, const char* inBuf);
+
+        /**
+         * @brief Generates a hash based in the provided private key and email
+         *
+         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
+         * required to log in, this function allows to do this step in a separate function. You should run this function
+         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param base64pwkey Private key returned by MegaApi::getBase64PwKey
+         * @return Base64-encoded hash
+         */
+        const char* getStringHash(const char* base64pwkey, const char* email);
+
+        /**
+         * @brief Converts a Base64-encoded node handle to a MegaHandle
+         *
+         * The returned value can be used to recover a MegaNode using MegaApi::getNodeByHandle
+         * You can revert this operation using MegaApi::handleToBase64
+         *
+         * @param base64Handle Base64-encoded node handle
+         * @return Node handle
+         */
         static MegaHandle base64ToHandle(const char* base64Handle);
+
+        /**
+         * @brief Converts a MegaHandle to a Base64-encoded string
+         *
+         * You take the ownership of the returned value
+         * You can revert this operation using MegaApi::base64ToHandle
+         *
+         * @param handle to be converted
+         * @return Base64-encoded node handle
+         */
         static const char* handleToBase64(MegaHandle handle);
-        static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
-        void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Add entropy to internal random number generators
+         *
+         * It's recommended to call this function with random data specially to
+         * enhance security,
+         *
+         * @param data Byte array with random data
+         * @param size Size of the byte array (in bytes)
+         */
         static void addEntropy(char* data, unsigned int size);
 
-        //API requests
+
+        /**
+         * @brief Retry all pending requests
+         *
+         * When requests fails they wait some time before being retried. That delay grows exponentially if the request
+         * fails again. For this reason, and since this request is very lightweight, it's recommended to call it with
+         * the default parameters on every user interaction with the application. This will prevent very big delays
+         * completing requests.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns the first parameter
+         * - MegaRequest::getNumber - Returns the second parameter
+         *
+         * @param true if you want to disconnect already connected requests
+         * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
+         * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
+         * it could be retrying forever.
+         *
+         * @param true to retry also transfers
+         * It's not recommended to set this flag. Transfer has a retry counter and are aborted after a number of retries
+         * MegaTransfer::getMaxRetries. Setting this flag to true, you will force more immediate retries and your transfers
+         * could fail faster.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Log in to a MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the first parameter
+         * - MegaRequest::getPassword - Returns the second parameter
+         *
+         * If the email/password aren't valid the error code provided in onRequestFinish is
+         * MegaError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param password Password
+         * @param listener MegaRequestListener to track this request
+         */
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
-        const char *dumpSession();
+
+        /**
+         * @brief Log in to a MEGA account using precomputed keys
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FAST_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the first parameter
+         * - MegaRequest::getPassword - Returns the second parameter
+         * - MegaRequest::getPrivateKey - Returns the third parameter
+         *
+         * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
+         * MegaError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param stringHash Hash of the email returned by MegaApi::getStringHash
+         * @param base64pwkey Private key calculated using MegaApi::getBase64PwKey
+         * @param listener MegaRequestListener to track this request
+         */
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Log in to a MEGA account using a session key
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FAST_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getSessionKey - Returns the session key
+         *
+         * @param session Session key previously dumped with MegaApi::dumpSession
+         * @param listener MegaRequestListener to track this request
+         */
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns the current session key
+         *
+         * You have to be logged in to get a valid session key. Otherwise,
+         * this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Current session key
+         */
+        const char *dumpSession();
+
+        /**
+         * @brief Initialize the creation of a new MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getPassword - Returns the password for the account
+         * - MegaRequest::getName - Returns the name of the user
+         *
+         * If this request succeed, a confirmation email will be sent to the users.
+         * If an account with the same email already exists, you will get the error code
+         * MegaError::API_EEXIST in onRequestFinish
+         *
+         * @param email Email for the account
+         * @param password Password for the account
+         * @param name Name of the user
+         * @param listener MegaRequestListener to track this request
+         */
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the creation of a new MEGA account with precomputed keys
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FAST_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getPrivateKey - Returns the private key calculated with MegaApi::getBase64PwKey
+         * - MegaRequest::getName - Returns the name of the user
+         *
+         * If this request succeed, a confirmation email will be sent to the users.
+         * If an account with the same email already exists, you will get the error code
+         * MegaError::API_EEXIST in onRequestFinish
+         *
+         * @param email Email for the account
+         * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
+         * @param name Name of the user
+         * @param listener MegaRequestListener to track this request
+         */
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a confirmation link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the confirmation link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the confirmation link
+         * - MegaRequest::getName - Returns the name associated with the confirmation link
+         *
+         * @param link Confirmation link
+         * @param listener MegaRequestListener to track this request
+         */
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Confirm a MEGA account using a confirmation link and the user password
+         *
+         * The associated request type with this request is MegaRequest::qu.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the confirmation link
+         * - MegaRequest::getPassword - Returns the password
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Email of the account
+         * - MegaRequest::getName - Name of the user
+         *
+         * @param link Confirmation link
+         * @param listener MegaRequestListener to track this request
+         */
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Confirm a MEGA account using a confirmation link and a precomputed key
+         *
+         * The associated request type with this request is MegaRequest::qu.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the confirmation link
+         * - MegaRequest::getPrivateKey - Returns the base64pwkey parameter
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Email of the account
+         * - MegaRequest::getName - Name of the user
+         *
+         * @param link Confirmation link
+         * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey
+         * @param listener MegaRequestListener to track this request
+         */
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set proxy settings
+         *
+         * The SDK will start using the provided proxy settings as soon as this function returns.
+         *
+         * @param Proxy settings
+         * @see MegaProxy
+         */
         void setProxySettings(MegaProxy *proxySettings);
+
+        /**
+         * @brief Try to detect the system's proxy settings
+         *
+         * Automatic proxy detection is currently supported on Windows only.
+         * On other platforms, this fuction will return a MegaProxy object
+         * of type MegaProxy::PROXY_NONE
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return MegaProxy object with the detected proxy settings
+         */
         MegaProxy *getAutoProxySettings();
+
+        /**
+         * @brief Check if the MegaApi object is logged in
+         * @return 0 if not logged in, Otherwise, a number >= 0
+         */
         int isLoggedIn();
+
+        /**
+         * @brief Retuns the email of the currently open account
+         *
+         * If the MegaApi object isn't logged in or the email isn't available,
+         * this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Email of the account
+         */
         const char* getMyEmail();
 
-        //Logging
+        /**
+         * @brief Set the active log level
+         *
+         * This function sets the log level of the logging system. If you set a log listener using
+         * MegaApi::setLoggerObject, you will receive logs with the same or a lower level than
+         * the one passed to this function.
+         *
+         * @param logLevel Active log level
+         *
+         * These are the valid values for this parameter:
+         * - MegaApi::LOG_LEVEL_FATAL = 0
+         * - MegaApi::LOG_LEVEL_ERROR = 1
+         * - MegaApi::LOG_LEVEL_WARNING = 2
+         * - MegaApi::LOG_LEVEL_INFO = 3
+         * - MegaApi::LOG_LEVEL_DEBUG = 4
+         * - MegaApi::LOG_LEVEL_MAX = 5
+         */
         static void setLogLevel(int logLevel);
-        static void setLoggerClass(MegaLogger *megaLogger);
+
+        /**
+         * @brief Set a MegaLogger implementation to receive SDK logs
+         *
+         * Logs received by this objects depends on the active log level.
+         * By default, it is MegaApi::LOG_LEVEL_INFO. You can change it
+         * using MegaApi::setLogLevel.
+         *
+         * @param megaLogger MegaLogger implementation
+         */
+        static void setLoggerObject(MegaLogger *megaLogger);
+
+        /**
+         * @brief Send a log to the logging system
+         *
+         * This log will be received by the active logger object (MegaApi::setLoggerObject) if
+         * the log level is the same or lower than the active log level (MegaApi::setLogLevel)
+         *
+         * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
+         * to complete them.
+         *
+         * @param Log level for this message
+         * @param message Message for the logging system
+         * @param filename Origin of the log message
+         * @param line Line of code where this message was generated
+         */
         static void log(int logLevel, const char* message, const char *filename = "", int line = -1);
+
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
@@ -2266,70 +2649,546 @@ class MegaApi
         std::string getLocalPath(MegaNode *node);
 #endif
 
+        /**
+         * @brief Force a loop of the SDK thread
+         * @deprecated This function is only here for debugging purposes. It will probably
+         * be removed in future updates
+         */
         void update();
+
+        /**
+         * @brief Check if the SDK is waiting for the server
+         * @return true if the SDK is waiting for the server to complete a request
+         */
         bool isWaiting();
 
-        //Statistics
+        /**
+         * @brief Get the number of pending uploads
+         *
+         * @return Pending uploads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
         int getNumPendingUploads();
+
+        /**
+         * @brief Get the number of pending downloads
+         * @return Pending downloads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
         int getNumPendingDownloads();
+
+        /**
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
         int getTotalUploads();
+
+        /**
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalDownloads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalDownloads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates. They
+         * could change or be removed in the current form.
+         */
         int getTotalDownloads();
+
+        /**
+         * @brief Reset the number of total downloads
+         * This function resets the number returned by MegaApi::getTotalDownloads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
+         */
         void resetTotalDownloads();
+
+        /**
+         * @brief Reset the number of total uploads
+         * This function resets the number returned by MegaApi::getTotalUploads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
         void resetTotalUploads();
-        void updateStatics();
+        /**
+         * @brief Get the total downloaded bytes since the creation of the MegaApi object
+         * @return Total downloaded bytes since the creation of the MegaApi object
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
         long long getTotalDownloadedBytes();
+
+        /**
+         * @brief Get the total uploaded bytes since the creation of the MegaApi object
+         * @return Total uploaded bytes since the creation of the MegaApi object
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
+         */
         long long getTotalUploadedBytes();
 
-        //Filesystem
-        enum {	ORDER_NONE, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        /**
+         * @brief Update the number of pending downloads/uploads
+         *
+         * This function forces a count of the pending downloads/uploads. It could
+         * affect the return value of MegaApi::getNumPendingDownloads and
+         * MegaApi::getNumPendingUploads.
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
+         */
+        void updateStatics();
+
+        enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC};
 
-		int getNumChildren(MegaNode* parent);
-		int getNumChildFiles(MegaNode* parent);
-		int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order=1);
-        MegaNode *getChildNode(MegaNode *parent, const char* name);
-        MegaNode *getParentNode(MegaNode *node);
-        const char* getNodePath(MegaNode *node);
-        MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
-        MegaNode *getNodeByHandle(MegaHandle MegaHandler);
-        MegaUserList* getContacts();
-        MegaUser* getContact(const char* email);
-        MegaNodeList *getInShares(MegaUser* user);
-        MegaNodeList *getInShares();
-        bool isShared(MegaNode *node);
-        MegaShareList *getOutShares();
-        MegaShareList *getOutShares(MegaNode *node);
-        int getAccess(MegaNode* node);
-        long long getSize(MegaNode *node);
-        static void removeRecursively(const char *path);
 
-        //Fingerprint
+		/**
+		 * @brief Get the number of child nodes
+		 *
+		 * If the node doesn't exist in MEGA or isn't a folder,
+		 * this function returns 0
+		 *
+		 * This function doesn't search recursively, only returns the direct child nodes.
+		 *
+		 * @param parent Parent node
+		 * @return Number of child nodes
+		 */
+		int getNumChildren(MegaNode* parent);
+
+		/**
+		 * @brief Get the number of child files of a node
+		 *
+		 * If the node doesn't exist in MEGA or isn't a folder,
+		 * this function returns 0
+		 *
+		 * This function doesn't search recursively, only returns the direct child files.
+		 *
+		 * @param parent Parent node
+		 * @return Number of child files
+		 */
+		int getNumChildFiles(MegaNode* parent);
+
+		/**
+		 * @brief Get the number of child folders of a node
+		 *
+		 * If the node doesn't exist in MEGA or isn't a folder,
+		 * this function returns 0
+		 *
+		 * This function doesn't search recursively, only returns the direct child folders.
+		 *
+		 * @param parent Parent node
+		 * @return Number of child folders
+		 */
+		int getNumChildFolders(MegaNode* parent);
+
+		/**
+		 * @brief Get all children of a MegaNode
+		 *
+		 * If the parent node doesn't exist or it isn't a folder, this function
+		 * returns NULL
+		 *
+		 * You take the ownership of the returned value
+		 *
+		 * @param parent Parent node
+		 * @param order Order for the returned list
+		 * Valid values for this parameter are:
+		 * - MegaApi::ORDER_NONE = 0
+		 * Undefined order
+		 *
+		 * - MegaApi::ORDER_DEFAULT_ASC = 1
+		 * Folders first in alphabetical order, then files in the same order
+		 *
+		 * - MegaApi::ORDER_DEFAULT_DESC = 2
+		 * Files first in reverse alphabetical order, then folders in the same order
+		 *
+		 * - MegaApi::ORDER_SIZE_ASC = 3
+		 * Sort by size, ascending
+		 *
+		 * - MegaApi::ORDER_SIZE_DESC = 4
+		 * Sort by size, descending
+		 *
+		 * - MegaApi::ORDER_CREATION_ASC = 5
+		 * Sort by creation time in MEGA, ascending
+		 *
+		 * - MegaApi::ORDER_CREATION_DESC = 6
+		 * Sort by creation time in MEGA, descending
+		 *
+		 * - MegaApi::ORDER_MODIFICATION_ASC = 7
+		 * Sort by modification time of the original file, ascending
+		 *
+		 * - MegaApi::ORDER_MODIFICATION_DESC = 8
+		 * Sort by modification time of the original file, descending
+		 *
+		 * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+		 * Sort in alphabetical order, ascending
+		 *
+		 * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+		 * Sort in alphabetical order, descending
+		 *
+		 * @return List with all child MegaNode objects
+		 */
+        MegaNodeList* getChildren(MegaNode *parent, int order=1);
+
+        /**
+         * @brief Get the child node with the provided name
+         *
+         * If the node doesn't exist, this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param Parent node
+         * @param Name of the node
+         * @return The MegaNode that has the selected parent and name
+         */
+        MegaNode *getChildNode(MegaNode *parent, const char* name);
+
+        /**
+         * @brief Get the parent node of a MegaNode
+         *
+         * If the node doesn't exist in the account or
+         * it is a root node, this function returns NULL
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param node MegaNode to get the parent
+         * @return The parent of the provided node
+         */
+        MegaNode *getParentNode(MegaNode *node);
+
+        /**
+         * @brief Get the path of a MegaNode
+         *
+         * If the node doesn't exist, this function returns NULL.
+         * You can recoved the node later unsing MegaApi::getNodeByPath
+         * except if the path contains names with  '/', '\' or ':' characters.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node MegaNode for which the path will be returned
+         * @return The path of the node
+         */
+        const char* getNodePath(MegaNode *node);
+
+        /**
+         * @brief Get the MegaNode in a specific path in the MEGA account
+         *
+         * The path separator character is '/'
+         * The Inbox root node is //in/
+         * The Rubbish root node is //bin/
+         *
+         * Paths with names containing '/', '\' or ':' aren't compatible
+         * with this function.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param path Path to check
+         * @param n Base node if the path is relative
+         * @return The MegaNode object in the path, otherwise NULL
+         */
+        MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
+
+        /**
+         * @brief Get the MegaNode that has a specific handle
+         *
+         * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle
+         * can be got in a Base64-encoded string using MegaNode::getBase64Handle. Conversions
+         * between these formats can be done using MegaApi::base64ToHandle and MegaApi::handleToBase64
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param MegaHandler Node handle to check
+         * @return MegaNode object with the handle, otherwise NULL
+         */
+        MegaNode *getNodeByHandle(MegaHandle MegaHandler);
+
+        /**
+         * @brief Get all contacts of this MEGA account
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaUser object with all contacts of this account
+         */
+        MegaUserList* getContacts();
+
+        /**
+         * @brief Get the MegaUser that has a specific email address
+         *
+         * You can get the email of a MegaUser using MegaUser::getEmail
+         *
+         * You take the ownership of the returned value
+         *
+         * @param email Email address to check
+         * @return MegaUser that has the email address, otherwise NULL
+         */
+        MegaUser* getContact(const char* email);
+
+        /**
+         * @brief Get a list with all inbound sharings from one MegaUser
+         *
+         * You take the ownership of the returned value
+         *
+         * @param user MegaUser sharing folders with this account
+         * @return List of MegaNode objects that this user is sharing with this account
+         */
+        MegaNodeList *getInShares(MegaUser* user);
+
+        /**
+         * @brief Get a list with all inboud sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaNode objects that other users are sharing with this account
+         */
+        MegaNodeList *getInShares();
+
+        /**
+         * @brief Check if a MegaNode is being shared
+         *
+         * For nodes that are being shared, you can get a a list of MegaShare
+         * objects using MegaApi::getOutShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is being shared, otherwise false
+         */
+        bool isShared(MegaNode *node);
+
+        /**
+         * @brief Get a list with all active outbound sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaShare objects
+         */
+        MegaShareList *getOutShares();
+
+        /**
+         * @brief Get a list with the active outbound sharings for a MegaNode
+         *
+         * If the node doesn't exist in the account, this function returns an empty list.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node MegaNode to check
+         * @return List of MegaShare objects
+         */
+        MegaShareList *getOutShares(MegaNode *node);
+
+        /**
+         * @brief Get the access level of a MegaNode
+         * @param node MegaNode to check
+         * @return Access level of the node
+         * Valid values are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         * - MegaShare::ACCESS_UNKNOWN
+         */
+        int getAccess(MegaNode* node);
+
+        /**
+         * @brief Get the size of a node tree
+         *
+         * If the MegaNode is a file, this function returns the size of the file.
+         * If it's a folder, this fuction returns the sum of the sizes of all nodes
+         * in the node tree.
+         *
+         * @param node Parent node
+         * @return Size of the node tree
+         */
+        long long getSize(MegaNode *node);
+
+        /**
+         * @brief Get a Base64-encoded fingerprint for a local file
+         *
+         * The fingerprint is created taking into account the modification time of the file
+         * and file contents. This fingerprint can be used to get a corresponding node in MEGA
+         * using MegaApi::getNodeByFingerprint
+         *
+         * If the file can't be found or can't be opened, this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param filePath Local file path
+         * @return Base64-encoded fingerprint for the file
+         */
         const char* getFingerprint(const char *filePath);
+
+        /**
+         * @brief Get a Base64-encoded fingerprint for a node
+         *          *
+         * If the node doesn't exist or doesn't have a fingerprint, this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node for which we want to get the fingerprint
+         * @return Base64-encoded fingerprint for the file
+         */
         const char *getFingerprint(MegaNode *node);
+
+        /**
+         * @brief Returns a node with the provided fingerprint
+         *
+         * If there isn't any node in the account with that fingerprint, this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param fingerprint Fingerprint to check
+         * @return MegaNode object with the provided fingerprint
+         */
         MegaNode *getNodeByFingerprint(const char* fingerprint);
+
+        /**
+         * @brief Check if the account already has a node with the provided fingerprint
+         *
+         * A fingerprint for a local file can be generated using MegaApi::getFingerprint
+         *
+         * @param fingerprint Fingerprint to check
+         * @return true if the account contains a node with the same fingerprint
+         */
         bool hasFingerprint(const char* fingerprint);
 
-        //Permissions
+        /**
+         * @brief Check if a node has an access level
+         *
+         * @param node Node to check
+         * @param level Access level to check
+         * Valid values for this parameter are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         *
+         * @return MegaError object with the result.
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node has the required access level
+         * - MegaError::API_EACCESS - The node doesn't have the required access level
+         * - MegaError::API_ENOENT - The node doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
         MegaError checkAccess(MegaNode* node, int level);
+
+        /**
+         * @brief Check if a node can be moved to a target node
+         * @param node Node to check
+         * @param target Target for the move operation
+         * @return MegaError object with the result:
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node can be moved to the target
+         * - MegaError::API_EACCESS - The node can't be moved because of permissions problems
+         * - MegaError::API_ECIRCULAR - The node can't be moved because that would create a circular linkage
+         * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
         MegaError checkMove(MegaNode* node, MegaNode* target);
 
+        /**
+         * @brief Returns the root node of the account
+         *
+         * You take the ownership of the returned value
+         *
+         * If you haven't successfully called MegaApi::fetchNodes before,
+         * this function returns NULL
+         *
+         * @return Root node of the account
+         */
         MegaNode *getRootNode();
+
+        /**
+         * @brief Returns the inbox node of the account
+         *
+         * You take the ownership of the returned value
+         *
+         * If you haven't successfully called MegaApi::fetchNodes before,
+         * this function returns NULL
+         *
+         * @return Inbox node of the account
+         */
         MegaNode* getInboxNode();
+
+        /**
+         * @brief Returns the rubbish node of the account
+         *
+         * You take the ownership of the returned value
+         *
+         * If you haven't successfully called MegaApi::fetchNodes before,
+         * this function returns NULL
+         *
+         * @return Rubbish node of the account
+         */
         MegaNode *getRubbishNode();
 
+        /**
+         * @brief Search nodes containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * @param node The parent node of the tree to explore
+         * @param searchString Search string. The search is case-insensitive
+         * @param recursive True if you want to seach recursively in the node tree.
+         * False if you want to seach in the children of the node only
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
+
+        /**
+         * @brief Process a node tree using a MegaTreeProcessor implementation
+         * @param node The parent node of the tree to explore
+         * @param processor MegaTreeProcessor that will receive callbacks for every node in the tree
+         * @param recursive True if you want to recursively process the whole node tree.
+         * False if you want to process the children of the node only
+         *
+         * @return True if all nodes were processed. False otherwise (the operation can be
+         * cancelled by MegaTreeProcessor::processMegaNode())
+         */
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
 	#ifdef _WIN32
+		/**
+		 * @brief Convert an UTF16 string to UTF8 (Windows only)
+		 * @param utf16data UTF16 buffer
+		 * @param utf16size Size of the UTF16 buffer (in characters)
+		 * @param utf8string Pointer to a string that will be filled with UTF8 characters
+		 * If the conversion fails, the size of the string will be 0
+		 */
         static void utf16ToUtf8(const wchar_t* utf16data, int utf16size, std::string* utf8string);
+
+        /**
+         * @brief Convert an UTF8 string to UTF16 (Windows only)
+         * @param utf8data NULL-terminated UTF8 character array
+         * @param utf16string Pointer to a string that will be filled with UTF16 characters
+         * If the conversion fails, the size of the string will be 0
+         */
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
+
+        /**
+         * @brief Function to copy a buffer
+         *
+         * The new buffer is allocated by new[] so you should release
+         * it with delete[].
+         *
+         * @param buffer Character buffer to copy
+         * @return Copy of the character buffer
+         */
         static char* strdup(const char* buffer);
 
+        static void removeRecursively(const char *path);
 private:
         MegaApiImpl *pImpl;
 };

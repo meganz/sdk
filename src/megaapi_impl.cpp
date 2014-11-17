@@ -1879,7 +1879,7 @@ void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, 
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FAST_CREATE_ACCOUNT, listener);
 	request->setEmail(email);
-	request->setPassword(base64pwkey);
+	request->setPrivateKey(base64pwkey);
 	request->setName(name);
 	requestQueue.push(request);
     waiter->notify();
@@ -1906,7 +1906,7 @@ void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, 
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FAST_CONFIRM_ACCOUNT, listener);
 	request->setLink(link);
-	request->setPassword(base64pwkey);
+	request->setPrivateKey(base64pwkey);
 	requestQueue.push(request);
     waiter->notify();
 }
@@ -3590,13 +3590,9 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 // user addition/update (users never get deleted)
 void MegaApiImpl::users_updated(User** u, int count)
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-    fireOnUsersUpdate(NULL);
-#else
     MegaUserList* userList = new MegaUserListPrivate(u, count);
     fireOnUsersUpdate(userList);
     delete userList;
-#endif
 }
 
 void MegaApiImpl::setattr_result(handle h, error e)
@@ -4154,9 +4150,6 @@ void MegaApiImpl::reload(const char*)
 // at which point their pointers will become invalid at that point.)
 void MegaApiImpl::nodes_updated(Node** n, int count)
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-    fireOnNodesUpdate(NULL);
-#else
     MegaNodeList *nodeList = NULL;
     if(n != NULL)
     {
@@ -4184,7 +4177,6 @@ void MegaApiImpl::nodes_updated(Node** n, int count)
             memset(&(it->second->changed), 0,sizeof it->second->changed);
         fireOnNodesUpdate(nodeList);
     }
-#endif
 }
 
 void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool, bool)
@@ -4301,7 +4293,7 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
 	if(request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
 		client->pw_key(request->getPassword(),pwkey);
 	else
-		Base64::atob(request->getPassword(), (byte *)pwkey, sizeof pwkey);
+		Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
 
     client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
 }
@@ -4360,7 +4352,7 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
 	if(request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT)
 		client->pw_key(request->getPassword(),pwkey);
 	else
-		Base64::atob(request->getPassword(), (byte *)pwkey, sizeof pwkey);
+		Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
 
 	// verify correctness of supplied signup password
 	SymmCipher pwcipher(pwkey);
@@ -4657,19 +4649,11 @@ void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
 {
 	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-        (*it)->onUsersUpdate(api);
-#else
         (*it)->onUsersUpdate(api, users);
-#endif
     }
 	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-        (*it)->onUsersUpdate(api);
-#else
         (*it)->onUsersUpdate(api, users);
-#endif
     }
 }
 
@@ -4677,19 +4661,11 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 {
 	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-        (*it)->onNodesUpdate(api);
-#else
         (*it)->onNodesUpdate(api, nodes);
-#endif
     }
 	for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
     {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-        (*it)->onNodesUpdate(api);
-#else
         (*it)->onNodesUpdate(api, nodes);
-#endif
     }
 }
 
@@ -4724,14 +4700,14 @@ void MegaApiImpl::fireOnFileSyncStateChanged(const char *filePath, int newState)
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
-	if(!megaNode || !level)	return MegaError(API_EINTERNAL);
+    if(!megaNode || !level)	return MegaError(API_EARGS);
 
     sdkMutex.lock();
     Node *node = client->nodebyhandle(megaNode->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
-        return MegaError(API_EINTERNAL);
+        return MegaError(API_ENOENT);
 	}
 
     accesslevel_t a = OWNER;
@@ -4768,7 +4744,7 @@ MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 	if(!node || !target)
 	{
         sdkMutex.unlock();
-		return MegaError(API_EARGS);
+        return MegaError(API_ENOENT);
 	}
 
 	MegaError e(client->checkmove(node,target));
@@ -5935,8 +5911,14 @@ void MegaApiImpl::sendPendingRequests()
 			const char *email = request->getEmail();
 			const char *password = request->getPassword();
 			const char *name = request->getName();
+			const char *pwkey = request->getPrivateKey();
 
-			if(!email || !password || !name) { e = API_EARGS; break; }
+			if(!email || !name ||
+					(!password && request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) ||
+					(!pwkey && request->getType() == MegaRequest::TYPE_FAST_CREATE_ACCOUNT))
+			{
+				e = API_EARGS; break;
+			}
 
 			client->createephemeral();
 			break;
@@ -5947,8 +5929,14 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char *link = request->getLink();
 			const char *password = request->getPassword();
-			if(((request->getType()!=MegaRequest::TYPE_QUERY_SIGNUP_LINK) && !password) || (!link))
-				{ e = API_EARGS; break; }
+			const char *pwkey = request->getPrivateKey();
+
+			if((!link) || (request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT && !password) ||
+					 (request->getType() == MegaRequest::TYPE_FAST_CONFIRM_ACCOUNT && !pwkey))
+			{
+				e = API_EARGS;
+				break;
+			}
 
 			const char* ptr = link;
 			const char* tptr;

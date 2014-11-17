@@ -205,18 +205,10 @@ MegaTransferListener::~MegaTransferListener()
 { }
 
 //Global callbacks
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-void MegaGlobalListener::onUsersUpdate(MegaApi*)
-{ }
-void MegaGlobalListener::onNodesUpdate(MegaApi*)
-{ }
-#else
 void MegaGlobalListener::onUsersUpdate(MegaApi *, MegaUserList *)
 { }
 void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
-#endif
-
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 MegaGlobalListener::~MegaGlobalListener()
@@ -239,18 +231,10 @@ void MegaListener::onTransferUpdate(MegaApi *, MegaTransfer *)
 { }
 void MegaListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError *)
 { }
-
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-void MegaListener::onUsersUpdate(MegaApi*)
-{ }
-void MegaListener::onNodesUpdate(MegaApi*)
-{ }
-#else
 void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
 { }
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
-#endif
 
 void MegaListener::onReloadNeeded(MegaApi *)
 { }
@@ -305,7 +289,7 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
-void MegaApi::setLoggerClass(MegaLogger *megaLogger)
+void MegaApi::setLoggerObject(MegaLogger *megaLogger)
 {
     MegaApiImpl::setLoggerClass(megaLogger);
 }
@@ -323,11 +307,6 @@ const char* MegaApi::getBase64PwKey(const char *password)
 const char* MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
     return pImpl->getStringHash(base64pwkey, inBuf);
-}
-
-const char* MegaApi::ebcEncryptKey(const char* encryptionKey, const char* plainKey)
-{
-    return MegaApiImpl::ebcEncryptKey(encryptionKey, plainKey);
 }
 
 uint64_t MegaApi::base64ToHandle(const char* base64Handle)
