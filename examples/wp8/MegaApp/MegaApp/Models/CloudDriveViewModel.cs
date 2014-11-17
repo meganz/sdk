@@ -25,9 +25,7 @@ namespace MegaApp.Models
         {
             this._megaSdk = megaSdk;
             this.CurrentRootNode = null;
-            this.ChildNodes = new ObservableCollection<NodeViewModel>();
-
-            this.RemoveItemCommand = new DelegateCommand(this.RemoveItem);
+            this.ChildNodes = new ObservableCollection<NodeViewModel>();            
         }
 
         #region Commands
@@ -40,15 +38,7 @@ namespace MegaApp.Models
         #endregion
 
         #region Public Methods
-
-        private void RemoveItem(object obj)
-        {
-            if (MessageBox.Show("Are you sure you want to delete this item", "Delete item", MessageBoxButton.OKCancel) ==
-                MessageBoxResult.Cancel) return;
-
-            this._megaSdk.moveNode(FocusedNode.GetBaseNode(), this._megaSdk.getRubbishNode(), new RemoveNodeRequestListener(this));
-        }
-
+        
         public void GoFolderUp()
         {
             MNode parentNode = this._megaSdk.getParentNode(this.CurrentRootNode.GetBaseNode());
@@ -116,19 +106,7 @@ namespace MegaApp.Models
         public NodeViewModel CurrentRootNode { get; set; }
 
         public NodeViewModel FocusedNode { get; set; }
-
-        //private NodeViewModel _currentCloudDriveRootNode;
-        //public NodeViewModel CurrentCloudDriveRootNode
-        //{
-        //    get { return _currentCloudDriveRootNode; }
-        //    set
-        //    {
-        //        _currentCloudDriveRootNode = value;
-        //        OnPropertyChanged("CurrentCloudDriveRootNode");
-        //    }
-
-        //}
-
+        
         #endregion
       
     }

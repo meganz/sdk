@@ -101,15 +101,13 @@
     </Compile>
     <Compile Include="Converters\FileTypeToImageConverter.cs" />
     <Compile Include="Extensions\SizeExtensions.cs" />
-    <Compile Include="LocalizedStrings.cs" />
-    <Compile Include="MegaApi\BaseRequestListener.cs" />
-    <Compile Include="MegaApi\CreateFolderRequestListener.cs">
+    <Compile Include="LocalizedStrings.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="MegaApi\BaseRequestListener.cs" />
     <Compile Include="MegaApi\LogOutRequestListener.cs" />
     <Compile Include="MegaApi\MegaLogger.cs" />
     <Compile Include="MegaApi\MEGARandomNumberProvider.cs" />
-    <Compile Include="MegaApi\RemoveNodeRequestListener.cs" />
     <Compile Include="MegaApi\FastLoginRequestListener.cs" />
     <Compile Include="MegaApi\FetchNodesRequestListener.cs" />
     <Compile Include="Models\BaseRequestListenerViewModel.cs" />
@@ -158,9 +156,6 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>UiResources.resx</DependentUpon>
     </Compile>
-    <Compile Include="Services\CryptoService.cs">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="Services\NavigateService.cs" />
     <Compile Include="Services\ProgessService.cs" />
     <Compile Include="Services\SettingsService.cs" />
@@ -179,7 +174,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\AlignmentGrid.png" />
-    <Content Include="Assets\AppBar\folder_add.png" />
     <Content Include="Assets\AppBar\logout.png" />
     <Content Include="Assets\ApplicationIcon.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
