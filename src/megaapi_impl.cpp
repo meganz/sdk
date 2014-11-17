@@ -1279,6 +1279,20 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
+MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate& nodeList)
+{
+	s = nodeList.size();
+	if (!s)
+	{
+		list = NULL;
+		return;
+	}
+
+	list = new MegaNode*[s];
+	for (int i = 0; i<s; i++)
+		list[i] = new MegaNodePrivate(nodeList.get(i));
+}
+
 MegaNodeListPrivate::~MegaNodeListPrivate()
 {
 	if(!list)
@@ -1287,6 +1301,11 @@ MegaNodeListPrivate::~MegaNodeListPrivate()
 	for(int i=0; i<s; i++)
 		delete list[i];
 	delete [] list;
+}
+
+MegaNodeList *MegaNodeListPrivate::copy()
+{
+	return new MegaNodeListPrivate(*this);
 }
 
 MegaNode *MegaNodeListPrivate::get(int i)
@@ -1321,6 +1340,19 @@ MegaUserListPrivate::MegaUserListPrivate(User** newlist, int size)
 		list[i] = MegaUserPrivate::fromUser(newlist[i]);
 }
 
+MegaUserListPrivate::MegaUserListPrivate(MegaUserListPrivate &userList)
+{
+	s = userList.size();
+	if (!s)
+	{
+		list = NULL;
+		return;
+	}
+	list = new MegaUser*[s];
+	for (int i = 0; i<s; i++)
+		list[i] = new MegaUserPrivate(userList.get(i));
+}
+
 MegaUserListPrivate::~MegaUserListPrivate()
 {
 	if(!list)
@@ -1330,6 +1362,11 @@ MegaUserListPrivate::~MegaUserListPrivate()
 		delete list[i];
 
 	delete [] list;
+}
+
+MegaUserList *MegaUserListPrivate::copy()
+{
+	return new MegaUserListPrivate(*this);
 }
 
 MegaUser *MegaUserListPrivate::get(int i)

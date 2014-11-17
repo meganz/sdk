@@ -12,6 +12,8 @@ namespace mega
 	public ref class MNodeList sealed
 	{
 		friend ref class MegaSDK;
+		friend class DelegateMListener;
+		friend class DelegateMGlobalListener;
 
 	public:
 		virtual ~MNodeList();

@@ -18,8 +18,8 @@ namespace mega
 		DelegateMGlobalListener(MegaSDK^ megaSDK, MGlobalListenerInterface^ listener);
 		MGlobalListenerInterface^ getUserListener();
 
-		void onUsersUpdate(MegaApi* api);
-		void onNodesUpdate(MegaApi* api);
+		void onUsersUpdate(MegaApi* api, MegaUserList *users);
+		void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 		void onReloadNeeded(MegaApi* api);
 
 	private:

@@ -182,6 +182,8 @@ class MegaNodePrivate : public MegaNode
 class MegaUserPrivate : public MegaUser
 {
 	public:
+		MegaUserPrivate(User *user);
+		MegaUserPrivate(MegaUser *user);
 		static MegaUser *fromUser(User *user);
 		virtual MegaUser *copy();
 
@@ -191,8 +193,6 @@ class MegaUserPrivate : public MegaUser
 		virtual time_t getTimestamp();
 
 	protected:
-		MegaUserPrivate(User *user);
-		MegaUserPrivate(MegaUser *user);
 		const char *email;
 		int visibility;
 		time_t ctime;
@@ -457,10 +457,12 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate();
         MegaNodeListPrivate(Node** newlist, int size);
         virtual ~MegaNodeListPrivate();
+		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
 		virtual int size();
 	
 	protected:
+		MegaNodeListPrivate(MegaNodeListPrivate& nodeList);
 		MegaNode** list;
 		int s;
 };
@@ -471,10 +473,12 @@ class MegaUserListPrivate : public MegaUserList
         MegaUserListPrivate();
         MegaUserListPrivate(User** newlist, int size);
         virtual ~MegaUserListPrivate();
+		virtual MegaUserList *copy();
 		virtual MegaUser* get(int i);
 		virtual int size();
 	
 	protected:
+		MegaUserListPrivate(MegaUserListPrivate &userList);
 		MegaUser** list;
 		int s;
 };

@@ -36,13 +36,11 @@ namespace mega
 		String^ getFileName();
 		int getNumRetry();
 		int getMaxRetries();
-		uint64 getTime();
-		String^ getBase64Key();
 		int getTag();
 		uint64 getSpeed();
 		uint64 getDeltaSize();
 		uint64 getUpdateTime();
-		MNode^ getPublicNode();
+		MNode^ getPublicMegaNode();
 		bool isSyncTransfer();
 		bool isStreamingTransfer();
 

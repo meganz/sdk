@@ -762,6 +762,8 @@ class MegaNodeList
 	public:
         virtual ~MegaNodeList() = 0;
 
+		virtual MegaNodeList *copy() = 0;
+
         /**
          * @brief Returns the MegaNode at the position i in the MegaNodeList
          *
@@ -798,6 +800,8 @@ class MegaUserList
 {
 	public:
         virtual ~MegaUserList() = 0;
+
+		virtual MegaUserList *copy() = 0;
 
         /**
          * @brief Returns the MegaUser at the position i in the MegaUserList

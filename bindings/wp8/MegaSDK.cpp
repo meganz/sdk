@@ -248,24 +248,6 @@ uint64 MegaSDK::base64ToHandle(String^ base64Handle)
 	return MegaApi::base64ToHandle(utf8base64Handle.c_str());
 }
 
-String^ MegaSDK::ebcEncryptKey(String^ encryptionKey, String^ plainKey)
-{
-	if (encryptionKey == nullptr || plainKey == nullptr) return nullptr;
-
-	std::string utf8encryptionKey;
-	MegaApi::utf16ToUtf8(encryptionKey->Data(), encryptionKey->Length(), &utf8encryptionKey);
-
-	std::string utf8plainKey;
-	MegaApi::utf16ToUtf8(plainKey->Data(), plainKey->Length(), &utf8plainKey);
-
-	const char *utf8ebcEncryptKey = MegaApi::ebcEncryptKey(utf8encryptionKey.c_str(), utf8plainKey.c_str());
-	std::string utf16ebcEncryptKey;
-	MegaApi::utf8ToUtf16(utf8ebcEncryptKey, &utf16ebcEncryptKey);
-	delete[] utf8ebcEncryptKey;
-
-	return utf8ebcEncryptKey ? ref new String((wchar_t *)utf16ebcEncryptKey.c_str()) : nullptr;
-}
-
 void MegaSDK::retryPendingConnections()
 {
 	megaApi->retryPendingConnections();
@@ -1582,7 +1564,7 @@ void MegaSDK::setLogLevel(MLogLevel logLevel)
 	MegaApi::setLogLevel((int)logLevel);
 }
 
-void MegaSDK::setLoggerClass(MLoggerInterface^ megaLogger)
+void MegaSDK::setLoggerObject(MLoggerInterface^ megaLogger)
 {
 	DelegateMLogger *newLogger = new DelegateMLogger(megaLogger);
 	delete externalLogger;

@@ -75,7 +75,6 @@ namespace mega
 		String^ getBase64PwKey(String^ password);
 		String^ getStringHash(String^ base64pwkey, String^ inBuf);
 		static uint64 base64ToHandle(String^ base64Handle);
-		static String^ ebcEncryptKey(String^ encryptionKey, String^ plainKey);
 		void retryPendingConnections();
 		void login(String^ email, String^ password, MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password);
@@ -218,7 +217,7 @@ namespace mega
 
 		//Logging
 		static void setLogLevel(MLogLevel logLevel);
-		static void setLoggerClass(MLoggerInterface^ megaLogger);
+		static void setLoggerObject(MLoggerInterface^ megaLogger);
 		static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
 		static void log(MLogLevel logLevel, String^ message, String^ filename);
 		static void log(MLogLevel logLevel, String^ message);

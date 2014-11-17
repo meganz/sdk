@@ -62,16 +62,16 @@ void DelegateMListener::onTransferTemporaryError(MegaApi* api, MegaTransfer* tra
 		listener->onTransferTemporaryError(megaSDK, ref new MTransfer(transfer->copy(), true), ref new MError(e->copy(), true));
 }
 
-void DelegateMListener::onUsersUpdate(MegaApi* api)
+void DelegateMListener::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
 	if (listener != nullptr)
-		listener->onUsersUpdate(megaSDK);
+		listener->onUsersUpdate(megaSDK, users ? ref new MUserList(users->copy(), true) : nullptr);
 }
 
-void DelegateMListener::onNodesUpdate(MegaApi* api)
+void DelegateMListener::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
 {
 	if (listener != nullptr)
-		listener->onNodesUpdate(megaSDK);
+		listener->onNodesUpdate(megaSDK, nodes ? ref new MNodeList(nodes->copy(), true) : nullptr);
 }
 
 void DelegateMListener::onReloadNeeded(MegaApi* api)
