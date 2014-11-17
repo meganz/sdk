@@ -40,8 +40,8 @@ using namespace mega;
     return self.shareList;
 }
 
--(MEGAShare *)getShareAtPosition:(NSInteger)position {
-    return self.shareList ? [[MEGAShare alloc] initWithMegaShare:self.shareList->get((int)position)->copy() cMemoryOwn:YES] : nil;
+-(MEGAShare *)shareAtIndex:(NSInteger)index {
+    return self.shareList ? [[MEGAShare alloc] initWithMegaShare:self.shareList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
 -(NSNumber *)size {

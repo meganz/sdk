@@ -29,8 +29,6 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly) NSString *fileName;
 @property (readonly) NSInteger numberRetry;
 @property (readonly) NSInteger maximunRetries;
-@property (readonly) NSDate *time;
-@property (readonly) NSString *base64Key;
 @property (readonly) NSInteger tag;
 @property (readonly) NSNumber *speed;
 @property (readonly) NSNumber *deltaSize;

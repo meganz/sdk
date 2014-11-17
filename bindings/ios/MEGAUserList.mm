@@ -40,8 +40,8 @@ using namespace mega;
     return self.userList;
 }
 
-- (MEGAUser *)userAtPosition:(NSInteger)position {
-    return self.userList ? [[MEGAUser alloc] initWithMegaUser:self.userList->get((int)position)->copy() cMemoryOwn:YES] : nil;
+- (MEGAUser *)userAtIndex:(NSInteger)index {
+    return self.userList ? [[MEGAUser alloc] initWithMegaUser:self.userList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSNumber *)size {

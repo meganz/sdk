@@ -40,8 +40,8 @@ using namespace mega;
     return self.transferList;
 }
 
-- (MEGATransfer *)getTransferAtPosition:(NSInteger)position {
-    return self.transferList ? [[MEGATransfer alloc] initWithMegaTransfer:self.transferList->get((int)position)->copy() cMemoryOwn:YES] : nil;
+- (MEGATransfer *)transferAtIndex:(NSInteger)index {
+    return self.transferList ? [[MEGATransfer alloc] initWithMegaTransfer:self.transferList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSNumber *)size {

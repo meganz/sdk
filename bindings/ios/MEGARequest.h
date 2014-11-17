@@ -40,7 +40,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeFastCreateAccount,
     MEGARequestTypeConfirmAccount,
     MEGARequestTypeFastConfirmAccount,
-    MEGARequestTypeQuearySignUpLink,
+    MEGARequestTypeQuerySignUpLink,
     MEGARequestTypeAddSync,
     MEGARequestTypeRemoveSync,
     MEGARequestTypeRemoveSyncs,
@@ -70,7 +70,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly) uint64_t parentHandle;
 @property (readonly) NSString *sessionKey;
 @property (readonly) NSString *name;
-@property (readonly) NSString *getEmail;
+@property (readonly) NSString *email;
 @property (readonly) NSString *password;
 @property (readonly) NSString *newPassword;
 @property (readonly) NSString *privateKey;

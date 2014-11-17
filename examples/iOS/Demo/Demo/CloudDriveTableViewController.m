@@ -85,7 +85,7 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NodeTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"nodeCell" forIndexPath:indexPath];
     
-    MEGANode *node = [self.nodes nodeAtPosition:indexPath.row];
+    MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
     
     NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
@@ -136,7 +136,7 @@
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    MEGANode *node = [self.nodes nodeAtPosition:indexPath.row];
+    MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
     switch ([node type]) {
         case MEGANodeTypeFolder: {
             CloudDriveTableViewController *cdvc = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
@@ -169,7 +169,7 @@
 
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
     if (editingStyle==UITableViewCellEditingStyleDelete) {
-        MEGANode *node = [self.nodes nodeAtPosition:indexPath.row];
+        MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
         [[MEGASdkManager sharedMEGASdk] removeNode:node];
     }
 }
@@ -192,7 +192,7 @@
 - (void)swipeableTableViewCell:(SWTableViewCell *)cell didTriggerLeftUtilityButtonWithIndex:(NSInteger)index {
     NSIndexPath* pathOfTheCell = [self.tableView indexPathForCell:cell];
     indexNodeSelected = [pathOfTheCell row];
-    MEGANode *node = [self.nodes nodeAtPosition:indexNodeSelected];
+    MEGANode *node = [self.nodes nodeAtIndex:indexNodeSelected];
     switch (index) {
         case 0: {
             if ([node type] == MEGANodeTypeFile) {
@@ -267,7 +267,7 @@
     // Rename file
     if (alertView.tag == 2) {
         if (buttonIndex == 1) {
-            MEGANode *node = [self.nodes nodeAtPosition:indexNodeSelected];
+            MEGANode *node = [self.nodes nodeAtIndex:indexNodeSelected];
             if ([[[node name] pathExtension] isEqualToString:@""]) {
                 [[MEGASdkManager sharedMEGASdk] renameNode:node newName:[alertView textFieldAtIndex:0].text];
             } else {

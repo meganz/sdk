@@ -40,8 +40,8 @@ using namespace mega;
     return self.nodeList;
 }
 
-- (MEGANode *)nodeAtPosition:(NSInteger)position {
-    return  self.nodeList ? [[MEGANode alloc] initWithMegaNode:self.nodeList->get((int)position)->copy() cMemoryOwn:YES] : nil;
+- (MEGANode *)nodeAtIndex:(NSInteger)index {
+    return  self.nodeList ? [[MEGANode alloc] initWithMegaNode:self.nodeList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSNumber *)size {

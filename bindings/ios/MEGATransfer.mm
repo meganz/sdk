@@ -108,16 +108,6 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getMaxRetries() : 0;
 }
 
-- (NSDate *)time {
-    return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getTime()] : nil;
-}
-
-- (NSString *)base64Key {
-    if (!self.megaTransfer) return nil;
-    
-    return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getBase64Key()] : nil;
-}
-
 - (NSInteger)tag {
     return self.megaTransfer ? self.megaTransfer->getTag() : 0;
 }
@@ -135,7 +125,7 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return self.megaTransfer && self.megaTransfer->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
+    return self.megaTransfer && self.megaTransfer->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 - (BOOL)isSyncTransfer {

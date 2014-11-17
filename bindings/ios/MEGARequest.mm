@@ -81,7 +81,7 @@ using namespace mega;
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getName()] : nil;
 }
 
-- (NSString *)getEmail {
+- (NSString *)email {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getEmail()] : nil;

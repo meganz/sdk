@@ -9,6 +9,8 @@
 #import "MEGATransfer+init.h"
 #import "MEGAError+init.h"
 #import "MEGARequest+init.h"
+#import "MEGANodeList+init.h"
+#import "MEGAUserList+init.h"
 
 using namespace mega;
 
@@ -98,21 +100,31 @@ void DelegateMEGAListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *
     }
 }
 
-void DelegateMEGAListener::onUsersUpdate(MegaApi *api) {
-    if (listener != nil) {
+void DelegateMEGAListener::onUsersUpdate(mega::MegaApi *api, mega::MegaUserList *userList) {
+    if (listener !=nil) {
+        MegaUserList *tempUserList = NULL;
+        if (userList) {
+            tempUserList = userList->copy();
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onUsersUpdate:this->megaSDK];
+            [listener onUsersUpdate:this->megaSDK userList:(tempUserList ? [[MEGAUserList alloc] initWithUserList:tempUserList cMemoryOwn:YES] : nil)];
+        });
+        
+    }
+}
+
+void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList *nodeList) {
+    if (listener !=nil) {
+        MegaNodeList *tempNodesList = NULL;
+        if (nodeList) {
+            tempNodesList = nodeList->copy();
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [listener onNodesUpdate:this->megaSDK nodeList:(tempNodesList ? [[MEGANodeList alloc] initWithNodeList:tempNodesList cMemoryOwn:YES] : nil)];
         });
     }
 }
 
-void DelegateMEGAListener::onNodesUpdate(MegaApi *api) {
-    if (listener != nil) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onNodesUpdate:this->megaSDK];
-        });
-    }
-}
 
 void DelegateMEGAListener::onReloadNeeded(MegaApi *api) {
     if (listener != nil) {

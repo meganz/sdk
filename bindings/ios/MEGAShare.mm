@@ -36,6 +36,10 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.megaShare ? [[MEGAShare alloc] initWithMegaShare:self.megaShare->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaShare *)getCPtr {
     return self.megaShare;
 }
@@ -50,8 +54,8 @@ using namespace mega;
     return self.megaShare ? self.megaShare->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)accessType {
-    return self.megaShare ? self.megaShare->getAccess() : MegaShare::ACCESS_UNKNOWN;
+- (MEGAShareType)accessType {
+    return (MEGAShareType) (self.megaShare ? self.megaShare->getAccess() : MegaShare::ACCESS_UNKNOWN);
 }
 
 - (NSDate *)timestamp {

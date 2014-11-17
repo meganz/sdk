@@ -70,7 +70,7 @@ using namespace mega;
     return self.megaNode ? [[NSNumber alloc] initWithUnsignedLongLong:self.megaNode->getSize()] : nil;
 }
 
-- (NSDate *)getCreationTime {
+- (NSDate *)creationTime {
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getCreationTime()] : nil;
 }
 
