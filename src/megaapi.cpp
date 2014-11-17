@@ -875,6 +875,11 @@ MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
     return pImpl->getChildren(p, order);
 }
 
+int MegaApi::getIndex(MegaNode *node, int order)
+{
+    return pImpl->getIndex(node, order);
+}
+
 MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
 {
     return pImpl->getChildNode(parent, name);

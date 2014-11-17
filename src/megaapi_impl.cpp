@@ -4942,6 +4942,67 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     else return new MegaNodeListPrivate();
 }
 
+int MegaApiImpl::getIndex(MegaNode *n, int order)
+{
+    if(!n)
+    {
+        return -1;
+    }
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(n->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return -1;
+    }
+
+    Node *parent = node->parent;
+    if(!parent)
+    {
+        sdkMutex.unlock();
+        return -1;
+    }
+
+
+    if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
+    {
+        sdkMutex.unlock();
+        return 0;
+    }
+
+    bool (*comp)(Node*, Node*);
+    switch(order)
+    {
+        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
+        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
+        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
+        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
+        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
+        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
+        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
+        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
+        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
+        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+    }
+
+    vector<Node *> childrenNodes;
+    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+    {
+        Node *temp = *it++;
+        vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
+                childrenNodes.end(), temp, comp);
+        childrenNodes.insert(i, temp);
+    }
+
+    vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
+            childrenNodes.end(), node, comp);
+
+    sdkMutex.unlock();
+    return i - childrenNodes.begin();
+}
+
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 {
 	if(!parent || !name) return NULL;

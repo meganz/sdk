@@ -188,6 +188,7 @@ namespace mega
 		int getNumChildFolders(MNode^ parent);
 		MNodeList^ getChildren(MNode^ parent, int order);
 		MNodeList^ getChildren(MNode^ parent);
+        int getIndex(MNode^ node, int order);
 		MNode^ getChildNode(MNode^ parent, String^ name);
 		MNode^ getParentNode(MNode^ node);
 		String^ getNodePath(MNode^ node);

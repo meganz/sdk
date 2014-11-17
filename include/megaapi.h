@@ -389,7 +389,7 @@ class MegaNode
          * The MegaNode object represents root of the MEGA Inbox
          *
          * - TYPE_RUBBISH = 4
-         * The MegaNode object represents root of the MEGA Ribbish Bin
+         * The MegaNode object represents root of the MEGA Rubbish Bin
          *
          * @return Type of the node
          */
@@ -503,7 +503,7 @@ class MegaNode
          *
          * In other cases, the return value of this function will be always false.
          *
-         * @return True if this node has been removed from the MEGA account
+         * @return true if this node has been removed from the MEGA account
          */
         virtual bool isRemoved() = 0;
 
@@ -787,9 +787,9 @@ class MegaNodeList
 /**
  * @brief List of MegaUser objects
  *
- * An MegaUserList has the ownership of the MegaUser objects that it contains, so they will be
+ * A MegaUserList has the ownership of the MegaUser objects that it contains, so they will be
  * only valid until the MegaUserList is deleted. If you want to retain a MegaUser returned by
- * a MegaUserList, use UserList::copy.
+ * a MegaUserList, use MegaUser::copy.
  *
  * Objects of this class are immutable.
  *
@@ -983,6 +983,20 @@ class MegaRequest
 
         /**
          * @brief Returns the handle of a node related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::moveNode - Returns the handle of the node to move
+         * - MegaApi::copyNode - Returns the handle of the node to copy
+         * - MegaApi::renameNode - Returns the handle of the node to rename
+         * - MegaApi::remove - Returns the handle of the node to remove
+         * - MegaApi::sendFileToUser - Returns the handle of the node to send
+         * - MegaApi::share - Returns the handle of the folder to share
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::createFolder - Returns the handle of the new folder
+         * - MegaApi::copyNode - Returns the handle of the new node
+         *
          * @return Handle of a node related to the request
          */
         virtual MegaHandle getNodeHandle() const = 0;
@@ -1004,6 +1018,12 @@ class MegaRequest
 
         /**
          * @brief Returns the handle of a parent node related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createFolder - Returns the handle of the parent folder
+         * - MegaApi::moveNode - Returns the handle of the new parent for the node
+         * - MegaApi::copyNode - Returns the handle of the parent for the new node
+         *
          * @return Handle of a parent node related to the request
          */
         virtual MegaHandle getParentHandle() const = 0;
@@ -1027,6 +1047,8 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::createAccount - Returns the name of the user
          * - MegaApi::fastCreateAccount - Returns the name of the user
+         * - MegaApi::createFolder - Returns the name of the new folder
+         * - MegaApi::renameNode - Returns the new name for the node
          *
          * This value is valid for these request in onRequestFinish when the
          * error code es MegaError::API_OK:
@@ -1049,6 +1071,8 @@ class MegaRequest
          * - MegaApi::fastLogin - Returns the email of the account
          * - MegaApi::createAccount - Returns the email for the account
          * - MegaApi::fastCreateAccount - Returns the email for the account
+         * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
+         * - MegaApi::share - Returns the email that receives the shared folder
          *
          * This value is valid for these request in onRequestFinish when the
          * error code es MegaError::API_OK:
@@ -1106,6 +1130,10 @@ class MegaRequest
 
         /**
          * @brief Returns an access level related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::share - Returns the access level for the shared folder
+         *
          * @return Access level related to the request
          */
 		virtual int getAccess() const = 0;
@@ -1719,7 +1747,7 @@ class MegaTransferListener
          * The api object is the one created by the application, it will be valid until
          * the application deletes it.
          *
-         * @param api MegaApi object that started the request
+         * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          */
         virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
@@ -2464,7 +2492,7 @@ class MegaApi
         /**
          * @brief Confirm a MEGA account using a confirmation link and the user password
          *
-         * The associated request type with this request is MegaRequest::qu.
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the confirmation link
          * - MegaRequest::getPassword - Returns the password
@@ -2482,7 +2510,7 @@ class MegaApi
         /**
          * @brief Confirm a MEGA account using a confirmation link and a precomputed key
          *
-         * The associated request type with this request is MegaRequest::qu.
+         * The associated request type with this request is MegaRequest::TYPE_FAST_CONFIRM_ACCOUNT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the confirmation link
          * - MegaRequest::getPrivateKey - Returns the base64pwkey parameter
@@ -2585,16 +2613,170 @@ class MegaApi
          */
         static void log(int logLevel, const char* message, const char *filename = "", int line = -1);
 
-
+        /**
+         * @brief Create a folder in the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the handle of the parent folder
+         * - MegaRequest::getName - Returns the name of the new folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new folder
+         *
+         * @param name Name of the new folder
+         * @param parent Parent folder
+         * @param listener MegaRequestListener to track this request
+         */
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a node in the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+         * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+         *
+         * @param node Node to move
+         * @param newParent New parent for the node
+         * @param listener MegaRequestListener to track this request
+         */
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Copy a node in the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
+         * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new node
+         *
+         * @param node Node to copy
+         * @param newParent Parent for the new node
+         * @param listener MegaRequestListener to track this request
+         */
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Rename a node in the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RENAME
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to rename
+         * - MegaRequest::getName - Returns the new name for the node
+         *
+         * @param node Node to modify
+         * @param newName New name for the node
+         * @param listener MegaRequestListener to track this request
+         */
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove a node from the MEGA account
+         *
+         * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+         * the node to the Rubbish Bin use MegaApi::moveNode
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+         *
+         * @param node Node to remove
+         * @param listener MegaRequestListener to track this request
+         */
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send a node to the Inbox of another MEGA user using a MegaUser
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+         * - MegaRequest::getEmail - Returns the email of the user that receives the node
+         *
+         * @param node Node to send
+         * @param user User that receives the node
+         * @param listener MegaRequestListener to track this request
+         */
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send a node to the Inbox of another MEGA user using his email
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+         * - MegaRequest::getEmail - Returns the email of the user that receives the node
+         *
+         * @param node Node to send
+         * @param email Emeil of the user that receives the node
+         * @param listener MegaRequestListener to track this request
+         */
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
+         *
+         * To share a folder with an user, set the desired access level in the level parameter. If you
+         * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+         * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+         * - MegaRequest::getAccess - Returns the access that is granted to the user
+         *
+         * @param node The folder to share. It must be a non-root folder
+         * @param user User that receives the shared folder
+         * @param level Permissions that are granted to the user
+         * Valid values for this parameter:
+         * - MegaShare::ACCESS_UNKNOWN = -1
+         * Stop sharing a folder with this user
+         *
+         * - MegaShare::ACCESS_READ = 0
+         * - MegaShare::ACCESS_READWRITE = 1
+         * - MegaShare::ACCESS_FULL = 2
+         * - MegaShare::ACCESS_OWNER = 3
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Share or stop sharing a folder in MEGA with another user using an email
+         *
+         * To share a folder with an user, set the desired access level in the level parameter. If you
+         * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+         * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+         * - MegaRequest::getAccess - Returns the access that is granted to the user
+         *
+         * @param node The folder to share. It must be a non-root folder
+         * @param email Email of the user that receives the shared folder
+         * @param level Permissions that are granted to the user
+         * Valid values for this parameter:
+         * - MegaShare::ACCESS_UNKNOWN = -1
+         * Stop sharing a folder with this user
+         *
+         * - MegaShare::ACCESS_READ = 0
+         * - MegaShare::ACCESS_READWRITE = 1
+         * - MegaShare::ACCESS_FULL = 2
+         * - MegaShare::ACCESS_OWNER = 3
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
+
+
         void folderAccess(const char* megaFolderLink, MegaRequestListener *listener = NULL);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
@@ -2845,7 +3027,19 @@ class MegaApi
 		 *
 		 * @return List with all child MegaNode objects
 		 */
-        MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getChildren(MegaNode *parent, int order = 1);
+
+        /**
+         * @brief Get the current index of the node in the parent folder for a specific sorting order
+         *
+         * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
+         * this function returns -1
+         *
+         * @param node Node to check
+         * @param order Sorting order to use
+         * @return Index of the node in its parent folder
+         */
+        int getIndex(MegaNode* node, int order = 1);
 
         /**
          * @brief Get the child node with the provided name
