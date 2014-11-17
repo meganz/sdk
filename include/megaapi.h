@@ -990,6 +990,7 @@ class MegaRequest
          * - MegaApi::renameNode - Returns the handle of the node to rename
          * - MegaApi::remove - Returns the handle of the node to remove
          * - MegaApi::sendFileToUser - Returns the handle of the node to send
+         * - MegaApi::share - Returns the handle of the folder to share
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code es MegaError::API_OK:
@@ -1071,6 +1072,7 @@ class MegaRequest
          * - MegaApi::createAccount - Returns the email for the account
          * - MegaApi::fastCreateAccount - Returns the email for the account
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
+         * - MegaApi::share - Returns the email that receives the shared folder
          *
          * This value is valid for these request in onRequestFinish when the
          * error code es MegaError::API_OK:
@@ -1128,6 +1130,10 @@ class MegaRequest
 
         /**
          * @brief Returns an access level related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::share - Returns the access level for the shared folder
+         *
          * @return Access level related to the request
          */
 		virtual int getAccess() const = 0;
@@ -2715,7 +2721,7 @@ class MegaApi
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Share or stop sharing a folder in MEGA with another user
+         * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
@@ -2743,7 +2749,7 @@ class MegaApi
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Share or stop sharing a folder in MEGA with another user
+         * @brief Share or stop sharing a folder in MEGA with another user using an email
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
@@ -3023,6 +3029,16 @@ class MegaApi
 		 */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
+        /**
+         * @brief Get the current index of the node in the parent folder for a specific sorting order
+         *
+         * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
+         * this function returns -1
+         *
+         * @param node Node to check
+         * @param order Sorting order to use
+         * @return Index of the node in its parent folder
+         */
         int getIndex(MegaNode* node, int order = 1);
 
         /**

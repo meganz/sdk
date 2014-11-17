@@ -4957,7 +4957,7 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         return -1;
     }
 
-    Node *parent = client->nodebyhandle(node->nodehandle);
+    Node *parent = node->parent;
     if(!parent)
     {
         sdkMutex.unlock();
