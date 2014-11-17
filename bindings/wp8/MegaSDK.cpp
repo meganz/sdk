@@ -1259,6 +1259,11 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent)
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
 }
 
+int MegaSDK::getIndex(MNode^ node, int order)
+{
+    return megaApi->getIndex((node != nullptr) ? node->getCPtr() : NULL, order);
+}
+
 MNode^ MegaSDK::getChildNode(MNode^ parent, String^ name)
 {
 	if (parent == nullptr || name == nullptr) return nullptr;
