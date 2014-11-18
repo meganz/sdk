@@ -94,7 +94,6 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
         if (Base64::atob(sk, tk, tl) != tl)
         {
             LOG_warn << "Corrupt or invalid symmetric node key";
-exit(0);
             return false;
         }
 
