@@ -519,6 +519,7 @@ void Node::setattr()
         delete[] buf;
 
         attrstring.clear();
+        attrstring.shrink_to_fit();
     }
 }
 
