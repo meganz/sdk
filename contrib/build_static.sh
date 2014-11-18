@@ -438,6 +438,7 @@ build_sdk() {
             --disable-shared --enable-static \
             --disable-silent-rules \
             --disable-curl-checks \
+            --disable-megaapi \
             --with-openssl=$install_dir \
             --with-cryptopp=$install_dir \
             --with-sodium=$install_dir \
@@ -455,6 +456,7 @@ build_sdk() {
             --disable-silent-rules \
             --disable-curl-checks \
             --without-openssl \
+            --disable-megaapi \
             --with-cryptopp=$install_dir \
             --with-sodium=$install_dir \
             --with-zlib=$install_dir \
