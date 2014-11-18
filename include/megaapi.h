@@ -914,21 +914,22 @@ class MegaTransferList
 class MegaRequest
 {
 	public:
-        enum {  TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
-                TYPE_RENAME, TYPE_REMOVE, TYPE_SHARE,
-                TYPE_FOLDER_ACCESS, TYPE_IMPORT_LINK, TYPE_IMPORT_NODE,
-                TYPE_EXPORT, TYPE_FETCH_NODES, TYPE_ACCOUNT_DETAILS,
-                TYPE_CHANGE_PW, TYPE_UPLOAD, TYPE_LOGOUT, TYPE_FAST_LOGIN,
-                TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
-                TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
-                TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-                TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT, TYPE_FAST_CREATE_ACCOUNT,
-                TYPE_CONFIRM_ACCOUNT, TYPE_FAST_CONFIRM_ACCOUNT,
-                TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
-                TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
-                TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-                TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-                TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL};
+		enum {
+			TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
+			TYPE_RENAME, TYPE_REMOVE, TYPE_SHARE,
+			TYPE_IMPORT_LINK, TYPE_EXPORT, TYPE_FETCH_NODES, TYPE_ACCOUNT_DETAILS,
+			TYPE_CHANGE_PW, TYPE_UPLOAD, TYPE_LOGOUT,
+			TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
+			TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
+			TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
+			TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+			TYPE_CONFIRM_ACCOUNT,
+			TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
+			TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
+			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
+			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
+			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL
+		};
 
 		virtual ~MegaRequest() = 0;
 
@@ -991,11 +992,24 @@ class MegaRequest
          * - MegaApi::remove - Returns the handle of the node to remove
          * - MegaApi::sendFileToUser - Returns the handle of the node to send
          * - MegaApi::share - Returns the handle of the folder to share
+         * - MegaApi::getThumbnail - Returns the handle of the node to get the thumbnail
+         * - MegaApi::getPreview - Return the handle of the node to get the preview
+         * - MegaApi::cancelGetThumbnail - Return the handle of the node
+         * - MegaApi::cancelGetPreview - Returns the handle of the node
+         * - MegaApi::setThumbnail - Returns the handle of the node
+         * - MegaApi::setPreview - Returns the handle of the node
+         * - MegaApi::exportNode - Returns the handle of the node
+         * - MegaApi::disableExport - Returns the handle of the node
+         * - MegaApi::getPaymentUrl - Returns the handle of the product
+         * - MegaApi::syncFolder - Returns the handle of the folder in MEGA
+         * - MegaApi::resumeSync - Returns the handle of the folder in MEGA
+         * - MegaApi::removeSync - Returns the handle of the folder in MEGA
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code es MegaError::API_OK:
          * - MegaApi::createFolder - Returns the handle of the new folder
          * - MegaApi::copyNode - Returns the handle of the new node
+         * - MegaApi::importFileLink - Returns the handle of the new node
          *
          * @return Handle of a node related to the request
          */
@@ -1008,6 +1022,14 @@ class MegaRequest
          * - MegaApi::querySignupLink - Returns the confirmation link
          * - MegaApi::confirmAccount - Returns the confirmation link
          * - MegaApi::fastConfirmAccount - Returns the confirmation link
+         * - MegaApi::loginToFolder - Returns the link to the folder
+         * - MegaApi::importFileLink - Returns the link to the file to import
+         * - MegaApi::getPublicNode - Returns the link to the file
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::exportNode - Returns the public link
+         * - MegaApi::getPaymentUrl - Returns the payment link
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1023,6 +1045,11 @@ class MegaRequest
          * - MegaApi::createFolder - Returns the handle of the parent folder
          * - MegaApi::moveNode - Returns the handle of the new parent for the node
          * - MegaApi::copyNode - Returns the handle of the parent for the new node
+         * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::syncFolder - Returns a fingerprint of the local folder, to resume the sync with (MegaApi::resumeSync)
          *
          * @return Handle of a parent node related to the request
          */
@@ -1069,10 +1096,14 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::login - Returns the email of the account
          * - MegaApi::fastLogin - Returns the email of the account
+         * - MegaApi::loginToFolder - Returns the string "FOLDER"
          * - MegaApi::createAccount - Returns the email for the account
          * - MegaApi::fastCreateAccount - Returns the email for the account
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
          * - MegaApi::share - Returns the email that receives the shared folder
+         * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
+         * - MegaApi::addContact - Returns the email of the contact
+         * - MegaApi::removeContact - Returns the email of the contact
          *
          * This value is valid for these request in onRequestFinish when the
          * error code es MegaError::API_OK:
@@ -1095,6 +1126,7 @@ class MegaRequest
          * - MegaApi::fastLogin - Returns the hash of the email
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
+         * - MegaApi::changePassword - Returns the old password of the account (first parameter)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1105,6 +1137,9 @@ class MegaRequest
 
         /**
          * @brief Returns a new password related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::changePassword - Returns the new password for the account
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1133,6 +1168,8 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::share - Returns the access level for the shared folder
+         * - MegaApi::exportNode - Returns true
+         * - MegaApi::disableExport - Returns false
          *
          * @return Access level related to the request
          */
@@ -1143,6 +1180,16 @@ class MegaRequest
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getThumbnail - Returns the destination path for the thumbnail
+         * - MegaApi::getPreview - Returns the destination path for the preview
+         * - MegaApi::getUserAvatar - Returns the destination path for the avatar
+         * - MegaApi::setThumbnail - Returns the source path for the thumbnail
+         * - MegaApi::setPreview - Returns the source path for the preview
+         * - MegaApi::setAvatar - Returns the source path for the avatar
+         * - MegaApi::syncFolder - Returns the path of the local folder
+         * - MegaApi::resumeSync - Returns the path of the local folder
          *
          * @return Path of a file related to the request
          */
@@ -1176,31 +1223,68 @@ class MegaRequest
          *
          * You take the ownership of the returned value.
          *
+         * This value is valid for these requests:
+         * - MegaApi::copyNode - Returns the node to copy (if it is a public node)
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::getPublicNode - Returns the public node
+         *
          * @return Public node related to the request
          */
         virtual MegaNode *getPublicMegaNode() const = 0;
 
         /**
          * @brief Returns the type of parameter related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getThumbnail - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaApi::getPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
+         * - MegaApi::cancelGetThumbnail - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaApi::cancelGetPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
+         * - MegaApi::setThumbnail - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
+         * - MegaApi::submitFeedback - Returns MegaApi::EVENT_FEEDBACK
+         * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
+         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or
+         * MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         *
          * @return Type of parameter related to the request
          */
         virtual int getParamType() const = 0;
 
         /**
-         * @brief Returns a number related tothis request
+         * @brief Returns a text relative to this request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::submitFeedback - Returns the comment about the app
+         * - MegaApi::reportDebugEvent - Returns the debug message
+         *
+         * @return Text relative to this request
+         */
+        virtual const char *getText() const = 0;
+
+        /**
+         * @brief Returns a number related to this request
          *
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if transfers are retried
+         * - MegaApi::submitFeedback - Returns the rating for the app
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::resumeSync - Returns the fingerprint of the local file
          *
          * @return Number related to this request
          */
-        virtual int getNumber() const = 0;
+        virtual long long getNumber() const = 0;
 
         /**
          * @brief Returns a flag related to the request
          *
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
+         * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
          *
          * @return Flag related to the request
          */
@@ -1229,12 +1313,22 @@ class MegaRequest
 
         /**
          * @brief Returns details related to the MEGA account
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::getAccountDetails - Details of the MEGA account
+         *
          * @return Details related to the MEGA account
          */
 		virtual MegaAccountDetails *getMegaAccountDetails() const = 0;
 
         /**
          * @brief Returns available pricing plans to upgrade a MEGA account
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code es MegaError::API_OK:
+         * - MegaApi::getPricing - Returns the available pricing plans
+         *
          * @return Available pricing plans to upgrade a MEGA account
          */
         virtual MegaPricing *getPricing() const = 0;
@@ -1242,6 +1336,10 @@ class MegaRequest
 
         /**
          * @brief Returns the tag of a transfer related to the request
+         *
+         * This value is valid for these requests:
+         * - MegaApi::cancelTransfer - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         *
          * @return Tag of a transfer related to the request
          */
         virtual int getTransferTag() const = 0;
@@ -1268,7 +1366,8 @@ class MegaRequest
 class MegaTransfer
 {
 	public:
-        enum {TYPE_DOWNLOAD, TYPE_UPLOAD};
+        enum {TYPE_DOWNLOAD = 0,
+              TYPE_UPLOAD};
         
 		virtual ~MegaTransfer() = 0;
 
@@ -1363,7 +1462,10 @@ class MegaTransfer
          * @brief Returns the handle related to this transfer
          *
          * For downloads, this function returns the handle of the source node. For uploads,
-         * it always returns mega::INVALID_HANDLE.
+         * it always returns mega::INVALID_HANDLE
+         *
+         * It is possible to get the MegaNode corresponding to a just uploaded file in MegaGlobalListener::onNodesUpdate
+         * or MegaListener::onNodesUpdate.
          *
          * @return The handle of the downloaded node, or mega::INVALID_HANDLE for uploads.
          */
@@ -1464,11 +1566,10 @@ class MegaTransfer
         /**
          * @brief Returns a public node related to the transfer
          *
-         * The return value is only valid for downloads of public nodes (MegaApi::startPublicDownload)
+         * The return value is only valid for downloads of public nodes
          * You take the ownership of the returned value.
          *
          * @return Public node related to the transfer
-         * @see MegaApi::startPublicDownload
          */
         virtual MegaNode *getPublicMegaNode() const = 0;
 
@@ -2129,6 +2230,11 @@ class MegaApi
             LOG_LEVEL_MAX
         };
 
+        enum {
+            ATTR_TYPE_THUMBNAIL = 0,
+            ATTR_TYPE_PREVIEW = 1
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -2390,9 +2496,25 @@ class MegaApi
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Log in to a public folder using a folder link
+         *
+         * After a successful login, you should call MegaApi::fetchNodes to get filesystem and
+         * start working with the folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Retuns the string "FOLDER"
+         * - MegaRequest::getLink - Returns the public link to the folder
+         *
+         * @param Public link to a folder in MEGA
+         * @param listener MegaRequestListener to track this request
+         */
+        void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Log in to a MEGA account using precomputed keys
          *
-         * The associated request type with this request is MegaRequest::TYPE_FAST_LOGIN.
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the first parameter
          * - MegaRequest::getPassword - Returns the second parameter
@@ -2411,7 +2533,7 @@ class MegaApi
         /**
          * @brief Log in to a MEGA account using a session key
          *
-         * The associated request type with this request is MegaRequest::TYPE_FAST_LOGIN.
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session key
          *
@@ -2455,7 +2577,7 @@ class MegaApi
         /**
          * @brief Initialize the creation of a new MEGA account with precomputed keys
          *
-         * The associated request type with this request is MegaRequest::TYPE_FAST_CREATE_ACCOUNT.
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getPrivateKey - Returns the private key calculated with MegaApi::getBase64PwKey
@@ -2510,7 +2632,7 @@ class MegaApi
         /**
          * @brief Confirm a MEGA account using a confirmation link and a precomputed key
          *
-         * The associated request type with this request is MegaRequest::TYPE_FAST_CONFIRM_ACCOUNT
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the confirmation link
          * - MegaRequest::getPrivateKey - Returns the base64pwkey parameter
@@ -2652,6 +2774,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
          * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+         * - MegaRequest::getPublicMegaNode - Returns the node to copy (if it is a public node)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -2707,20 +2830,6 @@ class MegaApi
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Send a node to the Inbox of another MEGA user using his email
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the node to send
-         * - MegaRequest::getEmail - Returns the email of the user that receives the node
-         *
-         * @param node Node to send
-         * @param email Emeil of the user that receives the node
-         * @param listener MegaRequestListener to track this request
-         */
-        void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
@@ -2749,89 +2858,676 @@ class MegaApi
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Share or stop sharing a folder in MEGA with another user using an email
+         * @brief Import a public link to the account
          *
-         * To share a folder with an user, set the desired access level in the level parameter. If you
-         * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * The associated request type with this request is MegaRequest::TYPE_IMPORT_LINK
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
-         * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
-         * - MegaRequest::getAccess - Returns the access that is granted to the user
+         * - MegaRequest::getLink - Returns the public link to the file
+         * - MegaRequest::getParentHandle - Returns the folder that receives the imported file
          *
-         * @param node The folder to share. It must be a non-root folder
-         * @param email Email of the user that receives the shared folder
-         * @param level Permissions that are granted to the user
-         * Valid values for this parameter:
-         * - MegaShare::ACCESS_UNKNOWN = -1
-         * Stop sharing a folder with this user
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new node in the account
          *
-         * - MegaShare::ACCESS_READ = 0
-         * - MegaShare::ACCESS_READWRITE = 1
-         * - MegaShare::ACCESS_FULL = 2
-         * - MegaShare::ACCESS_OWNER = 3
+         * @param megaFileLink Public link to a file in MEGA
+         * @param parent Parent folder for the imported file
+         * @param listener MegaRequestListener to track this request
+         */
+        void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get a MegaNode from a public link to a file
+         *
+         * A public node can be imported using MegaApi::copy or downloaded using MegaApi::startDownload
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PUBLIC_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the public link to the file
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPublicMegaNode - Public MegaNode corresponding to the public link
+         *
+         * @param megaFileLink Public link to a file in MEGA
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the thumbnail of a node
+         *
+         * If the node doesn't have a thumbnail the request fails with the MegaError::API_ENOENT
+         * error code
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         *
+         * @param node Node to get the thumbnail
+         * @param dstFilePath Destination path for the thumbnail.
+         * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+         * will be used as the file name inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaRequestListener to track this request
          */
-        void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-
-
-        void folderAccess(const char* megaFolderLink, MegaRequestListener *listener = NULL);
-        void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
-        void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
-        void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
-        void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the preview of a node
+         *
+         * If the node doesn't have a preview the request fails with the MegaError::API_ENOENT
+         * error code
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
+         *
+         * @param node Node to get the preview
+         * @param dstFilePath Destination path for the preview.
+         * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "1.jpg")
+         * will be used as the file name inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
-        void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the avatar of a MegaUser
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getEmail - Returns the email of the user
+         *
+         * @param user MegaUser to get the avatar
+         * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+         * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+         * will be used as the file name inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Cancel the retrieval of a thumbnail
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         *
+         * @param node Node to cancel the retrieval of the thumbnail
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getThumbnail
+         */
+		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel the retrieval of a preview
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
+         *
+         * @param node Node to cancel the retrieval of the preview
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPreview
+         */
+        void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the thumbnail of a MegaNode
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getFile - Returns the source path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         *
+         * @param node MegaNode to set the thumbnail
+         * @param srcFilePath Source path of the file that will be set as thumbnail
+         * @param listener MegaRequestListener to track this request
+         */
+        void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the preview of a MegaNode
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getFile - Returns the source path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
+         *
+         * @param node MegaNode to set the preview
+         * @param srcFilePath Source path of the file that will be set as preview
+         * @param listener MegaRequestListener to track this request
+         */
+        void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the avatar of the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the source path
+         *
+         * @param srcFilePath Source path of the file that will be set as avatar
+         * @param listener MegaRequestListener to track this request
+         */
+        void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Generate a public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * @param node MegaNode to get the public link
+         * @param listener MegaRequestListener to track this request
+         */
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Stop sharing a file/folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns false
+         *
+         * @param node MegaNode to stop sharing
+         * @param listener MegaRequestListener to track this request
+         */
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetch the filesystem in MEGA
+         *
+         * The MegaApi object must be logged in in an account or a public folder
+         * to successfully complete this request.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void fetchNodes(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get details about the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void getAccountDetails(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the available pricing plans to upgrade a MEGA account
+         *
+         * You can get a payment URL for any of the pricing plans provided by this function
+         * using MegaApi::getPaymentUrl
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PRICING
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPricing - MegaPricing object with all pricing plans
+         *
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPaymentUrl
+         */
         void getPricing(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the payment URL for an upgrade
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_URL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Payment link
+         *
+         * @param productHandle Handle of the product (see MegaApi::getPricing)
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPricing
+         */
         void getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Export the master key of the account
+         *
+         * The returned value is a Base64-encoded string
+         *
+         * With the master key, it's possible to start the recovery of an account when the
+         * password is lost:
+         * - https://mega.co.nz/#recovery
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Base64-encoded master key
+         */
         const char *exportMasterKey();
 
+        /**
+         * @brief Change the password of the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getPassword - Returns the old password
+         * - MegaRequest::getNewPassword - Returns the new password
+         *
+         * @param oldPassword Old password
+         * @param newPassword New password
+         * @param listener MegaRequestListener to track this request
+         */
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void addContact(const char* email, MegaRequestListener* listener=NULL);
-        void removeContact(const char* email, MegaRequestListener* listener=NULL);
+
+        /**
+         * @brief Add a new contact to the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_CONTACT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         *
+         * @param email Email of the new contact
+         * @param listener MegaRequestListener to track this request
+         */
+        void addContact(const char* email, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Remove a contact to the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_CONTACT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         *
+         * @param email Email of the contact
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeContact(MegaUser *user, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Logout of the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGOUT
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void logout(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit feedback about the app
+         *
+         * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REPORT_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns MegaApi::EVENT_FEEDBACK
+         * - MegaRequest::getText - Retuns the comment about the app
+         * - MegaRequest::getNumber - Returns the rating for the app
+         *
+         * @param rating Integer to rate the app. Valid values: from 1 to 5.
+         * @param comment Comment about the app
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is for internal usage of MEGA apps. This feedback
+         * is sent to MEGA servers.
+         *
+         */
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send a debug report
+         *
+         * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REPORT_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns MegaApi::EVENT_DEBUG
+         * - MegaRequest::getText - Retuns the debug message
+         *
+         * @param text Debug message
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is for internal usage of MEGA apps. This feedback
+         * is sent to MEGA servers.
+         */
         void reportDebugEvent(const char *text, MegaRequestListener *listener = NULL);
 
-        //Transfers
+
+
+        ///////////////////   TRANSFERS ///////////////////
+
+        /**
+         * @brief Upload a file
+         * @param Local path of the file
+         * @param Parent node for the file in the MEGA account
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
+
+        /**
+         * @brief Upload a file with a custom modification time
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
+
+        /**
+         * @brief Upload a file with a custom name
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param fileName Custom file name for the file in MEGA
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Upload a file with a custom name and a custom modification time
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param fileName Custom file name for the file in MEGA
+         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Download a file from MEGA
+         * @param node MegaNode that identifies the file
+         * @param localPath Destination path for the file
+         * If this path is a local folder, it must end with a '\' or '/' character and the file name
+         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         *
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Start an streaming download
+         *
+         * Streaming downloads don't save the downloaded data into a local file. It is provided
+         * in MegaTransferListener::onTransferUpdate in a byte buffer. The pointer is returned by
+         * MegaTransfer::getLastBytes and the size of the buffer in MegaTransfer::getDeltaSize
+         *
+         * The same byte array is also provided in the callback MegaTransferListener::onTransferData for
+         * compatibility with other programming languages. Only the MegaTransferListener passed to this function
+         * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
+         * with MegaApi::addTransferListener won't receive them for performance reasons
+         *
+         * @param node MegaNode that identifies the file (public nodes aren't supported yet)
+         * @param startPos First byte to download from the file
+         * @param size Size of the data to download
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
-        void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
-        void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
-        void pauseTransfers(bool pause, MegaRequestListener* listener=NULL);
+
+        /**
+         * @brief Cancel a transfer
+         *
+         * When a transfer is cancelled, it will finish and will provide the error code
+         * MegaError::API_EINCOMPLETE in MegaTransferListener::onTransferFinish and
+         * MegaListener::onTransferFinish
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         *
+         * @param transfer MegaTransfer object that identifies the transfer
+         * You can get this object in any MegaTransferListener callback or any MegaListener callback
+         * related to transfers.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel all transfers of the same type
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFERS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the first parameter
+         *
+         * @param type Type of transfers to cancel.
+         * Valid values are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelTransfers(int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Pause/resume all transfers
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFERS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns the first parameter
+         *
+         * @param pause true to pause all transfers / false to resume all transfers
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransfers(bool pause, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Set the upload speed limit
+         *
+         * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
+         * applied for already started uploads and it's applied per storage server.
+         *
+         * @param bpslimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
+         * in bytes per second
+         */
         void setUploadLimit(int bpslimit);
+
+        /**
+         * @brief Get all active transfers
+         * @return List with all active transfers
+         */
         MegaTransferList *getTransfers();
 
 #ifdef ENABLE_SYNC
-        //Sync
+
+        ///////////////////   SYNCHRONIZATION   ///////////////////
+
+        /**
+         * @brief Get the synchronization state of a local file
+         * @param Path of the local file
+         * @return Synchronization state of the local file.
+         * Valid values are:
+         * - STATE_NONE = 0
+         * The file isn't inside a synced folder
+         *
+         * - STATE_SYNCED = 1
+         * The file is in sync with the MEGA account
+         *
+         * - STATE_PENDING = 2
+         * The file is pending to be synced with the MEGA account
+         *
+         * - STATE_SYNCING = 3
+         * The file is being synced with the MEGA account
+         *
+         * - STATE_IGNORED = 4
+         * The file is inside a synced folder, but it is ignored
+         * by the selected exclusion filters
+         *
+         */
         int syncPathState(std::string *path);
+
+        /**
+         * @brief Get the MegaNode associated with a local synced file
+         * @param path Local path of the file
+         * @return The same file in MEGA or NULL if the file isn't synced
+         */
         MegaNode *getSyncedNode(std::string *path);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder);
-        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder);
-        void removeSync(MegaHandle nodeMegaHandle, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Synchronize a local folder and a folder in MEGA
+         *
+         * This function should be used to add a new synchronized folders. To resume a previously
+         * added synchronized folder, use MegaApi::resumeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync (MegaApi::resumeSync)
+         *
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::resumeSync
+         */
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Resume a previously synced folder
+         *
+         * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
+         * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
+         * are correctly applied.
+         *
+         * The third parameter allows to pass a fingerprint of the local folder to check if it has changed since
+         * the previous execution. That fingerprint can be obtained using MegaRequest::getParentHandle in the
+         * onRequestFinish callback if the MegaApi::syncFolder request. If the provided fingerprint doesn't match
+         * the current fingerprint of the local folder, this request will fail with the error code
+         * MegaError::API_EFAILED
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumber - Returns the fingerprint of the local folder
+         *
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param localfp Fingerprint of the local file
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Remove a synced folder
+         *
+         * The folder will stop being synced. Nothing in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         *
+         * @param megaFolder MEGA folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove all active synced folders
+         *
+         * All folders will stop being synced. Nothing in the local nor in the remote folders
+         * will be deleted due to the usage of this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeSyncs(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the number of active synced folders
+         * @return The number of active synced folders
+         *
+         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
+         * be removed in future updates.
+         */
         int getNumActiveSyncs();
-        void stopSyncs(MegaRequestListener *listener=NULL);
-        bool isIndexing();
+
+        /**
+         * @brief Check if the synchronization engine is scanning files
+         * @return true if it is scanning, otherwise false
+         */
+        bool isScanning();
+
+        /**
+         * @brief Check if the MegaNode is synchronized with a local file
+         * @param MegaNode to check
+         * @return true if the node is synchronized, othewise false
+         * @see MegaApi::getLocalPath
+         */
         bool isSynced(MegaNode *n);
+
+        /**
+         * @brief Set a list of excluded file names
+         *
+         * Wildcards (* and ?) are allowed
+         *
+         * @param List of excluded file names
+         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
+         * function will be removed in future updates
+         */
         void setExcludedNames(std::vector<std::string> *excludedNames);
+
+        /**
+         * @brief Move a local file to the local "Debris" folder
+         *
+         * The file have to be inside a local synced folder
+         *
+         * @param path Path of the local file
+         * @return true on success, false on failure
+         */
         bool moveToLocalDebris(const char *path);
+
+        /**
+         * @brief Check if a name is syncable based on the excluded names
+         * @param name Name to check
+         * @return true if the name is syncable, otherwise false
+         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
+         * function will be removed or modified in future updates
+         */
         bool isSyncable(const char *name);
+
+        /**
+         * @brief Get the corresponding local path of a synced node
+         * @param Node to check
+         * @return Local path of the corresponding file in the local computer. If the node is't synced
+         * this function returns an empty string.
+         *
+         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
+         * be removed in future updates.
+         */
         std::string getLocalPath(MegaNode *node);
 #endif
 
@@ -3393,31 +4089,148 @@ private:
 
 
 class MegaHashSignatureImpl;
+
+/**
+ * @brief Class to check a digital signatures
+ *
+ * The typical usage of this class:
+ * - Construct the object using a public key
+ * - Add data using MegaHashSignature::add (it can be called many times to add more data)
+ * - Call MegaHashSignature::check to know if the data matches a signature
+ * - Call MegaHashSignature::init and reuse the object if needed
+ */
 class MegaHashSignature
 {
 public:
+    /**
+     * @brief Initialize the object with a public key to check digital signatures
+     * @param base64Key Base64-encode public key.
+     *
+     * This is the public key used to distribute MEGAsync updates:
+     * "EACTzXPE8fdMhm6LizLe1FxV2DncybVh2cXpW3momTb8tpzRNT833r1RfySz5uHe8gdoXN1W0eM5Bk8X-LefygYYDS9RyXrRZ8qXrr9ITJ4r8ATnFIEThO5vqaCpGWTVi5pOPI5FUTJuhghVKTyAels2SpYT5CmfSQIkMKv7YVldaV7A-kY060GfrNg4--ETyIzhvaSZ_jyw-gmzYl_dwfT9kSzrrWy1vQG8JPNjKVPC4MCTZJx9SNvp1fVi77hhgT-Mc5PLcDIfjustlJkDBHtmGEjyaDnaWQf49rGq94q23mLc56MSjKpjOR1TtpsCY31d1Oy2fEXFgghM0R-1UkKswVuWhEEd8nO2PimJOl4u9ZJ2PWtJL1Ro0Hlw9OemJ12klIAxtGV-61Z60XoErbqThwWT5Uu3D2gjK9e6rL9dufSoqjC7UA2C0h7KNtfUcUHw0UWzahlR8XBNFXaLWx9Z8fRtA_a4seZcr0AhIA7JdQG5i8tOZo966KcFnkU77pfQTSprnJhCfEmYbWm9EZA122LJBWq2UrSQQN3pKc9goNaaNxy5PYU1yXyiAfMVsBDmDonhRWQh2XhdV-FWJ3rOGMe25zOwV4z1XkNBuW4T1JF2FgqGR6_q74B2ccFC8vrNGvlTEcs3MSxTI_EKLXQvBYy7hxG8EPUkrMVCaWzzTQAFEQ"
+     */
     MegaHashSignature(const char *base64Key);
     ~MegaHashSignature();
+
+    /**
+     * @brief Reinitialize the object
+     */
     void init();
+
+    /**
+     * @brief Add data to calculate the signature
+     * @param data Byte buffer with the data
+     * @param size Size of the buffer
+     */
     void add(const char *data, unsigned size);
+
+    /**
+     * @brief Check if the introduced data matches a signature
+     * @param Base64-encoded digital signature
+     * @return true if the signature is correct, otherwise false
+     */
     bool check(const char *base64Signature);
 
 private:
 	MegaHashSignatureImpl *pImpl;    
 };
 
+
+/**
+ * @brief Details about a MEGA account
+ */
 class MegaAccountDetails
 {
 public:
+    enum
+    {
+        ACCOUNT_TYPE_FREE = 0,
+        ACCOUNT_TYPE_PROI = 1,
+        ACCOUNT_TYPE_PROII = 2,
+        ACCOUNT_TYPE_PROIII = 3
+    };
+
 	virtual ~MegaAccountDetails() = 0;
+
+    /**
+     * @brief Get the PRO level of the MEGA account
+     * @return PRO level of the MEGA account.
+     * Valid values are:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     */
     virtual int getProLevel() = 0;
+
+    /**
+     * @brief Get the maximum storage for the account (in bytes)
+     * @return Maximum storage for the account (in bytes)
+     */
     virtual long long getStorageMax() = 0;
+
+    /**
+     * @brief Get the used storage
+     * @return Used storage (in bytes)
+     */
     virtual long long getStorageUsed() = 0;
+
+    /**
+     * @brief Get the maximum available bandwidth for the account
+     * @return Maximum available bandwidth (in bytes)
+     */
     virtual long long getTransferMax() = 0;
+
+    /**
+     * @brief Get the used bandwidth
+     * @return Used bandwidth (in bytes)
+     */
     virtual long long getTransferOwnUsed() = 0;
+
+    /**
+     * @brief Get the used storage in for a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Used storage (in bytes)
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
     virtual long long getStorageUsed(MegaHandle handle) = 0;
+
+    /**
+     * @brief Get the number of files in a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Number of files in the node
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
     virtual long long getNumFiles(MegaHandle handle) = 0;
+
+    /**
+     * @brief Get the number of folders in a node
+     *
+     * Only root nodes are supported.
+     *
+     * @param handle Handle of the node to check
+     * @return Number of folders in the node
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     */
     virtual long long getNumFolders(MegaHandle handle) = 0;
+
+    /**
+     * @brief Creates a copy of this MegaAccountDetails object.
+     *
+     * The resulting object is fully independent of the source MegaAccountDetails,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaAccountDetails object
+     */
 	virtual MegaAccountDetails* copy() = 0;
 };
 
@@ -3425,14 +4238,82 @@ class MegaPricing
 {
 public:
     virtual ~MegaPricing() = 0;
+
+    /**
+     * @brief Get the number of available products to upgrade the account
+     * @return Number of available products
+     */
     virtual int getNumProducts() = 0;
+
+    /**
+     * @brief Get the handle of a product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Handle of the product
+     * @see MegaApi::getPaymentUrl
+     */
     virtual MegaHandle getHandle(int productIndex) = 0;
+
+    /**
+     * @brief Get the PRO level associated with the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return PRO level associated with the product:
+     * Valid values are:
+     * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+     * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+     */
     virtual int getProLevel(int productIndex) = 0;
+
+    /**
+     * @brief Get the number of GB of storage associated with the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of storage
+     */
     virtual int getGBStorage(int productIndex) = 0;
+
+    /**
+     * @brief Get the number of GB of bandwidth associated with the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of bandwidth
+     */
     virtual int getGBTransfer(int productIndex) = 0;
+
+    /**
+     * @brief Get the duration of the product (in months)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Duration of the product (in months)
+     */
     virtual int getMonths(int productIndex) = 0;
+
+    /**
+     * @brief getAmount Get the price of the product (in cents)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Price of the product (in cents)
+     */
     virtual int getAmount(int productIndex) = 0;
+
+    /**
+     * @brief Get the currency associated with MegaPricing::getAmount
+     *
+     * The SDK retains the ownership of the returned value.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Currency associated with MegaPricing::getAmount
+     */
     virtual const char* getCurrency(int productIndex) = 0;
+
+    /**
+     * @brief Creates a copy of this MegaPricing object.
+     *
+     * The resulting object is fully independent of the source MegaPricing,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaPricing object
+     */
     virtual MegaPricing *copy() = 0;
 };
 

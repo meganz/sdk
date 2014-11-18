@@ -361,7 +361,7 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaNode *getPublicMegaNode() const;
         virtual int getParamType() const;
         virtual const char *getText() const;
-        virtual int getNumber() const;
+        virtual long long getNumber() const;
         virtual bool getFlag() const;
         virtual long long getTransferredBytes() const;
         virtual long long getTotalBytes() const;
@@ -387,7 +387,7 @@ class MegaRequestPrivate : public MegaRequest
 		const char* newPassword;
 		const char* privateKey;
         const char* text;
-        int number;
+        long long number;
 		int access;
 		const char* file;
 		int attrType;
@@ -673,9 +673,8 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-        void folderAccess(const char* megaFolderLink, MegaRequestListener *listener = NULL);
+        void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
-        void importPublicNode(MegaNode *publicNode, MegaNode *parent, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
@@ -695,7 +694,7 @@ class MegaApiImpl : public MegaApp
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
-        void removeContact(const char* email, MegaRequestListener* listener=NULL);
+        void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
@@ -718,8 +717,8 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder);
-        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
@@ -983,7 +982,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void startDownload(handle nodehandle, const char* target, long startPos, long endPos, MegaTransferListener *listener);
+        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
 
 class MegaHashSignatureImpl

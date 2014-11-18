@@ -163,6 +163,17 @@ Node::~Node()
 #endif
 }
 
+// update node key and decrypt attributes
+void Node::setkey(const byte* newkey)
+{
+    if (newkey)
+    {
+        nodekey.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+    }
+
+    setattr();
+}
+
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
 Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
@@ -508,6 +519,7 @@ void Node::setattr()
         delete[] buf;
 
         attrstring.clear();
+		std::string().swap(attrstring);
     }
 }
 

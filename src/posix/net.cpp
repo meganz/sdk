@@ -1033,7 +1033,14 @@ bool CurlHttpIO::doio()
                     }
                     else
                     {
-                        LOG_debug << "Received: " << req->in.c_str();
+                        if(req->in.size() < 2048)
+                        {
+                            LOG_debug << "Received: " << req->in.c_str();
+                        }
+                        else
+                        {
+                            LOG_debug << "Received: " << req->in.substr(0,2048).c_str();
+                        }
                     }
                 }
 

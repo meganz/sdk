@@ -298,7 +298,14 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 }
                 else
                 {
-                    LOG_debug << "Received: " << req->in.c_str();
+                    if(req->in.size() < 2048)
+                    {
+                        LOG_debug << "Received: " << req->in.c_str();
+                    }
+                    else
+                    {
+                        LOG_debug << "Received: " << req->in.substr(0,2048).c_str();
+                    }
                 }
 
                 LOG_debug << "Request finished with HTTP status: " << req->httpstatus;
