@@ -27,7 +27,7 @@ MegaHandle MPricing::getHandle(int productIndex)
 
 MAccountType MPricing::getProLevel(int productIndex)
 {
-	return pricing ? (MAccountType)pricing->getProLevel(productIndex) : MAccountType::FREE;
+	return pricing ? (MAccountType)pricing->getProLevel(productIndex) : MAccountType::ACCOUNT_TYPE_FREE;
 }
 
 int MPricing::getGBStorage(int productIndex)

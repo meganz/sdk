@@ -6,10 +6,10 @@ namespace mega
 {
 	public enum class MAccountType
 	{
-		FREE = 0,
-		PROI = 1,
-		PROII = 2,
-		PROIII = 3
+		ACCOUNT_TYPE_FREE = 0,
+		ACCOUNT_TYPE_PROI = 1,
+		ACCOUNT_TYPE_PROII = 2,
+		ACCOUNT_TYPE_PROIII = 3
 	};
 
 	public ref class MAccountDetails sealed

@@ -9,7 +9,7 @@ namespace mega
 	using namespace Windows::Foundation;
 	using Platform::String;
 
-	public enum class MTransferType { TYPE_DOWNLOAD, TYPE_UPLOAD };
+	public enum class MTransferType { TYPE_DOWNLOAD = 0, TYPE_UPLOAD };
 
 	public ref class MTransfer sealed
 	{

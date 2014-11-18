@@ -43,6 +43,12 @@ namespace mega
 		ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC
 	};
 
+	public enum class MEventType {
+		EVENT_FEEDBACK = 0,
+		EVENT_DEBUG,
+		EVENT_INVALID
+	};
+
 	public enum class MLogLevel {
 		LOG_LEVEL_FATAL = 0, 
 		LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
@@ -50,6 +56,11 @@ namespace mega
 		LOG_LEVEL_INFO,    // Mainly useful to represent current progress of application.
 		LOG_LEVEL_DEBUG,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
 		LOG_LEVEL_MAX
+	};
+
+	public enum class MAttrType {
+		ATTR_TYPE_THUMBNAIL = 0,
+		ATTR_TYPE_PREVIEW = 1
 	};
 
 	public ref class MegaSDK sealed
@@ -105,16 +116,12 @@ namespace mega
 		void renameNode(MNode^ node, String^ newName);
 		void remove(MNode^ node, MRequestListenerInterface^ listener);
 		void remove(MNode^ node);
-		void shareWithUser(MNode^ node, MUser^ user, int level, MRequestListenerInterface^ listener);
-		void shareWithUser(MNode^ node, MUser^ user, int level);
-		void shareWithEmail(MNode^ node, String^ email, int level, MRequestListenerInterface^ listener);
-		void shareWithEmail(MNode^ node, String^ email, int level);
-		void folderAccess(String^ megaFolderLink, MRequestListenerInterface^ listener);
-		void folderAccess(String^ megaFolderLink);
+		void share(MNode^ node, MUser^ user, int level, MRequestListenerInterface^ listener);
+		void share(MNode^ node, MUser^ user, int level);
+		void loginToFolder(String^ megaFolderLink, MRequestListenerInterface^ listener);
+		void loginToFolder(String^ megaFolderLink);
 		void importFileLink(String^ megaFileLink, MNode^ parent, MRequestListenerInterface^ listener);
 		void importFileLink(String^ megaFileLink, MNode^ parent);
-		void importPublicNode(MNode^ publicNode, MNode^ parent, MRequestListenerInterface^ listener);
-		void importPublicNode(MNode^ publicNode, MNode^ parent);
 		void getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener);
 		void getPublicNode(String^ megaFileLink);
 		void getThumbnail(MNode^ node, String^ dstFilePath, MRequestListenerInterface^ listener);
@@ -150,8 +157,8 @@ namespace mega
 		void changePassword(String^ oldPassword, String^ newPassword);
 		void addContact(String^ email, MRequestListenerInterface^ listener);
 		void addContact(String^ email);
-		void removeContact(String^ email, MRequestListenerInterface^ listener);
-		void removeContact(String^ email);
+		void removeContact(MUser^ user, MRequestListenerInterface^ listener);
+		void removeContact(MUser^ user);
 		void logout(MRequestListenerInterface^ listener);
 		void logout();
 		void startUpload(String^ localPath, MNode^ parent, MTransferListenerInterface^ listener);
@@ -160,8 +167,6 @@ namespace mega
 		void startUploadToFile(String^ localPath, MNode^ parent, String^ fileName);
 		void startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
 		void startDownload(MNode^ node, String^ localPath);
-		void startPublicDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
-		void startPublicDownload(MNode^ node, String^ localPath);
 		void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
 		void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
 		void cancelTransfer(MTransfer^ transfer);
