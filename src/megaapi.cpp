@@ -414,34 +414,19 @@ void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener
     pImpl->sendFileToUser(node, user, listener);
 }
 
-void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
-{
-    pImpl->sendFileToUser(node, email, listener);
-}
-
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
 {
     pImpl->share(node, user, access, listener);
 }
 
-void MegaApi::share(MegaNode *node, const char* email, int access, MegaRequestListener *listener)
+void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
 {
-    pImpl->share(node, email, access, listener);
-}
-
-void MegaApi::folderAccess(const char* megaFolderLink, MegaRequestListener *listener)
-{
-    pImpl->folderAccess(megaFolderLink, listener);
+    pImpl->loginToFolder(megaFolderLink, listener);
 }
 
 void MegaApi::importFileLink(const char* megaFileLink, MegaNode *parent, MegaRequestListener *listener)
 {
     pImpl->importFileLink(megaFileLink, parent, listener);
-}
-
-void MegaApi::importPublicNode(MegaNode *publicNode, MegaNode* parent, MegaRequestListener *listener)
-{
-    pImpl->importPublicNode(publicNode, parent, listener);
 }
 
 void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
@@ -549,9 +534,9 @@ void MegaApi::addContact(const char* email, MegaRequestListener* listener)
     pImpl->addContact(email, listener);
 }
 
-void MegaApi::removeContact(const char* email, MegaRequestListener* listener)
+void MegaApi::removeContact(MegaUser *user, MegaRequestListener* listener)
 {
-    pImpl->removeContact(email, listener);
+    pImpl->removeContact(user, listener);
 }
 
 void MegaApi::pauseTransfers(bool pause, MegaRequestListener* listener)
@@ -595,11 +580,6 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
     pImpl->startDownload(node, localFolder, listener);
 }
 
-void MegaApi::startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener)
-{
-    pImpl->startPublicDownload(node, localPath, listener);
-}
-
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
@@ -633,19 +613,24 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder)
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-   pImpl->syncFolder(localFolder, megaFolder);
+   pImpl->syncFolder(localFolder, megaFolder, listener);
 }
 
-void MegaApi::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder)
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder);
+    pImpl->resumeSync(localFolder, localfp, megaFolder, listener);
 }
 
-void MegaApi::removeSync(uint64_t nodeuint64_t, MegaRequestListener* listener)
+void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 {
-    pImpl->removeSync(nodeuint64_t, listener);
+    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
+}
+
+void MegaApi::removeSyncs(MegaRequestListener *listener)
+{
+   pImpl->stopSyncs(listener);
 }
 
 int MegaApi::getNumActiveSyncs()
@@ -653,17 +638,12 @@ int MegaApi::getNumActiveSyncs()
     return pImpl->getNumActiveSyncs();
 }
 
-void MegaApi::stopSyncs(MegaRequestListener *listener)
-{
-   pImpl->stopSyncs(listener);
-}
-
 string MegaApi::getLocalPath(MegaNode *n)
 {
     return pImpl->getLocalPath(n);
 }
 
-bool MegaApi::isIndexing()
+bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
 }
