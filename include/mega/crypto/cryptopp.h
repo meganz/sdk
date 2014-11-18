@@ -2,7 +2,7 @@
  * @file cryptopp.h
  * @brief Crypto layer using Crypto++
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -98,11 +98,10 @@ public:
 
     byte key[KEYLENGTH];
 
-    int keyvalid;
-
     typedef uint64_t ctr_iv;
 
     void setkey(const byte*, int = 1);
+    bool setkey(const string*);
 
     /**
      * @brief Encrypt symmetrically using AES in ECB mode.
@@ -235,7 +234,7 @@ public:
 
     static void incblock(byte*, unsigned = BLOCKSIZE);
 
-    SymmCipher();
+    SymmCipher() { }
     SymmCipher(const byte*);
 };
 

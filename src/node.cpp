@@ -466,12 +466,26 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
     return NULL;
 }
 
+// return temporary SymmCipher for this nodekey
+SymmCipher* Node::nodecipher()
+{
+    static SymmCipher symmcipher;
+
+    if (symmcipher.setkey(&nodekey))
+    {
+        return &symmcipher;
+    }
+
+    return NULL;
+}
+
 // decrypt attributes and build attribute hash
 void Node::setattr()
 {
     byte* buf;
+    SymmCipher* cipher;
 
-    if (attrstring.size() && (buf = decryptattr(&key, attrstring.c_str(), attrstring.size())))
+    if (attrstring.size() && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring.c_str(), attrstring.size())))
     {
         JSON json;
         nameid name;
@@ -562,10 +576,14 @@ int Node::hasfileattribute(fatype t) const
     return fileattrstring.find(buf) + 1;
 }
 
-// attempt to apply node key - clears keystring if successful
+// attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    if (!keystring.length())
+    int keylength = (type == FILENODE)
+                   ? FILENODEKEYLENGTH + 0
+                   : FOLDERNODEKEYLENGTH + 0;
+
+    if (nodekey.size() == keylength || !nodekey.size())
     {
         return false;
     }
@@ -576,12 +594,12 @@ bool Node::applykey()
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
 
-    while ((t = keystring.find_first_of(':', t)) != (int)string::npos)
+    while ((t = nodekey.find_first_of(':', t)) != (int)string::npos)
     {
         // compound key: locate suitable subkey (always symmetric)
         h = 0;
 
-        l = Base64::atob(keystring.c_str() + (keystring.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
+        l = Base64::atob(nodekey.c_str() + (nodekey.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
         t++;
 
         if (l == MegaClient::USERHANDLE)
@@ -613,7 +631,7 @@ bool Node::applykey()
             }
         }
 
-        k = keystring.c_str() + t;
+        k = nodekey.c_str() + t;
         break;
     }
 
@@ -623,7 +641,7 @@ bool Node::applykey()
     {
         if (l < 0)
         {
-            k = keystring.c_str();
+            k = nodekey.c_str();
         }
         else
         {
@@ -633,29 +651,13 @@ bool Node::applykey()
 
     byte key[FILENODEKEYLENGTH];
 
-    if (client->decryptkey(k, key,
-                           (type == FILENODE)
-                          ? FILENODEKEYLENGTH + 0
-                          : FOLDERNODEKEYLENGTH + 0,
-                           sc, 0, nodehandle))
+    if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
-        keystring.clear();
-        setkey(key);
+        nodekey.assign((const char*)key, keylength);
+        setattr();
     }
 
     return true;
-}
-
-// update node key and decrypt attributes
-void Node::setkey(const byte* newkey)
-{
-    if (newkey)
-    {
-        nodekey.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
-    }
-
-    key.setkey((const byte*)nodekey.data(), type);
-    setattr();
 }
 
 // returns whether node was moved
