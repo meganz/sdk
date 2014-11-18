@@ -95,6 +95,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
     const char* ptr = req.data();
     const char* endptr = ptr + req.size();
     Node* n;
+    SymmCipher* cipher;
     faf_map::iterator it;
     uint32_t falen = 0;
 
@@ -132,9 +133,11 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
 
                 if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
                 {
-                    n->key.cbc_decrypt((byte*)ptr, falen);
-
-                    client->app->fa_complete(n, it->second->type, ptr, falen);
+                    if ((cipher = n->nodecipher()))
+                    {
+                        cipher->cbc_decrypt((byte*)ptr, falen);
+                        client->app->fa_complete(n, it->second->type, ptr, falen);
+                    }
 
                     delete it->second;
                     fafs[1].erase(it);

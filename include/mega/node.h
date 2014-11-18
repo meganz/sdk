@@ -39,6 +39,8 @@ struct MEGA_API NodeCore
     nodetype_t type;
 
     // full folder/file key, symmetrically or asymmetrically encrypted
+    // node crypto keys (raw or cooked -
+    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekey;
 
     // node attributes
@@ -72,9 +74,6 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 {
     MegaClient* client;
 
-    // node crypto keys
-    string keystring;
-
     // change parent node association
     bool setparent(Node*);
 
@@ -84,14 +83,14 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // try to resolve node key string
     bool applykey();
 
+    // set up nodekey in a static SymmCipher
+    SymmCipher* nodecipher();
+
     // decrypt attribute string and set fileattrs
     void setattr();
 
     // display name (UTF-8)
     const char* displayname() const;
-
-    // node-specific key
-    SymmCipher key;
 
     // node attributes
     AttrMap attrs;

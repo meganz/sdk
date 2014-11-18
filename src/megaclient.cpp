@@ -23,7 +23,6 @@
 
 namespace mega {
 
-// FIXME: disable syncs if inbound share permissions change from FULL
 // FIXME: generate cr element for file imports
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
@@ -95,6 +94,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
         if (Base64::atob(sk, tk, tl) != tl)
         {
             LOG_warn << "Corrupt or invalid symmetric node key";
+exit(0);
             return false;
         }
 
@@ -2975,6 +2975,13 @@ error MegaClient::setattr(Node* n, const char** newattr)
         return API_EACCESS;
     }
 
+    SymmCipher* cipher;
+
+    if (!(cipher = n->nodecipher()))
+    {
+        return API_EKEY;
+    }
+
     if (newattr)
     {
         while (*newattr)
@@ -2987,7 +2994,7 @@ error MegaClient::setattr(Node* n, const char** newattr)
     n->changed.attrs = true;
     notifynode(n);
 
-    reqs[r].add(new CommandSetAttr(this, n));
+    reqs[r].add(new CommandSetAttr(this, n, cipher));
 
     return API_OK;
 }
@@ -3530,7 +3537,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 n->tag = tag;
 
                 Node::copystring(&n->attrstring, a);
-                Node::copystring(&n->keystring, k);
+                Node::copystring(&n->nodekey, k);
 
                 if (!ISUNDEF(su))
                 {
@@ -5077,7 +5084,7 @@ void MegaClient::purgenodesusersabortsc()
 // request direct read by node pointer
 void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 {
-    queueread(n->nodehandle, true, &n->key, MemAccess::get<int64_t>((const char*)n->nodekey.data() + SymmCipher::KEYLENGTH), count, offset, appdata);
+    queueread(n->nodehandle, true, n->nodecipher(), MemAccess::get<int64_t>((const char*)n->nodekey.data() + SymmCipher::KEYLENGTH), count, offset, appdata);
 }
 
 // request direct read by exported handle / key
@@ -5696,7 +5703,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 {
                     if (!l->reported)
                     {
-                        LOG_warn << "Sync: Undecryptable child node. " << (*it)->keystring.c_str();
+                        LOG_warn << "Sync: Undecryptable child node. " << (*it)->nodekey.c_str();
 
                         l->reported = true;
 
@@ -5704,7 +5711,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
                         
-                        sprintf(report + 8, " %d %.200s", (*it)->type, (*it)->keystring.c_str());
+                        sprintf(report + 8, " %d %.200s", (*it)->type, (*it)->nodekey.c_str());
 
                         reqtag = 0;
 

@@ -2,7 +2,7 @@
  * @file cryptopp.cpp
  * @brief Crypto layer using Crypto++
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -46,11 +46,6 @@ uint32_t PrnGen::genuint32(uint64_t max)
     return (uint32_t)(((uint64_t)t) / ((((uint64_t)(~(uint32_t)0)) + 1) / max));
 }
 
-SymmCipher::SymmCipher()
-{
-    keyvalid = 0;
-}
-
 SymmCipher::SymmCipher(const byte* key)
 {
     setkey(key);
@@ -61,6 +56,7 @@ byte SymmCipher::zeroiv[BLOCKSIZE];
 void SymmCipher::setkey(const byte* newkey, int type)
 {
     memcpy(key, newkey, KEYLENGTH);
+
     if (!type)
     {
         xorblock(newkey + KEYLENGTH, key);
@@ -74,8 +70,18 @@ void SymmCipher::setkey(const byte* newkey, int type)
 
     aesccm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
     aesccm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+}
 
-    keyvalid = 1;
+bool SymmCipher::setkey(const string* key)
+{
+    if (key->size() == FILENODEKEYLENGTH || key->size() == FOLDERNODEKEYLENGTH)
+    {
+        setkey((const byte*)key->data(), (key->size() == FOLDERNODEKEYLENGTH) ? FOLDERNODE : FILENODE);
+
+        return true;
+    }
+
+    return false;
 }
 
 /**

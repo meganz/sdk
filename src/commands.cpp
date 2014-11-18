@@ -595,7 +595,7 @@ void CommandGetFile::procresult()
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher)
 {
     cmd("a");
     notself(client);
@@ -603,7 +603,7 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n)
     string at;
 
     n->attrs.getjson(&at);
-    client->makeattr(&n->key, &at, at.c_str(), at.size());
+    client->makeattr(cipher, &at, at.c_str(), at.size());
 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), at.size());

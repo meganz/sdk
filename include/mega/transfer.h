@@ -144,7 +144,7 @@ struct MEGA_API DirectReadNode
     int retries;
 
     int64_t ctriv;
-    SymmCipher key;
+    SymmCipher symmcipher;
 
     dr_list reads;
 
