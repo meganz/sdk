@@ -93,11 +93,6 @@ uint64 MTransfer::getParentHandle()
 	return megaTransfer ? megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-int MTransfer::getNumConnections() 
-{
-	return megaTransfer ? megaTransfer->getNumConnections() : 0;
-}
-
 uint64 MTransfer::getStartPos() 
 {
 	return megaTransfer ? megaTransfer->getStartPos() : 0;
@@ -106,11 +101,6 @@ uint64 MTransfer::getStartPos()
 uint64 MTransfer::getEndPos()
 {
 	return megaTransfer ? megaTransfer->getEndPos() : 0;
-}
-
-int MTransfer::getMaxSpeed()
-{
-	return megaTransfer ? megaTransfer->getMaxSpeed() : 0;
 }
 
 String^ MTransfer::getFileName() 
@@ -134,22 +124,6 @@ int MTransfer::getMaxRetries()
 	return megaTransfer ? megaTransfer->getMaxRetries() : 0;
 }
 
-uint64 MTransfer::getTime()
-{
-	return megaTransfer ? megaTransfer->getTime() : 0;
-}
-
-String^ MTransfer::getBase64Key()
-{
-	if (!megaTransfer) return nullptr;
-
-	std::string utf16base64key;
-	const char *utf8base64key = megaTransfer->getBase64Key();
-	MegaApi::utf8ToUtf16(utf8base64key, &utf16base64key);
-
-	return ref new String((wchar_t *)utf16base64key.data());
-}
-
 int MTransfer::getTag()
 {
 	return megaTransfer ? megaTransfer->getTag() : 0;
@@ -170,9 +144,15 @@ uint64 MTransfer::getUpdateTime()
 	return megaTransfer ? megaTransfer->getUpdateTime() : 0;
 }
 
-MNode^ MTransfer::getPublicNode()
+MNode^ MTransfer::getPublicMegaNode()
 {
-	return megaTransfer && megaTransfer->getPublicNode() ? ref new MNode(megaTransfer->getPublicNode()->copy(), true) : nullptr;
+	if (!megaTransfer)
+	{
+		return nullptr;
+	}
+
+	MegaNode *node = megaTransfer->getPublicMegaNode();
+	return node ? ref new MNode(node, true) : nullptr;
 }
 
 bool MTransfer::isSyncTransfer()

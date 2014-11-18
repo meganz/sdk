@@ -12,6 +12,8 @@ namespace mega
 	public ref class MUserList sealed
 	{
 		friend ref class MegaSDK;
+		friend class DelegateMListener;
+		friend class DelegateMGlobalListener;
 
 	public:
 		virtual ~MUserList();
@@ -19,9 +21,8 @@ namespace mega
 		int size();
 
 	private:
-		MUserList(UserList *userList, bool cMemoryOwn);
-		UserList *userList;
-		UserList *getCPtr();
+		MUserList(MegaUserList *userList, bool cMemoryOwn);
+		MegaUserList *userList;
 		bool cMemoryOwn;
 	};
 }

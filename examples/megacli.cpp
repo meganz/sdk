@@ -239,6 +239,7 @@ void DemoApp::transfer_prepare(Transfer* t)
     }
 }
 
+#ifdef ENABLE_SYNC
 static void syncstat(Sync* sync)
 {
     cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
@@ -401,6 +402,7 @@ bool DemoApp::sync_syncable(const char* name, string* localpath, string* localna
 {
     return is_syncable(name);
 }
+#endif
 
 AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint)
@@ -1420,12 +1422,14 @@ static void process_line(char* l)
                 cout << "      get exportedfilelink#key [offset [length]]" << endl;
                 cout << "      getq [cancelslot]" << endl;
                 cout << "      pause [get|put] [hard] [status]" << endl;
-                cout << "      getfa type [path]" << endl;
+                cout << "      getfa type [path] [cancel]" << endl;
                 cout << "      mkdir remotepath" << endl;
                 cout << "      rm remotepath" << endl;
                 cout << "      mv srcremotepath dstremotepath" << endl;
                 cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
+#ifdef ENABLE_SYNC
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
+#endif
                 cout << "      export remotepath [del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
                 cout << "      invite dstemail [del]" << endl;
@@ -1439,6 +1443,7 @@ static void process_line(char* l)
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
                 cout << "      logout" << endl;
+                cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
                 cout << "      quit" << endl;
@@ -1910,7 +1915,7 @@ static void process_line(char* l)
 
                             if (da->dopen(&localname, NULL, true))
                             {
-                                while (da->dnext(&localname, &type))
+                                while (da->dnext(NULL, &localname, true, &type))
                                 {
                                     client->fsaccess->local2path(&localname, &name);
                                     cout << "Queueing " << name << "..." << endl;
@@ -1980,6 +1985,7 @@ static void process_line(char* l)
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
                         return;
                     }
+#ifdef ENABLE_SYNC
                     else if (words[0] == "sync")
                     {
                         if (words.size() == 3)
@@ -2069,6 +2075,7 @@ static void process_line(char* l)
 
                         return;
                     }
+#endif
                     break;
 
                 case 5:
@@ -2376,6 +2383,7 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             Node* n;
+                            int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
 
                             if (words.size() < 3)
                             {
@@ -2397,7 +2405,7 @@ static void process_line(char* l)
                                 {
                                     if (n->hasfileattribute(type))
                                     {
-                                        client->getfa(n, type);
+                                        client->getfa(n, type, cancel);
                                         c++;
                                     }
                                 }
@@ -2407,18 +2415,18 @@ static void process_line(char* l)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
-                                            client->getfa(*it, type);
+                                            client->getfa(*it, type, cancel);
                                             c++;
                                         }
                                     }
                                 }
 
-                                cout << "Fetching " << c << " file attribute(s) of type " << type << "..." << endl;
+                                cout << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
                             }
                         }
                         else
                         {
-                            cout << "      getfa type [path]" << endl;
+                            cout << "      getfa type [path] [cancel]" << endl;
                         }
 
                         return;
@@ -2899,6 +2907,19 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "symlink")
+                    {
+                        if (client->followsymlinks ^= true)
+                        {
+                            cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
+                        }
+                        else
+                        {
+                            cout << "No longer following symlinks." << endl;
+                        }
+
+                        return;
+                    }
                     else if (words[0] == "version")
                     {
                         cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
@@ -2936,6 +2957,11 @@ static void process_line(char* l)
 #ifdef USE_FREEIMAGE
                         cout << "* FreeImage" << endl;
 #endif
+
+#ifdef ENABLE_SYNC
+                        cout << "* sync subsystem" << endl;
+#endif
+
 
                         cwd = UNDEF;
 
@@ -3560,7 +3586,7 @@ void megacli()
 int main()
 {
     SimpleLogger::setAllOutputs(&std::cout);
-    
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp, new CONSOLE_WAIT_CLASS,

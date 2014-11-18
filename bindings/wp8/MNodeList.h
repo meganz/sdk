@@ -12,6 +12,8 @@ namespace mega
 	public ref class MNodeList sealed
 	{
 		friend ref class MegaSDK;
+		friend class DelegateMListener;
+		friend class DelegateMGlobalListener;
 
 	public:
 		virtual ~MNodeList();
@@ -19,9 +21,8 @@ namespace mega
 		int size();
 
 	private:
-		MNodeList(NodeList *nodeList, bool cMemoryOwn);
-		NodeList *nodeList;
-		NodeList *getCPtr();
+		MNodeList(MegaNodeList *nodeList, bool cMemoryOwn);
+		MegaNodeList *nodeList;
 		bool cMemoryOwn;
 	};
 }

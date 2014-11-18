@@ -19,23 +19,26 @@
  * program.
  */
 
+#include "mega.h"
+
+#ifdef ENABLE_SYNC
 #include "mega/sync.h"
 #include "mega/megaapp.h"
 #include "mega/transfer.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
-#include "mega.h"
 
 namespace mega {
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, int ctag)
+           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
 {
     string dbname;
 
     client = cclient;
     tag = ctag;
+    inshare = cinshare;
 
     tmpfa = NULL;
 
@@ -248,7 +251,7 @@ void Sync::cachenodes()
 
         deleteq.clear();
 
-        // additions - we iterate until completion or until we get stuck 
+        // additions - we iterate until completion or until we get stuck
         bool added;
 
         do {
@@ -394,7 +397,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
         {
             size_t t = localpath->size();
 
-            while (da->dnext(&localname))
+            while (da->dnext(localpath, &localname, client->followsymlinks))
             {
                 name = localname;
                 client->fsaccess->local2name(&name);
@@ -594,7 +597,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                                         // ...move remote node out of the way...
                                         client->execmovetosyncdebris();
-                                        
+
                                         // ...and atomically replace with moved one
                                         client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
 
@@ -736,7 +739,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     LOG_err << "The local root node is a file";
                     changestate(SYNC_FAILED);
                 }
-                else 
+                else
                 {
                     if (l->size > 0)
                     {
@@ -944,3 +947,4 @@ bool Sync::movetolocaldebris(string* localpath)
     return false;
 }
 } // namespace
+#endif

@@ -486,11 +486,18 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(LocalNode* l)
 {
+#ifdef ENABLE_SYNC
     LOG_debug << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
+#endif
 }
 
 int main(int argc, char *argv[])
 {
+#ifndef ENABLE_SYNC
+    cerr << "Synchronization features are disabled" << endl;
+    return 0;
+#endif
+
     static byte pwkey[SymmCipher::KEYLENGTH];
     bool is_active = true;
     SyncApp *app;

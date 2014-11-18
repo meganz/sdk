@@ -39,11 +39,6 @@ String^ MError::getErrorString()
 	return ref new String((wchar_t *)utf16error.data());
 }
 
-int MError::getNextAttempt()
-{
-	return megaError ? megaError->getNextAttempt() : 0;
-}
-
 String^ MError::getErrorString(int errorCode)
 {
 	std::string utf16error;

@@ -9,7 +9,7 @@ namespace mega
 	using namespace Windows::Foundation;
 	using Platform::String;
 
-	public enum class MTransferType { TYPE_DOWNLOAD, TYPE_UPLOAD };
+	public enum class MTransferType { TYPE_DOWNLOAD = 0, TYPE_UPLOAD };
 
 	public ref class MTransfer sealed
 	{
@@ -31,20 +31,16 @@ namespace mega
 		String^ getParentPath();
 		uint64 getNodeHandle();
 		uint64 getParentHandle();
-		int getNumConnections();
 		uint64 getStartPos();
 		uint64 getEndPos();
-		int getMaxSpeed();
 		String^ getFileName();
 		int getNumRetry();
 		int getMaxRetries();
-		uint64 getTime();
-		String^ getBase64Key();
 		int getTag();
 		uint64 getSpeed();
 		uint64 getDeltaSize();
 		uint64 getUpdateTime();
-		MNode^ getPublicNode();
+		MNode^ getPublicMegaNode();
 		bool isSyncTransfer();
 		bool isStreamingTransfer();
 

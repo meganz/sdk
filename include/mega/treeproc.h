@@ -90,11 +90,13 @@ public:
     void proc(MegaClient*, Node*);
 };
 
+#ifdef ENABLE_SYNC
 class MEGA_API TreeProcDelSyncGet : public TreeProc
 {
 public:
     void proc(MegaClient*, Node*);
 };
+#endif
 } // namespace
 
 #endif

@@ -45,7 +45,7 @@ struct MEGA_API PosixDirAccess : public DirAccess
     unsigned globindex;
 
     bool dopen(string*, FileAccess*, bool);
-    bool dnext(string*, nodetype_t* = NULL);
+    bool dnext(string*, string*, bool, nodetype_t*);
 
     PosixDirAccess();
     virtual ~PosixDirAccess();

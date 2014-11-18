@@ -95,8 +95,6 @@ CurlHttpIO::CurlHttpIO()
     curlm = curl_multi_init();
     ares_init(&ares);
 
-    curl_multi_setopt(curlm, CURLMOPT_MAXCONNECTS, 256);
-
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
@@ -1035,7 +1033,14 @@ bool CurlHttpIO::doio()
                     }
                     else
                     {
-                        LOG_debug << "Received: " << req->in.c_str();
+                        if(req->in.size() < 2048)
+                        {
+                            LOG_debug << "Received: " << req->in.c_str();
+                        }
+                        else
+                        {
+                            LOG_debug << "Received: " << req->in.substr(0,2048).c_str();
+                        }
                     }
                 }
 

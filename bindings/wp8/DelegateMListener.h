@@ -26,8 +26,8 @@ namespace mega
 		void onTransferFinish(MegaApi* api, MegaTransfer* transfer, MegaError* e);
 		void onTransferUpdate(MegaApi* api, MegaTransfer* transfer);
 		void onTransferTemporaryError(MegaApi* api, MegaTransfer* transfer, MegaError* e);
-		void onUsersUpdate(MegaApi* api);
-		void onNodesUpdate(MegaApi* api);
+		void onUsersUpdate(MegaApi* api, MegaUserList *users);
+		void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 		void onReloadNeeded(MegaApi* api);
 
 	private:

@@ -287,7 +287,7 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
-
+#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
@@ -548,7 +548,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         }
     }
 #endif
-
+#endif
     return r;
 }
 
@@ -823,6 +823,7 @@ PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotif
 
 void PosixDirNotify::addnotify(LocalNode* l, string* path)
 {
+#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     int wd;
 
@@ -836,15 +837,18 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
         fsaccess->wdnodes[wd] = l;
     }
 #endif
+#endif
 }
 
 void PosixDirNotify::delnotify(LocalNode* l)
 {
+#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
     {
         inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
     }
+#endif
 #endif
 }
 
@@ -914,7 +918,7 @@ bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
     return dp != NULL;
 }
 
-bool PosixDirAccess::dnext(string* name, nodetype_t* type)
+bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
 {
     if (globbing)
     {
@@ -938,23 +942,38 @@ bool PosixDirAccess::dnext(string* name, nodetype_t* type)
     }
 
     dirent* d;
+    size_t pathsize = path->size();
+    struct stat statbuf;
+
+    path->append("/");
 
     while ((d = readdir(dp)))
     {
-        if ((d->d_type == DT_DIR || d->d_type == DT_REG)
-         && (d->d_type != DT_DIR || *d->d_name != '.'
-         || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2]))))
+        if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            *name = d->d_name;
+            path->append(d->d_name);
 
-            if (type)
+            if (followsymlinks ? !stat(path->c_str(), &statbuf) : !lstat(path->c_str(), &statbuf))
             {
-                *type = d->d_type == DT_DIR ? FOLDERNODE : FILENODE;
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode))
+                {
+                    path->resize(pathsize);
+                    *name = d->d_name;
+
+                    if (type)
+                    {
+                        *type = S_ISREG(statbuf.st_mode) ? FILENODE : FOLDERNODE;
+                    }
+
+                    return true;
+                }
             }
 
-            return true;
+            path->resize(pathsize+1);
         }
     }
+
+    path->resize(pathsize);
 
     return false;
 }
@@ -971,6 +990,7 @@ PosixDirAccess::~PosixDirAccess()
     {
         closedir(dp);
     }
+
     if (globbing)
     {
         globfree(&globbuf);

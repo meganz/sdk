@@ -39,6 +39,8 @@ struct MEGA_API NodeCore
     nodetype_t type;
 
     // full folder/file key, symmetrically or asymmetrically encrypted
+    // node crypto keys (raw or cooked -
+    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekey;
 
     // node attributes
@@ -72,9 +74,6 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 {
     MegaClient* client;
 
-    // node crypto keys
-    string keystring;
-
     // change parent node association
     bool setparent(Node*);
 
@@ -84,14 +83,14 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // try to resolve node key string
     bool applykey();
 
+    // set up nodekey in a static SymmCipher
+    SymmCipher* nodecipher();
+
     // decrypt attribute string and set fileattrs
     void setattr();
 
     // display name (UTF-8)
     const char* displayname() const;
-
-    // node-specific key
-    SymmCipher key;
 
     // node attributes
     AttrMap attrs;
@@ -155,6 +154,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // own position in fingerprint set (only valid for file nodes)
     fingerprint_set::iterator fingerprint_it;
 
+#ifdef ENABLE_SYNC
     // related synced item or NULL
     LocalNode* localnode;
 
@@ -166,6 +166,11 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 
     // location in the todebris node_set
     node_set::iterator todebris_it;
+
+    // location in the tounlink node_set
+    // FIXME: merge todebris / tounlink
+    node_set::iterator tounlink_it;
+#endif
 
     // source tag
     int tag;
@@ -180,6 +185,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     ~Node();
 };
 
+#ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File, Cachable
 {
     class Sync* sync;
@@ -272,6 +278,7 @@ struct MEGA_API LocalNode : public File, Cachable
 
     ~LocalNode();
 };
+#endif
 } // namespace
 
 #endif

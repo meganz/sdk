@@ -10,8 +10,8 @@ namespace mega
 	public interface class MGlobalListenerInterface
 	{
 	public:
-		void onUsersUpdate(MegaSDK^ api);
-		void onNodesUpdate(MegaSDK^ api);
+		void onUsersUpdate(MegaSDK^ api, MUserList ^users);
+		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
 		void onReloadNeeded(MegaSDK^ api);
 	};
 }

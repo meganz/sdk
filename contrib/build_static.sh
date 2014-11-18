@@ -427,6 +427,7 @@ readline_win_pkg() {
 
 build_sdk() {
     local install_dir=$1
+    local debug=$2
 
     echo "Configuring MEGA SDK"
 
@@ -437,6 +438,7 @@ build_sdk() {
             --disable-shared --enable-static \
             --disable-silent-rules \
             --disable-curl-checks \
+            --disable-megaapi \
             --with-openssl=$install_dir \
             --with-cryptopp=$install_dir \
             --with-sodium=$install_dir \
@@ -446,13 +448,15 @@ build_sdk() {
             --with-curl=$install_dir \
             --with-freeimage=$install_dir \
             --with-readline=$install_dir \
-            --with-termcap=$install_dir || exit 1
+            --with-termcap=$install_dir \
+            $debug || exit 1
     else
         ./configure --enable-examples \
             --disable-shared --enable-static \
             --disable-silent-rules \
             --disable-curl-checks \
             --without-openssl \
+            --disable-megaapi \
             --with-cryptopp=$install_dir \
             --with-sodium=$install_dir \
             --with-zlib=$install_dir \
@@ -460,7 +464,8 @@ build_sdk() {
             --without-cares \
             --without-curl \
             --with-freeimage=$install_dir \
-            --with-readline=$install_dir || exit 1
+            --with-readline=$install_dir \
+            $debug || exit 1
     fi
 
     echo "Building MEGA SDK"
@@ -478,6 +483,13 @@ main() {
     check_apps
 
     trap on_exit_error EXIT
+
+    if [ "$1" == "debug" ]; then
+        echo "DEBUG build"
+        local debug="--enable-debug"
+    else
+        local debug=""
+    fi
 
     if [ ! -d $build_dir ]; then
         mkdir -p $build_dir || exit 1
@@ -518,7 +530,7 @@ main() {
 
     cd $cwd
 
-    build_sdk $install_dir
+    build_sdk $install_dir $debug
 
     unset PREFIX
     unset LD_RUN_PATH
@@ -527,4 +539,4 @@ main() {
     trap on_exit_ok EXIT
 }
 
-main
+main $1

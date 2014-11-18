@@ -39,7 +39,6 @@ namespace mega
 		bool isFile();
 		bool isFolder();
 		bool isRemoved();
-		bool isSyncDeleted();
 		bool hasThumbnail();
 		bool hasPreview();
 

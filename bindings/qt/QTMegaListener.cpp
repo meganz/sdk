@@ -77,14 +77,14 @@ void QTMegaListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transf
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
-void QTMegaListener::onUsersUpdate(MegaApi *api, UserList *users)
+void QTMegaListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnUsersUpdate);
     event->setUsers(users);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
-void QTMegaListener::onNodesUpdate(MegaApi *api, NodeList *nodes)
+void QTMegaListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnNodesUpdate);
     event->setNodes(nodes);

@@ -3,7 +3,7 @@
 using namespace mega;
 using namespace Platform;
 
-MShareList::MShareList(ShareList *shareList, bool cMemoryOwn)
+MShareList::MShareList(MegaShareList *shareList, bool cMemoryOwn)
 {
 	this->shareList = shareList;
 	this->cMemoryOwn = cMemoryOwn;

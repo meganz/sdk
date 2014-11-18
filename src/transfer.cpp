@@ -129,7 +129,7 @@ void Transfer::complete()
 
         int missingattr = 0;
         handle attachh;
-        SymmCipher* key;
+        SymmCipher* symmcipher;
 
         // set FileFingerprint on source node(s) if missing
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -142,7 +142,7 @@ void Transfer::complete()
                     if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
                     if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
                     attachh = n->nodehandle;
-                    key = &n->key;
+                    symmcipher = n->nodecipher();
                 }
 
                 if (!n->isvalid)
@@ -158,7 +158,7 @@ void Transfer::complete()
         if (missingattr)
         {
             // FIXME: do this while file is still open
-            client->gfx->gendimensionsputfa(NULL, &localfilename, attachh, key, missingattr);
+            client->gfx->gendimensionsputfa(NULL, &localfilename, attachh, symmcipher, missingattr);
         }
 
         // ...and place it in all target locations. first, update the files'
@@ -281,14 +281,14 @@ void Transfer::completefiles()
     }
 }
 
-DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* ckey, int64_t cctriv)
+DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv)
 {
     client = cclient;
 
     p = cp;
     h = ch;
 
-    key = *ckey;
+    symmcipher = *csymmcipher;
     ctriv = cctriv;
 
     retries = 0;
@@ -450,7 +450,7 @@ bool DirectReadSlot::doio()
                 }
 
                 memcpy(buf + r, req->in.data(), l);
-                dr->drn->key.ctr_crypt(buf, sizeof buf, pos - r, dr->drn->ctriv, NULL, false);
+                dr->drn->symmcipher.ctr_crypt(buf, sizeof buf, pos - r, dr->drn->ctriv, NULL, false);
                 memcpy((char*)req->in.data(), buf + r, l);
             }
             else
@@ -462,7 +462,7 @@ bool DirectReadSlot::doio()
             {
                 r = (l - t) & (sizeof buf - 1);
                 req->in.resize(t + r);
-                dr->drn->key.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
+                dr->drn->symmcipher.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
             }
 
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))

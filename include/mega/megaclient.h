@@ -144,12 +144,18 @@ public:
     // pause flags
     bool xferpaused[2];
 
+#ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
     bool syncadded;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+#endif
+
+    // if set, symlinks will be followed except in recursive deletions
+    // (give the user ample warning about possible sync repercussions)
+    bool followsymlinks;
 
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
@@ -487,6 +493,7 @@ public:
     // generate & return upload handle
     handle getuploadhandle();
 
+#ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -550,10 +557,20 @@ public:
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, string*, bool);
 
-    // move nodes to //bin/SyncDebris/yyyy-mm-dd/
-    void movetosyncdebris(Node*);
+    // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
+    void movetosyncdebris(Node*, bool);
+
+    // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
     node_set todebris;
+
+    // unlink queued nodes directly (for inbound share syncing)
+    void execsyncunlink();
+    node_set tounlink;
+    
+    // commit all queueud deletions
+    void execsyncdeletions();
+#endif
 
     // recursively cancel transfers in a subtree
     void stopxfers(LocalNode*);

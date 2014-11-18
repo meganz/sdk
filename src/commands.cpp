@@ -595,7 +595,7 @@ void CommandGetFile::procresult()
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher)
 {
     cmd("a");
     notself(client);
@@ -603,7 +603,7 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n)
     string at;
 
     n->attrs.getjson(&at);
-    client->makeattr(&n->key, &at, at.c_str(), at.size());
+    client->makeattr(cipher, &at, at.c_str(), at.size());
 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), at.size());
@@ -748,18 +748,23 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
 
+#ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
             return client->putnodes_sync_result(e, nn, 0);
         }
-        else if (source == PUTNODES_APP)
+        else
+#endif
+        if (source == PUTNODES_APP)
         {
             return client->app->putnodes_result(e, type, nn);
         }
+#ifdef ENABLE_SYNC
         else
         {
             return client->putnodes_syncdebris_result(e, nn);
         }
+#endif
     }
 
     e = API_EINTERNAL;
@@ -786,19 +791,23 @@ void CommandPutNodes::procresult()
             case EOO:
                 client->applykeys();
 
+#ifdef ENABLE_SYNC
                 if (source == PUTNODES_SYNC)
                 {
                     client->putnodes_sync_result(e, nn, nnsize);
                 }
-                else if (source == PUTNODES_APP)
+                else
+#endif
+                if (source == PUTNODES_APP)
                 {
                     client->app->putnodes_result(e, type, nn);
                 }
+#ifdef ENABLE_SYNC
                 else
                 {
                     client->putnodes_syncdebris_result(e, nn);
                 }
-
+#endif
                 return;
         }
     }
@@ -826,7 +835,7 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-
+#ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
             Node* syncn = client->nodebyhandle(h);
@@ -857,7 +866,7 @@ void CommandMoveNode::procresult()
                 }
             }
         }
-
+#endif
         client->app->rename_result(h, e);
     }
     else
@@ -2442,7 +2451,9 @@ void CommandFetchNodes::procresult()
 
                 client->mergenewshares(0);
                 client->applykeys();
+#ifdef ENABLE_SYNC
                 client->syncsup = false;
+#endif
                 client->app->fetchnodes_result(API_OK);
                 client->initsc();
 

@@ -19,9 +19,8 @@ namespace mega
 		int size();
 
 	private:
-		MTransferList(TransferList *transferList, bool cMemoryOwn);
-		TransferList *transferList;
-		TransferList *getCPtr();
+		MTransferList(MegaTransferList *transferList, bool cMemoryOwn);
+		MegaTransferList *transferList;
 		bool cMemoryOwn;
 	};
 }

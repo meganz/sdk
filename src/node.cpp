@@ -42,11 +42,14 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     parent = NULL;
 
+#ifdef ENABLE_SYNC
     localnode = NULL;
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
     todebris_it = client->todebris.end();
+    tounlink_it = client->tounlink.end();
+#endif
 
     type = t;
 
@@ -111,11 +114,19 @@ Node::~Node()
         client->fingerprints.erase(fingerprint_it);
     }
 
+#ifdef ENABLE_SYNC
     // remove from todebris node_set
     if (todebris_it != client->todebris.end())
     {
         client->todebris.erase(todebris_it);
     }
+
+    // remove from tounlink node_set
+    if (tounlink_it != client->tounlink.end())
+    {
+        client->tounlink.erase(tounlink_it);
+    }
+#endif
 
     // delete outshares, including pointers from users for this node
     for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
@@ -139,6 +150,7 @@ Node::~Node()
     delete inshare;
     delete sharekey;
 
+#ifdef ENABLE_SYNC
     // sync: remove reference from local filesystem node
     if (localnode)
     {
@@ -148,6 +160,18 @@ Node::~Node()
 
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
+#endif
+}
+
+// update node key and decrypt attributes
+void Node::setkey(const byte* newkey)
+{
+    if (newkey)
+    {
+        nodekey.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+    }
+
+    setattr();
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
@@ -453,12 +477,26 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
     return NULL;
 }
 
+// return temporary SymmCipher for this nodekey
+SymmCipher* Node::nodecipher()
+{
+    static SymmCipher symmcipher;
+
+    if (symmcipher.setkey(&nodekey))
+    {
+        return &symmcipher;
+    }
+
+    return NULL;
+}
+
 // decrypt attributes and build attribute hash
 void Node::setattr()
 {
     byte* buf;
+    SymmCipher* cipher;
 
-    if (attrstring.size() && (buf = decryptattr(&key, attrstring.c_str(), attrstring.size())))
+    if (attrstring.size() && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring.c_str(), attrstring.size())))
     {
         JSON json;
         nameid name;
@@ -481,6 +519,7 @@ void Node::setattr()
         delete[] buf;
 
         attrstring.clear();
+		std::string().swap(attrstring);
     }
 }
 
@@ -549,10 +588,14 @@ int Node::hasfileattribute(fatype t) const
     return fileattrstring.find(buf) + 1;
 }
 
-// attempt to apply node key - clears keystring if successful
+// attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    if (!keystring.length())
+    int keylength = (type == FILENODE)
+                   ? FILENODEKEYLENGTH + 0
+                   : FOLDERNODEKEYLENGTH + 0;
+
+    if (nodekey.size() == keylength || !nodekey.size())
     {
         return false;
     }
@@ -563,12 +606,12 @@ bool Node::applykey()
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
 
-    while ((t = keystring.find_first_of(':', t)) != (int)string::npos)
+    while ((t = nodekey.find_first_of(':', t)) != (int)string::npos)
     {
         // compound key: locate suitable subkey (always symmetric)
         h = 0;
 
-        l = Base64::atob(keystring.c_str() + (keystring.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
+        l = Base64::atob(nodekey.c_str() + (nodekey.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
         t++;
 
         if (l == MegaClient::USERHANDLE)
@@ -600,7 +643,7 @@ bool Node::applykey()
             }
         }
 
-        k = keystring.c_str() + t;
+        k = nodekey.c_str() + t;
         break;
     }
 
@@ -610,7 +653,7 @@ bool Node::applykey()
     {
         if (l < 0)
         {
-            k = keystring.c_str();
+            k = nodekey.c_str();
         }
         else
         {
@@ -620,29 +663,13 @@ bool Node::applykey()
 
     byte key[FILENODEKEYLENGTH];
 
-    if (client->decryptkey(k, key,
-                           (type == FILENODE)
-                          ? FILENODEKEYLENGTH + 0
-                          : FOLDERNODEKEYLENGTH + 0,
-                           sc, 0, nodehandle))
+    if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
-        keystring.clear();
-        setkey(key);
+        nodekey.assign((const char*)key, keylength);
+        setattr();
     }
 
     return true;
-}
-
-// update node key and decrypt attributes
-void Node::setkey(const byte* newkey)
-{
-    if (newkey)
-    {
-        nodekey.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
-    }
-
-    key.setkey((const byte*)nodekey.data(), type);
-    setattr();
 }
 
 // returns whether node was moved
@@ -662,6 +689,7 @@ bool Node::setparent(Node* p)
 
     child_it = parent->children.insert(parent->children.end(), this);
 
+#ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
     if (!localnode || localnode->parent)
     {
@@ -682,6 +710,7 @@ bool Node::setparent(Node* p)
             client->proctree(this, &tdsg);
         }
     }
+#endif
 
     return true;
 }
@@ -707,6 +736,7 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+#ifdef ENABLE_SYNC
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
@@ -1043,7 +1073,7 @@ LocalNode::~LocalNode()
         }
         else
         {
-            sync->client->movetosyncdebris(node);
+            sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
 }
@@ -1140,7 +1170,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         // place
         if (node)
         {
-            sync->client->movetosyncdebris(node);
+            sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execmovetosyncdebris();
         }
 
@@ -1285,5 +1315,5 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     return l;
 }
-
+#endif
 } // namespace
