@@ -335,20 +335,12 @@ using namespace mega;
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (user != nil) ? [user getCPtr] : NULL, (int)level);
 }
 
-- (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)loginWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level {
-    self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level);
-}
-
-- (void)folderAccessWithMegaFolderLink:(NSString *)megaFolderLink delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->folderAccess((megaFolderLink != nil) ? [megaFolderLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)folderAccessWithMegaFolderLink:(NSString *)megaFolderLink {
-    self.megaApi->folderAccess((megaFolderLink != nil) ? [megaFolderLink UTF8String] : NULL);
+- (void)loginWithFolderLink:(NSString *)folderLink {
+    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL);
 }
 
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -357,14 +349,6 @@ using namespace mega;
 
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent {
     self.megaApi->importFileLink((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
-}
-
-- (void)importPublicNode:(MEGANode *)publicNode parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->importPublicNode((publicNode != nil) ? [publicNode getCPtr] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)importPublicNode:(MEGANode *)publicNode parent:(MEGANode *)parent {
-    self.megaApi->importPublicNode((publicNode != nil) ? [publicNode getCPtr] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
 - (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate {
@@ -498,12 +482,12 @@ using namespace mega;
     self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL);
 }
 
-- (void)removeContactWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->removeContact((email != nil) ? [email UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)removeContactWithUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->removeContact((user != nil) ? [user getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)removeContactWithEmail:(NSString *)email {
-    self.megaApi->removeContact((email != nil) ? [email UTF8String] : NULL);
+- (void)removeContactWithUser:(MEGAUser *)user {
+    self.megaApi->removeContact((user != nil) ? [user getCPtr] : NULL);
 }
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -538,14 +522,6 @@ using namespace mega;
 
 - (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath {
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
-}
-
-- (void)startPublicDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate {
-    self.megaApi->startPublicDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-}
-
-- (void)startPublicDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath {
-    self.megaApi->startPublicDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
 - (void)cancelTransferWithTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
