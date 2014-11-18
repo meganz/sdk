@@ -94,7 +94,7 @@
     destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
-    if (!fileExists && [node type] == MEGANodeTypeFile && [node hasThumbnail]) {
+    if (!fileExists && [node hasThumbnail]) {
         [[MEGASdkManager sharedMEGASdk] getThumbnailWithNode:node destinationFilePath:destinationFilePath];
     }
     
@@ -218,8 +218,6 @@
             [renameAlert textFieldAtIndex:0].text = [[[node name] lastPathComponent] stringByDeletingPathExtension];
             renameAlert.tag = 2;
             [renameAlert show];
-
-            NSLog(@"rename button was pressed");
             break;
         default:
             break;
@@ -349,9 +347,6 @@
     [leftUtilityButtons sw_addUtilityButtonWithColor:
      [UIColor colorWithRed:149/255.0f green:165/255.0f blue:166/255.0f alpha:1.0f]
                                                 icon:[UIImage imageNamed:@"shareFile"]];
-//    [leftUtilityButtons sw_addUtilityButtonWithColor:
-//     [UIColor colorWithRed:189/255.0f green:195/255.0f blue:199/255.0f alpha:1.0f]
-//                                                icon:[UIImage imageNamed:@"moveFile"]];
     [leftUtilityButtons sw_addUtilityButtonWithColor:
     [UIColor colorWithRed:127/255.0f green:140/255.0f blue:141/255.0f alpha:1.0f]
                                                 icon:[UIImage imageNamed:@"renameFile"]];
@@ -441,7 +436,7 @@
 
 #pragma mark - MGlobalListener
 
-- (void)onUsersUpdate:(MEGASdk *)api {
+- (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList{
 
 }
 
@@ -449,7 +444,7 @@
 
 }
 
-- (void)onNodesUpdate:(MEGASdk *)api {
+- (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList {
     [self reloadUI];
 }
 

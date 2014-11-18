@@ -95,38 +95,14 @@
                                         <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="MSh-od-OkM">
                                             <rect key="frame" x="8" y="2" width="55" height="55"/>
                                         </imageView>
-                                        <label hidden="YES" opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Downloading:" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="z1z-Mq-pHX">
-                                            <rect key="frame" x="192" y="31" width="77" height="21"/>
-                                            <constraints>
-                                                <constraint firstAttribute="height" constant="21" id="D8K-uL-Xuf"/>
-                                                <constraint firstAttribute="width" constant="77" id="SDy-as-XAF"/>
-                                            </constraints>
-                                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
-                                            <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
-                                            <nil key="highlightedColor"/>
-                                        </label>
-                                        <label hidden="YES" opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="XGc-qB-cfg">
-                                            <rect key="frame" x="279" y="31" width="46" height="21"/>
-                                            <constraints>
-                                                <constraint firstAttribute="height" constant="21" id="7ge-mP-bnu"/>
-                                                <constraint firstAttribute="width" constant="46" id="9hB-Rl-04F"/>
-                                            </constraints>
-                                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
-                                            <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
-                                            <nil key="highlightedColor"/>
-                                        </label>
                                     </subviews>
                                     <constraints>
                                         <constraint firstItem="MSh-od-OkM" firstAttribute="leading" secondItem="skb-KZ-quT" secondAttribute="leadingMargin" id="0D0-s1-gkN"/>
                                         <constraint firstItem="9nn-R0-1sF" firstAttribute="leading" secondItem="skb-KZ-quT" secondAttribute="leadingMargin" constant="60" id="0z8-PE-4lT"/>
-                                        <constraint firstItem="z1z-Mq-pHX" firstAttribute="top" secondItem="skb-KZ-quT" secondAttribute="topMargin" constant="23" id="34g-PL-nz8"/>
                                         <constraint firstItem="9nn-R0-1sF" firstAttribute="top" secondItem="qTp-Ed-t4G" secondAttribute="bottom" constant="2" id="C1L-CS-r9m"/>
-                                        <constraint firstItem="XGc-qB-cfg" firstAttribute="top" secondItem="skb-KZ-quT" secondAttribute="topMargin" constant="23" id="Dwb-BE-koM"/>
                                         <constraint firstItem="9nn-R0-1sF" firstAttribute="leading" secondItem="MSh-od-OkM" secondAttribute="trailing" constant="5" id="GUX-OV-C5g"/>
-                                        <constraint firstItem="XGc-qB-cfg" firstAttribute="leading" secondItem="z1z-Mq-pHX" secondAttribute="trailing" constant="10" id="KlC-y1-LJE"/>
                                         <constraint firstAttribute="bottomMargin" secondItem="MSh-od-OkM" secondAttribute="bottom" constant="-5" id="LFw-ZI-VZF"/>
                                         <constraint firstItem="9nn-R0-1sF" firstAttribute="top" secondItem="skb-KZ-quT" secondAttribute="topMargin" constant="23" id="LRI-n6-AHb"/>
-                                        <constraint firstItem="z1z-Mq-pHX" firstAttribute="leading" secondItem="9nn-R0-1sF" secondAttribute="trailing" constant="18" id="RhW-e0-xtP"/>
                                         <constraint firstAttribute="trailing" secondItem="qTp-Ed-t4G" secondAttribute="trailing" id="nBe-Mz-twI"/>
                                         <constraint firstItem="qTp-Ed-t4G" firstAttribute="top" secondItem="skb-KZ-quT" secondAttribute="topMargin" id="tUq-R6-99F"/>
                                         <constraint firstItem="MSh-od-OkM" firstAttribute="top" secondItem="skb-KZ-quT" secondAttribute="topMargin" constant="-6" id="wIp-8R-vnM"/>
@@ -134,10 +110,8 @@
                                     </constraints>
                                 </tableViewCellContentView>
                                 <connections>
-                                    <outlet property="downloadingLabel" destination="z1z-Mq-pHX" id="Wkg-xC-nUV"/>
                                     <outlet property="modificationLabel" destination="9nn-R0-1sF" id="TJx-Bo-tFi"/>
                                     <outlet property="nameLabel" destination="qTp-Ed-t4G" id="KXW-R7-Kdt"/>
-                                    <outlet property="percentageLabel" destination="XGc-qB-cfg" id="B29-2z-o4v"/>
                                     <outlet property="thumbnailImageView" destination="MSh-od-OkM" id="RuR-aN-hwI"/>
                                 </connections>
                             </tableViewCell>

@@ -26,7 +26,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * in MEGA when the object is created, they are immutable.
  *
  * Do not inherit from this class. You can inspect the MEGA filesystem and get these objects using
- * [MEGASdk childrenWithParent], [MEGASdk childNodeWithParent:name:] and other MEGASdk functions.
+ * [MEGASdk childrenWithParent:], [MEGASdk childNodeWithParent:name:] and other MEGASdk functions.
  *
  */
 @interface MEGANode : NSObject
@@ -53,7 +53,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * - MEGANodeTypeRubbish = 4
  * The MEGANode object represents root of the MEGA Rubbish Bin
  *
- * @return Type of the node
  */
 @property (readonly, nonatomic) MEGANodeType type;
 
@@ -66,7 +65,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * The MEGANode object retains the ownership of the returned string. It will
  * be valid until the MEGANode object is deleted.
  *
- * @return Name of the node
  */
 @property (readonly, nonatomic) NSString *name;
 
@@ -75,7 +73,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  *
  * You take the ownership of the returned string.
  *
- * @return Base64-encoded handle of the node
  */
 @property (readonly, nonatomic) NSString *base64Handle;
 
@@ -84,7 +81,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  *
  * The returned value is only valid for nodes of type MEGANodeTypeFile.
  *
- * @return Size of the node
  */
 @property (readonly, nonatomic) NSNumber *size;
 
@@ -93,7 +89,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  *
  * The returned value is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  *
- * @return Creation time of the node (in seconds since the epoch)
  */
 @property (readonly, nonatomic) NSDate *creationTime;
 
@@ -102,16 +97,14 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  *
  * The returned value is only valid for nodes of type MEGANodeTypeFile.
  *
- * @return Modification time of the file that was uploaded to MEGA (in seconds since the epoch)
  */
 @property (readonly, nonatomic) NSDate *modificationTime;
 
 /**
  * @brief A handle to identify this MEGANode
  *
- * You can use [MEGASdk nodeWithHandle] to recover the node later.
+ * You can use [MEGASdk nodeWithHandle:] to recover the node later.
  *
- * @return Handle that identifies this MEGANode
  */
 @property (readonly, nonatomic) uint64_t handle;
 
@@ -123,13 +116,12 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * at runtime, this association is lost after a reload of the filesystem or when
  * the SDK is closed.
  *
- * This tag is specially useful to know if a node reported in [MEGADelegate onNodesUpdate] or
- * [MEGAGlobalDelegate onNodesUpdate] was modified by a local operation (tag != 0) or by an
+ * This tag is specially useful to know if a node reported in [MEGADelegate onNodesUpdate:nodeList:] or
+ * [MEGAGlobalDelegate onNodesUpdate:nodeList:] was modified by a local operation (tag != 0) or by an
  * external operation, made by another MEGA client (tag == 0).
  *
  * If the node hasn't been created/modified during the current execution, this function returns 0
  *
- * @return The tag associated with the node.
  */
 @property (readonly, nonatomic) NSInteger tag;
 
@@ -182,5 +174,15 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * @return YES if the node has an associated preview, otherwise NO
  */
 - (BOOL)hasPreview;
+
+/**
+ * @brief Returns a Boolean value that indicates if the node is a public
+ *
+ * Only MEGANode objects generated with [MEGASdk publicNode:]
+ * will return YES.
+ *
+ * @return YES if the node is public node, otherwise NO.
+ */
+- (BOOL)isPublic;
 
 @end

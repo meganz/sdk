@@ -24,7 +24,6 @@
 
 /**
  * @brief The number of MEGAUser objects in the list
- * @return Number of MEGAUser objects in the list
  */
 @property (readonly, nonatomic) NSNumber *size;
 

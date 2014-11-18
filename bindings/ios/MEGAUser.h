@@ -37,7 +37,6 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
  * The MegaUser object retains the ownership of the returned string, it will be valid until
  * the MegaUser object is deleted.
  *
- * @return Email associated with the contact.
  */
 @property (readonly, nonatomic) NSString *email;
 
@@ -58,13 +57,11 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
  * - MEGAUserVisibilityMe = 2
  * The contact is the owner of the account being used by the SDK
  *
- * @return Current visibility of the contact
  */
 @property (readonly, nonatomic) MEGAUserVisibility accessVisibility;
 
 /**
  * @brief The timestamp when the contact was added to the contact list (in seconds since the epoch)
- * @return Timestamp when the contact was added to the contact list (in seconds since the epoch)
  */
 @property (readonly, nonatomic) NSDate *timestamp;
 

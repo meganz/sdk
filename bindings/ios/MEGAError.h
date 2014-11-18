@@ -40,13 +40,11 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
 
 /**
  * @brief The error code associated with this MEGAError
- * @return Error code associated with this MEGAError
  */
 @property (readonly, nonatomic) MEGAErrorType type;
 
 /**
  * @brief Readable description of the error
- * @return Readable description of the error
  */
 @property (readonly, nonatomic) NSString *name;
 

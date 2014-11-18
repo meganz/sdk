@@ -35,7 +35,6 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  *
  * For public shared folders, this function return nil
  *
- * @return The email of the user with whom we share the folder, or nil if it's a public folder
  */
 @property (readonly, nonatomic) NSString *user;
 
@@ -64,13 +63,11 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  * - MEGAShareTypeAccessOwner = 3
  * The user is the owner of the folder
  *
- * @return The access level of the sharing
  */
 @property (readonly, nonatomic) MEGAShareType accessType;
 
 /**
  * @brief The timestamp when the sharing was created (in seconds since the epoch)
- * @return The timestamp when the sharing was created (in seconds since the epoch)
  */
 @property (readonly, nonatomic) NSDate *timestamp;
 

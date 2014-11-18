@@ -23,7 +23,6 @@
 
 /**
  * @brief The number of MEGANode objects in the list
- * @return Number of MEGANode objects in the list
  */
 @property (readonly, nonatomic) NSNumber *size;
 

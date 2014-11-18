@@ -23,7 +23,6 @@
 
 /**
  * @brief The number of MEGATransfer objects in the list
- * @return Number of MEGATransfer objects in the list
  */
 @property (readonly, nonatomic) NSNumber *size;
 

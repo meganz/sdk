@@ -23,7 +23,6 @@
 
 /**
  * @brief The number of MEGAShare objects in the list
- * @return Number of MEGAShare objects in the list
  */
 @property (readonly, nonatomic) NSNumber *size;
 
