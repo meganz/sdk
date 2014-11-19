@@ -10,8 +10,8 @@
 
 @interface SettingsViewController ()
 
-@property (weak, nonatomic) IBOutlet UILabel *userEmail;
-@property (weak, nonatomic) IBOutlet UIImageView *userAvatar;
+@property (weak, nonatomic) IBOutlet UILabel *emailLabel;
+@property (weak, nonatomic) IBOutlet UIImageView *avatarImageView;
 
 @end
 
@@ -19,7 +19,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.userEmail.text = [[MEGASdkManager sharedMEGASdk] myEmail];
+    self.emailLabel.text = [[MEGASdkManager sharedMEGASdk] myEmail];
     [self setUserAvatar];
     
 }
@@ -33,9 +33,9 @@
 
 - (void)setUserAvatar {
     
-    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactWithEmail:self.userEmail.text];
+    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactWithEmail:self.emailLabel.text];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    NSString *fileName = [self.userEmail.text stringByAppendingString:@".jpg"];
+    NSString *fileName = [self.emailLabel.text stringByAppendingString:@".jpg"];
     NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
     destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
@@ -43,10 +43,10 @@
     if (!fileExists) {
         [[MEGASdkManager sharedMEGASdk] getAvatarWithUser:user destinationFilePath:destinationFilePath delegate:self];
     } else {
-        [self.userAvatar setImage:[UIImage imageNamed:destinationFilePath]];
+        [self.avatarImageView setImage:[UIImage imageNamed:destinationFilePath]];
         
-        self.userAvatar.layer.cornerRadius = self.userAvatar.frame.size.width/2;
-        self.userAvatar.layer.masksToBounds = YES;
+        self.avatarImageView.layer.cornerRadius = self.avatarImageView.frame.size.width/2;
+        self.avatarImageView.layer.masksToBounds = YES;
     }
 }
 

@@ -28,17 +28,12 @@
 		416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */; };
 		416812AF19EE8FAC00C72800 /* SVProgressHUD.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 416812AC19EE8FAC00C72800 /* SVProgressHUD.bundle */; };
 		416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 416812AE19EE8FAC00C72800 /* SVProgressHUD.m */; };
+		41954E8B1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41954E8A1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m */; };
 		41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
 		41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
 		41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
 		41B2AEE11A0A8CC3006C40FB /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AEE01A0A8CC3006C40FB /* MEGASdkManager.m */; };
 		41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B4553A19F1218000439D45 /* NodeTableViewCell.m */; };
-		41BE8CBE1A13692200E11D85 /* NSMutableArray+SWUtilityButtons.m in Sources */ = {isa = PBXBuildFile; fileRef = 41BE8CB31A13692200E11D85 /* NSMutableArray+SWUtilityButtons.m */; };
-		41BE8CBF1A13692200E11D85 /* SWCellScrollView.m in Sources */ = {isa = PBXBuildFile; fileRef = 41BE8CB51A13692200E11D85 /* SWCellScrollView.m */; };
-		41BE8CC01A13692200E11D85 /* SWLongPressGestureRecognizer.m in Sources */ = {isa = PBXBuildFile; fileRef = 41BE8CB71A13692200E11D85 /* SWLongPressGestureRecognizer.m */; };
-		41BE8CC11A13692200E11D85 /* SWTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41BE8CB91A13692200E11D85 /* SWTableViewCell.m */; };
-		41BE8CC21A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.m in Sources */ = {isa = PBXBuildFile; fileRef = 41BE8CBB1A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.m */; };
-		41BE8CC31A13692200E11D85 /* SWUtilityButtonView.m in Sources */ = {isa = PBXBuildFile; fileRef = 41BE8CBD1A13692200E11D85 /* SWUtilityButtonView.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
 /* End PBXBuildFile section */
 
@@ -92,6 +87,8 @@
 		417BBFEC19F57FDC0081D102 /* MessageUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MessageUI.framework; path = System/Library/Frameworks/MessageUI.framework; sourceTree = SDKROOT; };
 		417BBFEE19F57FE60081D102 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		417BBFF019F57FF10081D102 /* AssetsLibrary.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AssetsLibrary.framework; path = System/Library/Frameworks/AssetsLibrary.framework; sourceTree = SDKROOT; };
+		41954E891A1BAF1500C4BB02 /* DetailsNodeInfoViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DetailsNodeInfoViewController.h; sourceTree = "<group>"; };
+		41954E8A1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DetailsNodeInfoViewController.m; sourceTree = "<group>"; };
 		41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
 		41AB68FD1A094459003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
 		41ACFBC61A1155AC00905ACF /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
@@ -99,18 +96,6 @@
 		41B2AEE01A0A8CC3006C40FB /* MEGASdkManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MEGASdkManager.m; path = MegaSDKManager/MEGASdkManager.m; sourceTree = "<group>"; };
 		41B4553919F1218000439D45 /* NodeTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NodeTableViewCell.h; sourceTree = "<group>"; };
 		41B4553A19F1218000439D45 /* NodeTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NodeTableViewCell.m; sourceTree = "<group>"; };
-		41BE8CB21A13692200E11D85 /* NSMutableArray+SWUtilityButtons.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSMutableArray+SWUtilityButtons.h"; sourceTree = "<group>"; };
-		41BE8CB31A13692200E11D85 /* NSMutableArray+SWUtilityButtons.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSMutableArray+SWUtilityButtons.m"; sourceTree = "<group>"; };
-		41BE8CB41A13692200E11D85 /* SWCellScrollView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SWCellScrollView.h; sourceTree = "<group>"; };
-		41BE8CB51A13692200E11D85 /* SWCellScrollView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SWCellScrollView.m; sourceTree = "<group>"; };
-		41BE8CB61A13692200E11D85 /* SWLongPressGestureRecognizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SWLongPressGestureRecognizer.h; sourceTree = "<group>"; };
-		41BE8CB71A13692200E11D85 /* SWLongPressGestureRecognizer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SWLongPressGestureRecognizer.m; sourceTree = "<group>"; };
-		41BE8CB81A13692200E11D85 /* SWTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SWTableViewCell.h; sourceTree = "<group>"; };
-		41BE8CB91A13692200E11D85 /* SWTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SWTableViewCell.m; sourceTree = "<group>"; };
-		41BE8CBA1A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SWUtilityButtonTapGestureRecognizer.h; sourceTree = "<group>"; };
-		41BE8CBB1A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SWUtilityButtonTapGestureRecognizer.m; sourceTree = "<group>"; };
-		41BE8CBC1A13692200E11D85 /* SWUtilityButtonView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SWUtilityButtonView.h; sourceTree = "<group>"; };
-		41BE8CBD1A13692200E11D85 /* SWUtilityButtonView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SWUtilityButtonView.m; sourceTree = "<group>"; };
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -196,6 +181,8 @@
 				416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */,
 				41B4553919F1218000439D45 /* NodeTableViewCell.h */,
 				41B4553A19F1218000439D45 /* NodeTableViewCell.m */,
+				41954E891A1BAF1500C4BB02 /* DetailsNodeInfoViewController.h */,
+				41954E8A1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m */,
 				41663FA91A01571E0035F7D6 /* SettingsViewController.h */,
 				41663FAA1A01571E0035F7D6 /* SettingsViewController.m */,
 				4114CBC61A07E9C100B7D475 /* OfflineTableViewController.h */,
@@ -252,7 +239,6 @@
 		416812A919EE8FAC00C72800 /* vendor */ = {
 			isa = PBXGroup;
 			children = (
-				41BE8CB11A13692200E11D85 /* SWTableViewCell */,
 				4135AE9419F5880C00A8A56A /* MWPhotoBrowser */,
 				416812AA19EE8FAC00C72800 /* SVProgressHUD */,
 			);
@@ -277,25 +263,6 @@
 				41B2AEE01A0A8CC3006C40FB /* MEGASdkManager.m */,
 			);
 			name = MEGASdkManager;
-			sourceTree = "<group>";
-		};
-		41BE8CB11A13692200E11D85 /* SWTableViewCell */ = {
-			isa = PBXGroup;
-			children = (
-				41BE8CB21A13692200E11D85 /* NSMutableArray+SWUtilityButtons.h */,
-				41BE8CB31A13692200E11D85 /* NSMutableArray+SWUtilityButtons.m */,
-				41BE8CB41A13692200E11D85 /* SWCellScrollView.h */,
-				41BE8CB51A13692200E11D85 /* SWCellScrollView.m */,
-				41BE8CB61A13692200E11D85 /* SWLongPressGestureRecognizer.h */,
-				41BE8CB71A13692200E11D85 /* SWLongPressGestureRecognizer.m */,
-				41BE8CB81A13692200E11D85 /* SWTableViewCell.h */,
-				41BE8CB91A13692200E11D85 /* SWTableViewCell.m */,
-				41BE8CBA1A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.h */,
-				41BE8CBB1A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.m */,
-				41BE8CBC1A13692200E11D85 /* SWUtilityButtonView.h */,
-				41BE8CBD1A13692200E11D85 /* SWUtilityButtonView.m */,
-			);
-			path = SWTableViewCell;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -418,21 +385,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				41BE8CBF1A13692200E11D85 /* SWCellScrollView.m in Sources */,
-				41BE8CC11A13692200E11D85 /* SWTableViewCell.m in Sources */,
+				41954E8B1A1BAF1500C4BB02 /* DetailsNodeInfoViewController.m in Sources */,
 				4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */,
 				4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */,
 				4114CBC81A07E9C100B7D475 /* OfflineTableViewController.m in Sources */,
 				416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */,
 				41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */,
-				41BE8CC31A13692200E11D85 /* SWUtilityButtonView.m in Sources */,
 				41B2AEE11A0A8CC3006C40FB /* MEGASdkManager.m in Sources */,
-				41BE8CC21A13692200E11D85 /* SWUtilityButtonTapGestureRecognizer.m in Sources */,
-				41BE8CBE1A13692200E11D85 /* NSMutableArray+SWUtilityButtons.m in Sources */,
 				416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */,
 				41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */,
 				4168127719EE6E5700C72800 /* main.m in Sources */,
-				41BE8CC01A13692200E11D85 /* SWLongPressGestureRecognizer.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -11,6 +11,7 @@
 #import "SVProgressHUD.h"
 #import "LoginViewController.h"
 #import <AssetsLibrary/AssetsLibrary.h>
+#import "DetailsNodeInfoViewController.h"
 
 #define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
 #define isImage(n)  [imagesSet containsObject:n]
@@ -19,6 +20,7 @@
     UIAlertView *folderAlert;
     UIAlertView *renameAlert;
     NSInteger indexNodeSelected;
+    NSString *cacheDirectory;
 }
 
 @property (nonatomic, strong) MEGANodeList *nodes;
@@ -54,6 +56,8 @@
             NSLog(@"Create directory error: %@", error);
         }
     }
+    
+    cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -88,9 +92,8 @@
     MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
     
     NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
-    NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
     NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
-    NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
+    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
     destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
@@ -108,23 +111,28 @@
     }
     
     if ([node type] == MEGANodeTypeFile) {
-        NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node modificationTime]
-                                                                          dateStyle:NSDateFormatterShortStyle
-                                                                          timeStyle:NSDateFormatterNoStyle];
+        struct tm *timeinfo;
+        char buffer[80];
         
-        cell.modificationLabel.text = modificationTimeString;
+        time_t rawtime = [[node modificationTime] timeIntervalSince1970];
+        timeinfo = localtime(&rawtime);
+        
+        strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+        
+        cell.modificationLabel.text = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
     } else {
-        NSString *creationTimeString = [NSDateFormatter localizedStringFromDate:[node creationTime]
-                                                                              dateStyle:NSDateFormatterShortStyle
-                                                                              timeStyle:NSDateFormatterNoStyle];
+        struct tm *timeinfo;
+        char buffer[80];
         
-        cell.modificationLabel.text = creationTimeString;
+        time_t rawtime = [[node creationTime] timeIntervalSince1970];
+        timeinfo = localtime(&rawtime);
+        
+        strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+        
+        cell.modificationLabel.text = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
     }
     
     cell.nodeHandle = [node handle];
-    
-    cell.leftUtilityButtons = [self leftButtons];
-    cell.delegate = self;
     
     return cell;
 }
@@ -144,22 +152,18 @@
             [self.navigationController pushViewController:cdvc animated:YES];
             break;
         }
-           
-//        case MEGANodeTypeFile: {
-//            NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
-//            NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-//            NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
-//            NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
-//            BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-//
-//            if (!fileExists) {
-//                [[MEGASdkManager sharedMEGASdk] startDownloadWithNode:node localPath:destinationFilePath];
-//            }
-//        }
             
         default:
             break;
     }
+}
+
+- (void)tableView:(UITableView *)tableView accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)indexPath {
+    MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
+    
+    DetailsNodeInfoViewController *nodeInfoDetailsVC = [self.storyboard instantiateViewControllerWithIdentifier:@"nodeInfoDetails"];
+    [nodeInfoDetailsVC setNode:node];
+    [self.navigationController pushViewController:nodeInfoDetailsVC animated:YES];
 }
 
 
@@ -174,6 +178,10 @@
     }
 }
 
+- (void)tableView:(UITableView *)tableView didEndDisplayingCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
+
+}
+
 - (IBAction)logout:(id)sender {
     [[MEGASdkManager sharedMEGASdk] logout];
 }
@@ -185,56 +193,6 @@
                                                destructiveButtonTitle:nil
                                                     otherButtonTitles:@"Create folder", @"Upload photo", nil];
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
-}
-
-#pragma mark - SWTableViewDelegate
-
-- (void)swipeableTableViewCell:(SWTableViewCell *)cell didTriggerLeftUtilityButtonWithIndex:(NSInteger)index {
-    NSIndexPath* pathOfTheCell = [self.tableView indexPathForCell:cell];
-    indexNodeSelected = [pathOfTheCell row];
-    MEGANode *node = [self.nodes nodeAtIndex:indexNodeSelected];
-    switch (index) {
-        case 0: {
-            if ([node type] == MEGANodeTypeFile) {
-                NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
-                NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-                NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
-                NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:fileName];
-                BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-                
-                if (!fileExists) {
-                    [[MEGASdkManager sharedMEGASdk] startDownloadWithNode:node localPath:destinationFilePath];
-                }
-            }
-            break;
-        }
-        case 1: {
-            [[MEGASdkManager sharedMEGASdk] exportNode:node];
-            break;
-        }
-        case 2:
-            renameAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"renameFileTitle", @"Rename file") message:NSLocalizedString(@"renameFileMessage", @"Enter new name for file") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"renameFile", @"Rename"), nil];
-            [renameAlert setAlertViewStyle:UIAlertViewStylePlainTextInput];
-            [renameAlert textFieldAtIndex:0].text = [[[node name] lastPathComponent] stringByDeletingPathExtension];
-            renameAlert.tag = 2;
-            [renameAlert show];
-            break;
-        default:
-            break;
-    }
-}
-
-// utility button open/close event
-- (void)swipeableTableViewCell:(SWTableViewCell *)cell scrollingToState:(SWCellState)state {
-
-}
-
-- (BOOL)swipeableTableViewCellShouldHideUtilityButtonsOnSwipe:(SWTableViewCell *)cell {
-    return  YES;
-}
-
-- (BOOL)swipeableTableViewCell:(SWTableViewCell *)cell canSwipeToState:(SWCellState)state {
-    return YES;
 }
 
 #pragma mark - Action sheet delegate
@@ -255,30 +213,15 @@
 #pragma mark - Alert delegate
 
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
-    // Create folder
     if (alertView.tag == 1) {
         if (buttonIndex == 1) {
             [[MEGASdkManager sharedMEGASdk] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
-        }
-    }
-    
-    // Rename file
-    if (alertView.tag == 2) {
-        if (buttonIndex == 1) {
-            MEGANode *node = [self.nodes nodeAtIndex:indexNodeSelected];
-            if ([[[node name] pathExtension] isEqualToString:@""]) {
-                [[MEGASdkManager sharedMEGASdk] renameNode:node newName:[alertView textFieldAtIndex:0].text];
-            } else {
-                NSString *newName = [[alertView textFieldAtIndex:0].text stringByAppendingFormat:@".%@", [[node name] pathExtension]];
-                [[MEGASdkManager sharedMEGASdk] renameNode:node newName:newName];
-            }
         }
     }
 }
 
 #pragma mark - UIImagePickerControllerDelegate
 
-// This method is called when an image has been chosen from the library or taken from the camera.
 - (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
     NSURL *assetURL = [info objectForKey:UIImagePickerControllerReferenceURL];
     
@@ -338,22 +281,6 @@
     [self.tabBarController presentViewController:self.imagePickerController animated:YES completion:nil];
 }
 
-- (NSArray *)leftButtons {
-    NSMutableArray *leftUtilityButtons = [NSMutableArray new];
-    
-    [leftUtilityButtons sw_addUtilityButtonWithColor:
-     [UIColor colorWithRed:236/255.0f green:240/255.0f blue:241/255.0f alpha:1.0f]
-                                                icon:[UIImage imageNamed:@"saveFile"]];
-    [leftUtilityButtons sw_addUtilityButtonWithColor:
-     [UIColor colorWithRed:149/255.0f green:165/255.0f blue:166/255.0f alpha:1.0f]
-                                                icon:[UIImage imageNamed:@"shareFile"]];
-    [leftUtilityButtons sw_addUtilityButtonWithColor:
-    [UIColor colorWithRed:127/255.0f green:140/255.0f blue:141/255.0f alpha:1.0f]
-                                                icon:[UIImage imageNamed:@"renameFile"]];
-    
-    return leftUtilityButtons;
-}
-
 #pragma mark - MEGARequestDelegate
 
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
@@ -379,7 +306,6 @@
     switch ([request type]) {
         case MEGARequestTypeLogout: {
             NSFileManager *fm = [NSFileManager defaultManager];
-            NSString *cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
             NSError *error = nil;
             for (NSString *file in [fm contentsOfDirectoryAtPath:cacheDirectory error:&error]) {
                 BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", cacheDirectory, file] error:&error];
@@ -397,19 +323,24 @@
             
             [SVProgressHUD dismiss];
             UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
-            LoginViewController *lvc = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
+            LoginViewController *loginVC = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
             
-            [self presentViewController:lvc animated:YES completion:nil];
+            [self presentViewController:loginVC animated:YES completion:nil];
             break;
         }
             
         case MEGARequestTypeGetAttrFile: {
-            for (int i = 0; i < [[self.tableView visibleCells] count]; i++) {
-                if ([request nodeHandle] == [[[self.tableView visibleCells] objectAtIndex:i] nodeHandle]) {
-                    NSIndexPath *indexPath = [self.tableView indexPathForCell:[[self.tableView visibleCells] objectAtIndex:i]];
-                    [self.tableView beginUpdates];
-                    [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
-                    [self.tableView endUpdates];
+            for (NodeTableViewCell *ntvc in [self.tableView visibleCells]) {
+                if ([request nodeHandle] == [ntvc nodeHandle]) {
+                    MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[request nodeHandle]];
+                    NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
+                    NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
+                    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
+                    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
+                    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+                    if (fileExists) {
+                        [ntvc.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
+                    }
                 }
             }
             break;

@@ -7,9 +7,8 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "SWTableViewCell.h"
 
-@interface NodeTableViewCell : SWTableViewCell
+@interface NodeTableViewCell : UITableViewCell
 
 @property (weak, nonatomic) IBOutlet UIImageView *thumbnailImageView;
 @property (weak, nonatomic) IBOutlet UILabel *nameLabel;

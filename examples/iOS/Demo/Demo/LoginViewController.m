@@ -15,8 +15,8 @@
 
 @interface LoginViewController ()
 
-@property (weak, nonatomic) IBOutlet UITextField *inputEmail;
-@property (weak, nonatomic) IBOutlet UITextField *inputPassword;
+@property (weak, nonatomic) IBOutlet UITextField *emailTextField;
+@property (weak, nonatomic) IBOutlet UITextField *passwordTextField;
 
 @end
 
@@ -31,7 +31,7 @@
 }
 
 - (IBAction)tapLogin:(id)sender {
-    [[MEGASdkManager sharedMEGASdk] loginWithEmail:[self.inputEmail text] password:[self.inputPassword text] delegate:self];
+    [[MEGASdkManager sharedMEGASdk] loginWithEmail:[self.emailTextField text] password:[self.passwordTextField text] delegate:self];
 }
 
 #pragma mark - MEGARequestDelegate
