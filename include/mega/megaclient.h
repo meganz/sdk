@@ -693,6 +693,8 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
+    SymmCipher tmpcipher;
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };
