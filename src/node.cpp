@@ -328,7 +328,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 bool Node::serialize(string* d)
 {
     // do not update state if undecrypted nodes are present
-    if (attrstring.size())
+    if (attrstring)
     {
         return false;
     }
@@ -494,7 +494,7 @@ void Node::setattr()
     byte* buf;
     SymmCipher* cipher;
 
-    if (attrstring.size() && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring.c_str(), attrstring.size())))
+    if (attrstring && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring->c_str(), attrstring->size())))
     {
         JSON json;
         nameid name;
@@ -516,8 +516,8 @@ void Node::setattr()
 
         delete[] buf;
 
-        attrstring.clear();
-		std::string().swap(attrstring);
+        delete attrstring;
+        attrstring = NULL;
     }
 }
 
@@ -555,7 +555,7 @@ void Node::setfingerprint()
 const char* Node::displayname() const
 {
     // not yet decrypted
-    if (attrstring.size())
+    if (attrstring)
     {
         return "NO_KEY";
     }
@@ -592,6 +592,13 @@ bool Node::applykey()
     int keylength = (type == FILENODE)
                    ? FILENODEKEYLENGTH + 0
                    : FOLDERNODEKEYLENGTH + 0;
+
+    if(type > FOLDERNODE)
+    {
+        //Root nodes contain an empty attrstring
+        delete attrstring;
+        attrstring = NULL;
+    }
 
     if (nodekey.size() == keylength || !nodekey.size())
     {
@@ -1313,5 +1320,16 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     return l;
 }
+
+NodeCore::NodeCore()
+{
+    attrstring = NULL;
+}
+
+NodeCore::~NodeCore()
+{
+    delete attrstring;
+}
+
 #endif
 } // namespace

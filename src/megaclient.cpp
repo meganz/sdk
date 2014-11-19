@@ -2421,7 +2421,11 @@ void MegaClient::sc_updatenode()
 
                         if (a)
                         {
-                            Node::copystring(&n->attrstring, a);
+                            if(!n->attrstring)
+                            {
+                                n->attrstring = new string;
+                            }
+                            Node::copystring(n->attrstring, a);
                             n->changed.attrs = true;
                         }
 
@@ -3535,7 +3539,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 n->tag = tag;
 
-                Node::copystring(&n->attrstring, a);
+                n->attrstring = new string;
+                Node::copystring(n->attrstring, a);
                 Node::copystring(&n->nodekey, k);
 
                 if (!ISUNDEF(su))
@@ -5437,7 +5442,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         // be considered - also, prevent clashes with the local debris folder
         if ((app->sync_syncable(*it)
              && (*it)->syncdeleted == SYNCDEL_NONE
-             && !(*it)->attrstring.size()
+             && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
          && (l->parent || l->sync->debris != ait->second))
         {
@@ -5698,7 +5703,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             if ((*it)->syncdeleted == SYNCDEL_NONE)
             {
                 // check if there is a crypto key missing...
-                if ((*it)->attrstring.size())
+                if ((*it)->attrstring)
                 {
                     if (!l->reported)
                     {
@@ -6023,7 +6028,8 @@ void MegaClient::syncupdate()
                 tattrs.map['n'] = l->name;
                 tattrs.getjson(&tattrstring);
                 tkey.setkey((const byte*)nnp->nodekey.data(), nnp->type);
-                makeattr(&tkey, &nnp->attrstring, tattrstring.c_str());
+                nnp->attrstring = new string;
+                makeattr(&tkey, nnp->attrstring, tattrstring.c_str());
 
                 l->treestate(TREESTATE_SYNCING);
                 nnp++;
@@ -6288,7 +6294,8 @@ void MegaClient::execmovetosyncdebris()
             tattrs.map['n'] = (i || target == SYNCDEL_DEBRIS) ? buf : SYNCDEBRISFOLDERNAME;
             tattrs.getjson(&tattrstring);
             tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
-            makeattr(&tkey, &nn->attrstring, tattrstring.c_str());
+            nn->attrstring = new string;
+            makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
         reqs[r].add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,

@@ -29,6 +29,9 @@
 namespace mega {
 struct MEGA_API NodeCore
 {
+    NodeCore();
+    ~NodeCore();
+
     // node's own handle
     handle nodehandle;
 
@@ -44,7 +47,7 @@ struct MEGA_API NodeCore
     string nodekey;
 
     // node attributes
-    string attrstring;
+    string *attrstring;
 };
 
 // new node for putnodes()

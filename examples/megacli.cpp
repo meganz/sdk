@@ -1130,7 +1130,8 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         key.setkey((const byte*) t->nodekey.data(), n->type);
 
         n->attrs.getjson(&attrstring);
-        client->makeattr(&key, &t->attrstring, attrstring.c_str());
+        t->attrstring = new string;
+        client->makeattr(&key, t->attrstring, attrstring.c_str());
     }
     else
     {
@@ -1747,7 +1748,8 @@ static void process_line(char* l)
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
-                                    client->makeattr(&key, &tc.nn->attrstring, attrstring.c_str());
+                                    tc.nn->attrstring = new string;
+                                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
                                 }
 
                                 // tree root: no parent
@@ -2356,7 +2358,8 @@ static void process_line(char* l)
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
-                                    client->makeattr(&key, &newnode->attrstring, attrstring.c_str());
+                                    newnode->attrstring = new string;
+                                    client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
                                     // add the newly generated folder node
                                     client->putnodes(n->nodehandle, newnode, 1);
@@ -3186,7 +3189,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
 
-        newnode->attrstring = *a;
+        newnode->attrstring = new string(*a);
 
         client->putnodes(n->nodehandle, newnode, 1);
     }
