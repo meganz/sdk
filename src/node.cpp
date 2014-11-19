@@ -480,7 +480,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpcipher.setkey(&client->nodekey))
+    if (client->tmpcipher.setkey(&nodekey))
     {
         return &client->tmpcipher;
     }
