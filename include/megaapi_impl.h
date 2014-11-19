@@ -739,7 +739,7 @@ class MegaApiImpl : public MegaApp
         int getTotalDownloads();
         void resetTotalDownloads();
         void resetTotalUploads();
-        void updateStatics();
+        void updateStats();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
 

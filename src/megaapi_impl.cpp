@@ -4010,7 +4010,7 @@ void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t tot
     if(requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        if(request)
+        if(request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
         {
             request->setTransferredBytes(currentProgress);
             request->setTotalBytes(totalProgress);
@@ -6265,7 +6265,7 @@ char* MegaApiImpl::stringToArray(string &buffer)
     return newbuffer;
 }
 
-void MegaApiImpl::updateStatics()
+void MegaApiImpl::updateStats()
 {
     transfer_map::iterator it;
     transfer_map::iterator end;
