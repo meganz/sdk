@@ -139,7 +139,7 @@ namespace MegaApp
             //in the native library and log messages are only readable with the native debugger attached.
             //The default behavior of MegaLogger() is to print logs using Debug.WriteLine() but it could
             //be used to sends log to a file, for example.
-            MegaSDK.setLoggerClass(new MegaLogger());
+            MegaSDK.setLoggerObject(new MegaLogger());
 
             //You can select the maximum output level for debug messages.
             //By default FATAL, ERROR, WARNING and INFO will be enabled
