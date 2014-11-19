@@ -5537,10 +5537,15 @@ void MegaApiImpl::sendPendingRequests()
 {
 	MegaRequestPrivate *request;
 	error e;
-	int nextTag;
+    int nextTag = 0;
 
 	while((request = requestQueue.pop()))
 	{
+        if(!nextTag)
+        {
+            client->abortbackoff(false);
+        }
+
 		sdkMutex.lock();
 		nextTag = client->nextreqtag();
         request->setTag(nextTag);
