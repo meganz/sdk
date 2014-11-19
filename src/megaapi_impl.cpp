@@ -4213,21 +4213,9 @@ void MegaApiImpl::nodes_updated(Node** n, int count)
     MegaNodeList *nodeList = NULL;
     if(n != NULL)
     {
-        vector<Node *> list;
-        for(int i=0; i<count; i++)
+        if(count)
         {
-            Node *node = n[i];
-            if(node->changed.parent || node->changed.attrs || node->changed.removed)
-            {
-                node->changed.parent = false;
-                node->changed.attrs = false;
-                list.push_back(node);
-            }
-        }
-
-        if(list.size())
-        {
-            nodeList = new MegaNodeListPrivate(list.data(), list.size());
+            nodeList = new MegaNodeListPrivate(n, count);
             fireOnNodesUpdate(nodeList);
         }
     }
@@ -5537,10 +5525,15 @@ void MegaApiImpl::sendPendingRequests()
 {
 	MegaRequestPrivate *request;
 	error e;
-	int nextTag;
+    int nextTag = 0;
 
 	while((request = requestQueue.pop()))
 	{
+        if(!nextTag)
+        {
+            client->abortbackoff(false);
+        }
+
 		sdkMutex.lock();
 		nextTag = client->nextreqtag();
         request->setTag(nextTag);
