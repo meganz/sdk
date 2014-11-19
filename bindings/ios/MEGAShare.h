@@ -40,7 +40,6 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 
 /**
  * @brief The handle of the folder that is being shared
- * @return The handle of the folder that is being shared
  */
 @property (readonly, nonatomic) uint64_t nodeHandle;
 

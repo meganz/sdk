@@ -36,6 +36,10 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.nodeList ? [[MEGANodeList alloc] initWithNodeList:self.nodeList->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaNodeList *)getCPtr {
     return self.nodeList;
 }

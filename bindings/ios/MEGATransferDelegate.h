@@ -26,6 +26,8 @@
  */
 @protocol MEGATransferDelegate <NSObject>
 
+@optional
+
 /**
  * @brief This function is called when a transfer is about to start being processed
  *

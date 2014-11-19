@@ -28,6 +28,19 @@
 @property (readonly, nonatomic) NSNumber *size;
 
 /**
+ * @brief Creates a copy of this MEGAUserList object.
+ *
+ * The resulting object is fully independent of the source MEGAUserList,
+ * it contains a copy of all internal attributes, so it will be valid after
+ * the original object is deleted.
+ *
+ * You are the owner of the returned object
+ *
+ * @return Copy of the MEGAUserList object
+ */
+- (instancetype)clone;
+
+/**
  * @brief Returns the MEGAUser at the position index in the MEGAUserList
  *
  * The MEGAUserList retains the ownership of the returned MEGAUser. It will be only valid until

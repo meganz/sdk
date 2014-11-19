@@ -26,6 +26,8 @@
  */
 @protocol MEGADelegate <NSObject>
 
+@optional
+
 /**
  * @brief This function is called when a request is about to start being processed
  *

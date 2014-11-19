@@ -48,7 +48,7 @@ using namespace mega;
     return (MEGATransferType) (self.megaTransfer ? self.megaTransfer->getType() : 0);
 }
 
-- (NSString *)transfer {
+- (NSString *)transferString {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getTransferString()] : nil;
@@ -126,14 +126,6 @@ using namespace mega;
 
 - (MEGANode *)publicNode {
     return self.megaTransfer && self.megaTransfer->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
-}
-
-- (BOOL)isSyncTransfer {
-    return self.megaTransfer ? self.megaTransfer->isSyncTransfer() : NO;
-}
-
-- (BOOL)isStreamingTransfer {
-    return self.megaTransfer ? self.megaTransfer->isStreamingTransfer() : NO;
 }
 
 @end

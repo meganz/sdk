@@ -58,17 +58,119 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 @interface MEGASdk : NSObject 
 
+/**
+ * @brief Email of the currently open account
+ *
+ * If the MEGASdk object isn't logged in or the email isn't available,
+ * this property is nil.
+ *
+ * You take the ownership of the returned value
+ *
+ */
 @property (readonly, nonatomic) NSString *myEmail;
+
+/**
+ * @brief Root node of the account
+ *
+ * You take the ownership of the returned value
+ *
+ * If you haven't successfully called [MEGASdk fetchNodes] before,
+ * this property is nil
+ *
+ */
 @property (readonly, nonatomic) MEGANode *rootNode;
+
+/**
+ * @brief Rubbish node of the account
+ *
+ * You take the ownership of the returned value
+ *
+ * If you haven't successfully called [MEGASdk fetchNodes] before,
+ * this property is nil
+ *
+ */
 @property (readonly, nonatomic) MEGANode *rubbishNode;
+
+/**
+ * @brief Inbox node of the account
+ *
+ * You take the ownership of the returned value
+ *
+ * If you haven't successfully called [MEGASdk fetchNodes] before,
+ * this property is nil
+ *
+ */
+@property (readonly, nonatomic) MEGANode *inboxNode;
+
+/**
+ * @brief All active transfers
+ */
 @property (readonly, nonatomic) MEGATransferList *transfers;
+
+/**
+ * @brief Number of pending uploads
+ *
+ * @deprecated Property related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
 @property (readonly, nonatomic) NSInteger pendingUploads;
+
+/**
+ * @brief Number of pending downloads
+ *
+ * @deprecated Property related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
 @property (readonly, nonatomic) NSInteger pendingDownloads;
+
+/**
+ * @brief Number of queued uploads since the last call to [MEGASdk resetTotalUploads]
+ *
+ * @deprecated Property related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
 @property (readonly, nonatomic) NSInteger totalUploads;
+
+/**
+ * @brief Number of queued uploads since the last call to [MMEGASdk resetTotalDownloads]
+ *
+ * @deprecated Property related to statistics will be reviewed in future updates. They
+ * could change or be removed in the current form.
+ */
 @property (readonly, nonatomic) NSInteger totalDownloads;
+
+/**
+ * @brief Total downloaded bytes since the creation of the MEGASdk object
+ *
+ * @deprecated Property related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
 @property (readonly, nonatomic) NSNumber *totalsDownloadedBytes;
+
+/**
+ * @brief Total uploaded bytes since the creation of the MEGASdk object
+ *
+ * @deprecated Property related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
 @property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+
+/**
+ * @brief The master key of the account
+ *
+ * The returned value is a Base64-encoded string
+ *
+ * With the master key, it's possible to start the recovery of an account when the
+ * password is lost:
+ * - https://mega.co.nz/#recovery
+ *
+ * You take the ownership of the returned value.
+ *
+ */
 @property (readonly, nonatomic) NSString *masterKey;
+
+#pragma mark - Init
 
 /**
  * @brief Constructor suitable for most applications
@@ -77,7 +179,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * - https://mega.co.nz/#sdk
  *
  * @param userAgent User agent to use in network requests
- * If you pass nil to this parameter, a default user agent will be used
+ * If you pass nil to this parameter, a default user agent will be used[]
  *
  */
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent;
@@ -96,6 +198,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  */
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath;
+
+#pragma mark - Add and remove delegates
 
 /**
  * @brief Register a delegate to receive all events (requests, transfers, global)
@@ -201,7 +305,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @brief Converts a Base64-encoded node handle to a MegaHandle
  *
  * The returned value can be used to recover a MEGANode using [MEGASdk nodeWithHandle:]
- * You can revert this operation using [MEGASdk handleToBase64]
+ * You can revert this operation using [MEGASdk handleToBase64:]
  *
  * @param base64Handle Base64-encoded node handle
  * @return Node handle
@@ -217,15 +321,19 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * completing requests.
  *
  * The associated request type with this request is MEGARequestTypeRetryPendingConnections.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ * - [MEGARequest number] - Returns the second parameter
  */
-
 - (void)retryPendingConnections;
+
+#pragma mark - Login
 
 /**
  * @brief Log in to a MEGA account
  *
  * The associated request type with this request is MEGARequestTypeLogin.
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the first parameter
  * - [MEGARequest password] - Returns the second parameter
  *
@@ -234,7 +342,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * @param email Email of the user
  * @param password Password
- * @param delegate MEGARequestDelegate to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -242,7 +350,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @brief Log in to a MEGA account
  *
  * The associated request type with this request is MEGARequestTypeLogin.
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the first parameter
  * - [MEGARequest password] - Returns the second parameter
  *
@@ -257,7 +365,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 /**
  * @brief Log in to a MEGA account using precomputed keys
  *
- * The associated request type with this request is MEGARequestTypeFastLogin.
+ * The associated request type with this request is MEGARequestTypeLogin.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the first parameter
  * - [MEGARequest password] - Returns the second parameter
@@ -269,14 +377,14 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param email Email of the user
  * @param stringHash Hash of the email returned by [MEGASdk stringHashWithBase64pwkey:email:]
  * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:]
- * @param delegate MEGARequestDelegate to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Log in to a MEGA account using precomputed keys
  *
- * The associated request type with this request is MEGARequestTypeFastLogin.
+ * The associated request type with this request is MEGARequestTypeLogin.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the first parameter
  * - [MEGARequest password] - Returns the second parameter
@@ -299,7 +407,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * - [MEGARequest sessionKey] - Returns the session key
  *
  * @param session Session key previously dumped with [MEGASdk dumpSession]
- * @param delegate MEGARequestDelegate to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)fastLoginWithSession:(NSString *)session delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -315,6 +423,37 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 - (void)fastLoginWithSession:(NSString *)session;
 
 /**
+ * @brief Log in to a public folder using a folder link
+ *
+ * After a successful login, you should call [MEGAsdk fetchnodes] to get filesystem and
+ * start working with the folder.
+ *
+ * The associated request type with this request is MEGARequestTypeLogin.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Retuns the string "FOLDER"
+ * - [MEGARequest link] - Returns the public link to the folder
+ *
+ * @param folderLink Link to a folder in MEGA
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)loginWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Log in to a public folder using a folder link
+ *
+ * After a successful login, you should call [MEGAsdk fetchnodes] to get filesystem and
+ * start working with the folder.
+ *
+ * The associated request type with this request is MEGARequestTypeLogin.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Retuns the string "FOLDER"
+ * - [MEGARequest link] - Returns the public link to the folder
+ *
+ * @param folderLink Link to a folder in MEGA
+ */
+- (void)loginWithFolderLink:(NSString *)folderLink;
+
+/**
  * @brief Returns the current session key
  *
  * You have to be logged in to get a valid session key. Otherwise,
@@ -325,6 +464,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @return Current session key
  */
 - (NSString *)dumpSession;
+
+#pragma mark - Create account and confirm account
 
 /**
  * @brief Initialize the creation of a new MEGA account
@@ -342,7 +483,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param email Email for the account
  * @param password Password for the account
  * @param name Name of the user
- * @param delegate MEGARequestDelegate to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -368,7 +509,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
 /**
  * @brief Initialize the creation of a new MEGA account with precomputed keys
  *
- * The associated request type with this request is MEGARequestTypeFastCreateAccount.
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email for the account
  * - [MEGARequest: privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyWithPassword:]
@@ -381,14 +522,14 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param email Email for the account
  * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyWithPassword]
  * @param name Name of the user
- * @param delegate MEGARequestDelegate to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Initialize the creation of a new MEGA account with precomputed keys
  *
- * The associated request type with this request is MEGARequestTypeFastCreateAccount.
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email for the account
  * - [MEGARequest: privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyWithPassword:]
@@ -417,7 +558,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * - [MEGARequest name] - Returns the name associated with the confirmation link
  *
  * @param link Confirmation link
- * @param delegate MEGARequestDelegate to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)querySignupWithLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -445,102 +586,1305 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * - [MEGARequest link] - Returns the confirmation link
  * - [MEGARequest password] - Returns the password
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MegaError::API_OK:
- * - [MegaRequest::getEmail - Email of the account
- * - [MegaRequest::getName - Name of the user
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MegaRequest email] - Email of the account
+ * - [MegaRequest name] - Name of the user
  *
  * @param link Confirmation link
- * @param listener MegaRequestListener to track this request
+ * @param delegate id<MEGARequestDelegate> to track this request
  */
 - (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Confirm a MEGA account using a confirmation link and the user password
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the confirmation link
+ * - [MEGARequest password] - Returns the password
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MegaRequest email] - Email of the account
+ * - [MegaRequest name] - Name of the user
+ *
+ * @param link Confirmation link
+ */
 - (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password;
+
+/**
+ * @brief Confirm a MEGA account using a confirmation link and a precomputed key
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the confirmation link
+ * - [MEGARequest privateKey] - Returns the base64pwkey parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Email of the account
+ * - [MEGARequest name] - Name of the user
+ *
+ * @param link Confirmation link
+ * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyWithPassword:]
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Confirm a MEGA account using a confirmation link and a precomputed key
+ *
+ * The associated request type with this request is MEGARequestTypeConfirmAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the confirmation link
+ * - [MEGARequest privateKey] - Returns the base64pwkey parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest email] - Email of the account
+ * - [MEGARequest name] - Name of the user
+ *
+ * @param link Confirmation link
+ * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyWithPassword:]
+ */
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
+
+/**
+ * @brief Check if the MEGASdk object is logged in
+ * @return 0 if not logged in, Otherwise, a number >= 0
+ */
 - (NSInteger)isLoggedIn;
+
+/**
+ * @brief Create a folder in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns the handle of the parent folder
+ * - [MEGARequest name] - Returns the name of the new folder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Handle of the new folder
+ *
+ * @param name Name of the new folder
+ * @param parent Parent folder
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Create a folder in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns the handle of the parent folder
+ * - [MEGARequest name] - Returns the name of the new folder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Handle of the new folder
+ *
+ * @param name Name of the new folder
+ * @param parent Parent folder
+ */
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent;
+
+/**
+ * @brief Move a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeMove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ *
+ * @param node Node to move
+ * @param newParent New parent for the node
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Move a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeMove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ *
+ * @param node Node to move
+ * @param newParent New parent for the node
+ */
 - (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent;
+
+/**
+ * @brief Copy a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeCopy.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ * - [MEGARequest publicMegaNode] - Returns the node to copy (if it is a public node)
+ *
+ * @param node Node to copy
+ * @param newParent New parent for the node
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Copy a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeCopy.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ * - [MEGARequest publicMegaNode] - Returns the node to copy (if it is a public node)
+ *
+ * @param node Node to copy
+ * @param newParent New parent for the node
+ */
 - (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent;
+
+/**
+ * @brief Rename a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRename.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ * - [MEGARequest name] - Returns the new name for the node
+ *
+ * @param node Node to modify
+ * @param newName New name for the node
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)renameNode:(MEGANode *)node newName:(NSString *)newName delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Rename a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRename.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ * - [MEGARequest name] - Returns the new name for the node
+ *
+ * @param node Node to modify
+ * @param newName New name for the node
+ */
 - (void)renameNode:(MEGANode *)node newName:(NSString *)newName;
+
+/**
+ * @brief Remove a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ *
+ * @param node Node to remove
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)removeNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove a node in the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ *
+ * @param node Node to remove
+ */
 - (void)removeNode:(MEGANode *)node;
+
+/**
+ * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
+ *
+ * To share a folder with an user, set the desired access level in the level parameter. If you
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
+ *
+ * The associated request type with this request is MEGARequestTypeCopy.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
+ * - [MEGARequest email] - Returns the email of the user that receives the shared folder
+ * - [MEGARequest accessLevel] - Returns the access that is granted to the user
+ *
+ * @param node The folder to share. It must be a non-root folder
+ * @param user User that receives the shared folder
+ * @param level Permissions that are granted to the user
+ * Valid values for this parameter:
+ * - MEGAShareTypeAccessUnkown = -1
+ * Stop sharing a folder with this user
+ *
+ * - MEGAShareTypeAccessRead = 0
+ * - MEGAShareTypeAccessUnkown = 1
+ * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessOwner = 3
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
+ *
+ * To share a folder with an user, set the desired access level in the level parameter. If you
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
+ *
+ * The associated request type with this request is MEGARequestTypeCopy.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
+ * - [MEGARequest email] - Returns the email of the user that receives the shared folder
+ * - [MEGARequest accessLevel] - Returns the access that is granted to the user
+ *
+ * @param node The folder to share. It must be a non-root folder
+ * @param user User that receives the shared folder
+ * @param level Permissions that are granted to the user
+ * Valid values for this parameter:
+ * - MEGAShareTypeAccessUnkown = -1
+ * Stop sharing a folder with this user
+ *
+ * - MEGAShareTypeAccessRead = 0
+ * - MEGAShareTypeAccessUnkown = 1
+ * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessOwner = 3
+ *
+ */
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level;
-- (void)loginWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate;
-- (void)loginWithFolderLink:(NSString *)folderLink;
+
+/**
+ * @brief Import a public link to the account
+ *
+ * The associated request type with this request is MEGARequestTypeImportLink.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to the file
+ * - [MEGARequest parentHandle] - Returns the folder that receives the imported file
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Handle of the new node in the account
+ *
+ * @param megaFileLink Public link to a file in MEGA
+ * @param parent Parent folder for the imported file
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Import a public link to the account
+ *
+ * The associated request type with this request is MEGARequestTypeImportLink.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to the file
+ * - [MEGARequest parentHandle] - Returns the folder that receives the imported file
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Handle of the new node in the account
+ *
+ * @param megaFileLink Public link to a file in MEGA
+ * @param parent Parent folder for the imported file
+ */
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent;
+
+/**
+ * @brief Get a MEGANode from a public link to a file
+ *
+ * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadWithNode:localPath:]
+ *
+ * The associated request type with this request is MEGARequestTypeGetPublicNode.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to the file
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest publicMegaNode] - Public MEGANode corresponding to the public link
+ *
+ * @param megaFileLink Public link to a file in MEGA
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get a MEGANode from a public link to a file
+ *
+ * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadWithNode:localPath:]
+ *
+ * The associated request type with this request is MEGARequestTypeGetPublicNode.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to the file
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest publicMegaNode] - Public MEGANode corresponding to the public link
+ *
+ * @param megaFileLink Public link to a file in MEGA
+ */
 - (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink;
+
+/**
+ * @brief Get the thumbnail of a node
+ *
+ * If the node doesn't have a thumbnail the request fails with the MEGAErrorTypeApiENoent
+ * error code
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node Node to get the thumbnail
+ * @param destinationFilePath Destination path for the thumbnail.
+ * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the thumbnail of a node
+ *
+ * If the node doesn't have a thumbnail the request fails with the MEGAErrorTypeApiENoent
+ * error code
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node Node to get the thumbnail
+ * @param destinationFilePath Destination path for the thumbnail.
+ * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ */
 - (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Set the thumbnail of a MEGANode
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node MEGANode to set the thumbnail
+ * @param sourceFilePath Source path of the file that will be set as thumbnail
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the thumbnail of a MEGANode
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node MEGANode to set the thumbnail
+ * @param sourceFilePath Source path of the file that will be set as thumbnail
+ */
 - (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath;
+
+/**
+ * @brief Get the preview of a node
+ *
+ * If the node doesn't have a preview the request fails with the MEGAErrorTypeApiENoent
+ * error code
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node Node to get the preview
+ * @param destinationFilePath Destination path for the preview.
+ * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)getPreviewWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the preview of a node
+ *
+ * If the node doesn't have a preview the request fails with the MEGAErrorTypeApiENoent
+ * error code
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node Node to get the preview
+ * @param destinationFilePath Destination path for the preview.
+ * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)getPreviewWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Set the preview of a node
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node Node to set the preview
+ * @param sourceFilePath Source path of the file that will be set as preview
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)setPreviewWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the preview of a MEGANode
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ *
+ * @param node Node to set the preview
+ * @param sourceFilePath Source path of the file that will be set as preview
+ */
 - (void)setPreviewWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath;
+
+/**
+ * @brief Get the avatar of a MEGAUser
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email of the user
+ *
+ * @param user MEGAUser to get the avatar
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the avatar of a MEGAUser
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email of the user
+ *
+ * @param user MEGAUser to get the avatar
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ */
 - (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link
+ */
 - (void)exportNode:(MEGANode *)node;
+
+/**
+ * @brief Stop sharing a file/folder
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns false
+ *
+ * @param node MEGANode to stop sharing
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Stop sharing a file/folder
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns false
+ *
+ * @param node MEGANode to stop sharing
+ */
 - (void)disableExportNode:(MEGANode *)node;
+
+/**
+ * @brief Fetch the filesystem in MEGA
+ *
+ * The MEGASdk object must be logged in in an account or a public folder
+ * to successfully complete this request.
+ *
+ * The associated request type with this request is MEGARequestTypeFetchNodes.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch the filesystem in MEGA
+ *
+ * The MEGASdk object must be logged in in an account or a public folder
+ * to successfully complete this request.
+ *
+ * The associated request type with this request is MEGARequestTypeFetchNodes.
+ *
+ */
 - (void)fetchNodes;
+
+/**
+ * @brief Get details about the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeAccountDetails.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAccountDetails] - Details of the MEGA account
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get details about the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeAccountDetails.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAccountDetails] - Details of the MEGA account
+ *
+ */
 - (void)getAccountDetails;
+
+/**
+ * @brief Get the available pricing plans to upgrade a MEGA account
+ *
+ * You can get a payment URL for any of the pricing plans provided by this function
+ * using [MEGASdk getPaymentULRWithProductHandle:]
+ *
+ * The associated request type with this request is MEGARequestTypeGetPricing.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @see [MEGASdk getPaymentULRWithProductHandle:]
+ */
 - (void)pricingWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the available pricing plans to upgrade a MEGA account
+ *
+ * You can get a payment URL for any of the pricing plans provided by this function
+ * using [MEGASdk getPaymentULRWithProductHandle:]
+ *
+ * The associated request type with this request is MEGARequestTypeGetPricing.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ *
+ * @see [MEGASdk getPaymentULRWithProductHandle:]
+ */
 - (void)pricing;
+
+/**
+ * @brief Get the payment URL for an upgrade
+ *
+ * The associated request type with this request is MEGARequestTypeGetPaymentURL.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the product
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Payment link
+ *
+ * @param productHandle Handle of the product (see [MEGASdk pricing])
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @see [MEGASdk pricing]
+ */
 - (void)getPaymentURLWithProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the payment URL for an upgrade
+ *
+ * The associated request type with this request is MEGARequestTypeGetPaymentURL.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the product
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Payment link
+ *
+ * @param productHandle Handle of the product (see [MEGASdk pricing])
+ *
+ * @see [MEGASdk pricing]
+ */
 - (void)getPaymentULRWithProductHandle:(uint64_t)productHandle;
+
+/**
+ * @brief Change the password of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeChangePassword.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest password] - Returns the old password
+ * - [MEGARequest newPassword] - Returns the new password
+ *
+ * @param oldPassword Old password
+ * @param newPassword New password
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Change the password of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeChangePassword.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest password] - Returns the old password
+ * - [MEGARequest newPassword] - Returns the new password
+ *
+ * @param oldPassword Old password
+ * @param newPassword New password
+ */
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
+
+/**
+ * @brief Add a new contact to the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeAddContact.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ *
+ * @param email Email of the new contact
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)addContactWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Add a new contact to the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeAddContact.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ *
+ * @param email Email of the new contact
+ */
 - (void)addContactWithEmail:(NSString *)email;
+
+/**
+ * @brief Remove a contact to the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveContact.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ *
+ * @param email Email of the new contact
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)removeContactWithUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Add a new contact to the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeAddContact.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ *
+ * @param email Email of the new contact
+ */
 - (void)removeContactWithUser:(MEGAUser *)user;
+
+/**
+ * @brief Logout of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeLogout.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Logout of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeLogout.
+ *
+ */
 - (void)logout;
+
+#pragma mark - Transfers
+
+/**
+ * @brief Upload a file
+ * @param localPath Local path of the file
+ * @param parent Node for the file in the MEGA account
+ * @param delegate id<MEGATransferDelegate> to track this transfer
+ */
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file
+ * @param localPath Local path of the file
+ * @param parent Node for the file in the MEGA account
+ */
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent;
+
+/**
+ * @brief Upload a file with a custom name
+ * @param localPath Local path of the file
+ * @param parent Parent node for the file in the MEGA account
+ * @param fileName Custom file name for the file in MEGA
+ * @param delegate id<MEGATransferDelegate> to track this transfer
+ */
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file with a custom name
+ * @param localPath Local path of the file
+ * @param parent Parent node for the file in the MEGA account
+ * @param fileName Custom file name for the file in MEGA
+ */
 - (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename;
+
+/**
+ * @brief Download a file from MEGA
+ * @param node MEGANode that identifies the file
+ * @param localPath Destination path for the file
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate id<MEGATransferDelegate> to track this transfer
+ */
 - (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate;
-- (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath;- (void)cancelTransferWithTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate;
-- (void)cancelTransferWithTransfer:(MEGATransfer *)transfer;
+
+/**
+ * @brief Download a file from MEGA
+ * @param node MEGANode that identifies the file
+ * @param localPath Destination path for the file
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate id<MEGATransferDelegate> to track this transfer
+ */
+- (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath;
+/**
+ * @brief Cancel a transfer
+ *
+ * When a transfer is cancelled, it will finish and will provide the error code
+ * MEGAErrorTypeApiEIncomplete in [MEGATransferDelegate onTransferFinish] and
+ * [MEGADelegate onTransferFinish]
+ *
+ * The associated request type with this request is MEGARequestTypeCancelTransfer.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the cancelled transfer ([MEGATransfer tag])
+ *
+ * @param transfer MEGATransfer object that identifies the transfer
+ * You can get this object in any MegaTransferListener callback or any MegaListener callback
+ * related to transfers.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel a transfer
+ *
+ * When a transfer is cancelled, it will finish and will provide the error code
+ * MEGAErrorTypeApiEIncomplete in [MEGATransferDelegate onTransferFinish] and
+ * [MEGADelegate onTransferFinish]
+ *
+ * The associated request type with this request is MEGARequestTypeCancelTransfer.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the cancelled transfer ([MEGATransfer tag])
+ *
+ * @param transfer MEGATransfer object that identifies the transfer
+ * You can get this object in any MegaTransferListener callback or any MegaListener callback
+ * related to transfers.
+ *
+ */
+- (void)cancelTransfer:(MEGATransfer *)transfer;
+
+/**
+ * @brief Cancel all transfers of the same type
+ *
+ * The associated request type with this request is MEGARequestTypeCancelTransfers.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the first parameter
+ *
+ * @param type Type of transfers to cancel.
+ * Valid values are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)cancelTransfersWithDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel all transfers of the same type
+ *
+ * The associated request type with this request is MEGARequestTypeCancelTransfers.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the first parameter
+ *
+ * @param type Type of transfers to cancel.
+ * Valid values are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ */
 - (void)cancelTransfersWithDirection:(NSInteger)direction;
+
+/**
+ * @brief Pause/resume all transfers
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfers.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ *
+ * @param pause YES to pause all transfers / NO to resume all transfers
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)pauseTransersWithPause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume all transfers
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfers.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ *
+ * @param pause YES to pause all transfers / NO to resume all transfers
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
 - (void)pauseTransersWithPause:(BOOL)pause;
-- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;- (void)resetTotalDownloads;
+
+/**
+ * @brief Set the upload speed limit
+ *
+ * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
+ * applied for already started uploads and it's applied per storage server.
+ *
+ * @param bpslimit -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
+ * in bytes per second
+ */
+- (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
+
+/**
+ * @brief Reset the number of total downloads
+ * This function resets the number returned by [MEGASdk totalDownloads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+- (void)resetTotalDownloads;
+
+/**
+ * @brief Reset the number of total uploads
+ * This function resets the number returned by [MEGASdk totalUploads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
 - (void)resetTotalUploads;
+
+/**
+ * @brief Get the number of child nodes
+ *
+ * If the node doesn't exist in MEGA or isn't a folder,
+ * this function returns 0
+ *
+ * This function doesn't search recursively, only returns the direct child nodes.
+ *
+ * @param parent Parent node
+ * @return Number of child nodes
+ */
 - (NSInteger)numberChildrenWithParent:(MEGANode *)parent;
+
+/**
+ * @brief Get the number of child files of a node
+ *
+ * If the node doesn't exist in MEGA or isn't a folder,
+ * this function returns 0
+ *
+ * This function doesn't search recursively, only returns the direct child files.
+ *
+ * @param parent Parent node
+ * @return Number of child files
+ */
 - (NSInteger)numberChildFilesWithParent:(MEGANode *)parent;
+
+/**
+ * @brief Get the number of child folders of a node
+ *
+ * If the node doesn't exist in MEGA or isn't a folder,
+ * this function returns 0
+ *
+ * This function doesn't search recursively, only returns the direct child folders.
+ *
+ * @param parent Parent node
+ * @return Number of child folders
+ */
 - (NSInteger)numberChildFoldersWithParent:(MEGANode *)parent;
+
+/**
+ * @brief Get all children of a MEGANode
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil
+ *
+ * You take the ownership of the returned value
+ *
+ * @param parent Parent node
+ * @param order Order for the returned list
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Sort in alphabetical order, ascending
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Sort in alphabetical order, descending
+ *
+ * @return List with all child MEGANode objects
+ */
 - (MEGANodeList *)childrenWithParent:(MEGANode *)parent order:(NSInteger)order;
 - (MEGANodeList *)childrenWithParent:(MEGANode *)parent;
+
+/**
+ * @brief Get the child node with the provided name
+ *
+ * If the node doesn't exist, this function returns nil
+ *
+ * You take the ownership of the returned value
+ *
+ * @param parent Parent node
+ * @param name Name of the node
+ * @return The MEGANode that has the selected parent and name
+ */
 - (MEGANode *)childNodeWithParent:(MEGANode *)parent name:(NSString *)name;
+
+/**
+ * @brief Get the parent node of a MEGANode
+ *
+ * If the node doesn't exist in the account or
+ * it is a root node, this function returns NULL
+ *
+ * You take the ownership of the returned value.
+ *
+ * @param node MEGANode to get the parent
+ * @return The parent of the provided node
+ */
 - (MEGANode *)parentNodeWithNode:(MEGANode *)node;
+
+/**
+ * @brief Get the path of a MEGANode
+ *
+ * If the node doesn't exist, this function returns nil.
+ * You can recoved the node later unsing [MEGASdk nodeWithPath:]
+ * except if the path contains names with  '/', '\' or ':' characters.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param node MEGANode for which the path will be returned
+ * @return The path of the node
+ */
 - (NSString *)nodePathWithNode:(MEGANode *)node;
+
+/**
+ * @brief Get the MEGANode in a specific path in the MEGA account
+ *
+ * The path separator character is '/'
+ * The Inbox root node is //in/
+ * The Rubbish root node is //bin/
+ *
+ * Paths with names containing '/', '\' or ':' aren't compatible
+ * with this function.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param path Path to check
+ * @param node Base node if the path is relative
+ * @return The MEGANode object in the path, otherwise nil
+ */
 - (MEGANode *)nodeWithPath:(NSString *)path node:(MEGANode *)node;
+
+/**
+ * @brief Get the MEGANode in a specific path in the MEGA account
+ *
+ * The path separator character is '/'
+ * The Inbox root node is //in/
+ * The Rubbish root node is //bin/
+ *
+ * Paths with names containing '/', '\' or ':' aren't compatible
+ * with this function.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param path Path to check
+ * @return The MEGANode object in the path, otherwise nil
+ */
 - (MEGANode *)nodeWithPath:(NSString *)path;
+
+/**
+ * @brief Get the MEGANode that has a specific handle
+ *
+ * You can get the handle of a MEGANode using [MEGANode handle]. The same handle
+ * can be got in a Base64-encoded string using [MEGANode base64Handle]. Conversions
+ * between these formats can be done using [MEGASdk base64ToHandle:] and [MEGASdk handleToBase64:]
+ *
+ * You take the ownership of the returned value.
+ *
+ * @param handle Node handle to check
+ * @return MEGANode object with the handle, otherwise nil
+ */
 - (MEGANode *)nodeWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Get all contacts of this MEGA account
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of MEGAUser object with all contacts of this account
+ */
 - (MEGAUserList *)contacts;
+
+/**
+ * @brief Get the MEGAUser that has a specific email address
+ *
+ * You can get the email of a MEGAUser using [MEGAUser email]
+ *
+ * You take the ownership of the returned value
+ *
+ * @param email Email address to check
+ * @return MEGAUser that has the email address, otherwise nil
+ */
 - (MEGAUser *)contactWithEmail:(NSString *)email;
+
+/**
+ * @brief Get a list with all inbound sharings from one MEGAUser
+ *
+ * You take the ownership of the returned value
+ *
+ * @param user MEGAUser sharing folders with this account
+ * @return List of MEGANode objects that this user is sharing with this account
+ */
 - (MEGANodeList *)inSharesWithUser:(MEGAUser *)user;
+
+/**
+ * @brief Get a list with all inboud sharings
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of MEGANode objects that other users are sharing with this account
+ */
 - (MEGANodeList *)inShares;
+
+/**
+ * @brief Get a list with the active outbound sharings for a MEGANode
+ *
+ * If the node doesn't exist in the account, this function returns an empty list.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param node MEGANode to check
+ * @return List of MEGAShare objects
+ */
 - (MEGAShareList *)outSharesWithNode:(MEGANode *)node;
+
+/**
+ * @brief Get a Base64-encoded fingerprint for a local file
+ *
+ * The fingerprint is created taking into account the modification time of the file
+ * and file contents. This fingerprint can be used to get a corresponding node in MEGA
+ * using [MEGASdk nodeWithFingerprint:]
+ *
+ * If the file can't be found or can't be opened, this function returns nil
+ *
+ * You take the ownership of the returned value
+ *
+ * @param filePath Local file path
+ * @return Base64-encoded fingerprint for the file
+ */
 - (NSString *)fingerprintWithFilePath:(NSString *)filePath;
+
+/**
+ * @brief Get a Base64-encoded fingerprint for a node
+ *
+ * If the node doesn't exist or doesn't have a fingerprint, this function returns nil
+ *
+ * You take the ownership of the returned value
+ *
+ * @param node Node for which we want to get the fingerprint
+ * @return Base64-encoded fingerprint for the file
+ */
 - (NSString *)finferprintWithNode:(MEGANode *)node;
+
+/**
+ * @brief Returns a node with the provided fingerprint
+ *
+ * If there isn't any node in the account with that fingerprint, this function returns nil.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @param fingerprint Fingerprint to check
+ * @return MEGANode object with the provided fingerprint
+ */
 - (MEGANode *)nodeWithFingerprint:(NSString *)fingerprint;
+
+/**
+ * @brief Check if the account already has a node with the provided fingerprint
+ *
+ * A fingerprint for a local file can be generated using [MEGASdk fingerprintWithFilePath:]
+ *
+ * @param fingerprint Fingerprint to check
+ * @return YES if the account contains a node with the same fingerprint
+ */
 - (BOOL)hasFingerprint:(NSString *)fingerprint;
+
+/**
+ * @brief Get the access level of a MEGANode
+ * @param node MEGANode to check
+ * @return Access level of the node
+ * Valid values are:
+ * - MEGAShareTypeAccessOwner
+ * - MEGAShareTypeAccessFull
+ * - MEGAShareTypeAccessReadWrite
+ * - MEGAShareTypeAccessRead
+ * - MEGAShareTypeAccessUnkown
+ */
 - (NSInteger)accessLevelWithNode:(MEGANode *)node;
+
+/**
+ * @brief Check if a node has an access level
+ *
+ * @param node Node to check
+ * @param level Access level to check
+ * Valid values for this parameter are:
+ * - MEGAShareTypeAccessOwner
+ * - MEGAShareTypeAccessFull
+ * - MEGAShareTypeAccessReadWrite
+ * - MEGAShareTypeAccessRead
+ *
+ * @return MEGAError object with the result.
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node has the required access level
+ * - MEGAErrorTypeApiEAccess - The node doesn't have the required access level
+ * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
 - (MEGAError *)checkAccessWithNode:(MEGANode *)node level:(NSInteger)level;
+
+/**
+ * @brief Check if a node can be moved to a target node
+ * @param node Node to check
+ * @param target Target for the move operation
+ * @return MEGAError object with the result:
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node can be moved to the target
+ * - MEGAErrorTypeApiEAccess - The node can't be moved because of permissions problems
+ * - MEGAErrorTypeApiECircular - The node can't be moved because that would create a circular linkage
+ * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
 - (MEGAError *)checkMoveWithMnode:(MEGANode *)node target:(MEGANode *)target;
+
+/**
+ * @brief Search nodes containing a search string in their name
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore
+ * @param searchString Search string. The search is case-insensitive
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name
+ */
+- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
 
 @end

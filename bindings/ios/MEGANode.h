@@ -32,7 +32,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @interface MEGANode : NSObject
 
 /**
- * @brief The type of the node
+ * @brief Type of the node
  *
  * Valid values are:
  * - MEGANodeTypeUnknown = -1,
@@ -57,7 +57,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) MEGANodeType type;
 
 /**
- * @brief The name of the node
+ * @brief Name of the node
  *
  * The name is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  * For other MEGANode types, the name is undefined.
@@ -69,7 +69,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
- * @brief The handle of this MEGANode in a Base64-encoded string
+ * @brief Handle of this MEGANode in a Base64-encoded string
  *
  * You take the ownership of the returned string.
  *
@@ -77,31 +77,31 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSString *base64Handle;
 
 /**
- * @brief The size of the node
+ * @brief Size of the node
  *
- * The returned value is only valid for nodes of type MEGANodeTypeFile.
+ * The value is only valid for nodes of type MEGANodeTypeFile.
  *
  */
 @property (readonly, nonatomic) NSNumber *size;
 
 /**
- * @brief The creation time of the node in MEGA (in seconds since the epoch)
+ * @brief Creation time of the node in MEGA (in seconds since the epoch)
  *
- * The returned value is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
+ * The value is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  *
  */
 @property (readonly, nonatomic) NSDate *creationTime;
 
 /**
- * @brief Returns the modification time of the file that was uploaded to MEGA (in seconds since the epoch)
+ * @brief Modification time of the file that was uploaded to MEGA (in seconds since the epoch)
  *
- * The returned value is only valid for nodes of type MEGANodeTypeFile.
+ * The value is only valid for nodes of type MEGANodeTypeFile.
  *
  */
 @property (readonly, nonatomic) NSDate *modificationTime;
 
 /**
- * @brief A handle to identify this MEGANode
+ * @brief Handle to identify this MEGANode
  *
  * You can use [MEGASdk nodeWithHandle:] to recover the node later.
  *
@@ -109,7 +109,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) uint64_t handle;
 
 /**
- * @brief The tag of the operation that created/modified this node in MEGA
+ * @brief Tag of the operation that created/modified this node in MEGA
  *
  * Every request and every synchronization has a tag that identifies it.
  * When a request creates or modifies a node, the tag is associated with the node

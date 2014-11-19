@@ -46,7 +46,7 @@ using namespace mega;
 
 @implementation MEGASdk
 
-#pragma mark - Init with app Key
+#pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
     self.megaApi = new MegaApi((appKey != nil) ? [appKey UTF8String] : (const char *)NULL, (const char *)NULL, (userAgent != nil) ? [userAgent UTF8String] : (const char *)NULL);
@@ -77,7 +77,7 @@ using namespace mega;
     return _megaApi;
 }
 
-#pragma mark - Add delegates
+#pragma mark - Add and remove delegates
 
 - (void)addMEGADelegate:(id<MEGADelegate>)delegate {
     self.megaApi->addListener([self createDelegateMEGAListener:delegate]);
@@ -94,8 +94,6 @@ using namespace mega;
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
     self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate]);
 }
-
-#pragma mark - Remove delegates
 
 - (void)removeMEGADelegate:(id<MEGADelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
@@ -226,6 +224,14 @@ using namespace mega;
     self.megaApi->fastLogin((session != nil) ? [session UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)loginWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)loginWithFolderLink:(NSString *)folderLink {
+    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL);
+}
+
 #pragma mark - Create account and confirm account
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name {
@@ -333,14 +339,6 @@ using namespace mega;
 
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level {
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (user != nil) ? [user getCPtr] : NULL, (int)level);
-}
-
-- (void)loginWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)loginWithFolderLink:(NSString *)folderLink {
-    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL);
 }
 
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -524,11 +522,11 @@ using namespace mega;
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
-- (void)cancelTransferWithTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
+- (void) cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)cancelTransferWithTransfer:(MEGATransfer *)transfer {
+- (void) cancelTransfer:(MEGATransfer *)transfer {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
@@ -741,6 +739,35 @@ using namespace mega;
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
+- (MEGANode *)inboxNode {
+    MegaNode *node = self.megaApi->getInboxNode();
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, recursive) cMemoryOwn:YES];
+}
+
+- (void)freeRequestListener:(DelegateMEGARequestListener *)delegate {
+    if (delegate == nil) return;
+    
+    pthread_mutex_lock(&listenerMutex);
+    _activeRequestListeners.erase(delegate);
+    pthread_mutex_unlock(&listenerMutex);
+    delete delegate;
+}
+
+- (void)freeTransferListener:(DelegateMEGATransferListener *)delegate {
+    if (delegate == nil) return;
+    
+    pthread_mutex_lock(&listenerMutex);
+    _activeTransferListeners.erase(delegate);
+    pthread_mutex_unlock(&listenerMutex);
+    delete delegate;
+}
+
+#pragma mark - Private methods
+
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener {
     if (delegate == nil) return nil;
     
@@ -779,24 +806,6 @@ using namespace mega;
     _activeMegaListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
-}
-
-- (void)freeRequestListener:(DelegateMEGARequestListener *)delegate {
-    if (delegate == nil) return;
-    
-    pthread_mutex_lock(&listenerMutex);
-    _activeRequestListeners.erase(delegate);
-    pthread_mutex_unlock(&listenerMutex);
-    delete delegate;
-}
-
-- (void)freeTransferListener:(DelegateMEGATransferListener *)delegate {
-    if (delegate == nil) return;
-    
-    pthread_mutex_lock(&listenerMutex);
-    _activeTransferListeners.erase(delegate);
-    pthread_mutex_unlock(&listenerMutex);
-    delete delegate;
 }
 
 @end

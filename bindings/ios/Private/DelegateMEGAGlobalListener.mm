@@ -21,7 +21,7 @@ id<MEGAGlobalDelegate> DelegateMEGAGlobalListener::getUserListener() {
 }
 
 void DelegateMEGAGlobalListener::onUsersUpdate(mega::MegaApi *api, mega::MegaUserList *userList) {
-    if (listener !=nil) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onUsersUpdate:userList:)]) {
         MegaUserList *tempUserList = NULL;
         if (userList) {
             tempUserList = userList->copy();
@@ -34,7 +34,7 @@ void DelegateMEGAGlobalListener::onUsersUpdate(mega::MegaApi *api, mega::MegaUse
 }
 
 void DelegateMEGAGlobalListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList *nodeList) {
-    if (listener !=nil) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onNodesUpdate:nodeList:)]) {
         MegaNodeList *tempNodesList = NULL;
         if (nodeList) {
             tempNodesList = nodeList->copy();
@@ -46,7 +46,7 @@ void DelegateMEGAGlobalListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNod
 }
 
 void DelegateMEGAGlobalListener::onReloadNeeded(mega::MegaApi* api) {
-    if (listener !=nil) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onReloadNeeded:)]) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onReloadNeeded:this->megaSDK];
         });

@@ -36,6 +36,10 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.userList ? [[MEGAUserList alloc] initWithUserList:self.userList->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaUserList *)getCPtr {
     return self.userList;
 }

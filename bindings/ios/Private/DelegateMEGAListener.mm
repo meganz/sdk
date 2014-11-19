@@ -24,7 +24,7 @@ id<MEGADelegate>DelegateMEGAListener::getUserListener() {
 }
 
 void DelegateMEGAListener::onRequestStart(MegaApi *api, MegaRequest *request) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestStart:request:)]) {
         MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onRequestStart:this->megaSDK request:[[MEGARequest alloc]initWithMegaRequest:tempRequest cMemoryOwn:YES]];
@@ -33,7 +33,7 @@ void DelegateMEGAListener::onRequestStart(MegaApi *api, MegaRequest *request) {
 }
 
 void DelegateMEGAListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestFinish:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -43,7 +43,7 @@ void DelegateMEGAListener::onRequestFinish(MegaApi *api, MegaRequest *request, M
 }
 
 void DelegateMEGAListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestUpdate:request:)]) {
         MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onRequestUpdate:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
@@ -52,7 +52,7 @@ void DelegateMEGAListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
 }
 
 void DelegateMEGAListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestTemporaryError:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -63,7 +63,7 @@ void DelegateMEGAListener::onRequestTemporaryError(MegaApi *api, MegaRequest *re
 }
 
 void DelegateMEGAListener::onTransferStart(MegaApi *api, MegaTransfer *transfer) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onTransferStart:transfer:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onTransferStart:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
@@ -72,7 +72,7 @@ void DelegateMEGAListener::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 }
 
 void DelegateMEGAListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onTransferFinish:transfer:error:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -82,7 +82,7 @@ void DelegateMEGAListener::onTransferFinish(MegaApi *api, MegaTransfer *transfer
 }
 
 void DelegateMEGAListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onTransferUpdate:transfer:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onTransferUpdate:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
@@ -91,7 +91,7 @@ void DelegateMEGAListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer
 }
 
 void DelegateMEGAListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onTransferTemporaryError:transfer:error:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -101,7 +101,7 @@ void DelegateMEGAListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *
 }
 
 void DelegateMEGAListener::onUsersUpdate(mega::MegaApi *api, mega::MegaUserList *userList) {
-    if (listener !=nil) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onUsersUpdate:userList:)]) {
         MegaUserList *tempUserList = NULL;
         if (userList) {
             tempUserList = userList->copy();
@@ -114,7 +114,7 @@ void DelegateMEGAListener::onUsersUpdate(mega::MegaApi *api, mega::MegaUserList 
 }
 
 void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList *nodeList) {
-    if (listener !=nil) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onNodesUpdate:nodeList:)]) {
         MegaNodeList *tempNodesList = NULL;
         if (nodeList) {
             tempNodesList = nodeList->copy();
@@ -127,7 +127,7 @@ void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList 
 
 
 void DelegateMEGAListener::onReloadNeeded(MegaApi *api) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onReloadNeeded:)]) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onReloadNeeded:this->megaSDK];
         });

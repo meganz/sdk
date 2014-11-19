@@ -106,4 +106,8 @@ using namespace mega;
     return self.megaNode ? self.megaNode->hasPreview() : NO;
 }
 
+- (BOOL)isPublic {
+    return self.megaNode ? self.megaNode->isPublic() : NO;
+}
+
 @end

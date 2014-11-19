@@ -16,6 +16,8 @@
  */
 @protocol MEGAGlobalDelegate <NSObject>
 
+@optional
+
 /**
  * @brief This function is called when there are new or updated contacts in the account
  * @param api MEGASdk object connected to the account

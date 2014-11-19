@@ -39,6 +39,10 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.accountDetails ? [[MEGAAcountDetails alloc] initWithMegaAccountDetails:self.accountDetails->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaAccountDetails *)getCPtr {
     return self.accountDetails;
 }
