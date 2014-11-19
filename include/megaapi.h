@@ -3629,7 +3629,7 @@ class MegaApi
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          *
          */
-        void updateStatics();
+        void updateStats();
 
         enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
