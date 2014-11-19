@@ -94,7 +94,6 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Classes\AssociationUriMapper.cs" />
     <Compile Include="Classes\NavigationParameter.cs" />
     <Compile Include="Classes\NodeTemplateSelector.cs">
       <SubType>Code</SubType>
@@ -113,14 +112,10 @@
     <Compile Include="Models\BaseRequestListenerViewModel.cs" />
     <Compile Include="Models\BaseViewModel.cs" />
     <Compile Include="Models\CloudDriveViewModel.cs" />
-    <Compile Include="Models\ConfirmAccountViewModel.cs" />
     <Compile Include="Models\DelegateCommand.cs" />
     <Compile Include="Models\LoginViewModel.cs" />
     <Compile Include="Models\NodeViewModel.cs" />
     <Compile Include="Models\CreateAccountViewModel.cs" />
-    <Compile Include="Pages\ConfirmAccountPage.xaml.cs">
-      <DependentUpon>ConfirmAccountPage.xaml</DependentUpon>
-    </Compile>
     <Compile Include="Pages\LoginPage.xaml.cs">
       <DependentUpon>LoginPage.xaml</DependentUpon>
     </Compile>
@@ -237,10 +232,6 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Page Include="Pages\ConfirmAccountPage.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
     <Page Include="Pages\LoginPage.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

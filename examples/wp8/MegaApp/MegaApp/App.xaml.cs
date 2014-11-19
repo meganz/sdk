@@ -131,10 +131,7 @@ namespace MegaApp
 
             // Handle reset requests for clearing the backstack
             RootFrame.Navigated += CheckForResetNavigation;
-
-            // Assign the URI-mapper class to the application frame.
-            RootFrame.UriMapper = new AssociationUriMapper();
-
+                        
             //The next line enables a custom logger, if this function is not used OutputDebugString() is called
             //in the native library and log messages are only readable with the native debugger attached.
             //The default behavior of MegaLogger() is to print logs using Debug.WriteLine() but it could
