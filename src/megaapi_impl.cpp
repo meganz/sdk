@@ -2954,7 +2954,7 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 		return false;
 	}
 
-	bool result = (node->outshares.size() != 0);
+    bool result = (node->outshares != NULL);
 	sdkMutex.unlock();
 
 	return result;
@@ -2984,10 +2984,16 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         return new MegaShareListPrivate();
 	}
 
+    if(!node->outshares)
+    {
+        sdkMutex.unlock();
+        return new MegaShareListPrivate();
+    }
+
 	vector<Share*> vShares;
 	vector<handle> vHandles;
 
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		vShares.push_back(it->second);
 		vHandles.push_back(node->nodehandle);
@@ -6623,7 +6629,12 @@ OutShareProcessor::OutShareProcessor()
 
 bool OutShareProcessor::processNode(Node *node)
 {
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    if(!node->outshares)
+    {
+        return true;
+    }
+
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		shares.push_back(it->second);
 		handles.push_back(node->nodehandle);

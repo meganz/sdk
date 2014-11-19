@@ -901,18 +901,21 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
 
 static void listnodeshares(Node* n)
 {
-    for (share_map::iterator it = n->outshares.begin(); it != n->outshares.end(); it++)
+    if(n->outshares)
     {
-        cout << "\t" << n->displayname();
+        for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
 
-        if (it->first)
-        {
-            cout << ", shared with " << it->second->user->email << " (" << accesslevels[it->second->access] << ")"
-                 << endl;
-        }
-        else
-        {
-            cout << ", shared as exported folder link" << endl;
+            if (it->first)
+            {
+                cout << ", shared with " << it->second->user->email << " (" << accesslevels[it->second->access] << ")"
+                     << endl;
+            }
+            else
+            {
+                cout << ", shared as exported folder link" << endl;
+            }
         }
     }
 }
@@ -953,16 +956,19 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
             case FOLDERNODE:
                 cout << "folder";
 
-                for (share_map::iterator it = n->outshares.begin(); it != n->outshares.end(); it++)
+                if(n->outshares)
                 {
-                    if (it->first)
+                    for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
                     {
-                        cout << ", shared with " << it->second->user->email << ", access "
-                             << accesslevels[it->second->access];
-                    }
-                    else
-                    {
-                        cout << ", shared as exported folder link";
+                        if (it->first)
+                        {
+                            cout << ", shared with " << it->second->user->email << ", access "
+                                 << accesslevels[it->second->access];
+                        }
+                        else
+                        {
+                            cout << ", shared as exported folder link";
+                        }
                     }
                 }
 

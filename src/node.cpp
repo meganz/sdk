@@ -34,7 +34,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
-
+    outshares = NULL;
     tag = 0;
 
     nodehandle = h;
@@ -128,10 +128,14 @@ Node::~Node()
     }
 #endif
 
-    // delete outshares, including pointers from users for this node
-    for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
+    if(outshares)
     {
-        delete it->second;
+        // delete outshares, including pointers from users for this node
+        for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+        {
+            delete it->second;
+        }
+        delete outshares;
     }
 
     // remove from parent's children
@@ -402,7 +406,14 @@ bool Node::serialize(string* d)
     }
     else
     {
-        numshares = (short)outshares.size();
+        if(!outshares)
+        {
+            numshares = 0;
+        }
+        else
+        {
+            numshares = (short)outshares->size();
+        }
     }
 
     d->append((char*)&numshares, sizeof numshares);
@@ -417,9 +428,12 @@ bool Node::serialize(string* d)
         }
         else
         {
-            for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
+            if(outshares)
             {
-                it->second->serialize(d);
+                for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+                {
+                    it->second->serialize(d);
+                }
             }
         }
     }

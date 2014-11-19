@@ -153,18 +153,24 @@ void MegaClient::mergenewshares(bool notify)
                 // share was deleted
                 if (s->outgoing)
                 {
-                    // outgoing share to user u deleted
-                    if (n->outshares.erase(s->peer) && notify)
+                    if(n->outshares)
                     {
-                        n->changed.outshares = true;
-                        notifynode(n);
-                    }
+                        // outgoing share to user u deleted
+                        if (n->outshares->erase(s->peer) && notify)
+                        {
+                            n->changed.outshares = true;
+                            notifynode(n);
+                        }
 
-                    // if no other outgoing shares remain on this node, erase sharekey
-                    if (!n->outshares.size())
-                    {
-                        delete n->sharekey;
-                        n->sharekey = NULL;
+                        // if no other outgoing shares remain on this node, erase sharekey
+                        if (!n->outshares->size())
+                        {
+                            delete n->outshares;
+                            n->outshares = NULL;
+
+                            delete n->sharekey;
+                            n->sharekey = NULL;
+                        }
                     }
                 }
                 else
@@ -184,7 +190,12 @@ void MegaClient::mergenewshares(bool notify)
                         // only on own nodes and signed unless read from cache
                         if (checkaccess(n, OWNERPRELOGIN))
                         {
-                            Share** sharep = &n->outshares[s->peer];
+                            if(!n->outshares)
+                            {
+                                n->outshares = new share_map;
+                            }
+
+                            Share** sharep = &((*n->outshares)[s->peer]);
 
                             // modification of existing share or new share
                             if (*sharep)
@@ -4210,7 +4221,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // otherwise, queue and request public key if not already pending
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
 {
-    if (a == ACCESS_UNKNOWN && n->outshares.size() == 1)
+    if (a == ACCESS_UNKNOWN && n->outshares && n->outshares->size() == 1)
     {
         // rewrite keys of foreign nodes located in the outbound share that is getting canceled
         // FIXME: verify that it is really getting canceled to prevent benign premature rewrite
