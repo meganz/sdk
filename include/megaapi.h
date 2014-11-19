@@ -1006,7 +1006,7 @@ class MegaRequest
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
          *
          * This value is valid for these requests in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::createFolder - Returns the handle of the new folder
          * - MegaApi::copyNode - Returns the handle of the new node
          * - MegaApi::importFileLink - Returns the handle of the new node
@@ -1027,7 +1027,7 @@ class MegaRequest
          * - MegaApi::getPublicNode - Returns the link to the file
          *
          * This value is valid for these requests in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentUrl - Returns the payment link
          *
@@ -1048,7 +1048,7 @@ class MegaRequest
          * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
          *
          * This value is valid for these requests in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::syncFolder - Returns a fingerprint of the local folder, to resume the sync with (MegaApi::resumeSync)
          *
          * @return Handle of a parent node related to the request
@@ -1078,7 +1078,7 @@ class MegaRequest
          * - MegaApi::renameNode - Returns the new name for the node
          *
          * This value is valid for these request in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the name of the user
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
@@ -1106,7 +1106,7 @@ class MegaRequest
          * - MegaApi::removeContact - Returns the email of the contact
          *
          * This value is valid for these request in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the email of the account
          * - MegaApi::confirmAccount - Returns the email of the account
          * - MegaApi::fastConfirmAccount - Returns the email of the account
@@ -1227,7 +1227,7 @@ class MegaRequest
          * - MegaApi::copyNode - Returns the node to copy (if it is a public node)
          *
          * This value is valid for these request in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::getPublicNode - Returns the public node
          *
          * @return Public node related to the request
@@ -1272,7 +1272,7 @@ class MegaRequest
          * - MegaApi::submitFeedback - Returns the rating for the app
          *
          * This value is valid for these request in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::resumeSync - Returns the fingerprint of the local file
          *
          * @return Number related to this request
@@ -1315,7 +1315,7 @@ class MegaRequest
          * @brief Returns details related to the MEGA account
          *
          * This value is valid for these request in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::getAccountDetails - Details of the MEGA account
          *
          * @return Details related to the MEGA account
@@ -1326,7 +1326,7 @@ class MegaRequest
          * @brief Returns available pricing plans to upgrade a MEGA account
          *
          * This value is valid for these request in onRequestFinish when the
-         * error code es MegaError::API_OK:
+         * error code is MegaError::API_OK:
          * - MegaApi::getPricing - Returns the available pricing plans
          *
          * @return Available pricing plans to upgrade a MEGA account
@@ -2506,7 +2506,7 @@ class MegaApi
          * - MegaRequest::getEmail - Retuns the string "FOLDER"
          * - MegaRequest::getLink - Returns the public link to the folder
          *
-         * @param Public link to a folder in MEGA
+         * @param megaFolderLink Public link to a folder in MEGA
          * @param listener MegaRequestListener to track this request
          */
         void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
@@ -2878,7 +2878,7 @@ class MegaApi
         /**
          * @brief Get a MegaNode from a public link to a file
          *
-         * A public node can be imported using MegaApi::copy or downloaded using MegaApi::startDownload
+         * A public node can be imported using MegaApi::copyNode or downloaded using MegaApi::startDownload
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_PUBLIC_NODE
          * Valid data in the MegaRequest object received on callbacks:
