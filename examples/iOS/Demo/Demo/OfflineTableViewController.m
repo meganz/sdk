@@ -67,11 +67,16 @@
     NSString *name = [node name];
     
     cell.nameLabel.text = name;
-
-    NSString *modificationTimeString = [NSDateFormatter localizedStringFromDate:[node modificationTime]
-                                                          dateStyle:NSDateFormatterShortStyle
-                                                          timeStyle:NSDateFormatterNoStyle];
-    cell.modificationLabel.text = modificationTimeString;
+    
+    struct tm *timeinfo;
+    char buffer[80];
+    
+    time_t rawtime = [[node creationTime] timeIntervalSince1970];
+    timeinfo = localtime(&rawtime);
+    
+    strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+    
+    cell.modificationLabel.text = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
     
     if (isImage(name.lowercaseString.pathExtension)) {
         NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];

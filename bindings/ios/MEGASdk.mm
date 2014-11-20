@@ -46,6 +46,55 @@ using namespace mega;
 
 @implementation MEGASdk
 
+#pragma mark - Properties
+
+- (NSString *)myEmail {
+    const char *val = self.megaApi->getMyEmail();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
+}
+
+- (MEGANode *)rootNode {
+    MegaNode *node = self.megaApi->getRootNode();
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGANode *)rubbishNode {
+    MegaNode *node = self.megaApi->getRubbishNode();
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGANode *)inboxNode {
+    MegaNode *node = self.megaApi->getInboxNode();
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGATransferList *)transfers {
+    return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers() cMemoryOwn:YES];
+}
+
+- (NSNumber *)totalsDownloadedBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
+}
+
+- (NSNumber *)totalsUploadedBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
+}
+
+- (NSString *)masterKey {
+    const char *val = self.megaApi->exportMasterKey();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -153,7 +202,7 @@ using namespace mega;
 
 }
 
-#pragma mark - Generic methods
+#pragma mark - Utils
 
 - (NSString *)base64pwkeyWithPassword:(NSString *)password {
     if(password == nil) return nil;
@@ -188,7 +237,7 @@ using namespace mega;
     self.megaApi->retryPendingConnections();
 }
 
-#pragma mark - Login
+#pragma mark - Login Requests
 
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password {
     self.megaApi->login((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
@@ -232,7 +281,28 @@ using namespace mega;
     self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL);
 }
 
-#pragma mark - Create account and confirm account
+- (NSInteger)isLoggedIn {
+    return self.megaApi->isLoggedIn();
+}
+
+- (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)logout {
+    self.megaApi->logout();
+}
+
+- (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+
+- (void)fetchNodes {
+    self.megaApi->fetchNodes();
+}
+
+#pragma mark - Create account and confirm account Requests
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL);
@@ -275,21 +345,7 @@ using namespace mega;
     self.megaApi->fastConfirmAccount((link != nil) ? [link UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (NSInteger)isLoggedIn {
-    return self.megaApi->isLoggedIn();
-}
-
-- (NSString *)myEmail {
-    const char *val = self.megaApi->getMyEmail();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete val;
-    return ret;
-}
-
-#pragma mark - Node actions
+#pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->createFolder((name != nil) ? [name UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -332,6 +388,7 @@ using namespace mega;
     self.megaApi->remove((node != nil) ? [node getCPtr] : NULL);
 }
 
+#pragma mark - Sharing Requests
 
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (user != nil) ? [user getCPtr] : NULL, (int)level, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -357,7 +414,23 @@ using namespace mega;
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
-#pragma mark - Attributes node
+- (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)exportNode:(MEGANode *)node {
+    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
+}
+
+- (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)disableExportNode:(MEGANode *)node {
+    self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL);
+}
+
+#pragma mark - Attributes Requests
 
 - (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getThumbnail((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -391,8 +464,6 @@ using namespace mega;
     self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
-#pragma mark - Attributes user
-
 - (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -401,34 +472,7 @@ using namespace mega;
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-#pragma mark - Export, import and fetch nodes
-
-- (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)exportNode:(MEGANode *)node {
-    self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
-}
-
-- (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)disableExportNode:(MEGANode *)node {
-    self.megaApi->disableExport((node != nil) ? [node getCPtr] : NULL);
-}
-
-- (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-
-- (void)fetchNodes {
-    self.megaApi->fetchNodes();
-}
-
-#pragma mark - User account details and actions
+#pragma mark - Account management Requests
 
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getAccountDetails([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -454,16 +498,6 @@ using namespace mega;
     self.megaApi->getPaymentUrl(productHandle);
 }
 
-- (NSString *)masterKey {
-    const char *val = self.megaApi->exportMasterKey();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete val;
-    return ret;
-}
-
 - (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -486,14 +520,6 @@ using namespace mega;
 
 - (void)removeContactWithUser:(MEGAUser *)user {
     self.megaApi->removeContact((user != nil) ? [user getCPtr] : NULL);
-}
-
-- (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)logout {
-    self.megaApi->logout();
 }
 
 #pragma mark - Transfer
@@ -550,41 +576,7 @@ using namespace mega;
     self.megaApi->setUploadLimit((int)bpsLimit);
 }
 
-- (MEGATransferList *)transfers {
-    return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers() cMemoryOwn:YES];
-}
-
-- (NSInteger)pendingUploads {
-    return self.megaApi->getNumPendingUploads();
-}
-
-- (NSInteger)pendingDownloads {
-    return self.megaApi->getNumPendingDownloads();
-}
-
-- (NSInteger)totalUploads {
-    return self.megaApi->getTotalUploads();
-}
-
-- (NSInteger)totalDownloads {
-    return self.megaApi->getTotalDownloads();
-}
-
-- (NSNumber *)totalsDownloadedBytes {
-    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
-}
-
-- (NSNumber *)totalsUploadedBytes {
-    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
-}
-
-- (void)resetTotalDownloads {
-    self.megaApi->resetTotalDownloads();
-}
-
-- (void)resetTotalUploads {
-    self.megaApi->resetTotalUploads();
-}
+#pragma mark - Filesystem inspection
 
 - (NSInteger)numberChildrenWithParent:(MEGANode *)parent {
     return self.megaApi->getNumChildren((parent != nil) ? [parent getCPtr] : NULL);
@@ -727,21 +719,6 @@ using namespace mega;
 
 - (MEGAError *)checkMoveWithMnode:(MEGANode *)node target:(MEGANode *)target {
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove((node != nil) ? [node getCPtr] : NULL, (target != nil) ? [target getCPtr] : NULL).copy() cMemoryOwn:YES];
-}
-
-- (MEGANode *)rootNode {
-    MegaNode *node = self.megaApi->getRootNode();
-    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
-}
-
-- (MEGANode *)rubbishNode {
-    MegaNode *node = self.megaApi->getRubbishNode();
-    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
-}
-
-- (MEGANode *)inboxNode {
-    MegaNode *node = self.megaApi->getInboxNode();
-    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
 - (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {

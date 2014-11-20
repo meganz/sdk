@@ -63,7 +63,7 @@
         [self.downloadProgressView setHidden:YES];
         [self.saveLabel setHidden:NO];
         [self.downloadButton setImage:[UIImage imageNamed:@"savedFile"] forState:UIControlStateNormal];
-        self.saveLabel.text = @"Save for offline";
+        self.saveLabel.text = @"Saved for offline";
         
     }
 }
@@ -196,7 +196,7 @@
     [self.downloadProgressView setProgress:1];
     [self.saveLabel setHidden:NO];
     [self.downloadButton setImage:[UIImage imageNamed:@"savedFile"] forState:UIControlStateNormal];
-    self.saveLabel.text = @"Save for offline";
+    self.saveLabel.text = @"Saved for offline";
 }
 
 -(void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {

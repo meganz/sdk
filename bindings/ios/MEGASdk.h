@@ -58,6 +58,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 @interface MEGASdk : NSObject 
 
+#pragma mark - Properties
+
 /**
  * @brief Email of the currently open account
  *
@@ -106,38 +108,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @brief All active transfers
  */
 @property (readonly, nonatomic) MEGATransferList *transfers;
-
-/**
- * @brief Number of pending uploads
- *
- * @deprecated Property related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- */
-@property (readonly, nonatomic) NSInteger pendingUploads;
-
-/**
- * @brief Number of pending downloads
- *
- * @deprecated Property related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- */
-@property (readonly, nonatomic) NSInteger pendingDownloads;
-
-/**
- * @brief Number of queued uploads since the last call to [MEGASdk resetTotalUploads]
- *
- * @deprecated Property related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- */
-@property (readonly, nonatomic) NSInteger totalUploads;
-
-/**
- * @brief Number of queued uploads since the last call to [MMEGASdk resetTotalDownloads]
- *
- * @deprecated Property related to statistics will be reviewed in future updates. They
- * could change or be removed in the current form.
- */
-@property (readonly, nonatomic) NSInteger totalDownloads;
 
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object
@@ -273,6 +243,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
 
+#pragma mark - Utils
+
 /**
  * @brief Generates a private key based on the access password
  *
@@ -327,7 +299,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)retryPendingConnections;
 
-#pragma mark - Login
+#pragma mark - Login Requests
 
 /**
  * @brief Log in to a MEGA account
@@ -465,7 +437,53 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (NSString *)dumpSession;
 
-#pragma mark - Create account and confirm account
+/**
+ * @brief Check if the MEGASdk object is logged in
+ * @return 0 if not logged in, Otherwise, a number >= 0
+ */
+- (NSInteger)isLoggedIn;
+
+/**
+ * @brief Fetch the filesystem in MEGA
+ *
+ * The MEGASdk object must be logged in in an account or a public folder
+ * to successfully complete this request.
+ *
+ * The associated request type with this request is MEGARequestTypeFetchNodes.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch the filesystem in MEGA
+ *
+ * The MEGASdk object must be logged in in an account or a public folder
+ * to successfully complete this request.
+ *
+ * The associated request type with this request is MEGARequestTypeFetchNodes.
+ *
+ */
+- (void)fetchNodes;
+
+/**
+ * @brief Logout of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeLogout.
+ *
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Logout of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeLogout.
+ *
+ */
+- (void)logout;
+
+#pragma mark - Create account and confirm account Requests
 
 /**
  * @brief Initialize the creation of a new MEGA account
@@ -650,11 +668,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
 
-/**
- * @brief Check if the MEGASdk object is logged in
- * @return 0 if not logged in, Otherwise, a number >= 0
- */
-- (NSInteger)isLoggedIn;
+#pragma mark - Filesystem changes Requests
 
 /**
  * @brief Create a folder in the MEGA account
@@ -797,6 +811,8 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)removeNode:(MEGANode *)node;
 
+#pragma mark - Sharing Requests
+
 /**
  * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
  *
@@ -921,6 +937,66 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param megaFileLink Public link to a file in MEGA
  */
 - (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link
+ */
+- (void)exportNode:(MEGANode *)node;
+
+/**
+ * @brief Stop sharing a file/folder
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns false
+ *
+ * @param node MEGANode to stop sharing
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Stop sharing a file/folder
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest accessLevel] - Returns false
+ *
+ * @param node MEGANode to stop sharing
+ */
+- (void)disableExportNode:(MEGANode *)node;
+
+#pragma mark - Attributes Requests
 
 /**
  * @brief Get the thumbnail of a node
@@ -1102,86 +1178,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath;
 
-/**
- * @brief Generate a public link of a file/folder in MEGA
- *
- * The associated request type with this request is MEGARequestTypeExport.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest accessLevel] - Returns true
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest link] - Public link
- *
- * @param node MEGANode to get the public link
- * @param delegate id<MEGARequestDelegate> to track this request
- */
-- (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Generate a public link of a file/folder in MEGA
- *
- * The associated request type with this request is MEGARequestTypeExport.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest accessLevel] - Returns true
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest link] - Public link
- *
- * @param node MEGANode to get the public link
- */
-- (void)exportNode:(MEGANode *)node;
-
-/**
- * @brief Stop sharing a file/folder
- *
- * The associated request type with this request is MEGARequestTypeExport.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest accessLevel] - Returns false
- *
- * @param node MEGANode to stop sharing
- * @param delegate id<MEGARequestDelegate> to track this request
- */
-- (void)disableExportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Stop sharing a file/folder
- *
- * The associated request type with this request is MEGARequestTypeExport.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest accessLevel] - Returns false
- *
- * @param node MEGANode to stop sharing
- */
-- (void)disableExportNode:(MEGANode *)node;
-
-/**
- * @brief Fetch the filesystem in MEGA
- *
- * The MEGASdk object must be logged in in an account or a public folder
- * to successfully complete this request.
- *
- * The associated request type with this request is MEGARequestTypeFetchNodes.
- *
- * @param delegate id<MEGARequestDelegate> to track this request
- */
-- (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Fetch the filesystem in MEGA
- *
- * The MEGASdk object must be logged in in an account or a public folder
- * to successfully complete this request.
- *
- * The associated request type with this request is MEGARequestTypeFetchNodes.
- *
- */
-- (void)fetchNodes;
+#pragma mark - Account management Requests
 
 /**
  * @brief Get details about the MEGA account
@@ -1350,23 +1347,6 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)removeContactWithUser:(MEGAUser *)user;
 
-/**
- * @brief Logout of the MEGA account
- *
- * The associated request type with this request is MEGARequestTypeLogout.
- *
- * @param delegate id<MEGARequestDelegate> to track this request
- */
-- (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Logout of the MEGA account
- *
- * The associated request type with this request is MEGARequestTypeLogout.
- *
- */
-- (void)logout;
-
 #pragma mark - Transfers
 
 /**
@@ -1527,25 +1507,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  */
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
 
-/**
- * @brief Reset the number of total downloads
- * This function resets the number returned by [MEGASdk totalDownloads]
- *
- * @deprecated Function related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- *
- */
-- (void)resetTotalDownloads;
-
-/**
- * @brief Reset the number of total uploads
- * This function resets the number returned by [MEGASdk totalUploads]
- *
- * @deprecated Function related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- *
- */
-- (void)resetTotalUploads;
+#pragma mark - Filesystem inspection
 
 /**
  * @brief Get the number of child nodes
