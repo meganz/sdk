@@ -99,10 +99,10 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk renameNode:newName:] - Returns the handle of the node to rename
  * - [MEGASdk removeNode:] - Returns the handle of the node to remove
  * - [MEGASdk shareNode:withUser:level:] - Returns the handle of the folder to share
- * - [MEGASdk getThumbnailWithNode:destinationFilePath:] - Returns the handle of the node to get the thumbnail
+ * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns the handle of the node to get the thumbnail
  * - [MEGASdk getPreviewlWithNode:destinationFilePath:] - Return the handle of the node to get the preview
- * - [MEGASdk setThumbnailWithNode:sourceFilePath:] - Returns the handle of the node
- * - [MEGASdk setPreviewWithNode:sourceFilePath:] - Returns the handle of the node
+ * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns the handle of the node
+ * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns the handle of the node
  * - [MEGASdk exportNode:] - Returns the handle of the node
  * - [MEGASdk disableExportNode:] - Returns the handle of the node
  * - [MEGASdk exportNode:] - Returns the handle of the product
@@ -194,7 +194,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk createAccountWithEmail:password:name:] - Returns the name of the user
  * - [MEGASdk fastCreateAccountWithEmail:password:name] - Returns the name of the user
  * - [MEGASdk shareNode:withUser:level:] - Returns the handle of the folder to share
- * - [MEGASdk getAvatarWithUser:destinationFilePath:] - Returns the email of the user to get the avatar
+ * - [MEGASdk getAvatarUser:destinationFilePath:] - Returns the email of the user to get the avatar
  * - [MEGASdk addContactWithEmail:] - Returns the email of the contact
  * - [MEGASdk removeContactWithEmail:] - Returns the email of the contact
  *
@@ -270,11 +270,11 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * the MEGARequest object is deleted.
  *
  * This value is valid for these requests:
- * - [MEGASdk getThumbnailWithNode:destinationFilePath:] - Returns the destination path for the thumbnail
+ * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns the destination path for the thumbnail
  * - [MEGASdk getPreviewlWithNode:destinationFilePath:] - Returns the destination path for the preview
- * - [MEGASdk getAvatarWithUser:destinationFilePath:] - Returns the destination path for the avatar
- * - [MEGASdk setThumbnailWithNode:sourceFilePath:] - Returns the source path for the thumbnail
- * - [MEGASdk setPreviewWithNode:sourceFilePath:] - Returns the source path for the preview
+ * - [MEGASdk getAvatarUser:destinationFilePath:] - Returns the destination path for the avatar
+ * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns the source path for the thumbnail
+ * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns the source path for the preview
  *
  */
 @property (readonly, nonatomic) NSString *file;
@@ -300,10 +300,10 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @brief The type of parameter related to the request
  *
  * This value is valid for these requests:
- * - [MEGASdk getThumbnailWithNode:destinationFilePath:] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
  * - [MEGASdk getPreviewlWithNode:destinationFilePath:] - Returns MegaApi::ATTR_TYPE_PREVIEW
- * - [MEGASdk setThumbnailWithNode:sourceFilePath:] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
- * - [MEGASdk setPreviewWithNode:sourceFilePath:] - Returns MegaApi::ATTR_TYPE_PREVIEW
+ * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns MegaApi::ATTR_TYPE_PREVIEW
  *
  */
 @property (readonly, nonatomic) NSInteger paramType;

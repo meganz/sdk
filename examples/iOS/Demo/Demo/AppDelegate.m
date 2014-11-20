@@ -25,6 +25,7 @@
     [MEGASdkManager setAppKey:kAppKey];
     [MEGASdkManager setUserAgent:kUserAgent];
     [MEGASdkManager sharedMEGASdk];
+    [MEGASdk setLogLevel:MEGALogLevelInfo];
     
     return YES;
 }

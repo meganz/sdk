@@ -10,7 +10,7 @@
 /**
  * @brief Protocol to get information about global events
  *
- * You can implement this interface and start receiving events calling [MEGASdk addMEGAGlobalDelegate]
+ * You can implement this interface and start receiving events calling [MEGASdk addMEGAGlobalDelegate:]
  *
  * MEGADelegate objects can also receive global events
  */

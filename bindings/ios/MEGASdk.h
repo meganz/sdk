@@ -20,6 +20,7 @@
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
 #import "MEGAGlobalDelegate.h"
+#import "MEGALoggerDelegate.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -33,6 +34,26 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeModificationDesc,
     MEGASortOrderTypeAlphabeticalAsc,
     MEGASortOrderTypeAlphabeticalDesc
+};
+
+typedef NS_ENUM (NSInteger, MEGAEventType) {
+    MEGAEventTypeFeedback = 0,
+    MEGAEventTypeDebug,
+    MEGAEventTypeInvalid
+};
+
+typedef NS_ENUM (NSInteger, MEGALogLevel) {
+    MEGALogLevelFatal = 0,
+    MEGALogLevelError,      // Error information but will continue application to keep running.
+    MEGALogLevelWarning,    // Information representing errors in application but application will keep running
+    MEGALogLevelInfo,       // Mainly useful to represent current progress of application.
+    MEGALogLevelDebug,      // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+    MEGALogLevelMax
+};
+
+typedef NS_ENUM (NSInteger, MEGAAttributeType) {
+    MEGAAttributeTypeThumbnail = 0,
+    MEGAAttributeTypePreview
 };
 
 /**
@@ -271,7 +292,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyWithPassword:]
  * @return Base64-encoded hash
  */
-- (NSString *)stringHashWithBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
+- (NSString *)hashWithBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle
@@ -282,7 +303,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param base64Handle Base64-encoded node handle
  * @return Node handle
  */
-+ (uint64_t)base64ToHandle:(NSString *)base64Handle;
++ (uint64_t)handleWithBase64Handle:(NSString *)base64Handle;
 
 /**
  * @brief Retry all pending requests
@@ -347,7 +368,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * MEGAErrorTypeApiENoent.
  *
  * @param email Email of the user
- * @param stringHash Hash of the email returned by [MEGASdk stringHashWithBase64pwkey:email:]
+ * @param stringHash Hash of the email returned by [MEGASdk hashWithBase64pwkey:email:]
  * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:]
  * @param delegate id<MEGARequestDelegate> to track this request
  */
@@ -366,7 +387,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * MEGAErrorTypeApiENoent.
  *
  * @param email Email of the user
- * @param stringHash Hash of the email returned by [MEGASdk stringHashWithBase64pwkey:email:]
+ * @param stringHash Hash of the email returned by [MEGASdk hashWithBase64pwkey:email:]
  * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:]
  */
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey;
@@ -453,7 +474,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate;
+- (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Fetch the filesystem in MEGA
@@ -1018,7 +1039,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the thumbnail of a node
@@ -1039,7 +1060,36 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * one of these characters, the file will be downloaded to a file in that path.
  *
  */
-- (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
+- (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Cancel the retrieval of a thumbnail
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
+ *
+ * @param node Node to cancel the retrieval of the thumbnail
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @see [MEGASdk getThumbnailNode:destinationFilePath:]
+ */
+- (void)cancelGetThumbnailNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel the retrieval of a thumbnail
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
+ *
+ * @param node Node to cancel the retrieval of the thumbnail
+ *
+ * @see [MEGASdk getThumbnailNode:destinationFilePath:]
+ */
+- (void)cancelGetThumbnailNode:(MEGANode *)node;
 
 /**
  * @brief Set the thumbnail of a MEGANode
@@ -1054,7 +1104,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param sourceFilePath Source path of the file that will be set as thumbnail
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setThumbnailNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the thumbnail of a MEGANode
@@ -1068,7 +1118,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param node MEGANode to set the thumbnail
  * @param sourceFilePath Source path of the file that will be set as thumbnail
  */
-- (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath;
+- (void)setThumbnailNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath;
 
 /**
  * @brief Get the preview of a node
@@ -1090,7 +1140,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)getPreviewWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getPreviewNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the preview of a node
@@ -1102,7 +1152,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
  * - [MEGARequest file] - Returns the destination path
- * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
  *
  * @param node Node to get the preview
  * @param destinationFilePath Destination path for the preview.
@@ -1112,7 +1162,37 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)getPreviewWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
+- (void)getPreviewNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Cancel the retrieval of a preview
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypePreview
+ *
+ * @param node Node to cancel the retrieval of the preview
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @see [MEGASdk getPreviewNode:destinationFilePath:]
+ */
+- (void)cancelGetPreviewNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel the retrieval of a preview
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypePreview
+ *
+ * @param node Node to cancel the retrieval of the preview
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @see [MEGASdk getPreviewNode:destinationFilePath:]
+ */
+- (void)cancelGetPreviewNode:(MEGANode *)node;
 
 /**
  * @brief Set the preview of a node
@@ -1121,13 +1201,13 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
  * - [MEGARequest file] - Returns the source path
- * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypePreview
  *
  * @param node Node to set the preview
  * @param sourceFilePath Source path of the file that will be set as preview
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)setPreviewWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the preview of a MEGANode
@@ -1136,12 +1216,12 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
  * - [MEGARequest file] - Returns the source path
- * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypePreview
  *
  * @param node Node to set the preview
  * @param sourceFilePath Source path of the file that will be set as preview
  */
-- (void)setPreviewWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath;
+- (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath;
 
 /**
  * @brief Get the avatar of a MEGAUser
@@ -1159,7 +1239,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * @param delegate id<MEGARequestDelegate> to track this request
  */
-- (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getAvatarUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the avatar of a MEGAUser
@@ -1176,7 +1256,30 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * one of these characters, the file will be downloaded to a file in that path.
  *
  */
-- (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath;
+- (void)getAvatarUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Set the avatar of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the source path
+ *
+ * @param sourceFilePath Source path of the file that will be set as avatar
+ * @param delegate id<MEGARequestDelegate> to track this request
+ */
+- (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the avatar of the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the source path
+ *
+ * @param sourceFilePath Source path of the file that will be set as avatar
+ */
+- (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath;
 
 #pragma mark - Account management Requests
 
@@ -1346,6 +1449,83 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @param email Email of the new contact
  */
 - (void)removeContactWithUser:(MEGAUser *)user;
+
+/**
+ * @brief Submit feedback about the app
+ *
+ * The User-Agent is used to identify the app. It can be set in [MEGASdk initWithAppKey:userAgent:]
+ *
+ * The associated request type with this request is MEGARequestTypeReportEvent.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns MEGAEventTypeFeedback
+ * - [MEGARequest text] - Retuns the comment about the app
+ * - [MEGARequest number] - Returns the rating for the app
+ *
+ * @param rating Integer to rate the app. Valid values: from 1 to 5.
+ * @param comment Comment about the app
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @deprecated This function is for internal usage of MEGA apps. This feedback
+ * is sent to MEGA servers.
+ *
+ */
+- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Submit feedback about the app
+ *
+ * The User-Agent is used to identify the app. It can be set in [MEGASdk initWithAppKey:userAgent:]
+ *
+ * The associated request type with this request is MEGARequestTypeReportEvent.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns MEGAEventTypeFeedback
+ * - [MEGARequest text] - Retuns the comment about the app
+ * - [MEGARequest number] - Returns the rating for the app
+ *
+ * @param rating Integer to rate the app. Valid values: from 1 to 5.
+ * @param comment Comment about the app
+ *
+ * @deprecated This function is for internal usage of MEGA apps. This feedback
+ * is sent to MEGA servers.
+ *
+ */
+- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment;
+
+/**
+ * @brief Send a debug report
+ *
+ * The User-Agent is used to identify the app. It can be set in [MEGASdk initWithAppKey:userAgent:]
+ *
+ * The associated request type with this request is MEGARequestTypeReportEvent.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns MEGAEventTypeFeedback
+ * - [MEGARequest text] - Retuns the debug message
+ *
+ * @param text Debug message
+ * @param delegate id<MEGARequestDelegate> to track this request
+ *
+ * @deprecated This function is for internal usage of MEGA apps. This feedback
+ * is sent to MEGA servers.
+ */
+- (void)reportDebugEventWithText:(NSString *)text delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Send a debug report
+ *
+ * The User-Agent is used to identify the app. It can be set in [MEGASdk initWithAppKey:userAgent:]
+ *
+ * The associated request type with this request is MEGARequestTypeReportEvent.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns MEGAEventTypeFeedback
+ * - [MEGARequest text] - Retuns the debug message
+ *
+ * @param text Debug message
+ *
+ * @deprecated This function is for internal usage of MEGA apps. This feedback
+ * is sent to MEGA servers.
+ */
+
+- (void)reportDebugEventWithText:(NSString *)text;
 
 #pragma mark - Transfers
 
@@ -1677,7 +1857,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  *
  * You can get the handle of a MEGANode using [MEGANode handle]. The same handle
  * can be got in a Base64-encoded string using [MEGANode base64Handle]. Conversions
- * between these formats can be done using [MEGASdk base64ToHandle:] and [MEGASdk handleToBase64:]
+ * between these formats can be done using [MEGASdk handleWithBase64Handle:] and [MEGASdk handleToBase64:]
  *
  * You take the ownership of the returned value.
  *
@@ -1848,5 +2028,25 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
  * @return List of nodes that contain the desired string in their name
  */
 - (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
+
+/**
+ * @brief Search nodes containing a search string in their name
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore
+ * @param searchString Search string. The search is case-insensitive
+ *
+ * @return List of nodes that contain the desired string in their name
+ */
+- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+#pragma mark - Debug log messages
+
++ (void)setLogLevel:(MEGALogLevel)logLevel;
++ (void)setLogObject:(id<MEGALoggerDelegate>)delegate;
++ (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename line:(NSInteger)line;
++ (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename;
++ (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message;
 
 @end

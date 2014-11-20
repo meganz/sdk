@@ -40,6 +40,16 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
 @property (readonly, nonatomic) NSNumber *transferMax;
 
 /**
+ * @brief PRO level of the MEGA account
+ * Valid values are:
+ * - MEGAAccountTypeFree = 0
+ * - MEGAAccountTypeProI = 1
+ * - MEGAAccountTypeProII = 2
+ * - MEGAAccountTypeProIII = 3
+ */
+@property (readonly, nonatomic) MEGAAccountType type;
+
+/**
  * @brief Creates a copy of this MEGAAcountDetails object.
  *
  * The resulting object is fully independent of the source MEGAAcountDetails,
@@ -51,16 +61,6 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
  * @return Copy of the MEGAAcountDetails object
  */
 - (instancetype)clone;
-
-/**
- * @brief PRO level of the MEGA account
- * Valid values are:
- * - MEGAAccountTypeFree = 0
- * - MEGAAccountTypeProI = 1
- * - MEGAAccountTypeProII = 2
- * - MEGAAccountTypeProIII = 3
- */
-@property (readonly, nonatomic) MEGAAccountType type;
 
 /**
  * @brief Get the used storage in for a node

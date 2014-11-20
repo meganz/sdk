@@ -41,7 +41,7 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists) {
-        [[MEGASdkManager sharedMEGASdk] getAvatarWithUser:user destinationFilePath:destinationFilePath delegate:self];
+        [[MEGASdkManager sharedMEGASdk] getAvatarUser:user destinationFilePath:destinationFilePath delegate:self];
     } else {
         [self.avatarImageView setImage:[UIImage imageNamed:destinationFilePath]];
         

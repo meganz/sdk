@@ -18,7 +18,7 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
  * @brief Represents an user in MEGA
  *
  * It allows to get all data related to an user in MEGA. It can be also used
- * to start SDK requests ([MEGASdk shareNodeWithUser:level:] [MEGASdk getAvatarWithUser:destinationFilePath:], etc.)
+ * to start SDK requests ([MEGASdk shareNodeWithUser:level:] [MEGASdk getAvatarUser:destinationFilePath:], etc.)
  *
  * Objects of this class aren't live, they are snapshots of the state of an user
  * in MEGA when the object is created, they are immutable.

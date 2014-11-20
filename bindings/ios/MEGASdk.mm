@@ -19,6 +19,7 @@
 #import "DelegateMEGATransferListener.h"
 #import "DelegateMEGAGlobalListener.h"
 #import "DelegateMEGAListener.h"
+#import "DelegateMEGALoggerListener.h"
 
 #import <set>
 #import <pthread.h>
@@ -45,6 +46,8 @@ using namespace mega;
 @end
 
 @implementation MEGASdk
+
+static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener(nil);
 
 #pragma mark - Properties
 
@@ -216,7 +219,7 @@ using namespace mega;
     return ret;
 }
 
-- (NSString *)stringHashWithBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
+- (NSString *)hashWithBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
     if(base64pwkey == nil || email == nil)  return  nil;
     
     const char *val = self.megaApi->getStringHash([base64pwkey UTF8String], [email UTF8String]);
@@ -228,7 +231,7 @@ using namespace mega;
     return ret;
 }
 
-+ (uint64_t)base64ToHandle:(NSString *)base64Handle {
++ (uint64_t)handleWithBase64Handle:(NSString *)base64Handle {
     if(base64Handle == nil) return ::mega::INVALID_HANDLE;
     
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
@@ -293,7 +296,7 @@ using namespace mega;
     self.megaApi->logout();
 }
 
-- (void)fetchNodesWithListener:(id<MEGARequestDelegate>)delegate {
+- (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
@@ -432,44 +435,68 @@ using namespace mega;
 
 #pragma mark - Attributes Requests
 
-- (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getThumbnail((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getThumbnailWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath {
+- (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath {
     self.megaApi->getThumbnail((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-- (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
+- (void)cancelGetThumbnailNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelGetThumbnail((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelGetThumbnailNode:(MEGANode *)node {
+    self.megaApi->cancelGetThumbnail((node != nil) ? [node getCPtr] : NULL);
+}
+
+- (void)setThumbnailNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setThumbnail((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setThumbnailWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath {
+- (void)setThumbnailNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath {
     self.megaApi->setThumbnail((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
-- (void)getPreviewWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getPreviewNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPreview((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getPreviewWithNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath {
+- (void)getPreviewNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath {
     self.megaApi->getPreview((node != nil) ? [node getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
 }
 
-- (void)setPreviewWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
+- (void)cancelGetPreviewNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelGetPreview((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelGetPreviewNode:(MEGANode *)node {
+    self.megaApi->cancelGetPreview((node != nil) ? [node getCPtr] : NULL);
+}
+
+- (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setPreviewWithNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath {
+- (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath {
     self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
-- (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getAvatarUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getAvatarWithUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath {
+- (void)getAvatarUser:(MEGAUser *)user destinationFilePath:(NSString *)destinationFilePath {
     self.megaApi->getUserAvatar((user != nil) ? [user getCPtr] : NULL, (destinationFilePath != nil) ? [destinationFilePath UTF8String] : NULL);
+}
+
+- (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath {
+    self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
 #pragma mark - Account management Requests
@@ -520,6 +547,22 @@ using namespace mega;
 
 - (void)removeContactWithUser:(MEGAUser *)user {
     self.megaApi->removeContact((user != nil) ? [user getCPtr] : NULL);
+}
+
+- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->submitFeedback((int)rating, (comment != nil) ? [comment UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)submitFeedbackWithRating:(NSInteger)rating comment:(NSString *)comment {
+    self.megaApi->submitFeedback((int)rating, (comment != nil) ? [comment UTF8String] : NULL);
+}
+
+- (void)reportDebugEventWithText:(NSString *)text delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->reportDebugEvent((text != nil) ? [text UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)reportDebugEventWithText:(NSString *)text {
+    self.megaApi->reportDebugEvent((text != nil) ? [text UTF8String] : NULL);
 }
 
 #pragma mark - Transfer
@@ -725,22 +768,32 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, recursive) cMemoryOwn:YES];
 }
 
-- (void)freeRequestListener:(DelegateMEGARequestListener *)delegate {
-    if (delegate == nil) return;
-    
-    pthread_mutex_lock(&listenerMutex);
-    _activeRequestListeners.erase(delegate);
-    pthread_mutex_unlock(&listenerMutex);
-    delete delegate;
+- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
-- (void)freeTransferListener:(DelegateMEGATransferListener *)delegate {
-    if (delegate == nil) return;
-    
-    pthread_mutex_lock(&listenerMutex);
-    _activeTransferListeners.erase(delegate);
-    pthread_mutex_unlock(&listenerMutex);
-    delete delegate;
+#pragma mark - Debug log messages
+
++ (void)setLogLevel:(MEGALogLevel)logLevel {
+    MegaApi::setLogLevel((int)logLevel);
+}
+
++ (void)setLogObject:(id<MEGALoggerDelegate>)delegate {
+    DelegateMEGALogerListener *newLogger = new DelegateMEGALogerListener(delegate);
+    delete externalLogger;
+    externalLogger = newLogger;
+}
+
++ (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename line:(NSInteger)line {
+    MegaApi::log((int)logLevel, (message != nil) ? [message UTF8String] : NULL, (filename != nil) ? [filename UTF8String] : NULL, (int)line);
+}
+
++ (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename {
+    MegaApi::log((int)logLevel, (message != nil) ? [message UTF8String] : NULL, (filename != nil) ? [filename UTF8String] : NULL);
+}
+
++ (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message {
+    MegaApi::log((int)logLevel, (message != nil) ? [message UTF8String] : NULL);
 }
 
 #pragma mark - Private methods
@@ -783,6 +836,24 @@ using namespace mega;
     _activeMegaListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
+}
+
+- (void)freeRequestListener:(DelegateMEGARequestListener *)delegate {
+    if (delegate == nil) return;
+    
+    pthread_mutex_lock(&listenerMutex);
+    _activeRequestListeners.erase(delegate);
+    pthread_mutex_unlock(&listenerMutex);
+    delete delegate;
+}
+
+- (void)freeTransferListener:(DelegateMEGATransferListener *)delegate {
+    if (delegate == nil) return;
+    
+    pthread_mutex_lock(&listenerMutex);
+    _activeTransferListeners.erase(delegate);
+    pthread_mutex_unlock(&listenerMutex);
+    delete delegate;
 }
 
 @end

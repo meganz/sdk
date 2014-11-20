@@ -72,7 +72,7 @@
     
     switch ([request type]) {
         case MEGARequestTypeLogin: {
-            [api fetchNodesWithListener:self];
+            [api fetchNodesWithDelegate:self];
             break;
         }
             

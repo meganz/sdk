@@ -61,6 +61,8 @@
 }
 
 - (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    
     [[MEGASdkManager sharedMEGASdk] addMEGADelegate:self];
     [[MEGASdkManager sharedMEGASdk] retryPendingConnections];
     [self reloadUI];
@@ -68,6 +70,7 @@
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
+    
     [[MEGASdkManager sharedMEGASdk] removeMEGADelegate:self];
 }
 
@@ -98,7 +101,7 @@
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
     
     if (!fileExists && [node hasThumbnail]) {
-        [[MEGASdkManager sharedMEGASdk] getThumbnailWithNode:node destinationFilePath:destinationFilePath];
+        [[MEGASdkManager sharedMEGASdk] getThumbnailNode:node destinationFilePath:destinationFilePath];
     }
     
     cell.nameLabel.text = [node name];
@@ -402,6 +405,5 @@
 
 -(void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
 }
-
 
 @end
