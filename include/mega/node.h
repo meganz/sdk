@@ -29,6 +29,9 @@
 namespace mega {
 struct MEGA_API NodeCore
 {
+    NodeCore();
+    ~NodeCore();
+
     // node's own handle
     handle nodehandle;
 
@@ -44,7 +47,7 @@ struct MEGA_API NodeCore
     string nodekey;
 
     // node attributes
-    string attrstring;
+    string *attrstring;
 };
 
 // new node for putnodes()
@@ -114,7 +117,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     Share* inshare;
 
     // outbound shares by user
-    share_map outshares;
+    share_map *outshares;
 
     // incoming/outgoing share key
     SymmCipher* sharekey;

@@ -98,7 +98,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->ctime = node->ctime;
     this->mtime = node->mtime;
     this->nodehandle = node->nodehandle;
-    this->attrstring.assign(node->attrstring.data(), node->attrstring.size());
+    if(node->attrstring)
+    {
+        this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
+    }
     this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
     this->removed = node->changed.removed;
 
@@ -2951,7 +2954,7 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 		return false;
 	}
 
-	bool result = (node->outshares.size() != 0);
+    bool result = (node->outshares != NULL);
 	sdkMutex.unlock();
 
 	return result;
@@ -2981,10 +2984,16 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         return new MegaShareListPrivate();
 	}
 
+    if(!node->outshares)
+    {
+        sdkMutex.unlock();
+        return new MegaShareListPrivate();
+    }
+
 	vector<Share*> vShares;
 	vector<handle> vHandles;
 
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		vShares.push_back(it->second);
 		vHandles.push_back(node->nodehandle);
@@ -4183,7 +4192,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
 		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
-		newnode->attrstring = *a;
+        newnode->attrstring = new string(*a);
 
 		// add node
         requestMap.erase(request->getTag());
@@ -5621,7 +5630,8 @@ void MegaApiImpl::sendPendingRequests()
 
 			// JSON-encode object and encrypt attribute string
 			attrs.getjson(&attrstring);
-			client->makeattr(&key,&newnode->attrstring,attrstring.c_str());
+            newnode->attrstring = new string;
+            client->makeattr(&key,newnode->attrstring,attrstring.c_str());
 
 			// add the newly generated folder node
 			client->putnodes(parent->nodehandle,newnode,1);
@@ -5656,7 +5666,8 @@ void MegaApiImpl::sendPendingRequests()
             {
                 NewNode *newnode = new NewNode[1];
                 newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
-                newnode->attrstring.assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+                newnode->attrstring = new string;
+                newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
                 newnode->nodehandle = publicNode->getHandle();
                 newnode->source = NEW_PUBLIC;
                 newnode->type = FILENODE;
@@ -6363,7 +6374,8 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		key.setkey((const byte*)t->nodekey.data(),n->type);
 
 		n->attrs.getjson(&attrstring);
-		client->makeattr(&key,&t->attrstring,attrstring.c_str());
+        t->attrstring = new string;
+        client->makeattr(&key,t->attrstring,attrstring.c_str());
 	}
 	else nc++;
 }
@@ -6605,7 +6617,12 @@ OutShareProcessor::OutShareProcessor()
 
 bool OutShareProcessor::processNode(Node *node)
 {
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    if(!node->outshares)
+    {
+        return true;
+    }
+
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		shares.push_back(it->second);
 		handles.push_back(node->nodehandle);

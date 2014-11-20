@@ -94,7 +94,8 @@ void File::completed(Transfer* t, LocalNode* l)
 
         attrs.getjson(&tattrstring);
 
-        t->client->makeattr(&t->key, &newnode->attrstring, tattrstring.c_str());
+        newnode->attrstring = new string;
+        t->client->makeattr(&t->key, newnode->attrstring, tattrstring.c_str());
 
         if (targetuser.size())
         {
