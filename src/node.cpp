@@ -755,6 +755,16 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+NodeCore::NodeCore()
+{
+    attrstring = NULL;
+}
+
+NodeCore::~NodeCore()
+{
+    delete attrstring;
+}
+
 #ifdef ENABLE_SYNC
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
@@ -1333,16 +1343,6 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->reported = false;
 
     return l;
-}
-
-NodeCore::NodeCore()
-{
-    attrstring = NULL;
-}
-
-NodeCore::~NodeCore()
-{
-    delete attrstring;
 }
 
 #endif
