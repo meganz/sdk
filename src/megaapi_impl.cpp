@@ -2346,7 +2346,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2395,7 +2395,7 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2482,7 +2482,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
     if(localPath)
     {
         string path(localPath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2512,7 +2512,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
 
     if(localPath)
     {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         string path(localPath);
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
@@ -2576,7 +2576,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     sdkMutex.lock();
 
     string utf8path = path;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\"))
             utf8path.insert(0, "\\\\?\\");
 #endif
@@ -2611,7 +2611,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 
 int MegaApiImpl::syncPathState(string* path)
 {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     string prefix("\\\\?\\");
     string localPrefix;
     fsAccess->path2local(&prefix, &localPrefix);
@@ -2676,7 +2676,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     if(localFolder)
     {
         string path(localFolder);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2702,7 +2702,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     if(localFolder)
     {
         string path(localFolder);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
