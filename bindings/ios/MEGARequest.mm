@@ -116,12 +116,24 @@ using namespace mega;
     
 }
 
+- (NSInteger)numRetry {
+    return self.megaRequest->getNumRetry() ? self.megaRequest->getNumRetry() : 0;
+}
+
 - (MEGANode *)publicNode {
     return self.megaRequest && self.megaRequest->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)paramType {
     return  self.megaRequest ? self.megaRequest->getParamType() : 0;
+}
+
+- (NSString *)text {
+    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getText()] : nil;
+}
+
+- (NSNumber *)number {
+    return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getNumber()] : nil;
 }
 
 - (BOOL)flag {
@@ -142,6 +154,14 @@ using namespace mega;
 
 - (MEGAPricing *)pricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
+}
+
+- (NSInteger)transferTag {
+    return self.megaRequest ? self.megaRequest->getTransferTag() : 0;
+}
+
+- (NSInteger)numDetails {
+    return self.megaRequest ? self.megaRequest->getNumDetails() : 0;
 }
 
 @end

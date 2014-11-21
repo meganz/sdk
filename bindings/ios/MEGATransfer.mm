@@ -92,11 +92,11 @@ using namespace mega;
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getFileName()] : nil;
 }
 
-- (NSInteger)numberRetry {
+- (NSInteger) numRetry  {
     return self.megaTransfer ? self.megaTransfer->getNumRetry() : 0;
 }
 
-- (NSInteger)maximunRetries {
+- (NSInteger) maxRetries  {
     return self.megaTransfer ? self.megaTransfer->getMaxRetries() : 0;
 }
 

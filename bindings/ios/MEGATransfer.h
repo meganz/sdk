@@ -102,12 +102,12 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 /**
  * @brief Number of times that a transfer has temporarily failed.
  */
-@property (readonly, nonatomic) NSInteger numberRetry;
+@property (readonly, nonatomic) NSInteger  numRetry ;
 
 /**
  * @brief Maximum number of times that the transfer will be retried.
  */
-@property (readonly, nonatomic) NSInteger maximunRetries;
+@property (readonly, nonatomic) NSInteger  maxRetries ;
 
 /**
  * @brief An integer that identifies this transfer.

@@ -282,6 +282,11 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *file;
 
 /**
+ * @brief Number of times that a request has temporarily failed.
+ */
+@property (readonly, nonatomic) NSInteger numRetry;
+
+/**
  * @brief A public node related to the request.
  *
  * The MEGARequest object retains the ownership of the returned value. It will be valid
@@ -306,6 +311,26 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) NSInteger paramType;
+
+/**
+ * @brief Text relative to this request.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk submitFeedbackWithRating:comment:] - Returns the comment about the app
+ * - [MEGASdk reportDebugEventWithText:] - Returns the debug message
+ *
+ */
+@property (readonly, nonatomic) NSString *text;
+
+/**
+ * @brief Number related to this request
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk retryPendingConnections] - Returns if transfers are retried
+ * - [MEGASdk submitFeedbackWithRating:comment:] - Returns the rating for the app
+ *
+ */
+@property (readonly, nonatomic) NSNumber *number;
 
 /**
  * @brief A flag related to the request.
@@ -335,10 +360,10 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getAccountDetails] - Details of the MEGA account
  *
  */
-@property (readonly, nonatomic) MEGAAcountDetails * megaAccountDetails ;
+@property (readonly, nonatomic) MEGAAcountDetails *megaAcountDetails;
 
 /**
- * @brief Available pricing plans to upgrade a MEGA account
+ * @brief Available pricing plans to upgrade a MEGA account.
  *
  * This value is valid for these request in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
@@ -346,6 +371,20 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAPricing *pricing;
+
+/**
+ * @brief Tag of a transfer related to the request.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk cancelTransfer:] - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+ *
+ */
+@property (readonly, nonatomic) NSInteger transferTag;
+
+/**
+ * @brief Number of details related to this request.
+ */
+@property (readonly, nonatomic) NSInteger numDetails;
 
 /**
  * @brief Creates a copy of this MEGARequest object

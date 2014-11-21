@@ -2058,6 +2058,18 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  */
 - (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString;
 
+/**
+ * @brief Get the size of a node tree.
+ *
+ * If the MEGANode is a file, this function returns the size of the file.
+ * If it's a folder, this fuction returns the sum of the sizes of all nodes
+ * in the node tree.
+ *
+ * @param node Parent node.
+ * @return Size of the node tree.
+ */
+- (NSNumber *)sizeOfNode:(MEGANode *)node;
+
 #pragma mark - Debug log messages
 
 /**
