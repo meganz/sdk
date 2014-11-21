@@ -24,7 +24,6 @@
 }
 
 @property (nonatomic, strong) MEGANodeList *nodes;
-@property (weak, nonatomic) IBOutlet UIBarButtonItem *logoutItem;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *addItem;
 
 @property (nonatomic) UIImagePickerController *imagePickerController;
@@ -36,7 +35,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    NSArray *buttonsItems = @[self.logoutItem, self.addItem];
+    NSArray *buttonsItems = @[self.addItem];
     self.navigationItem.rightBarButtonItems = buttonsItems;
     
     NSString *path;
@@ -185,10 +184,6 @@
 
 }
 
-- (IBAction)logout:(id)sender {
-    [[MEGASdkManager sharedMEGASdk] logout];
-}
-
 - (IBAction)optionAdd:(id)sender {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil
                                                              delegate:self
@@ -288,10 +283,6 @@
 
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     switch ([request type]) {
-        case MEGARequestTypeLogout:
-            [SVProgressHUD showWithStatus:@"Logout..."];
-            break;
-            
         case MEGARequestTypeExport:
             [SVProgressHUD showWithStatus:@"Generate link..."];
             break;
@@ -306,32 +297,7 @@
         return;
     }
     
-    switch ([request type]) {
-        case MEGARequestTypeLogout: {
-            NSFileManager *fm = [NSFileManager defaultManager];
-            NSError *error = nil;
-            for (NSString *file in [fm contentsOfDirectoryAtPath:cacheDirectory error:&error]) {
-                BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", cacheDirectory, file] error:&error];
-                if (!success || error) {
-                    NSLog(@"remove file error %@", error);
-                }
-            }
-            NSString *documentDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-            for (NSString *file in [fm contentsOfDirectoryAtPath:documentDirectory error:&error]) {
-                BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", documentDirectory, file] error:&error];
-                if (!success || error) {
-                    NSLog(@"remove file error %@", error);
-                }
-            }
-            
-            [SVProgressHUD dismiss];
-            UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
-            LoginViewController *loginVC = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
-            
-            [self presentViewController:loginVC animated:YES completion:nil];
-            break;
-        }
-            
+    switch ([request type]) {            
         case MEGARequestTypeGetAttrFile: {
             for (NodeTableViewCell *ntvc in [self.tableView visibleCells]) {
                 if ([request nodeHandle] == [ntvc nodeHandle]) {

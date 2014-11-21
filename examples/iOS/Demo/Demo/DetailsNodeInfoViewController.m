@@ -15,6 +15,8 @@
 
 @property (weak, nonatomic) IBOutlet UIImageView *thumbnailmageView;
 @property (weak, nonatomic) IBOutlet UILabel *nameLabel;
+@property (weak, nonatomic) IBOutlet UILabel *modificationTimeLabel;
+@property (weak, nonatomic) IBOutlet UILabel *sizeLabel;
 @property (weak, nonatomic) IBOutlet UIProgressView *downloadProgressView;
 @property (weak, nonatomic) IBOutlet UILabel *saveLabel;
 @property (weak, nonatomic) IBOutlet UIButton *downloadButton;
@@ -53,6 +55,24 @@
     
     [self.thumbnailmageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
     self.nameLabel.text = [self.node name];
+    
+    
+    struct tm *timeinfo;
+    char buffer[80];
+    time_t rawtime;
+    if ([self.node isFile]) {
+        rawtime = [[self.node modificationTime] timeIntervalSince1970];
+    } else {
+        rawtime = [[self.node creationTime] timeIntervalSince1970];
+    }
+    timeinfo = localtime(&rawtime);
+    
+    strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+    
+    self.modificationTimeLabel.text = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
+    
+    self.sizeLabel.text = [NSByteCountFormatter stringFromByteCount:[[self.node size] longLongValue] countStyle:NSByteCountFormatterCountStyleMemory];
+    
     self.title = [self.node name];
     
     

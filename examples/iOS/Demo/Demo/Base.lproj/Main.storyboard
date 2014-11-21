@@ -122,17 +122,10 @@
                         </connections>
                     </tableView>
                     <toolbarItems/>
-                    <navigationItem key="navigationItem" id="DA5-VX-OPc">
-                        <barButtonItem key="rightBarButtonItem" title="Logout" id="Sri-5N-TSl">
-                            <connections>
-                                <action selector="logout:" destination="iPC-QU-led" id="5VZ-2y-INb"/>
-                            </connections>
-                        </barButtonItem>
-                    </navigationItem>
+                    <navigationItem key="navigationItem" id="DA5-VX-OPc"/>
                     <simulatedToolbarMetrics key="simulatedBottomBarMetrics"/>
                     <connections>
                         <outlet property="addItem" destination="Hmf-dX-KOK" id="tQZ-BO-fDr"/>
-                        <outlet property="logoutItem" destination="Sri-5N-TSl" id="H5F-3U-h8F"/>
                         <segue destination="nXH-sM-h0J" kind="show" identifier="showNodeInfoDetails" id="o1i-Zu-agJ"/>
                     </connections>
                 </tableViewController>
@@ -158,21 +151,12 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="mHm-d5-zBZ">
-                                <rect key="frame" x="250" y="72" width="100" height="100"/>
+                                <rect key="frame" x="26" y="92" width="100" height="100"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="100" id="0zG-ri-iDQ"/>
                                     <constraint firstAttribute="width" constant="100" id="dwq-t1-nwp"/>
                                 </constraints>
                             </imageView>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="nam-ZF-2MZ">
-                                <rect key="frame" x="10" y="180" width="581" height="21"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" constant="581" id="zPD-qn-drc"/>
-                                </constraints>
-                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
-                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
-                                <nil key="highlightedColor"/>
-                            </label>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="kxa-PG-gjn">
                                 <rect key="frame" x="26" y="218" width="30" height="30"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
@@ -224,39 +208,65 @@
                                     <action selector="tapDelete:" destination="nXH-sM-h0J" eventType="touchUpInside" id="UcM-Mo-jsS"/>
                                 </connections>
                             </button>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="nam-ZF-2MZ">
+                                <rect key="frame" x="134" y="106" width="450" height="21"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="MpR-gE-z6F">
+                                <rect key="frame" x="134" y="134" width="450" height="17"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="iXq-aa-JXB">
+                                <rect key="frame" x="134" y="158" width="450" height="17"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                         <constraints>
+                            <constraint firstItem="nam-ZF-2MZ" firstAttribute="top" secondItem="Qce-75-gpc" secondAttribute="bottom" constant="42" id="2bv-rs-EWQ"/>
                             <constraint firstItem="Hda-lU-t8E" firstAttribute="top" secondItem="Qzh-fg-gdJ" secondAttribute="bottom" constant="8" id="2hz-fp-AAO"/>
                             <constraint firstItem="MLe-Nr-A6o" firstAttribute="leading" secondItem="Uqq-R1-d6K" secondAttribute="leadingMargin" constant="10" id="4cO-hH-1Lw"/>
                             <constraint firstItem="Qzh-fg-gdJ" firstAttribute="leading" secondItem="Uqq-R1-d6K" secondAttribute="leadingMargin" constant="10" id="5mv-WW-Q09"/>
-                            <constraint firstAttribute="centerX" secondItem="nam-ZF-2MZ" secondAttribute="centerX" constant="-0.5" id="69I-cb-PHk"/>
-                            <constraint firstAttribute="centerX" secondItem="mHm-d5-zBZ" secondAttribute="centerX" id="7e5-w5-j8H"/>
-                            <constraint firstItem="nam-ZF-2MZ" firstAttribute="top" secondItem="mHm-d5-zBZ" secondAttribute="bottom" constant="8" id="FPi-wL-39X"/>
+                            <constraint firstItem="nam-ZF-2MZ" firstAttribute="leading" secondItem="mHm-d5-zBZ" secondAttribute="trailing" constant="8" id="70c-No-izz"/>
+                            <constraint firstItem="MpR-gE-z6F" firstAttribute="trailing" secondItem="Uqq-R1-d6K" secondAttribute="trailingMargin" id="7sW-fW-HSq"/>
+                            <constraint firstItem="iXq-aa-JXB" firstAttribute="top" secondItem="MpR-gE-z6F" secondAttribute="bottom" constant="8" id="B7I-fh-Nnl"/>
+                            <constraint firstItem="iXq-aa-JXB" firstAttribute="leading" secondItem="mHm-d5-zBZ" secondAttribute="trailing" constant="8" id="Dz9-GI-o0i"/>
                             <constraint firstItem="kxa-PG-gjn" firstAttribute="leading" secondItem="Uqq-R1-d6K" secondAttribute="leadingMargin" constant="10" id="IUV-oT-vxL"/>
                             <constraint firstItem="KkF-uV-VMB" firstAttribute="top" secondItem="Qce-75-gpc" secondAttribute="bottom" constant="158" id="MOM-mG-Zlc"/>
                             <constraint firstItem="9Jm-qB-Rt1" firstAttribute="leading" secondItem="kxa-PG-gjn" secondAttribute="trailing" constant="29" id="Qnc-eg-q2v"/>
                             <constraint firstItem="Hda-lU-t8E" firstAttribute="leading" secondItem="Uqq-R1-d6K" secondAttribute="leadingMargin" constant="10" id="Tnq-WA-koE"/>
                             <constraint firstItem="Qzh-fg-gdJ" firstAttribute="top" secondItem="kxa-PG-gjn" secondAttribute="bottom" constant="8" id="Ts5-G1-Hzu"/>
                             <constraint firstItem="MLe-Nr-A6o" firstAttribute="top" secondItem="Hda-lU-t8E" secondAttribute="bottom" constant="8" id="iCi-vg-B2z"/>
-                            <constraint firstItem="mHm-d5-zBZ" firstAttribute="top" secondItem="Qce-75-gpc" secondAttribute="bottom" constant="8" id="iD2-mA-xTg"/>
+                            <constraint firstItem="mHm-d5-zBZ" firstAttribute="top" secondItem="Qce-75-gpc" secondAttribute="bottom" constant="28" id="iD2-mA-xTg"/>
+                            <constraint firstItem="mHm-d5-zBZ" firstAttribute="leading" secondItem="Uqq-R1-d6K" secondAttribute="leadingMargin" constant="10" id="iOG-Fr-EBj"/>
                             <constraint firstItem="9Jm-qB-Rt1" firstAttribute="top" secondItem="Qce-75-gpc" secondAttribute="bottom" constant="168" id="j7I-Nb-dnE"/>
                             <constraint firstItem="KkF-uV-VMB" firstAttribute="leading" secondItem="kxa-PG-gjn" secondAttribute="trailing" constant="29" id="mIp-Ah-nnG"/>
+                            <constraint firstItem="nam-ZF-2MZ" firstAttribute="trailing" secondItem="Uqq-R1-d6K" secondAttribute="trailingMargin" id="q91-53-Q1c"/>
                             <constraint firstItem="kxa-PG-gjn" firstAttribute="top" secondItem="Qce-75-gpc" secondAttribute="bottom" constant="154" id="u2y-EZ-pwM"/>
-                            <constraint firstItem="9Jm-qB-Rt1" firstAttribute="top" secondItem="nam-ZF-2MZ" secondAttribute="bottom" constant="31" id="v0Q-9T-cea"/>
+                            <constraint firstItem="MpR-gE-z6F" firstAttribute="leading" secondItem="mHm-d5-zBZ" secondAttribute="trailing" constant="8" id="xCe-cx-6f2"/>
+                            <constraint firstItem="MpR-gE-z6F" firstAttribute="top" secondItem="nam-ZF-2MZ" secondAttribute="bottom" constant="7.5" id="xcL-af-yaD"/>
+                            <constraint firstItem="iXq-aa-JXB" firstAttribute="trailing" secondItem="Uqq-R1-d6K" secondAttribute="trailingMargin" id="ygf-Lq-lsN"/>
                         </constraints>
                     </view>
                     <connections>
                         <outlet property="downloadButton" destination="kxa-PG-gjn" id="Xuf-UB-6qk"/>
                         <outlet property="downloadProgressView" destination="9Jm-qB-Rt1" id="fTi-kI-aog"/>
+                        <outlet property="modificationTimeLabel" destination="MpR-gE-z6F" id="V4u-Mw-9Lf"/>
                         <outlet property="nameLabel" destination="nam-ZF-2MZ" id="oHR-4B-sD2"/>
                         <outlet property="saveLabel" destination="KkF-uV-VMB" id="bhv-nJ-Kfm"/>
+                        <outlet property="sizeLabel" destination="iXq-aa-JXB" id="BQW-Iv-m6K"/>
                         <outlet property="thumbnailmageView" destination="mHm-d5-zBZ" id="LV2-Rp-Jhg"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="vEf-EG-Er4" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="4433" y="-1204"/>
+            <point key="canvasLocation" x="4535" y="-1204"/>
         </scene>
         <!--Settings-->
         <scene sceneID="xIR-S2-87Y">
@@ -295,7 +305,13 @@
                             <constraint firstAttribute="centerX" secondItem="naF-lZ-sOV" secondAttribute="centerX" id="p0D-sB-fUO"/>
                         </constraints>
                     </view>
-                    <navigationItem key="navigationItem" title="Settings" id="cVP-5B-dHr"/>
+                    <navigationItem key="navigationItem" title="Settings" id="cVP-5B-dHr">
+                        <barButtonItem key="rightBarButtonItem" title="Logout" id="ivV-ol-K60">
+                            <connections>
+                                <action selector="logout:" destination="syy-nn-HWp" id="1oz-dj-CAc"/>
+                            </connections>
+                        </barButtonItem>
+                    </navigationItem>
                     <connections>
                         <outlet property="avatarImageView" destination="yDK-XE-KZQ" id="yFn-K4-LbH"/>
                         <outlet property="emailLabel" destination="naF-lZ-sOV" id="b2O-s3-98P"/>
