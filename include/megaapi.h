@@ -3924,7 +3924,7 @@ class MegaApi
 
         /**
          * @brief Get a Base64-encoded fingerprint for a node
-         *          *
+         *
          * If the node doesn't exist or doesn't have a fingerprint, this function returns NULL
          *
          * You take the ownership of the returned value
