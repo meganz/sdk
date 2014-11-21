@@ -86,14 +86,6 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (uint64_t)startPosition {
-    return self.megaTransfer ? self.megaTransfer->getStartPos() : 0;
-}
-
-- (uint64_t)endPosition {
-    return self.megaTransfer ? self.megaTransfer->getEndPos() : 0;
-}
-
 - (NSString *)fileName {
     if (!self.megaTransfer) return nil;
     

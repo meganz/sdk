@@ -50,7 +50,7 @@ using namespace mega;
     return self.megaUser ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
 }
 
-- (MEGAUserVisibility)accessVisibility {
+- (MEGAUserVisibility)access {
     return (MEGAUserVisibility) (self.megaUser ? self.megaUser->getVisibility() : ::mega::MegaUser::VISIBILITY_UNKNOWN);
 }
 

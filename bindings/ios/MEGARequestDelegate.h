@@ -12,7 +12,7 @@
 @class MEGASdk;
 
 /**
- * @brief Protocol to receive information about requests
+ * @brief Protocol to receive information about requests.
  *
  * All requests allows to pass a pointer to an implementation of this protocol in the last parameter.
  * You can also get information about all requests using [MEGASdk addMEGARequestDelegate:]
@@ -29,7 +29,7 @@
 @optional
 
 /**
- * @brief This function is called when a request is about to start being processed
+ * @brief This function is called when a request is about to start being processed.
  *
  * The SDK retains the ownership of the request parameter.
  * Don't use it after this functions returns.
@@ -37,13 +37,13 @@
  * The api object is the one created by the application, it will be valid until
  * the application deletes it.
  *
- * @param api MEGASdk object that started the request
- * @param request Information about the request
+ * @param api MEGASdk object that started the request.
+ * @param request Information about the request.
  */
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request;
 
 /**
- * @brief This function is called when a request has finished
+ * @brief This function is called when a request has finished.
  *
  * There won't be more callbacks about this request.
  * The last parameter provides the result of the request. If the request finished without problems,
@@ -55,16 +55,16 @@
  * The api object is the one created by the application, it will be valid until
  * the application deletes it.
  *
- * @param api MEGASdk object that started the request
- * @param request Information about the request
- * @param error Error information
+ * @param api MEGASdk object that started the request.
+ * @param request Information about the request.
+ * @param error Error information.
  */
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error;
 
 /**
- * @brief This function is called to inform about the progres of a request
+ * @brief This function is called to inform about the progres of a request.
  *
- * Currently, this callback is only used for fetchNodes (MEGARequestTypeFetchNodes) requests
+ * Currently, this callback is only used for fetchNodes (MEGARequestTypeFetchNodes) requests.
  *
  * The SDK retains the ownership of the request parameter.
  * Don't use it after this functions returns.
@@ -73,17 +73,17 @@
  * the application deletes it.
  *
  *
- * @param api MEGASdk object that started the request
- * @param request Information about the request
- * @see [MEGARequest totalBytes] [MEGARequest transferredBytes]
+ * @param api MEGASdk object that started the request.
+ * @param request Information about the request.
+ * @see [MEGARequest totalBytes] [MEGARequest transferredBytes].
  */
 - (void)onRequestUpdate:(MEGASdk *)api request:(MEGARequest *)request;
 
 /**
- * @brief This function is called when there is a temporary error processing a request
+ * @brief This function is called when there is a temporary error processing a request.
  *
- * The request continues after this callback, so expect more [MEGARequestListener onRequestTemporaryError] or
- * a [MEGARequestListener onRequestFinish] callback
+ * The request continues after this callback, so expect more [MEGARequestListener onRequestTemporaryError:request:error:] or
+ * a [MEGARequestListener onRequestFinish:request:error:] callback.
  *
  * The SDK retains the ownership of the request and error parameters.
  * Don't use them after this functions returns.
@@ -91,9 +91,9 @@
  * The api object is the one created by the application, it will be valid until
  * the application deletes it.
  *
- * @param api MEGASdk object that started the request
- * @param request Information about the request
- * @param error Error information
+ * @param api MEGASdk object that started the request.
+ * @param request Information about the request.
+ * @param error Error information.
  */
 - (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error;
 

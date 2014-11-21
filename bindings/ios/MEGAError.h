@@ -34,41 +34,41 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
 };
 
 /**
- * @brief Provides information about an error
+ * @brief Provides information about an error.
  */
 @interface MEGAError : NSObject
 
 /**
- * @brief The error code associated with this MEGAError
+ * @brief The error code associated with this MEGAError.
  */
 @property (readonly, nonatomic) MEGAErrorType type;
 
 /**
- * @brief Readable description of the error
+ * @brief Readable description of the error.
  */
 @property (readonly, nonatomic) NSString *name;
 
 /**
- * @brief Creates a copy of this MEGAError object
+ * @brief Creates a copy of this MEGAError object.
  *
  * The resulting object is fully independent of the source MEGAError,
  * it contains a copy of all internal attributes, so it will be valid after
  * the original object is deleted.
  *
- * You are the owner of the returned object
+ * You are the owner of the returned object.
  *
- * @return Copy of the MEGAError object
+ * @return Copy of the MEGAError object.
  */
 - (instancetype)clone;
 
 /**
- * @brief Provides the error description associated with an error code
+ * @brief Provides the error description associated with an error code.
  *
  * This function returns a pointer to a statically allocated buffer.
- * You don't have to free the returned pointer
+ * You don't have to free the returned pointer.
  *
- * @param errorCode Error code for which the description will be returned
- * @return Description associated with the error code
+ * @param errorCode Error code for which the description will be returned.
+ * @return Description associated with the error code.
  */
 - (NSString *)nameWithErrorCode:(NSInteger)errorCode;
 

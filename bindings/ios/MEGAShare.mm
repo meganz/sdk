@@ -54,7 +54,7 @@ using namespace mega;
     return self.megaShare ? self.megaShare->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (MEGAShareType)accessType {
+- (MEGAShareType)access {
     return (MEGAShareType) (self.megaShare ? self.megaShare->getAccess() : MegaShare::ACCESS_UNKNOWN);
 }
 

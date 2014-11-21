@@ -105,7 +105,7 @@ using namespace mega;
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPrivateKey()] : nil;
 }
 
-- (MEGANodeAccessLevel)accessLevel {
+- (MEGANodeAccessLevel)access {
     return (MEGANodeAccessLevel) (self.megaRequest ? self.megaRequest->getAccess() : -1);
 }
 
@@ -117,7 +117,7 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return self.megaRequest && self.megaRequest->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicMegaNode() cMemoryOwn:YES] : nil;
+    return self.megaRequest && self.megaRequest->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)paramType {
@@ -136,7 +136,7 @@ using namespace mega;
     return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getTotalBytes()] : nil;
 }
 
-- (MEGAAcountDetails *)megaAcountDetails {
+- (MEGAAcountDetails *) megaAccountDetails  {
     return nil;
 }
 

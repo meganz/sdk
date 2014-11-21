@@ -17,7 +17,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 };
 
 /**
- * @brief Represents a node (file/folder) in the MEGA account
+ * @brief Represents a node (file/folder) in the MEGA account.
  *
  * It allows to get all data related to a file/folder in MEGA. It can be also used
  * to start SDK requests ([MEGASdk renameNode:newName:], [MEGASdk moveNode:newParent:], etc.)
@@ -32,32 +32,32 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @interface MEGANode : NSObject
 
 /**
- * @brief Type of the node
+ * @brief Type of the node.
  *
  * Valid values are:
  * - MEGANodeTypeUnknown = -1,
- * Unknown node type
+ * Unknown node type.
  *
  * - MEGANodeTypeFile = 0,
- * The MEGANode object represents a file in MEGA
+ * The MEGANode object represents a file in MEGA.
  *
  * - MEGANodeTypeFolder = 1
- * The MEGANode object represents a folder in MEGA
+ * The MEGANode object represents a folder in MEGA.
  *
  * - MEGANodeTypeRoot = 2
- * The MEGANode object represents root of the MEGA Cloud Drive
+ * The MEGANode object represents root of the MEGA Cloud Drive.
  *
  * - MEGANodeTypeIncoming = 3
- * The MEGANode object represents root of the MEGA Inbox
+ * The MEGANode object represents root of the MEGA Inbox.
  *
  * - MEGANodeTypeRubbish = 4
- * The MEGANode object represents root of the MEGA Rubbish Bin
+ * The MEGANode object represents root of the MEGA Rubbish Bin.
  *
  */
 @property (readonly, nonatomic) MEGANodeType type;
 
 /**
- * @brief Name of the node
+ * @brief Name of the node.
  *
  * The name is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  * For other MEGANode types, the name is undefined.
@@ -69,15 +69,12 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
- * @brief Handle of this MEGANode in a Base64-encoded string
- *
- * You take the ownership of the returned string.
- *
+ * @brief Handle of this MEGANode in a Base64-encoded string.
  */
 @property (readonly, nonatomic) NSString *base64Handle;
 
 /**
- * @brief Size of the node
+ * @brief Size of the node.
  *
  * The value is only valid for nodes of type MEGANodeTypeFile.
  *
@@ -85,7 +82,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSNumber *size;
 
 /**
- * @brief Creation time of the node in MEGA (in seconds since the epoch)
+ * @brief Creation time of the node in MEGA (in seconds since the epoch).
  *
  * The value is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  *
@@ -93,7 +90,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSDate *creationTime;
 
 /**
- * @brief Modification time of the file that was uploaded to MEGA (in seconds since the epoch)
+ * @brief Modification time of the file that was uploaded to MEGA (in seconds since the epoch).
  *
  * The value is only valid for nodes of type MEGANodeTypeFile.
  *
@@ -101,7 +98,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSDate *modificationTime;
 
 /**
- * @brief Handle to identify this MEGANode
+ * @brief Handle to identify this MEGANode.
  *
  * You can use [MEGASdk nodeWithHandle:] to recover the node later.
  *
@@ -109,9 +106,9 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) uint64_t handle;
 
 /**
- * @brief Tag of the operation that created/modified this node in MEGA
+ * @brief Tag of the operation that created/modified this node in MEGA.
  *
- * Every request and every synchronization has a tag that identifies it.
+ * Every request has a tag that identifies it.
  * When a request creates or modifies a node, the tag is associated with the node
  * at runtime, this association is lost after a reload of the filesystem or when
  * the SDK is closed.
@@ -120,7 +117,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * [MEGAGlobalDelegate onNodesUpdate:nodeList:] was modified by a local operation (tag != 0) or by an
  * external operation, made by another MEGA client (tag == 0).
  *
- * If the node hasn't been created/modified during the current execution, this function returns 0
+ * If the node hasn't been created/modified during the current execution, this function returns 0.
  *
  */
 @property (readonly, nonatomic) NSInteger tag;
@@ -132,53 +129,53 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * it contains a copy of all internal attributes, so it will be valid after
  * the original object is deleted.
  *
- * You are the owner of the returned object
+ * You are the owner of the returned object.
  *
- * @return Copy of the MEGANode object
+ * @return Copy of the MEGANode object.
  */
 - (instancetype)clone;
 
 /**
  * @brief Returns a Boolean value that indicates if the node represents a file (type == MEGANodeTypeFile)
- * @return YES if the node represents a file, otherwise NO
+ * @return YES if the node represents a file, otherwise NO.
  */
 - (BOOL)isFile;
 
 /**
- * @brief Returns a Boolean value that indicates if the node represents a folder or a root node
+ * @brief Returns a Boolean value that indicates if the node represents a folder or a root node.
  *
- * @return YES if the node represents a folder or a root node, otherwise NO
+ * @return YES if the node represents a folder or a root node, otherwise NO.
  */
 - (BOOL)isFolder;
 
 /**
- * @brief Returns a Boolean value that indicates if the node has been removed from the MEGA account
+ * @brief Returns a Boolean value that indicates if the node has been removed from the MEGA account.
  *
- * This value is only useful for nodes notified by [MEGADelegate onNodesUpdate] or
- * [MEGAGlobalDelegate onNodesUpdate] that can notify about deleted nodes.
+ * This value is only useful for nodes notified by [MEGADelegate onNodesUpdate:nodeList:] or
+ * [MEGAGlobalDelegate onNodesUpdate:nodeList:] that can notify about deleted nodes.
  *
- * In other cases, the return value of this function will be always false.
+ * In other cases, the return value of this function will be always NO.
  *
  * @return YES if the node has been removed from the MEGA account, otherwise NO
  */
 - (BOOL)isRemoved;
 
 /**
- * @brief Returns a Boolean value that indicates if the node has an associated thumbnail
+ * @brief Returns a Boolean value that indicates if the node has an associated thumbnail.
  * @return YES if the node has an associated thumbnail, otherwise NO
  */
 - (BOOL)hasThumbnail;
 
 /**
- * @brief Returns a Boolean value that indicates if the node has an associated preview
- * @return YES if the node has an associated preview, otherwise NO
+ * @brief Returns a Boolean value that indicates if the node has an associated preview.
+ * @return YES if the node has an associated preview, otherwise NO.
  */
 - (BOOL)hasPreview;
 
 /**
- * @brief Returns a Boolean value that indicates if the node is a public
+ * @brief Returns a Boolean value that indicates if the node is a public.
  *
- * Only MEGANode objects generated with [MEGASdk publicNode:]
+ * Only MEGANode objects generated with [MEGASdk publicNodeWithMegaLink:].
  * will return YES.
  *
  * @return YES if the node is public node, otherwise NO.

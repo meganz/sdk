@@ -59,7 +59,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 };
 
 /**
- * @brief Provides information about an asynchronous request
+ * @brief Provides information about an asynchronous request.
  *
  * Most functions in this API are asynchonous, except the ones that never require to
  * contact MEGA servers. Developers can use delegates (MEGADelegate, MEGARequestDelegate)
@@ -77,12 +77,12 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @interface MEGARequest : NSObject
 
 /**
- * @brief The type of request associated with the object
+ * @brief Type of request associated with the object.
  */
 @property (readonly, nonatomic) MEGARequestType type;
 
 /**
- * @brief A readable string that shows the type of request
+ * @brief A readable string that shows the type of request.
  *
  * This property is a pointer to a statically allocated buffer.
  * You don't have to free the returned pointer
@@ -91,7 +91,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *requestString;
 
 /**
- * @brief The handle of a node related to the request
+ * @brief The handle of a node related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk moveNode:newParent:] - Returns the handle of the node to move
@@ -100,12 +100,13 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk removeNode:] - Returns the handle of the node to remove
  * - [MEGASdk shareNode:withUser:level:] - Returns the handle of the folder to share
  * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns the handle of the node to get the thumbnail
- * - [MEGASdk getPreviewlWithNode:destinationFilePath:] - Return the handle of the node to get the preview
+ * - [MEGASdk getPreviewlNode:destinationFilePath:] - Return the handle of the node to get the preview
+ * - [MEGASdk cancelGetThumbnailNode:] - Return the handle of the node
+ * - [MEGASdk cancelGetPreviewNode:] - Returns the handle of the node
  * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns the handle of the node
  * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns the handle of the node
  * - [MEGASdk exportNode:] - Returns the handle of the node
  * - [MEGASdk disableExportNode:] - Returns the handle of the node
- * - [MEGASdk exportNode:] - Returns the handle of the product
  * - [MEGASdk getPaymentURLWithProductHandle:] - Returns the handle of the folder in MEGA
  *
  * This value is valid for these requests in onRequestFinish when the
@@ -118,13 +119,13 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) uint64_t nodeHandle;
 
 /**
- * @brief A link related to the request
+ * @brief A link related to the request.
  *
  * This value is valid for these requests:
- * - [MEGASdk querySignUpWithLink:] - Returns the confirmation link
+ * - [MEGASdk querySignupLink:] - Returns the confirmation link
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the confirmation link
  * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the confirmation link
- * - [MEGASdk loginWithFolderLink:] - Returns the link to the folder
+ * - [MEGASdk loginToFolderLink:] - Returns the link to the folder
  * - [MEGASdk importMegaFileLink:parent:] - Returns the link to the file to import
  * - [MEGASdk publicNodeWithMegaFileLink:] - Returns the link to the file
  *
@@ -140,7 +141,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *link;
 
 /**
- * @brief The handle of a parent node related to the request
+ * @brief The handle of a parent node related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk createFolderWithName:parent:] - Returns the handle of the parent folder
@@ -152,7 +153,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) uint64_t parentHandle;
 
 /**
- * @brief A session key related to the request
+ * @brief A session key related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk fastLoginWithSession:] - Returns session key used to access the account
@@ -164,7 +165,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *sessionKey;
 
 /**
- * @brief A name related to the request
+ * @brief A name related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk createAccountWithEmail:password:name:] - Returns the name of the user
@@ -173,8 +174,8 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk renameNode:newName:] - Returns the new name for the node
  *
  * This value is valid for these request in onRequestFinish when the
- * error code es MegaError::API_OK:
- * - [MEGASdk querySignUpWithLink:] - Returns the name of the user
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk querySignupLink:] - Returns the name of the user
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
  * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the name of the user
  *
@@ -185,12 +186,12 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
- * @brief An email related to the request
+ * @brief An email related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk loginWithEmail:password:] - Returns the email of the account
  * - [MEGASdk fastLoginWithEmail:password:] - Returns the email of the account
- * - [MEGASdk loginWithFolderLink:] - Returns the string "FOLDER"
+ * - [MEGASdk loginToFolderLink:] - Returns the string "FOLDER"
  * - [MEGASdk createAccountWithEmail:password:name:] - Returns the name of the user
  * - [MEGASdk fastCreateAccountWithEmail:password:name] - Returns the name of the user
  * - [MEGASdk shareNode:withUser:level:] - Returns the handle of the folder to share
@@ -199,8 +200,8 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk removeContactWithEmail:] - Returns the email of the contact
  *
  * This value is valid for these request in onRequestFinish when the
- * error code es MegaError::API_OK:
- * - [MEGASdk querySignUpWithLink:] - Returns the name of the user
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk querySignupLink:] - Returns the name of the user
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
  * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the name of the user
  *
@@ -211,14 +212,14 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *email;
 
 /**
- * @brief A password related to the request
+ * @brief A password related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk loginWithEmail:password:] - Returns the email of the account
  * - [MEGASdk fastLoginWithEmail:password:] - Returns the email of the account
  * - [MEGASdk createAccountWithEmail:password:name:] - Returns the name of the user
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the password for the account
- * - [MEGASdk changePasswordWithOldPassword:newPassword:]  - Returns the old password of the account (first parameter)
+ * - [MEGASdk changePassword:newPassword:]  - Returns the old password of the account (first parameter)
  *
  * The SDK retains the ownership of the returned value. It will be valid until
  * the MEGARequest object is deleted.
@@ -227,10 +228,10 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *password;
 
 /**
- * @brief A new password related to the request
+ * @brief A new password related to the request.
  *
  * This value is valid for these requests:
- * - [MEGASdk changePasswordWithOldPassword:newPassword:]  - Returns the old password of the account (first parameter)
+ * - [MEGASdk changePassword:newPassword:]  - Returns the old password of the account (first parameter)
  *
  * The SDK retains the ownership of the returned value. It will be valid until
  * the MEGARequest object is deleted.
@@ -239,7 +240,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *newPassword;
 
 /**
- * @brief Returns a private key related to the request
+ * @brief Returns a private key related to the request.
  *
  * The SDK retains the ownership of the returned value. It will be valid until
  * the MEGARequest object is deleted.
@@ -253,89 +254,88 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSString *privateKey;
 
 /**
- * @brief An access level related to the request
+ * @brief An access level related to the request.
  *
  * This value is valid for these requests:
  * - [MEGASdk shareNode:withUser:level:] - Returns the access level for the shared folder
  * - [MEGASdk exportNode:] - Returns YES
- * - [MEGASdk disableExportNode:] - Returns false
+ * - [MEGASdk disableExportNode:] - Returns NO
  *
  */
-@property (readonly, nonatomic) MEGANodeAccessLevel accessLevel;
+@property (readonly, nonatomic) MEGANodeAccessLevel access;
 
 /**
- * @brief The path of a file related to the request
+ * @brief The path of a file related to the request.
  *
  * The SDK retains the ownership of the returned value. It will be valid until
  * the MEGARequest object is deleted.
  *
  * This value is valid for these requests:
  * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns the destination path for the thumbnail
- * - [MEGASdk getPreviewlWithNode:destinationFilePath:] - Returns the destination path for the preview
+ * - [MEGASdk getPreviewlNode:destinationFilePath:] - Returns the destination path for the preview
  * - [MEGASdk getAvatarUser:destinationFilePath:] - Returns the destination path for the avatar
  * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns the source path for the thumbnail
  * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns the source path for the preview
+ * - [MEGASdk setAvatarUserWithSourceFilePath:] - Returns the source path for the avatar
  *
  */
 @property (readonly, nonatomic) NSString *file;
 
 /**
- * @brief A public node related to the request
+ * @brief A public node related to the request.
  *
  * The MEGARequest object retains the ownership of the returned value. It will be valid
  * until the MEGARequest object is deleted.
  *
- * If you want to use the returned node beyond the deletion of the MegaRequest object,
- * you must call [MEGANode clone] or use [MEGARequest publicNode] instead
+ * If you want to use the returned node beyond the deletion of the MEGARequest object,
+ * you must call [MEGANode clone] or use [MEGARequest publicNode] instead.
  *
  * @return Public node related to the request
- *
- * @deprecated This function will be removed in future updates. You should use
- * MegaRequest::getPublicMegaNode instead.
  *
  */
 @property (readonly, nonatomic) MEGANode *publicNode;
 
 /**
- * @brief The type of parameter related to the request
+ * @brief The type of parameter related to the request.
  *
  * This value is valid for these requests:
- * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
- * - [MEGASdk getPreviewlWithNode:destinationFilePath:] - Returns MegaApi::ATTR_TYPE_PREVIEW
- * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
- * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns MegaApi::ATTR_TYPE_PREVIEW
+ * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns MEGAAttributeTypeThumbnail
+ * - [MEGASdk getPreviewNode:destinationFilePath:] - Returns MEGAAttributeTypePreview
+ * - [MEGASdk setThumbnailNode:sourceFilePath:] - Returns MEGAAttributeTypeThumbnail
+ * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns MEGAAttributeTypePreview
  *
  */
 @property (readonly, nonatomic) NSInteger paramType;
 
 /**
- * @brief A flag related to the request
+ * @brief A flag related to the request.
  *
  * This value is valid for these requests:
- * - [MEGASdk retryPendingConnections:] - Returns if request are disconnected
+ * - [MEGASdk retryPendingConnections] - Returns if request are disconnected
+ * - [MEGASdk pauseTransfers] - Returns YES if transfers were paused, No if they were resumed
  *
  */
 @property (readonly, nonatomic) BOOL flag;
 
 /**
- * @brief The number of transferred bytes during the request
+ * @brief Number of transferred bytes during the request.
  */
 @property (readonly, nonatomic) NSNumber *transferredBytes;
 
 /**
- * @brief The number of bytes that the SDK will have to transfer to finish the request
+ * @brief Number of bytes that the SDK will have to transfer to finish the request.
  */
 @property (readonly, nonatomic) NSNumber *totalBytes;
 
 /**
- * @brief Details related to the MEGA account
+ * @brief Details related to the MEGA account.
  *
  * This value is valid for these request in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk getAccountDetails] - Details of the MEGA account
  *
  */
-@property (readonly, nonatomic) MEGAAcountDetails *megaAcountDetails;
+@property (readonly, nonatomic) MEGAAcountDetails * megaAccountDetails ;
 
 /**
  * @brief Available pricing plans to upgrade a MEGA account

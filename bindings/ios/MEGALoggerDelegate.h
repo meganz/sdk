@@ -14,13 +14,13 @@
 
 /**
  * @brief This function will be called with all logs with level <= your selected
- * level of logging (by default it is MEGALogLevelInfo)
+ * level of logging (by default it is MEGALogLevelInfo).
  *
  * @param time Readable string representing the current time.
  *
  * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
  *
- * @param loglevel Log level of this message
+ * @param logLevel Log level of this message.
  *
  * Valid values are:
  * - MEGALogLevelFatal = 0
@@ -30,12 +30,12 @@
  * - MEGALogLevelDebug = 4
  * - MEGALogLevelMax = 5
  *
- * @param source Location where this log was generated
+ * @param source Location where this log was generated.
  *
- * For logs generated inside the SDK, this will contain <source file>:<line of code>
+ * For logs generated inside the SDK, this will contain <source file>:<line of code>.
  * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
  *
- * @param message Log message
+ * @param message Log message.
  *
  * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
  *

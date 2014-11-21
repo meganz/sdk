@@ -16,10 +16,10 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 };
 
 /**
- * @brief Represents the outbound sharing of a folder with an user in MEGA
+ * @brief Represents the outbound sharing of a folder with an user in MEGA.
  *
  * It allows to get all data related to the sharing. You can start sharing a folder with
- * a contact or cancel an existing sharing using [MEGASdk shareNodeWithEmail:level:]. A public link of a folder
+ * a contact or cancel an existing sharing using [MEGASdk shareNodeWithUser:level:]. A public link of a folder
  * is also considered a sharing and can be cancelled.
  *
  * Objects of this class aren't live, they are snapshots of the state of the sharing
@@ -31,20 +31,20 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 @interface MEGAShare : NSObject
 
 /**
- * @brief The email of the user with whom we are sharing the folder
+ * @brief The email of the user with whom we are sharing the folder.
  *
- * For public shared folders, this function return nil
+ * For public shared folders, this property is nil.
  *
  */
 @property (readonly, nonatomic) NSString *user;
 
 /**
- * @brief The handle of the folder that is being shared
+ * @brief The handle of the folder that is being shared.
  */
 @property (readonly, nonatomic) uint64_t nodeHandle;
 
 /**
- * @brief The access level of the sharing
+ * @brief The access level of the sharing.
  *
  * Possible return values are:
  * - MEGAShareTypeAccessUnkown = -1
@@ -63,7 +63,7 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  * The user is the owner of the folder
  *
  */
-@property (readonly, nonatomic) MEGAShareType accessType;
+@property (readonly, nonatomic) MEGAShareType access;
 
 /**
  * @brief The timestamp when the sharing was created (in seconds since the epoch)

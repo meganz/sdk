@@ -9,7 +9,7 @@
 #import "MEGAUser.h"
 
 /**
- * @brief List of MEGAUser objects
+ * @brief List of MEGAUser objects.
  *
  * A MEGAUserList has the ownership of the MEGAUser objects that it contains, so they will be
  * only valid until the MEGAUserList is deleted. If you want to retain a MEGAUser returned by
@@ -17,7 +17,7 @@
  *
  * Objects of this class are immutable.
  *
- * @see [MEGASdk contacts]
+ * @see [MEGASdk contacts].
  *
  */
 @interface MEGAUserList : NSObject
@@ -34,22 +34,22 @@
  * it contains a copy of all internal attributes, so it will be valid after
  * the original object is deleted.
  *
- * You are the owner of the returned object
+ * You are the owner of the returned object.
  *
- * @return Copy of the MEGAUserList object
+ * @return Copy of the MEGAUserList object.
  */
 - (instancetype)clone;
 
 /**
- * @brief Returns the MEGAUser at the position index in the MEGAUserList
+ * @brief The MEGAUser at the position index in the MEGAUserList.
  *
  * The MEGAUserList retains the ownership of the returned MEGAUser. It will be only valid until
  * the MEGAUserList is deleted.
  *
  * If the index is >= the size of the list, this function returns nil.
  *
- * @param index Position of the MEGAUser that we want to get for the list
- * @return MEGAUser at the position index in the list
+ * @param index Position of the MEGAUser that we want to get for the list.
+ * @return MEGAUser at the position index in the list.
  */
 - (MEGAUser *)userAtIndex:(NSInteger)index;
 

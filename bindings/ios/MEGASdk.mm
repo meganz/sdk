@@ -276,11 +276,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->fastLogin((session != nil) ? [session UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)loginWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
+- (void)loginToFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)loginWithFolderLink:(NSString *)folderLink {
+- (void)loginToFolderLink:(NSString *)folderLink {
     self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL);
 }
 
@@ -323,11 +323,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)querySignupWithLink:(NSString *)link {
+- (void)querySignupLink:(NSString *)link {
     self.megaApi->querySignupLink((link != nil) ? [link UTF8String] : NULL);
 }
 
-- (void)querySignupWithLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate {
+- (void)querySignupLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->querySignupLink((link != nil) ? [link UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
@@ -525,11 +525,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getPaymentUrl(productHandle);
 }
 
-- (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
+- (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)changePasswordWithOldPassword:(NSString *)oldPassword newPassword:(NSString *)newPassword {
+- (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL);
 }
 
@@ -541,11 +541,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL);
 }
 
-- (void)removeContactWithUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+- (void)removeContactUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->removeContact((user != nil) ? [user getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)removeContactWithUser:(MEGAUser *)user {
+- (void)removeContactUser:(MEGAUser *)user {
     self.megaApi->removeContact((user != nil) ? [user getCPtr] : NULL);
 }
 
@@ -607,11 +607,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->cancelTransfers((int)direction);
 }
 
-- (void)pauseTransersWithPause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
+- (void)pauseTransfers:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->pauseTransfers(pause, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)pauseTransersWithPause:(BOOL)pause {
+- (void)pauseTransfers:(BOOL)pause {
     self.megaApi->pauseTransfers(pause);
 }
 
