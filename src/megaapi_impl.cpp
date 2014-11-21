@@ -525,7 +525,12 @@ MegaNode *MegaTransferPrivate::getPublicNode() const
 
 MegaNode *MegaTransferPrivate::getPublicMegaNode() const
 {
-	return publicNode->copy();
+    if(publicNode)
+    {
+        return publicNode->copy();
+    }
+
+    return NULL;
 }
 
 bool MegaTransferPrivate::isSyncTransfer() const
@@ -1143,7 +1148,7 @@ void MegaRequestPrivate::setText(const char *text)
     this->text = MegaApi::strdup(text);
 }
 
-void MegaRequestPrivate::setNumber(int number)
+void MegaRequestPrivate::setNumber(long long number)
 {
     this->number = number;
 }
