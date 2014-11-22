@@ -96,6 +96,7 @@ HttpReq::HttpReq(bool b)
     binary = b;
 
     status = REQ_READY;
+    httpstatus = 0;
     buf = NULL;
 
     httpio = NULL;

@@ -356,11 +356,11 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             std::ostringstream oss;
             if (httpctx->isIPv6)
             {
-                oss << "[" << ip << "]:" << httpctx->port;
+                oss << "[" << ip << "]";
             }
             else
             {
-                oss << ip << ":" << httpctx->port;
+                oss << ip;
             }
 
             httpctx->hostip = oss.str();
@@ -400,6 +400,9 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
                     // reinitialize c-ares to prevent permanent hangs
                     httpio->reset = true;
                 }
+
+                req->httpiohandle = NULL;
+                delete httpctx;
             }
             else
             {
@@ -483,9 +486,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
+    httpctx->posturl = req->posturl;
     if(httpctx->hostip.size())
     {
-        req->posturl.replace(req->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
+        httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
     else
@@ -506,7 +510,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     if ((curl = curl_easy_init()))
     {
         curl_easy_setopt(curl, CURLOPT_POST, 1);
-        curl_easy_setopt(curl, CURLOPT_URL, req->posturl.c_str());
+        curl_easy_setopt(curl, CURLOPT_URL, httpctx->posturl.c_str());
         
         if (req->chunked)
         {
@@ -565,6 +569,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     else
     {
         req->status = REQ_FAILURE;
+        req->httpiohandle = NULL;
+        curl_slist_free_all(httpctx->headers);
+        delete httpctx;
     }
 
     httpio->statechange = true;
@@ -765,6 +772,8 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             LOG_err << "Invalid request: " << req->posturl;
         }
 
+        delete httpctx;
+        req->httpiohandle = NULL;
         req->status = REQ_FAILURE;
         statechange = true;
         return;
@@ -877,7 +886,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = true;
-            oss << "[" << dnsEntry.ipv6 << "]:" << httpctx->port;
+            oss << "[" << dnsEntry.ipv6 << "]";
             httpctx->hostip = oss.str();
             httpctx->ares_pending = 0;
             send_request(httpctx);
@@ -892,10 +901,8 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
         {
-            std::ostringstream oss;
             httpctx->isIPv6 = false;
-            oss << dnsEntry.ipv4 << ":" << httpctx->port;
-            httpctx->hostip = oss.str();
+            httpctx->hostip = dnsEntry.ipv4;
             httpctx->ares_pending = 0;
             send_request(httpctx);
             return;
@@ -1101,20 +1108,13 @@ bool CurlHttpIO::doio()
                         curl_multi_remove_handle(curlm, msg->easy_handle);
                         curl_easy_cleanup(msg->easy_handle);
                         curl_slist_free_all(httpctx->headers);
-
+                        httpctx->headers = NULL;
                         req->httpio = this;
                         req->in.clear();
-                        if(httpctx->hostip.size())
-                        {
-                            req->posturl.replace(req->posturl.find(httpctx->hostip), httpctx->hostip.size(), httpctx->hostname);
-                        }
-
                         req->status = REQ_INFLIGHT;
                         httpctx->ares_pending = 0;
                         httpctx->isIPv6 = false;
-                        std::ostringstream oss;
-                        oss << dnsEntry.ipv4 << ":" << httpctx->port;
-                        httpctx->hostip = oss.str();
+                        httpctx->hostip = dnsEntry.ipv4;
                         send_request(httpctx);
                         return true;
                     }
@@ -1174,13 +1174,11 @@ void CurlHttpIO::drop_pending_requests()
         if (httpctx->req)
         {
             httpctx->req->status = REQ_FAILURE;
+            httpctx->req->httpiohandle = NULL;
             statechange = true;
         }
-        else
-        {
-            delete httpctx;
-        }
 
+        delete httpctx;
         pendingrequests.pop();
     }
 }
