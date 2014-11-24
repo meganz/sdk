@@ -1,12 +1,13 @@
 #import "DetailsNodeInfoViewController.h"
 #import "SVProgressHUD.h"
+#import "Helper.h"
 
 @interface DetailsNodeInfoViewController () {
     UIAlertView *renameAlertView;
     UIAlertView *removeAlertView;
 }
 
-@property (weak, nonatomic) IBOutlet UIImageView *thumbnailmageView;
+@property (weak, nonatomic) IBOutlet UIImageView *thumbnailImageView;
 @property (weak, nonatomic) IBOutlet UILabel *nameLabel;
 @property (weak, nonatomic) IBOutlet UILabel *modificationTimeLabel;
 @property (weak, nonatomic) IBOutlet UILabel *sizeLabel;
@@ -20,12 +21,11 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
-    [self reloadUI];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    [self reloadUI];
     [[MEGASdkManager sharedMEGASdk] addMEGADelegate:self];
     [[MEGASdkManager sharedMEGASdk] retryPendingConnections];
 }
@@ -40,15 +40,16 @@
         [self.downloadButton setHidden:YES];
     }
     
-    NSString *cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    NSString *extension = [@"." stringByAppendingString:[[self.node name] pathExtension]];
-    NSString *fileName = [[self.node base64Handle] stringByAppendingString:extension];
-    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
-    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
+    NSString *thumbnailFilePath = [Helper pathForNode:self.node searchPath:NSCachesDirectory directory:@"thumbs"];
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:thumbnailFilePath];
     
-    [self.thumbnailmageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
+    if (!fileExists) {
+        [self.thumbnailImageView setImage:[Helper imageForNode:self.node]];
+    } else {
+        [self.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:thumbnailFilePath]];
+    }
+    
     self.nameLabel.text = [self.node name];
-    
     
     struct tm *timeinfo;
     char buffer[80];
@@ -72,11 +73,9 @@
     
     self.title = [self.node name];
     
-    
-    NSString *documentsDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    destinationFilePath = [documentsDirectory stringByAppendingPathComponent:fileName];
-    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-    if (fileExists) {
+    NSString *documentFilePath = [Helper pathForNode:self.node searchPath:NSDocumentDirectory];
+    BOOL fileDocumentExists = [[NSFileManager defaultManager] fileExistsAtPath:documentFilePath];
+    if (fileDocumentExists) {
         [self.downloadProgressView setHidden:YES];
         [self.saveLabel setHidden:NO];
         [self.downloadButton setImage:[UIImage imageNamed:@"savedFile"] forState:UIControlStateNormal];
@@ -85,21 +84,12 @@
     }
 }
 
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
-}
-
 - (IBAction)tapDownload:(UIButton *)sender {
     if ([self.node type] == MEGANodeTypeFile) {
-        NSString *extension = [@"." stringByAppendingString:[[self.node name] pathExtension]];
-        NSString *documentsDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-        NSString *fileName = [[self.node base64Handle] stringByAppendingString:extension];
-        NSString *destinationFilePath = [documentsDirectory stringByAppendingPathComponent:fileName];
-        BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
-        
+        NSString *documentFilePath = [Helper pathForNode:self.node searchPath:NSDocumentDirectory];
+        BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:documentFilePath];
         if (!fileExists) {
-            [[MEGASdkManager sharedMEGASdk] startDownloadNode:self.node localPath:destinationFilePath];
+            [[MEGASdkManager sharedMEGASdk] startDownloadNode:self.node localPath:documentFilePath];
         }
     }
 }
@@ -122,16 +112,6 @@
     removeAlertView.tag = 1;
     [removeAlertView show];
 }
-
-/*
-#pragma mark - Navigation
-
-// In a storyboard-based application, you will often want to do a little preparation before navigation
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    // Get the new view controller using [segue destinationViewController].
-    // Pass the selected object to the new view controller.
-}
-*/
 
 #pragma mark - Alert delegate
 
@@ -175,6 +155,19 @@
     }
     
     switch ([request type]) {
+            
+        case MEGARequestTypeGetAttrFile: {
+            if ([request nodeHandle] == [self.node handle]) {
+                MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeForHandle:[request nodeHandle]];
+                NSString *thumbnailFilePath = [Helper pathForNode:node searchPath:NSCachesDirectory directory:@"thumbs"];
+                BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:thumbnailFilePath];
+                if (fileExists) {
+                    [self.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:thumbnailFilePath]];
+                }
+            }
+            
+            break;
+        }
         case MEGARequestTypeExport: {
             [SVProgressHUD dismiss];
             NSArray *itemsArray = [NSArray arrayWithObjects:[request link], nil];
@@ -195,7 +188,7 @@
 - (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
-#pragma mark - MGlobalListener
+#pragma mark - MEGAGlobalListener
 
 - (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList{
 }

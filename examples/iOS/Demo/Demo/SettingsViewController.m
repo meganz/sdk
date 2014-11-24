@@ -1,10 +1,9 @@
 #import "SettingsViewController.h"
 #import "SVProgressHUD.h"
 #import "LoginViewController.h"
+#import "Helper.h"
 
-@interface SettingsViewController () {
-    NSString * cacheDirectory;
-}
+@interface SettingsViewController ()
 
 @property (weak, nonatomic) IBOutlet UILabel *emailLabel;
 @property (weak, nonatomic) IBOutlet UIImageView *avatarImageView;
@@ -17,13 +16,6 @@
     [super viewDidLoad];
     self.emailLabel.text = [[MEGASdkManager sharedMEGASdk] myEmail];
     [self setUserAvatar];
-    
-    cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-}
-
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
 }
 
 #pragma mark - Private Methods
@@ -31,16 +23,13 @@
 - (void)setUserAvatar {
     
     MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactForEmail:self.emailLabel.text];
-    NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    NSString *fileName = [self.emailLabel.text stringByAppendingString:@".jpg"];
-    NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
-    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+    NSString *avatarFilePath = [Helper pathForUser:user searchPath:NSCachesDirectory directory:@"thumbs"];
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:avatarFilePath];
     
     if (!fileExists) {
-        [[MEGASdkManager sharedMEGASdk] getAvatarUser:user destinationFilePath:destinationFilePath delegate:self];
+        [[MEGASdkManager sharedMEGASdk] getAvatarUser:user destinationFilePath:avatarFilePath delegate:self];
     } else {
-        [self.avatarImageView setImage:[UIImage imageNamed:destinationFilePath]];
+        [self.avatarImageView setImage:[UIImage imageNamed:avatarFilePath]];
         
         self.avatarImageView.layer.cornerRadius = self.avatarImageView.frame.size.width/2;
         self.avatarImageView.layer.masksToBounds = YES;
@@ -56,7 +45,7 @@
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     switch ([request type]) {
         case MEGARequestTypeLogout:
-            [SVProgressHUD showWithStatus:@"Logout..."];
+            [SVProgressHUD showWithStatus:NSLocalizedString(@"logout", @"Logout...")];
             break;
             
         default:
@@ -73,6 +62,8 @@
         case MEGARequestTypeLogout: {
             NSFileManager *fm = [NSFileManager defaultManager];
             NSError *error = nil;
+            
+            NSString *cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
             for (NSString *file in [fm contentsOfDirectoryAtPath:cacheDirectory error:&error]) {
                 BOOL success = [fm removeItemAtPath:[NSString stringWithFormat:@"%@/%@", cacheDirectory, file] error:&error];
                 if (!success || error) {

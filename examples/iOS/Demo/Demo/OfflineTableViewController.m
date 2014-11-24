@@ -1,14 +1,10 @@
 #import "OfflineTableViewController.h"
 #import "NodeTableViewCell.h"
 #import <MediaPlayer/MediaPlayer.h>
+#import "Helper.h"
 
 #define kMEGANode @"kMEGANode"
 #define kIndex @"kIndex"
-
-#define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
-#define isImage(n)  [imagesSet containsObject:n]
-#define videoSet    [[NSSet alloc] initWithObjects:@"mp4", nil]
-#define isVideo(n)  [videoSet containsObject:n]
 
 @interface OfflineTableViewController ()
 
@@ -26,19 +22,14 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     
-    [[MEGASdkManager sharedMEGASdk] addMEGATransferDelegate:self];
     [self reloadUI];
+    [[MEGASdkManager sharedMEGASdk] addMEGATransferDelegate:self];
     [[MEGASdkManager sharedMEGASdk] retryPendingConnections];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     [[MEGASdkManager sharedMEGASdk] removeMEGATransferDelegate:self];
-}
-
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
 }
 
 #pragma mark - Table view data source
@@ -58,6 +49,14 @@
     MEGANode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMEGANode];
     NSString *name = [node name];
     
+    NSString *thumbnailFilePath = [Helper pathForNode:node searchPath:NSCachesDirectory directory:@"thumbs"];
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:thumbnailFilePath];
+    if (!fileExists) {
+        [cell.thumbnailImageView setImage:[Helper imageForNode:node]];
+    } else {
+        [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:thumbnailFilePath]];
+    }
+    
     cell.nameLabel.text = name;
     
     struct tm *timeinfo;
@@ -69,19 +68,6 @@
     strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
     
     cell.modificationLabel.text = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
-    
-    if (isImage(name.lowercaseString.pathExtension)) {
-        NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
-        NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-        NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
-        NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];
-        destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-        [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
-    } else if (isVideo(name.lowercaseString.pathExtension)){
-        [cell.thumbnailImageView setImage:[UIImage imageNamed:@"video"]];
-    } else {
-        [cell.thumbnailImageView setImage:nil];
-    }
     
     return cell;
 }
@@ -138,7 +124,6 @@
 #pragma mark - Private methods
 
 - (void)reloadUI {
-    
     
     self.offlineDocuments = [NSMutableArray new];
     self.offlineImages = [NSMutableArray new];

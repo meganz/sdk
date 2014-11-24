@@ -15,10 +15,6 @@
     [super viewDidLoad];
 }
 
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-}
-
 - (IBAction)tapLogin:(id)sender {
     [[MEGASdkManager sharedMEGASdk] loginWithEmail:[self.emailTextField text] password:[self.passwordTextField text] delegate:self];
 }

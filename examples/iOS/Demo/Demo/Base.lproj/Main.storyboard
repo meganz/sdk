@@ -18,7 +18,7 @@
                         <rect key="frame" x="0.0" y="64" width="600" height="600"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
-                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="megaiostest@yopmail.com" borderStyle="roundedRect" placeholder="Email" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="4EC-4o-G5t">
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Email" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="4EC-4o-G5t">
                                 <rect key="frame" x="16" y="50" width="568" height="30"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits" keyboardType="emailAddress"/>
@@ -32,7 +32,7 @@
                                     <action selector="tapLogin:" destination="vXZ-lx-hvc" eventType="touchUpInside" id="U8H-0m-riZ"/>
                                 </connections>
                             </button>
-                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="megaiostest" borderStyle="roundedRect" placeholder="Password" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="Xkf-mm-cAV">
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Password" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="Xkf-mm-cAV">
                                 <rect key="frame" x="16" y="100" width="568" height="30"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits" secureTextEntry="YES"/>
@@ -261,7 +261,7 @@
                         <outlet property="nameLabel" destination="nam-ZF-2MZ" id="oHR-4B-sD2"/>
                         <outlet property="saveLabel" destination="KkF-uV-VMB" id="bhv-nJ-Kfm"/>
                         <outlet property="sizeLabel" destination="iXq-aa-JXB" id="BQW-Iv-m6K"/>
-                        <outlet property="thumbnailmageView" destination="mHm-d5-zBZ" id="LV2-Rp-Jhg"/>
+                        <outlet property="thumbnailImageView" destination="mHm-d5-zBZ" id="67b-m0-pBe"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="vEf-EG-Er4" userLabel="First Responder" sceneMemberID="firstResponder"/>

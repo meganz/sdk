@@ -9,7 +9,6 @@
 @interface CloudDriveTableViewController () {
     UIAlertView *folderAlertView;
     NSInteger indexNodeSelected;
-    NSString *cacheDirectory;
 }
 
 @property (nonatomic, strong) MEGANodeList *nodes;
@@ -44,8 +43,6 @@
             NSLog(@"Create directory error: %@", error);
         }
     }
-    
-    cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -60,10 +57,6 @@
     [super viewWillDisappear:animated];
     
     [[MEGASdkManager sharedMEGASdk] removeMEGADelegate:self];
-}
-
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
 }
 
 #pragma mark - Table view data source
@@ -82,24 +75,20 @@
     
     MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
     
-    NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
-    NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
-    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
-    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+    NSString *thumbnailFilePath = [Helper pathForNode:node searchPath:NSCachesDirectory directory:@"thumbs"];
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:thumbnailFilePath];
     
     if (!fileExists && [node hasThumbnail]) {
-        [[MEGASdkManager sharedMEGASdk] getThumbnailNode:node destinationFilePath:destinationFilePath];
+        [[MEGASdkManager sharedMEGASdk] getThumbnailNode:node destinationFilePath:thumbnailFilePath];
+    }
+    
+    if (!fileExists) {
+        [cell.thumbnailImageView setImage:[Helper imageForNode:node]];
+    } else {
+        [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:thumbnailFilePath]];
     }
     
     cell.nameLabel.text = [node name];
-    if ([node type] == MEGANodeTypeFolder) {
-        [cell.thumbnailImageView setImage:[UIImage imageNamed:@"folder"]];
-    } else if (!fileExists) {
-        [cell.thumbnailImageView setImage:[Helper imageForNode:node]];
-    } else {
-        [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
-    }
     
     if ([node type] == MEGANodeTypeFile) {
         struct tm *timeinfo;
@@ -290,13 +279,10 @@
             for (NodeTableViewCell *ntvc in [self.tableView visibleCells]) {
                 if ([request nodeHandle] == [ntvc nodeHandle]) {
                     MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeForHandle:[request nodeHandle]];
-                    NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
-                    NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
-                    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
-                    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-                    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+                    NSString *thumbnailFilePath = [Helper pathForNode:node searchPath:NSCachesDirectory directory:@"thumbs"];
+                    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:thumbnailFilePath];
                     if (fileExists) {
-                        [ntvc.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
+                        [ntvc.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:thumbnailFilePath]];
                     }
                 }
             }
@@ -322,7 +308,7 @@
 - (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
-#pragma mark - MGlobalListener
+#pragma mark - MEGAGlobalListener
 
 - (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList{
 

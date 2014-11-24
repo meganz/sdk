@@ -1,9 +1,8 @@
 #import "ContactsTableViewController.h"
 #import "ContactTableViewCell.h"
+#import "Helper.h"
 
-@interface ContactsTableViewController () {
-    NSString *cacheDirectory;
-}
+@interface ContactsTableViewController ()
 
 @property (nonatomic, strong) MEGAUserList *users;
 @property (nonatomic, strong) NSMutableArray *usersArray;
@@ -23,12 +22,6 @@
         if ([u access] == MEGAUserVisibilityVisible)
         [self.usersArray addObject:u];
     }
-    cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-}
-
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
 }
 
 #pragma mark - Table view data source
@@ -49,20 +42,18 @@
     
     cell.nameLabel.text = [user email];
     
-    NSString *fileName = [user email];
-    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
-    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+    NSString *avatarFilePath = [Helper pathForUser:user searchPath:NSCachesDirectory directory:@"thumbs"];
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:avatarFilePath];
     
     if (fileExists) {
-        [cell.avatarImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
+        [cell.avatarImageView setImage:[UIImage imageWithContentsOfFile:avatarFilePath]];
         cell.avatarImageView.layer.cornerRadius = cell.avatarImageView.frame.size.width/2;
         cell.avatarImageView.layer.masksToBounds = YES;
     } else {
-        [[MEGASdkManager sharedMEGASdk] getAvatarUser:user destinationFilePath:destinationFilePath delegate:self];
+        [[MEGASdkManager sharedMEGASdk] getAvatarUser:user destinationFilePath:avatarFilePath delegate:self];
     }
     
-    NSInteger numFilesShares = [[[[MEGASdkManager sharedMEGASdk] inSharesForUser:user] size] integerValue];
+    int numFilesShares = [[[[MEGASdkManager sharedMEGASdk] inSharesForUser:user] size] intValue];
     if (numFilesShares == 0) {
         cell.shareLabel.text = @"No folders share";
     } else  if (numFilesShares == 1 ) {
@@ -74,50 +65,7 @@
     return cell;
 }
 
-
-/*
-// Override to support conditional editing of the table view.
-- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
-    // Return NO if you do not want the specified item to be editable.
-    return YES;
-}
-*/
-
-/*
-// Override to support editing the table view.
-- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (editingStyle == UITableViewCellEditingStyleDelete) {
-        // Delete the row from the data source
-        [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
-    } else if (editingStyle == UITableViewCellEditingStyleInsert) {
-        // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-    }   
-}
-*/
-
-/*
-// Override to support rearranging the table view.
-- (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)fromIndexPath toIndexPath:(NSIndexPath *)toIndexPath {
-}
-*/
-
-/*
-// Override to support conditional rearranging of the table view.
-- (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath {
-    // Return NO if you do not want the item to be re-orderable.
-    return YES;
-}
-*/
-
-/*
-#pragma mark - Navigation
-
-// In a storyboard-based application, you will often want to do a little preparation before navigation
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    // Get the new view controller using [segue destinationViewController].
-    // Pass the selected object to the new view controller.
-}
-*/
+#pragma mark - MEGARequestDelegate
 
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
 }
@@ -131,12 +79,14 @@
         case MEGARequestTypeGetAttrUser: {
             for (ContactTableViewCell *ctvc in [self.tableView visibleCells]) {
                 if ([[request email] isEqualToString:[ctvc.nameLabel text]]) {
-                    NSString *fileName = [request email];
-                    NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
-                    destinationFilePath = [destinationFilePath stringByAppendingPathComponent:fileName];
-                    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
+                    NSString *fileName = [request email];                    
+                    NSString *cacheDirectory = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+                    NSString *avatarFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];
+                    avatarFilePath = [avatarFilePath stringByAppendingPathComponent:fileName];
+                    avatarFilePath = [avatarFilePath stringByAppendingString:@".png"];
+                    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:avatarFilePath];
                     if (fileExists) {
-                        [ctvc.avatarImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
+                        [ctvc.avatarImageView setImage:[UIImage imageWithContentsOfFile:avatarFilePath]];
                         ctvc.avatarImageView.layer.cornerRadius = ctvc.avatarImageView.frame.size.width/2;
                         ctvc.avatarImageView.layer.masksToBounds = YES;
                     }
