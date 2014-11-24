@@ -4,9 +4,7 @@
 #import "LoginViewController.h"
 #import <AssetsLibrary/AssetsLibrary.h>
 #import "DetailsNodeInfoViewController.h"
-
-#define imagesSet   [[NSSet alloc] initWithObjects:@"gif", @"jpg", @"tif", @"jpeg", @"bmp", @"png",@"nef", nil]
-#define isImage(n)  [imagesSet containsObject:n]
+#import "Helper.h"
 
 @interface CloudDriveTableViewController () {
     UIAlertView *folderAlertView;
@@ -97,8 +95,8 @@
     cell.nameLabel.text = [node name];
     if ([node type] == MEGANodeTypeFolder) {
         [cell.thumbnailImageView setImage:[UIImage imageNamed:@"folder"]];
-    } else if (!fileExists && isImage([node name].lowercaseString.lastPathComponent.pathExtension)) {
-        [cell.thumbnailImageView setImage:[UIImage imageNamed:@"image"]];
+    } else if (!fileExists) {
+        [cell.thumbnailImageView setImage:[Helper imageForNode:node]];
     } else {
         [cell.thumbnailImageView setImage:[UIImage imageWithContentsOfFile:destinationFilePath]];
     }

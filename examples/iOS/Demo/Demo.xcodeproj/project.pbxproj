@@ -38,6 +38,7 @@
 		41C681EA1A2363E20088F2E6 /* ContactsTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681E91A2363E20088F2E6 /* ContactsTableViewController.m */; };
 		41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681F21A23658C0088F2E6 /* MEGASdkManager.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
+		E80D15911A236C7100148421 /* Helper.m in Sources */ = {isa = PBXBuildFile; fileRef = E80D15901A236C7100148421 /* Helper.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +106,8 @@
 		41C681F11A23658C0088F2E6 /* MEGASdkManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGASdkManager.h; sourceTree = "<group>"; };
 		41C681F21A23658C0088F2E6 /* MEGASdkManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEGASdkManager.m; sourceTree = "<group>"; };
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
+		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Helper.h; path = ../Helper.h; sourceTree = "<group>"; };
+		E80D15901A236C7100148421 /* Helper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = Helper.m; path = ../Helper.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -180,6 +183,8 @@
 				416812A919EE8FAC00C72800 /* vendor */,
 				4168127819EE6E5700C72800 /* AppDelegate.h */,
 				4168127919EE6E5700C72800 /* AppDelegate.m */,
+				4168127B19EE6E5700C72800 /* LoginViewController.h */,
+				4168127C19EE6E5700C72800 /* LoginViewController.m */,
 				4168127E19EE6E5700C72800 /* Main.storyboard */,
 				4168128119EE6E5700C72800 /* Images.xcassets */,
 				4168128319EE6E5700C72800 /* LaunchScreen.xib */,
@@ -303,8 +308,6 @@
 		41C681EF1A2364270088F2E6 /* Login */ = {
 			isa = PBXGroup;
 			children = (
-				4168127B19EE6E5700C72800 /* LoginViewController.h */,
-				4168127C19EE6E5700C72800 /* LoginViewController.m */,
 			);
 			name = Login;
 			sourceTree = "<group>";
@@ -312,6 +315,8 @@
 		41C681F01A23658C0088F2E6 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				E80D158F1A236C7100148421 /* Helper.h */,
+				E80D15901A236C7100148421 /* Helper.m */,
 				41C681F11A23658C0088F2E6 /* MEGASdkManager.h */,
 				41C681F21A23658C0088F2E6 /* MEGASdkManager.m */,
 			);
@@ -449,6 +454,7 @@
 				416812B019EE8FAC00C72800 /* SVProgressHUD.m in Sources */,
 				41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */,
 				416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */,
+				E80D15911A236C7100148421 /* Helper.m in Sources */,
 				41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */,
 				4168127719EE6E5700C72800 /* main.m in Sources */,
 			);
