@@ -92,6 +92,7 @@ public:
     void setproxy(Proxy*);
     Proxy* getautoproxy();
     void setdnsservers(const char*);
+    void disconnect();
 
     CurlHttpIO();
     ~CurlHttpIO();

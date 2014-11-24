@@ -1843,6 +1843,7 @@ void MegaClient::disconnect()
     }
 
     httpio->lastdata = NEVER;
+    httpio->disconnect();
 }
 
 void MegaClient::logout()

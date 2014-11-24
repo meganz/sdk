@@ -165,6 +165,18 @@ void CurlHttpIO::setdnsservers(const char* servers)
     }
 }
 
+void CurlHttpIO::disconnect()
+{
+    ares_destroy(ares);
+    curl_multi_cleanup(curlm);
+
+    lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
+    dnscache.clear();
+
+    curlm = curl_multi_init();
+    ares_init(&ares);
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
