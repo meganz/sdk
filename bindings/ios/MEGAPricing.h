@@ -1,11 +1,3 @@
-//
-//  MEGAPricing.h
-//  mega
-//
-//  Created by Javier Navarro on 30/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 #import "MEGAAccountDetails.h"
 
@@ -33,7 +25,7 @@
  * @brief Get the handle of a product.
  * @param index Product index (from 0 to [MEGAPricing products]).
  * @return Handle of the product.
- * @see [MEGASdk getPaymentULRWithProductHandle:].
+ * @see [MEGASdk getPaymentURLForProductHandle:].
  */
 - (uint64_t)handleAtProductIndex:(NSInteger)index;
 

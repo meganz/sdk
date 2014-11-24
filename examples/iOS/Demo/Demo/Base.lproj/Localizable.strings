@@ -1,0 +1,23 @@
+"cancel" = "Cancel";
+"ok" = "OK";
+"error" = "Error";
+
+"invalidMailOrPassword" = "Email or password invalid.";
+
+"fetchingNodes" = "Fetching nodes";
+"preparingNodes" = "Preparing nodes";
+"generateLink" = "Generate link...";
+
+//Create folder
+"newFolderTitle" = "New folder";
+"newFolderMessage" = "Name for the new folder";
+"createFolderButton" = "Create";
+
+//Rename
+"renameNodeTitle" = "Rename";
+"renameNodeMessage" = "Enter the new name";
+"renameNodeButton" = "Rename";
+
+//Remove
+"removeNodeTitle" = "Confirm delete";
+"removeNodeMessage" = "Are you sure?";

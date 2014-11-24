@@ -153,18 +153,24 @@ void MegaClient::mergenewshares(bool notify)
                 // share was deleted
                 if (s->outgoing)
                 {
-                    // outgoing share to user u deleted
-                    if (n->outshares.erase(s->peer) && notify)
+                    if(n->outshares)
                     {
-                        n->changed.outshares = true;
-                        notifynode(n);
-                    }
+                        // outgoing share to user u deleted
+                        if (n->outshares->erase(s->peer) && notify)
+                        {
+                            n->changed.outshares = true;
+                            notifynode(n);
+                        }
 
-                    // if no other outgoing shares remain on this node, erase sharekey
-                    if (!n->outshares.size())
-                    {
-                        delete n->sharekey;
-                        n->sharekey = NULL;
+                        // if no other outgoing shares remain on this node, erase sharekey
+                        if (!n->outshares->size())
+                        {
+                            delete n->outshares;
+                            n->outshares = NULL;
+
+                            delete n->sharekey;
+                            n->sharekey = NULL;
+                        }
                     }
                 }
                 else
@@ -184,7 +190,12 @@ void MegaClient::mergenewshares(bool notify)
                         // only on own nodes and signed unless read from cache
                         if (checkaccess(n, OWNERPRELOGIN))
                         {
-                            Share** sharep = &n->outshares[s->peer];
+                            if(!n->outshares)
+                            {
+                                n->outshares = new share_map;
+                            }
+
+                            Share** sharep = &((*n->outshares)[s->peer]);
 
                             // modification of existing share or new share
                             if (*sharep)
@@ -2421,7 +2432,11 @@ void MegaClient::sc_updatenode()
 
                         if (a)
                         {
-                            Node::copystring(&n->attrstring, a);
+                            if(!n->attrstring)
+                            {
+                                n->attrstring = new string;
+                            }
+                            Node::copystring(n->attrstring, a);
                             n->changed.attrs = true;
                         }
 
@@ -3535,7 +3550,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 n->tag = tag;
 
-                Node::copystring(&n->attrstring, a);
+                n->attrstring = new string;
+                Node::copystring(n->attrstring, a);
                 Node::copystring(&n->nodekey, k);
 
                 if (!ISUNDEF(su))
@@ -4205,7 +4221,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // otherwise, queue and request public key if not already pending
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
 {
-    if (a == ACCESS_UNKNOWN && n->outshares.size() == 1)
+    if (a == ACCESS_UNKNOWN && n->outshares && n->outshares->size() == 1)
     {
         // rewrite keys of foreign nodes located in the outbound share that is getting canceled
         // FIXME: verify that it is really getting canceled to prevent benign premature rewrite
@@ -5437,7 +5453,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         // be considered - also, prevent clashes with the local debris folder
         if ((app->sync_syncable(*it)
              && (*it)->syncdeleted == SYNCDEL_NONE
-             && !(*it)->attrstring.size()
+             && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
          && (l->parent || l->sync->debris != ait->second))
         {
@@ -5698,7 +5714,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             if ((*it)->syncdeleted == SYNCDEL_NONE)
             {
                 // check if there is a crypto key missing...
-                if ((*it)->attrstring.size())
+                if ((*it)->attrstring)
                 {
                     if (!l->reported)
                     {
@@ -6023,7 +6039,8 @@ void MegaClient::syncupdate()
                 tattrs.map['n'] = l->name;
                 tattrs.getjson(&tattrstring);
                 tkey.setkey((const byte*)nnp->nodekey.data(), nnp->type);
-                makeattr(&tkey, &nnp->attrstring, tattrstring.c_str());
+                nnp->attrstring = new string;
+                makeattr(&tkey, nnp->attrstring, tattrstring.c_str());
 
                 l->treestate(TREESTATE_SYNCING);
                 nnp++;
@@ -6288,7 +6305,8 @@ void MegaClient::execmovetosyncdebris()
             tattrs.map['n'] = (i || target == SYNCDEL_DEBRIS) ? buf : SYNCDEBRISFOLDERNAME;
             tattrs.getjson(&tattrstring);
             tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
-            makeattr(&tkey, &nn->attrstring, tattrstring.c_str());
+            nn->attrstring = new string;
+            makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
         reqs[r].add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,

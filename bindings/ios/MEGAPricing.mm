@@ -1,11 +1,3 @@
-//
-//  MEGAPricing.m
-//  mega
-//
-//  Created by Javier Navarro on 30/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGAPricing.h"
 #import "megaapi.h"
 

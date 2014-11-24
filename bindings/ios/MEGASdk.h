@@ -1,10 +1,3 @@
-//
-//  MEGASdk.h
-//
-//  Created by Javier Navarro on 06/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 
 #import "MEGANode.h"
@@ -279,7 +272,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param password Access password.
  * @return Base64-encoded private key
  */
-- (NSString *)base64pwkeyWithPassword:(NSString *)password;
+- (NSString *)base64pwkeyForPassword:(NSString *)password;
 
 /**
  * @brief Generates a hash based in the provided private key and email.
@@ -291,21 +284,21 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * You take the ownership of the returned value.
  *
- * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyWithPassword:]
+ * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyForPassword:]
  * @return Base64-encoded hash
  */
-- (NSString *)hashWithBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
+- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
  *
- * The returned value can be used to recover a MEGANode using [MEGASdk nodeWithHandle:].
+ * The returned value can be used to recover a MEGANode using [MEGASdk nodeForHandle:].
  * You can revert this operation using [MEGASdk handleToBase64:].
  *
  * @param base64Handle Base64-encoded node handle.
  * @return Node handle.
  */
-+ (uint64_t)handleWithBase64Handle:(NSString *)base64Handle;
++ (uint64_t)handleForBase64Handle:(NSString *)base64Handle;
 
 /**
  * @brief Retry all pending requests.
@@ -370,7 +363,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * MEGAErrorTypeApiENoent.
  *
  * @param email Email of the user.
- * @param stringHash Hash of the email returned by [MEGASdk hashWithBase64pwkey:email:].
+ * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
  * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
  * @param delegate Delegate to track this request.
  */
@@ -389,7 +382,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * MEGAErrorTypeApiENoent.
  *
  * @param email Email of the user.
- * @param stringHash Hash of the email returned by [MEGASdk hashWithBase64pwkey:email:].
+ * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
  * @param base64pwkey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
  */
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey;
@@ -553,7 +546,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyWithPassword:]
+ * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyForPassword:]
  * - [MEGARequest name] - Returns the name of the user
  *
  * If this request succeed, a confirmation email will be sent to the users.
@@ -561,7 +554,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * MEGAErrorTypeApiEExist in onRequestFinish
  *
  * @param email Email for the account.
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyWithPassword:].
+ * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:].
  * @param name Name of the user.
  * @param delegate Delegate to track this request.
  */
@@ -573,7 +566,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyWithPassword:]
+ * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyForPassword:]
  * - [MEGARequest name] - Returns the name of the user
  *
  * If this request succeed, a confirmation email will be sent to the users.
@@ -581,7 +574,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * MEGAErrorTypeApiEExist in onRequestFinish.
  *
  * @param email Email for the account.
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyWithPassword:].
+ * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:].
  * @param name Name of the user.
  */
 - (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
@@ -670,7 +663,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - [MEGARequest name] - Name of the user
  *
  * @param link Confirmation link.
- * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyWithPassword:].
+ * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
  * @param delegate Delegate to track this request.
  */
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate;
@@ -689,7 +682,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - [MEGARequest name] - Name of the user
  *
  * @param link Confirmation link.
- * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyWithPassword:].
+ * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
  */
 - (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
 
@@ -931,7 +924,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 /**
  * @brief Get a MEGANode from a public link to a file.
  *
- * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadWithNode:localPath:]
+ * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:]
  *
  * The associated request type with this request is MEGARequestTypeGetPublicNode.
  * Valid data in the MEGARequest object received on callbacks:
@@ -944,12 +937,12 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param megaFileLink Public link to a file in MEGA.
  * @param delegate Delegate to track this request.
  */
-- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
+- (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a MEGANode from a public link to a file.
  *
- * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadWithNode:localPath:].
+ * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:].
  *
  * The associated request type with this request is MEGARequestTypeGetPublicNode.
  * Valid data in the MEGARequest object received on callbacks:
@@ -961,7 +954,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param megaFileLink Public link to a file in MEGA.
  */
-- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink;
+- (void)publicNodeForMegaFileLink:(NSString *)megaFileLink;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -1316,7 +1309,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the available pricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the pricing plans provided by this function
- * using [MEGASdk getPaymentULRWithProductHandle:].
+ * using [MEGASdk getPaymentURLForProductHandle:].
  *
  * The associated request type with this request is MEGARequestTypeGetPricing.
  *
@@ -1326,15 +1319,15 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param delegate Delegate to track this request.
  *
- * @see [MEGASdk getPaymentULRWithProductHandle:].
+ * @see [MEGASdk getPaymentURLForProductHandle:].
  */
-- (void)pricingWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Get the available pricing plans to upgrade a MEGA account.
+ * @brief Get the available getPricing plans to upgrade a MEGA account.
  *
- * You can get a payment URL for any of the pricing plans provided by this function
- * using [MEGASdk getPaymentULRWithProductHandle:].
+ * You can get a payment URL for any of the getPricing plans provided by this function
+ * using [MEGASdk getPaymentURLForProductHandle:].
  *
  * The associated request type with this request is MEGARequestTypeGetPricing.
  *
@@ -1342,9 +1335,9 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
  *
- * @see [MEGASdk getPaymentULRWithProductHandle:].
+ * @see [MEGASdk getPaymentURLForProductHandle:].
  */
-- (void)pricing;
+- (void)getPricing;
 
 /**
  * @brief Get the payment URL for an upgrade.
@@ -1357,12 +1350,12 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest link] - Payment link
  *
- * @param productHandle Handle of the product (see [MEGASdk pricing]).
+ * @param productHandle Handle of the product (see [MEGASdk getPricing]).
  * @param delegate Delegate to track this request.
  *
- * @see [MEGASdk pricing].
+ * @see [MEGASdk getPricing].
  */
-- (void)getPaymentURLWithProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getPaymentURLForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the payment URL for an upgrade.
@@ -1375,11 +1368,11 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest link] - Payment link
  *
- * @param productHandle Handle of the product (see [MEGASdk pricing]).
+ * @param productHandle Handle of the product (see [MEGASdk getPricing]).
  *
- * @see [MEGASdk pricing].
+ * @see [MEGASdk getPricing].
  */
-- (void)getPaymentULRWithProductHandle:(uint64_t)productHandle;
+- (void)getPaymentURLForProductHandle:(uint64_t)productHandle;
 
 /**
  * @brief Change the password of the MEGA account.
@@ -1575,7 +1568,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Download a file from MEGA.
@@ -1587,7 +1580,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath;
 /**
  * @brief Cancel a transfer.
  *
@@ -1639,7 +1632,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param delegate Delegate to track this request.
  */
-- (void)cancelTransfersWithDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate;
+- (void)cancelTransfersForDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Cancel all transfers of the same type.
@@ -1654,7 +1647,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - MEGATransferTypeUpload = 1
  *
  */
-- (void)cancelTransfersWithDirection:(NSInteger)direction;
+- (void)cancelTransfersForDirection:(NSInteger)direction;
 
 /**
  * @brief Pause/resume all transfers.
@@ -1704,7 +1697,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param parent Parent node.
  * @return Number of child nodes.
  */
-- (NSInteger)numberChildrenWithParent:(MEGANode *)parent;
+- (NSInteger)numberChildrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the number of child files of a node.
@@ -1717,7 +1710,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param parent Parent node.
  * @return Number of child files.
  */
-- (NSInteger)numberChildFilesWithParent:(MEGANode *)parent;
+- (NSInteger)numberChildFilesForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the number of child folders of a node.
@@ -1730,7 +1723,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param parent Parent node.
  * @return Number of child folders.
  */
-- (NSInteger)numberChildFoldersWithParent:(MEGANode *)parent;
+- (NSInteger)numberChildFoldersForParent:(MEGANode *)parent;
 
 /**
  * @brief Get all children of a MEGANode.
@@ -1778,7 +1771,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @return List with all child MEGANode objects.
  */
-- (MEGANodeList *)childrenWithParent:(MEGANode *)parent order:(NSInteger)order;
+- (MEGANodeList *)childrenForParent:(MEGANode *)parent order:(NSInteger)order;
 
 /**
  * @brief Get all children of a MEGANode.
@@ -1792,7 +1785,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @return List with all child MEGANode objects.
  */
-- (MEGANodeList *)childrenWithParent:(MEGANode *)parent;
+- (MEGANodeList *)childrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the child node with the provided name.
@@ -1805,7 +1798,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param name Name of the node.
  * @return The MEGANode that has the selected parent and name.
  */
-- (MEGANode *)childNodeWithParent:(MEGANode *)parent name:(NSString *)name;
+- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
 
 /**
  * @brief Get the parent node of a MEGANode.
@@ -1818,13 +1811,13 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param node MEGANode to get the parent.
  * @return The parent of the provided node.
  */
-- (MEGANode *)parentNodeWithNode:(MEGANode *)node;
+- (MEGANode *)parentNodeForNode:(MEGANode *)node;
 
 /**
  * @brief Get the path of a MEGANode.
  *
  * If the node doesn't exist, this function returns nil.
- * You can recoved the node later unsing [MEGASdk nodeWithPath:]
+ * You can recoved the node later unsing [MEGASdk nodeForPath:]
  * except if the path contains names with  '/', '\' or ':' characters.
  *
  * You take the ownership of the returned value.
@@ -1832,7 +1825,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param node MEGANode for which the path will be returned.
  * @return The path of the node.
  */
-- (NSString *)nodePathWithNode:(MEGANode *)node;
+- (NSString *)nodePathForNode:(MEGANode *)node;
 
 /**
  * @brief Get the MEGANode in a specific path in the MEGA account.
@@ -1850,7 +1843,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param node Base node if the path is relative.
  * @return The MEGANode object in the path, otherwise nil.
  */
-- (MEGANode *)nodeWithPath:(NSString *)path node:(MEGANode *)node;
+- (MEGANode *)nodeForPath:(NSString *)path node:(MEGANode *)node;
 
 /**
  * @brief Get the MEGANode in a specific path in the MEGA account.
@@ -1867,21 +1860,21 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param path Path to check.
  * @return The MEGANode object in the path, otherwise nil.
  */
-- (MEGANode *)nodeWithPath:(NSString *)path;
+- (MEGANode *)nodeForPath:(NSString *)path;
 
 /**
  * @brief Get the MEGANode that has a specific handle.
  *
  * You can get the handle of a MEGANode using [MEGANode handle]. The same handle
  * can be got in a Base64-encoded string using [MEGANode base64Handle]. Conversions
- * between these formats can be done using [MEGASdk handleWithBase64Handle:] and [MEGASdk handleToBase64:].
+ * between these formats can be done using [MEGASdk handleForBase64Handle:] and [MEGASdk handleToBase64:].
  *
  * You take the ownership of the returned value.
  *
  * @param handle Node handle to check.
  * @return MEGANode object with the handle, otherwise nil.
  */
-- (MEGANode *)nodeWithHandle:(uint64_t)handle;
+- (MEGANode *)nodeForHandle:(uint64_t)handle;
 
 /**
  * @brief Get all contacts of this MEGA account.
@@ -1902,7 +1895,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param email Email address to check.
  * @return MEGAUser that has the email address, otherwise nil.
  */
-- (MEGAUser *)contactWithEmail:(NSString *)email;
+- (MEGAUser *)contactForEmail:(NSString *)email;
 
 /**
  * @brief Get a list with all inbound sharings from one MEGAUser.
@@ -1912,7 +1905,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param user MEGAUser sharing folders with this account.
  * @return List of MEGANode objects that this user is sharing with this account.
  */
-- (MEGANodeList *)inSharesWithUser:(MEGAUser *)user;
+- (MEGANodeList *)inSharesForUser:(MEGAUser *)user;
 
 /**
  * @brief Get a list with all inboud sharings.
@@ -1933,14 +1926,14 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param node MEGANode to check.
  * @return List of MEGAShare objects.
  */
-- (MEGAShareList *)outSharesWithNode:(MEGANode *)node;
+- (MEGAShareList *)outSharesForNode:(MEGANode *)node;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a local file.
  *
  * The fingerprint is created taking into account the modification time of the file
  * and file contents. This fingerprint can be used to get a corresponding node in MEGA
- * using [MEGASdk nodeWithFingerprint:].
+ * using [MEGASdk nodeForFingerprint:].
  *
  * If the file can't be found or can't be opened, this function returns nil.
  *
@@ -1949,7 +1942,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param filePath Local file path.
  * @return Base64-encoded fingerprint for the file.
  */
-- (NSString *)fingerprintWithFilePath:(NSString *)filePath;
+- (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a node.
@@ -1961,7 +1954,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param node Node for which we want to get the fingerprint.
  * @return Base64-encoded fingerprint for the file.
  */
-- (NSString *)finferprintWithNode:(MEGANode *)node;
+- (NSString *)finferprintForNode:(MEGANode *)node;
 
 /**
  * @brief Returns a node with the provided fingerprint.
@@ -1973,12 +1966,12 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param fingerprint Fingerprint to check.
  * @return MEGANode object with the provided fingerprint.
  */
-- (MEGANode *)nodeWithFingerprint:(NSString *)fingerprint;
+- (MEGANode *)nodeForFingerprint:(NSString *)fingerprint;
 
 /**
  * @brief Check if the account already has a node with the provided fingerprint.
  *
- * A fingerprint for a local file can be generated using [MEGASdk fingerprintWithFilePath:].
+ * A fingerprint for a local file can be generated using [MEGASdk fingerprintForFilePath:].
  *
  * @param fingerprint Fingerprint to check.
  * @return YES if the account contains a node with the same fingerprint.
@@ -1996,7 +1989,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - MEGAShareTypeAccessRead
  * - MEGAShareTypeAccessUnkown
  */
-- (NSInteger)accessLevelWithNode:(MEGANode *)node;
+- (NSInteger)accessLevelForNode:(MEGANode *)node;
 
 /**
  * @brief Check if a node has an access level.
@@ -2016,7 +2009,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
-- (MEGAError *)checkAccessWithNode:(MEGANode *)node level:(NSInteger)level;
+- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(NSInteger)level;
 
 /**
  * @brief Check if a node can be moved to a target node.
@@ -2030,7 +2023,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
-- (MEGAError *)checkMoveWithMnode:(MEGANode *)node target:(MEGANode *)target;
+- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
  * @brief Search nodes containing a search string in their name.
@@ -2044,7 +2037,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
 
 /**
  * @brief Search nodes containing a search string in their name.
@@ -2056,7 +2049,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @return List of nodes that contain the desired string in their name.
  */
-- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString;
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
 
 /**
  * @brief Get the size of a node tree.

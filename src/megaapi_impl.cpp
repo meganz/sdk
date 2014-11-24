@@ -98,7 +98,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->ctime = node->ctime;
     this->mtime = node->mtime;
     this->nodehandle = node->nodehandle;
-    this->attrstring.assign(node->attrstring.data(), node->attrstring.size());
+    if(node->attrstring)
+    {
+        this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
+    }
     this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
     this->removed = node->changed.removed;
 
@@ -522,7 +525,12 @@ MegaNode *MegaTransferPrivate::getPublicNode() const
 
 MegaNode *MegaTransferPrivate::getPublicMegaNode() const
 {
-	return publicNode->copy();
+    if(publicNode)
+    {
+        return publicNode->copy();
+    }
+
+    return NULL;
 }
 
 bool MegaTransferPrivate::isSyncTransfer() const
@@ -1140,7 +1148,7 @@ void MegaRequestPrivate::setText(const char *text)
     this->text = MegaApi::strdup(text);
 }
 
-void MegaRequestPrivate::setNumber(int number)
+void MegaRequestPrivate::setNumber(long long number)
 {
     this->number = number;
 }
@@ -2343,7 +2351,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2392,7 +2400,7 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2479,7 +2487,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
     if(localPath)
     {
         string path(localPath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2509,7 +2517,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
 
     if(localPath)
     {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         string path(localPath);
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
@@ -2573,7 +2581,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     sdkMutex.lock();
 
     string utf8path = path;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\"))
             utf8path.insert(0, "\\\\?\\");
 #endif
@@ -2608,7 +2616,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 
 int MegaApiImpl::syncPathState(string* path)
 {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     string prefix("\\\\?\\");
     string localPrefix;
     fsAccess->path2local(&prefix, &localPrefix);
@@ -2673,7 +2681,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     if(localFolder)
     {
         string path(localFolder);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2699,7 +2707,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     if(localFolder)
     {
         string path(localFolder);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2951,7 +2959,7 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 		return false;
 	}
 
-	bool result = (node->outshares.size() != 0);
+    bool result = (node->outshares != NULL);
 	sdkMutex.unlock();
 
 	return result;
@@ -2981,10 +2989,16 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         return new MegaShareListPrivate();
 	}
 
+    if(!node->outshares)
+    {
+        sdkMutex.unlock();
+        return new MegaShareListPrivate();
+    }
+
 	vector<Share*> vShares;
 	vector<handle> vHandles;
 
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		vShares.push_back(it->second);
 		vHandles.push_back(node->nodehandle);
@@ -4010,7 +4024,7 @@ void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t tot
     if(requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        if(request)
+        if(request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
         {
             request->setTransferredBytes(currentProgress);
             request->setTotalBytes(totalProgress);
@@ -4183,7 +4197,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
 		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
-		newnode->attrstring = *a;
+        newnode->attrstring = new string(*a);
 
 		// add node
         requestMap.erase(request->getTag());
@@ -4213,21 +4227,9 @@ void MegaApiImpl::nodes_updated(Node** n, int count)
     MegaNodeList *nodeList = NULL;
     if(n != NULL)
     {
-        vector<Node *> list;
-        for(int i=0; i<count; i++)
+        if(count)
         {
-            Node *node = n[i];
-            if(node->changed.parent || node->changed.attrs || node->changed.removed)
-            {
-                node->changed.parent = false;
-                node->changed.attrs = false;
-                list.push_back(node);
-            }
-        }
-
-        if(list.size())
-        {
-            nodeList = new MegaNodeListPrivate(list.data(), list.size());
+            nodeList = new MegaNodeListPrivate(n, count);
             fireOnNodesUpdate(nodeList);
         }
     }
@@ -5537,10 +5539,15 @@ void MegaApiImpl::sendPendingRequests()
 {
 	MegaRequestPrivate *request;
 	error e;
-	int nextTag;
+    int nextTag = 0;
 
 	while((request = requestQueue.pop()))
 	{
+        if(!nextTag)
+        {
+            client->abortbackoff(false);
+        }
+
 		sdkMutex.lock();
 		nextTag = client->nextreqtag();
         request->setTag(nextTag);
@@ -5628,7 +5635,8 @@ void MegaApiImpl::sendPendingRequests()
 
 			// JSON-encode object and encrypt attribute string
 			attrs.getjson(&attrstring);
-			client->makeattr(&key,&newnode->attrstring,attrstring.c_str());
+            newnode->attrstring = new string;
+            client->makeattr(&key,newnode->attrstring,attrstring.c_str());
 
 			// add the newly generated folder node
 			client->putnodes(parent->nodehandle,newnode,1);
@@ -5663,7 +5671,8 @@ void MegaApiImpl::sendPendingRequests()
             {
                 NewNode *newnode = new NewNode[1];
                 newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
-                newnode->attrstring.assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+                newnode->attrstring = new string;
+                newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
                 newnode->nodehandle = publicNode->getHandle();
                 newnode->source = NEW_PUBLIC;
                 newnode->type = FILENODE;
@@ -6272,7 +6281,7 @@ char* MegaApiImpl::stringToArray(string &buffer)
     return newbuffer;
 }
 
-void MegaApiImpl::updateStatics()
+void MegaApiImpl::updateStats()
 {
     transfer_map::iterator it;
     transfer_map::iterator end;
@@ -6370,7 +6379,8 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		key.setkey((const byte*)t->nodekey.data(),n->type);
 
 		n->attrs.getjson(&attrstring);
-		client->makeattr(&key,&t->attrstring,attrstring.c_str());
+        t->attrstring = new string;
+        client->makeattr(&key,t->attrstring,attrstring.c_str());
 	}
 	else nc++;
 }
@@ -6612,7 +6622,12 @@ OutShareProcessor::OutShareProcessor()
 
 bool OutShareProcessor::processNode(Node *node)
 {
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    if(!node->outshares)
+    {
+        return true;
+    }
+
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		shares.push_back(it->second);
 		handles.push_back(node->nodehandle);

@@ -1,10 +1,3 @@
-//
-//  MEGAUser.h
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
@@ -24,7 +17,7 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
  * in MEGA when the object is created, they are immutable.
  *
  * Do not inherit from this class. You can get the contacts of an account using
- * [MEGASdk contacts] and [MEGASdk contactWithEmail:].
+ * [MEGASdk contacts] and [MEGASdk contactForEmail:].
  *
  */
 @interface MEGAUser : NSObject
@@ -32,7 +25,7 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
 /**
  * @brief The email associated with the contact.
  *
- * The email can be used to recover the MEGAUser object later using [MEGASdk contactWithEmail:]
+ * The email can be used to recover the MEGAUser object later using [MEGASdk contactForEmail:]
  *
  * The MEGAUser object retains the ownership of the returned string, it will be valid until
  * the MEGAUser object is deleted.

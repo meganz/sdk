@@ -401,12 +401,11 @@ AC_ARG_WITH(sodium,
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
     AC_CHECK_HEADERS([sodium/core.h],, [
-        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+        AC_MSG_NOTICE([sodium/core.h header not found or not usable])
     ])
-    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
-            AC_MSG_ERROR([Could not find libsodium])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium" sodium=true],[
+            AC_MSG_NOTICE([Could not find libsodium])
     ])
-    sodium=true
   ])
 AC_SUBST(SODIUM_CXXFLAGS)
 AC_SUBST(SODIUM_CPPFLAGS)
@@ -911,7 +910,7 @@ AC_SUBST(platform_include)
 AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE(examples,
     AS_HELP_STRING([--enable-examples], [build example applications]),
-    [], [enable_examples=no])
+    [], [enable_examples=yes])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 

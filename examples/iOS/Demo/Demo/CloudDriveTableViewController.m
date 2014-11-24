@@ -7,8 +7,7 @@
 #import "Helper.h"
 
 @interface CloudDriveTableViewController () {
-    UIAlertView *folderAlert;
-    UIAlertView *renameAlert;
+    UIAlertView *folderAlertView;
     NSInteger indexNodeSelected;
     NSString *cacheDirectory;
 }
@@ -187,12 +186,11 @@
 
 - (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
     if (buttonIndex == 0) {
-        folderAlert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"newFolderTitle", @"Create new folder") message:NSLocalizedString(@"newFolderMessage", @"Enter name for new folder") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"createFolder", @"Create"), nil];
-                              [folderAlert setAlertViewStyle:UIAlertViewStylePlainTextInput];
-                              [folderAlert textFieldAtIndex:0].text = @"";
-                              [folderAlert show];
-        folderAlert.tag = 1;
-        [folderAlert show];
+        folderAlertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"newFolderTitle", @"Create new folder") message:NSLocalizedString(@"newFolderMessage", @"Name for the new folder") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"createFolderButton", @"Create"), nil];
+        [folderAlertView setAlertViewStyle:UIAlertViewStylePlainTextInput];
+        [folderAlertView textFieldAtIndex:0].text = @"";
+        folderAlertView.tag = 1;
+        [folderAlertView show];
     } else if (buttonIndex == 1) {
         [self showImagePickerForSourceType:UIImagePickerControllerSourceTypePhotoLibrary];
     }
@@ -203,7 +201,7 @@
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
     if (alertView.tag == 1) {
         if (buttonIndex == 1) {
-            [[MEGASdkManager sharedMEGASdk] createFolderWithName:[[folderAlert textFieldAtIndex:0] text] parent:self.parentNode];
+            [[MEGASdkManager sharedMEGASdk] createFolderWithName:[[folderAlertView textFieldAtIndex:0] text] parent:self.parentNode];
         }
     }
 }
@@ -249,10 +247,10 @@
 - (void)reloadUI {
     if (!self.parentNode) {
         [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenWithParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
     } else {
         [self.navigationItem setTitle:[self.parentNode name]];
-        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenWithParent:self.parentNode];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:self.parentNode];
     }
     
     [self.tableView reloadData];
@@ -291,7 +289,7 @@
         case MEGARequestTypeGetAttrFile: {
             for (NodeTableViewCell *ntvc in [self.tableView visibleCells]) {
                 if ([request nodeHandle] == [ntvc nodeHandle]) {
-                    MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[request nodeHandle]];
+                    MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeForHandle:[request nodeHandle]];
                     NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
                     NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
                     NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];

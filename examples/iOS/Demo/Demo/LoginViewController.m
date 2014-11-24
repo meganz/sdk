@@ -1,17 +1,6 @@
-//
-//  LoginViewController.h
-//  Demo
-//
-//  Created by Javier Navarro on 15/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "LoginViewController.h"
 #import "CloudDriveTableViewController.h"
 #import "SVProgressHUD.h"
-
-#define kSession @"kSession"
-#define kEmail @"kEmail"
 
 @interface LoginViewController ()
 
@@ -45,20 +34,20 @@
         [SVProgressHUD dismiss];
         switch ([error type]) {
             case MEGAErrorTypeApiEArgs:{
-                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Error"
-                                                                message:@"Email or password invalid."
+                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"error", @"Error")
+                                                                message:NSLocalizedString(@"invalidMailOrPassword", @"Email or password invalid.")
                                                                delegate:self
-                                                      cancelButtonTitle:@"OK"
+                                                      cancelButtonTitle:NSLocalizedString(@"ok", @"OK")
                                                       otherButtonTitles:nil];
                 [alert show];
                 break;
             }
                 
             case MEGAErrorTypeApiENoent:{
-                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Error"
-                                                                message:@"Email or password invalid."
+                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"error", @"Error")
+                                                                message:NSLocalizedString(@"invalidMailOrPassword", @"Email or password invalid.")
                                                                delegate:self
-                                                      cancelButtonTitle:@"OK"
+                                                      cancelButtonTitle:NSLocalizedString(@"ok", @"OK")
                                                       otherButtonTitles:nil];
                 [alert show];
                 break;
@@ -91,9 +80,9 @@
     if ([request type] == MEGARequestTypeFetchNodes){
         float progress = [[request transferredBytes] floatValue] / [[request totalBytes] floatValue];
         if (progress > 0 && progress <0.99) {
-            [SVProgressHUD showProgress:progress status:@"Fetching nodes"];
+            [SVProgressHUD showProgress:progress status:NSLocalizedString(@"fetchingNodes", @"Fetching nodes")];
         } else if (progress > 0.99 || progress < 0) {
-            [SVProgressHUD showProgress:1 status:@"Preparing nodes"];
+            [SVProgressHUD showProgress:1 status:NSLocalizedString(@"preparingNodes", @"Preparing nodes")];
         }
     }
 }

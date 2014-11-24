@@ -1,10 +1,3 @@
-//
-//  MEGASdk.m
-//
-//  Created by Javier Navarro on 06/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGASdk.h"
 #import "megaapi.h"
 #import "MEGANode+init.h"
@@ -207,7 +200,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 #pragma mark - Utils
 
-- (NSString *)base64pwkeyWithPassword:(NSString *)password {
+- (NSString *)base64pwkeyForPassword:(NSString *)password {
     if(password == nil) return nil;
     
     const char *val = self.megaApi->getBase64PwKey([password UTF8String]);
@@ -219,7 +212,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
-- (NSString *)hashWithBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
+- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
     if(base64pwkey == nil || email == nil)  return  nil;
     
     const char *val = self.megaApi->getStringHash([base64pwkey UTF8String], [email UTF8String]);
@@ -231,7 +224,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
-+ (uint64_t)handleWithBase64Handle:(NSString *)base64Handle {
++ (uint64_t)handleForBase64Handle:(NSString *)base64Handle {
     if(base64Handle == nil) return ::mega::INVALID_HANDLE;
     
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
@@ -409,11 +402,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->importFileLink((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate {
+- (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)publicNodeWithMegaFileLink:(NSString *)megaFileLink {
+- (void)publicNodeForMegaFileLink:(NSString *)megaFileLink {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
@@ -509,19 +502,19 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getAccountDetails();
 }
 
-- (void)pricingWithDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPricing([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)pricing {
+- (void)getPricing {
     self.megaApi->getPricing();
 }
 
-- (void)getPaymentURLWithProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getPaymentURLForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPaymentUrl(productHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getPaymentULRWithProductHandle:(uint64_t)productHandle {
+- (void)getPaymentURLForProductHandle:(uint64_t)productHandle {
     self.megaApi->getPaymentUrl(productHandle);
 }
 
@@ -583,11 +576,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (filename != nil) ? [filename UTF8String] : NULL);
 }
 
-- (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
 
-- (void)startDownloadWithNode:(MEGANode *)node localPath:(NSString *)localPath {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath {
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
@@ -599,11 +592,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
-- (void)cancelTransfersWithDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate {
+- (void)cancelTransfersForDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cancelTransfers((int)direction, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)cancelTransfersWithDirection:(NSInteger)direction {
+- (void)cancelTransfersForDirection:(NSInteger)direction {
     self.megaApi->cancelTransfers((int)direction);
 }
 
@@ -621,27 +614,27 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 #pragma mark - Filesystem inspection
 
-- (NSInteger)numberChildrenWithParent:(MEGANode *)parent {
+- (NSInteger)numberChildrenForParent:(MEGANode *)parent {
     return self.megaApi->getNumChildren((parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (NSInteger)numberChildFilesWithParent:(MEGANode *)parent {
+- (NSInteger)numberChildFilesForParent:(MEGANode *)parent {
     return self.megaApi->getNumChildFiles((parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (NSInteger)numberChildFoldersWithParent:(MEGANode *)parent {
+- (NSInteger)numberChildFoldersForParent:(MEGANode *)parent {
     return self.megaApi->getNumChildFolders((parent != nil) ? [parent getCPtr] : NULL);
 }
 
-- (MEGANodeList *)childrenWithParent:(MEGANode *)parent order:(NSInteger)order {
+- (MEGANodeList *)childrenForParent:(MEGANode *)parent order:(NSInteger)order {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL, (int)order) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)childrenWithParent:(MEGANode *)parent {
+- (MEGANodeList *)childrenForParent:(MEGANode *)parent {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL) cMemoryOwn:YES];
 }
 
-- (MEGANode *)childNodeWithParent:(MEGANode *)parent name:(NSString *)name {
+- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name {
     if (parent == nil || name == nil) return nil;
     
     MegaNode *node = self.megaApi->getChildNode([parent getCPtr], [name UTF8String]);
@@ -649,7 +642,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)parentNodeWithNode:(MEGANode *)node {
+- (MEGANode *)parentNodeForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     MegaNode *parent = self.megaApi->getParentNode([node getCPtr]);
@@ -657,7 +650,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return parent ? [[MEGANode alloc] initWithMegaNode:parent cMemoryOwn:YES] : nil;
 }
 
-- (NSString *)nodePathWithNode:(MEGANode *)node {
+- (NSString *)nodePathForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     const char *val = self.megaApi->getNodePath([node getCPtr]);
@@ -669,7 +662,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
-- (MEGANode *)nodeWithPath:(NSString *)path node:(MEGANode *)node {
+- (MEGANode *)nodeForPath:(NSString *)path node:(MEGANode *)node {
     if (path == nil || node == nil) return nil;
     
     MegaNode *n = self.megaApi->getNodeByPath([path UTF8String], [node getCPtr]);
@@ -677,7 +670,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return n ? [[MEGANode alloc] initWithMegaNode:n cMemoryOwn:YES] : Nil;
 }
 
-- (MEGANode *)nodeWithPath:(NSString *)path {
+- (MEGANode *)nodeForPath:(NSString *)path {
     if (path == nil) return nil;
     
     MegaNode *node = self.megaApi->getNodeByPath([path UTF8String]);
@@ -685,7 +678,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)nodeWithHandle:(uint64_t)handle {
+- (MEGANode *)nodeForHandle:(uint64_t)handle {
     if (handle == ::mega::INVALID_HANDLE) return nil;
     
     MegaNode *node = self.megaApi->getNodeByHandle(handle);
@@ -697,14 +690,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[MEGAUserList alloc] initWithUserList:self.megaApi->getContacts() cMemoryOwn:YES];
 }
 
-- (MEGAUser *)contactWithEmail:(NSString *)email {
+- (MEGAUser *)contactForEmail:(NSString *)email {
     if (email == nil) return nil;
     
     MegaUser *user = self.megaApi->getContact([email UTF8String]);
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
 }
 
-- (MEGANodeList *)inSharesWithUser:(MEGAUser *)user {
+- (MEGANodeList *)inSharesForUser:(MEGAUser *)user {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares((user != nil) ? [user getCPtr] : NULL) cMemoryOwn:YES];
 }
 
@@ -712,11 +705,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares() cMemoryOwn:YES];
 }
 
-- (MEGAShareList *)outSharesWithNode:(MEGANode *)node {
+- (MEGAShareList *)outSharesForNode:(MEGANode *)node {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
-- (NSString *)fingerprintWithFilePath:(NSString *)filePath {
+- (NSString *)fingerprintForFilePath:(NSString *)filePath {
     if (filePath == nil) return nil;
     
     const char *val = self.megaApi->getFingerprint([filePath UTF8String]);
@@ -728,13 +721,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
-- (NSString *)finferprintWithNode:(MEGANode *)node {
+- (NSString *)finferprintForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     return self.megaApi->getFingerprint([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getFingerprint([node getCPtr])] : nil;
 }
 
-- (MEGANode *)nodeWithFingerprint:(NSString *)fingerprint {
+- (MEGANode *)nodeForFingerprint:(NSString *)fingerprint {
     if (fingerprint == nil) return nil;
     
     MegaNode *node = self.megaApi->getNodeByFingerprint([fingerprint UTF8String]);
@@ -748,27 +741,27 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return self.megaApi->hasFingerprint([fingerprint UTF8String]);
 }
 
-- (NSInteger)accessLevelWithNode:(MEGANode *)node {
+- (NSInteger)accessLevelForNode:(MEGANode *)node {
     if (node == nil) return -1;
     
     return self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessWithNode:(MEGANode *)node level:(NSInteger)level {
+- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(NSInteger)level {
     if (node == nil) return nil;
     
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess((node != nil) ? [node getCPtr] : NULL, (int) level).copy() cMemoryOwn:YES];
 }
 
-- (MEGAError *)checkMoveWithMnode:(MEGANode *)node target:(MEGANode *)target {
+- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove((node != nil) ? [node getCPtr] : NULL, (target != nil) ? [target getCPtr] : NULL).copy() cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, recursive) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)nodeListSearchWithNode:(MEGANode *)node searchString:(NSString *)searchString {
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 

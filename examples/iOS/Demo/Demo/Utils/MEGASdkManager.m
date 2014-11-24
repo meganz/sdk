@@ -1,11 +1,3 @@
-//
-//  MEGASdkManager.m
-//  Demo
-//
-//  Created by Javier Navarro on 05/11/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGASdkManager.h"
 
 @implementation MEGASdkManager

@@ -1,10 +1,3 @@
-//
-//  MEGAAcountDetails.h
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAAccountType) {
@@ -72,7 +65,7 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
  * @return Used storage (in bytes).
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)storageUsedWithHandle:(uint64_t)handle;
+- (NSNumber *)storageUsedForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the number of files in a node.
@@ -83,7 +76,7 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
  * @return Number of files in the node.
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)numberFilesWithHandle:(uint64_t)handle;
+- (NSNumber *)numberFilesForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the number of folders in a node.
@@ -94,6 +87,6 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
  * @return Number of folders in the node.
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)numberFoldersWithHandle:(uint64_t)handle;
+- (NSNumber *)numberFoldersForHandle:(uint64_t)handle;
 
 @end

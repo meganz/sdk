@@ -1,16 +1,9 @@
-//
-//  NodeInfoDetailsViewController.m
-//  Demo
-//
-//  Created by Javier Navarro on 18/11/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "DetailsNodeInfoViewController.h"
 #import "SVProgressHUD.h"
 
 @interface DetailsNodeInfoViewController () {
-    UIAlertView *renameAV;
+    UIAlertView *renameAlertView;
+    UIAlertView *removeAlertView;
 }
 
 @property (weak, nonatomic) IBOutlet UIImageView *thumbnailmageView;
@@ -106,7 +99,7 @@
         BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
         
         if (!fileExists) {
-            [[MEGASdkManager sharedMEGASdk] startDownloadWithNode:self.node localPath:destinationFilePath];
+            [[MEGASdkManager sharedMEGASdk] startDownloadNode:self.node localPath:destinationFilePath];
         }
     }
 }
@@ -116,15 +109,18 @@
 }
 
 - (IBAction)tapRename:(UIButton *)sender {
-    renameAV = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"renameFileTitle", @"Rename file") message:NSLocalizedString(@"renameFileMessage", @"Enter new name for file") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"renameFile", @"Rename"), nil];
-    [renameAV setAlertViewStyle:UIAlertViewStylePlainTextInput];
-    [renameAV textFieldAtIndex:0].text = [[[self.node name] lastPathComponent] stringByDeletingPathExtension];
-    [renameAV show];
+    renameAlertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"renameNodeTitle", @"Rename") message:NSLocalizedString(@"renameNodeMessage", @"Enter the new name") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"renameNodeButton", @"Rename"), nil];
+    [renameAlertView setAlertViewStyle:UIAlertViewStylePlainTextInput];
+    [renameAlertView textFieldAtIndex:0].text = [[[self.node name] lastPathComponent] stringByDeletingPathExtension];
+    removeAlertView.tag = 0;
+    [renameAlertView show];
 }
 
 - (IBAction)tapDelete:(UIButton *)sender {
-    [[MEGASdkManager sharedMEGASdk] removeNode:self.node];
-    [self.navigationController popViewControllerAnimated:YES];
+    removeAlertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"removeNodeTitle", @"Remove node") message:NSLocalizedString(@"removeNodeMessage", @"Are you sure?") delegate:self cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel") otherButtonTitles:NSLocalizedString(@"ok", @"OK"), nil];
+    [removeAlertView show];
+    removeAlertView.tag = 1;
+    [removeAlertView show];
 }
 
 /*
@@ -140,14 +136,22 @@
 #pragma mark - Alert delegate
 
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex {
-    if (buttonIndex == 1) {
-        if ([[[self.node name] pathExtension] isEqualToString:@""]) {
-            [[MEGASdkManager sharedMEGASdk] renameNode:self.node newName:[alertView textFieldAtIndex:0].text];
-        } else {
-            NSString *newName = [[alertView textFieldAtIndex:0].text stringByAppendingFormat:@".%@", [[self.node name] pathExtension]];
-            self.nameLabel.text = newName;
-            self.title = newName;
-            [[MEGASdkManager sharedMEGASdk] renameNode:self.node newName:newName];
+    if (alertView.tag == 0){
+        if (buttonIndex == 1) {
+            if ([[[self.node name] pathExtension] isEqualToString:@""]) {
+                [[MEGASdkManager sharedMEGASdk] renameNode:self.node newName:[alertView textFieldAtIndex:0].text];
+            } else {
+                NSString *newName = [[alertView textFieldAtIndex:0].text stringByAppendingFormat:@".%@", [[self.node name] pathExtension]];
+                self.nameLabel.text = newName;
+                self.title = newName;
+                [[MEGASdkManager sharedMEGASdk] renameNode:self.node newName:newName];
+            }
+        }
+    }
+    if (alertView.tag == 1) {
+        if (buttonIndex == 1) {
+            [[MEGASdkManager sharedMEGASdk] removeNode:self.node];
+            [self.navigationController popViewControllerAnimated:YES];
         }
     }
 }
@@ -157,7 +161,7 @@
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     switch ([request type]) {
         case MEGARequestTypeExport:
-            [SVProgressHUD showWithStatus:@"Generate link..."];
+            [SVProgressHUD showWithStatus:NSLocalizedString(@"generateLing", @"Generate link...")];
             break;
             
         default:

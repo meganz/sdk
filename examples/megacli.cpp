@@ -901,18 +901,21 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
 
 static void listnodeshares(Node* n)
 {
-    for (share_map::iterator it = n->outshares.begin(); it != n->outshares.end(); it++)
+    if(n->outshares)
     {
-        cout << "\t" << n->displayname();
+        for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
 
-        if (it->first)
-        {
-            cout << ", shared with " << it->second->user->email << " (" << accesslevels[it->second->access] << ")"
-                 << endl;
-        }
-        else
-        {
-            cout << ", shared as exported folder link" << endl;
+            if (it->first)
+            {
+                cout << ", shared with " << it->second->user->email << " (" << accesslevels[it->second->access] << ")"
+                     << endl;
+            }
+            else
+            {
+                cout << ", shared as exported folder link" << endl;
+            }
         }
     }
 }
@@ -953,16 +956,19 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
             case FOLDERNODE:
                 cout << "folder";
 
-                for (share_map::iterator it = n->outshares.begin(); it != n->outshares.end(); it++)
+                if(n->outshares)
                 {
-                    if (it->first)
+                    for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
                     {
-                        cout << ", shared with " << it->second->user->email << ", access "
-                             << accesslevels[it->second->access];
-                    }
-                    else
-                    {
-                        cout << ", shared as exported folder link";
+                        if (it->first)
+                        {
+                            cout << ", shared with " << it->second->user->email << ", access "
+                                 << accesslevels[it->second->access];
+                        }
+                        else
+                        {
+                            cout << ", shared as exported folder link";
+                        }
                     }
                 }
 
@@ -1130,7 +1136,8 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         key.setkey((const byte*) t->nodekey.data(), n->type);
 
         n->attrs.getjson(&attrstring);
-        client->makeattr(&key, &t->attrstring, attrstring.c_str());
+        t->attrstring = new string;
+        client->makeattr(&key, t->attrstring, attrstring.c_str());
     }
     else
     {
@@ -1747,7 +1754,8 @@ static void process_line(char* l)
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
-                                    client->makeattr(&key, &tc.nn->attrstring, attrstring.c_str());
+                                    tc.nn->attrstring = new string;
+                                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
                                 }
 
                                 // tree root: no parent
@@ -2356,7 +2364,8 @@ static void process_line(char* l)
 
                                     // JSON-encode object and encrypt attribute string
                                     attrs.getjson(&attrstring);
-                                    client->makeattr(&key, &newnode->attrstring, attrstring.c_str());
+                                    newnode->attrstring = new string;
+                                    client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
                                     // add the newly generated folder node
                                     client->putnodes(n->nodehandle, newnode, 1);
@@ -3186,7 +3195,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
 
-        newnode->attrstring = *a;
+        newnode->attrstring = new string(*a);
 
         client->putnodes(n->nodehandle, newnode, 1);
     }
