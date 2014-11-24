@@ -1,10 +1,3 @@
-//
-//  DelegateMEGATransferListener.h
-//
-//  Created by Javier Navarro on 08/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGATransferDelegate.h"
 #import "megaapi.h"
 #import "MEGASdk.h"

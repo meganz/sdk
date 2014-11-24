@@ -1,10 +1,3 @@
-//
-//  MEGARequest.h
-//
-//  Created by Javier Navarro on 01/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 #import "MEGANode.h"
 #import "MEGAAccountDetails.h"
@@ -107,7 +100,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns the handle of the node
  * - [MEGASdk exportNode:] - Returns the handle of the node
  * - [MEGASdk disableExportNode:] - Returns the handle of the node
- * - [MEGASdk getPaymentURLWithProductHandle:] - Returns the handle of the folder in MEGA
+ * - [MEGASdk getPaymentURLForProductHandle:] - Returns the handle of the folder in MEGA
  *
  * This value is valid for these requests in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
@@ -127,12 +120,12 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the confirmation link
  * - [MEGASdk loginToFolderLink:] - Returns the link to the folder
  * - [MEGASdk importMegaFileLink:parent:] - Returns the link to the file to import
- * - [MEGASdk publicNodeWithMegaFileLink:] - Returns the link to the file
+ * - [MEGASdk publicNodeForMegaFileLink:] - Returns the link to the file
  *
  * This value is valid for these requests in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk exportNode:] - Returns the public link
- * - [MEGASdk getPaymentURLWithProductHandle:] - Returns the payment link
+ * - [MEGASdk getPaymentURLForProductHandle:] - Returns the payment link
  *
  * The SDK retains the ownership of the returned value. It will be valid until
  * the MEGARequest object is deleted.
@@ -367,7 +360,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * This value is valid for these request in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
- * - [MEGASdk pricing] - Returns the available pricing plans
+ * - [MEGASdk getPricing] - Returns the available pricing plans
  *
  */
 @property (readonly, nonatomic) MEGAPricing *pricing;

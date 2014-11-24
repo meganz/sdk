@@ -1,11 +1,3 @@
-//
-//  SettingsViewController.m
-//  Demo
-//
-//  Created by Javier Navarro on 29/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "SettingsViewController.h"
 #import "SVProgressHUD.h"
 #import "LoginViewController.h"
@@ -38,7 +30,7 @@
 
 - (void)setUserAvatar {
     
-    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactWithEmail:self.emailLabel.text];
+    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactForEmail:self.emailLabel.text];
     NSString *destinationPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0];
     NSString *fileName = [self.emailLabel.text stringByAppendingString:@".jpg"];
     NSString *destinationFilePath = [destinationPath stringByAppendingPathComponent:@"thumbs"];

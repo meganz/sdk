@@ -1,10 +1,3 @@
-//
-//  MEGARequest.m
-//
-//  Created by Javier Navarro on 01/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGARequest.h"
 #import "MEGANode+init.h"
 #import "MEGAPricing+init.h"
@@ -152,7 +145,7 @@ using namespace mega;
     return nil;
 }
 
-- (MEGAPricing *)pricing {
+- (MEGAPricing *)getPricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
 }
 

@@ -1,11 +1,3 @@
-//
-//  NodeInfoDetailsViewController.m
-//  Demo
-//
-//  Created by Javier Navarro on 18/11/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "DetailsNodeInfoViewController.h"
 #import "SVProgressHUD.h"
 
@@ -107,7 +99,7 @@
         BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:destinationFilePath];
         
         if (!fileExists) {
-            [[MEGASdkManager sharedMEGASdk] startDownloadWithNode:self.node localPath:destinationFilePath];
+            [[MEGASdkManager sharedMEGASdk] startDownloadNode:self.node localPath:destinationFilePath];
         }
     }
 }

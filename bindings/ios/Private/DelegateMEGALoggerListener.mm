@@ -1,11 +1,3 @@
-//
-//  DelegateMEGALoggerListener.cpp
-//  mega
-//
-//  Created by Javier Navarro on 20/11/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #include "DelegateMEGALoggerListener.h"
 #include <sstream>
 

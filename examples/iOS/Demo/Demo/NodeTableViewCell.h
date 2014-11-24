@@ -1,11 +1,3 @@
-//
-//  NodeTableViewCell.h
-//  Demo
-//
-//  Created by Javier Navarro on 17/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <UIKit/UIKit.h>
 
 @interface NodeTableViewCell : UITableViewCell

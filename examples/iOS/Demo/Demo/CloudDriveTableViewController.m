@@ -1,11 +1,3 @@
-//
-//  CloudDriveTableViewController.m
-//  Demo
-//
-//  Created by Javier Navarro on 15/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "CloudDriveTableViewController.h"
 #import "NodeTableViewCell.h"
 #import "SVProgressHUD.h"
@@ -257,10 +249,10 @@
 - (void)reloadUI {
     if (!self.parentNode) {
         [self.navigationItem setTitle:@"Cloud drive"];
-        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenWithParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
     } else {
         [self.navigationItem setTitle:[self.parentNode name]];
-        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenWithParent:self.parentNode];
+        self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:self.parentNode];
     }
     
     [self.tableView reloadData];

@@ -1,10 +1,3 @@
-//
-//  DelegateMEGARequestListener.h
-//
-//  Created by Javier Navarro on 08/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGARequestDelegate.h"
 #import "megaapi.h"
 #import "MEGASdk.h"

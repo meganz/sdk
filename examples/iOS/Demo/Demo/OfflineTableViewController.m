@@ -1,11 +1,3 @@
-//
-//  OfflineTableViewController.m
-//  Demo
-//
-//  Created by Javier Navarro on 03/11/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "OfflineTableViewController.h"
 #import "NodeTableViewCell.h"
 #import <MediaPlayer/MediaPlayer.h>
@@ -123,7 +115,8 @@
     } else if (isVideo(name.lowercaseString.pathExtension)) {
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
         NSString *path = [paths objectAtIndex:0];
-        NSString *filePath = [path stringByAppendingPathComponent:[node base64Handle]];
+        NSMutableString *filePath = [NSMutableString new];
+        [filePath appendFormat:@"%@/%@.%@", path, [node base64Handle], [name pathExtension]];
         NSURL *fileURL = [NSURL fileURLWithPath:filePath];
         
         MPMoviePlayerViewController *videoPlayerView = [[MPMoviePlayerViewController alloc] initWithContentURL:fileURL];
@@ -161,7 +154,7 @@
         NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
         if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
-            MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[MEGASdk handleWithBase64Handle:filename]];
+            MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[MEGASdk handleForBase64Handle:filename]];
             
             if (node == nil) continue;
             

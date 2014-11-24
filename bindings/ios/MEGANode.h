@@ -1,10 +1,3 @@
-//
-//  MEGANode.h
-//
-//  Created by Javier Navarro on 01/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGANodeType) {
@@ -26,7 +19,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * in MEGA when the object is created, they are immutable.
  *
  * Do not inherit from this class. You can inspect the MEGA filesystem and get these objects using
- * [MEGASdk childrenWithParent:], [MEGASdk childNodeWithParent:name:] and other MEGASdk functions.
+ * [MEGASdk childrenForParent:], [MEGASdk childNodeForParent:name:] and other MEGASdk functions.
  *
  */
 @interface MEGANode : NSObject

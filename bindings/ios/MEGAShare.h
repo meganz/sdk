@@ -1,10 +1,3 @@
-//
-//  MEGAShare.h
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAShareType) {
@@ -25,7 +18,7 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  * Objects of this class aren't live, they are snapshots of the state of the sharing
  * in MEGA when the object is created, they are immutable.
  *
- * Do not inherit from this class. You can get current active sharings using [MEGASdk outSharesWithNode:]
+ * Do not inherit from this class. You can get current active sharings using [MEGASdk outSharesForNode:]
  *
  */
 @interface MEGAShare : NSObject
