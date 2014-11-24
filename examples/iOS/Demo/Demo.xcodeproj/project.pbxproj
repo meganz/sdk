@@ -35,6 +35,7 @@
 		41B2AEE11A0A8CC3006C40FB /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AEE01A0A8CC3006C40FB /* MEGASdkManager.m */; };
 		41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B4553A19F1218000439D45 /* NodeTableViewCell.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
+		E80D15911A236C7100148421 /* Helper.m in Sources */ = {isa = PBXBuildFile; fileRef = E80D15901A236C7100148421 /* Helper.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +98,8 @@
 		41B4553919F1218000439D45 /* NodeTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NodeTableViewCell.h; sourceTree = "<group>"; };
 		41B4553A19F1218000439D45 /* NodeTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NodeTableViewCell.m; sourceTree = "<group>"; };
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
+		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Helper.h; sourceTree = "<group>"; };
+		E80D15901A236C7100148421 /* Helper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Helper.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +175,8 @@
 				416812A919EE8FAC00C72800 /* vendor */,
 				4168127819EE6E5700C72800 /* AppDelegate.h */,
 				4168127919EE6E5700C72800 /* AppDelegate.m */,
+				E80D158F1A236C7100148421 /* Helper.h */,
+				E80D15901A236C7100148421 /* Helper.m */,
 				4168127B19EE6E5700C72800 /* LoginViewController.h */,
 				4168127C19EE6E5700C72800 /* LoginViewController.m */,
 				4168127E19EE6E5700C72800 /* Main.storyboard */,
@@ -393,6 +398,7 @@
 				41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */,
 				41B2AEE11A0A8CC3006C40FB /* MEGASdkManager.m in Sources */,
 				416812A819EE8E9500C72800 /* CloudDriveTableViewController.m in Sources */,
+				E80D15911A236C7100148421 /* Helper.m in Sources */,
 				41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */,
 				4168127719EE6E5700C72800 /* main.m in Sources */,
 			);
