@@ -292,7 +292,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
  *
- * The returned value can be used to recover a MEGANode using [MEGASdk nodeWithHandle:].
+ * The returned value can be used to recover a MEGANode using [MEGASdk nodeForHandle:].
  * You can revert this operation using [MEGASdk handleToBase64:].
  *
  * @param base64Handle Base64-encoded node handle.
@@ -1874,7 +1874,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param handle Node handle to check.
  * @return MEGANode object with the handle, otherwise nil.
  */
-- (MEGANode *)nodeWithHandle:(uint64_t)handle;
+- (MEGANode *)nodeForHandle:(uint64_t)handle;
 
 /**
  * @brief Get all contacts of this MEGA account.

@@ -154,7 +154,7 @@
         NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
         if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {
-            MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[MEGASdk handleForBase64Handle:filename]];
+            MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeForHandle:[MEGASdk handleForBase64Handle:filename]];
             
             if (node == nil) continue;
             

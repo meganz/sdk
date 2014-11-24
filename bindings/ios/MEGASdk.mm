@@ -678,7 +678,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (MEGANode *)nodeWithHandle:(uint64_t)handle {
+- (MEGANode *)nodeForHandle:(uint64_t)handle {
     if (handle == ::mega::INVALID_HANDLE) return nil;
     
     MegaNode *node = self.megaApi->getNodeByHandle(handle);

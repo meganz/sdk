@@ -291,7 +291,7 @@
         case MEGARequestTypeGetAttrFile: {
             for (NodeTableViewCell *ntvc in [self.tableView visibleCells]) {
                 if ([request nodeHandle] == [ntvc nodeHandle]) {
-                    MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeWithHandle:[request nodeHandle]];
+                    MEGANode *node = [[MEGASdkManager sharedMEGASdk] nodeForHandle:[request nodeHandle]];
                     NSString *extension = [@"." stringByAppendingString:[[node name] pathExtension]];
                     NSString *fileName = [[node base64Handle] stringByAppendingString:extension];
                     NSString *destinationFilePath = [cacheDirectory stringByAppendingPathComponent:@"thumbs"];

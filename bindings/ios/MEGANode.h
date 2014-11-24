@@ -93,7 +93,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 /**
  * @brief Handle to identify this MEGANode.
  *
- * You can use [MEGASdk nodeWithHandle:] to recover the node later.
+ * You can use [MEGASdk nodeForHandle:] to recover the node later.
  *
  */
 @property (readonly, nonatomic) uint64_t handle;
