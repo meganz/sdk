@@ -34,6 +34,7 @@
 		41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
 		41B2AEE11A0A8CC3006C40FB /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AEE01A0A8CC3006C40FB /* MEGASdkManager.m */; };
 		41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B4553A19F1218000439D45 /* NodeTableViewCell.m */; };
+		41C681D31A2330220088F2E6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 41C681D11A2330220088F2E6 /* Localizable.strings */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
 /* End PBXBuildFile section */
 
@@ -96,6 +97,7 @@
 		41B2AEE01A0A8CC3006C40FB /* MEGASdkManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MEGASdkManager.m; path = MegaSDKManager/MEGASdkManager.m; sourceTree = "<group>"; };
 		41B4553919F1218000439D45 /* NodeTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NodeTableViewCell.h; sourceTree = "<group>"; };
 		41B4553A19F1218000439D45 /* NodeTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NodeTableViewCell.m; sourceTree = "<group>"; };
+		41C681D21A2330220088F2E6 /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Base; path = Base.lproj/Localizable.strings; sourceTree = "<group>"; };
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -197,6 +199,7 @@
 			children = (
 				4168127519EE6E5700C72800 /* Info.plist */,
 				4168127619EE6E5700C72800 /* main.m */,
+				41C681D11A2330220088F2E6 /* Localizable.strings */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -364,6 +367,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4168128019EE6E5700C72800 /* Main.storyboard in Resources */,
+				41C681D31A2330220088F2E6 /* Localizable.strings in Resources */,
 				4168128519EE6E5700C72800 /* LaunchScreen.xib in Resources */,
 				4168128219EE6E5700C72800 /* Images.xcassets in Resources */,
 				416812AF19EE8FAC00C72800 /* SVProgressHUD.bundle in Resources */,
@@ -431,6 +435,14 @@
 				4168128419EE6E5700C72800 /* Base */,
 			);
 			name = LaunchScreen.xib;
+			sourceTree = "<group>";
+		};
+		41C681D11A2330220088F2E6 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				41C681D21A2330220088F2E6 /* Base */,
+			);
+			name = Localizable.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
