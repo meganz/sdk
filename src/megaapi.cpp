@@ -885,9 +885,9 @@ MegaNode* MegaApi::getNodeByHandle(uint64_t uint64_t)
     return pImpl->getNodeByHandle(uint64_t);
 }
 
-void MegaApi::updateStatics()
+void MegaApi::updateStats()
 {
-    pImpl->updateStatics();
+    pImpl->updateStats();
 }
 
 long long MegaApi::getTotalDownloadedBytes()

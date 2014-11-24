@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">DemoAndroid</string>
+    <string name="action_logout">Logout</string>
+    <string name="login_text">Login</string>
+    <string name="email_text">Email</string>
+    <string name="password_text">Password</string>
+    
+    <string name="error_enter_email">Please enter your email address</string>
+    <string name="error_invalid_email">Invalid email address</string>
+    <string name="error_enter_password">Please enter your password</string>
+    <string name="error_incorrect_email_or_password">Incorrect email or password</string>
+    
+    <string name="generating_hash">Generating keys</string>
+    <string name="logging_in">Logging in</string>
+    <string name="fetching_nodes">Fetching nodes</string>
+    <string name="preparing_nodes">Preparing nodes</string>
+    
+    <string name="cloud_drive">Cloud Drive</string>
+    <string name="empty_folder">Empty folder</string>
+    
+    <plurals name="general_num_files">
+        <item quantity="one">file</item>
+        <item quantity="other">files</item>
+    </plurals>
+    
+    <plurals name="general_num_folders">
+        <item quantity="one">folder</item>
+        <item quantity="other">folders</item>
+    </plurals>
+
+    <string name="logout_success">Logout successful</string>
+</resources>

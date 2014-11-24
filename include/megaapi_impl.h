@@ -331,7 +331,7 @@ class MegaRequestPrivate : public MegaRequest
 		void setFile(const char* file);
         void setParamType(int type);
         void setText(const char* text);
-        void setNumber(int number);
+        void setNumber(long long number);
         void setFlag(bool flag);
         void setTransferTag(int transfer);
         void setListener(MegaRequestListener *listener);
@@ -739,7 +739,7 @@ class MegaApiImpl : public MegaApp
         int getTotalDownloads();
         void resetTotalDownloads();
         void resetTotalUploads();
-        void updateStatics();
+        void updateStats();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
 
