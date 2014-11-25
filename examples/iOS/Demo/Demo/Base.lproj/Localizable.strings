@@ -1,18 +1,37 @@
 "cancel" = "Cancel";
 "ok" = "OK";
 "error" = "Error";
-"logout" = "Logout...";
 
+//LoginViewController
 "invalidMailOrPassword" = "Email or password invalid.";
 
 "fetchingNodes" = "Fetching nodes";
 "preparingNodes" = "Preparing nodes";
+
+//UITABBARCONTROLLER (1) CLOUD DRIVE
+"cloudDrive" = "Cloud Drive";
+
+//DetailsNodeInfoViewController
+"savedForOffline" = "Saved for offline";
 "generateLink" = "Generate link...";
+
+//"+"
+//Upload photo
+"uploadPhoto" = "Upload photo";
 
 //Create folder
 "newFolderTitle" = "New folder";
 "newFolderMessage" = "Name for the new folder";
 "createFolderButton" = "Create";
+"createFolder" = "Create folder";
+
+//UITABBARCONTROLLER (2) OFFLINE
+
+
+//UITABBARCONTROLLER (3) CONTACTS
+"noFoldersShare" = "No folders share";
+"oneFolderShare" = "folder shared";
+"foldersShare" = "folders shared";
 
 //Rename
 "renameNodeTitle" = "Rename";
@@ -22,3 +41,6 @@
 //Remove
 "removeNodeTitle" = "Confirm delete";
 "removeNodeMessage" = "Are you sure?";
+
+//UITABBARCONTROLLER (4) SETTINGS
+"logout" = "Logout...";

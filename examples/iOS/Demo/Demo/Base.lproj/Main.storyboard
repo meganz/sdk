@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="6250" systemVersion="13F34" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="vXZ-lx-hvc">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="6250" systemVersion="14B25" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="vXZ-lx-hvc">
     <dependencies>
         <deployment identifier="iOS"/>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6244"/>
@@ -60,7 +60,7 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="x5A-6p-PRh" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="1051" y="-1409"/>
+            <point key="canvasLocation" x="1049" y="-1425"/>
         </scene>
         <!--Cloud Drive Table View Controller-->
         <scene sceneID="yyu-iP-Ukb">
@@ -191,7 +191,7 @@
                                     <action selector="tapRename:" destination="nXH-sM-h0J" eventType="touchUpInside" id="YBL-Q5-TKR"/>
                                 </connections>
                             </button>
-                            <label hidden="YES" opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="KkF-uV-VMB">
+                            <label hidden="YES" opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" misplaced="YES" text="" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="KkF-uV-VMB">
                                 <constraints>
                                     <constraint firstAttribute="width" constant="150" id="tdQ-Bq-vXE"/>
                                 </constraints>
@@ -346,7 +346,7 @@
         <scene sceneID="bw3-iC-Xfs">
             <objects>
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="z5f-q4-wb9" sceneMemberID="viewController">
-                    <tabBarItem key="tabBarItem" title="Cloud Drive" id="1bz-iN-B5v"/>
+                    <tabBarItem key="tabBarItem" title="Cloud Drive" image="cloudIcon" id="1bz-iN-B5v"/>
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="RbD-kl-Ca8">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
@@ -496,7 +496,7 @@
         <scene sceneID="Nqw-H0-2Lg">
             <objects>
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="P6Q-c7-SdM" sceneMemberID="viewController">
-                    <tabBarItem key="tabBarItem" title="Offline" id="cRT-iu-juh"/>
+                    <tabBarItem key="tabBarItem" title="Offline" image="offlineIcon" id="cRT-iu-juh"/>
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="Zfa-3P-17W">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
@@ -515,7 +515,7 @@
         <scene sceneID="BIr-NN-tVy">
             <objects>
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="MDl-r6-0hm" sceneMemberID="viewController">
-                    <tabBarItem key="tabBarItem" title="Settings" id="RSY-4Z-iP2"/>
+                    <tabBarItem key="tabBarItem" title="Settings" image="settingsIcon" id="RSY-4Z-iP2"/>
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="vQV-gq-1J4">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
@@ -534,7 +534,7 @@
         <scene sceneID="UTG-Hw-ug4">
             <objects>
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="ZVO-67-avg" sceneMemberID="viewController">
-                    <tabBarItem key="tabBarItem" title="Contacts" id="7iB-AC-2aH"/>
+                    <tabBarItem key="tabBarItem" title="Contacts" image="contactsIcon" id="7iB-AC-2aH"/>
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="g4P-5S-wEV">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
@@ -551,9 +551,13 @@
         </scene>
     </scenes>
     <resources>
+        <image name="cloudIcon" width="64" height="49"/>
+        <image name="contactsIcon" width="64" height="49"/>
         <image name="delete" width="30" height="30"/>
+        <image name="offlineIcon" width="64" height="49"/>
         <image name="renameFile" width="30" height="30"/>
         <image name="saveFile" width="30" height="30"/>
+        <image name="settingsIcon" width="64" height="49"/>
         <image name="shareFile" width="30" height="30"/>
     </resources>
 </document>

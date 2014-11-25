@@ -108,6 +108,10 @@
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
 		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Helper.h; path = ../Helper.h; sourceTree = "<group>"; };
 		E80D15901A236C7100148421 /* Helper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = Helper.m; path = ../Helper.m; sourceTree = "<group>"; };
+		E85477501A24944900C848F8 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Main.strings; sourceTree = "<group>"; };
+		E85477511A24944900C848F8 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		E85477521A24944900C848F8 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		E85477541A249F8800C848F8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -388,6 +392,7 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
 			);
 			mainGroup = 4168126819EE6E5700C72800;
 			productRefGroup = 4168127219EE6E5700C72800 /* Products */;
@@ -483,6 +488,7 @@
 			isa = PBXVariantGroup;
 			children = (
 				4168127F19EE6E5700C72800 /* Base */,
+				E85477501A24944900C848F8 /* es */,
 			);
 			name = Main.storyboard;
 			sourceTree = "<group>";
@@ -491,6 +497,8 @@
 			isa = PBXVariantGroup;
 			children = (
 				4168128419EE6E5700C72800 /* Base */,
+				E85477511A24944900C848F8 /* es */,
+				E85477541A249F8800C848F8 /* en */,
 			);
 			name = LaunchScreen.xib;
 			sourceTree = "<group>";
@@ -499,6 +507,7 @@
 			isa = PBXVariantGroup;
 			children = (
 				41C681D21A2330220088F2E6 /* Base */,
+				E85477521A24944900C848F8 /* es */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";

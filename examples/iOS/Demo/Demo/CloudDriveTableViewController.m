@@ -165,9 +165,9 @@
 - (IBAction)optionAdd:(id)sender {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil
                                                              delegate:self
-                                                    cancelButtonTitle:@"Cancel"
+                                                    cancelButtonTitle:NSLocalizedString(@"cancel", @"Cancel")
                                                destructiveButtonTitle:nil
-                                                    otherButtonTitles:@"Create folder", @"Upload photo", nil];
+                                                    otherButtonTitles:NSLocalizedString(@"createFolder", @"Create folder"), NSLocalizedString(@"uploadPhoto", @"Upload photo"), nil];
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
 
@@ -235,7 +235,7 @@
 
 - (void)reloadUI {
     if (!self.parentNode) {
-        [self.navigationItem setTitle:@"Cloud drive"];
+        [self.navigationItem setTitle:NSLocalizedString(@"cloudDrive", @"Cloud drive")];
         self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
     } else {
         [self.navigationItem setTitle:[self.parentNode name]];
@@ -261,7 +261,7 @@
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     switch ([request type]) {
         case MEGARequestTypeExport:
-            [SVProgressHUD showWithStatus:@"Generate link..."];
+            [SVProgressHUD showWithStatus:NSLocalizedString(@"generateLink", @"Generate link...")];
             break;
         
         default:

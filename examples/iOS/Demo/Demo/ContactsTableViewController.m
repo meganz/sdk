@@ -55,11 +55,13 @@
     
     int numFilesShares = [[[[MEGASdkManager sharedMEGASdk] inSharesForUser:user] size] intValue];
     if (numFilesShares == 0) {
-        cell.shareLabel.text = @"No folders share";
+        cell.shareLabel.text = NSLocalizedString(@"noFoldersShare", @"No folders shared");
     } else  if (numFilesShares == 1 ) {
-        cell.shareLabel.text = [NSString stringWithFormat:@"%d folder share", numFilesShares];
+        NSString *localizedString = NSLocalizedString(@"oneFolderShare", @" folder shared");
+        cell.shareLabel.text = [NSString stringWithFormat:@"%d %@", numFilesShares, localizedString];
     } else {
-        cell.shareLabel.text = [NSString stringWithFormat:@"%d folders share", numFilesShares];
+        NSString *localizedString = NSLocalizedString(@"foldersShare", @" folders shared");
+        cell.shareLabel.text = [NSString stringWithFormat:@"%d %@", numFilesShares, localizedString];
     }
     
     return cell;
