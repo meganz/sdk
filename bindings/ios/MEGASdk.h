@@ -2061,7 +2061,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param node Parent node.
  * @return Size of the node tree.
  */
-- (NSNumber *)sizeOfNode:(MEGANode *)node;
+- (NSNumber *)sizeForNode:(MEGANode *)node;
 
 #pragma mark - Debug log messages
 

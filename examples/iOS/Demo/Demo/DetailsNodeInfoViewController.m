@@ -68,7 +68,7 @@
     if ([self.node isFile]) {
         self.sizeLabel.text = [NSByteCountFormatter stringFromByteCount:[[self.node size] longLongValue] countStyle:NSByteCountFormatterCountStyleMemory];
     } else {
-        self.sizeLabel.text = [NSByteCountFormatter stringFromByteCount:[[[MEGASdkManager sharedMEGASdk] sizeOfNode:self.node] longLongValue] countStyle:NSByteCountFormatterCountStyleMemory];
+        self.sizeLabel.text = [NSByteCountFormatter stringFromByteCount:[[[MEGASdkManager sharedMEGASdk] sizeForNode:self.node] longLongValue] countStyle:NSByteCountFormatterCountStyleMemory];
     }
     
     self.title = [self.node name];
