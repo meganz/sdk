@@ -167,6 +167,8 @@ void CurlHttpIO::setdnsservers(const char* servers)
 
 void CurlHttpIO::disconnect()
 {
+    LOG_debug << "Reinitializing the network layer";
+
     ares_destroy(ares);
     curl_multi_cleanup(curlm);
 
@@ -175,6 +177,12 @@ void CurlHttpIO::disconnect()
 
     curlm = curl_multi_init();
     ares_init(&ares);
+
+    if (dnsservers.size())
+    {
+        LOG_debug << "Using custom DNS servers: " << dnsservers;
+        ares_set_servers_csv(ares, dnsservers.c_str());
+    }
 }
 
 // wake up from cURL I/O
