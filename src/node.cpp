@@ -28,6 +28,7 @@
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
+#include "mega/logging.h"
 
 namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
@@ -334,6 +335,7 @@ bool Node::serialize(string* d)
     // do not update state if undecrypted nodes are present
     if (attrstring)
     {
+        LOG_warn << "Trying to serialize an undecrypted node";
         return false;
     }
 

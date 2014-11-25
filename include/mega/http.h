@@ -81,6 +81,8 @@ struct MEGA_API HttpIO : public EventTrigger
     virtual void lock() { }
     virtual void unlock() { }
 
+    virtual void disconnect() { }
+
     // track Internet connectivity issues
     dstime noinetds;
     bool inetback;

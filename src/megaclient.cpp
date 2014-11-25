@@ -1843,6 +1843,7 @@ void MegaClient::disconnect()
     }
 
     httpio->lastdata = NEVER;
+    httpio->disconnect();
 }
 
 void MegaClient::logout()
@@ -1950,6 +1951,7 @@ bool MegaClient::procsc()
                 default:
                     if (!jsonsc.storeobject())
                     {
+                        LOG_err << "Error parsing sc request";
                         return true;
                     }
             }
@@ -1992,6 +1994,7 @@ bool MegaClient::procsc()
                                     // we have a potential move followed by another potential move
                                     // or rename, which indicates a potential move-overwrite:
                                     // run syncdown() to process the first move before proceeding
+                                    applykeys();
                                     return false;
                                 }
 #endif
@@ -2830,11 +2833,15 @@ void MegaClient::sc_userattr()
 void MegaClient::notifypurge(void)
 {
     int i, t;
-    string localpath;
 
     handle tscsn = cachedscsn;
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
+
+    if (tscsn == cachedscsn)
+    {
+        return;
+    }
 
     if (nodenotify.size() || usernotify.size() || cachedscsn != tscsn)
     {
