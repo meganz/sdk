@@ -2838,7 +2838,7 @@ void MegaClient::notifypurge(void)
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
 
-    if(tscsn == cachedscsn)
+    if (tscsn == cachedscsn)
     {
         return;
     }
