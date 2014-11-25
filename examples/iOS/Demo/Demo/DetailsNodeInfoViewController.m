@@ -79,7 +79,7 @@
         [self.downloadProgressView setHidden:YES];
         [self.saveLabel setHidden:NO];
         [self.downloadButton setImage:[UIImage imageNamed:@"savedFile"] forState:UIControlStateNormal];
-        self.saveLabel.text = @"Saved for offline";
+        self.saveLabel.text = NSLocalizedString(@"savedForOffline", @"Saved for offline");
         
     }
 }
@@ -141,7 +141,7 @@
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
     switch ([request type]) {
         case MEGARequestTypeExport:
-            [SVProgressHUD showWithStatus:NSLocalizedString(@"generateLing", @"Generate link...")];
+            [SVProgressHUD showWithStatus:NSLocalizedString(@"generateLink", @"Generate link...")];
             break;
             
         default:
@@ -217,7 +217,7 @@
     [self.downloadProgressView setProgress:1];
     [self.saveLabel setHidden:NO];
     [self.downloadButton setImage:[UIImage imageNamed:@"savedFile"] forState:UIControlStateNormal];
-    self.saveLabel.text = @"Saved for offline";
+    self.saveLabel.text = NSLocalizedString(@"savedForOffline", @"Saved for offline");
 }
 
 -(void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
