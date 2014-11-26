@@ -708,7 +708,10 @@ bool Node::setparent(Node* p)
 
     parent = p;
 
-    child_it = parent->children.insert(parent->children.end(), this);
+    if(parent)
+    {
+        child_it = parent->children.insert(parent->children.end(), this);
+    }
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
