@@ -9,6 +9,9 @@
 #define isImage(n)        [imagesSet containsObject:n]
 #define isVideo(n)        [videoSet containsObject:n]
 
+#define kMEGANode @"kMEGANode"
+#define kIndex @"kIndex"
+
 @interface Helper : NSObject
 
 + (UIImage *)imageForNode:(MEGANode *)node;

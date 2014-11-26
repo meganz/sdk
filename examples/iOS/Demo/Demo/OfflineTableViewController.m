@@ -3,9 +3,6 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import "Helper.h"
 
-#define kMEGANode @"kMEGANode"
-#define kIndex @"kIndex"
-
 @interface OfflineTableViewController ()
 
 @property (nonatomic, strong) NSMutableArray *offlineDocuments;

@@ -5,12 +5,14 @@
 #import <AssetsLibrary/AssetsLibrary.h>
 #import "DetailsNodeInfoViewController.h"
 #import "Helper.h"
+#import "MEGAphoto.h"
 
 @interface CloudDriveTableViewController () {
     UIAlertView *folderAlertView;
     NSInteger indexNodeSelected;
 }
 
+@property (nonatomic, strong) NSMutableArray *cloudImages;
 @property (nonatomic, strong) MEGANodeList *nodes;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *addItem;
 
@@ -132,7 +134,46 @@
             [self.navigationController pushViewController:cdvc animated:YES];
             break;
         }
-            
+        case MEGANodeTypeFile: {
+            NSString *name = [node name];
+            if (isImage(name.lowercaseString.pathExtension)) {
+                
+                int offsetIndex = 0;
+                
+                for (NSInteger i = 0; i < [[self.nodes size] integerValue]; i++) {
+                    
+                    MEGANode *node = [self.nodes nodeAtIndex:i];
+                    
+                    if (isImage([node name].lowercaseString.pathExtension)) {
+                        offsetIndex++;
+                        MEGAphoto *photo = [MEGAphoto photoWithNode:node];
+                        photo.caption = [node name];
+                        [self.cloudImages addObject:photo];
+                    }
+                }
+                
+                MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
+                
+                browser.displayActionButton = YES;
+                browser.displayNavArrows = YES;
+                browser.displaySelectionButtons = NO;
+                browser.zoomPhotosToFill = YES;
+                browser.alwaysShowControls = YES;
+                browser.enableGrid = YES;
+                browser.startOnGrid = NO;
+                
+                // Optionally set the current visible photo before displaying
+                //    [browser setCurrentPhotoIndex:1];
+                
+                [self.navigationController pushViewController:browser animated:YES];
+                
+                [browser showNextPhotoAnimated:YES];
+                [browser showPreviousPhotoAnimated:YES];
+                NSInteger selectedIndexPhoto = [[[self.cloudImages objectAtIndex:indexPath.row] objectForKey:kIndex] integerValue];
+                [browser setCurrentPhotoIndex:selectedIndexPhoto];
+            }
+            break;
+        }
         default:
             break;
     }
