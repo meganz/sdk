@@ -5025,7 +5025,11 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 {
-	if(!parent || !name) return NULL;
+    if(!parent || !name)
+    {
+        return NULL;
+    }
+
     sdkMutex.lock();
     Node *parentNode = client->nodebyhandle(parent->getHandle());
 	if(!parentNode)
@@ -5034,35 +5038,9 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
         return NULL;
 	}
 
-	MegaNode *node = MegaNodePrivate::fromNode(getChildNodeInternal(parentNode, name));
+    MegaNode *node = MegaNodePrivate::fromNode(client->childnodebyname(parentNode, name));
     sdkMutex.unlock();
     return node;
-}
-
-Node* MegaApiImpl::getChildNodeInternal(Node *parent, const char* name)
-{
-	if(!parent || !name) return NULL;
-    sdkMutex.lock();
-    parent = client->nodebyhandle(parent->nodehandle);
-	if(!parent)
-	{
-        sdkMutex.unlock();
-        return NULL;
-	}
-
-	Node *result = NULL;
-    string nname = name;
-    fsAccess->normalize(&nname);
-	for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
-	{
-        if (!strcmp(nname.c_str(),(*it)->displayname()))
-		{
-			result = *it;
-			break;
-		}
-	}
-    sdkMutex.unlock();
-    return result;
 }
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
@@ -5204,7 +5182,11 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 			{
 				if (*path == '\\')
 				{
-					if (path > bptr) s.append(bptr,path-bptr);
+                    if (path > bptr)
+                    {
+                        s.append(bptr, path - bptr);
+                    }
+
 					bptr = ++path;
 
 					if (*bptr == 0)
@@ -5229,21 +5211,39 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 						remote = 1;
 					}
 
-					if (path > bptr) s.append(bptr,path-bptr);
+                    if (path > bptr)
+                    {
+                        s.append(bptr, path - bptr);
+                    }
 
-					bptr = path+1;
+                    bptr = path + 1;
 
 					c.push_back(s);
 
 					s.erase();
 				}
 			}
-			else if ((*path & 0xf0) == 0xe0) l = 1;
-			else if ((*path & 0xf8) == 0xf0) l = 2;
-			else if ((*path & 0xfc) == 0xf8) l = 3;
-			else if ((*path & 0xfe) == 0xfc) l = 4;
+            else if ((*path & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*path & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*path & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*path & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
 		}
-		else l--;
+        else
+        {
+            l--;
+        }
 	} while (*path++);
 
 	if (l)
@@ -5254,10 +5254,9 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 
 	if (remote)
 	{
-		// target: user inbox - record username/email and return NULL
+        // target: user inbox - it's not a node - return NULL
 		if (c.size() == 2 && !c[1].size())
 		{
-			//if (user) *user = c[0];
             sdkMutex.unlock();
             return NULL;
 		}
@@ -5307,8 +5306,14 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 			// path starting with //
 			if (c.size() > 2 && !c[1].size())
 			{
-				if (c[2] == "in") n = client->nodebyhandle(client->rootnodes[1]);
-				else if (c[2] == "bin") n = client->nodebyhandle(client->rootnodes[2]);
+                if (c[2] == "in")
+                {
+                    n = client->nodebyhandle(client->rootnodes[1]);
+                }
+                else if (c[2] == "bin")
+                {
+                    n = client->nodebyhandle(client->rootnodes[2]);
+                }
 				else
 				{
                     sdkMutex.unlock();
@@ -5323,7 +5328,10 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 				l = 1;
 			}
 		}
-		else n = cwd;
+        else
+        {
+            n = cwd;
+        }
 	}
 
 	// parse relative path
@@ -5333,14 +5341,17 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 		{
 			if (c[l] == "..")
 			{
-                if (n->parent) n = n->parent;
+                if (n->parent)
+                {
+                    n = n->parent;
+                }
 			}
 			else
 			{
 				// locate child node (explicit ambiguity resolution: not implemented)
 				if (c[l].size())
 				{
-					nn = getChildNodeInternal(n,c[l].c_str());
+                    nn = client->childnodebyname(n, c[l].c_str());
 
 					if (!nn)
 					{
@@ -5355,6 +5366,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 
 		l++;
 	}
+
     MegaNode *result = MegaNodePrivate::fromNode(n);
     sdkMutex.unlock();
     return result;
