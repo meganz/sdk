@@ -38,6 +38,7 @@
 		41C681EA1A2363E20088F2E6 /* ContactsTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681E91A2363E20088F2E6 /* ContactsTableViewController.m */; };
 		41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681F21A23658C0088F2E6 /* MEGASdkManager.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
+		943D11F91A25F25100318442 /* MEGAphoto.m in Sources */ = {isa = PBXBuildFile; fileRef = 943D11F81A25F25100318442 /* MEGAphoto.m */; };
 		E80D15911A236C7100148421 /* Helper.m in Sources */ = {isa = PBXBuildFile; fileRef = E80D15901A236C7100148421 /* Helper.m */; };
 /* End PBXBuildFile section */
 
@@ -106,6 +107,8 @@
 		41C681F11A23658C0088F2E6 /* MEGASdkManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGASdkManager.h; sourceTree = "<group>"; };
 		41C681F21A23658C0088F2E6 /* MEGASdkManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEGASdkManager.m; sourceTree = "<group>"; };
 		41D4EADC19EED5270097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
+		943D11F71A25F25100318442 /* MEGAphoto.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAphoto.h; sourceTree = "<group>"; };
+		943D11F81A25F25100318442 /* MEGAphoto.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MEGAphoto.m; sourceTree = "<group>"; };
 		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Helper.h; path = ../Helper.h; sourceTree = "<group>"; };
 		E80D15901A236C7100148421 /* Helper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = Helper.m; path = ../Helper.m; sourceTree = "<group>"; };
 		E85477501A24944900C848F8 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Main.strings; sourceTree = "<group>"; };
@@ -297,6 +300,8 @@
 		41C681EE1A23641B0088F2E6 /* Cloud drive */ = {
 			isa = PBXGroup;
 			children = (
+				943D11F71A25F25100318442 /* MEGAphoto.h */,
+				943D11F81A25F25100318442 /* MEGAphoto.m */,
 				416812A619EE8E9500C72800 /* CloudDriveTableViewController.h */,
 				416812A719EE8E9500C72800 /* CloudDriveTableViewController.m */,
 				41B4553919F1218000439D45 /* NodeTableViewCell.h */,
@@ -453,6 +458,7 @@
 				4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */,
 				41C681E71A2363700088F2E6 /* ContactTableViewCell.m in Sources */,
 				41C681EA1A2363E20088F2E6 /* ContactsTableViewController.m in Sources */,
+				943D11F91A25F25100318442 /* MEGAphoto.m in Sources */,
 				4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */,
 				4114CBC81A07E9C100B7D475 /* OfflineTableViewController.m in Sources */,
 				41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */,
