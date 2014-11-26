@@ -1917,6 +1917,17 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 - (MEGANodeList *)inShares;
 
 /**
+ * @brief Check if a MEGANode is being shared.
+ *
+ * For nodes that are being shared, you can get a a list of MegaShare
+ * objects using [MEGASdk outSharesForNode:].
+ *
+ * @param node Node to check.
+ * @return YES is the MEGANode is being shared, otherwise NO.
+ */
+- (BOOL)isSharedNode:(MEGANode *)node;
+
+/**
  * @brief Get a list with the active outbound sharings for a MEGANode.
  *
  * If the node doesn't exist in the account, this function returns an empty list.

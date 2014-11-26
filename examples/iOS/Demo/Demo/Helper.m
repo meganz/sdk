@@ -1,4 +1,5 @@
 #import "Helper.h"
+#import "MEGASdkManager.h"
 
 @implementation Helper
 
@@ -81,7 +82,7 @@
                                  @"jpeg":@"image.png",
                                  @"jpg":@"image.png",
                                  @"js":@"web_data.png",
-                                 @"key":@"powerpoint.png",
+                                 @"key":@"generic.png",
                                  @"kml":@"gis.png",
                                  @"log":@"text.png",
                                  @"m":@"sourcecode.png",
@@ -105,7 +106,7 @@
                                  @"numbers":@"spreadsheet.png",
                                  @"nef":@"raw.png",
                                  @"obj":@"3D.png",
-                                 @"odp":@"powerpoint.png",
+                                 @"odp":@"generic.png",
                                  @"ods":@"spreadsheet.png",
                                  @"odt":@"text.png",
                                  @"ogv":@"video.png",
@@ -178,18 +179,28 @@
     
     MEGANodeType nodeType = [node type];
     
-    if (!node) {
-        return [UIImage imageNamed:@"generic"];
-    } else if (nodeType == MEGANodeTypeFolder || nodeType == MEGANodeTypeRubbish) {
-        return [UIImage imageNamed:@"folder"];
-    } else if (nodeType == MEGANodeTypeFile) {
-        NSString *im = [dictionary valueForKey:[node name].lowercaseString.pathExtension];
-        if (im && im.length>0) {
-            return [UIImage imageNamed:im];
+    switch (nodeType) {
+        case MEGANodeTypeFolder: {
+            if ([[MEGASdkManager sharedMEGASdk] isSharedNode:node])
+                return [UIImage imageNamed:@"folder_shared"];
+            else
+                return [UIImage imageNamed:@"folder"];
+            }
+                
+        case MEGANodeTypeRubbish:
+            return [UIImage imageNamed:@"folder"];
+            
+        case MEGANodeTypeFile: {
+            NSString *im = [dictionary valueForKey:[node name].lowercaseString.pathExtension];
+            if (im && im.length>0) {
+                return [UIImage imageNamed:im];
+            }
         }
+            
+        default:
+            return [UIImage imageNamed:@"generic"];
     }
     
-    return [UIImage imageNamed:@"generic"];
 }
 
 + (NSString *)pathForNode:(MEGANode *)node searchPath:(NSSearchPathDirectory)path directory:(NSString *)directory {
