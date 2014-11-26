@@ -129,7 +129,7 @@ Node::~Node()
     }
 #endif
 
-    if(outshares)
+    if (outshares)
     {
         // delete outshares, including pointers from users for this node
         for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
@@ -408,7 +408,7 @@ bool Node::serialize(string* d)
     }
     else
     {
-        if(!outshares)
+        if (!outshares)
         {
             numshares = 0;
         }
@@ -430,7 +430,7 @@ bool Node::serialize(string* d)
         }
         else
         {
-            if(outshares)
+            if (outshares)
             {
                 for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
                 {
@@ -609,7 +609,7 @@ bool Node::applykey()
                    ? FILENODEKEYLENGTH + 0
                    : FOLDERNODEKEYLENGTH + 0;
 
-    if(type > FOLDERNODE)
+    if (type > FOLDERNODE)
     {
         //Root nodes contain an empty attrstring
         delete attrstring;
@@ -708,7 +708,10 @@ bool Node::setparent(Node* p)
 
     parent = p;
 
-    child_it = parent->children.insert(parent->children.end(), this);
+    if (parent)
+    {
+        child_it = parent->children.insert(parent->children.end(), this);
+    }
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
@@ -1079,8 +1082,10 @@ LocalNode::~LocalNode()
 
     if (type == FOLDERNODE)
     {
-        if(sync->dirnotify)
+        if (sync->dirnotify)
+        {
             sync->dirnotify->delnotify(this);
+        }
     }
 
     // remove parent association
