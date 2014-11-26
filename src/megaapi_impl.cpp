@@ -5264,22 +5264,34 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 
 		User* u;
 
-		if ((u = client->finduser(c[0].c_str())))
-		{
-			// locate matching share from this user
-			handle_set::iterator sit;
+        if ((u = client->finduser(c[0].c_str())))
+        {
+            // locate matching share from this user
+            handle_set::iterator sit;
+            string name;
+            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+            {
+                if ((n = client->nodebyhandle(*sit)))
+                {
+                    if(!name.size())
+                    {
+                        name =  c[1];
+                        n->client->fsaccess->normalize(&name);
+                    }
 
-			for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-			{
-				if ((n = client->nodebyhandle(*sit)))
-				{
-					l = 2;
-					break;
-				}
+                    if (!strcmp(name.c_str(), n->displayname()))
+                    {
+                        l = 2;
+                        break;
+                    }
+                }
 
-				if (l) break;
-			}
-		}
+                if (l)
+                {
+                    break;
+                }
+            }
+        }
 
 		if (!l)
 		{
