@@ -4195,7 +4195,7 @@ void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
             Node *child = *it++;
             if(!(skipinshares && child->inshare))
             {
-                proctree(child, tp);
+                proctree(child, tp, skipinshares);
             }
         }
     }
