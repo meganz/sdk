@@ -96,10 +96,9 @@
         [browser setCurrentPhotoIndex:selectedIndexPhoto];
         
     } else if (isVideo(name.lowercaseString.pathExtension)) {
-        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-        NSString *path = [paths objectAtIndex:0];
+        NSString *documentDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
         NSMutableString *filePath = [NSMutableString new];
-        [filePath appendFormat:@"%@/%@.%@", path, [node base64Handle], [name pathExtension]];
+        [filePath appendFormat:@"%@/%@.%@", documentDirectory, [node base64Handle], [name pathExtension]];
         NSURL *fileURL = [NSURL fileURLWithPath:filePath];
         
         MPMoviePlayerViewController *videoPlayerView = [[MPMoviePlayerViewController alloc] initWithContentURL:fileURL];
@@ -107,6 +106,8 @@
         [videoPlayerView.moviePlayer play];
     }
 }
+
+#pragma mark - MWPhotoBrowserDelegate
 
 - (NSUInteger)numberOfPhotosInPhotoBrowser:(MWPhotoBrowser *)photoBrowser {
     return self.offlineImages.count;
@@ -126,13 +127,12 @@
     self.offlineImages = [NSMutableArray new];
     
     int i;
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *path = [paths objectAtIndex:0];
-    NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:path error:NULL];
+    NSString *documentDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+    NSArray *directoryContent = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:documentDirectory error:NULL];
     int offsetIndex = 0;
     
     for (i = 0; i < (int)[directoryContent count]; i++) {
-        NSString *filePath = [path stringByAppendingPathComponent:[directoryContent objectAtIndex:i]];
+        NSString *filePath = [documentDirectory stringByAppendingPathComponent:[directoryContent objectAtIndex:i]];
         NSString *filename = [NSString stringWithFormat:@"%@", [directoryContent objectAtIndex:i]];
         
         if (![filename.lowercaseString.pathExtension isEqualToString:@"mega"]) {

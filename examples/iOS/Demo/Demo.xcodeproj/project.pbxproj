@@ -376,7 +376,7 @@
 		4168126919EE6E5700C72800 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				CLASSPREFIX = MGA;
+				CLASSPREFIX = "";
 				LastUpgradeCheck = 0600;
 				ORGANIZATIONNAME = MEGA;
 				TargetAttributes = {

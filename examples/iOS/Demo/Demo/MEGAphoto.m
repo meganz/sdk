@@ -75,19 +75,15 @@
 
 
 - (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
-    NSLog(@"request start: %s",__FUNCTION__);
 }
 
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error{
-
-    NSLog(@"request finish: %s",__FUNCTION__);
     self.caption = [self.node base64Handle];
     [self performSelector:@selector(imageLoaded) withObject:nil afterDelay:0];
 
 }
 
 - (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error{
-    NSLog(@"request error: %s",__FUNCTION__);
 }
 
 @end

@@ -28,20 +28,17 @@
     NSArray *buttonsItems = @[self.addItem];
     self.navigationItem.rightBarButtonItems = buttonsItems;
     
-    NSString *path;
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
+    NSString *thumbsDirectory = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0] stringByAppendingPathComponent:@"thumbs"];
     NSError *error;
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
-        if (![[NSFileManager defaultManager] createDirectoryAtPath:path withIntermediateDirectories:NO attributes:nil error:&error]) {
+    if (![[NSFileManager defaultManager] fileExistsAtPath:thumbsDirectory]) {
+        if (![[NSFileManager defaultManager] createDirectoryAtPath:thumbsDirectory withIntermediateDirectories:NO attributes:nil error:&error]) {
             NSLog(@"Create directory error: %@", error);
         }
     }
     
-    paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    path = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"previews"];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
-        if (![[NSFileManager defaultManager] createDirectoryAtPath:path withIntermediateDirectories:NO attributes:nil error:&error]) {
+    NSString *previewsDirectory = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0] stringByAppendingPathComponent:@"previews"];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:previewsDirectory]) {
+        if (![[NSFileManager defaultManager] createDirectoryAtPath:previewsDirectory withIntermediateDirectories:NO attributes:nil error:&error]) {
             NSLog(@"Create directory error: %@", error);
         }
     }
@@ -139,16 +136,18 @@
             if (isImage(name.lowercaseString.pathExtension)) {
                 
                 int offsetIndex = 0;
-                
+                self.cloudImages = [NSMutableArray new];
                 for (NSInteger i = 0; i < [[self.nodes size] integerValue]; i++) {
                     
-                    MEGANode *node = [self.nodes nodeAtIndex:i];
+                    MEGANode *n = [self.nodes nodeAtIndex:i];
                     
-                    if (isImage([node name].lowercaseString.pathExtension)) {
-                        offsetIndex++;
-                        MEGAphoto *photo = [MEGAphoto photoWithNode:node];
-                        photo.caption = [node name];
+                    if (isImage([n name].lowercaseString.pathExtension)) {
+                        MEGAphoto *photo = [MEGAphoto photoWithNode:n];
+                        photo.caption = [n name];
                         [self.cloudImages addObject:photo];
+                        if ([n handle] == [node handle]) {
+                            offsetIndex = [self.cloudImages count] - 1;
+                        }
                     }
                 }
                 
@@ -169,8 +168,8 @@
                 
                 [browser showNextPhotoAnimated:YES];
                 [browser showPreviousPhotoAnimated:YES];
-                NSInteger selectedIndexPhoto = [[[self.cloudImages objectAtIndex:indexPath.row] objectForKey:kIndex] integerValue];
-                [browser setCurrentPhotoIndex:selectedIndexPhoto];
+//                NSInteger selectedIndexPhoto = [[[self.cloudImages objectAtIndex:indexPath.row] objectForKey:kIndex] integerValue];
+                [browser setCurrentPhotoIndex:offsetIndex];
             }
             break;
         }
@@ -210,6 +209,20 @@
                                                destructiveButtonTitle:nil
                                                     otherButtonTitles:NSLocalizedString(@"createFolder", @"Create folder"), NSLocalizedString(@"uploadPhoto", @"Upload photo"), nil];
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
+}
+
+
+
+#pragma mark - MWPhotoBrowserDelegate
+
+- (NSUInteger)numberOfPhotosInPhotoBrowser:(MWPhotoBrowser *)photoBrowser {
+    return self.cloudImages.count;
+}
+
+- (id <MWPhoto>)photoBrowser:(MWPhotoBrowser *)photoBrowser photoAtIndex:(NSUInteger)index {
+    if (index < self.cloudImages.count)
+        return [self.cloudImages objectAtIndex:index];
+    return nil;
 }
 
 #pragma mark - Action sheet delegate
@@ -282,7 +295,6 @@
         [self.navigationItem setTitle:[self.parentNode name]];
         self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:self.parentNode];
     }
-    
     [self.tableView reloadData];
 }
 
@@ -343,20 +355,12 @@
     }
 }
 
-- (void)onRequestUpdate:(MEGASdk *)api request:(MEGARequest *)request {
-}
-
 - (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
 #pragma mark - MEGAGlobalListener
 
-- (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList{
-
-}
-
 - (void)onReloadNeeded:(MEGASdk *)api {
-
 }
 
 - (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList {
