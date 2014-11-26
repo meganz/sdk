@@ -153,7 +153,7 @@ void MegaClient::mergenewshares(bool notify)
                 // share was deleted
                 if (s->outgoing)
                 {
-                    if(n->outshares)
+                    if (n->outshares)
                     {
                         // outgoing share to user u deleted
                         if (n->outshares->erase(s->peer) && notify)
@@ -176,7 +176,7 @@ void MegaClient::mergenewshares(bool notify)
                 else
                 {
                     // incoming share deleted - remove tree
-                    if(!n->parent)
+                    if (!n->parent)
                     {
                         TreeProcDel td;
                         proctree(n, &td, true);
@@ -202,7 +202,7 @@ void MegaClient::mergenewshares(bool notify)
                         // only on own nodes and signed unless read from cache
                         if (checkaccess(n, OWNERPRELOGIN))
                         {
-                            if(!n->outshares)
+                            if (!n->outshares)
                             {
                                 n->outshares = new share_map;
                             }
@@ -2447,7 +2447,7 @@ void MegaClient::sc_updatenode()
 
                         if (a)
                         {
-                            if(!n->attrstring)
+                            if (!n->attrstring)
                             {
                                 n->attrstring = new string;
                             }
@@ -4193,7 +4193,7 @@ void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {
             Node *child = *it++;
-            if(!(skipinshares && child->inshare))
+            if (!(skipinshares && child->inshare))
             {
                 proctree(child, tp, skipinshares);
             }
