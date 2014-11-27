@@ -4053,6 +4053,79 @@ void MegaClient::readoutshareelement(JSON* j)
     }
 }
 
+void MegaClient::readipc(JSON *j)
+{
+    // fields: ps, m, ts, uts, msg, p
+    if (j->enterarray())
+    {
+        while (j->enterobject())
+        {
+            m_time_t ts = 0;
+            m_time_t uts = 0;
+            const char *m = NULL;
+            const char *msg = NULL;
+            handle p = UNDEF;
+
+            PendingContactRequest *pcr;
+
+            bool done = false;
+            while (!done)
+            {
+                switch (j->getnameid()) {
+                    case MAKENAMEID2('p', 's'):
+                        break;
+                    case 'm':
+                        m = j->getvalue();
+                        break;
+                    case MAKENAMEID2('t', 's'):
+                        ts = j->getint();
+                        break;
+                    case MAKENAMEID3('u', 't', 's'):
+                        uts = j->getint();
+                        break;
+                    case MAKENAMEID3('m', 's', 'g'):
+                        msg = j->getvalue();
+                        break;
+                    case 'p':
+                        p = j->gethandle();
+                        break;
+                    case EOO:
+                        done = true;
+                        if (ISUNDEF(p))
+                        {
+                            LOG_err << "p element not provided";
+                            break;
+                        }
+                        if (!m) {
+                            LOG_err << "m element not provided";
+                            break;
+                        }
+                        if (ts == 0) {
+                            LOG_err << "ts element not provided";
+                            break;
+                        }
+                        if (uts == 0) {
+                            LOG_err << "uts element not provided";
+                            break;
+                        }
+                        pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg);
+
+                        break;
+                }
+            }
+        }
+
+        j->leavearray();
+
+        //mergenewshares(0);
+    }
+}
+
+void MegaClient::readopc(JSON *j)
+{
+
+}
+
 int MegaClient::applykeys()
 {
     int t = 0;
