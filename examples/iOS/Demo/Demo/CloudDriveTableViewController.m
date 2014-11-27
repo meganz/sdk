@@ -126,7 +126,7 @@
     MEGANode *node = [self.nodes nodeAtIndex:indexPath.row];
     switch ([node type]) {
         case MEGANodeTypeFolder: {
-            CloudDriveTableViewController *cdvc = [self.storyboard instantiateViewControllerWithIdentifier:@"drive"];
+            CloudDriveTableViewController *cdvc = [self.storyboard instantiateViewControllerWithIdentifier:@"CloudDriveID"];
             [cdvc setParentNode:node];
             [self.navigationController pushViewController:cdvc animated:YES];
             break;
@@ -327,7 +327,11 @@
         return;
     }
     
-    switch ([request type]) {            
+    switch ([request type]) {
+        case MEGARequestTypeFetchNodes:
+            [SVProgressHUD dismiss];
+            break;
+            
         case MEGARequestTypeGetAttrFile: {
             for (NodeTableViewCell *ntvc in [self.tableView visibleCells]) {
                 if ([request nodeHandle] == [ntvc nodeHandle]) {

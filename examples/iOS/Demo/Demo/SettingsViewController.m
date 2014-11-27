@@ -2,6 +2,7 @@
 #import "SVProgressHUD.h"
 #import "LoginViewController.h"
 #import "Helper.h"
+#import "SSKeychain.h"
 
 @interface SettingsViewController ()
 
@@ -61,6 +62,7 @@
     switch ([request type]) {
             
         case MEGARequestTypeLogout: {
+            [SSKeychain deletePasswordForService:@"MEGA" account:@"session"];
             NSFileManager *fm = [NSFileManager defaultManager];
             NSError *error = nil;
             

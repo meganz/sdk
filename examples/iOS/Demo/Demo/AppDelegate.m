@@ -1,5 +1,6 @@
 #import "AppDelegate.h"
-#import "MEGASdkManager.h"
+#import "SSKeychain.h"
+#import "SVProgressHUD.h"
 
 #define kUserAgent @"iOS Example/1.0"
 #define kAppKey @"hNF3ELhK"
@@ -18,6 +19,18 @@
     [MEGASdkManager setUserAgent:kUserAgent];
     [MEGASdkManager sharedMEGASdk];
     [MEGASdk setLogLevel:MEGALogLevelInfo];
+    
+    UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+    if ([SSKeychain passwordForService:@"MEGA" account:@"session"]) {
+        [[MEGASdkManager sharedMEGASdk] fastLoginWithSession:[SSKeychain passwordForService:@"MEGA" account:@"session"]];
+        [[MEGASdkManager sharedMEGASdk] fetchNodesWithDelegate:self];
+        UITabBarController *tabBarVC = [storyboard instantiateViewControllerWithIdentifier:@"TabBarControllerID"];
+        self.window.rootViewController = tabBarVC;
+
+    } else {
+        UIViewController *loginVC = [storyboard instantiateViewControllerWithIdentifier:@"LoginViewControllerID"];
+        self.window.rootViewController = loginVC;
+    }
     
     return YES;
 }
@@ -42,6 +55,28 @@
 
 - (void)applicationWillTerminate:(UIApplication *)application {
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+}
+
+#pragma mark - MEGARequestDelegate
+
+- (void)onRequestStart:(MEGASdk *)api request:(MEGARequest *)request {
+    switch ([request type]) {
+            case MEGARequestTypeFetchNodes:
+            [SVProgressHUD showWithStatus:NSLocalizedString(@"updatingNodes", @"Updating nodes...")];
+            break;
+            
+        default:
+            break;
+    }
+}
+
+- (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
+    if ([error type]) {
+        return;
+    }
+}
+
+- (void)onRequestTemporaryError:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
 }
 
 @end

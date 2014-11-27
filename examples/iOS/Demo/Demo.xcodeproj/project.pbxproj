@@ -31,6 +31,8 @@
 		41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
 		41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
 		41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
+		41AD803F1A2745580015B79B /* SSKeychain.m in Sources */ = {isa = PBXBuildFile; fileRef = 41AD803C1A2745580015B79B /* SSKeychain.m */; };
+		41AD80401A2745580015B79B /* SSKeychainQuery.m in Sources */ = {isa = PBXBuildFile; fileRef = 41AD803E1A2745580015B79B /* SSKeychainQuery.m */; };
 		41B09CB41A26479000CCBC49 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41B09CB31A26479000CCBC49 /* Images.xcassets */; };
 		41B4553B19F1218000439D45 /* NodeTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B4553A19F1218000439D45 /* NodeTableViewCell.m */; };
 		41C681D31A2330220088F2E6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 41C681D11A2330220088F2E6 /* Localizable.strings */; };
@@ -96,6 +98,10 @@
 		41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
 		41AB68FD1A094459003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
 		41ACFBC61A1155AC00905ACF /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
+		41AD803B1A2745580015B79B /* SSKeychain.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SSKeychain.h; sourceTree = "<group>"; };
+		41AD803C1A2745580015B79B /* SSKeychain.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SSKeychain.m; sourceTree = "<group>"; };
+		41AD803D1A2745580015B79B /* SSKeychainQuery.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SSKeychainQuery.h; sourceTree = "<group>"; };
+		41AD803E1A2745580015B79B /* SSKeychainQuery.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SSKeychainQuery.m; sourceTree = "<group>"; };
 		41B09CB31A26479000CCBC49 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		41B4553919F1218000439D45 /* NodeTableViewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NodeTableViewCell.h; sourceTree = "<group>"; };
 		41B4553A19F1218000439D45 /* NodeTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NodeTableViewCell.m; sourceTree = "<group>"; };
@@ -251,6 +257,7 @@
 		416812A919EE8FAC00C72800 /* vendor */ = {
 			isa = PBXGroup;
 			children = (
+				41AD803A1A2745580015B79B /* SSKeychain */,
 				4135AE9419F5880C00A8A56A /* MWPhotoBrowser */,
 				416812AA19EE8FAC00C72800 /* SVProgressHUD */,
 			);
@@ -266,6 +273,17 @@
 				416812AE19EE8FAC00C72800 /* SVProgressHUD.m */,
 			);
 			path = SVProgressHUD;
+			sourceTree = "<group>";
+		};
+		41AD803A1A2745580015B79B /* SSKeychain */ = {
+			isa = PBXGroup;
+			children = (
+				41AD803B1A2745580015B79B /* SSKeychain.h */,
+				41AD803C1A2745580015B79B /* SSKeychain.m */,
+				41AD803D1A2745580015B79B /* SSKeychainQuery.h */,
+				41AD803E1A2745580015B79B /* SSKeychainQuery.m */,
+			);
+			path = SSKeychain;
 			sourceTree = "<group>";
 		};
 		41C681EB1A2363EA0088F2E6 /* Contacts */ = {
@@ -458,6 +476,7 @@
 				4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */,
 				41C681E71A2363700088F2E6 /* ContactTableViewCell.m in Sources */,
 				41C681EA1A2363E20088F2E6 /* ContactsTableViewController.m in Sources */,
+				41AD80401A2745580015B79B /* SSKeychainQuery.m in Sources */,
 				943D11F91A25F25100318442 /* MEGAphoto.m in Sources */,
 				4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */,
 				4114CBC81A07E9C100B7D475 /* OfflineTableViewController.m in Sources */,
@@ -468,6 +487,7 @@
 				E80D15911A236C7100148421 /* Helper.m in Sources */,
 				41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */,
 				4168127719EE6E5700C72800 /* main.m in Sources */,
+				41AD803F1A2745580015B79B /* SSKeychain.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

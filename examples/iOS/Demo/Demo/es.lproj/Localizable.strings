@@ -5,11 +5,14 @@
 //LoginViewController
 "invalidMailOrPassword" = "Email o contraseña no válida.";
 
+"emailIvalidFormat" = "Introduzca un email válido";
+"passwordInvalidFormat" = "Introduzca una contraseña válida";
 "fetchingNodes" = "Recuperando nodos";
 "preparingNodes" = "Preparando nodos";
 
 //UITABBARCONTROLLER (1) CLOUD DRIVE
 "cloudDrive" = "Cloud";
+"updatingNodes" = "Actualizando nodos...";
 
 //DetailsNodeInfoViewController
 "savedForOffline" = "Guardado en offline";

@@ -3,13 +3,16 @@
 "error" = "Error";
 
 //LoginViewController
-"invalidMailOrPassword" = "Email or password invalid.";
+"invalidMailOrPassword" = "Invalid e-mail and/or password. Please try again";
 
+"emailIvalidFormat" = "Enter a valid email";
+"passwordInvalidFormat" = "Enter a valid password";
 "fetchingNodes" = "Fetching nodes";
 "preparingNodes" = "Preparing nodes";
 
 //UITABBARCONTROLLER (1) CLOUD DRIVE
 "cloudDrive" = "Cloud Drive";
+"updatingNodes" = "Updating nodes...";
 
 //DetailsNodeInfoViewController
 "savedForOffline" = "Saved for offline";
