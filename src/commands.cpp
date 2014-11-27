@@ -2696,6 +2696,16 @@ void CommandFetchNodes::procresult()
                 }
                 break;
 
+            case MAKENAMEID3('i', 'p', 'c'):
+                // Incoming pending contact
+                client->readipc(&client->json);
+                break;
+
+            case MAKENAMEID3('o', 'p', 'c'):
+                // Outgoing pending contact
+                client->readopc(&client->json);
+                break;
+
             case EOO:
                 if (!*client->scsn)
                 {
