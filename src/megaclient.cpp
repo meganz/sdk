@@ -2850,7 +2850,7 @@ void MegaClient::notifypurge(void)
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
 
-    if (tscsn != cachedscsn)
+    if (nodenotify.size() || usernotify.size() || cachedscsn != tscsn)
     {
         updatesc();
 
@@ -2865,7 +2865,7 @@ void MegaClient::notifypurge(void)
 
     if ((t = nodenotify.size()))
     {
-#ifdef ENABLE_SYNC    
+#ifdef ENABLE_SYNC
         // check for deleted syncs
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
@@ -2876,7 +2876,7 @@ void MegaClient::notifypurge(void)
             }
         }
 
-        syncadded = true;        
+        syncadded = true;
 #endif
         applykeys();
 
