@@ -126,10 +126,33 @@
                     <simulatedToolbarMetrics key="simulatedBottomBarMetrics"/>
                     <connections>
                         <outlet property="addItem" destination="Hmf-dX-KOK" id="tQZ-BO-fDr"/>
+                        <outlet property="filesFolderLabel" destination="3go-s8-hqY" id="dck-Bq-r6K"/>
+                        <outlet property="headerView" destination="ZgH-su-FW4" id="KPr-mS-vzl"/>
                         <segue destination="nXH-sM-h0J" kind="show" identifier="showNodeInfoDetails" id="o1i-Zu-agJ"/>
                     </connections>
                 </tableViewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="UFk-YB-u5b" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                <view contentMode="scaleToFill" id="ZgH-su-FW4">
+                    <rect key="frame" x="0.0" y="0.0" width="600" height="44"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                    <subviews>
+                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="3go-s8-hqY">
+                            <rect key="frame" x="8" y="0.0" width="584" height="21"/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="21" id="EoH-Ou-2vq"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                            <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                            <nil key="highlightedColor"/>
+                        </label>
+                    </subviews>
+                    <color key="backgroundColor" white="0.66666666666666663" alpha="1" colorSpace="calibratedWhite"/>
+                    <constraints>
+                        <constraint firstAttribute="trailing" secondItem="3go-s8-hqY" secondAttribute="trailing" constant="8" id="5QO-zL-ivA"/>
+                        <constraint firstItem="3go-s8-hqY" firstAttribute="top" secondItem="ZgH-su-FW4" secondAttribute="top" id="LbW-We-8aF"/>
+                        <constraint firstItem="3go-s8-hqY" firstAttribute="leading" secondItem="ZgH-su-FW4" secondAttribute="leading" constant="8" id="jll-pO-Qu6"/>
+                    </constraints>
+                </view>
                 <barButtonItem systemItem="add" id="Hmf-dX-KOK">
                     <connections>
                         <action selector="optionAdd:" destination="iPC-QU-led" id="CNA-Fp-dgW"/>

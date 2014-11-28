@@ -14,6 +14,11 @@
 "cloudDrive" = "Cloud";
 "updatingNodes" = "Actualizando nodos...";
 
+"foldersFiles" = "%d carpetas, %d ficheros";
+"foldersFile" = "%d carpetas, %d fichero";
+"folderFiles" = "%d carpeta, %d ficheros";
+"folderFile" = "%d carpeta, %d fichero";
+
 //DetailsNodeInfoViewController
 "savedForOffline" = "Guardado en offline";
 "generateLink" = "Generando link...";

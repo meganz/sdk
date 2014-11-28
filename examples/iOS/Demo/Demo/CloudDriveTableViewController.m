@@ -15,6 +15,8 @@
 @property (nonatomic, strong) NSMutableArray *cloudImages;
 @property (nonatomic, strong) MEGANodeList *nodes;
 @property (weak, nonatomic) IBOutlet UIBarButtonItem *addItem;
+@property (weak, nonatomic) IBOutlet UIView *headerView;
+@property (weak, nonatomic) IBOutlet UILabel *filesFolderLabel;
 
 @property (nonatomic) UIImagePickerController *imagePickerController;
 
@@ -120,6 +122,14 @@
     return YES;
 }
 
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    return self.headerView;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    return 20.0;
+}
+
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -146,7 +156,7 @@
                         photo.caption = [n name];
                         [self.cloudImages addObject:photo];
                         if ([n handle] == [node handle]) {
-                            offsetIndex = [self.cloudImages count] - 1;
+                            offsetIndex = (int)[self.cloudImages count] - 1;
                         }
                     }
                 }
@@ -168,7 +178,6 @@
                 
                 [browser showNextPhotoAnimated:YES];
                 [browser showPreviousPhotoAnimated:YES];
-//                NSInteger selectedIndexPhoto = [[[self.cloudImages objectAtIndex:indexPath.row] objectForKey:kIndex] integerValue];
                 [browser setCurrentPhotoIndex:offsetIndex];
             }
             break;
@@ -288,13 +297,53 @@
 #pragma mark - Private methods
 
 - (void)reloadUI {
+    NSString *filesAndFolders;
+    
     if (!self.parentNode) {
         [self.navigationItem setTitle:NSLocalizedString(@"cloudDrive", @"Cloud drive")];
         self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
+    
+        NSInteger files = [[MEGASdkManager sharedMEGASdk] numberChildFilesForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
+        NSInteger folders = [[MEGASdkManager sharedMEGASdk] numberChildFoldersForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
+        
+        if (files == 0 || files > 1) {
+            if (folders == 0 || folders > 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"foldersFiles", @"Folders, files"), (int)folders, (int)files];
+            } else if (folders == 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"folderFiles", @"Folder, files"), (int)folders, (int)files];
+            }
+        } else if (files == 1) {
+            if (folders == 0 || folders > 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"foldersFile", @"Folders, file"), (int)folders, (int)files];
+            } else if (folders == 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"folderFile", @"Folders, file"), (int)folders, (int)files];
+            }
+        }
+        
     } else {
         [self.navigationItem setTitle:[self.parentNode name]];
         self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:self.parentNode];
+        
+        NSInteger files = [[MEGASdkManager sharedMEGASdk] numberChildFilesForParent:self.parentNode];
+        NSInteger folders = [[MEGASdkManager sharedMEGASdk] numberChildFoldersForParent:self.parentNode];
+        
+        if (files == 0 || files > 1) {
+            if (folders == 0 || folders > 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"foldersFiles", @"Folders, files"), (int)folders, (int)files];
+            } else if (folders == 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"folderFiles", @"Folder, files"), (int)folders, (int)files];
+            }
+        } else if (files == 1) {
+            if (folders == 0 || folders > 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"foldersFile", @"Folders, file"), (int)folders, (int)files];
+            } else if (folders == 1) {
+                filesAndFolders = [NSString stringWithFormat:NSLocalizedString(@"folderFile", @"Folders, file"), (int)folders, (int)files];
+            }
+        }
     }
+    
+    self.filesFolderLabel.text = filesAndFolders;
+    
     [self.tableView reloadData];
 }
 
