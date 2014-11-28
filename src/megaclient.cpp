@@ -153,7 +153,7 @@ void MegaClient::mergenewshares(bool notify)
                 // share was deleted
                 if (s->outgoing)
                 {
-                    if(n->outshares)
+                    if (n->outshares)
                     {
                         // outgoing share to user u deleted
                         if (n->outshares->erase(s->peer) && notify)
@@ -176,8 +176,20 @@ void MegaClient::mergenewshares(bool notify)
                 else
                 {
                     // incoming share deleted - remove tree
-                    TreeProcDel td;
-                    proctree(n, &td);
+                    if (!n->parent)
+                    {
+                        TreeProcDel td;
+                        proctree(n, &td, true);
+                    }
+                    else
+                    {
+                        if (n->inshare)
+                        {
+                            n->inshare->user->sharing.erase(n->nodehandle);
+                            notifyuser(n->inshare->user);
+                            n->inshare = NULL;
+                        }
+                    }
                 }
             }
             else
@@ -190,7 +202,7 @@ void MegaClient::mergenewshares(bool notify)
                         // only on own nodes and signed unless read from cache
                         if (checkaccess(n, OWNERPRELOGIN))
                         {
-                            if(!n->outshares)
+                            if (!n->outshares)
                             {
                                 n->outshares = new share_map;
                             }
@@ -2435,7 +2447,7 @@ void MegaClient::sc_updatenode()
 
                         if (a)
                         {
-                            if(!n->attrstring)
+                            if (!n->attrstring)
                             {
                                 n->attrstring = new string;
                             }
@@ -2626,7 +2638,7 @@ bool MegaClient::sc_shares()
                                                          outbound ? uh : oh,
                                                          r, ts, sharekey,
                                                          have_ha ? ha : NULL));
-                        return false;
+                        return true;
                     }
                 }
                 else
@@ -2838,11 +2850,6 @@ void MegaClient::notifypurge(void)
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
 
-    if (tscsn == cachedscsn)
-    {
-        return;
-    }
-
     if (nodenotify.size() || usernotify.size() || cachedscsn != tscsn)
     {
         updatesc();
@@ -2858,7 +2865,7 @@ void MegaClient::notifypurge(void)
 
     if ((t = nodenotify.size()))
     {
-#ifdef ENABLE_SYNC    
+#ifdef ENABLE_SYNC
         // check for deleted syncs
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
@@ -2869,7 +2876,7 @@ void MegaClient::notifypurge(void)
             }
         }
 
-        syncadded = true;        
+        syncadded = true;
 #endif
         applykeys();
 
@@ -3481,22 +3488,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     // node marked for deletion is being resurrected, possibly
                     // with a new parent (server-client move operation)
                     n->changed.removed = false;
-
-                    if (!ISUNDEF(ph))
-                    {
-                        Node* p;
-
-                        if ((p = nodebyhandle(ph)))
-                        {
-                            n->setparent(p);
-                            n->changed.parent = true;
-                        }
-                        else
-                        {
-                            n->parenthandle = ph;
-                            dp.push_back(n);
-                        }
-                    }
                 }
                 else
                 {
@@ -3504,6 +3495,23 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
                     {
                         app->reload("Node inconsistency (parent linkage)");
+                    }
+                }
+
+                if (!ISUNDEF(ph))
+                {
+                    Node* p;
+
+                    if ((p = nodebyhandle(ph)))
+                    {
+                        n->setparent(p);
+                        n->changed.parent = true;
+                    }
+                    else
+                    {
+                        n->setparent(NULL);
+                        n->parenthandle = ph;
+                        dp.push_back(n);
                     }
                 }
             }
@@ -4178,13 +4186,17 @@ void MegaClient::procsr(JSON* j)
 }
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp)
+void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
 {
     if (n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {
-            proctree(*it++, tp);
+            Node *child = *it++;
+            if (!(skipinshares && child->inshare))
+            {
+                proctree(child, tp, skipinshares);
+            }
         }
     }
 
