@@ -92,6 +92,7 @@ public:
     void setproxy(Proxy*);
     Proxy* getautoproxy();
     void setdnsservers(const char*);
+    void disconnect();
 
     CurlHttpIO();
     ~CurlHttpIO();
@@ -110,6 +111,7 @@ struct MEGA_API CurlHttpContext
     int port;
     string hostheader;
     string hostip;
+    string posturl;
     unsigned len;
     const char* data;
     int ares_pending;

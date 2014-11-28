@@ -685,7 +685,7 @@ public:
     void setrootnode(handle);
 
     // process node subtree
-    void proctree(Node*, TreeProc*);
+    void proctree(Node*, TreeProc*, bool skipinshares = false);
 
     // hash password
     error pw_key(const char*, byte*) const;

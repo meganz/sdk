@@ -28,13 +28,14 @@
 #include "mega/sync.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
+#include "mega/logging.h"
 
 namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
-
+    outshares = NULL;
     tag = 0;
 
     nodehandle = h;
@@ -128,10 +129,14 @@ Node::~Node()
     }
 #endif
 
-    // delete outshares, including pointers from users for this node
-    for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
+    if (outshares)
     {
-        delete it->second;
+        // delete outshares, including pointers from users for this node
+        for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+        {
+            delete it->second;
+        }
+        delete outshares;
     }
 
     // remove from parent's children
@@ -328,8 +333,9 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 bool Node::serialize(string* d)
 {
     // do not update state if undecrypted nodes are present
-    if (attrstring.size())
+    if (attrstring)
     {
+        LOG_warn << "Trying to serialize an undecrypted node";
         return false;
     }
 
@@ -402,7 +408,14 @@ bool Node::serialize(string* d)
     }
     else
     {
-        numshares = (short)outshares.size();
+        if (!outshares)
+        {
+            numshares = 0;
+        }
+        else
+        {
+            numshares = (short)outshares->size();
+        }
     }
 
     d->append((char*)&numshares, sizeof numshares);
@@ -417,9 +430,12 @@ bool Node::serialize(string* d)
         }
         else
         {
-            for (share_map::iterator it = outshares.begin(); it != outshares.end(); it++)
+            if (outshares)
             {
-                it->second->serialize(d);
+                for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+                {
+                    it->second->serialize(d);
+                }
             }
         }
     }
@@ -494,7 +510,7 @@ void Node::setattr()
     byte* buf;
     SymmCipher* cipher;
 
-    if (attrstring.size() && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring.c_str(), attrstring.size())))
+    if (attrstring && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring->c_str(), attrstring->size())))
     {
         JSON json;
         nameid name;
@@ -516,8 +532,8 @@ void Node::setattr()
 
         delete[] buf;
 
-        attrstring.clear();
-		std::string().swap(attrstring);
+        delete attrstring;
+        attrstring = NULL;
     }
 }
 
@@ -555,7 +571,7 @@ void Node::setfingerprint()
 const char* Node::displayname() const
 {
     // not yet decrypted
-    if (attrstring.size())
+    if (attrstring)
     {
         return "NO_KEY";
     }
@@ -592,6 +608,13 @@ bool Node::applykey()
     int keylength = (type == FILENODE)
                    ? FILENODEKEYLENGTH + 0
                    : FOLDERNODEKEYLENGTH + 0;
+
+    if (type > FOLDERNODE)
+    {
+        //Root nodes contain an empty attrstring
+        delete attrstring;
+        attrstring = NULL;
+    }
 
     if (nodekey.size() == keylength || !nodekey.size())
     {
@@ -685,7 +708,10 @@ bool Node::setparent(Node* p)
 
     parent = p;
 
-    child_it = parent->children.insert(parent->children.end(), this);
+    if (parent)
+    {
+        child_it = parent->children.insert(parent->children.end(), this);
+    }
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
@@ -732,6 +758,16 @@ bool Node::isbelow(Node* p) const
 
         n = n->parent;
     }
+}
+
+NodeCore::NodeCore()
+{
+    attrstring = NULL;
+}
+
+NodeCore::~NodeCore()
+{
+    delete attrstring;
 }
 
 #ifdef ENABLE_SYNC
@@ -1046,8 +1082,10 @@ LocalNode::~LocalNode()
 
     if (type == FOLDERNODE)
     {
-        if(sync->dirnotify)
+        if (sync->dirnotify)
+        {
             sync->dirnotify->delnotify(this);
+        }
     }
 
     // remove parent association
@@ -1313,5 +1351,6 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     return l;
 }
+
 #endif
 } // namespace

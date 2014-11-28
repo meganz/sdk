@@ -1,35 +1,28 @@
 MEGA SDK configuration and compilation instructions for MacOS.
 Please note, that the actual libraries versions could change in the future (to the newer ones).
 
-
 *) Install Xcode and run it to accept the license agreement.
+
 *) Install Homebrew package manager: http://brew.sh/
- This website has nice instructions how to install it. (I installed brew under Administrator user, but not sure it this is necessary).
+ The website has nice instructions how to install it. (I installed brew under Administrator user, but not sure it this is necessary).
 
 *) Add brew path to environment variable (brew will display the instructions at the end of the installation)
 
-*) Install various system packages:
- brew install coreutils autoconf automake libtool gcc wget
+*) Install dependencies:
+brew install autoconf automake libtool libcryptopp sqlite openssl c-ares freeimage readline
+brew install --with-openssl --with-ares curl
 
-*) Install MEGA SDK dependencies:
- brew install freeimage readline sqlite3 cryptopp c-ares libsodium openssl
+*) Get and extract MEGA SDK sources
 
-*) Install cURL (as SDK require AsyncDNS and SSL features enabled):
-wget http://curl.haxx.se/download/curl-7.37.0.tar.bz2
-tar -xjf curl-7.37.0.tar.bz2
-cd curl-7.37.0
-./configure --with-zlib --enable-ares=/usr/local/Cellar/c-ares/1.10.0 --with-ssl=/usr/local/Cellar/openssl/1.0.1i --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --without-librtmp --without-libidn --without-libssh2 --prefix=/usr/local/curl
-make
-sudo make install
+*) Configure project:
+./configure \
+ --with-openssl=/usr/local/opt/openssl \
+--with-cryptopp=/usr/local/opt/cryptopp \
+ --with-sqlite=/usr/local/opt/sqlite \
+ --with-cares=/usr/local/opt/c-ares \
+--with-curl=/usr/local/opt/curl \
+--with-freeimage=/usr/local/opt/freeimage \
+--with-readline=/usr/local/opt/readline
 
-*) Add CURL library path to environment variable:
- export LD_LIBRARY_PATH=/usr/local/curl/
-
-*) Get the latest SDK sources (via git or zip file).
-
-*) Configure and compile SDK sources:
-./autogen.sh
-
-./configure --enable-examples --disable-silent-rules --with-freeimage=/usr/local/Cellar/freeimage/3.16.0 --with-cryptopp=/usr/local/Cellar/cryptopp/5.6.2 --with-sodium=/usr/local/Cellar/libsodium/0.7.0 --with-readline=/usr/local/Cellar/readline/6.3.6 --with-sqlite=/usr/local/Cellar/sqlite/3.8.6 --with-curl=/usr/local/curl
-
+*) Build project:
 make

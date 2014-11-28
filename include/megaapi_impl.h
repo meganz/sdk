@@ -331,7 +331,7 @@ class MegaRequestPrivate : public MegaRequest
 		void setFile(const char* file);
         void setParamType(int type);
         void setText(const char* text);
-        void setNumber(int number);
+        void setNumber(long long number);
         void setFlag(bool flag);
         void setTransferTag(int transfer);
         void setListener(MegaRequestListener *listener);
@@ -972,7 +972,6 @@ protected:
         char *stringToArray(string &buffer);
 
         //Internal
-        Node* getChildNodeInternal(Node *parent, const char* name);
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);

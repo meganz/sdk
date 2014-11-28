@@ -98,7 +98,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->ctime = node->ctime;
     this->mtime = node->mtime;
     this->nodehandle = node->nodehandle;
-    this->attrstring.assign(node->attrstring.data(), node->attrstring.size());
+    if(node->attrstring)
+    {
+        this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
+    }
     this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
     this->removed = node->changed.removed;
 
@@ -522,7 +525,12 @@ MegaNode *MegaTransferPrivate::getPublicNode() const
 
 MegaNode *MegaTransferPrivate::getPublicMegaNode() const
 {
-	return publicNode->copy();
+    if(publicNode)
+    {
+        return publicNode->copy();
+    }
+
+    return NULL;
 }
 
 bool MegaTransferPrivate::isSyncTransfer() const
@@ -1140,7 +1148,7 @@ void MegaRequestPrivate::setText(const char *text)
     this->text = MegaApi::strdup(text);
 }
 
-void MegaRequestPrivate::setNumber(int number)
+void MegaRequestPrivate::setNumber(long long number)
 {
     this->number = number;
 }
@@ -2343,7 +2351,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2392,7 +2400,7 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2479,7 +2487,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
     if(localPath)
     {
         string path(localPath);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2509,7 +2517,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
 
     if(localPath)
     {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         string path(localPath);
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
@@ -2573,7 +2581,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     sdkMutex.lock();
 
     string utf8path = path;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\"))
             utf8path.insert(0, "\\\\?\\");
 #endif
@@ -2608,7 +2616,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 
 int MegaApiImpl::syncPathState(string* path)
 {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
     string prefix("\\\\?\\");
     string localPrefix;
     fsAccess->path2local(&prefix, &localPrefix);
@@ -2673,7 +2681,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     if(localFolder)
     {
         string path(localFolder);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2699,7 +2707,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     if(localFolder)
     {
         string path(localFolder);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
         if((path.size()<2) || path.compare(0, 2, "\\\\"))
             path.insert(0, "\\\\?\\");
 #endif
@@ -2951,7 +2959,7 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 		return false;
 	}
 
-	bool result = (node->outshares.size() != 0);
+    bool result = (node->outshares != NULL);
 	sdkMutex.unlock();
 
 	return result;
@@ -2981,10 +2989,16 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         return new MegaShareListPrivate();
 	}
 
+    if(!node->outshares)
+    {
+        sdkMutex.unlock();
+        return new MegaShareListPrivate();
+    }
+
 	vector<Share*> vShares;
 	vector<handle> vHandles;
 
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		vShares.push_back(it->second);
 		vHandles.push_back(node->nodehandle);
@@ -4183,7 +4197,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
 		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
-		newnode->attrstring = *a;
+        newnode->attrstring = new string(*a);
 
 		// add node
         requestMap.erase(request->getTag());
@@ -5011,7 +5025,11 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 {
-	if(!parent || !name) return NULL;
+    if(!parent || !name)
+    {
+        return NULL;
+    }
+
     sdkMutex.lock();
     Node *parentNode = client->nodebyhandle(parent->getHandle());
 	if(!parentNode)
@@ -5020,35 +5038,9 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
         return NULL;
 	}
 
-	MegaNode *node = MegaNodePrivate::fromNode(getChildNodeInternal(parentNode, name));
+    MegaNode *node = MegaNodePrivate::fromNode(client->childnodebyname(parentNode, name));
     sdkMutex.unlock();
     return node;
-}
-
-Node* MegaApiImpl::getChildNodeInternal(Node *parent, const char* name)
-{
-	if(!parent || !name) return NULL;
-    sdkMutex.lock();
-    parent = client->nodebyhandle(parent->nodehandle);
-	if(!parent)
-	{
-        sdkMutex.unlock();
-        return NULL;
-	}
-
-	Node *result = NULL;
-    string nname = name;
-    fsAccess->normalize(&nname);
-	for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
-	{
-        if (!strcmp(nname.c_str(),(*it)->displayname()))
-		{
-			result = *it;
-			break;
-		}
-	}
-    sdkMutex.unlock();
-    return result;
 }
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
@@ -5190,7 +5182,11 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 			{
 				if (*path == '\\')
 				{
-					if (path > bptr) s.append(bptr,path-bptr);
+                    if (path > bptr)
+                    {
+                        s.append(bptr, path - bptr);
+                    }
+
 					bptr = ++path;
 
 					if (*bptr == 0)
@@ -5215,21 +5211,39 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 						remote = 1;
 					}
 
-					if (path > bptr) s.append(bptr,path-bptr);
+                    if (path > bptr)
+                    {
+                        s.append(bptr, path - bptr);
+                    }
 
-					bptr = path+1;
+                    bptr = path + 1;
 
 					c.push_back(s);
 
 					s.erase();
 				}
 			}
-			else if ((*path & 0xf0) == 0xe0) l = 1;
-			else if ((*path & 0xf8) == 0xf0) l = 2;
-			else if ((*path & 0xfc) == 0xf8) l = 3;
-			else if ((*path & 0xfe) == 0xfc) l = 4;
+            else if ((*path & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*path & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*path & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*path & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
 		}
-		else l--;
+        else
+        {
+            l--;
+        }
 	} while (*path++);
 
 	if (l)
@@ -5240,32 +5254,43 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 
 	if (remote)
 	{
-		// target: user inbox - record username/email and return NULL
+        // target: user inbox - it's not a node - return NULL
 		if (c.size() == 2 && !c[1].size())
 		{
-			//if (user) *user = c[0];
             sdkMutex.unlock();
             return NULL;
 		}
 
 		User* u;
 
-		if ((u = client->finduser(c[0].c_str())))
-		{
-			// locate matching share from this user
-			handle_set::iterator sit;
+        if ((u = client->finduser(c[0].c_str())))
+        {
+            // locate matching share from this user
+            handle_set::iterator sit;
+            string name;
+            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+            {
+                if ((n = client->nodebyhandle(*sit)))
+                {
+                    if(!name.size())
+                    {
+                        name =  c[1];
+                        n->client->fsaccess->normalize(&name);
+                    }
 
-			for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-			{
-				if ((n = client->nodebyhandle(*sit)))
-				{
-					l = 2;
-					break;
-				}
+                    if (!strcmp(name.c_str(), n->displayname()))
+                    {
+                        l = 2;
+                        break;
+                    }
+                }
 
-				if (l) break;
-			}
-		}
+                if (l)
+                {
+                    break;
+                }
+            }
+        }
 
 		if (!l)
 		{
@@ -5281,8 +5306,14 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 			// path starting with //
 			if (c.size() > 2 && !c[1].size())
 			{
-				if (c[2] == "in") n = client->nodebyhandle(client->rootnodes[1]);
-				else if (c[2] == "bin") n = client->nodebyhandle(client->rootnodes[2]);
+                if (c[2] == "in")
+                {
+                    n = client->nodebyhandle(client->rootnodes[1]);
+                }
+                else if (c[2] == "bin")
+                {
+                    n = client->nodebyhandle(client->rootnodes[2]);
+                }
 				else
 				{
                     sdkMutex.unlock();
@@ -5297,7 +5328,10 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 				l = 1;
 			}
 		}
-		else n = cwd;
+        else
+        {
+            n = cwd;
+        }
 	}
 
 	// parse relative path
@@ -5307,14 +5341,17 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 		{
 			if (c[l] == "..")
 			{
-                if (n->parent) n = n->parent;
+                if (n->parent)
+                {
+                    n = n->parent;
+                }
 			}
 			else
 			{
 				// locate child node (explicit ambiguity resolution: not implemented)
 				if (c[l].size())
 				{
-					nn = getChildNodeInternal(n,c[l].c_str());
+                    nn = client->childnodebyname(n, c[l].c_str());
 
 					if (!nn)
 					{
@@ -5329,6 +5366,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 
 		l++;
 	}
+
     MegaNode *result = MegaNodePrivate::fromNode(n);
     sdkMutex.unlock();
     return result;
@@ -5621,7 +5659,8 @@ void MegaApiImpl::sendPendingRequests()
 
 			// JSON-encode object and encrypt attribute string
 			attrs.getjson(&attrstring);
-			client->makeattr(&key,&newnode->attrstring,attrstring.c_str());
+            newnode->attrstring = new string;
+            client->makeattr(&key,newnode->attrstring,attrstring.c_str());
 
 			// add the newly generated folder node
 			client->putnodes(parent->nodehandle,newnode,1);
@@ -5656,7 +5695,8 @@ void MegaApiImpl::sendPendingRequests()
             {
                 NewNode *newnode = new NewNode[1];
                 newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
-                newnode->attrstring.assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+                newnode->attrstring = new string;
+                newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
                 newnode->nodehandle = publicNode->getHandle();
                 newnode->source = NEW_PUBLIC;
                 newnode->type = FILENODE;
@@ -6363,7 +6403,8 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		key.setkey((const byte*)t->nodekey.data(),n->type);
 
 		n->attrs.getjson(&attrstring);
-		client->makeattr(&key,&t->attrstring,attrstring.c_str());
+        t->attrstring = new string;
+        client->makeattr(&key,t->attrstring,attrstring.c_str());
 	}
 	else nc++;
 }
@@ -6605,7 +6646,12 @@ OutShareProcessor::OutShareProcessor()
 
 bool OutShareProcessor::processNode(Node *node)
 {
-	for (share_map::iterator it = node->outshares.begin(); it != node->outshares.end(); it++)
+    if(!node->outshares)
+    {
+        return true;
+    }
+
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
 		shares.push_back(it->second);
 		handles.push_back(node->nodehandle);

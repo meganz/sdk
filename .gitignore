@@ -54,6 +54,10 @@ m4/ltversion.m4
 m4/lt~obsolete.m4
 compile
 clean
+config.guess
+config.log
+config.status
+config.sub
 
 # Documentation generator
 doc/_build

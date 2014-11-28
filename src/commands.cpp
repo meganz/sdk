@@ -689,7 +689,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         }
 
         arg("t", nn[i].type);
-        arg("a", (byte*)nn[i].attrstring.data(), nn[i].attrstring.size());
+        arg("a", (byte*)nn[i].attrstring->data(), nn[i].attrstring->size());
 
         if (nn[i].nodekey.size() <= sizeof key)
         {
