@@ -15,7 +15,7 @@
 "updatingNodes" = "Updating nodes...";
 
 "foldersFiles" = "%d folders, %d files";
-"foldersFile" = "%d folders, %d files";
+"foldersFile" = "%d folders, %d file";
 "folderFiles" = "%d folder, %d files";
 "folderFile" = "%d folder, %d file";
 

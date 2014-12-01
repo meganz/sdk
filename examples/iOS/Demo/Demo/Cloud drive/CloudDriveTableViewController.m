@@ -208,7 +208,7 @@
 }
 
 - (void)tableView:(UITableView *)tableView didEndDisplayingCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
-
+    
 }
 
 - (IBAction)optionAdd:(id)sender {
@@ -266,17 +266,17 @@
     ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
     [library assetForURL:assetURL resultBlock:^(ALAsset *asset)  {
         NSString *name = asset.defaultRepresentation.filename;
-        NSDate *creationTime = [asset valueForProperty:ALAssetPropertyDate];
+        NSDate *modificationTime = [asset valueForProperty:ALAssetPropertyDate];
         UIImageView *imageView = [[UIImageView alloc] init];
         imageView.image= [info objectForKey:@"UIImagePickerControllerOriginalImage"];
-        NSData *webData = UIImagePNGRepresentation(imageView.image);
+        NSData *webData = UIImageJPEGRepresentation(imageView.image, 0.9);
         
         
         NSString *localFilePath = [NSTemporaryDirectory() stringByAppendingPathComponent:name];
         [webData writeToFile:localFilePath atomically:YES];
         
         NSError *error = nil;
-        NSDictionary *attributesDictionary = [NSDictionary dictionaryWithObject:creationTime forKey:NSFileModificationDate];
+        NSDictionary *attributesDictionary = [NSDictionary dictionaryWithObject:modificationTime forKey:NSFileModificationDate];
         [[NSFileManager defaultManager] setAttributes:attributesDictionary ofItemAtPath:localFilePath error:&error];
         if (error) {
             NSLog(@"Error change modification date of file %@", error);
@@ -302,7 +302,7 @@
     if (!self.parentNode) {
         [self.navigationItem setTitle:NSLocalizedString(@"cloudDrive", @"Cloud drive")];
         self.nodes = [[MEGASdkManager sharedMEGASdk] childrenForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
-    
+        
         NSInteger files = [[MEGASdkManager sharedMEGASdk] numberChildFilesForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
         NSInteger folders = [[MEGASdkManager sharedMEGASdk] numberChildFoldersForParent:[[MEGASdkManager sharedMEGASdk] rootNode]];
         
@@ -365,7 +365,7 @@
         case MEGARequestTypeExport:
             [SVProgressHUD showWithStatus:NSLocalizedString(@"generateLink", @"Generate link...")];
             break;
-        
+            
         default:
             break;
     }
@@ -438,7 +438,7 @@
             NSLog(@"remove file error %@", e);
         }
     }
-
+    
 }
 
 -(void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error {
