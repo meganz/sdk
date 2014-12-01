@@ -19,7 +19,6 @@
 		4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127C19EE6E5700C72800 /* LoginViewController.m */; };
 		4168128019EE6E5700C72800 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4168127E19EE6E5700C72800 /* Main.storyboard */; };
 		4168128519EE6E5700C72800 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4168128319EE6E5700C72800 /* LaunchScreen.xib */; };
-		4168129119EE6E5700C72800 /* DemoTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168129019EE6E5700C72800 /* DemoTests.m */; };
 		4168129B19EE6E6300C72800 /* libmega.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4168129A19EE6E6300C72800 /* libmega.a */; };
 		4168129F19EE72EE00C72800 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4168129E19EE72EE00C72800 /* libz.dylib */; };
 		416812A119EE72F400C72800 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A019EE72F400C72800 /* libsqlite3.dylib */; };
@@ -57,13 +56,6 @@
 			remoteGlobalIDString = 4C6F96C414AF704100F8389A;
 			remoteInfo = MWPhotoBrowser;
 		};
-		4168128B19EE6E5700C72800 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4168126919EE6E5700C72800 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 4168127019EE6E5700C72800;
-			remoteInfo = Demo;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -82,9 +74,6 @@
 		4168127C19EE6E5700C72800 /* LoginViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = LoginViewController.m; path = Login/LoginViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
 		4168127F19EE6E5700C72800 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		4168128419EE6E5700C72800 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/LaunchScreen.xib; sourceTree = "<group>"; };
-		4168128A19EE6E5700C72800 /* DemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4168128F19EE6E5700C72800 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		4168129019EE6E5700C72800 /* DemoTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DemoTests.m; sourceTree = "<group>"; };
 		4168129A19EE6E6300C72800 /* libmega.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmega.a; path = "../../../bindings/ios/build/Debug-iphoneos/libmega.a"; sourceTree = "<group>"; };
 		4168129E19EE72EE00C72800 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
 		416812A019EE72F400C72800 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
@@ -154,13 +143,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4168128719EE6E5700C72800 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -186,7 +168,6 @@
 			children = (
 				4168129C19EE6E6D00C72800 /* Frameworks */,
 				4168127319EE6E5700C72800 /* Demo */,
-				4168128D19EE6E5700C72800 /* DemoTests */,
 				4168127219EE6E5700C72800 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -195,7 +176,6 @@
 			isa = PBXGroup;
 			children = (
 				4168127119EE6E5700C72800 /* Demo.app */,
-				4168128A19EE6E5700C72800 /* DemoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -225,23 +205,6 @@
 				4168127519EE6E5700C72800 /* Info.plist */,
 				4168127619EE6E5700C72800 /* main.m */,
 				41C681D11A2330220088F2E6 /* Localizable.strings */,
-			);
-			name = "Supporting Files";
-			sourceTree = "<group>";
-		};
-		4168128D19EE6E5700C72800 /* DemoTests */ = {
-			isa = PBXGroup;
-			children = (
-				4168129019EE6E5700C72800 /* DemoTests.m */,
-				4168128E19EE6E5700C72800 /* Supporting Files */,
-			);
-			path = DemoTests;
-			sourceTree = "<group>";
-		};
-		4168128E19EE6E5700C72800 /* Supporting Files */ = {
-			isa = PBXGroup;
-			children = (
-				4168128F19EE6E5700C72800 /* Info.plist */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -387,24 +350,6 @@
 			productReference = 4168127119EE6E5700C72800 /* Demo.app */;
 			productType = "com.apple.product-type.application";
 		};
-		4168128919EE6E5700C72800 /* DemoTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 4168129719EE6E5700C72800 /* Build configuration list for PBXNativeTarget "DemoTests" */;
-			buildPhases = (
-				4168128619EE6E5700C72800 /* Sources */,
-				4168128719EE6E5700C72800 /* Frameworks */,
-				4168128819EE6E5700C72800 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				4168128C19EE6E5700C72800 /* PBXTargetDependency */,
-			);
-			name = DemoTests;
-			productName = DemoTests;
-			productReference = 4168128A19EE6E5700C72800 /* DemoTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -418,10 +363,6 @@
 					4168127019EE6E5700C72800 = {
 						CreatedOnToolsVersion = 6.0.1;
 						DevelopmentTeam = T9RH74Y7L9;
-					};
-					4168128919EE6E5700C72800 = {
-						CreatedOnToolsVersion = 6.0.1;
-						TestTargetID = 4168127019EE6E5700C72800;
 					};
 				};
 			};
@@ -446,7 +387,6 @@
 			projectRoot = "";
 			targets = (
 				4168127019EE6E5700C72800 /* Demo */,
-				4168128919EE6E5700C72800 /* DemoTests */,
 			);
 		};
 /* End PBXProject section */
@@ -479,13 +419,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4168128819EE6E5700C72800 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -513,23 +446,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4168128619EE6E5700C72800 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4168129119EE6E5700C72800 /* DemoTests.m in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		4168128C19EE6E5700C72800 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 4168127019EE6E5700C72800 /* Demo */;
-			targetProxy = 4168128B19EE6E5700C72800 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		4168127E19EE6E5700C72800 /* Main.storyboard */ = {
@@ -711,40 +628,6 @@
 			};
 			name = Release;
 		};
-		4168129819EE6E5700C72800 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(SDKROOT)/Developer/Library/Frameworks",
-					"$(inherited)",
-				);
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
-				INFOPLIST_FILE = DemoTests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Demo.app/Demo";
-			};
-			name = Debug;
-		};
-		4168129919EE6E5700C72800 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(SDKROOT)/Developer/Library/Frameworks",
-					"$(inherited)",
-				);
-				INFOPLIST_FILE = DemoTests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Demo.app/Demo";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -762,15 +645,6 @@
 			buildConfigurations = (
 				4168129519EE6E5700C72800 /* Debug */,
 				4168129619EE6E5700C72800 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		4168129719EE6E5700C72800 /* Build configuration list for PBXNativeTarget "DemoTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4168129819EE6E5700C72800 /* Debug */,
-				4168129919EE6E5700C72800 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
