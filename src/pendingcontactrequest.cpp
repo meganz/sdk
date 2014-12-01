@@ -26,17 +26,17 @@ namespace mega {
 
 PendingContactRequest::PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg)
 {
-    this.id = id;
+    this->id = id;
     if (oemail) {
-        this.orginatoremail = oemail;
+        this->originatoremail = oemail;
     }
     if (temail) {
-        this.targetemail = temail;
+        this->targetemail = temail;
     }
-    this.ts = ts;
-    this.uts = uts;
+    this->ts = ts;
+    this->uts = uts;
     if (msg) {
-        this.msg = msg;
+        this->msg = msg;
     }
 }
 
@@ -46,13 +46,13 @@ bool PendingContactRequest::serialize(string *d)
 
     d->append((char*)&id, sizeof id);
 
-    l = oemail.size();
+    l = originatoremail.size();
     d->append((char*)&l, sizeof l);
-    d->append(oemail.c_str(), l);
+    d->append(originatoremail.c_str(), l);
 
-    l = temail.size();
+    l = targetemail.size();
     d->append((char*)&l, sizeof l);
-    d->append(temail.c_str(), l);
+    d->append(targetemail.c_str(), l);
 
     d->append((char*)&ts, sizeof ts);
     d->append((char*)&uts, sizeof uts);
@@ -66,12 +66,12 @@ bool PendingContactRequest::serialize(string *d)
 
 PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *client, string *d)
 {
-    const handle id;
-    const char *oemail;
-    const char *temail;
-    const m_time_t ts;
-    const m_time_t uts;
-    const string msg;
+    handle id;
+    string oemail;
+    string temail;
+    m_time_t ts;
+    m_time_t uts;
+    string msg;
 
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -107,7 +107,7 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     }
     ptr += l;
 
-    return new PendingContactRequest(id, oemail, temail, ts, uts, msg);
+    return new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str());
 }
 
 } //namespace

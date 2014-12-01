@@ -2244,6 +2244,14 @@ bool MegaClient::procsc()
                                     app->account_updated();
                                 }
                                 break;
+
+                            case MAKENAMEID3('i', 'p', 'c'):
+                                // incoming pending contact request (to us)
+                                break;
+
+                            case MAKENAMEID3('o', 'p', 'c'):
+                                // outgoing pending contact request (from us)
+                                break;
                         }
                     }
                 }
@@ -4066,8 +4074,6 @@ void MegaClient::readipc(JSON *j)
             const char *msg = NULL;
             handle p = UNDEF;
 
-            PendingContactRequest *pcr;
-
             bool done = false;
             while (!done)
             {
@@ -4108,7 +4114,8 @@ void MegaClient::readipc(JSON *j)
                             LOG_err << "uts element not provided";
                             break;
                         }
-                        pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg);
+
+                        pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg);
 
                         break;
                 }
@@ -4116,14 +4123,78 @@ void MegaClient::readipc(JSON *j)
         }
 
         j->leavearray();
-
-        //mergenewshares(0);
     }
 }
 
 void MegaClient::readopc(JSON *j)
 {
+    // fields: e, m, ts, uts, rts, msg, p
+    if (j->enterarray())
+    {
+        while (j->enterobject())
+        {
+            m_time_t ts = 0;
+            m_time_t uts = 0;
+            m_time_t rts = 0;
+            const char *e = NULL;
+            const char *m = NULL;
+            const char *msg = NULL;
+            handle p = UNDEF;
 
+            bool done = false;
+            while (!done)
+            {
+                switch (j->getnameid()) {
+                    case 'e':
+                        e = j->getvalue();
+                        break;
+                    case 'm':
+                        m = j->getvalue();
+                        break;
+                    case MAKENAMEID2('t', 's'):
+                        ts = j->getint();
+                        break;
+                    case MAKENAMEID3('u', 't', 's'):
+                        uts = j->getint();
+                        break;
+                    case MAKENAMEID3('r', 't', 's'):
+                        rts = j->getint();
+                        break;
+                    case MAKENAMEID3('m', 's', 'g'):
+                        msg = j->getvalue();
+                        break;
+                    case 'p':
+                        p = j->gethandle();
+                        break;
+                    case EOO:
+                        done = true;
+                        if (!e)
+                        {
+                            LOG_err << "e element not provided";
+                            break;
+                        }
+                        if (!m) {
+                            LOG_err << "m element not provided";
+                            break;
+                        }
+                        if (ts == 0) {
+                            LOG_err << "ts element not provided";
+                            break;
+                        }
+                        if (uts == 0) {
+                            LOG_err << "uts element not provided";
+                            break;
+                        }
+
+                        pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg);
+
+                        break;
+                }
+            }
+        }
+
+        j->leavearray();
+    }
 }
 
 int MegaClient::applykeys()

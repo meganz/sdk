@@ -84,6 +84,7 @@ class LocalTreeProc;
 struct User;
 struct Waiter;
 struct Proxy;
+struct PendingContactRequest;
 
 #define EOO 0
 
@@ -342,6 +343,9 @@ typedef deque<Notification> notify_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
+
+typedef map<handle, PendingContactRequest*> handlepcr_map;
+
 } // namespace
 
 #endif
