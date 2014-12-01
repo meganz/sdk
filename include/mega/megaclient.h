@@ -451,6 +451,9 @@ public:
     uh_map uhindex;
     um_map umindex;
 
+    // mapping of pending contact handles to their structure
+    handlepcr_map pcrindex;
+
     // pending file attributes
     fa_map pendingfa;
 
