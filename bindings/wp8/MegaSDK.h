@@ -87,6 +87,7 @@ namespace mega
 		String^ getStringHash(String^ base64pwkey, String^ inBuf);
 		static uint64 base64ToHandle(String^ base64Handle);
 		void retryPendingConnections();
+		void reconnect();
 		void login(String^ email, String^ password, MRequestListenerInterface^ listener);
 		void login(String^ email, String^ password);
 		String^ dumpSession();

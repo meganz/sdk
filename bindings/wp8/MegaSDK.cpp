@@ -253,6 +253,11 @@ void MegaSDK::retryPendingConnections()
 	megaApi->retryPendingConnections();
 }
 
+void MegaSDK::reconnect()
+{
+	megaApi->retryPendingConnections(true, true);
+}
+
 void MegaSDK::login(String^ email, String^ password)
 {
 	std::string utf8email;
