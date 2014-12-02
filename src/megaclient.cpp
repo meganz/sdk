@@ -2245,13 +2245,13 @@ bool MegaClient::procsc()
                                 }
                                 break;
 
-                            case MAKENAMEID3('i', 'p', 'c'):
+                            /*case MAKENAMEID3('i', 'p', 'c'):
                                 // incoming pending contact request (to us)
                                 break;
 
                             case MAKENAMEID3('o', 'p', 'c'):
                                 // outgoing pending contact request (from us)
-                                break;
+                                break;*/
                         }
                     }
                 }
@@ -4115,9 +4115,14 @@ void MegaClient::readipc(JSON *j)
                             break;
                         }
 
-                        pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg);
+                        pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
 
                         break;
+                    default:
+                       if (!j->storeobject())
+                       {
+                            return;
+                       }
                 }
             }
         }
@@ -4186,9 +4191,14 @@ void MegaClient::readopc(JSON *j)
                             break;
                         }
 
-                        pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg);
+                        pcrindex[p] = new PendingContactRequest(p, e, m, ts, uts, msg, true);
 
                         break;
+                    default:
+                       if (!j->storeobject())
+                       {
+                            return;
+                       }
                 }
             }
         }
@@ -4739,6 +4749,12 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
     }
 
     queuepubkeyreq(finduser(user, 1), new PubKeyActionCreateShare(n->nodehandle, a, reqtag));
+}
+
+// Add/delete/remind outgoing pending contact request
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
+{
+    reqs[r].add(new CommandSetPendingContact(this, temail, action, msg, oemail));
 }
 
 // enumerate Pro account purchase options (not fully implemented)

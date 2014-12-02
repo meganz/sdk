@@ -227,6 +227,9 @@ public:
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t);
 
+    // Add/delete/remind outgoing pending contact request
+    void setpcr(const char* temail, opcactions_t action, const char* msg = NULL, const char* oemail = NULL);
+
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int);
 
@@ -711,6 +714,7 @@ public:
     void purgenodesusersabortsc();
 
     static const int USERHANDLE = 8;
+    static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
 
     // session ID length (binary)

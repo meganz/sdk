@@ -24,7 +24,7 @@
 
 namespace mega {
 
-PendingContactRequest::PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg)
+PendingContactRequest::PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
 {
     this->id = id;
     if (oemail) {
@@ -38,6 +38,8 @@ PendingContactRequest::PendingContactRequest(const handle id, const char *oemail
     if (msg) {
         this->msg = msg;
     }
+
+    this->isoutgoing = outgoing;
 }
 
 bool PendingContactRequest::serialize(string *d)
@@ -61,6 +63,8 @@ bool PendingContactRequest::serialize(string *d)
     d->append((char*)&l, sizeof l);
     d->append(msg.c_str(), l);
 
+    d->append(isoutgoing, sizeof isoutgoing);
+
     return true;
 }
 
@@ -72,6 +76,7 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     m_time_t ts;
     m_time_t uts;
     string msg;
+    bool isoutgoing;
 
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -107,7 +112,10 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     }
     ptr += l;
 
-    return new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str());
+    isoutgoing = MemAccess::get<bool>(ptr);
+    ptr += sizeof isoutgoing;
+
+    return new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
 }
 
 } //namespace
