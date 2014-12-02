@@ -1,10 +1,3 @@
-//
-//  MEGARequest.m
-//
-//  Created by Javier Navarro on 01/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGARequest.h"
 #import "MEGANode+init.h"
 #import "MEGAPricing+init.h"
@@ -81,7 +74,7 @@ using namespace mega;
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getName()] : nil;
 }
 
-- (NSString *)getEmail {
+- (NSString *)email {
     if (!self.megaRequest) return nil;
     
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getEmail()] : nil;
@@ -105,7 +98,7 @@ using namespace mega;
     return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPrivateKey()] : nil;
 }
 
-- (MEGANodeAccessLevel)accessLevel {
+- (MEGANodeAccessLevel)access {
     return (MEGANodeAccessLevel) (self.megaRequest ? self.megaRequest->getAccess() : -1);
 }
 
@@ -116,12 +109,24 @@ using namespace mega;
     
 }
 
+- (NSInteger)numRetry {
+    return self.megaRequest->getNumRetry() ? self.megaRequest->getNumRetry() : 0;
+}
+
 - (MEGANode *)publicNode {
-    return self.megaRequest && self.megaRequest->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicMegaNode() cMemoryOwn:YES] : nil;
+    return self.megaRequest && self.megaRequest->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaRequest->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)paramType {
     return  self.megaRequest ? self.megaRequest->getParamType() : 0;
+}
+
+- (NSString *)text {
+    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getText()] : nil;
+}
+
+- (NSNumber *)number {
+    return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getNumber()] : nil;
 }
 
 - (BOOL)flag {
@@ -136,12 +141,20 @@ using namespace mega;
     return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getTotalBytes()] : nil;
 }
 
-- (MEGAAcountDetails *)megaAcountDetails {
+- (MEGAAcountDetails *) megaAccountDetails  {
     return nil;
 }
 
-- (MEGAPricing *)pricing {
+- (MEGAPricing *)getPricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
+}
+
+- (NSInteger)transferTag {
+    return self.megaRequest ? self.megaRequest->getTransferTag() : 0;
+}
+
+- (NSInteger)numDetails {
+    return self.megaRequest ? self.megaRequest->getNumDetails() : 0;
 }
 
 @end

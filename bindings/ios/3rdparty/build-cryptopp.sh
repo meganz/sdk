@@ -26,7 +26,7 @@ xcodebuild -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} 
 # Make sure the output directory exists
 mkdir -p "${UNIVERSAL_OUTPUTFOLDER}"
  
-# Step 2.  Create universal binary file, usando lipo
+# Step 2.  Create universal binary file, using lipo
 lipo -create -output "${UNIVERSAL_OUTPUTFOLDER}/lib${PROJECT_NAME}.a" "${BUILD_DIR}/${CONFIGURATION}-iphoneos/lib${PROJECT_NAME}.a" "${BUILD_DIR}/${CONFIGURATION}-iphonesimulator/lib${PROJECT_NAME}.a"
 
 mkdir -p include/cryptopp || true

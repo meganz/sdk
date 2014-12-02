@@ -1,10 +1,3 @@
-//
-//  DelegateMEGARequestListener.m
-//
-//  Created by Javier Navarro on 08/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "DelegateMEGARequestListener.h"
 #import "MEGARequest+init.h"
 #import "MEGAError+init.h"
@@ -23,7 +16,7 @@ id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
 }
 
 void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *request) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestStart:request:)]) {
         MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onRequestStart:this->megaSDK request:[[MEGARequest alloc]initWithMegaRequest:tempRequest cMemoryOwn:YES]];
@@ -32,7 +25,7 @@ void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *requ
 }
 
 void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestFinish:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -45,7 +38,7 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
 }
 
 void DelegateMEGARequestListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestUpdate:request:)]) {
         MegaRequest *tempRequest = request->copy();
         dispatch_async(dispatch_get_main_queue(), ^{
             [listener onRequestUpdate:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
@@ -54,7 +47,7 @@ void DelegateMEGARequestListener::onRequestUpdate(MegaApi *api, MegaRequest *req
 }
 
 void DelegateMEGARequestListener::onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) {
-    if (listener != nil) {
+    if (listener != nil && [listener respondsToSelector:@selector(onRequestTemporaryError:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
         dispatch_async(dispatch_get_main_queue(), ^{

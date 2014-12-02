@@ -1,10 +1,3 @@
-//
-//  MEGANodeList.m
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGANodeList.h"
 #import "MEGANode+init.h"
 
@@ -36,12 +29,16 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.nodeList ? [[MEGANodeList alloc] initWithNodeList:self.nodeList->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaNodeList *)getCPtr {
     return self.nodeList;
 }
 
-- (MEGANode *)nodeAtPosition:(NSInteger)position {
-    return  self.nodeList ? [[MEGANode alloc] initWithMegaNode:self.nodeList->get((int)position)->copy() cMemoryOwn:YES] : nil;
+- (MEGANode *)nodeAtIndex:(NSInteger)index {
+    return  self.nodeList ? [[MEGANode alloc] initWithMegaNode:self.nodeList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSNumber *)size {

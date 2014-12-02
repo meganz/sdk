@@ -1,0 +1,54 @@
+"cancel" = "Cancel";
+"ok" = "OK";
+"error" = "Error";
+
+//LoginViewController
+"invalidMailOrPassword" = "Invalid e-mail and/or password. Please try again";
+
+"emailIvalidFormat" = "Enter a valid email";
+"passwordInvalidFormat" = "Enter a valid password";
+"fetchingNodes" = "Fetching nodes";
+"preparingNodes" = "Preparing nodes";
+
+//UITABBARCONTROLLER (1) CLOUD DRIVE
+"cloudDrive" = "Cloud Drive";
+"updatingNodes" = "Updating nodes...";
+
+"foldersFiles" = "%d folders, %d files";
+"foldersFile" = "%d folders, %d file";
+"folderFiles" = "%d folder, %d files";
+"folderFile" = "%d folder, %d file";
+
+//DetailsNodeInfoViewController
+"savedForOffline" = "Saved for offline";
+"generateLink" = "Generate link...";
+
+//"+"
+//Upload photo
+"uploadPhoto" = "Upload photo";
+
+//Create folder
+"newFolderTitle" = "New folder";
+"newFolderMessage" = "Name for the new folder";
+"createFolderButton" = "Create";
+"createFolder" = "Create folder";
+
+//UITABBARCONTROLLER (2) OFFLINE
+
+
+//UITABBARCONTROLLER (3) CONTACTS
+"noFoldersShare" = "No folders share";
+"oneFolderShare" = "folder shared";
+"foldersShare" = "folders shared";
+
+//Rename
+"renameNodeTitle" = "Rename";
+"renameNodeMessage" = "Enter the new name";
+"renameNodeButton" = "Rename";
+
+//Remove
+"removeNodeTitle" = "Confirm delete";
+"removeNodeMessage" = "Are you sure?";
+
+//UITABBARCONTROLLER (4) SETTINGS
+"logout" = "Logout...";

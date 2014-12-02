@@ -1,0 +1,54 @@
+"cancel" = "Cancelar";
+"ok" = "Aceptar";
+"error" = "Error";
+
+//LoginViewController
+"invalidMailOrPassword" = "Email o contraseña no válida.";
+
+"emailIvalidFormat" = "Introduzca un email válido";
+"passwordInvalidFormat" = "Introduzca una contraseña válida";
+"fetchingNodes" = "Recuperando nodos";
+"preparingNodes" = "Preparando nodos";
+
+//UITABBARCONTROLLER (1) CLOUD DRIVE
+"cloudDrive" = "Cloud";
+"updatingNodes" = "Actualizando nodos...";
+
+"foldersFiles" = "%d carpetas, %d ficheros";
+"foldersFile" = "%d carpetas, %d fichero";
+"folderFiles" = "%d carpeta, %d ficheros";
+"folderFile" = "%d carpeta, %d fichero";
+
+//DetailsNodeInfoViewController
+"savedForOffline" = "Guardado en offline";
+"generateLink" = "Generando link...";
+
+//"+"
+//Upload photo
+"uploadPhoto" = "Subir foto";
+
+//Create folder
+"createFolder" = "Crear carpeta";
+"newFolderTitle" = "Nueva carpeta";
+"newFolderMessage" = "Nombre para la carpeta";
+"createFolderButton" = "Crear";
+
+//UITABBARCONTROLLER (2) OFFLINE
+
+
+//UITABBARCONTROLLER (3) CONTACTS
+"noFoldersShare" = "No hay carpetas compartidas";
+"oneFolderShare" = "carpeta compartida";
+"foldersShare" = "carpetas compartidas";
+
+//Rename
+"renameNodeTitle" = "Cambiar nombre";
+"renameNodeMessage" = "Introduce otro nombre";
+"renameNodeButton" = "Renombrar";
+
+//Remove
+"removeNodeTitle" = "Eliminar";
+"removeNodeMessage" = "¿Estás seguro?";
+
+//UITABBARCONTROLLER (4) SETTINGS
+"logout" = "Cerrando sesión...";

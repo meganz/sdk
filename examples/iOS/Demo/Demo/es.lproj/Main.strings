@@ -1,0 +1,66 @@
+
+/* Class = "IBUITabBarItem"; title = "Cloud Drive"; ObjectID = "1bz-iN-B5v"; */
+"1bz-iN-B5v.title" = "Cloud";
+
+/* Class = "IBUITextField"; placeholder = "Email"; ObjectID = "4EC-4o-G5t"; */
+"4EC-4o-G5t.placeholder" = "Email";
+
+/* Class = "IBUITabBarItem"; title = "Contacts"; ObjectID = "7iB-AC-2aH"; */
+"7iB-AC-2aH.title" = "Contactos";
+
+/* Class = "IBUILabel"; text = "Modification Time"; ObjectID = "9nn-R0-1sF"; */
+"9nn-R0-1sF.text" = "Modificación";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "FSd-tP-4bg"; */
+"FSd-tP-4bg.text" = "Label";
+
+/* Class = "IBUINavigationItem"; title = "MEGA"; ObjectID = "LgB-8Q-p3f"; */
+"LgB-8Q-p3f.title" = "MEGA";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "MpR-gE-z6F"; */
+"MpR-gE-z6F.text" = "Label";
+
+/* Class = "IBUIButton"; normalTitle = "Login"; ObjectID = "Q05-sf-hPc"; */
+"Q05-sf-hPc.normalTitle" = "Iniciar sesión";
+
+/* Class = "IBUITabBarItem"; title = "Settings"; ObjectID = "RSY-4Z-iP2"; */
+"RSY-4Z-iP2.title" = "Ajustes";
+
+/* Class = "IBUITextField"; placeholder = "Password"; ObjectID = "Xkf-mm-cAV"; */
+"Xkf-mm-cAV.placeholder" = "Contraseña";
+
+/* Class = "IBUITabBarItem"; title = "Offline"; ObjectID = "cRT-iu-juh"; */
+"cRT-iu-juh.title" = "Offline";
+
+/* Class = "IBUINavigationItem"; title = "Settings"; ObjectID = "cVP-5B-dHr"; */
+"cVP-5B-dHr.title" = "Ajustes";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "iXq-aa-JXB"; */
+"iXq-aa-JXB.text" = "Label";
+
+/* Class = "IBUIBarButtonItem"; title = "Logout"; ObjectID = "ivV-ol-K60"; */
+"ivV-ol-K60.title" = "Cerrar sesión";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "k2G-mp-ecO"; */
+"k2G-mp-ecO.text" = "Label";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "naF-lZ-sOV"; */
+"naF-lZ-sOV.text" = "Label";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "nam-ZF-2MZ"; */
+"nam-ZF-2MZ.text" = "Label";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "pCW-aM-GxL"; */
+"pCW-aM-GxL.text" = "Label";
+
+/* Class = "IBUINavigationItem"; title = "Offline documents"; ObjectID = "q14-i5-Qcs"; */
+"q14-i5-Qcs.title" = "Documentos offline";
+
+/* Class = "IBUILabel"; text = "Name"; ObjectID = "qTp-Ed-t4G"; */
+"qTp-Ed-t4G.text" = "Nombre";
+
+/* Class = "IBUILabel"; text = "Label"; ObjectID = "sun-dh-P3O"; */
+"sun-dh-P3O.text" = "Label";
+
+/* Class = "IBUINavigationItem"; title = "Contacts"; ObjectID = "zIq-IE-piT"; */
+"zIq-IE-piT.title" = "Contactos";

@@ -1,10 +1,3 @@
-//
-//  MEGATransfer.m
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGATransfer.h"
 #import "MEGANode+init.h"
 
@@ -48,7 +41,7 @@ using namespace mega;
     return (MEGATransferType) (self.megaTransfer ? self.megaTransfer->getType() : 0);
 }
 
-- (NSString *)transfer {
+- (NSString *)transferString {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getTransferString()] : nil;
@@ -86,36 +79,18 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (uint64_t)startPosition {
-    return self.megaTransfer ? self.megaTransfer->getStartPos() : 0;
-}
-
-- (uint64_t)endPosition {
-    return self.megaTransfer ? self.megaTransfer->getEndPos() : 0;
-}
-
 - (NSString *)fileName {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getFileName()] : nil;
 }
 
-- (NSInteger)numberRetry {
+- (NSInteger) numRetry  {
     return self.megaTransfer ? self.megaTransfer->getNumRetry() : 0;
 }
 
-- (NSInteger)maximunRetries {
+- (NSInteger) maxRetries  {
     return self.megaTransfer ? self.megaTransfer->getMaxRetries() : 0;
-}
-
-- (NSDate *)time {
-    return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getTime()] : nil;
-}
-
-- (NSString *)base64Key {
-    if (!self.megaTransfer) return nil;
-    
-    return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getBase64Key()] : nil;
 }
 
 - (NSInteger)tag {
@@ -135,15 +110,7 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return self.megaTransfer && self.megaTransfer->getPublicNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
-}
-
-- (BOOL)isSyncTransfer {
-    return self.megaTransfer ? self.megaTransfer->isSyncTransfer() : NO;
-}
-
-- (BOOL)isStreamingTransfer {
-    return self.megaTransfer ? self.megaTransfer->isStreamingTransfer() : NO;
+    return self.megaTransfer && self.megaTransfer->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
 @end
