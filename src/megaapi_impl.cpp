@@ -5405,8 +5405,14 @@ void MegaApiImpl::sendPendingTransfers()
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
                 int64_t mtime = transfer->getTime();
+                Node *parent = client->nodebyhandle(transfer->getParentHandle());
 
-                if(!localPath) { e = API_EARGS; break; }
+                if(!localPath || !parent)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
                 currentTransfer = transfer;
 				string tmpString = localPath;
 				string wLocalPath;
