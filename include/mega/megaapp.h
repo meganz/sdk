@@ -100,6 +100,9 @@ struct MEGA_API MegaApp
     virtual void share_result(error) { }
     virtual void share_result(int, error) { }
 
+    // outgoing pending contact result
+    virtual void setpcr_result(handle, error) { }
+
     // file attribute fetch result
     virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
     virtual int fa_failed(handle, fatype, int)

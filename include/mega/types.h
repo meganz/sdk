@@ -203,6 +203,12 @@ typedef uint64_t nameid;
 // OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
+// operations for outgoing pending contacts
+typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
+// operations for incoming pending contacts
+typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
+
+
 typedef vector<struct Node*> node_vector;
 
 // contact visibility:

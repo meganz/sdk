@@ -1443,6 +1443,55 @@ void CommandSetShare::procresult()
     }
 }
 
+
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail)
+{
+    cmd("upc");
+    if (oemail != NULL) arg("e", oemail);
+    arg("u", temail);
+    arg("aa", action);
+    if (msg != NULL) arg("msg", msg);
+
+    tag = client->reqtag;
+}
+
+void CommandSetPendingContact::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->setpcr_result(UNDEF, (error)client->json.getint());
+    }
+
+    handle p = UNDEF;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'p':
+                p = client->json.gethandle(MegaClient::PCRHANDLE);  
+                break;              
+            case EOO:
+                if (ISUNDEF(p))
+                {
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL);                    
+                }
+                else
+                {
+                    client->app->setpcr_result(p, API_OK);
+                }
+                return;
+            default:
+                if (!client->json.storeobject())
+                {
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL);
+                    return;
+                }
+        }
+    }
+}
+
+
+
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");

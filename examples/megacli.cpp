@@ -547,6 +547,20 @@ void DemoApp::share_result(int, error e)
     }
 }
 
+void DemoApp::setpcr_result(handle h, error e)
+{
+    if (e)
+    {
+        cout << "Outgoing pending contact request failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        char buffer[12];
+        int size = Base64::btoa((byte*)&h, sizeof(h), buffer);
+        cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
+    }
+}
+
 void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
@@ -1440,7 +1454,7 @@ static void process_line(char* l)
 #endif
                 cout << "      export remotepath [del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
-                cout << "      invite dstemail [del]" << endl;
+                cout << "      invite dstemail origemail [del]" << endl;
                 cout << "      users" << endl;
                 cout << "      getua attrname [email|private]" << endl;
                 cout << "      putua attrname [del|set string|load file] [private]" << endl;
@@ -2709,20 +2723,15 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        int del = words.size() == 3 && words[2] == "del";
+                        int del = words.size() == 4 && words[3] == "del";
 
-                        if (words.size() == 2 || del)
+                        if (words.size() == 3 || del)
                         {
-                            error e;
-
-                            if ((e = client->invite(words[1].c_str(), del ? HIDDEN : VISIBLE)))
-                            {
-                                cout << "Invitation failed: " << errorstring(e) << endl;
-                            }
+                            client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_ADD, "Invite from MEGAcli", words[2].c_str());
                         }
                         else
                         {
-                            cout << "      invite dstemail [del]" << endl;
+                            cout << "      invite dstemail origemail [del]" << endl;
                         }
 
                         return;

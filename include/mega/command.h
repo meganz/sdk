@@ -391,6 +391,19 @@ public:
     CommandGetUserData(MegaClient*);
 };
 
+class MEGA_API CommandSetPendingContact : public Command
+{
+    const char* temail;
+    const char* oemail;
+    const char* msg;
+    opcactions_t action;
+
+public:
+    void procresult();
+
+    CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg = NULL, const char* oemail = NULL);
+};
+
 class MEGA_API CommandGetUserQuota : public Command
 {
     AccountDetails* details;
