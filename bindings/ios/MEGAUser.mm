@@ -1,10 +1,3 @@
-//
-//  MEGAUser.m
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGAUser.h"
 #import "megaapi.h"
 
@@ -36,6 +29,10 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.megaUser ? [[MEGAUser alloc] initWithMegaUser:self.megaUser->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaUser *)getCPtr {
     return self.megaUser;
 }
@@ -46,7 +43,7 @@ using namespace mega;
     return self.megaUser ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
 }
 
-- (MEGAUserVisibility)accessVisibility {
+- (MEGAUserVisibility)access {
     return (MEGAUserVisibility) (self.megaUser ? self.megaUser->getVisibility() : ::mega::MegaUser::VISIBILITY_UNKNOWN);
 }
 

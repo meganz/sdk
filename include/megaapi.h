@@ -1945,6 +1945,12 @@ class MegaGlobalListener
     public:
         /**
          * @brief This function is called when there are new or updated contacts in the account
+         *
+         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
+         * MegaUser objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
+         * for those objects.
+         *
          * @param api MegaApi object connected to the account
          * @param users List that contains the new or updated contacts
          */
@@ -1952,6 +1958,15 @@ class MegaGlobalListener
 
         /**
          * @brief This function is called when there are new or updated nodes in the account
+         *
+         * When the full account is reloaded or a large number of server notifications arrives at once, the
+         * second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaNodeList in the second parameter. The list and all the
+         * MegaNode objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaNodeList::copy. If you want to save only some of the MegaNode objects, use MegaNode::copy
+         * for those nodes.
+         *
          * @param api MegaApi object connected to the account
          * @param nodes List that contains the new or updated nodes
          */
@@ -2121,6 +2136,12 @@ class MegaListener
 
         /**
          * @brief This function is called when there are new or updated contacts in the account
+         *
+         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
+         * MegaUser objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
+         * for those objects.
+         *
          * @param api MegaApi object connected to the account
          * @param users List that contains the new or updated contacts
          */
@@ -2128,6 +2149,15 @@ class MegaListener
 
         /**
          * @brief This function is called when there are new or updated nodes in the account
+         *
+         * When the full account is reloaded or a large number of server notifications arrives at once, the
+         * second parameter will be NULL.
+         *
+         * The SDK retains the ownership of the MegaNodeList in the second parameter. The list and all the
+         * MegaNode objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaNodeList::copy. If you want to save only some of the MegaNode objects, use MegaNode::copy
+         * for those nodes.
+         *
          * @param api MegaApi object connected to the account
          * @param nodes List that contains the new or updated nodes
          */
@@ -2196,8 +2226,8 @@ class MegaApiImpl;
  * doesn't have to be stored by the application.
  *
  * To access MEGA using this SDK, you have to create an object of this class and use one of the MegaApi::login options (to log in
- * to a MEGA account or a public folder). If the login request succeed, call MegaApi::fetchNodes to get the filesystem in MEGA.
- * After that, you can use all other requests, manage the files and start transfers.
+ * to a MEGA account or a public folder). If the login request succeed, you must call MegaApi::fetchNodes to get the filesystem in MEGA.
+ * After successfully completing that request, you can use all other functions, manage the files and start transfers.
  *
  * After using MegaApi::logout you can reuse the same MegaApi object to log in to another MEGA account or a public folder.
  *
@@ -3767,7 +3797,7 @@ class MegaApi
          * @brief Get the path of a MegaNode
          *
          * If the node doesn't exist, this function returns NULL.
-         * You can recoved the node later unsing MegaApi::getNodeByPath
+         * You can recoved the node later using MegaApi::getNodeByPath
          * except if the path contains names with  '/', '\' or ':' characters.
          *
          * You take the ownership of the returned value
@@ -3781,11 +3811,15 @@ class MegaApi
          * @brief Get the MegaNode in a specific path in the MEGA account
          *
          * The path separator character is '/'
+         * The Root node is /
          * The Inbox root node is //in/
          * The Rubbish root node is //bin/
          *
          * Paths with names containing '/', '\' or ':' aren't compatible
          * with this function.
+         *
+         * It is needed to be logged in and to have successfully completed a fetchNodes
+         * request before calling this function. Otherwise, it will return NULL.
          *
          * You take the ownership of the returned value
          *
@@ -3801,6 +3835,9 @@ class MegaApi
          * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle
          * can be got in a Base64-encoded string using MegaNode::getBase64Handle. Conversions
          * between these formats can be done using MegaApi::base64ToHandle and MegaApi::handleToBase64
+         *
+         * It is needed to be logged in and to have successfully completed a fetchNodes
+         * request before calling this function. Otherwise, it will return NULL.
          *
          * You take the ownership of the returned value.
          *

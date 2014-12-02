@@ -1708,6 +1708,11 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 	{
 		gfxAccess = new MegaGfxProc();
 	}
+	
+	if(!userAgent)
+	{
+		userAgent = "";
+	}
 
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
 
@@ -5400,8 +5405,14 @@ void MegaApiImpl::sendPendingTransfers()
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
                 int64_t mtime = transfer->getTime();
+                Node *parent = client->nodebyhandle(transfer->getParentHandle());
 
-                if(!localPath) { e = API_EARGS; break; }
+                if(!localPath || !parent)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
                 currentTransfer = transfer;
 				string tmpString = localPath;
 				string wLocalPath;

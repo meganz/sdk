@@ -33,6 +33,7 @@ Makefile.in
 aclocal.m4
 autom4te.cache
 /include/mega/config.h
+/include/mega/config.h.in
 configure
 depcomp
 *.swp

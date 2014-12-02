@@ -1,0 +1,28 @@
+MEGA SDK configuration and compilation instructions for OSX.
+
+*) Install Xcode and run it to accept the license agreement.
+
+*) Install Homebrew package manager: http://brew.sh/
+ The website has nice instructions how to install it.
+
+*) Install dependencies:
+brew install autoconf automake libtool libcryptopp sqlite openssl c-ares freeimage readline
+brew install --with-openssl curl
+
+*) Get and extract MEGA SDK sources
+
+*) Configure project:
+./autogen.sh
+
+./configure \
+ --with-openssl=/usr/local/opt/openssl \
+--with-cryptopp=/usr/local/opt/cryptopp \
+ --with-sqlite=/usr/local/opt/sqlite \
+ --with-cares=/usr/local/opt/c-ares \
+--with-curl=/usr/local/opt/curl \
+--with-freeimage=/usr/local/opt/freeimage \
+--with-readline=/usr/local/opt/readline
+
+*) Build project:
+make
+

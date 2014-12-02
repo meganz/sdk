@@ -1,10 +1,3 @@
-//
-//  MEGANode.m
-//
-//  Created by Javier Navarro on 01/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGANode.h"
 #import "megaapi.h"
 
@@ -70,7 +63,7 @@ using namespace mega;
     return self.megaNode ? [[NSNumber alloc] initWithUnsignedLongLong:self.megaNode->getSize()] : nil;
 }
 
-- (NSDate *)getCreationTime {
+- (NSDate *)creationTime {
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getCreationTime()] : nil;
 }
 
@@ -104,6 +97,10 @@ using namespace mega;
 
 - (BOOL)hasPreview {
     return self.megaNode ? self.megaNode->hasPreview() : NO;
+}
+
+- (BOOL)isPublic {
+    return self.megaNode ? self.megaNode->isPublic() : NO;
 }
 
 @end

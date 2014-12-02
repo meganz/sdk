@@ -1,10 +1,3 @@
-//
-//  MEGAAcountDetails.m
-//
-//  Created by Javier Navarro on 02/10/14.
-//  Copyright (c) 2014 MEGA. All rights reserved.
-//
-
 #import "MEGAAccountDetails.h"
 #import "megaapi.h"
 
@@ -39,6 +32,10 @@ using namespace mega;
     }
 }
 
+- (instancetype)clone {
+    return self.accountDetails ? [[MEGAAcountDetails alloc] initWithMegaAccountDetails:self.accountDetails->copy() cMemoryOwn:YES] : nil;
+}
+
 - (MegaAccountDetails *)getCPtr {
     return self.accountDetails;
 }
@@ -63,15 +60,15 @@ using namespace mega;
     return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel() : 0);
 }
 
-- (NSNumber *)storageUsedWithHandle:(uint64_t)handle {
+- (NSNumber *)storageUsedForHandle:(uint64_t)handle {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed(handle)] : nil;
 }
 
-- (NSNumber *)numberFilesWithHandle:(uint64_t)handle {
+- (NSNumber *)numberFilesForHandle:(uint64_t)handle {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFiles(handle)] : nil;
 }
 
-- (NSNumber *)numberFoldersWithHandle:(uint64_t)handle {
+- (NSNumber *)numberFoldersForHandle:(uint64_t)handle {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFolders(handle)] : nil;
 }
 

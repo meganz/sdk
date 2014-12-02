@@ -11,6 +11,7 @@
 		41AB68F21A094194003FE608 /* GfxProcCG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41AB68F11A094194003FE608 /* GfxProcCG.cpp */; };
 		41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */; };
 		41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FB1A09444E003FE608 /* ImageIO.framework */; };
+		41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41AD7A7C1A1E10F900D66856 /* DelegateMEGALoggerListener.mm */; };
 		41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */; };
 		41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED41A0A859C006C40FB /* DelegateMEGAListener.mm */; };
 		41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */; };
@@ -98,6 +99,9 @@
 		41AB68F11A094194003FE608 /* GfxProcCG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GfxProcCG.cpp; sourceTree = "<group>"; };
 		41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
 		41AB68FB1A09444E003FE608 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		41AD7A7B1A1E0F1B00D66856 /* MEGALoggerDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGALoggerDelegate.h; sourceTree = "<group>"; };
+		41AD7A7C1A1E10F900D66856 /* DelegateMEGALoggerListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGALoggerListener.mm; sourceTree = "<group>"; };
+		41AD7A7D1A1E10F900D66856 /* DelegateMEGALoggerListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGALoggerListener.h; sourceTree = "<group>"; };
 		41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAPricing+init.h"; sourceTree = "<group>"; };
 		41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = DelegateMEGAGlobalListener.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGAGlobalListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
@@ -380,6 +384,7 @@
 				940BF08E19EDBD62007E7FA2 /* MEGADelegate.h */,
 				940BF09219EDBD62007E7FA2 /* MEGARequestDelegate.h */,
 				940BF09619EDBD62007E7FA2 /* MEGATransferDelegate.h */,
+				41AD7A7B1A1E0F1B00D66856 /* MEGALoggerDelegate.h */,
 				940BF08F19EDBD62007E7FA2 /* MEGANode.h */,
 				940BF00119ED97B9007E7FA2 /* MEGANode.mm */,
 				940BF09019EDBD62007E7FA2 /* MEGANodeList.h */,
@@ -528,6 +533,8 @@
 		940BF09B19EDBD62007E7FA2 /* Private */ = {
 			isa = PBXGroup;
 			children = (
+				41AD7A7D1A1E10F900D66856 /* DelegateMEGALoggerListener.h */,
+				41AD7A7C1A1E10F900D66856 /* DelegateMEGALoggerListener.mm */,
 				41B2AED11A0A859C006C40FB /* DelegateMEGAGlobalListener.h */,
 				41B2AED21A0A859C006C40FB /* DelegateMEGAGlobalListener.mm */,
 				41B2AED31A0A859C006C40FB /* DelegateMEGAListener.h */,
@@ -675,6 +682,7 @@
 				940BEFBE19ED92C2007E7FA2 /* fileattributefetch.cpp in Sources */,
 				940BEFBA19ED92C2007E7FA2 /* command.cpp in Sources */,
 				940BEFD019ED92C2007E7FA2 /* transfer.cpp in Sources */,
+				41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */,
 				41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */,
 				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
 				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
