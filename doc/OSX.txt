@@ -10,11 +10,13 @@ Please note, that the actual libraries versions could change in the future (to t
 
 *) Install dependencies:
 brew install autoconf automake libtool libcryptopp sqlite openssl c-ares freeimage readline
-brew install --with-openssl --with-ares curl
+brew install --with-openssl curl
 
 *) Get and extract MEGA SDK sources
 
 *) Configure project:
+./autogen.sh
+
 ./configure \
  --with-openssl=/usr/local/opt/openssl \
 --with-cryptopp=/usr/local/opt/cryptopp \
