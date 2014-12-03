@@ -557,7 +557,7 @@ MegaTransferList *MegaApi::getTransfers()
 
 MegaTransferList *MegaApi::getTransfers(int type)
 {
-    pImpl->getTransfers(type);
+    return pImpl->getTransfers(type);
 }
 
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
