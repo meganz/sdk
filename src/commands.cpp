@@ -2909,6 +2909,9 @@ void CommandFetchNodes::procresult()
                 {
                     memset(&(it->second->changed), 0, sizeof it->second->changed);
                 }
+
+                client->app->pcrs_updated(NULL, client->pcrindex.size());
+
                 return;
 
             default:

@@ -42,6 +42,11 @@ PendingContactRequest::PendingContactRequest(const handle id, const char *oemail
     this->isoutgoing = outgoing;
 }
 
+bool PendingContactRequest::removed()
+{
+    return changed.accepted || changed.denied || changed.ignored || changed.deleted;
+}
+
 bool PendingContactRequest::serialize(string *d)
 {
     unsigned char l;
@@ -115,7 +120,10 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     isoutgoing = MemAccess::get<bool>(ptr);
     ptr += sizeof isoutgoing;
 
-    return new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
+    PendingContactRequest *pcr = new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
+    client->mappcr(id, pcr);
+
+    return pcr;
 }
 
 } //namespace

@@ -78,6 +78,9 @@ struct MEGA_API MegaApp
     // nodes have been updated
     virtual void nodes_updated(Node**, int) { }
 
+    // nodes have been updated
+    virtual void pcrs_updated(PendingContactRequest**, int) { }
+
     // users have been added or updated
     virtual void users_updated(User**, int) { }
 

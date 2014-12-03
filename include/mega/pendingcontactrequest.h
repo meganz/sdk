@@ -50,11 +50,20 @@ struct MEGA_API PendingContactRequest : public Cachable
     // flag for ease of use identifying direction
     bool isoutgoing;
 
+    struct {
+        bool accepted : 1;
+        bool denied : 1;
+        bool ignored : 1;
+        bool deleted : 1;
+        bool reminded : 1;
+    } changed;
+
     bool serialize(string*);
     static PendingContactRequest* unserialize(class MegaClient *, string*);
 
     PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing);
 
+    bool removed();
 };
 
 } //namespace
