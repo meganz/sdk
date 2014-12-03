@@ -332,11 +332,19 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
-    // do not update state if undecrypted nodes are present
+    // do not serialize encrypted nodes
     if (attrstring)
     {
-        LOG_warn << "Trying to serialize an undecrypted node";
-        return false;
+        LOG_warn << "Trying to serialize an encrypted node";
+
+        //Last attempt to decrypt the node
+        setattr();
+
+        if (attrstring)
+        {
+            LOG_err << "Skipping undecryptable node";
+            return false;
+        }
     }
 
     switch (type)
