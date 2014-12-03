@@ -422,7 +422,7 @@ bool JSON::leaveobject()
 {
     for (; ;)
     {
-        if (*pos == ':' || *pos == ',')
+        if (*pos == ':' || *pos == ',' || *pos == ' ')
         {
             pos++;
         }
