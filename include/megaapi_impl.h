@@ -712,6 +712,7 @@ class MegaApiImpl : public MegaApp
         void pauseTransfers(bool pause, MegaRequestListener* listener=NULL);
         void setUploadLimit(int bpslimit);
         MegaTransferList *getTransfers();
+        MegaTransferList *getTransfers(int type);
 
 #ifdef ENABLE_SYNC
         //Sync

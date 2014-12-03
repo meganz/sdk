@@ -3381,9 +3381,25 @@ class MegaApi
 
         /**
          * @brief Get all active transfers
+         *
+         * You take the ownership of the returned value
+         *
          * @return List with all active transfers
          */
         MegaTransferList *getTransfers();
+
+        /**
+         * @brief Get all transfers of a specific type (downloads or uploads)
+         *
+         * If the parameter isn't MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * this function returns an empty list.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param type MegaTransfer.TYPE_DOWNLOAD or MegaTransfer.TYPE_UPLOAD
+         * @return List with transfers of the desired type
+         */
+        MegaTransferList *getTransfers(int type);
 
 #ifdef ENABLE_SYNC
 

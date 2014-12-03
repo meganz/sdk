@@ -2477,8 +2477,46 @@ MegaTransferList *MegaApiImpl::getTransfers()
     sdkMutex.lock();
 
     vector<MegaTransfer *> transfers;
-    for (map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
-    	transfers.push_back(it->second);
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+        {
+            Transfer *t = it->second;
+            if(transferMap.find(t->tag) == transferMap.end())
+            {
+                continue;
+            }
+            MegaTransferPrivate* transfer = transferMap.at(t->tag);
+            transfers.push_back(transfer);
+        }
+    }
+
+    MegaTransferList *result = new MegaTransferListPrivate(transfers.data(), transfers.size());
+
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaTransferList *MegaApiImpl::getTransfers(int type)
+{
+    if(type != MegaTransfer::TYPE_DOWNLOAD && type != MegaTransfer::TYPE_UPLOAD)
+    {
+        return new MegaTransferListPrivate();
+    }
+
+    sdkMutex.lock();
+
+    vector<MegaTransfer *> transfers;
+    for (transfer_map::iterator it = client->transfers[type].begin(); it != client->transfers[type].end(); it++)
+    {
+        Transfer *t = it->second;
+        if(transferMap.find(t->tag) == transferMap.end())
+        {
+            continue;
+        }
+        MegaTransferPrivate* transfer = transferMap.at(t->tag);
+        transfers.push_back(transfer);
+    }
 
     MegaTransferList *result = new MegaTransferListPrivate(transfers.data(), transfers.size());
 
