@@ -895,8 +895,35 @@ void CommandDelNode::procresult()
     }
     else
     {
-        client->json.storeobject();
-        client->app->unlink_result(h, API_EINTERNAL);
+        error e = API_EINTERNAL;
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case 'r':
+                    if (client->json.enterarray())
+                    {
+                        if(client->json.isnumeric())
+                        {
+                            e = (error)client->json.getint();
+                        }
+
+                        client->json.leavearray();
+                    }
+                    break;
+
+                case EOO:
+                    client->app->unlink_result(h, e);
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        client->app->unlink_result(h, API_EINTERNAL);
+                        return;
+                    }
+            }
+        }
     }
 }
 

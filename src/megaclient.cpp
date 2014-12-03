@@ -2638,7 +2638,10 @@ bool MegaClient::sc_shares()
                                                          outbound ? uh : oh,
                                                          r, ts, sharekey,
                                                          have_ha ? ha : NULL));
-                        return true;
+
+                        //Returns false because as this is a new share, the node
+                        //could not have been received yet
+                        return false;
                     }
                 }
                 else
@@ -3171,7 +3174,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel)
 // delete node tree
 error MegaClient::unlink(Node* n)
 {
-    if (!checkaccess(n, FULL))
+    if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
