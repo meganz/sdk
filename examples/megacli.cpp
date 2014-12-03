@@ -477,6 +477,50 @@ void DemoApp::users_updated(User** u, int count)
     }
 }
 
+void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
+{
+    int deletecount = 0;
+    int updatecount = 0;
+    if (list!=NULL)
+    {
+        for(int i=0; i<count; i++)
+        {
+            if (list[i]->changed.deleted)
+            {
+                deletecount++; 
+            } 
+            else
+            {
+                updatecount++;
+            }
+        }
+    } 
+    else
+    {
+        // All pcrs are updated
+        for (int i = 0; i<client->pcrnotify.size(); i++)
+        {
+            if (client->pcrnotify[i]->changed.deleted)
+            {
+                deletecount++; 
+            } 
+            else
+            {
+                updatecount++;
+            }
+        }
+    }
+
+    if (deletecount!=0)
+    {
+        cout << deletecount << " pending contact request" << (deletecount!=1 ? "s" : "") << " deleted" << endl;
+    }
+    if (updatecount!=0)
+    {
+        cout << updatecount << " pending contact request" << (updatecount!=1 ? "s" : "") << " received or updated" << endl;
+    }
+}
+
 void DemoApp::setattr_result(handle, error e)
 {
     if (e)

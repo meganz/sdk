@@ -97,6 +97,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int);
     void nodes_updated(Node**, int);
+    void pcrs_updated(PendingContactRequest**, int);
     void nodes_current();
 
     int prepare_download(Node*);

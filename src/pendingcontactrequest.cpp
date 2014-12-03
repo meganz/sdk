@@ -40,6 +40,8 @@ PendingContactRequest::PendingContactRequest(const handle id, const char *oemail
     }
 
     this->isoutgoing = outgoing;
+
+    memset(&changed,0,sizeof changed);
 }
 
 bool PendingContactRequest::removed()

@@ -3177,6 +3177,8 @@ void MegaClient::sc_opc()
                 if (dts != 0)
                 {
                     // this is a delete, find the existing object in state
+                    pcr->uts = dts;
+                    pcr->changed.deleted = true;
                 }
                 else if (pcr)
                 {
@@ -4235,6 +4237,7 @@ void MegaClient::readipc(JSON *j)
         {
             m_time_t ts = 0;
             m_time_t uts = 0;
+            int ps = 0;
             const char *m = NULL;
             const char *msg = NULL;
             handle p = UNDEF;
@@ -4244,6 +4247,7 @@ void MegaClient::readipc(JSON *j)
             {
                 switch (j->getnameid()) {
                     case MAKENAMEID2('p', 's'):
+                        ps = j->getint();
                         break;
                     case 'm':
                         m = j->getvalue();
@@ -4258,7 +4262,7 @@ void MegaClient::readipc(JSON *j)
                         msg = j->getvalue();
                         break;
                     case 'p':
-                        p = j->gethandle();
+                        p = j->gethandle(MegaClient::PCRHANDLE);
                         break;
                     case EOO:
                         done = true;
