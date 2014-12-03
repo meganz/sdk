@@ -434,6 +434,11 @@ bool JSON::leaveobject()
         {
             storeobject();
         }
+        else if(*pos == ']')
+        {
+            LOG_err << "Parse error (unexpected ']' character)";
+            pos++;
+        }
         else
         {
             break;
