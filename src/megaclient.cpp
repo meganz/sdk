@@ -2210,11 +2210,12 @@ bool MegaClient::procsc()
 
                             /*case MAKENAMEID3('i', 'p', 'c'):
                                 // incoming pending contact request (to us)
-                                break;
+                                break;*/
 
                             case MAKENAMEID3('o', 'p', 'c'):
                                 // outgoing pending contact request (from us)
-                                break;*/
+                                sc_opc();
+                                break;
                         }
                     }
                 }
@@ -2269,6 +2270,18 @@ void MegaClient::initsc()
             for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
             {
                 if (!(complete = sctable->put(CACHEDNODE, it->second, &key)))
+                {
+                    break;
+                }
+            }
+        }
+
+        if (complete)
+        {
+            // 4. write new or modified pcrs, purge deleted pcrs
+            for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
+            {
+                if (!(complete = sctable->put(CACHEDPCR, it->second, &key)))
                 {
                     break;
                 }
@@ -2334,6 +2347,31 @@ void MegaClient::updatesc()
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (complete)
+        {
+            // 4. write new or modified pcrs, purge deleted pcrs
+            for (pcr_vector::iterator it = pcrnotify.begin(); it != pcrnotify.end(); it++)
+            {
+                char base64[12];
+                if ((*it)->removed() && (*it)->dbid)
+                {
+                    LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->del((*it)->dbid)))
+                    {
+                        break;
+                    }
+                }
+                else if (!(*it)->removed())
+                {
+                    LOG_verbose << "Adding pcr to database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->put(CACHEDPCR, *it, &key)))
                     {
                         break;
                     }
@@ -3007,6 +3045,110 @@ void MegaClient::sc_userattr()
     }
 }
 
+void MegaClient::sc_opc()
+{
+    // fields: e, m, ts, uts, rts, dts, msg, p
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    const char *e = NULL;
+    const char *m = NULL;
+    const char *msg = NULL;
+    handle p = UNDEF;
+    PendingContactRequest *pcr;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'e':
+                e = jsonsc.getvalue();
+                break;
+            case 'm':
+                m = jsonsc.getvalue();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = jsonsc.getvalue();
+                break;
+            case 'p':
+                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case EOO:
+                done = true;
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "p element not provided";
+                    break;
+                }
+
+                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+
+                if (dts != 0)
+                {
+                    // this is a delete, find the existing object in state
+                }
+                else if (pcr)
+                {
+                    // reminder
+                    if (uts == 0) {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+                    if (rts == 0) {
+                        LOG_err << "rts element not provided";
+                        break;
+                    }
+                    pcr->uts = uts;
+                    pcr->changed.reminded = true;
+                } else {
+                    // new
+
+                    if (!e) {
+                        LOG_err << "e element not provided";
+                        break;
+                    }
+                    if (!m) {
+                        LOG_err << "m element not provided";
+                        break;
+                    }
+                    if (ts == 0) {
+                        LOG_err << "ts element not provided";
+                        break;
+                    }
+                    if (uts == 0) {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                    mappcr(p, pcr);
+                }
+                notifypcr(pcr);
+
+                break;
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
 // scan notified nodes for
 // - name differences with an existing LocalNode
 // - appearance of new folders
@@ -3021,7 +3163,7 @@ void MegaClient::notifypurge(void)
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
 
-    if (nodenotify.size() || usernotify.size() || cachedscsn != tscsn)
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || cachedscsn != tscsn)
     {
         updatesc();
 
@@ -3078,6 +3220,29 @@ void MegaClient::notifypurge(void)
         }
 
         nodenotify.clear();
+    }
+
+    if ((t = pcrnotify.size()))
+    {
+        app->pcrs_updated(&pcrnotify[0], t);
+
+        // check all notified nodes for removed status and purge
+        for (i = 0; i < t; i++)
+        {
+            PendingContactRequest* pcr = pcrnotify[i];
+
+            if (pcr->removed())
+            {
+                pcrindex.erase(pcr->id);
+                delete pcr;
+            }
+            else
+            {
+                pcr->notified = false;
+            }
+        }
+
+        pcrnotify.clear();
     }
 
     // users are never deleted
@@ -4078,7 +4243,7 @@ void MegaClient::readopc(JSON *j)
                         msg = j->getvalue();
                         break;
                     case 'p':
-                        p = j->gethandle();
+                        p = j->gethandle(MegaClient::PCRHANDLE);
                         break;
                     case EOO:
                         done = true;
@@ -4507,6 +4672,11 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
+void MegaClient::mappcr(handle id, PendingContactRequest *pcr)
+{
+    pcrindex[id] = pcr;
+}
+
 // sharekey distribution request - walk array consisting of {node,user+}+ handle tuples
 // and submit public key requests
 void MegaClient::procsr(JSON* j)
@@ -4801,6 +4971,14 @@ void MegaClient::notifynode(Node* n)
 void MegaClient::notifyuser(User* u)
 {
     usernotify.push_back(u);
+}
+
+// queue pcr for notification
+void MegaClient::notifypcr(PendingContactRequest* pcr) {
+    if (!pcr->notified) {
+        pcr->notified = true;
+        pcrnotify.push_back(pcr);
+    }
 }
 
 // process request for share node keys
@@ -5361,6 +5539,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     string data;
     Node* n;
     User* u;
+    PendingContactRequest* pcr;
     node_vector dp;
 
     LOG_info << "Loading session from local cache";
@@ -5386,6 +5565,18 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 else
                 {
                     LOG_err << "Failed - node record read error";
+                    return false;
+                }
+                break;
+
+            case CACHEDPCR:
+                if ((pcr = PendingContactRequest::unserialize(this, &data)))
+                {
+                    pcr->dbid = id;
+                }
+                else
+                {
+                    LOG_err << "Failed - pcr record read error";
                     return false;
                 }
                 break;
@@ -6989,4 +7180,5 @@ void MegaClient::reportevent(const char* event, const char* details)
 {
     reqs[r].add(new CommandReportEvent(this, event, details));
 }
+
 } // namespace

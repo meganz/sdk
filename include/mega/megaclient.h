@@ -22,6 +22,7 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
+#include <openssl/pem.h>
 #include "json.h"
 #include "db.h"
 #include "gfx.h"
@@ -33,6 +34,7 @@
 #include "backofftimer.h"
 #include "http.h"
 #include "pubkeyaction.h"
+#include "pendingcontactrequest.h"
 
 namespace mega {
 
@@ -352,6 +354,7 @@ private:
     void sc_fileattr();
     void sc_userattr();
     bool sc_shares();
+    void sc_opc();
 
     void init();
 
@@ -424,7 +427,7 @@ public:
     bool statecurrent;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
 
     // initialize/update state cache referenced sctable
     void initsc();
@@ -513,6 +516,9 @@ public:
 
     user_vector usernotify;
     void notifyuser(User*);
+
+    pcr_vector pcrnotify;
+    void notifypcr(PendingContactRequest*);
 
     node_vector nodenotify;
     void notifynode(Node*);
@@ -719,6 +725,7 @@ public:
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
     void mapuser(handle, const char*);
+    void mappcr(handle, PendingContactRequest*);
 
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);

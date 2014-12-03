@@ -276,6 +276,7 @@ typedef set<pair<handle, handle> > handlepair_set;
 // node and user vectors
 typedef vector<struct NodeCore*> nodecore_vector;
 typedef vector<struct User*> user_vector;
+typedef vector<struct PendingContactRequest*> pcr_vector;
 
 // actual user data (indexed by userid)
 typedef map<int, User> user_map;
