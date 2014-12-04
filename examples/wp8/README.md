@@ -1,10 +1,8 @@
-windowsphone
-============
+# Windows Phone Example App
 
-Example project for a Windows Phone application.
+Microsoft Visual Studio project for developing a MEGA app for Windows Phone.
 
 Target OS: Windows Phone 8.0
-
 
 Demo application that allows:
 - Create a user account.
@@ -14,16 +12,16 @@ Demo application that allows:
 - Logout of the user account.
 
 
-How to run the Demo using Microsoft Visual Studio. Steps:
+## How to build and run the project:
 
-1.- Download or clone the whole SDK
+To build and run the project, follow this steps:
 
-2.- Download the `3rdparty.zip` file
+1. Download or clone the whole SDK
+2. Download the prebuild third party dependencies from this link: https://mega.co.nz/#!ttF3hZxT!ulGWt8C-1PCs39mmNBUIepNrWVeHWJ#JdjUBMSKqf-BM
+3. Uncompress in the directory `sdk/bindings/wp8`
+4. Go to `sdk/examples/wp8/MegaApp` and open `MegaApp.sln`
+5. Make sure the `MegaApp` project is selected as init or main project
+6. Build and run the application
 
-3.- Unzip in the directory `sdk/bindings/wp8`
 
-4.- Go to `sdk/examples/wp8/MegaApp` and open `MegaApp.sln`
-
-5.- Set the `MegaApp` project as init or main project
-
-6.- Build and run the application
+If you want to build the third party dependencies by yourself, you can download from this link: https://mega.co.nz/#!tsl3WDja!lm0ZkK6eeQhzlGb_AoLmfNzPKzRHpr_ulijUTTddYwM
