@@ -63,6 +63,12 @@ void WinHttpIO::setuseragent(string* useragent)
                            WINHTTP_NO_PROXY_NAME,
                            WINHTTP_NO_PROXY_BYPASS,
                            WINHTTP_FLAG_ASYNC);
+
+    DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 |
+            WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 |
+            WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+
+    WinHttpSetOption(hSession, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof (protocols));
 }
 
 
