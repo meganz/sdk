@@ -993,9 +993,9 @@ void MegaHashSignature::add(const char *data, unsigned size)
 	pImpl->add(data, size);
 }
 
-bool MegaHashSignature::check(const char *base64Signature)
+bool MegaHashSignature::checkSignature(const char *base64Signature)
 {
-    return pImpl->check(base64Signature);
+    return pImpl->checkSignature(base64Signature);
 }
 
 MegaAccountDetails::~MegaAccountDetails() { }

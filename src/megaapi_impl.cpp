@@ -6567,7 +6567,7 @@ void MegaHashSignatureImpl::add(const char *data, unsigned size)
     hashSignature->add((const byte *)data, size);
 }
 
-bool MegaHashSignatureImpl::check(const char *base64Signature)
+bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
 {
     char signature[512];
     int l = Base64::atob(base64Signature, (byte *)signature, sizeof(signature));

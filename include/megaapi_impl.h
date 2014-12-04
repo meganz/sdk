@@ -992,7 +992,7 @@ class MegaHashSignatureImpl
 		~MegaHashSignatureImpl();
 		void init();
 		void add(const char *data, unsigned size);
-		bool check(const char *base64Signature);
+        bool checkSignature(const char *base64Signature);
 
 	protected:    
 		HashSignature *hashSignature;

@@ -4182,7 +4182,7 @@ public:
      * @param Base64-encoded digital signature
      * @return true if the signature is correct, otherwise false
      */
-    bool check(const char *base64Signature);
+    bool checkSignature(const char *base64Signature);
 
 private:
 	MegaHashSignatureImpl *pImpl;    
