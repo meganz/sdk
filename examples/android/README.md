@@ -15,7 +15,7 @@ To use a prebuilt library (the easy way), follow these steps:
 https://mega.co.nz/#!I1ljCKBB!DhBJeS5IDH8LzZNvg80LRJqRkiEnNnSdUTovYNW0quM
 
 6. Uncompress the libraries in a `libs` folder in your project.
-You should end with `[Eclipse workspace]/[MEGA project folder]/libs/armeabi/libmega.so`
+You should end with `[Eclipse workspace]/[MEGA project folder]/libs/armeabi/libmega.so` and `[Eclipse workspace]/[MEGA project folder]/libs/x86/libmega.so`
 
 7. Build and run the project in Eclipse
 
