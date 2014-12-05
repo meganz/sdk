@@ -13,6 +13,7 @@
 
 /**
  * @brief This function is called when there are new or updated contacts in the account.
+ *
  * @param api MEGASdk object connected to the account.
  * @param users List that contains the new or updated contacts.
  */
@@ -20,6 +21,10 @@
 
 /**
  * @brief This function is called when there are new or updated nodes in the account.
+ *
+ * When the full account is reloaded or a large number of server notifications arrives at once, the
+ * second parameter will be nil.
+ *
  * @param api MEGASdk object connected to the account.
  * @param nodes List that contains the new or updated nodes.
  */

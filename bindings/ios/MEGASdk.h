@@ -63,7 +63,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * doesn't have to be stored by the application.
  *
  * To access MEGA using this SDK, you have to create an object of this class and use one of the [MEGASdk loginWithEmail:password:]
- * options (to log in to a MEGA account or a public folder). If the login request succeed, call [MEGASdk fetchnodes] to get the
+ * options (to log in to a MEGA account or a public folder). If the login request succeed, you must call [MEGASdk fetchnodes] to get the
  * filesystem in MEGA.
  * After that, you can use all other requests, manage the files and start transfers.
  *
@@ -80,15 +80,11 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * If the MEGASdk object isn't logged in or the email isn't available,
  * this property is nil.
  *
- * You take the ownership of the value.
- *
  */
 @property (readonly, nonatomic) NSString *myEmail;
 
 /**
  * @brief Root node of the account.
- *
- * You take the ownership of the returned value.
  *
  * If you haven't successfully called [MEGASdk fetchNodes] before,
  * this property is nil.
@@ -99,8 +95,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 /**
  * @brief Rubbish node of the account.
  *
- * You take the ownership of the returned value.
- *
  * If you haven't successfully called [MEGASdk fetchNodes] before,
  * this property is nil.
  *
@@ -109,8 +103,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 /**
  * @brief Inbox node of the account.
- *
- * You take the ownership of the returned value.
  *
  * If you haven't successfully called [MEGASdk fetchNodes] before,
  * this property is nil.
@@ -148,8 +140,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * With the master key, it's possible to start the recovery of an account when the
  * password is lost:
  * - https://mega.co.nz/#recovery
- *
- * You take the ownership of the returned value.
  *
  */
 @property (readonly, nonatomic) NSString *masterKey;
@@ -267,8 +257,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * in a background thread, to prevent UI hangs. The resulting key can be used in 
  * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
  *
- * You take the ownership of the returned value.
- *
  * @param password Access password.
  * @return Base64-encoded private key
  */
@@ -281,8 +269,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * required to log in, this function allows to do this step in a separate function. You should run this function
  * in a background thread, to prevent UI hangs. The resulting key can be used in 
  * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
- *
- * You take the ownership of the returned value.
  *
  * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyForPassword:]
  * @return Base64-encoded hash
@@ -446,8 +432,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * You have to be logged in to get a valid session key. Otherwise,
  * this function returns nil.
- *
- * You take the ownership of the returned value.
  *
  * @return Current session key.
  */
@@ -1612,7 +1596,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - [MEGARequest transferTag] - Returns the tag of the cancelled transfer ([MEGATransfer tag])
  *
  * @param transfer MEGATransfer object that identifies the transfer
- * You can get this object in any MegaTransferListener callback or any MegaListener callback
+ * You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
  * related to transfers.
  *
  */
@@ -1731,8 +1715,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * If the parent node doesn't exist or it isn't a folder, this function
  * returns nil.
  *
- * You take the ownership of the returned value.
- *
  * @param parent Parent node.
  * @param order Order for the returned list.
  * Valid values for this parameter are:
@@ -1779,8 +1761,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * If the parent node doesn't exist or it isn't a folder, this function
  * returns nil.
  *
- * You take the ownership of the returned value.
- *
  * @param parent Parent node. Sort in alphabetical order, descending
  *
  * @return List with all child MEGANode objects.
@@ -1791,8 +1771,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the child node with the provided name.
  *
  * If the node doesn't exist, this function returns nil.
- *
- * You take the ownership of the returned value.
  *
  * @param parent Parent node.
  * @param name Name of the node.
@@ -1806,8 +1784,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * If the node doesn't exist in the account or
  * it is a root node, this function returns nil.
  *
- * You take the ownership of the returned value.
- *
  * @param node MEGANode to get the parent.
  * @return The parent of the provided node.
  */
@@ -1817,10 +1793,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the path of a MEGANode.
  *
  * If the node doesn't exist, this function returns nil.
- * You can recoved the node later unsing [MEGASdk nodeForPath:]
+ * You can recoved the node later using [MEGASdk nodeForPath:]
  * except if the path contains names with  '/', '\' or ':' characters.
- *
- * You take the ownership of the returned value.
  *
  * @param node MEGANode for which the path will be returned.
  * @return The path of the node.
@@ -1831,13 +1805,15 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the MEGANode in a specific path in the MEGA account.
  *
  * The path separator character is '/'
+ * The root node is /
  * The Inbox root node is //in/
  * The Rubbish root node is //bin/
  *
  * Paths with names containing '/', '\' or ':' aren't compatible
  * with this function.
  *
- * You take the ownership of the returned value.
+ * It is needed to be logged in and to have successfully completed a fetchNodes
+ * request before calling this function. Otherwise, it will return nil.
  *
  * @param path Path to check.
  * @param node Base node if the path is relative.
@@ -1849,13 +1825,15 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the MEGANode in a specific path in the MEGA account.
  *
  * The path separator character is '/'
+ * The root node is /
  * The Inbox root node is //in/
  * The Rubbish root node is //bin/
  *
  * Paths with names containing '/', '\' or ':' aren't compatible
  * with this function.
  *
- * You take the ownership of the returned value.
+ * It is needed to be logged in and to have successfully completed a fetchNodes
+ * request before calling this function. Otherwise, it will return nil.
  *
  * @param path Path to check.
  * @return The MEGANode object in the path, otherwise nil.
@@ -1869,7 +1847,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * can be got in a Base64-encoded string using [MEGANode base64Handle]. Conversions
  * between these formats can be done using [MEGASdk handleForBase64Handle:] and [MEGASdk handleToBase64:].
  *
- * You take the ownership of the returned value.
+ * It is needed to be logged in and to have successfully completed a fetchNodes
+ * request before calling this function. Otherwise, it will return nil.
  *
  * @param handle Node handle to check.
  * @return MEGANode object with the handle, otherwise nil.
@@ -1878,8 +1857,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 /**
  * @brief Get all contacts of this MEGA account.
- *
- * You take the ownership of the returned value.
  *
  * @return List of MEGAUser object with all contacts of this account.
  */
@@ -1890,8 +1867,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * You can get the email of a MEGAUser using [MEGAUser email].
  *
- * You take the ownership of the returned value.
- *
  * @param email Email address to check.
  * @return MEGAUser that has the email address, otherwise nil.
  */
@@ -1899,8 +1874,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 /**
  * @brief Get a list with all inbound sharings from one MEGAUser.
- *
- * You take the ownership of the returned value.
  *
  * @param user MEGAUser sharing folders with this account.
  * @return List of MEGANode objects that this user is sharing with this account.
@@ -1910,8 +1883,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 /**
  * @brief Get a list with all inboud sharings.
  *
- * You take the ownership of the returned value.
- *
  * @return List of MEGANode objects that other users are sharing with this account.
  */
 - (MEGANodeList *)inShares;
@@ -1919,7 +1890,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 /**
  * @brief Check if a MEGANode is being shared.
  *
- * For nodes that are being shared, you can get a a list of MegaShare
+ * For nodes that are being shared, you can get a a list of MEGAShare
  * objects using [MEGASdk outSharesForNode:].
  *
  * @param node Node to check.
@@ -1931,8 +1902,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get a list with the active outbound sharings for a MEGANode.
  *
  * If the node doesn't exist in the account, this function returns an empty list.
- *
- * You take the ownership of the returned value.
  *
  * @param node MEGANode to check.
  * @return List of MEGAShare objects.
@@ -1948,8 +1917,6 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * If the file can't be found or can't be opened, this function returns nil.
  *
- * You take the ownership of the returned value.
- *
  * @param filePath Local file path.
  * @return Base64-encoded fingerprint for the file.
  */
@@ -1960,19 +1927,15 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * If the node doesn't exist or doesn't have a fingerprint, this function returns nil.
  *
- * You take the ownership of the returned value.
- *
  * @param node Node for which we want to get the fingerprint.
  * @return Base64-encoded fingerprint for the file.
  */
-- (NSString *)finferprintForNode:(MEGANode *)node;
+- (NSString *)fingerprintForNode:(MEGANode *)node;
 
 /**
  * @brief Returns a node with the provided fingerprint.
  *
  * If there isn't any node in the account with that fingerprint, this function returns nil.
- *
- * You take the ownership of the returned value.
  *
  * @param fingerprint Fingerprint to check.
  * @return MEGANode object with the provided fingerprint.

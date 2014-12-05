@@ -4,10 +4,6 @@
 /**
  * @brief List of MEGAShare objects.
  *
- * A MEGAShareList has the ownership of the MEGAShare objects that it contains, so they will be
- * only valid until the MEGAShareList is deleted. If you want to retain a MEGAShare returned by
- * a MEGAShareList, use [MEGAShare clone].
- *
  * Objects of this class are immutable.
  *
  * @see [MEGASdk outSharesForNode:]
@@ -21,9 +17,6 @@
 
 /**
  * @brief Returns the MEGAShare at the position index in the MEGAShareList.
- *
- * The MEGAShareList retains the ownership of the returned MEGAShare. It will be only valid until
- * the MEGAShareList is deleted.
  *
  * If the index is >= the size of the list, this function returns nil.
  *

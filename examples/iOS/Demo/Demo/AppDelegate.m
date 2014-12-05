@@ -22,8 +22,7 @@
     
     UIStoryboard* storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
     if ([SSKeychain passwordForService:@"MEGA" account:@"session"]) {
-        [[MEGASdkManager sharedMEGASdk] fastLoginWithSession:[SSKeychain passwordForService:@"MEGA" account:@"session"]];
-        [[MEGASdkManager sharedMEGASdk] fetchNodesWithDelegate:self];
+        [[MEGASdkManager sharedMEGASdk] fastLoginWithSession:[SSKeychain passwordForService:@"MEGA" account:@"session"] delegate:self];
         UITabBarController *tabBarVC = [storyboard instantiateViewControllerWithIdentifier:@"TabBarControllerID"];
         self.window.rootViewController = tabBarVC;
 
@@ -73,6 +72,10 @@
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error {
     if ([error type]) {
         return;
+    }
+    
+    if ([request type] == MEGARequestTypeLogin) {
+        [[MEGASdkManager sharedMEGASdk] fetchNodesWithDelegate:self];
     }
 }
 

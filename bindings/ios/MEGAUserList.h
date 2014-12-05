@@ -4,10 +4,6 @@
 /**
  * @brief List of MEGAUser objects.
  *
- * A MEGAUserList has the ownership of the MEGAUser objects that it contains, so they will be
- * only valid until the MEGAUserList is deleted. If you want to retain a MEGAUser returned by
- * a MEGAUserList, use [MEGAUser clone].
- *
  * Objects of this class are immutable.
  *
  * @see [MEGASdk contacts].
@@ -35,9 +31,6 @@
 
 /**
  * @brief The MEGAUser at the position index in the MEGAUserList.
- *
- * The MEGAUserList retains the ownership of the returned MEGAUser. It will be only valid until
- * the MEGAUserList is deleted.
  *
  * If the index is >= the size of the list, this function returns nil.
  *

@@ -157,7 +157,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 - (void)removeMEGARequestDelegate:(id<MEGARequestDelegate>)delegate {
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGARequestListener *>::iterator it = _activeRequestListeners.begin();
-    while (it != self.activeRequestListeners.end()) {
+    while (it != _activeRequestListeners.end()) {
         DelegateMEGARequestListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
             self.megaApi->removeRequestListener(delegateListener);
@@ -584,11 +584,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
-- (void) cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
+- (void)cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void) cancelTransfer:(MEGATransfer *)transfer {
+- (void)cancelTransfer:(MEGATransfer *)transfer {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
@@ -727,7 +727,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
-- (NSString *)finferprintForNode:(MEGANode *)node {
+- (NSString *)fingerprintForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
     return self.megaApi->getFingerprint([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getFingerprint([node getCPtr])] : nil;

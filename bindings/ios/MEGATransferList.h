@@ -4,10 +4,6 @@
 /**
  * @brief List of MEGATransfer objects.
  *
- * A MEGATransferList has the ownership of the MEGATransfer objects that it contains, so they will be
- * only valid until the MEGATransferList is deleted. If you want to retain a MEGATransfer returned by
- * a MEGATransferList, use [MEGATransfer clone].
- *
  * Objects of this class are immutable.
  *
  * @see [MEGASdk transfers].
@@ -21,9 +17,6 @@
 
 /**
  * @brief The MEGATransfer at the position index in the MEGATransferList.
- *
- * The MEGATransferList retains the ownership of the returned MEGATransfer. It will be only valid until
- * the MEGATransferList is deleted.
  *
  * If the index is >= the size of the list, this function returns nil.
  *

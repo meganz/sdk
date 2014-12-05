@@ -31,12 +31,12 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly, nonatomic) NSString *transferString;
 
 /**
- * @brief The starting time of the request.
+ * @brief The starting time of the transfer.
  */
 @property (readonly, nonatomic) NSDate *startTime;
 
 /**
- * @brief Transferred bytes during this request.
+ * @brief Transferred bytes during this transfer.
  */
 @property (readonly, nonatomic) NSNumber *transferredBytes;
 
@@ -46,7 +46,7 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly, nonatomic) NSNumber *totalBytes;
 
 /**
- * @brief Local path related to this request.
+ * @brief Local path related to this transfer.
  *
  * For uploads, this property is the path to the source file. For downloads, it
  * is the path of the destination file.
@@ -55,7 +55,7 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly, nonatomic) NSString *path;
 
 /**
- * @brief The parent path related to this request.
+ * @brief The parent path related to this transfer.
  *
  * For uploads, this property is the path to the folder containing the source file.
  * For downloads, it is that path to the folder containing the destination file.
@@ -66,10 +66,10 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 /**
  * @brief Handle related to this transfer.
  *
- * For downloads, this property is the handle of the source node. For uploads,
- * it is mega::INVALID_HANDLE
+ * For downloads, this property is the handle of the source node.
  *
- * It is possible to get the MEGANode corresponding to a just uploaded file in [MEGAGlobalListener onNodesUpdate:nodeList:] or [MEGAListener onNodesUpdate:nodeList:].
+ * For uploads, this property is the handle of the new node in [MEGATransferDelegate onTransferFinish:transfer:error:] and [MEGADelegate onTransferFinish:transfer:error:]
+ * when the error code is MEGAErrorTypeApiOk, otherwise the value is mega::INVALID_HANDLE.
  *
  */
 @property (readonly, nonatomic) uint64_t nodeHandle;
@@ -132,7 +132,6 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
  * @brief A public node related to the transfer
  *
  * The value is only valid for downloads of public nodes.
- * You take the ownership of the value.
  *
  */
 @property (readonly, nonatomic) MEGANode *publicNode;

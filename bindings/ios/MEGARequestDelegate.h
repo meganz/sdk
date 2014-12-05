@@ -24,12 +24,6 @@
 /**
  * @brief This function is called when a request is about to start being processed.
  *
- * The SDK retains the ownership of the request parameter.
- * Don't use it after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
- *
  * @param api MEGASdk object that started the request.
  * @param request Information about the request.
  */
@@ -40,13 +34,7 @@
  *
  * There won't be more callbacks about this request.
  * The last parameter provides the result of the request. If the request finished without problems,
- * the error code will be MEGAErrorTypeApiOk
- *
- * The SDK retains the ownership of the request and error parameters.
- * Don't use them after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
+ * the error code will be MEGAErrorTypeApiOk.
  *
  * @param api MEGASdk object that started the request.
  * @param request Information about the request.
@@ -59,13 +47,6 @@
  *
  * Currently, this callback is only used for fetchNodes (MEGARequestTypeFetchNodes) requests.
  *
- * The SDK retains the ownership of the request parameter.
- * Don't use it after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
- *
- *
  * @param api MEGASdk object that started the request.
  * @param request Information about the request.
  * @see [MEGARequest totalBytes] [MEGARequest transferredBytes].
@@ -75,14 +56,9 @@
 /**
  * @brief This function is called when there is a temporary error processing a request.
  *
- * The request continues after this callback, so expect more [MEGARequestListener onRequestTemporaryError:request:error:] or
- * a [MEGARequestListener onRequestFinish:request:error:] callback.
- *
- * The SDK retains the ownership of the request and error parameters.
- * Don't use them after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
+ * The request continues after this callback, so expect more 
+ * [MEGARequestDelegate onRequestTemporaryError:request:error:] or
+ * a [MEGARequestDelegate onRequestFinish:request:error:] callback.
  *
  * @param api MEGASdk object that started the request.
  * @param request Information about the request.

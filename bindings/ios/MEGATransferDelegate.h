@@ -24,12 +24,6 @@
 /**
  * @brief This function is called when a transfer is about to start being processed.
  *
- * The SDK retains the ownership of the transfer parameter.
- * Don't use it after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
- *
  * @param api MEGASdk object that started the transfer.
  * @param transfer Information about the transfer.
  */
@@ -38,20 +32,9 @@
 /**
  * @brief This function is called when a transfer has finished.
  *
- * The SDK retains the ownership of the transfer and error parameters.
- * Don't use them after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
- *
  * There won't be more callbacks about this transfer.
  * The last parameter provides the result of the transfer. If the transfer finished without problems,
  * the error code will be MEGAErrorTypeApiOk.
- *
- * Take into account that when a file is uploaded, an additional request is required to attach the uploaded
- * file to the account. That is automatically made by the SDK, but this means that the file won't be still
- * attached to the account when this callback is received. You can know when the file is finally attached
- * thanks to the [MEGAGlobalDelegate onNodesUpdate:nodeList:] [MEGADelegate onNodesUpdate:nodeList:] callbacks.
  *
  * @param api MEGASdk object that started the transfer.
  * @param transfer Information about the transfer.
@@ -61,12 +44,6 @@
 
 /**
  * @brief This function is called to inform about the progress of a transfer.
- *
- * The SDK retains the ownership of the transfer parameter.
- * Don't use it after this functions returns.
- *
- * The api object is the one created by the application, it will be valid until
- * the application deletes it.
  *
  * @param api MEGASdk object that started the transfer.
  * @param transfer Information about the transfer.
@@ -78,11 +55,9 @@
 /**
  * @brief This function is called when there is a temporary error processing a transfer.
  *
- * The transfer continues after this callback, so expect more [MEGATransferDelegate onTransferTemporaryError:transfer:error:] or
- * a [MEGATransferListener onTransferFinish:transfer:error:] callback.
- *
- * The SDK retains the ownership of the transfer and error parameters.
- * Don't use them after this functions returns.
+ * The transfer continues after this callback, so expect more 
+ * [MEGATransferDelegate onTransferTemporaryError:transfer:error:] or
+ * a [MEGATransferDelegate onTransferFinish:transfer:error:] callback.
  *
  * @param api MEGASdk object that started the transfer.
  * @param request Information about the transfer.

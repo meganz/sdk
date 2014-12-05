@@ -27,9 +27,6 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
  *
  * The email can be used to recover the MEGAUser object later using [MEGASdk contactForEmail:]
  *
- * The MEGAUser object retains the ownership of the returned string, it will be valid until
- * the MEGAUser object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *email;
 

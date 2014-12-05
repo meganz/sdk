@@ -72,8 +72,6 @@
 /**
  * @brief Get the currency associated with [MEGAPricing amountAtProductIndex:].
  *
- * The SDK retains the ownership of the returned value.
- *
  * @param index Product index (from 0 to [MEGAPricing products]).
  * @return Currency associated with [MEGAPricing amountAtProductIndex:].
  */

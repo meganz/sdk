@@ -55,9 +55,6 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
  * The name is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  * For other MEGANode types, the name is undefined.
  *
- * The MEGANode object retains the ownership of the returned string. It will
- * be valid until the MEGANode object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *name;
 
@@ -101,7 +98,7 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 /**
  * @brief Tag of the operation that created/modified this node in MEGA.
  *
- * Every request has a tag that identifies it.
+ * Every request and every transfer has a tag that identifies it.
  * When a request creates or modifies a node, the tag is associated with the node
  * at runtime, this association is lost after a reload of the filesystem or when
  * the SDK is closed.

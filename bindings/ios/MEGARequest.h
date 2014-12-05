@@ -127,9 +127,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk exportNode:] - Returns the public link
  * - [MEGASdk getPaymentURLForProductHandle:] - Returns the payment link
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *link;
 
@@ -151,9 +148,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * This value is valid for these requests:
  * - [MEGASdk fastLoginWithSession:] - Returns session key used to access the account
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *sessionKey;
 
@@ -171,9 +165,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk querySignupLink:] - Returns the name of the user
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
  * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the name of the user
- *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
  *
  */
 @property (readonly, nonatomic) NSString *name;
@@ -198,9 +189,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
  * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the name of the user
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *email;
 
@@ -214,9 +202,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the password for the account
  * - [MEGASdk changePassword:newPassword:]  - Returns the old password of the account (first parameter)
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *password;
 
@@ -226,17 +211,11 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * This value is valid for these requests:
  * - [MEGASdk changePassword:newPassword:]  - Returns the old password of the account (first parameter)
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  */
 @property (readonly, nonatomic) NSString *newPassword;
 
 /**
  * @brief Returns a private key related to the request.
- *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
  *
  * This value is valid for these requests:
  * - [MEGASdk fastLoginWithEmail:password:] - Returns the base64pwKey parameter
@@ -260,9 +239,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /**
  * @brief The path of a file related to the request.
  *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGARequest object is deleted.
- *
  * This value is valid for these requests:
  * - [MEGASdk getThumbnailNode:destinationFilePath:] - Returns the destination path for the thumbnail
  * - [MEGASdk getPreviewlNode:destinationFilePath:] - Returns the destination path for the preview
@@ -281,9 +257,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 
 /**
  * @brief A public node related to the request.
- *
- * The MEGARequest object retains the ownership of the returned value. It will be valid
- * until the MEGARequest object is deleted.
  *
  * If you want to use the returned node beyond the deletion of the MEGARequest object,
  * you must call [MEGANode clone] or use [MEGARequest publicNode] instead.
@@ -330,7 +303,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * This value is valid for these requests:
  * - [MEGASdk retryPendingConnections] - Returns if request are disconnected
- * - [MEGASdk pauseTransfers] - Returns YES if transfers were paused, No if they were resumed
+ * - [MEGASdk pauseTransfers:] - Returns YES if transfers were paused, NO if they were resumed
  *
  */
 @property (readonly, nonatomic) BOOL flag;
@@ -369,7 +342,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @brief Tag of a transfer related to the request.
  *
  * This value is valid for these requests:
- * - [MEGASdk cancelTransfer:] - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+ * - [MEGASdk cancelTransfer:] - Returns the tag of the cancelled transfer ([MEGATransfer tag])
  *
  */
 @property (readonly, nonatomic) NSInteger transferTag;
