@@ -481,9 +481,9 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
 {
     int deletecount = 0;
     int updatecount = 0;
-    if (list!=NULL)
+    if (list != NULL)
     {
-        for(int i=0; i<count; i++)
+        for (int i = 0; i < count; i++)
         {
             if (list[i]->changed.deleted)
             {
@@ -498,9 +498,9 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
     else
     {
         // All pcrs are updated
-        for (int i = 0; i<client->pcrnotify.size(); i++)
+        for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
         {
-            if (client->pcrnotify[i]->changed.deleted)
+            if (it->second->changed.deleted)
             {
                 deletecount++; 
             } 
@@ -591,7 +591,7 @@ void DemoApp::share_result(int, error e)
     }
 }
 
-void DemoApp::setpcr_result(handle h, error e)
+void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
 {
     if (e)
     {
@@ -599,9 +599,29 @@ void DemoApp::setpcr_result(handle h, error e)
     }
     else
     {
-        char buffer[12];
-        int size = Base64::btoa((byte*)&h, sizeof(h), buffer);
-        cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
+        if (h==UNDEF) {
+            // must have been deleted
+            cout << "Outgoing pending contact request " << (action==OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
+        } 
+        else
+        {
+            char buffer[12];
+            int size = Base64::btoa((byte*)&h, sizeof(h), buffer);
+            cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
+        }
+    }
+}
+
+void DemoApp::updatepcr_result(error e, ipcactions_t action)
+{
+    if (e)
+    {
+        cout << "Incoming pending contact request update failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        string labels[3] = {"accepted", "denied", "ignored"};
+        cout << "Incoming pending contact request successfully " << labels[(int)action] << endl;
     }
 }
 
@@ -1498,7 +1518,8 @@ static void process_line(char* l)
 #endif
                 cout << "      export remotepath [del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
-                cout << "      invite dstemail origemail [del]" << endl;
+                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                cout << "      ipca handle a|d|i" << endl;
                 cout << "      users" << endl;
                 cout << "      getua attrname [email|private]" << endl;
                 cout << "      putua attrname [del|set string|load file] [private]" << endl;
@@ -2051,6 +2072,41 @@ static void process_line(char* l)
                     else if (words[0] == "getq")
                     {
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
+                        return;
+                    }
+                    else if (words[0] == "ipca")
+                    {
+                        // incoming pending contact action
+                        if (words.size()==3)
+                        {
+                            handle phandle;
+                            if (Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
+                            {
+                                ipcactions_t action;
+                                if (words[2]=="a")
+                                {
+                                    action = IPCA_ACCEPT;
+                                }
+                                else if (words[2]=="d") 
+                                {
+                                    action = IPCA_DENY;
+                                }
+                                else if (words[2]=="i")
+                                {
+                                    action = IPCA_IGNORE;
+                                }
+                                else {
+                                    cout << "      ipca handle a|d|i" << endl;
+                                    return;
+                                }
+
+                                client->updatepcr(phandle, action);
+                            }
+                        }
+                        else
+                        {
+                            cout << "      ipca handle a|d|i" << endl;
+                        }
                         return;
                     }
 #ifdef ENABLE_SYNC
@@ -2767,15 +2823,22 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        int del = words.size() == 4 && words[3] == "del";
-
-                        if (words.size() == 3 || del)
+                        int del = words.size() == 3 && words[2] == "del";
+                        int rmd = words.size() == 3 && words[2] == "rmd";
+                        if (words.size() == 3)
                         {
-                            client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_ADD, "Invite from MEGAcli", words[2].c_str());
+                            if (del || rmd)
+                            {
+                                client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                            } 
+                            else 
+                            {
+                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words[2].c_str());
+                            }
                         }
                         else
                         {
-                            cout << "      invite dstemail origemail [del]" << endl;
+                            cout << "      invite dstemail [origemail|del|rmd]" << endl;
                         }
 
                         return;

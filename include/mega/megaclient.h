@@ -231,6 +231,7 @@ public:
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char* temail, opcactions_t action, const char* msg = NULL, const char* oemail = NULL);
+    void updatepcr(handle p, ipcactions_t action);
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int);

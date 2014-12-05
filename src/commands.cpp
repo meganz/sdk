@@ -1486,17 +1486,31 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
     cmd("upc");
     if (oemail != NULL) arg("e", oemail);
     arg("u", temail);
-    arg("aa", action);
+    switch (action)     
+    {   
+        case OPCA_DELETE:
+            arg("aa", "d");
+            break;
+        case OPCA_REMIND:
+            arg("aa", "r");
+            break;
+        case OPCA_ADD:          
+        default:
+            arg("aa", "a");
+            break;
+    }
+
     if (msg != NULL) arg("msg", msg);
 
     tag = client->reqtag;
+    this->action = action;
 }
 
 void CommandSetPendingContact::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->setpcr_result(UNDEF, (error)client->json.getint());
+        return client->app->setpcr_result(UNDEF, (error)client->json.getint(), this->action);
     }
 
     handle p = UNDEF;
@@ -1510,23 +1524,57 @@ void CommandSetPendingContact::procresult()
             case EOO:
                 if (ISUNDEF(p))
                 {
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL);                    
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
                 }
                 else
                 {
-                    client->app->setpcr_result(p, API_OK);
+                    client->app->setpcr_result(p, API_OK, this->action);
                 }
                 return;
             default:
                 if (!client->json.storeobject())
                 {
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL);
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
                     return;
                 }
         }
     }
 }
 
+CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
+{
+    cmd("upca");   
+    char buf[12];
+    Base64::btoa((const byte*)&p, MegaClient::PCRHANDLE, buf);
+    arg("p", buf);
+    switch (action)     
+    {   
+        case IPCA_ACCEPT:
+            arg("aa", "a");
+            break;
+        case IPCA_DENY:
+            arg("aa", "d");
+            break;
+        case IPCA_IGNORE:          
+        default:
+            arg("aa", "i");
+            break;
+    }
+
+    tag = client->reqtag;
+    this->action = action;
+}
+
+void CommandUpdatePendingContact::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->updatepcr_result((error)client->json.getint(), this->action);
+    }
+   
+    client->app->updatepcr_result(API_EINTERNAL, this->action);
+    return;    
+}
 
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
