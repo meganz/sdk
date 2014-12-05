@@ -4787,6 +4787,11 @@ void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg
     reqs[r].add(new CommandSetPendingContact(this, temail, action, msg, oemail));
 }
 
+void MegaClient::updatepcr(handle p, ipcactions_t action)
+{
+    reqs[r].add(new CommandUpdatePendingContact(this, p, action));
+}
+
 // enumerate Pro account purchase options (not fully implemented)
 void MegaClient::purchase_enumeratequotaitems()
 {

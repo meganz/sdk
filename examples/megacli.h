@@ -113,7 +113,8 @@ struct DemoApp : public MegaApp
     void share_result(error);
     void share_result(int, error);
 
-    void setpcr_result(handle, error);
+    void setpcr_result(handle, error, opcactions_t);
+    void updatepcr_result(error, ipcactions_t);
 
     void fa_complete(Node*, fatype, const char*, uint32_t);
     int fa_failed(handle, fatype, int);

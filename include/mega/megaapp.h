@@ -104,7 +104,9 @@ struct MEGA_API MegaApp
     virtual void share_result(int, error) { }
 
     // outgoing pending contact result
-    virtual void setpcr_result(handle, error) { }
+    virtual void setpcr_result(handle, error, opcactions_t) { }
+    // incoming pending contact result
+    virtual void updatepcr_result(error, ipcactions_t) { }
 
     // file attribute fetch result
     virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
