@@ -338,6 +338,7 @@ bool Node::serialize(string* d)
         LOG_warn << "Trying to serialize an encrypted node";
 
         //Last attempt to decrypt the node
+        applykey();
         setattr();
 
         if (attrstring)

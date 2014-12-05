@@ -751,6 +751,7 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
+            client->app->putnodes_result(e, type, NULL);
             return client->putnodes_sync_result(e, nn, 0);
         }
         else
@@ -794,6 +795,7 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
                 if (source == PUTNODES_SYNC)
                 {
+                    client->app->putnodes_result(e, type, NULL);
                     client->putnodes_sync_result(e, nn, nnsize);
                 }
                 else

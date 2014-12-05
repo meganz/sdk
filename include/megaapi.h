@@ -467,7 +467,7 @@ class MegaNode
         /**
          * @brief Returns the tag of the operation that created/modified this node in MEGA
          *
-         * Every request and every synchronization has a tag that identifies it.
+         * Every request and every transfer has a tag that identifies it.
          * When a request creates or modifies a node, the tag is associated with the node
          * at runtime, this association is lost after a reload of the filesystem or when
          * the SDK is closed.
@@ -1422,13 +1422,13 @@ class MegaTransfer
          * The returned value is a monotonic time since some unspecified starting point expressed in
          * deciseconds.
          *
-         * @return Starting time of the request (in deciseconds)
+         * @return Starting time of the transfer (in deciseconds)
          */
         virtual int64_t getStartTime() const = 0;
 
         /**
          * @brief Returns the number of transferred bytes during this request
-         * @return Transferred bytes during this request
+         * @return Transferred bytes during this transfer
          */
 		virtual long long getTransferredBytes() const = 0;
 
@@ -1444,7 +1444,7 @@ class MegaTransfer
          * For uploads, this function returns the path to the source file. For downloads, it
          * returns the path of the destination file.
          *
-         * @return Local path related to this request
+         * @return Local path related to this transfer
          */
 		virtual const char* getPath() const = 0;
 
@@ -1454,20 +1454,20 @@ class MegaTransfer
          * For uploads, this function returns the path to the folder containing the source file.
          * For downloads, it returns that path to the folder containing the destination file.
          *
-         * @return Parent path related to this request
+         * @return Parent path related to this transfer
          */
 		virtual const char* getParentPath() const = 0;
 
         /**
          * @brief Returns the handle related to this transfer
          *
-         * For downloads, this function returns the handle of the source node. For uploads,
-         * it always returns mega::INVALID_HANDLE
+         * For downloads, this function returns the handle of the source node.
          *
-         * It is possible to get the MegaNode corresponding to a just uploaded file in MegaGlobalListener::onNodesUpdate
-         * or MegaListener::onNodesUpdate.
+         * For uploads, it returns the handle of the new node in MegaTransferListener::onTransferFinish
+         * and MegaListener::onTransferFinish when the error code is API_OK. Otherwise, it returns
+         * mega::INVALID_HANDLE.
          *
-         * @return The handle of the downloaded node, or mega::INVALID_HANDLE for uploads.
+         * @return The handle related to the transfer.
          */
         virtual MegaHandle getNodeHandle() const = 0;
 
@@ -1572,7 +1572,6 @@ class MegaTransfer
          * @return Public node related to the transfer
          */
         virtual MegaNode *getPublicMegaNode() const = 0;
-
 
         /**
          * @brief Returns true if this transfer belongs to the synchronization engine
@@ -1866,11 +1865,6 @@ class MegaTransferListener
          * The last parameter provides the result of the transfer. If the transfer finished without problems,
          * the error code will be API_OK
          *
-         * Take into account that when a file is uploaded, an additional request is required to attach the uploaded
-         * file to the account. That is automatically made by the SDK, but this means that the file won't be still
-         * attached to the account when this callback is received. You can know when the file is finally attached
-         * thanks to the MegaGlobalListener::onNodesUpdate MegaListener::onNodesUpdate callbacks.
-         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          * @param error Error information
@@ -2091,11 +2085,6 @@ class MegaListener
          * There won't be more callbacks about this transfer.
          * The last parameter provides the result of the transfer. If the transfer finished without problems,
          * the error code will be API_OK
-         *
-         * Take into account that when a file is uploaded, an additional request is required to attach the uploaded
-         * file to the account. That is automatically made by the SDK, but this means that the file won't be still
-         * attached to the account when this callback is received. You can know when the file is finally attached
-         * thanks to the MegaGlobalListener::onNodesUpdate MegaListener::onNodesUpdate callbacks.
          *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer

@@ -3431,7 +3431,7 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     transfer->setPath(path.c_str());
     transfer->setTotalBytes(t->size);
 
-    LOG_info << "Starting " << (t->type ? "upload" : "download") << ". File: " << path.c_str();
+    LOG_info << "Transfer (" << transfer->getTransferString() << ") starting. File: " << transfer->getFileName();
 }
 
 void MegaApiImpl::transfer_update(Transfer *tr)
@@ -3496,17 +3496,6 @@ void MegaApiImpl::transfer_limit(Transfer* t)
 
 void MegaApiImpl::transfer_complete(Transfer* tr)
 {
-    if (tr->type == GET)
-    {
-        if(pendingDownloads > 0)
-            pendingDownloads--;
-    }
-    else
-    {
-        if(pendingUploads > 0)
-            pendingUploads --;
-    }
-
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
 
@@ -3532,7 +3521,18 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
         totalUploadedBytes += transfer->getDeltaSize();
 
     transfer->setTransferredBytes(tr->size);
-    fireOnTransferFinish(transfer, MegaError(API_OK));
+
+    if (tr->type == GET)
+    {
+        if(pendingDownloads > 0)
+            pendingDownloads--;
+
+        fireOnTransferFinish(transfer, MegaError(API_OK));
+    }
+    else
+    {
+        fireOnTransferUpdate(transfer);
+    }
 }
 
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
@@ -3761,25 +3761,50 @@ void MegaApiImpl::fetchnodes_result(error e)
 
 void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 {
+    handle h = UNDEF;
+    Node *n = NULL;
+
+    if(!e && t != USER_HANDLE)
+    {
+        if(client->nodenotify.size())
+        {
+            n = client->nodenotify.back();
+        }
+
+        if(n)
+        {
+            n->applykey();
+            n->setattr();
+            h = n->nodehandle;
+        }
+    }
+
 	MegaError megaError(e);
+    if(transferMap.find(client->restag) != transferMap.end())
+    {
+        MegaTransferPrivate* transfer = transferMap.at(client->restag);
+        if(transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
+        {
+            return;
+        }
+
+        if(pendingUploads > 0)
+        {
+            pendingUploads--;
+        }
+
+        transfer->setNodeHandle(h);
+        fireOnTransferFinish(transfer, megaError);
+        delete [] nn;
+        return;
+    }
+
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY))) return;
 
-	if (t == USER_HANDLE)
-	{
-        fireOnRequestFinish(request, megaError);
-		delete[] nn;	// free array allocated by the app
-		return;
-	}
-
-	handle h = UNDEF;
-	Node *n = NULL;
-	if(client->nodenotify.size()) n = client->nodenotify.back();
-    if(n) n->applykey();
-	if(n) h = n->nodehandle;
 	request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
 	delete [] nn;
@@ -4687,12 +4712,12 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 	MegaError *megaError = new MegaError(e);
     if(e.getErrorCode())
     {
-        LOG_warn << "Transfer (" << transfer->getType() << ") finished with error: " << e.getErrorString()
+        LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
                     << " File: " << transfer->getFileName();
     }
     else
     {
-        LOG_info << "Transfer (" << transfer->getType() << ") finished. File: " << transfer->getFileName();
+        LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
     }
 
 	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)

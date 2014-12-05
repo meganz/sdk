@@ -121,11 +121,10 @@ void File::completed(Transfer* t, LocalNode* l)
             t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,
+                                                                  t->tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? l->sync->tag : t->tag,
                                                                   l ? PUTNODES_SYNC : PUTNODES_APP));
 #else
-                                                                  t->tag,
                                                                   PUTNODES_APP));
 #endif
         }
