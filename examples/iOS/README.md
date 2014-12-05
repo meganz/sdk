@@ -29,7 +29,7 @@ To build and run the project, follow theses steps:
 
 2. Download the prebuilt third party dependencies from this link: https://mega.co.nz/#!0cUDUJja!-dYf3Mm-WunIoU3RS44H0j5xssZGgolVs8NoxNTJqBM
 
-3. Uncompress the content and move `include`and `lib`to the directory `sdk/binding/ios/3rdparty`
+3. Uncompress the content and move `include`and `lib`to the directory `sdk/bindings/ios/3rdparty`
 
 4. Go to `sdk/examples/iOS` and open `MEGA.xcworkspace`
 
