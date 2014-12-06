@@ -78,7 +78,7 @@
 }
 
 - (void)onRequestFinish:(MEGASdk *)api request:(MEGARequest *)request error:(MEGAError *)error{
-    self.caption = [self.node base64Handle];
+    self.caption = [self.node name];
     [self performSelector:@selector(imageLoaded) withObject:nil afterDelay:0];
 
 }
