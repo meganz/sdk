@@ -25,6 +25,7 @@ DEALINGS IN THE SOFTWARE.
 #include "mega.h"
 #include "mega/thread/posixthread.h"
 #include "mega/thread/qtthread.h"
+#include "mega/thread/win32thread.h"
 #include "mega/gfx/external.h"
 #include "mega/gfx/qt.h"
 #include "mega/thread/cppthread.h"
@@ -67,6 +68,9 @@ typedef PosixMutex MegaMutex;
 #elif USE_QT
 typedef QtThread MegaThread;
 typedef QtMutex MegaMutex;
+#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+typedef Win32Thread MegaThread;
+typedef Win32Mutex MegaMutex;
 #else
 typedef CppThread MegaThread;
 typedef CppMutex MegaMutex;
