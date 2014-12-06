@@ -1,4 +1,25 @@
-﻿#define _POSIX_SOURCE
+﻿/**
+ * @file megaapi_impl.cpp
+ * @brief Private implementation of the intermediate layer for the MEGA C++ SDK.
+ *
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ */
+
+#define _POSIX_SOURCE
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -30,6 +51,10 @@
 #endif
 
 #ifdef _WIN32
+#ifndef WINDOWS_PHONE
+#include <shlwapi.h>
+#endif
+
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define strcasecmp _stricmp
@@ -2357,7 +2382,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     {
         string path(dstFilePath);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if((path.size()<2) || path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
 
@@ -2406,7 +2431,7 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     {
         string path(dstFilePath);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if((path.size()<2) || path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
 
@@ -2531,7 +2556,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
     {
         string path(localPath);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if((path.size()<2) || path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
         transfer->setPath(path.data());
@@ -2562,7 +2587,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
     {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
         string path(localPath);
-        if((path.size()<2) || path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
         localPath = path.data();
 #endif
@@ -2625,7 +2650,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 
     string utf8path = path;
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
             utf8path.insert(0, "\\\\?\\");
 #endif
 
@@ -2663,8 +2688,12 @@ int MegaApiImpl::syncPathState(string* path)
     string prefix("\\\\?\\");
     string localPrefix;
     fsAccess->path2local(&prefix, &localPrefix);
-    if(path->size()<4 || memcmp(path->data(), localPrefix.data(), 4))
+    path->append("", 1);
+    if(!PathIsRelativeW((LPCWSTR)path->data()) && (path->size()<4 || memcmp(path->data(), localPrefix.data(), 4)))
+    {
         path->insert(0, localPrefix);
+    }
+    path->resize(path->size() - 1);
 #endif
 
     int state = MegaApi::STATE_NONE;
@@ -2725,7 +2754,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     {
         string path(localFolder);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if((path.size()<2) || path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
         request->setFile(path.data());
@@ -2751,7 +2780,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     {
         string path(localFolder);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if((path.size()<2) || path.compare(0, 2, "\\\\"))
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
         request->setFile(path.data());
@@ -3505,22 +3534,26 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     if(currentTime<transfer->getStartTime())
         transfer->setStartTime(currentTime);
 
-    long long speed = 0;
-    long long deltaTime = currentTime-transfer->getStartTime();
-    if(deltaTime<=0)
-        deltaTime = 1;
-    if(transfer->getTotalBytes()>0)
-        speed = (10*transfer->getTotalBytes())/deltaTime;
-
-    transfer->setSpeed(speed);
     transfer->setUpdateTime(currentTime);
-    transfer->setDeltaSize(tr->size - transfer->getTransferredBytes());
-    if(tr->type == GET)
-        totalDownloadedBytes += transfer->getDeltaSize();
-    else
-        totalUploadedBytes += transfer->getDeltaSize();
 
-    transfer->setTransferredBytes(tr->size);
+    if(tr->size != transfer->getTransferredBytes())
+    {
+        long long speed = 0;
+        long long deltaTime = currentTime-transfer->getStartTime();
+        if(deltaTime<=0)
+            deltaTime = 1;
+        if(transfer->getTotalBytes()>0)
+            speed = (10*transfer->getTotalBytes())/deltaTime;
+
+        transfer->setSpeed(speed);
+        transfer->setDeltaSize(tr->size - transfer->getTransferredBytes());
+        if(tr->type == GET)
+            totalDownloadedBytes += transfer->getDeltaSize();
+        else
+            totalUploadedBytes += transfer->getDeltaSize();
+
+        transfer->setTransferredBytes(tr->size);
+    }
 
     if (tr->type == GET)
     {
@@ -3531,7 +3564,10 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     }
     else
     {
-        fireOnTransferUpdate(transfer);
+        if(tr->size != transfer->getTransferredBytes())
+        {
+            fireOnTransferUpdate(transfer);
+        }
     }
 }
 
@@ -4094,9 +4130,15 @@ void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t tot
         MegaRequestPrivate *request = requestMap.begin()->second;
         if(request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
         {
-            request->setTransferredBytes(currentProgress);
-            request->setTotalBytes(totalProgress);
-            fireOnRequestUpdate(request);
+            if(request->getTransferredBytes() != currentProgress)
+            {
+                request->setTransferredBytes(currentProgress);
+                if(totalProgress != -1)
+                {
+                    request->setTotalBytes(totalProgress);
+                }
+                fireOnRequestUpdate(request);
+            }
         }
     }
 }

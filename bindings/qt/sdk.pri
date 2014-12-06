@@ -165,7 +165,7 @@ win32 {
 	}
     }
 
-    LIBS += -lwinhttp -lws2_32 -luser32 -lpcre
+    LIBS += -lshlwapi -lwinhttp -lws2_32 -luser32 -lpcre
 }
 
 unix:!macx {
