@@ -2,7 +2,7 @@
  * @file mega.h
  * @brief Main header file for inclusion by client software.
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

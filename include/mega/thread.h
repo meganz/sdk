@@ -1,8 +1,8 @@
 /**
- * @file mega/posix/megawaiter.h
- * @brief POSIX event/timeout handling
+ * @file mega/thread.h
+ * @brief Generic thread/mutex handling
  *
- * (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
