@@ -383,6 +383,8 @@ private:
     bool sc_shares();
     bool sc_upgrade();
     void sc_opc();
+    void sc_ipc();
+    void sc_upc();
 
     void init();
 

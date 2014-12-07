@@ -1519,7 +1519,7 @@ static void process_line(char* l)
                 cout << "      export remotepath [del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
-                cout << "      ipca handle a|d|i" << endl;
+                cout << "      ipc handle a|d|i" << endl;
                 cout << "      users" << endl;
                 cout << "      getua attrname [email|private]" << endl;
                 cout << "      putua attrname [del|set string|load file] [private]" << endl;
@@ -2061,20 +2061,7 @@ static void process_line(char* l)
 
                         return;
                     }
-                    break;
-
-                case 4:
-                    if (words[0] == "putq")
-                    {
-                        xferq(PUT, words.size() > 1 ? atoi(words[1].c_str()) : -1);
-                        return;
-                    }
-                    else if (words[0] == "getq")
-                    {
-                        xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
-                        return;
-                    }
-                    else if (words[0] == "ipca")
+                    else if (words[0] == "ipc")
                     {
                         // incoming pending contact action
                         if (words.size()==3)
@@ -2096,7 +2083,7 @@ static void process_line(char* l)
                                     action = IPCA_IGNORE;
                                 }
                                 else {
-                                    cout << "      ipca handle a|d|i" << endl;
+                                    cout << "      ipc handle a|d|i" << endl;
                                     return;
                                 }
 
@@ -2105,10 +2092,23 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      ipca handle a|d|i" << endl;
+                            cout << "      ipc handle a|d|i" << endl;
                         }
                         return;
                     }
+                    break;
+
+                case 4:
+                    if (words[0] == "putq")
+                    {
+                        xferq(PUT, words.size() > 1 ? atoi(words[1].c_str()) : -1);
+                        return;
+                    }
+                    else if (words[0] == "getq")
+                    {
+                        xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
+                        return;
+                    }                    
 #ifdef ENABLE_SYNC
                     else if (words[0] == "sync")
                     {
