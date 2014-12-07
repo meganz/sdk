@@ -356,6 +356,8 @@ private:
     void sc_userattr();
     bool sc_shares();
     void sc_opc();
+    void sc_ipc();
+    void sc_upc();
 
     void init();
 

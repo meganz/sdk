@@ -2208,13 +2208,22 @@ bool MegaClient::procsc()
                                 sc_userattr();
                                 break;
 
-                            /*case MAKENAMEID3('i', 'p', 'c'):
+                            case MAKENAMEID3('i', 'p', 'c'):
                                 // incoming pending contact request (to us)
-                                break;*/
+                                sc_ipc();
+                                break;
 
                             case MAKENAMEID3('o', 'p', 'c'):
                                 // outgoing pending contact request (from us)
                                 sc_opc();
+                                break;
+
+                            case MAKENAMEID4('u', 'p', 'c', 'i'):
+                                // incoming pending contact request update (accept/deny/ignore)
+                                // fall through
+                            case MAKENAMEID4('u', 'p', 'c', 'o'):
+                                // outgoing pending contact request update (from them, accept/deny/ignore)
+                                sc_upc();
                                 break;
                         }
                     }
@@ -3045,6 +3054,106 @@ void MegaClient::sc_userattr()
     }
 }
 
+// Incoming pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
+void MegaClient::sc_ipc()
+{
+    // fields: m, ts, uts, rts, dts, msg, p, ps
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    int ps = 0;
+    const char *m = NULL;
+    const char *msg = NULL;
+    handle p = UNDEF;
+    PendingContactRequest *pcr;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                m = jsonsc.getvalue();
+                break;
+            case MAKENAMEID2('p', 's'):
+                ps = jsonsc.getint();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = jsonsc.getvalue();
+                break;
+            case 'p':
+                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case EOO:
+                done = true;
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "p element not provided";
+                    break;
+                }
+
+                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+
+                if (dts != 0)
+                {
+                    // this is a delete, find the existing object in state
+                    pcr->uts = dts;
+                    pcr->changed.deleted = true;
+                }
+                else if (pcr && rts != 0)
+                {
+                    // reminder
+                    if (uts == 0) {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    pcr->uts = uts;
+                    pcr->changed.reminded = true;
+                } else {
+                    // new
+                    if (!m) {
+                        LOG_err << "m element not provided";
+                        break;
+                    }
+                    if (ts == 0) {
+                        LOG_err << "ts element not provided";
+                        break;
+                    }
+                    if (uts == 0) {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    pcr = new PendingContactRequest(p, NULL, m, ts, uts, msg, false);
+                    mappcr(p, pcr);
+                }
+                notifypcr(pcr);
+
+                break;
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
+// Outgoing pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
 void MegaClient::sc_opc()
 {
     // fields: e, m, ts, uts, rts, dts, msg, p
@@ -3138,6 +3247,93 @@ void MegaClient::sc_opc()
 
                     pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
                     mappcr(p, pcr);
+                }
+                notifypcr(pcr);
+
+                break;
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
+// Incoming pending contact request updates, always triggered by the receiver of the request (accepts, denies, etc)
+void MegaClient::sc_upc()
+{
+    // fields: p, uts, s, m
+    m_time_t uts = 0;
+    int s = 0;
+    const char *m = NULL;
+    handle p = UNDEF;
+    PendingContactRequest *pcr;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                m = jsonsc.getvalue();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = jsonsc.getint();
+                break; 
+            case 's':
+                s = jsonsc.getint();
+                break;
+            case 'p':
+                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case EOO:
+                done = true;
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "p element not provided";
+                    break;
+                }
+
+                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+
+                if (!pcr)
+                {
+                    // As this was an update triggered by us, on an object we must know about, this is kinda a problem.                    
+                    LOG_err << "upci PCR not found, huge massive problem";
+                    break;
+                }
+                else
+                {                    
+                    if (!m) {
+                        LOG_err << "m element not provided";
+                        break;
+                    }
+                    if (s == 0) {
+                        LOG_err << "s element not provided";
+                        break;
+                    }
+                    if (uts == 0) {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    switch (s)
+                    {
+                        case 1:
+                            // ignored
+                            pcr->changed.ignored = true;
+                            break;
+                        case 2:
+                            // accepted
+                            pcr->changed.accepted = true;
+                            break;
+                        case 3:
+                            // denied
+                            pcr->changed.denied = true;
+                            break;
+                    }
+                    pcr->uts = uts;
                 }
                 notifypcr(pcr);
 
