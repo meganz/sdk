@@ -69,8 +69,14 @@ public class MegaApiJava
 	public final static int EVENT_DEBUG = EVENT_FEEDBACK + 1;
 	public final static int EVENT_INVALID = EVENT_DEBUG + 1;
 	
-	/**
-     * Constructor suitable for most applications
+    /**
+     * Constructor without a custom User-Agent and without an external graphics processor.
+     * 
+     * If you use this constructor, the SDK will try to use a built-in graphics processor and will
+     * disable the attachment of thumbnails/previews for image uploads if there isn't any graphics
+     * processor available. On Android, it's recommended to use the other constructor with an AndroidGfxProcessor
+     * object. Do not directly use this class on Android, use MegaApiAndroid subclass instead that already does this and
+     * sends the callbacks to the UI thread.
      * 
      * @param appKey AppKey of your application
      * You can generate your AppKey for free here:
@@ -86,11 +92,14 @@ public class MegaApiJava
 	}
 
 	/**
-     * MegaApi Constructor that allows to use a custom GFX processor
+     * MegaApi Constructor that allows to use a custom graphics processor
      * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
      * You can build the SDK with one of the provided built-in graphics processors. If none of them is available
      * in your app, you can implement the MegaGfxProcessor interface to provide your custom processor. Please
      * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
+     * 
+     * On Android, please use the MegaApiAndroid subclass instead of this one. It will create the graphics processor
+     * for you and will send the callbacks to the UI thread.
      * 
      * @param appKey AppKey of your application
      * You can generate your AppKey for free here:
@@ -103,7 +112,8 @@ public class MegaApiJava
      * If you pass NULL to this parameter, the SDK won't use any local cache.
      *
      * @param gfxProcessor Image processor. The SDK will use it to generate previews and thumbnails
-     * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
+     * If you pass NULL to this parameter, the SDK will try to use the built-in image processors. On Android,
+     * it is recommended to pass an AndroidGfxProcessor object (included in this package)
      * 
      */
 	public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor)
@@ -2123,11 +2133,7 @@ public class MegaApiJava
      * Start an streaming download
      *
      * Streaming downloads don't save the downloaded data into a local file. It is provided
-     * in MegaTransferListener::onTransferUpdate in a byte buffer. The pointer is returned by
-     * MegaTransfer::getLastBytes and the size of the buffer in MegaTransfer::getDeltaSize
-     *
-     * The same byte array is also provided in the callback MegaTransferListener::onTransferData for
-     * compatibility with other programming languages. Only the MegaTransferListener passed to this function
+     * in the callback MegaTransferListener::onTransferData. Only the MegaTransferListener passed to this function
      * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
      * with MegaApi::addTransferListener won't receive them for performance reasons
      *
