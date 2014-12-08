@@ -804,7 +804,7 @@
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
-				USER_HEADER_SEARCH_PATHS = "../../include/** Private .";
+				USER_HEADER_SEARCH_PATHS = ". ../../include/** Private";
 			};
 			name = Debug;
 		};
@@ -825,7 +825,7 @@
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
-				USER_HEADER_SEARCH_PATHS = "../../include/** Private .";
+				USER_HEADER_SEARCH_PATHS = ". ../../include/** Private";
 			};
 			name = Release;
 		};
