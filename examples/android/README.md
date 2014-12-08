@@ -34,3 +34,5 @@ the path of your Android NDK and, if you changed the structure of the repo, the 
 You will need some packages (`wget, swig, sha1sum, unzip`)
 
 * After a successful build, run the app in Eclipse
+
+The file `com/mega/sdk/MegaApiJava.java` contains Javadoc documentation. It is recommended to use the `MegaApiAndroid` subclass instead because it makes some needed initialization and sends callbacks to the UI thread, but the documentation in `MegaApiJava` applies also for `MegaApiAndroid`.
