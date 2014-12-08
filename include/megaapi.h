@@ -226,11 +226,11 @@ public:
     /**
      * @brief Sets the URL of the proxy
      *
-     * That URL must follow this format: <scheme>://<hostname|ip>:<port>
+     * That URL must follow this format: "<scheme>://<hostname|ip>:<port>"
      *
      * This is a valid example: http://127.0.0.1:8080
      *
-     * @param proxyURL URL of the proxy: <scheme>://<hostname|ip>:<port>
+     * @param proxyURL URL of the proxy: "<scheme>://<hostname|ip>:<port>"
      */
     void setProxyURL(const char *proxyURL);
 
@@ -300,7 +300,7 @@ public:
      */
     const char *getPassword();
 
-protected:
+private:
     int proxyType;
     const char *proxyURL;
     const char *username;
@@ -338,7 +338,7 @@ public:
      *
      * @param source Location where this log was generated
      *
-     * For logs generated inside the SDK, this will contain <source file>:<line of code>
+     * For logs generated inside the SDK, this will contain the source file and the line of code.
      * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
      *
      * @param message Log message
@@ -1660,13 +1660,13 @@ class MegaError
 
 		/**
 		 * @brief Creates a new MegaError object
-		 * @param Error code for this error
+         * @param errorCode Error code for this error
 		 */
 		MegaError(int errorCode);
 
 		/**
 		 * @brief Creates a new MegaError object copying another one
-		 * @param MegaError object to be copied
+         * @param megaError MegaError object to be copied
 		 */
 		MegaError(const MegaError &megaError);
 		virtual ~MegaError();
@@ -1737,7 +1737,7 @@ class MegaError
 		 */
         static const char *getErrorString(int errorCode);
 
-	protected:
+    private:
         //< 0 = API error code, > 0 = http error, 0 = No error
 		int errorCode;
 };
@@ -1753,7 +1753,7 @@ class MegaTreeProcessor
     public:
         /**
          * @brief Function that will be called for all nodes in a node tree
-         * @param Node to be processed
+         * @param node Node to be processed
          * @return true to continue processing nodes, false to stop
          */
         virtual bool processMegaNode(MegaNode* node);
@@ -1918,7 +1918,7 @@ class MegaTransferListener
          * Don't use them after this functions returns.
          *
          * @param api MegaApi object that started the transfer
-         * @param request Information about the transfer
+         * @param transfer Information about the transfer
          * @param error Error information
          */
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error);
@@ -2139,7 +2139,7 @@ class MegaListener
          * Don't use them after this functions returns.
          *
          * @param api MegaApi object that started the transfer
-         * @param request Information about the transfer
+         * @param transfer Information about the transfer
          * @param error Error information
          */
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error);
@@ -2453,6 +2453,7 @@ class MegaApi
          * You take the ownership of the returned value.
          *
          * @param base64pwkey Private key returned by MegaApi::getBase64PwKey
+         * @param email Email to create the hash
          * @return Base64-encoded hash
          */
         const char* getStringHash(const char* base64pwkey, const char* email);
@@ -2504,12 +2505,12 @@ class MegaApi
          * - MegaRequest::getFlag - Returns the first parameter
          * - MegaRequest::getNumber - Returns the second parameter
          *
-         * @param true if you want to disconnect already connected requests
+         * @param disconnect true if you want to disconnect already connected requests
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
          * it could be retrying forever.
          *
-         * @param true to retry also transfers
+         * @param includexfers true to retry also transfers
          * It's not recommended to set this flag. Transfer has a retry counter and are aborted after a number of retries
          * MegaTransfer::getMaxRetries. Setting this flag to true, you will force more immediate retries and your transfers
          * could fail faster.
@@ -2665,6 +2666,7 @@ class MegaApi
          * - MegaRequest::getName - Name of the user
          *
          * @param link Confirmation link
+         * @param password Password of the account
          * @param listener MegaRequestListener to track this request
          */
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
@@ -2693,7 +2695,7 @@ class MegaApi
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.
          *
-         * @param Proxy settings
+         * @param proxySettings Proxy settings
          * @see MegaProxy
          */
         void setProxySettings(MegaProxy *proxySettings);
@@ -2768,7 +2770,7 @@ class MegaApi
          * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
          * to complete them.
          *
-         * @param Log level for this message
+         * @param logLevel Log level for this message
          * @param message Message for the logging system
          * @param filename Origin of the log message
          * @param line Line of code where this message was generated
@@ -3207,7 +3209,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email of the contact
          *
-         * @param email Email of the contact
+         * @param user MegaUser of the contact (see MegaApi::getContact)
          * @param listener MegaRequestListener to track this request
          */
         void removeContact(MegaUser *user, MegaRequestListener* listener = NULL);
@@ -3266,8 +3268,8 @@ class MegaApi
 
         /**
          * @brief Upload a file
-         * @param Local path of the file
-         * @param Parent node for the file in the MEGA account
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
          * @param listener MegaTransferListener to track this transfer
          */
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -3800,8 +3802,8 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param Parent node
-         * @param Name of the node
+         * @param parent Parent node
+         * @param name Name of the node
          * @return The MegaNode that has the selected parent and name
          */
         MegaNode *getChildNode(MegaNode *parent, const char* name);
@@ -4189,7 +4191,7 @@ public:
 
     /**
      * @brief Check if the introduced data matches a signature
-     * @param Base64-encoded digital signature
+     * @param base64Signature Base64-encoded digital signature
      * @return true if the signature is correct, otherwise false
      */
     bool checkSignature(const char *base64Signature);
@@ -4297,6 +4299,11 @@ public:
 	virtual MegaAccountDetails* copy() = 0;
 };
 
+/**
+ * @brief Details about pricing plans
+ *
+ * Use MegaApi::getPricing to get the pricing plans to upgrade MEGA accounts
+ */
 class MegaPricing
 {
 public:
