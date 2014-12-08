@@ -1136,6 +1136,11 @@ MTransferList^ MegaSDK::getTransfers()
 	return ref new MTransferList(megaApi->getTransfers(), true);
 }
 
+MTransferList^ MegaSDK::getTransfers(MTransferType type)
+{
+	return ref new MTransferList(megaApi->getTransfers((int)type), true);
+}
+
 int MegaSDK::getNumPendingUploads()
 {
 	return megaApi->getNumPendingUploads();
