@@ -55,3 +55,12 @@ void DelegateMEGATransferListener::onTransferTemporaryError(MegaApi *api, MegaTr
         });
     }
 }
+
+bool DelegateMEGATransferListener::onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size)
+{
+    if (listener != nil && [listener respondsToSelector:@selector(onTransferData:transfer:buffer:)]) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        return [listener onTransferData:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] buffer:[[NSData alloc] initWithBytes:transfer->getLastBytes() length:(long)transfer->getDeltaSize()]];
+    }
+    return false;
+}

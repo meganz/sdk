@@ -21,7 +21,7 @@
  *
  * @param source Location where this log was generated.
  *
- * For logs generated inside the SDK, this will contain <source file>:<line of code>.
+ * For logs generated inside the SDK, this will contain the source file and the line of code.
  *
  * @param message Log message.
  *

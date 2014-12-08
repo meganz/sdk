@@ -110,7 +110,11 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return self.megaTransfer && self.megaTransfer->getPublicMegaNode() ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
+    return (self.megaTransfer && self.megaTransfer->getPublicMegaNode()) ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
+}
+
+- (BOOL)isStreammingTransfer {
+    return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 
 @end

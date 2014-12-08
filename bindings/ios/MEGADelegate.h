@@ -101,7 +101,7 @@
  * a [MEGATransferDelegate onTransferFinish:transfer:error:] callback.
  *
  * @param api MEGASdk object that started the transfer.
- * @param request Information about the transfer.
+ * @param transfer Information about the transfer.
  * @param error Error information.
  */
 - (void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error;
