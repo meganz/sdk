@@ -137,6 +137,12 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly, nonatomic) MEGANode *publicNode;
 
 /**
+ * @return YES if this is a streaming transfer, NO otherwise
+ * @see [MEGASdk startStreamingNode:startPos:size:];
+ */
+@property (readonly, nonatomic) BOOL isStreammingTransfer;
+
+/**
  * @brief Creates a copy of this MEGATransfer object
  *
  * The resulting object is fully independent of the source MEGATransfer,

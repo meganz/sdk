@@ -60,9 +60,24 @@
  * a [MEGATransferDelegate onTransferFinish:transfer:error:] callback.
  *
  * @param api MEGASdk object that started the transfer.
- * @param request Information about the transfer.
+ * @param transfer Information about the transfer.
  * @param error Error information.
  */
 - (void)onTransferTemporaryError:(MEGASdk *)api transfer:(MEGATransfer *)transfer error:(MEGAError *)error;
+
+/**
+ * @brief This function is called to provide the last readed bytes of streaming downloads
+ *
+ * This function won't be called for non streaming downloads.
+ *
+ * @param api MEGASdk object that started the transfer
+ * @param transfer Information about the transfer
+ * @param buffer Buffer with the last readed bytes
+ * @param size Size of the buffer
+ * @return true to continue the transfer, false to cancel it
+ *
+ * @see [MEGASdk startStreamingNode:startPos:size:]
+ */
+- (BOOL)onTransferData:(MEGASdk *)api transfer:(MEGATransfer *)transfer buffer:(NSData *)buffer;
 
 @end

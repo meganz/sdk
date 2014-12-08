@@ -271,6 +271,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
  *
  * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyForPassword:]
+ * @param email Email to create the hash
  * @return Base64-encoded hash
  */
 - (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
@@ -1415,7 +1416,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email of the contact
  *
- * @param email Email of the new contact.
+ * @param user User of the new contact.
  * @param delegate Delegate to track this request.
  */
 - (void)removeContactUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
@@ -1427,7 +1428,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email of the contact
  *
- * @param email Email of the new contact.
+ * @param user User of the new contact.
  */
 - (void)removeContactUser:(MEGAUser *)user;
 
@@ -1565,6 +1566,38 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param delegate Delegate to track this transfer.
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath;
+
+/**
+ * @brief Start an streaming download
+ *
+ * Streaming downloads don't save the downloaded data into a local file. It is provided 
+ * in the callback [MEGATransferDelegate onTransferData:transfer:]. Only the MEGATransferDelegate
+ * passed to this function will receive [MEGATransferDelegate onTransferData:transfer:] callbacks.
+ * MEGATransferDelegate objects registered with [MEGASdk addMEGATransferDelegate:] won't 
+ * receive them for performance reasons.
+ *
+ * @param node MEGANode that identifies the file (public nodes aren't supported yet)
+ * @param startPos First byte to download from the file
+ * @param size Size of the data to download
+ * @param delegate MEGATransferDelegate to track this transfer
+ */
+- (void)startStreammingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Start an streaming download
+ *
+ * Streaming downloads don't save the downloaded data into a local file. It is provided
+ * in the callback [MEGATransferDelegate onTransferData:transfer:]. Only the MEGATransferDelegate
+ * passed to this function will receive [MEGATransferDelegate onTransferData:transfer:] callbacks.
+ * MEGATransferDelegate objects registered with [MEGASdk addMEGATransferDelegate:] won't
+ * receive them for performance reasons.
+ *
+ * @param node MEGANode that identifies the file (public nodes aren't supported yet)
+ * @param startPos First byte to download from the file
+ * @param size Size of the data to download
+ */
+- (void)startStreammingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
+
 /**
  * @brief Cancel a transfer.
  *
