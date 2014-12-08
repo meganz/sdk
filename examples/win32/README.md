@@ -2,7 +2,7 @@
 
 Visual Studio 2010 solution with the MEGA C++ SDK and a simple console app using the intermediate layer (`include/megaapi.h`).
 
-The example all logs in to your MEGA account, gets your MEGA filesystem, shows the files/folders in your root folder and uploads an image.
+The example logs in to your MEGA account, gets your MEGA filesystem, shows the files/folders in your root folder and uploads an image.
 
 ## How to run the project
 
@@ -10,15 +10,15 @@ The example all logs in to your MEGA account, gets your MEGA filesystem, shows t
 2. Download the prebuilt third party dependencies from this link:
 https://mega.co.nz/#!IttCER5A!0EhXmR6eyVSDDqXFm0hD_wHbGEKM32bJSPKeEmi7n90
 
-3.- Extract and put the 3rdparty folder in `examples/win32/`.
-4-. Open `examples/win32/MEGA.sln` with Visual Studio 2010 or a posterior version of Visual Studio for Windows Desktop.
-5.- Make sure that the `testmega` project is selected as init or main project
-6.- Put the email/password of your MEGA account at the top of `main.cpp` in the `testmega` project
-7.- Build and run the application
+3. Extract and put the 3rdparty folder in `examples/win32/`.
+4. Open `examples/win32/MEGA.sln` with Visual Studio 2010 or a posterior version of Visual Studio for Windows Desktop.
+5. Make sure that the `testmega` project is selected as init or main project
+6. Put the email/password of your MEGA account at the top of `main.cpp` in the `testmega` project
+7. Build and run the application
 
 ## Notes
 
-Third party dependencies have been built with Visual Studio 2010 SP1, so you will need the Visual C++ 2010 SP1 Redistributable Package to run applications linked to these libraries. It is installed along with Visual Studio, but you can also download it here:
+Third party dependencies have been built with Visual Studio 2010 SP1, so you will need the Visual C++ 2010 SP1 Redistributable Package to run applications linked to these libraries. It is installed along with Visual Studio, but you can also download it here: <br />
 http://download.microsoft.com/download/C/6/D/C6D0FD4E-9E53-4897-9B91-836EBA2AACD3/vcredist_x86.exe
 
 All these dependencies have been build using the original source code without any modification. You can build them by yourself by downloading them from their homepages:
