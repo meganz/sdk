@@ -503,7 +503,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
         case WINHTTP_CALLBACK_STATUS_SECURE_FAILURE:
             if (dwInternetStatus == WINHTTP_CALLBACK_STATUS_SECURE_FAILURE)
             {
-                LOG_err << "Security check failed. Code: " << lpvStatusInformation;
+                LOG_err << "Security check failed. Code: " << (*(DWORD*)lpvStatusInformation);
             }
 
             httpio->cancel(req);
