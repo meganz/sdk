@@ -12,7 +12,7 @@ To use a prebuilt library (the easy way), follow these steps:
 3. Select the folder `examples/Android/ExampleApp`
 4. Check the "Copy project into workspace" option
 5. Download the prebuilt native libraries from this link:
-https://mega.co.nz/#!I1ljCKBB!DhBJeS5IDH8LzZNvg80LRJqRkiEnNnSdUTovYNW0quM
+https://mega.co.nz/#!cgkTVBDK!XmnRL-CzW6SLrnXR26FPHKaeBva_kJ6v9UIhFHO9TN8
 
 6. Uncompress the libraries in a `libs` folder in your project.
 You should end with `[Eclipse workspace]/[MEGA project folder]/libs/armeabi/libmega.so` and `[Eclipse workspace]/[MEGA project folder]/libs/x86/libmega.so`
