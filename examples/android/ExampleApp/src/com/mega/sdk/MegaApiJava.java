@@ -350,6 +350,15 @@ public class MegaApiJava
 	public static void addEntropy(String data, long size){
 		MegaApi.addEntropy(data, size);
 	}
+	
+	/**
+     * Reconnect and retry also transfers
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+	public void reconnect(){
+		megaApi.retryPendingConnections(true, true);
+	}
 
 	/**
      * Retry all pending requests
@@ -1587,7 +1596,7 @@ public class MegaApiJava
      * @param email Email of the contact
      * @param listener MegaRequestListener to track this request
      */
-	void removeContact (MegaUser user, MegaRequestListenerInterface listener){
+	public void removeContact (MegaUser user, MegaRequestListenerInterface listener){
 		megaApi.removeContact(user, createDelegateRequestListener(listener));
 	}
 	
@@ -1596,7 +1605,7 @@ public class MegaApiJava
      *
      * @param email Email of the contact
      */
-	void removeContact (MegaUser user){
+	public void removeContact (MegaUser user){
 		megaApi.removeContact(user);
 	}
 
@@ -1972,6 +1981,17 @@ public class MegaApiJava
 	public ArrayList<MegaTransfer> getTransfers()
 	{
 		return transferListToArray(megaApi.getTransfers());
+	}
+	
+	/**
+	 * Get all active transfers based on the type
+	 * 
+	 * @param type MegaTransfer.TYPE_DOWNLOAD || MegaTransfer.TYPE_UPLOAD 
+	 * 
+	 * @return List with all active download or upload transfers
+	 */
+	public ArrayList<MegaTransfer> getTransfers(int type){
+		return transferListToArray(megaApi.getTransfers(type));
 	}
 	
 	/**

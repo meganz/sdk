@@ -356,7 +356,8 @@ public class megaJNI {
   public final static native void MegaApi_pauseTransfers__SWIG_0(long jarg1, MegaApi jarg1_, boolean jarg2, long jarg3, MegaRequestListener jarg3_);
   public final static native void MegaApi_pauseTransfers__SWIG_1(long jarg1, MegaApi jarg1_, boolean jarg2);
   public final static native void MegaApi_setUploadLimit(long jarg1, MegaApi jarg1_, int jarg2);
-  public final static native long MegaApi_getTransfers(long jarg1, MegaApi jarg1_);
+  public final static native long MegaApi_getTransfers__SWIG_0(long jarg1, MegaApi jarg1_);
+  public final static native long MegaApi_getTransfers__SWIG_1(long jarg1, MegaApi jarg1_, int jarg2);
   public final static native void MegaApi_update(long jarg1, MegaApi jarg1_);
   public final static native boolean MegaApi_isWaiting(long jarg1, MegaApi jarg1_);
   public final static native int MegaApi_getNumPendingUploads(long jarg1, MegaApi jarg1_);
