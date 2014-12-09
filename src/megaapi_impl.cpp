@@ -6221,7 +6221,7 @@ void MegaApiImpl::sendPendingRequests()
 			const char *password = request->getPassword();
 			const char *pwkey = request->getPrivateKey();
 
-            if((!link) || (!password && !pwkey))
+            if(!link || (request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT && !password && !pwkey))
 			{
 				e = API_EARGS;
 				break;
