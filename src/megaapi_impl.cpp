@@ -3646,64 +3646,74 @@ void MegaApiImpl::syncupdate_stuck(string *)
     //TODO: Notice the app about this
 }
 
-void MegaApiImpl::syncupdate_local_folder_addition(Sync *, const char *)
+void MegaApiImpl::syncupdate_local_folder_addition(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - local folder addition detected: " << path;
 }
 
-void MegaApiImpl::syncupdate_local_folder_deletion(Sync *, const char *)
+void MegaApiImpl::syncupdate_local_folder_deletion(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - local folder deletion detected: " << path;
 }
 
-void MegaApiImpl::syncupdate_local_file_addition(Sync *, const char *)
+void MegaApiImpl::syncupdate_local_file_addition(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - local file addition detected: " << path;
 }
 
-void MegaApiImpl::syncupdate_local_file_deletion(Sync *, const char *)
+void MegaApiImpl::syncupdate_local_file_deletion(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - local file deletion detected: " << path;
 }
 
-void MegaApiImpl::syncupdate_get(Sync *, const char *)
+void MegaApiImpl::syncupdate_local_file_change(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - local file change detected: " << path;
 }
 
-void MegaApiImpl::syncupdate_put(Sync *, const char *)
+void MegaApiImpl::syncupdate_local_move(Sync *, const char *from, const char *to)
 {
-
+    LOG_debug << "Sync - local rename/move " << from << " -> " << to;
 }
 
-void MegaApiImpl::syncupdate_remote_file_addition(Node *)
+void MegaApiImpl::syncupdate_get(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - requesting file " << path;
 }
 
-void MegaApiImpl::syncupdate_remote_file_deletion(Node *)
+void MegaApiImpl::syncupdate_put(Sync *, const char *path)
 {
-
+    LOG_debug << "Sync - sending file " << path;
 }
 
-void MegaApiImpl::syncupdate_remote_folder_addition(Node *)
+void MegaApiImpl::syncupdate_remote_file_addition(Node *n)
 {
-
+    LOG_debug << "Sync - remote file addition detected " << n->displayname();
 }
 
-void MegaApiImpl::syncupdate_remote_folder_deletion(Node *)
+void MegaApiImpl::syncupdate_remote_file_deletion(Node *n)
 {
-
+    LOG_debug << "Sync - remote file deletion detected " << n->displayname();
 }
 
-void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *)
+void MegaApiImpl::syncupdate_remote_folder_addition(Node *n)
 {
-
+    LOG_debug << "Sync - remote folder addition detected " << n->displayname();
 }
 
-void MegaApiImpl::syncupdate_remote_move(string *, string *)
+void MegaApiImpl::syncupdate_remote_folder_deletion(Node *n)
 {
+    LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
+}
 
+void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *name)
+{
+    LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
+}
+
+void MegaApiImpl::syncupdate_remote_move(string *from, string *to)
+{
+    LOG_debug << "Sync - remote rename/move " << *from << " -> " << *to;
 }
 
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
@@ -3734,6 +3744,15 @@ bool MegaApiImpl::sync_syncable(const char *name, string *, string *)
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 {
+    if (waiting)
+    {
+        LOG_debug << "Sync - waiting for local filesystem lock";
+    }
+    else
+    {
+        LOG_debug << "Sync - local filesystem lock issue resolved, continuing...";
+    }
+
     this->waiting = waiting;
     this->fireOnSyncStateChanged();
 }

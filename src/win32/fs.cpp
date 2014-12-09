@@ -195,6 +195,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
         // also, ignore some other obscure filesystem object categories
         if (!added && skipattributes(fad.dwFileAttributes))
         {
+            LOG_debug << "Skipped file " << fad.dwFileAttributes;
             name->resize(name->size() - 1);
             retry = false;
             return false;
@@ -236,7 +237,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        retry = WinFileSystemAccess::istransient(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to open file. Error code: " << e;
+        retry = WinFileSystemAccess::istransient(e);
         return false;
     }
 
@@ -268,7 +271,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
 
         if (hFind == INVALID_HANDLE_VALUE)
         {
-            retry = WinFileSystemAccess::istransient(GetLastError());
+            DWORD e = GetLastError();
+            LOG_debug << "Unable to open folder. Error code: " << e;
+            retry = WinFileSystemAccess::istransient(e);
             return false;
         }
 

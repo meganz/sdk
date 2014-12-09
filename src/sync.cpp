@@ -782,6 +782,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     }
     else
     {
+        LOG_warn << "Error opening file";
         if (fa->retry)
         {
             // fopen() signals that the failure is potentially transient - do

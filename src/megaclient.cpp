@@ -5969,6 +5969,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             ll->created = true;
 
             // create remote folder or send file
+            LOG_debug << "Adding local file to synccreate: " << ll->name;
             synccreate.push_back(ll);
             syncactivity = true;
         }
