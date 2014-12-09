@@ -5347,6 +5347,10 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     {
         if (fa->type == FOLDERNODE)
         {
+            string utf8path;
+            fsaccess->local2path(rootpath, &utf8path);
+            LOG_debug << "Adding sync: " << utf8path;
+
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag);
 
             if (sync->scan(rootpath, fa))

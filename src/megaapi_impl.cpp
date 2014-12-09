@@ -2857,6 +2857,18 @@ bool MegaApiImpl::isSynced(MegaNode *n)
 void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
 {
     sdkMutex.lock();
+    if(!excludedNames)
+    {
+        this->excludedNames.clear();
+        sdkMutex.unlock();
+        return;
+    }
+
+    for(unsigned int i=0; i<excludedNames->size(); i++)
+    {
+        LOG_debug << "Excluded name: " << excludedNames->at(i);
+    }
+
     this->excludedNames = *excludedNames;
     sdkMutex.unlock();
 }
