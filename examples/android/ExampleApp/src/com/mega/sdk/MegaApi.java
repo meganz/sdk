@@ -549,7 +549,12 @@ class MegaApi {
   }
 
   public MegaTransferList getTransfers() {
-    long cPtr = megaJNI.MegaApi_getTransfers(swigCPtr, this);
+    long cPtr = megaJNI.MegaApi_getTransfers__SWIG_0(swigCPtr, this);
+    return (cPtr == 0) ? null : new MegaTransferList(cPtr, true);
+  }
+
+  public MegaTransferList getTransfers(int type) {
+    long cPtr = megaJNI.MegaApi_getTransfers__SWIG_1(swigCPtr, this, type);
     return (cPtr == 0) ? null : new MegaTransferList(cPtr, true);
   }
 

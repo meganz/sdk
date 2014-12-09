@@ -181,6 +181,7 @@ namespace mega
 		void reportDebugEvent(String^ text);
 		void setUploadLimit(int bpslimit);
 		MTransferList^ getTransfers();
+		MTransferList^ getTransfers(MTransferType type);
 		int getNumPendingUploads();
 		int getNumPendingDownloads();
 		int getTotalUploads();

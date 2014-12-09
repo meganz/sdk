@@ -69,8 +69,14 @@ public class MegaApiJava
 	public final static int EVENT_DEBUG = EVENT_FEEDBACK + 1;
 	public final static int EVENT_INVALID = EVENT_DEBUG + 1;
 	
-	/**
-     * Constructor suitable for most applications
+    /**
+     * Constructor without a custom User-Agent and without an external graphics processor.
+     * 
+     * If you use this constructor, the SDK will try to use a built-in graphics processor and will
+     * disable the attachment of thumbnails/previews for image uploads if there isn't any graphics
+     * processor available. On Android, it's recommended to use the other constructor with an AndroidGfxProcessor
+     * object. Do not directly use this class on Android, use MegaApiAndroid subclass instead that already does this and
+     * sends the callbacks to the UI thread.
      * 
      * @param appKey AppKey of your application
      * You can generate your AppKey for free here:
@@ -86,11 +92,14 @@ public class MegaApiJava
 	}
 
 	/**
-     * MegaApi Constructor that allows to use a custom GFX processor
+     * MegaApi Constructor that allows to use a custom graphics processor
      * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
      * You can build the SDK with one of the provided built-in graphics processors. If none of them is available
      * in your app, you can implement the MegaGfxProcessor interface to provide your custom processor. Please
      * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
+     * 
+     * On Android, please use the MegaApiAndroid subclass instead of this one. It will create the graphics processor
+     * for you and will send the callbacks to the UI thread.
      * 
      * @param appKey AppKey of your application
      * You can generate your AppKey for free here:
@@ -103,7 +112,8 @@ public class MegaApiJava
      * If you pass NULL to this parameter, the SDK won't use any local cache.
      *
      * @param gfxProcessor Image processor. The SDK will use it to generate previews and thumbnails
-     * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
+     * If you pass NULL to this parameter, the SDK will try to use the built-in image processors. On Android,
+     * it is recommended to pass an AndroidGfxProcessor object (included in this package)
      * 
      */
 	public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor)
@@ -284,8 +294,6 @@ public class MegaApiJava
      * required to log in, this function allows to do this step in a separate function. You should run this function
      * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
      *
-     * You take the ownership of the returned value.
-     *
      * @param password Access password
      * @return Base64-encoded private key
      */
@@ -300,8 +308,6 @@ public class MegaApiJava
      * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
      * required to log in, this function allows to do this step in a separate function. You should run this function
      * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
-     *
-     * You take the ownership of the returned value.
      *
      * @param base64pwkey Private key returned by MegaApi::getBase64PwKey
      * @return Base64-encoded hash
@@ -328,7 +334,6 @@ public class MegaApiJava
 	/**
      * Converts a MegaHandle to a Base64-encoded string
      *
-     * You take the ownership of the returned value
      * You can revert this operation using MegaApi::base64ToHandle
      *
      * @param handle to be converted
@@ -349,6 +354,15 @@ public class MegaApiJava
      */
 	public static void addEntropy(String data, long size){
 		MegaApi.addEntropy(data, size);
+	}
+	
+	/**
+     * Reconnect and retry also transfers
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+	public void reconnect(){
+		megaApi.retryPendingConnections(true, true);
 	}
 
 	/**
@@ -405,8 +419,6 @@ public class MegaApiJava
      *
      * You have to be logged in to get a valid session key. Otherwise,
      * this function returns NULL.
-     *
-     * You take the ownership of the returned value.
      *
      * @return Current session key
      */
@@ -658,8 +670,6 @@ public class MegaApiJava
      * On other platforms, this fuction will return a MegaProxy object
      * of type MegaProxy::PROXY_NONE
      *
-     * You take the ownership of the returned value.
-     *
      * @return MegaProxy object with the detected proxy settings
      */
 	public MegaProxy getAutoProxySettings(){
@@ -680,8 +690,6 @@ public class MegaApiJava
      *
      * If the MegaApi object isn't logged in or the email isn't available,
      * this function returns NULL
-     *
-     * You take the ownership of the returned value
      *
      * @return Email of the account
      */
@@ -1540,8 +1548,6 @@ public class MegaApiJava
      * password is lost:
      * - https://mega.co.nz/#recovery
      *
-     * You take the ownership of the returned value.
-     *
      * @return Base64-encoded master key
      */
 	public String exportMasterKey() 
@@ -1587,7 +1593,7 @@ public class MegaApiJava
      * @param email Email of the contact
      * @param listener MegaRequestListener to track this request
      */
-	void removeContact (MegaUser user, MegaRequestListenerInterface listener){
+	public void removeContact (MegaUser user, MegaRequestListenerInterface listener){
 		megaApi.removeContact(user, createDelegateRequestListener(listener));
 	}
 	
@@ -1596,7 +1602,7 @@ public class MegaApiJava
      *
      * @param email Email of the contact
      */
-	void removeContact (MegaUser user){
+	public void removeContact (MegaUser user){
 		megaApi.removeContact(user);
 	}
 
@@ -1975,6 +1981,17 @@ public class MegaApiJava
 	}
 	
 	/**
+	 * Get all active transfers based on the type
+	 * 
+	 * @param type MegaTransfer.TYPE_DOWNLOAD || MegaTransfer.TYPE_UPLOAD 
+	 * 
+	 * @return List with all active download or upload transfers
+	 */
+	public ArrayList<MegaTransfer> getTransfers(int type){
+		return transferListToArray(megaApi.getTransfers(type));
+	}
+	
+	/**
      * Force a loop of the SDK thread
      * 
      * @deprecated This function is only here for debugging purposes. It will probably
@@ -2116,11 +2133,7 @@ public class MegaApiJava
      * Start an streaming download
      *
      * Streaming downloads don't save the downloaded data into a local file. It is provided
-     * in MegaTransferListener::onTransferUpdate in a byte buffer. The pointer is returned by
-     * MegaTransfer::getLastBytes and the size of the buffer in MegaTransfer::getDeltaSize
-     *
-     * The same byte array is also provided in the callback MegaTransferListener::onTransferData for
-     * compatibility with other programming languages. Only the MegaTransferListener passed to this function
+     * in the callback MegaTransferListener::onTransferData. Only the MegaTransferListener passed to this function
      * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
      * with MegaApi::addTransferListener won't receive them for performance reasons
      *
@@ -2155,9 +2168,7 @@ public class MegaApiJava
 	 *
 	 * If the parent node doesn't exist or it isn't a folder, this function
 	 * returns NULL
-	 *
-	 * You take the ownership of the returned value
-	 *
+	 * 
 	 * @param parent Parent node
 	 * @param order Order for the returned list
 	 * Valid values for this parameter are:
@@ -2206,8 +2217,6 @@ public class MegaApiJava
 	 *
 	 * If the parent node doesn't exist or it isn't a folder, this function
 	 * returns NULL
-	 *
-	 * You take the ownership of the returned value
 	 *
 	 * @param parent Parent node
 	 * 
@@ -2299,8 +2308,6 @@ public class MegaApiJava
      *
      * If the node doesn't exist, this function returns NULL
      *
-     * You take the ownership of the returned value
-     *
      * @param Parent node
      * @param Name of the node
      * @return The MegaNode that has the selected parent and name
@@ -2316,8 +2323,6 @@ public class MegaApiJava
      * If the node doesn't exist in the account or
      * it is a root node, this function returns NULL
      *
-     * You take the ownership of the returned value.
-     *
      * @param node MegaNode to get the parent
      * @return The parent of the provided node
      */
@@ -2332,8 +2337,6 @@ public class MegaApiJava
      * If the node doesn't exist, this function returns NULL.
      * You can recoved the node later unsing MegaApi::getNodeByPath
      * except if the path contains names with  '/', '\' or ':' characters.
-     *
-     * You take the ownership of the returned value
      *
      * @param node MegaNode for which the path will be returned
      * @return The path of the node
@@ -2352,8 +2355,6 @@ public class MegaApiJava
      *
      * Paths with names containing '/', '\' or ':' aren't compatible
      * with this function.
-     *
-     * You take the ownership of the returned value
      *
      * @param path Path to check
      * @param n Base node if the path is relative
@@ -2374,8 +2375,6 @@ public class MegaApiJava
      * Paths with names containing '/', '\' or ':' aren't compatible
      * with this function.
      *
-     * You take the ownership of the returned value
-     *
      * @param path Path to check
      * 
      * @return The MegaNode object in the path, otherwise NULL
@@ -2392,8 +2391,6 @@ public class MegaApiJava
      * can be got in a Base64-encoded string using MegaNode::getBase64Handle. Conversions
      * between these formats can be done using MegaApi::base64ToHandle and MegaApi::handleToBase64
      *
-     * You take the ownership of the returned value.
-     *
      * @param MegaHandler Node handle to check
      * @return MegaNode object with the handle, otherwise NULL
      */
@@ -2404,8 +2401,6 @@ public class MegaApiJava
 	
 	/**
      * Get all contacts of this MEGA account
-     *
-     * You take the ownership of the returned value
      *
      * @return List of MegaUser object with all contacts of this account
      */
@@ -2419,8 +2414,6 @@ public class MegaApiJava
      *
      * You can get the email of a MegaUser using MegaUser::getEmail
      *
-     * You take the ownership of the returned value
-     *
      * @param email Email address to check
      * @return MegaUser that has the email address, otherwise NULL
      */
@@ -2432,8 +2425,6 @@ public class MegaApiJava
 	/**
      * Get a list with all inbound sharings from one MegaUser
      *
-     * You take the ownership of the returned value
-     *
      * @param user MegaUser sharing folders with this account
      * @return List of MegaNode objects that this user is sharing with this account
      */
@@ -2443,9 +2434,7 @@ public class MegaApiJava
 	}
 
 	/**
-     * @brief Get a list with all inboud sharings
-     *
-     * You take the ownership of the returned value
+     * Get a list with all inboud sharings
      *
      * @return List of MegaNode objects that other users are sharing with this account
      */
@@ -2471,8 +2460,6 @@ public class MegaApiJava
 	/**
      * Get a list with all active outbound sharings
      *
-     * You take the ownership of the returned value
-     *
      * @return List of MegaShare objects
      */
 	public ArrayList<MegaShare> getOutShares()
@@ -2484,8 +2471,6 @@ public class MegaApiJava
      * Get a list with the active outbound sharings for a MegaNode
      *
      * If the node doesn't exist in the account, this function returns an empty list.
-     *
-     * You take the ownership of the returned value
      *
      * @param node MegaNode to check
      * @return List of MegaShare objects
@@ -2535,8 +2520,6 @@ public class MegaApiJava
      *
      * If the file can't be found or can't be opened, this function returns null
      *
-     * You take the ownership of the returned value
-     *
      * @param filePath Local file path
      * @return Base64-encoded fingerprint for the file
      */
@@ -2550,8 +2533,6 @@ public class MegaApiJava
      *          
      * If the node doesn't exist or doesn't have a fingerprint, this function returns null
      *
-     * You take the ownership of the returned value
-     *
      * @param node Node for which we want to get the fingerprint
      * @return Base64-encoded fingerprint for the file
      */
@@ -2564,8 +2545,6 @@ public class MegaApiJava
      * Returns a node with the provided fingerprint
      *
      * If there isn't any node in the account with that fingerprint, this function returns null.
-     *
-     * You take the ownership of the returned value.
      *
      * @param fingerprint Fingerprint to check
      * @return MegaNode object with the provided fingerprint
@@ -2632,8 +2611,6 @@ public class MegaApiJava
 	/**
      * Returns the root node of the account
      *
-     * You take the ownership of the returned value
-     *
      * If you haven't successfully called MegaApi::fetchNodes before,
      * this function returns null
      *
@@ -2647,8 +2624,6 @@ public class MegaApiJava
 	/**
      * Returns the inbox node of the account
      *
-     * You take the ownership of the returned value
-     *
      * If you haven't successfully called MegaApi::fetchNodes before,
      * this function returns null
      *
@@ -2661,8 +2636,6 @@ public class MegaApiJava
 
 	/**
      * Returns the rubbish node of the account
-     *
-     * You take the ownership of the returned value
      *
      * If you haven't successfully called MegaApi::fetchNodes before,
      * this function returns null
