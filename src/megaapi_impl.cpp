@@ -5916,7 +5916,11 @@ void MegaApiImpl::sendPendingRequests()
 			Node *node = client->nodebyhandle(request->getNodeHandle());
 			const char* email = request->getEmail();
 			int access = request->getAccess();
-			if(!node || !email) { e = API_EARGS; break; }
+            if(!node || !email || !strchr(email, '@'))
+            {
+                e = API_EARGS;
+                break;
+            }
 
             accesslevel_t a;
 			switch(access)

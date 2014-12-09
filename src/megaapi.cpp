@@ -440,6 +440,11 @@ void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListe
     pImpl->share(node, user, access, listener);
 }
 
+void MegaApi::share(MegaNode *node, const char* email, int access, MegaRequestListener *listener)
+{
+    pImpl->share(node, email, access, listener);
+}
+
 void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
 {
     pImpl->loginToFolder(megaFolderLink, listener);

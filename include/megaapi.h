@@ -2900,6 +2900,36 @@ class MegaApi
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Share or stop sharing a folder in MEGA with another user using his email
+         *
+         * To share a folder with an user, set the desired access level in the level parameter. If you
+         * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+         * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+         * - MegaRequest::getAccess - Returns the access that is granted to the user
+         *
+         * @param node The folder to share. It must be a non-root folder
+         * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
+         * and the user will be invited to register an account.
+         *
+         * @param level Permissions that are granted to the user
+         * Valid values for this parameter:
+         * - MegaShare::ACCESS_UNKNOWN = -1
+         * Stop sharing a folder with this user
+         *
+         * - MegaShare::ACCESS_READ = 0
+         * - MegaShare::ACCESS_READWRITE = 1
+         * - MegaShare::ACCESS_FULL = 2
+         * - MegaShare::ACCESS_OWNER = 3
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void share(MegaNode *node, const char* email, int level, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Import a public link to the account
          *
          * The associated request type with this request is MegaRequest::TYPE_IMPORT_LINK
