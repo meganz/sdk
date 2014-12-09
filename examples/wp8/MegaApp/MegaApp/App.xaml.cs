@@ -112,8 +112,6 @@ namespace MegaApp
 
         // Avoid double-initialization
         private bool phoneApplicationInitialized = false;
-       // private const String appKey = "Z5dGhQhL";
-        //private const String userAgent = "MEGAWindowsPhone/1.0.0";
 
         // Do not add any additional code to this method
         private void InitializePhoneApplication()

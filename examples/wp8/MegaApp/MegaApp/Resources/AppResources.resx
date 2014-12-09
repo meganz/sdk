@@ -126,7 +126,7 @@
     <comment>Controls the Language and ensures that the font for all elements in the RootFrame aligns with the app's language. Set to the language code of this resource file's language.</comment>
   </data>
   <data name="ApplicationTitle" xml:space="preserve">
-    <value>MY APPLICATION</value>
+    <value>Windows Phone Example App</value>
   </data>
   <data name="AppBarButtonText" xml:space="preserve">
     <value>add</value>
@@ -141,11 +141,11 @@
     <value>https://mega.co.nz/#terms</value>
   </data>
   <data name="AppKey" xml:space="preserve">
-    <value>Z5dGhQhL</value>
+    <value>Ax9HkQZB</value>
     <comment>Each MEGA client application needs a valid key to access the API. Please use a separate key for each of your applications.</comment>
   </data>
   <data name="UserAgent" xml:space="preserve">
-    <value>MEGAWindowsPhone/1.0.0</value>
+    <value>Example Windows Phone App</value>
     <comment>Agent to identify which client uses the SDK</comment>
   </data>
 </root>
