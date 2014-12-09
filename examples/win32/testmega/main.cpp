@@ -28,7 +28,8 @@
 #define MEGA_PASSWORD "PASSWORD"
 
 //Get yours for free at https://mega.co.nz/#sdk
-#define APP_KEY "APP_KEY"
+#define APP_KEY "9gETCbhB"
+#define USER_AGENT "Example Win32 App"
 
 using namespace mega;
 using namespace std;
@@ -145,7 +146,7 @@ public:
 int main()
 {
 	//Check the documentation of MegaApi to know how to enable local caching
-	MegaApi *megaApi = new MegaApi(APP_KEY);
+	MegaApi *megaApi = new MegaApi(APP_KEY, (const char *)NULL, USER_AGENT);
 
 	//By default, logs are sent to stdout
 	//You can use MegaApi::setLoggerObject to receive SDK logs in your app
