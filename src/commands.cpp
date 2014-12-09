@@ -1078,7 +1078,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle sh, cons
     beginarray("sr");
 
     element(sh, MegaClient::NODEHANDLE);
-    element((byte*)uid, strlen(uid));
+    element(uid);
     element(key, len);
 
     endarray();

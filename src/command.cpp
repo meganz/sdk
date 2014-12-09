@@ -192,6 +192,13 @@ void Command::element(const byte* data, int len)
     json.append("\"");
 }
 
+void Command::element(const char *buf)
+{
+    json.append(elements() ? ",\"" : "\"");
+    json.append(buf, strlen(buf));
+    json.append("\"");
+}
+
 // open object
 void Command::openobject()
 {

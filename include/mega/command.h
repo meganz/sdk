@@ -69,6 +69,7 @@ public:
     void element(int);
     void element(handle, int = sizeof(handle));
     void element(const byte*, int);
+    void element(const char*);
 
     void openobject();
     void closeobject();
