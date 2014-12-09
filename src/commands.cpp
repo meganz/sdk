@@ -1255,6 +1255,7 @@ void CommandSetShare::procresult()
                 {
                     while (procuserresult(client))
                     {}
+                    client->json.leavearray();
                 }
                 break;
 
