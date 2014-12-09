@@ -1138,7 +1138,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
         client->key.ecb_encrypt(key);
         arg("ok", key, sizeof key);
 
-        if (u)
+        if (u && u->pubk.isvalid())
         {
             t = u->pubk.encrypt(asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
         }
@@ -1157,7 +1157,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     {
         arg("r", a);
 
-        if (u)
+        if (u && u->pubk.isvalid())
         {
             arg("k", asymmkey, t);
         }
@@ -1694,7 +1694,11 @@ void CommandPubKeyRequest::procresult()
 
     if (client->json.isnumeric())
     {
-        // FIXME: handle users without public key / unregistered users
+        error e = (error)client->json.getint();
+        if(e != API_ENOENT) //API_ENOENT = unregistered users or accounts without a public key yet
+        {
+            LOG_err << "Unexpected error in CommandPubKeyRequest: " << e;
+        }
     }
 
     for (;;)
@@ -1731,12 +1735,10 @@ void CommandPubKeyRequest::procresult()
                 }
 
                 // satisfy all pending PubKeyAction requests for this user
-                // if no valid public key was received, satisfy them with a
-                // NULL user pointer
                 while (u->pkrs.size())
                 {
                     client->restag = tag;
-                    u->pkrs[0]->proc(client, len_pubk ? u : NULL);
+                    u->pkrs[0]->proc(client, u);
                     delete u->pkrs[0];
                     u->pkrs.pop_front();
                 }

@@ -33,7 +33,7 @@ PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int 
 
 void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
 {
-    if (u)
+    if (u && u->pubk.isvalid())
     {
         byte buf[AsymmCipher::MAXKEYLENGTH];
         int t;
@@ -68,7 +68,7 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
     Node* n;
 
     // only the share owner distributes share keys
-    if (u && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n, OWNER))
+    if (u && u->pubk.isvalid() && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n, OWNER))
     {
         int t;
         byte buf[AsymmCipher::MAXKEYLENGTH];
