@@ -149,7 +149,9 @@ class MegaNodePrivate : public MegaNode
 		virtual int getTag();
 		virtual bool isFile();
 		virtual bool isFolder();
-		virtual bool isRemoved();
+        bool isRemoved();
+        virtual bool hasChanged(int changeType);
+        virtual int getChanges();
 		virtual bool hasThumbnail();
 		virtual bool hasPreview();
         virtual bool isPublic();
@@ -173,7 +175,7 @@ class MegaNodePrivate : public MegaNode
 		std::string nodekey;
 		std::string attrstring;
 		int tag;
-		bool removed;
+        int changed;
 		bool thumbnailAvailable;
 		bool previewAvailable;
         bool isPublicNode;

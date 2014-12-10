@@ -78,7 +78,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->nodehandle = nodehandle;
     this->attrstring.assign(attrstring->data(), attrstring->size());
     this->nodekey.assign(nodekey->data(),nodekey->size());
-    this->removed = false;
+    this->changed = 0;
     this->thumbnailAvailable = false;
     this->previewAvailable = false;
     this->tag = 0;
@@ -102,7 +102,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->attrstring.assign(attrstring->data(), attrstring->size());
     string *nodekey = node->getNodeKey();
     this->nodekey.assign(nodekey->data(),nodekey->size());
-    this->removed = node->isRemoved();
+    this->changed = node->getChanges();
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
     this->tag = node->getTag();
@@ -128,7 +128,41 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
     }
     this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
-    this->removed = node->changed.removed;
+
+    this->changed = 0;
+    if(node->changed.attrs)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_ATTRIBUTES;
+    }
+    if(node->changed.ctime)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_TIMESTAMP;
+    }
+    if(node->changed.fileattrstring)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_FILE_ATTRIBUTES;
+    }
+    if(node->changed.inshare)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_INSHARE;
+    }
+    if(node->changed.outshares)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_OUTSHARE;
+    }
+    if(node->changed.owner)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_OWNER;
+    }
+    if(node->changed.parent)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PARENT;
+    }
+    if(node->changed.removed)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_REMOVED;
+    }
+
 
 #ifdef ENABLE_SYNC
 	this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
@@ -216,11 +250,6 @@ int MegaNodePrivate::getTag()
     return tag;
 }
 
-bool MegaNodePrivate::isRemoved()
-{
-    return removed;
-}
-
 bool MegaNodePrivate::isFile()
 {
 	return type == TYPE_FILE;
@@ -228,7 +257,22 @@ bool MegaNodePrivate::isFile()
 
 bool MegaNodePrivate::isFolder()
 {
-	return (type != TYPE_FILE) && (type != TYPE_UNKNOWN);
+    return (type != TYPE_FILE) && (type != TYPE_UNKNOWN);
+}
+
+bool MegaNodePrivate::isRemoved()
+{
+    return hasChanged(MegaNode::CHANGE_TYPE_REMOVED);
+}
+
+bool MegaNodePrivate::hasChanged(int changeType)
+{
+    return (changed & changeType);
+}
+
+int MegaNodePrivate::getChanges()
+{
+    return changed;
 }
 
 #ifdef ENABLE_SYNC

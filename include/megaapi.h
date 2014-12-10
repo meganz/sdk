@@ -375,6 +375,18 @@ class MegaNode
             TYPE_RUBBISH
 		};
 
+        enum
+        {
+            CHANGE_TYPE_REMOVED         = 0x01,
+            CHANGE_TYPE_ATTRIBUTES      = 0x02,
+            CHANGE_TYPE_OWNER           = 0x04,
+            CHANGE_TYPE_TIMESTAMP       = 0x08,
+            CHANGE_TYPE_FILE_ATTRIBUTES = 0x10,
+            CHANGE_TYPE_INSHARE         = 0x20,
+            CHANGE_TYPE_OUTSHARE        = 0x40,
+            CHANGE_TYPE_PARENT          = 0x80
+        };
+
         virtual ~MegaNode() = 0;
 
         /**
@@ -527,6 +539,78 @@ class MegaNode
          * @return true if this node has been removed from the MEGA account
          */
         virtual bool isRemoved() = 0;
+
+        /**
+         * @brief Returns true if this node has an specific change
+         *
+         * This value is only useful for nodes notified by MegaListener::onNodesUpdate or
+         * MegaGlobalListener::onNodesUpdate that can notify about node modifications.
+         *
+         * In other cases, the return value of this function will be always false.
+         *
+         * @param changeType The type of change to check. It can be one of the following values:
+         *
+         * - MegaNode::CHANGE_TYPE_REMOVED         = 0x01
+         * Check if the node is being removed
+         *
+         * - MegaNode::CHANGE_TYPE_ATTRIBUTES      = 0x02
+         * Check if an attribute of the node has changed, usually the namespace name
+         *
+         * - MegaNode::CHANGE_TYPE_OWNER           = 0x04
+         * Check if the owner of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TIMESTAMP       = 0x08
+         * Check if the modification time of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_FILE_ATTRIBUTES = 0x10
+         * Check if file attributes have changed, usually the thumbnail or the preview for images
+         *
+         * - MegaNode::CHANGE_TYPE_INSHARE         = 0x20
+         * Check if the node is a new or modified inshare
+         *
+         * - MegaNode:: CHANGE_TYPE_OUTSHARE       = 0x40
+         * Check if the node is a new or modified outshare
+         *
+         * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
+         * Check if the parent of the node has changed
+         *
+         * @return true if this node has an specific change
+         */
+        virtual bool hasChanged(int changeType) = 0;
+
+        /**
+         * @brief Returns a bit field with the changes of the node
+         *
+         * This value is only useful for nodes notified by MegaListener::onNodesUpdate or
+         * MegaGlobalListener::onNodesUpdate that can notify about node modifications.
+         *
+         * @return The returned value is an OR combination of these flags:
+         *
+         *- MegaNode::CHANGE_TYPE_REMOVED         = 0x01
+         * The node is being removed
+         *
+         * - MegaNode::CHANGE_TYPE_ATTRIBUTES      = 0x02
+         * An attribute of the node has changed, usually the namespace name
+         *
+         * - MegaNode::CHANGE_TYPE_OWNER           = 0x04
+         * The owner of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TIMESTAMP       = 0x08
+         * The modification time of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_FILE_ATTRIBUTES = 0x10
+         * File attributes have changed, usually the thumbnail or the preview for images
+         *
+         * - MegaNode::CHANGE_TYPE_INSHARE         = 0x20
+         * The node is a new or modified inshare
+         *
+         * - MegaNode:: CHANGE_TYPE_OUTSHARE       = 0x40
+         * The node is a new or modified outshare
+         *
+         * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
+         * The parent of the node has changed
+         */
+        virtual int getChanges() = 0;
 
         /**
          * @brief Returns true if the node has an associated thumbnail
