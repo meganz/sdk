@@ -1,5 +1,5 @@
 /**
- * @file megaapi.h
+ * @file megaapi.cpp
  * @brief Intermediate layer for the MEGA C++ SDK.
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand

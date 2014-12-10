@@ -1,3 +1,23 @@
+/**
+ * @file MEGASdk.h
+ * @brief Allows to control a MEGA account or a public folder
+ *
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ */
 #import <Foundation/Foundation.h>
 
 #import "MEGANode.h"
@@ -50,7 +70,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 };
 
 /**
- * @brief Allows to control a MEGA account or a shared folder.
+ * @brief Allows to control a MEGA account or a public folder.
  *
  * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
  * - https://mega.co.nz/#sdk
@@ -870,6 +890,65 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  */
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level;
+
+/**
+ * @brief Share or stop sharing a folder in MEGA with another user using his email
+ *
+ * To share a folder with an user, set the desired access level in the level parameter. If you
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
+ *
+ * The associated request type with this request is MEGARequestTypeCopy
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
+ * - [MEGARequest email] - Returns the email of the user that receives the shared folder
+ * - [MEGARequest access] - Returns the access that is granted to the user
+ *
+ * @param node The folder to share. It must be a non-root folder
+ * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
+ * and the user will be invited to register an account.
+ *
+ * @param level Permissions that are granted to the user
+ * Valid values for this parameter:
+ * - MEGAShareTypeAccessUnkown = -1
+ * Stop sharing a folder with this user
+ *
+ * - MEGAShareTypeAccessRead = 0
+ * - MEGAShareTypeAccessUnkown = 1
+ * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessOwner = 3
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Share or stop sharing a folder in MEGA with another user using his email
+ *
+ * To share a folder with an user, set the desired access level in the level parameter. If you
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
+ *
+ * The associated request type with this request is MEGARequestTypeCopy
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
+ * - [MEGARequest email] - Returns the email of the user that receives the shared folder
+ * - [MEGARequest access] - Returns the access that is granted to the user
+ *
+ * @param node The folder to share. It must be a non-root folder
+ * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
+ * and the user will be invited to register an account.
+ *
+ * @param level Permissions that are granted to the user
+ * Valid values for this parameter:
+ * - MEGAShareTypeAccessUnkown = -1
+ * Stop sharing a folder with this user
+ *
+ * - MEGAShareTypeAccessRead = 0
+ * - MEGAShareTypeAccessUnkown = 1
+ * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessOwner = 3
+ *
+ */
+- (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level;
 
 /**
  * @brief Import a public link to the account.
@@ -2092,7 +2171,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 + (void)setLogLevel:(MEGALogLevel)logLevel;
 
 /**
- * @brief Set a MegaLogger implementation to receive SDK logs.
+ * @brief Set a MEGALogger implementation to receive SDK logs.
  *
  * Logs received by this objects depends on the active log level.
  * By default, it is MEGALogLevelInfo. You can change it
@@ -2102,8 +2181,50 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  */
 
 + (void)setLogObject:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Send a log to the logging system
+ *
+ * This log will be received by the active logger object ([MEGASdk setLogObject]) if
+ * the log level is the same or lower than the active log level ([MEGASdk setLogLevel])
+ *
+ * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
+ * to complete them.
+ *
+ * @param logLevel Log level for this message
+ * @param message Message for the logging system
+ * @param filename Origin of the log message
+ * @param line Line of code where this message was generated
+ */
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename line:(NSInteger)line;
+
+/**
+ * @brief Send a log to the logging system
+ *
+ * This log will be received by the active logger object ([MEGASdk setLogObject]) if
+ * the log level is the same or lower than the active log level ([MEGASdk setLogLevel])
+ *
+ * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
+ * to complete them.
+ *
+ * @param logLevel Log level for this message
+ * @param message Message for the logging system
+ * @param filename Origin of the log message
+ */
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message filename:(NSString *)filename;
+
+/**
+ * @brief Send a log to the logging system
+ *
+ * This log will be received by the active logger object ([MEGASdk setLogObject]) if
+ * the log level is the same or lower than the active log level ([MEGASdk setLogLevel])
+ *
+ * The third and the fouth parameget are optional. You may want to use  __FILE__ and __LINE__
+ * to complete them.
+ *
+ * @param logLevel Log level for this message
+ * @param message Message for the logging system
+ */
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message;
 
 @end

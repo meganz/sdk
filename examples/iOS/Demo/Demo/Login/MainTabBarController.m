@@ -1,6 +1,24 @@
+/**
+ * @file MainTabBarController.h
+ * @brief Main tab bar of the app
+ *
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ */
 #import "MainTabBarController.h"
-
-//#define IPAD UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad
 
 @interface MainTabBarController () 
 
@@ -20,28 +38,5 @@
 
     [self setViewControllers:viewControllerArray];
 }
-
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
-}
-
-
-
-//    [viewControllerArray addObject:[[UIStoryboard storyboardWithName:storyboardNameForCurrentDevice(@"Cloud") bundle:nil] instantiateInitialViewController]];
-//NSString * storyboardNameForCurrentDevice(NSString *storyboardName)
-//{
-//    return [storyboardName stringByAppendingString:IPAD?@"_iPad":@"_iPhone"];
-//}
-
-/*
-#pragma mark - Navigation
-
-// In a storyboard-based application, you will often want to do a little preparation before navigation
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    // Get the new view controller using [segue destinationViewController].
-    // Pass the selected object to the new view controller.
-}
-*/
 
 @end

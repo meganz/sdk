@@ -1,3 +1,23 @@
+/**
+ * @file MEGASdk.mm
+ * @brief Allows to control a MEGA account or a shared folder
+ *
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ */
 #import "MEGASdk.h"
 #import "megaapi.h"
 #import "MEGANode+init.h"
@@ -392,6 +412,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level {
     self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (user != nil) ? [user getCPtr] : NULL, (int)level);
+}
+
+- (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shareNode:(MEGANode *)node withEmail:(NSString *)email level:(NSInteger)level {
+    self.megaApi->share((node != nil) ? [node getCPtr] : NULL, (email != nil) ? [email UTF8String] : NULL, (int)level);
 }
 
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
