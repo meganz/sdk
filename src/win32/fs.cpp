@@ -153,7 +153,6 @@ void WinFileAccess::updatelocalname(string* name)
 bool WinFileAccess::skipattributes(DWORD dwAttributes)
 {
     return (dwAttributes & (FILE_ATTRIBUTE_REPARSE_POINT
-          | FILE_ATTRIBUTE_TEMPORARY
           | FILE_ATTRIBUTE_OFFLINE))
         || (dwAttributes & (FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN))
             == (FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
@@ -186,7 +185,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     {
         if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fad))
         {
-            retry = WinFileSystemAccess::istransient(GetLastError());
+            DWORD e = GetLastError();
+            LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+            retry = WinFileSystemAccess::istransient(e);
             name->resize(name->size() - added - 1);
             return false;
         }
