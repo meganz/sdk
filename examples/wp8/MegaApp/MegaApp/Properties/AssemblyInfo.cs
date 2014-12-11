@@ -7,7 +7,7 @@ using System.Resources;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("MEGA")]
-[assembly: AssemblyDescription("MEGA Cloud Service application")]
+[assembly: AssemblyDescription("MEGA Cloud Service Application")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("MEGA")]
 [assembly: AssemblyProduct("MEGA")]
