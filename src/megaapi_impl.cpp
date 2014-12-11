@@ -114,7 +114,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 #endif
 }
 
-MegaNodePrivate::MegaNodePrivate(Node *node)
+MegaNodePrivate::MegaNodePrivate(shared_ptr<Node> node)
 : MegaNode()
 {
     this->name = MegaApi::strdup(node->displayname());
@@ -434,7 +434,7 @@ time_t MegaUserPrivate::getTimestamp()
 }
 
 
-MegaNode *MegaNodePrivate::fromNode(Node *node)
+MegaNode *MegaNodePrivate::fromNode(shared_ptr<Node> node)
 {
     if(!node) return NULL;
     return new MegaNodePrivate(node);
@@ -1341,7 +1341,7 @@ MegaNodeListPrivate::MegaNodeListPrivate()
 	s = 0;
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
+MegaNodeListPrivate::MegaNodeListPrivate(shared_ptr<Node> *newlist, int size)
 {
 	list = NULL; s = size;
 	if(!size) return;
@@ -1550,7 +1550,7 @@ MegaFile::MegaFile() : File()
     seqno = ++nextseqno;
 }
 
-MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile()
+MegaFileGet::MegaFileGet(MegaClient *client, shared_ptr<Node> n, string dstPath) : MegaFile()
 {
     h = n->nodehandle;
     *(FileFingerprint*)this = *n;
@@ -1683,7 +1683,7 @@ void MegaFilePut::terminated()
     delete this;
 }
 
-bool TreeProcessor::processNode(Node*)
+bool TreeProcessor::processNode(shared_ptr<Node>)
 {
 	return false; /* Stops the processing */
 }
@@ -2838,7 +2838,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     fireOnRequestStart(request);
 
     const char *localPath = request->getFile();
-    Node *node = client->nodebyhandle(request->getNodeHandle());
+    shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
     if(!node || (node->type==FILENODE) || !localPath)
     {
         e = API_EARGS;
@@ -2886,7 +2886,7 @@ bool MegaApiImpl::isSynced(MegaNode *n)
 {
     if(!n) return false;
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
     if(!node)
     {
         sdkMutex.unlock();
@@ -2921,7 +2921,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
 {
     if(!n) return string();
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
     if(!node || !node->localnode)
     {
         sdkMutex.unlock();
@@ -3031,7 +3031,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     if(!megaUser) return new MegaNodeListPrivate();
 
     sdkMutex.lock();
-    vector<Node*> vNodes;
+    vector<shared_ptr<Node>> vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
     if(!user)
     {
@@ -3041,7 +3041,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
 
 	for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
 	{
-        Node *n;
+        shared_ptr<Node> n;
 		if ((n = client->nodebyhandle(*sit)))
             vNodes.push_back(n);
 	}
@@ -3057,11 +3057,11 @@ MegaNodeList* MegaApiImpl::getInShares()
 {
     sdkMutex.lock();
 
-    vector<Node*> vNodes;
+    vector<shared_ptr<Node>> vNodes;
 	for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
 	{
 		User *user = &(it->second);
-		Node *n;
+        shared_ptr<Node> n;
 
 		for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
 		{
@@ -3080,7 +3080,7 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 	if(!megaNode) return false;
 
 	sdkMutex.lock();
-	Node *node = client->nodebyhandle(megaNode->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
 	if(!node)
 	{
 		sdkMutex.unlock();
@@ -3110,7 +3110,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     if(!megaNode) return new MegaShareListPrivate();
 
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(megaNode->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
@@ -3143,7 +3143,7 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
 	if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
 
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(megaNode->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
@@ -3161,7 +3161,7 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
 		return MegaShare::ACCESS_OWNER;
 	}
 
-	Node *n = node;
+    shared_ptr<Node> n = node;
     accesslevel_t a = FULL;
 	while (n)
 	{
@@ -3185,7 +3185,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 	if(!processor) return false;
 
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
@@ -3224,7 +3224,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 	return result;
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
+bool MegaApiImpl::processTree(shared_ptr<Node> node, TreeProcessor* processor, bool recursive)
 {
 	if(!node) return 1;
 	if(!processor) return 0;
@@ -3269,7 +3269,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
 {
     if(!n || !searchString) return new MegaNodeListPrivate();
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
@@ -3278,7 +3278,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
 
 	SearchTreeProcessor searchProcessor(searchString);
 	processTree(node, &searchProcessor, recursive);
-    vector<Node *>& vNodes = searchProcessor.getResults();
+    vector<shared_ptr<Node> >& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList;
     if(vNodes.size()) nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
@@ -3294,7 +3294,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
     if(!n) return 0;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
     if(!node)
     {
         sdkMutex.unlock();
@@ -3348,7 +3348,7 @@ const char *MegaApiImpl::getFingerprint(MegaNode *n)
     if(!n) return NULL;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
     if(!node || node->type != FILENODE || node->size < 0 || !node->isvalid)
     {
         sdkMutex.unlock();
@@ -3416,7 +3416,7 @@ char *strcasestr(const char *string, const char *substring)
 
 #endif
 
-bool SearchTreeProcessor::processNode(Node* node)
+bool SearchTreeProcessor::processNode(shared_ptr<Node> node)
 {
 	if(!node) return true;
 	if(!search) return false;
@@ -3427,7 +3427,7 @@ bool SearchTreeProcessor::processNode(Node* node)
 	return true;
 }
 
-vector<Node *> &SearchTreeProcessor::getResults()
+vector<shared_ptr<Node> > &SearchTreeProcessor::getResults()
 {
 	return results;
 }
@@ -3437,7 +3437,7 @@ SizeProcessor::SizeProcessor()
     totalBytes=0;
 }
 
-bool SizeProcessor::processNode(Node *node)
+bool SizeProcessor::processNode(shared_ptr<Node> node)
 {
     if(node->type == FILENODE)
         totalBytes += node->size;
@@ -3742,22 +3742,22 @@ void MegaApiImpl::syncupdate_put(Sync *, const char *path)
     LOG_debug << "Sync - sending file " << path;
 }
 
-void MegaApiImpl::syncupdate_remote_file_addition(Node *n)
+void MegaApiImpl::syncupdate_remote_file_addition(shared_ptr<Node> n)
 {
     LOG_debug << "Sync - remote file addition detected " << n->displayname();
 }
 
-void MegaApiImpl::syncupdate_remote_file_deletion(Node *n)
+void MegaApiImpl::syncupdate_remote_file_deletion(shared_ptr<Node> n)
 {
     LOG_debug << "Sync - remote file deletion detected " << n->displayname();
 }
 
-void MegaApiImpl::syncupdate_remote_folder_addition(Node *n)
+void MegaApiImpl::syncupdate_remote_folder_addition(shared_ptr<Node> n)
 {
     LOG_debug << "Sync - remote folder addition detected " << n->displayname();
 }
 
-void MegaApiImpl::syncupdate_remote_folder_deletion(Node *n)
+void MegaApiImpl::syncupdate_remote_folder_deletion(shared_ptr<Node> n)
 {
     LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
 }
@@ -3781,7 +3781,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     fireOnFileSyncStateChanged(path.data(), (int)l->ts);
 }
 
-bool MegaApiImpl::sync_syncable(Node *node)
+bool MegaApiImpl::sync_syncable(shared_ptr<Node> node)
 {
     const char *name = node->displayname();
     sdkMutex.unlock();
@@ -3873,7 +3873,7 @@ void MegaApiImpl::fetchnodes_result(error e)
 void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 {
     handle h = UNDEF;
-    Node *n = NULL;
+    shared_ptr<Node> n = NULL;
 
     if(!e && t != USER_HANDLE)
     {
@@ -3942,7 +3942,7 @@ void MegaApiImpl::share_result(int, error)
 	//The other callback will be called at the end of the request
 }
 
-void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
+void MegaApiImpl::fa_complete(shared_ptr<Node> n, fatype type, const char* data, uint32_t len)
 {
     int tag = client->restag;
     while(tag)
@@ -4253,7 +4253,7 @@ void MegaApiImpl::exportnode_result(error result)
 
 void MegaApiImpl::exportnode_result(handle h, handle ph)
 {
-	Node* n;
+    shared_ptr<Node> n;
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
@@ -4407,7 +4407,7 @@ void MegaApiImpl::reload(const char*)
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void MegaApiImpl::nodes_updated(Node** n, int count)
+void MegaApiImpl::nodes_updated(shared_ptr<Node>* n, int count)
 {
     MegaNodeList *nodeList = NULL;
     if(n != NULL)
@@ -4945,7 +4945,7 @@ MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
     if(!megaNode || !level)	return MegaError(API_EARGS);
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
@@ -4981,8 +4981,8 @@ MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 	if(!megaNode || !targetNode) return MegaError(API_EARGS);
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
-	Node *target = client->nodebyhandle(targetNode->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
+    shared_ptr<Node> target = client->nodebyhandle(targetNode->getHandle());
 	if(!node || !target)
 	{
         sdkMutex.unlock();
@@ -4995,7 +4995,7 @@ MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 	return e;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorDefaultASC (shared_ptr<Node> i, shared_ptr<Node> j)
 {
     if(i->type < j->type) return 0;
     if(i->type > j->type) return 1;
@@ -5003,7 +5003,7 @@ bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)
 	return 0;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorDefaultDESC (shared_ptr<Node> i, shared_ptr<Node> j)
 {
     if(i->type < j->type) return 1;
     if(i->type > j->type) return 0;
@@ -5011,24 +5011,24 @@ bool MegaApiImpl::nodeComparatorDefaultDESC (Node *i, Node *j)
 	return 1;
 }
 
-bool MegaApiImpl::nodeComparatorSizeASC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorSizeASC (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(i->size < j->size) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorSizeDESC (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorSizeDESC (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(i->size < j->size) return 0; return 1;}
 
-bool MegaApiImpl::nodeComparatorCreationASC  (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorCreationASC  (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(i->ctime < j->ctime) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorCreationDESC  (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorCreationDESC  (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(i->ctime < j->ctime) return 0; return 1;}
 
-bool MegaApiImpl::nodeComparatorModificationASC  (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorModificationASC  (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(i->mtime < j->mtime) return 1; return 0;}
-bool MegaApiImpl::nodeComparatorModificationDESC  (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorModificationDESC  (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(i->mtime < j->mtime) return 0; return 1;}
 
-bool MegaApiImpl::nodeComparatorAlphabeticalASC  (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorAlphabeticalASC  (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(strcasecmp(i->displayname(), j->displayname())<=0) return 1; return 0; }
-bool MegaApiImpl::nodeComparatorAlphabeticalDESC  (Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorAlphabeticalDESC  (shared_ptr<Node> i, shared_ptr<Node> j)
 { if(strcasecmp(i->displayname(), j->displayname())<=0) return 0; return 1; }
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
@@ -5036,7 +5036,7 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
 	if (!p) return 0;
 
 	sdkMutex.lock();
-	Node *parent = client->nodebyhandle(p->getHandle());
+    shared_ptr<Node> parent = client->nodebyhandle(p->getHandle());
 	if (!parent)
 	{
 		sdkMutex.unlock();
@@ -5054,7 +5054,7 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
 	if (!p) return 0;
 
 	sdkMutex.lock();
-	Node *parent = client->nodebyhandle(p->getHandle());
+    shared_ptr<Node> parent = client->nodebyhandle(p->getHandle());
 	if (!parent)
 	{
 		sdkMutex.unlock();
@@ -5077,7 +5077,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 	if (!p) return 0;
 
 	sdkMutex.lock();
-	Node *parent = client->nodebyhandle(p->getHandle());
+    shared_ptr<Node> parent = client->nodebyhandle(p->getHandle());
 	if (!parent)
 	{
 		sdkMutex.unlock();
@@ -5101,14 +5101,14 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     if(!p) return new MegaNodeListPrivate();
 
     sdkMutex.lock();
-    Node *parent = client->nodebyhandle(p->getHandle());
+    shared_ptr<Node> parent = client->nodebyhandle(p->getHandle());
 	if(!parent)
 	{
         sdkMutex.unlock();
         return new MegaNodeListPrivate();
 	}
 
-    vector<Node *> childrenNodes;
+    vector<shared_ptr<Node> > childrenNodes;
 
     if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
 	{
@@ -5117,7 +5117,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 	}
 	else
 	{
-        bool (*comp)(Node*, Node*);
+        bool (*comp)(shared_ptr<Node>, shared_ptr<Node>);
 		switch(order)
 		{
         case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
@@ -5135,8 +5135,8 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 
 		for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
 		{
-            Node *n = *it++;
-            vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
+            shared_ptr<Node> n = *it++;
+            vector<shared_ptr<Node> >::iterator i = std::lower_bound(childrenNodes.begin(),
 					childrenNodes.end(), n, comp);
             childrenNodes.insert(i, n);
 		}
@@ -5155,14 +5155,14 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
     }
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
     if(!node)
     {
         sdkMutex.unlock();
         return -1;
     }
 
-    Node *parent = node->parent;
+    shared_ptr<Node> parent = node->parent;
     if(!parent)
     {
         sdkMutex.unlock();
@@ -5176,7 +5176,7 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         return 0;
     }
 
-    bool (*comp)(Node*, Node*);
+    bool (*comp)(shared_ptr<Node>, shared_ptr<Node>);
     switch(order)
     {
         case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
@@ -5192,16 +5192,16 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
     }
 
-    vector<Node *> childrenNodes;
+    vector<shared_ptr<Node> > childrenNodes;
     for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
     {
-        Node *temp = *it++;
-        vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
+        shared_ptr<Node> temp = *it++;
+        vector<shared_ptr<Node> >::iterator i = std::lower_bound(childrenNodes.begin(),
                 childrenNodes.end(), temp, comp);
         childrenNodes.insert(i, temp);
     }
 
-    vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
+    vector<shared_ptr<Node> >::iterator i = std::lower_bound(childrenNodes.begin(),
             childrenNodes.end(), node, comp);
 
     sdkMutex.unlock();
@@ -5216,7 +5216,7 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
     }
 
     sdkMutex.lock();
-    Node *parentNode = client->nodebyhandle(parent->getHandle());
+    shared_ptr<Node> parentNode = client->nodebyhandle(parent->getHandle());
 	if(!parentNode)
 	{
         sdkMutex.unlock();
@@ -5228,7 +5228,7 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
     return node;
 }
 
-Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
+shared_ptr<Node> MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 {
     if(!fingerprint || !fingerprint[0]) return NULL;
 
@@ -5255,7 +5255,7 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
     fp.size = size;
 
     sdkMutex.lock();
-    Node *n  = client->nodebyfingerprint(&fp);
+    shared_ptr<Node> n  = client->nodebyfingerprint(&fp);
     sdkMutex.unlock();
 
     return n;
@@ -5266,7 +5266,7 @@ MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
     if(!n) return NULL;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
 	if(!node)
 	{
         sdkMutex.unlock();
@@ -5284,7 +5284,7 @@ const char* MegaApiImpl::getNodePath(MegaNode *node)
     if(!node) return NULL;
 
     sdkMutex.lock();
-    Node *n = client->nodebyhandle(node->getHandle());
+    shared_ptr<Node> n = client->nodebyhandle(node->getHandle());
     if(!n)
 	{
         sdkMutex.unlock();
@@ -5348,7 +5348,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
     if(!path) return NULL;
 
     sdkMutex.lock();
-    Node *cwd = NULL;
+    shared_ptr<Node> cwd = NULL;
     if(node) cwd = client->nodebyhandle(node->getHandle());
 
 	vector<string> c;
@@ -5356,8 +5356,8 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 	int l = 0;
 	const char* bptr = path;
 	int remote = 0;
-	Node* n;
-	Node* nn;
+    shared_ptr<Node> n;
+    shared_ptr<Node> nn;
 
 	// split path by / or :
 	do {
@@ -5585,7 +5585,7 @@ void MegaApiImpl::sendPendingTransfers()
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
                 int64_t mtime = transfer->getTime();
-                Node *parent = client->nodebyhandle(transfer->getParentHandle());
+                shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
 
                 if(!localPath || !parent)
                 {
@@ -5633,7 +5633,7 @@ void MegaApiImpl::sendPendingTransfers()
 			case MegaTransfer::TYPE_DOWNLOAD:
 			{
                 handle nodehandle = transfer->getNodeHandle();
-				Node *node = client->nodebyhandle(nodehandle);
+                shared_ptr<Node> node = client->nodebyhandle(nodehandle);
                 MegaNode *publicNode = transfer->getPublicNode();
                 const char *parentPath = transfer->getParentPath();
                 const char *fileName = transfer->getFileName();
@@ -5822,7 +5822,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
         case MegaRequest::TYPE_CREATE_FOLDER:
 		{
-			Node *parent = client->nodebyhandle(request->getParentHandle());
+            shared_ptr<Node> parent = client->nodebyhandle(request->getParentHandle());
 			const char *name = request->getName();
 			if(!name || !parent) { e = API_EARGS; break; }
 
@@ -5859,8 +5859,8 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_MOVE:
 		{
-			Node *node = client->nodebyhandle(request->getNodeHandle());
-			Node *newParent = client->nodebyhandle(request->getParentHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> newParent = client->nodebyhandle(request->getParentHandle());
 			if(!node || !newParent) { e = API_EARGS; break; }
 
             if(node->parent == newParent)
@@ -5875,8 +5875,8 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_COPY:
 		{
-			Node *node = client->nodebyhandle(request->getNodeHandle());
-			Node *target = client->nodebyhandle(request->getParentHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> target = client->nodebyhandle(request->getParentHandle());
 			const char* email = request->getEmail();
             MegaNode *publicNode = request->getPublicNode();
 
@@ -5935,7 +5935,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_RENAME:
 		{
-			Node* node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 			const char* newName = request->getName();
 			if(!node || !newName) { e = API_EARGS; break; }
 
@@ -5949,7 +5949,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_REMOVE:
 		{
-			Node* node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 			if(!node) { e = API_EARGS; break; }
 
 			e = client->unlink(node);
@@ -5957,7 +5957,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_SHARE:
 		{
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 			const char* email = request->getEmail();
 			int access = request->getAccess();
             if(!node || !email || !strchr(email, '@'))
@@ -5995,7 +5995,7 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_IMPORT_LINK:
 		case MegaRequest::TYPE_GET_PUBLIC_NODE:
 		{
-			Node *node = client->nodebyhandle(request->getParentHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getParentHandle());
 			const char* megaFileLink = request->getLink();
 			if(!megaFileLink) { e = API_EARGS; break; }
 			if((request->getType()==MegaRequest::TYPE_IMPORT_LINK) && (!node)) { e = API_EARGS; break; }
@@ -6005,7 +6005,7 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_EXPORT:
 		{
-			Node* node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 			if(!node) { e = API_EARGS; break; }
 
             e = client->exportnode(node, !request->getAccess());
@@ -6082,7 +6082,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* dstFilePath = request->getFile();
             int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 
 			if(!dstFilePath || !node) { e = API_EARGS; break; }
 
@@ -6168,7 +6168,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
             const char* srcFilePath = request->getFile();
 			int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 
 			if(!srcFilePath || !node) { e = API_EARGS; break; }
 
@@ -6199,7 +6199,7 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:
 		{
 			int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
 
 			if (!node) { e = API_EARGS; break; }
 
@@ -6376,7 +6376,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ADD_SYNC:
         {
             const char *localPath = request->getFile();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
+            shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
             if(!node || (node->type==FILENODE) || !localPath)
             {
                 e = API_EARGS;
@@ -6570,7 +6570,7 @@ TreeProcCopy::~TreeProcCopy()
 }
 
 // determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, Node* n)
+void TreeProcCopy::proc(MegaClient* client, shared_ptr<Node> n)
 {
 	if (nn)
 	{
@@ -6838,7 +6838,7 @@ OutShareProcessor::OutShareProcessor()
 
 }
 
-bool OutShareProcessor::processNode(Node *node)
+bool OutShareProcessor::processNode(shared_ptr<Node> node)
 {
     if(!node->outshares)
     {

@@ -70,9 +70,9 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (client)
     {
-        Node* p;
+        shared_ptr<Node> p;
 
-        client->nodes[h] = this;
+        client->nodes[h] = shared_ptr<Node>(this);
 
         // folder link access: first returned record defines root node and
         // identity
@@ -94,7 +94,10 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
         }
         else
         {
-            dp->push_back(this);
+            if(dp)
+            {
+                dp->push_back(shared_ptr<Node>(this));
+            }
         }
 
         if (type == FILENODE)
@@ -107,7 +110,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 Node::~Node()
 {
     // abort pending direct reads
-    client->preadabort(this);
+    client->preadabort(shared_ptr<Node>(this));
 
     // remove node's fingerprint from hash
     if (type == FILENODE && fingerprint_it != client->fingerprints.end())
@@ -179,9 +182,9 @@ void Node::setkey(const byte* newkey)
     setattr();
 }
 
-// parse serialized node and return Node object - updates nodes hash and parent
+// parse serialized node and return shared_ptr<Node> object - updates nodes hash and parent
 // mismatch vector
-Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
+shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 {
     handle h, ph;
     nodetype_t t;
@@ -194,7 +197,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    Node* n;
+    shared_ptr<Node> n;
     int i;
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
@@ -298,7 +301,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = shared_ptr<Node>(new Node(client, dp, h, ph, t, s, u, fa, ts));
 
     if (k)
     {
@@ -657,7 +660,7 @@ bool Node::applykey()
             // look for share key if not folder access with folder master key
             if (h != me)
             {
-                Node* n;
+                shared_ptr<Node> n;
 
                 // this is a share node handle - check if we have node and the
                 // share key
@@ -703,7 +706,7 @@ bool Node::applykey()
 }
 
 // returns whether node was moved
-bool Node::setparent(Node* p)
+bool Node::setparent(shared_ptr<Node> p)
 {
     if (p == parent)
     {
@@ -740,7 +743,7 @@ bool Node::setparent(Node* p)
         if (!p)
         {
             TreeProcDelSyncGet tdsg;
-            client->proctree(this, &tdsg);
+            client->proctree(shared_ptr<Node>(this), &tdsg);
         }
     }
 #endif
@@ -749,7 +752,7 @@ bool Node::setparent(Node* p)
 }
 
 // returns 1 if n is under p, 0 otherwise
-bool Node::isbelow(Node* p) const
+bool Node::isbelow(shared_ptr<Node> p) const
 {
     const Node* n = this;
 
@@ -760,12 +763,12 @@ bool Node::isbelow(Node* p) const
             return false;
         }
 
-        if (n == p)
+        if (n == p.get())
         {
             return true;
         }
 
-        n = n->parent;
+        n = n->parent.get();
     }
 }
 
@@ -968,7 +971,7 @@ void LocalNode::treestate(treestate_t newts)
     dts = ts;
 }
 
-void LocalNode::setnode(Node* cnode)
+void LocalNode::setnode(shared_ptr<Node> cnode)
 {
     if (node && (node != cnode) && node->localnode)
     {
@@ -1229,7 +1232,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - type/size
 // - fsid
 // - parent LocalNode's dbid
-// - corresponding Node handle
+// - corresponding shared_ptr<Node> handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)

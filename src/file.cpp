@@ -151,7 +151,7 @@ void File::displayname(string* dname)
     }
     else
     {
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = transfer->client->nodebyhandle(h)))
         {
@@ -165,7 +165,7 @@ void File::displayname(string* dname)
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
+SyncFileGet::SyncFileGet(Sync* csync, shared_ptr<Node> cn, string* clocalname)
 {
     sync = csync;
 

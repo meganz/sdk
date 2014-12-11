@@ -110,7 +110,7 @@ void MegaClient::mergenewshares(bool notify)
 
     for (it = newshares.begin(); it != newshares.end(); )
     {
-        Node* n;
+        shared_ptr<Node> n;
         NewShare* s = *it;
 
         if ((n = nodebyhandle(s->h)))
@@ -356,7 +356,7 @@ bool MegaClient::warnlevel()
 }
 
 // returns the first matching child node by UTF-8 name (does not resolve name clashes)
-Node* MegaClient::childnodebyname(Node* p, const char* name)
+shared_ptr<Node> MegaClient::childnodebyname(shared_ptr<Node> p, const char* name)
 {
     string nname = name;
 
@@ -559,7 +559,7 @@ void MegaClient::exec()
                         // remove from list
                         handle fah = MemAccess::get<handle>(fa->in.data());
 
-                        Node* n;
+                        shared_ptr<Node> n;
                         handle h;
                         handlepair_set::iterator it;
 
@@ -1600,7 +1600,7 @@ bool MegaClient::dispatch(direction_t d)
             else
             {
                 // set up keys for the decryption of this file (k == NULL => private node)
-                Node* n;
+                shared_ptr<Node> n;
                 const byte* k = NULL;
 
                 // locate suitable template file
@@ -2100,10 +2100,11 @@ void MegaClient::initsc()
             // 3. write new or modified nodes, purge deleted nodes
             for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDNODE, it->second, &key)))
+                if (!(complete = sctable->put(CACHEDNODE, it->second.get(), &key)))
                 {
                     break;
                 }
+                nodehandletodbid[it->second->nodehandle] = it->second->dbid;
             }
         }
 
@@ -2165,10 +2166,11 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
+                    if (!(complete = sctable->put(CACHEDNODE, (*it).get(), &key)))
                     {
                         break;
                     }
+                    nodehandletodbid[(*it)->nodehandle] = (*it)->dbid;
                 }
             }
         }
@@ -2176,7 +2178,6 @@ void MegaClient::updatesc()
         LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes and " << usernotify.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
-
 }
 
 // commit or purge local state cache
@@ -2201,7 +2202,7 @@ void MegaClient::finalizesc(bool complete)
 }
 
 // queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(Node* n, fatype t, int cancel)
+error MegaClient::getfa(shared_ptr<Node> n, fatype t, int cancel)
 {
     // locate this file attribute type in the nodes's attribute string
     handle fah;
@@ -2435,7 +2436,7 @@ void MegaClient::sc_updatenode()
             case EOO:
                 if (!ISUNDEF(h))
                 {
-                    Node* n;
+                    shared_ptr<Node> n;
 
                     if ((n = nodebyhandle(h)))
                     {
@@ -2693,7 +2694,7 @@ void MegaClient::sc_contacts()
 void MegaClient::sc_keys()
 {
     handle h;
-    Node* n = NULL;
+    shared_ptr<Node> n = NULL;
     node_vector kshares;
     node_vector knodes;
 
@@ -2746,7 +2747,7 @@ void MegaClient::sc_keys()
 // server-client file attribute update
 void MegaClient::sc_fileattr()
 {
-    Node* n = NULL;
+    shared_ptr<Node> n = NULL;
     const char* fa = NULL;
 
     for (;;)
@@ -2858,7 +2859,7 @@ void MegaClient::notifypurge(void)
         updatesc();
 
 #ifdef ENABLE_SYNC
-        // update LocalNode <-> Node associations
+        // update LocalNode <-> shared_ptr<Node> associations
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             (*it)->cachenodes();
@@ -2883,12 +2884,12 @@ void MegaClient::notifypurge(void)
 #endif
         applykeys();
 
-        app->nodes_updated(&nodenotify[0], t);
+        app->nodes_updated(nodenotify.data(), t);
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
         {
-            Node* n = nodenotify[i];
+            shared_ptr<Node> n = nodenotify[i];
 
             if (n->changed.removed)
             {
@@ -2900,7 +2901,6 @@ void MegaClient::notifypurge(void)
                 }
 
                 nodes.erase(n->nodehandle);
-                delete n;
             }
             else
             {
@@ -2920,13 +2920,17 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h)
+shared_ptr<Node> MegaClient::nodebyhandle(handle h)
 {
-    node_map::iterator it;
+    map<handle, int32_t>::iterator it;
 
-    if ((it = nodes.find(h)) != nodes.end())
+    if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
     {
-        return it->second;
+        string data;
+        sctable->get(it->second, &data);
+        shared_ptr<Node> n = Node::unserialize(this, &data, NULL);
+        n->dbid = it->second;
+        return n;
     }
 
     return NULL;
@@ -2935,7 +2939,7 @@ Node* MegaClient::nodebyhandle(handle h)
 // server-client deletion
 void MegaClient::sc_deltree()
 {
-    Node* n = NULL;
+    shared_ptr<Node> n = NULL;
 
     for (;;)
     {
@@ -2999,7 +3003,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 
 // update node attributes - optional newattr is { name, value, name, value, ..., NULL }
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char** newattr)
+error MegaClient::setattr(shared_ptr<Node> n, const char** newattr)
 {
     if (!checkaccess(n, FULL))
     {
@@ -3052,7 +3056,7 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
-int MegaClient::checkaccess(Node* n, accesslevel_t a)
+int MegaClient::checkaccess(shared_ptr<Node> n, accesslevel_t a)
 {
     // folder link access is always read-only - ignore login status during
     // initial tree fetch
@@ -3082,7 +3086,7 @@ int MegaClient::checkaccess(Node* n, accesslevel_t a)
 
 // returns API_OK if a move operation is permitted, API_EACCESS or
 // API_ECIRCULAR otherwise
-error MegaClient::checkmove(Node* fn, Node* tn)
+error MegaClient::checkmove(shared_ptr<Node> fn, shared_ptr<Node> tn)
 {
     // condition #1: cannot move top-level node, must have full access to fn's
     // parent
@@ -3148,7 +3152,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel)
+error MegaClient::rename(shared_ptr<Node> n, shared_ptr<Node> p, syncdel_t syncdel)
 {
     error e;
 
@@ -3172,7 +3176,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n)
+error MegaClient::unlink(shared_ptr<Node> n)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -3359,7 +3363,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     }
 
     node_vector dp;
-    Node* n;
+    shared_ptr<Node> n;
 
     while (j->enterobject())
     {
@@ -3497,13 +3501,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     // node already present - check for race condition
                     if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
                     {
-                        app->reload("Node inconsistency (parent linkage)");
+                        app->reload("shared_ptr<Node> inconsistency (parent linkage)");
                     }
                 }
 
                 if (!ISUNDEF(ph))
                 {
-                    Node* p;
+                    shared_ptr<Node> p;
 
                     if ((p = nodebyhandle(ph)))
                     {
@@ -3564,7 +3568,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
 
                 n->tag = tag;
 
@@ -3586,7 +3590,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     {
                         if (nn[nni].localnode)
                         {
-                            // overwrites/updates: associate LocalNode with newly created Node
+                            // overwrites/updates: associate LocalNode with newly created shared_ptr<Node>
                             nn[nni].localnode->setnode(n);
                             nn[nni].localnode->newnode = NULL;
                             nn[nni].localnode->treestate(TREESTATE_SYNCED);
@@ -3944,7 +3948,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
 void MegaClient::login(const byte* session, int size)
 {
     logout();
-   
+
     if (size == sizeof key.key + SIDLEN)
     {
         string t;
@@ -3982,7 +3986,7 @@ int MegaClient::dumpsession(byte* session, int size)
 
     memcpy(session, key.key, sizeof key.key);
     memcpy(session + sizeof key.key, sid.data(), sid.size());
-    
+
     return sizeof key.key + sid.size();
 }
 
@@ -4189,13 +4193,13 @@ void MegaClient::procsr(JSON* j)
 }
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
+void MegaClient::proctree(shared_ptr<Node> n, TreeProc* tp, bool skipinshares)
 {
     if (n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
         {
-            Node *child = *it++;
+            shared_ptr<Node> child = *it++;
             if (!(skipinshares && child->inshare))
             {
                 proctree(child, tp, skipinshares);
@@ -4228,7 +4232,7 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 }
 
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
-void MegaClient::rewriteforeignkeys(Node* n)
+void MegaClient::rewriteforeignkeys(shared_ptr<Node> n)
 {
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
@@ -4241,7 +4245,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
+void MegaClient::setshare(shared_ptr<Node> n, const char* user, accesslevel_t a)
 {
     if (a == ACCESS_UNKNOWN && n->outshares && n->outshares->size() == 1)
     {
@@ -4360,7 +4364,7 @@ void MegaClient::getua(User* u, const char* an, int p)
 }
 
 // queue node for notification
-void MegaClient::notifynode(Node* n)
+void MegaClient::notifynode(shared_ptr<Node> n)
 {
 #ifdef ENABLE_SYNC
     // is this a synced node that was moved to a non-synced location? queue for
@@ -4502,11 +4506,11 @@ void MegaClient::procsnk(JSON* j)
                 return;
             }
 
-            Node* sn = nodebyhandle(sh);
+            shared_ptr<Node> sn = nodebyhandle(sh);
 
             if (sn && sn->sharekey && checkaccess(sn, OWNER))
             {
-                Node* n = nodebyhandle(nh);
+                shared_ptr<Node> n = nodebyhandle(nh);
 
                 if (n && n->isbelow(sn))
                 {
@@ -4554,7 +4558,7 @@ void MegaClient::procsuk(JSON* j)
 }
 
 // add node to vector, return position, deduplicate
-unsigned MegaClient::addnode(node_vector* v, Node* n) const
+unsigned MegaClient::addnode(node_vector* v, shared_ptr<Node> n) const
 {
     // linear search not particularly scalable, but fine for the relatively
     // small real-world requests
@@ -4576,8 +4580,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 {
     node_vector rshares, rnodes;
     unsigned si, ni;
-    Node* sn;
-    Node* n;
+    shared_ptr<Node> sn;
+    shared_ptr<Node> n;
     string crkeys;
     byte keybuf[FILENODEKEYLENGTH];
     char buf[128];
@@ -4627,7 +4631,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 
             if (ni >= nodes->size())
             {
-                LOG_err << "Node index out of range";
+                LOG_err << "shared_ptr<Node> index out of range";
                 return;
             }
 
@@ -4716,7 +4720,7 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del)
+error MegaClient::exportnode(shared_ptr<Node> n, int del)
 {
     if (!checkaccess(n, OWNER))
     {
@@ -4955,7 +4959,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 {
     uint32_t id;
     string data;
-    Node* n;
+    shared_ptr<Node> n;
     User* u;
     node_vector dp;
 
@@ -5074,11 +5078,6 @@ void MegaClient::purgenodesusersabortsc()
     syncs.clear();
 #endif
 
-    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-    {
-        delete it->second;
-    }
-
     nodes.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -5119,7 +5118,7 @@ void MegaClient::purgenodesusersabortsc()
 }
 
 // request direct read by node pointer
-void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
+void MegaClient::pread(shared_ptr<Node> n, m_off_t count, m_off_t offset, void* appdata)
 {
     queueread(n->nodehandle, true, n->nodecipher(), MemAccess::get<int64_t>((const char*)n->nodekey.data() + SymmCipher::KEYLENGTH), count, offset, appdata);
 }
@@ -5167,7 +5166,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
 }
 
 // cancel direct read by node pointer / count / count
-void MegaClient::preadabort(Node* n, m_off_t offset, m_off_t count)
+void MegaClient::preadabort(shared_ptr<Node> n, m_off_t offset, m_off_t count)
 {
     abortreads(n->nodehandle, true, offset, count);
 }
@@ -5184,7 +5183,7 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
     DirectReadNode* drn;
 
     encodehandletype(&h, p);
-    
+
     if ((it = hdrns.find(h)) != hdrns.end())
     {
         drn = it->second;
@@ -5254,7 +5253,7 @@ void MegaClient::updateputs()
 // disallow nested syncs (there is only one LocalNode pointer per node), return
 // EEXIST otherwise
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag)
+error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, shared_ptr<Node> remotenode, fsfp_t fsfp, int tag)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -5263,7 +5262,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         return API_EACCESS;
     }
 
-    Node* n;
+    shared_ptr<Node> n;
     bool inshare;
 
     // any active syncs below?
@@ -5295,7 +5294,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 return API_EEXIST;
             }
         }
-        
+
         if (n->inshare && !inshare)
         {
             // we need FULL access to sync
@@ -5339,7 +5338,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     {
         rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
     }
-    
+
     FileAccess* fa = fsaccess->newfileaccess();
     error e;
 
@@ -5407,7 +5406,7 @@ void MegaClient::stopxfers(LocalNode* l)
             stopxfers(it->second);
         }
     }
-  
+
     stopxfer(l);
 }
 
@@ -5415,9 +5414,9 @@ void MegaClient::stopxfers(LocalNode* l)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, shared_ptr<Node> n, list<string>* strings) const
 {
-    Node** npp;
+    shared_ptr<Node>* npp;
 
     if (name->find('%') + 1)
     {
@@ -5454,7 +5453,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
-    // only use for LocalNodes with a corresponding and properly linked Node
+    // only use for LocalNodes with a corresponding and properly linked shared_ptr<Node>
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
     {
         return true;
@@ -5528,7 +5527,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     // local version is newer
                     nchildren.erase(rit);
                 }
-                else if (*ll == *(FileFingerprint*)rit->second)
+                else if (*ll == *(FileFingerprint*)rit->second.get())
                 {
                     // both files are identical
                     nchildren.erase(rit);
@@ -5751,7 +5750,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         char report[256];
 
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
-                        
+
                         sprintf(report + 8, " %d %.200s", (*it)->type, (*it)->nodekey.c_str());
 
                         reqtag = 0;
@@ -5766,7 +5765,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 // ...or a node name attribute missing
                 if ((ait = (*it)->attrs.map.find('n')) == (*it)->attrs.map.end())
                 {
-                    LOG_warn << "Node name missing, not syncing subtree: " << l->name.c_str();
+                    LOG_warn << "shared_ptr<Node> name missing, not syncing subtree: " << l->name.c_str();
 
                     if (!l->reported)
                     {
@@ -5843,7 +5842,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         // check if file is likely to be identical
                         if (rit->second->isvalid
-                          ? *ll == *(FileFingerprint*)rit->second
+                                ? *ll == *(FileFingerprint*)rit->second.get()
                           : (ll->mtime == rit->second->mtime))
                         {
                             // files have the same size and the same mtime (or the
@@ -5905,7 +5904,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         ll->sync->localbytes -= ll->size;
                         ll->genfingerprint(fa);
-                        ll->sync->localbytes += ll->size;                        
+                        ll->sync->localbytes += ll->size;
 
                         ll->sync->statecacheadd(ll);
                     }
@@ -5923,7 +5922,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 }
 
                 delete fa;
-                
+
                 ll->created = false;
             }
         }
@@ -5956,7 +5955,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         namelen = -1;
                     }
 
-                    // additionally, report corresponding Node's type, name length, mtime, file size and handle
+                    // additionally, report corresponding shared_ptr<Node>'s type, name length, mtime, file size and handle
                     sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
 
@@ -6000,7 +5999,7 @@ void MegaClient::syncupdate()
     SymmCipher tkey;
     string tattrstring;
     AttrMap tattrs;
-    Node* n;
+    shared_ptr<Node> n;
     NewNode* nn;
     NewNode* nnp;
     LocalNode* l;
@@ -6119,7 +6118,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
     {
         if (nn[nni].type == FILENODE && !nn[nni].added)
         {
-            Node* n;
+            shared_ptr<Node> n;
 
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
@@ -6141,7 +6140,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink)
+void MegaClient::movetosyncdebris(shared_ptr<Node> dn, bool unlink)
 {
     dn->syncdeleted = SYNCDEL_DELETED;
 
@@ -6152,7 +6151,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
         dn->localnode = NULL;
     }
 
-    Node* n = dn;
+    shared_ptr<Node> n = dn;
 
     // at least one parent node already on the way to SyncDebris?
     while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
@@ -6166,13 +6165,13 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
         }
         else
         {
-            dn->todebris_it = todebris.insert(dn).first;        
+            dn->todebris_it = todebris.insert(dn).first;
         }
     }
 }
 
 void MegaClient::execsyncdeletions()
-{                
+{
     if (todebris.size())
     {
         execmovetosyncdebris();
@@ -6186,8 +6185,8 @@ void MegaClient::execsyncdeletions()
 
 void MegaClient::execsyncunlink()
 {
-    Node* n;
-    Node* tn;
+    shared_ptr<Node> n;
+    shared_ptr<Node> tn;
     node_set::iterator it;
 
     // delete tounlink nodes
@@ -6210,8 +6209,8 @@ void MegaClient::execsyncunlink()
 // also deletes tounlink items directly
 void MegaClient::execmovetosyncdebris()
 {
-    Node* n;
-    Node* tn;
+    shared_ptr<Node> n;
+    shared_ptr<Node> tn;
     node_set::iterator it;
 
     time_t ts;
@@ -6473,13 +6472,13 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
     }
 }
 
-Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
+shared_ptr<Node> MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
     fingerprint_set::iterator it;
 
     if ((it = fingerprints.find(fingerprint)) != fingerprints.end())
     {
-        return (Node*)*it;
+        return shared_ptr<Node>((Node *)*it);
     }
 
     return NULL;
@@ -6506,7 +6505,7 @@ void MegaClient::setchunkfailed(string* url)
             badhosts.append("S");
             ptr++;
         }
-        
+
         badhosts.append(ptr+6,7);
     }
 }

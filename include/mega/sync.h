@@ -111,7 +111,7 @@ public:
     // original filesystem fingerprint
     fsfp_t fsfp;
     
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
+    Sync(MegaClient*, string*, const char*, string*, shared_ptr<Node>, fsfp_t, bool, int);
     ~Sync();
 
 protected :

@@ -85,7 +85,7 @@ struct MEGA_API File: public FileFingerprint
 struct MEGA_API SyncFileGet: public File
 {
     Sync* sync;
-    Node* n;
+    shared_ptr<Node> n;
 
     // set sync-specific temp filename, update treestate
     void prepare();
@@ -99,7 +99,7 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated();
 
-    SyncFileGet(Sync*, Node*, string*);
+    SyncFileGet(Sync*, shared_ptr<Node>, string*);
     ~SyncFileGet();
 };
 

@@ -200,7 +200,7 @@ typedef uint64_t nameid;
 // OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
-typedef vector<struct Node*> node_vector;
+typedef vector<shared_ptr<Node>> node_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -227,11 +227,11 @@ typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
-typedef set<Node*> node_set;
+typedef set<shared_ptr<Node>> node_set;
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
-typedef list<Node*> node_list;
+typedef list<shared_ptr<Node>> node_list;
 
 // undefined node handle
 const handle UNDEF = ~(handle)0;
@@ -249,8 +249,8 @@ typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
 
-// maps node handles to Node pointers
-typedef map<handle, Node*> node_map;
+// maps node handles to shared_ptr<Node> pointers
+typedef map<handle, shared_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -314,7 +314,7 @@ typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
 
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
-typedef map<const string*, Node*, StringCmp> remotenode_map;
+typedef map<const string*, shared_ptr<Node>, StringCmp> remotenode_map;
 
 // FIXME: use forward_list instead
 typedef list<NewNode*> newnode_list;

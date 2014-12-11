@@ -64,7 +64,7 @@ struct MEGA_API MegaApp
     virtual void unlink_result(handle, error) { }
 
     // nodes have been updated
-    virtual void nodes_updated(Node**, int) { }
+    virtual void nodes_updated(shared_ptr<Node> *, int) { }
 
     // users have been added or updated
     virtual void users_updated(User**, int) { }
@@ -89,7 +89,7 @@ struct MEGA_API MegaApp
     virtual void share_result(int, error) { }
 
     // file attribute fetch result
-    virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
+    virtual void fa_complete(shared_ptr<Node>, fatype, const char*, uint32_t) { }
     virtual int fa_failed(handle, fatype, int)
     {
         return 0;
@@ -152,16 +152,16 @@ struct MEGA_API MegaApp
     virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_get(Sync*, const char*) { }
     virtual void syncupdate_put(Sync*, const char*) { }
-    virtual void syncupdate_remote_file_addition(Node*) { }
-    virtual void syncupdate_remote_file_deletion(Node*) { }
-    virtual void syncupdate_remote_folder_addition(Node*) { }
-    virtual void syncupdate_remote_folder_deletion(Node*) { }
+    virtual void syncupdate_remote_file_addition(shared_ptr<Node>) { }
+    virtual void syncupdate_remote_file_deletion(shared_ptr<Node>) { }
+    virtual void syncupdate_remote_folder_addition(shared_ptr<Node>) { }
+    virtual void syncupdate_remote_folder_deletion(shared_ptr<Node>) { }
     virtual void syncupdate_remote_copy(Sync*, const char*) { }
     virtual void syncupdate_remote_move(string*, string*) { }
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Node*)
+    virtual bool sync_syncable(shared_ptr<Node>)
     {
         return true;
     }
