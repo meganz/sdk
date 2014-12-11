@@ -4550,6 +4550,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
+    client->logout();
     fireOnRequestFinish(request, megaError);
 }
 
