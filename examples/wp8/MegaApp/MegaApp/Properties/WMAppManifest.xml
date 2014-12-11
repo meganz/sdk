@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Deployment xmlns="http://schemas.microsoft.com/windowsphone/2012/deployment" AppPlatformVersion="8.0">
   <DefaultLanguage xmlns="" code="en-US" />
-  <App xmlns="" ProductID="{7d8d3817-2eb5-416a-9147-ed5e83dee03e}" Title="MEGA" RuntimeType="Silverlight" Version="1.0.0.0" Genre="apps.normal" Author="GoedWare" Description="MEGA Cloud Service application" Publisher="MEGA" PublisherID="{16956d05-6c01-4806-821a-8fab59cca3ce}">
+  <App xmlns="" ProductID="{7d8d3817-2eb5-416a-9147-ed5e83dee03e}" Title="MEGA" RuntimeType="Silverlight" Version="1.0.0.0" Genre="apps.normal" Author="Mega Limited" Description="MEGA Cloud Service Application" Publisher="Mega Limited" PublisherID="{16956d05-6c01-4806-821a-8fab59cca3ce}">
     <IconPath IsRelative="true" IsResource="false">Assets\ApplicationIcon.png</IconPath>
     <Capabilities>
       <Capability Name="ID_CAP_NETWORKING" />
