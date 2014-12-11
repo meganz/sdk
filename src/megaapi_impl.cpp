@@ -5254,8 +5254,11 @@ shared_ptr<Node> MegaApiImpl::getNodeByFingerprintInternal(const char *fingerpri
 
     fp.size = size;
 
+    string fpstring;
+    fp.serializefingerprint(&fpstring);
+
     sdkMutex.lock();
-    shared_ptr<Node> n  = client->nodebyfingerprint(&fp);
+    shared_ptr<Node> n  = client->nodebyfingerprint(&fpstring);
     sdkMutex.unlock();
 
     return n;

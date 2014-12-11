@@ -50,6 +50,7 @@ public:
 
 
     map<handle, int32_t> nodehandletodbid;
+    multimap<string, int32_t> fingerprinttodbid;
 
     // all users
     user_map users;
@@ -453,9 +454,6 @@ public:
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
 
-    // FileFingerprint to node mapping
-    fingerprint_set fingerprints;
-
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
     handle_vector sharekeyrewrite;
@@ -491,7 +489,7 @@ public:
     void deltree(handle);
 
     shared_ptr<Node> nodebyhandle(handle);
-    shared_ptr<Node> nodebyfingerprint(FileFingerprint*);
+    shared_ptr<Node> nodebyfingerprint(string *);
 
     // generate & return upload handle
     handle getuploadhandle();

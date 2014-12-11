@@ -6025,8 +6025,10 @@ void MegaClient::syncupdate()
             l = synccreate[i];
 
             l->treestate(TREESTATE_PENDING);
+            string fpstring;
+            l->serializefingerprint(&fpstring);
 
-            if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
+            if (l->type == FOLDERNODE || (n = nodebyfingerprint(&fpstring)))
             {
                 // create remote folder or copy file if it already exists
                 nnp->source = NEW_NODE;
@@ -6122,10 +6124,15 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                if (n->fingerprint_it != fingerprints.end())
-                {
-                    fingerprints.erase(n->fingerprint_it);
-                    n->fingerprint_it = fingerprints.end();
+                string fpstring;
+                n->serializefingerprint(&fpstring);
+                std::pair<multimap<string, int32_t>::iterator, multimap<string, int32_t>::iterator> range = fingerprinttodbid.equal_range(fpstring);
+                multimap<string, int32_t>::iterator it = range.first;
+                for (; it != range.second; ++it) {
+                    if (it->second == n->dbid) {
+                        fingerprinttodbid.erase(it);
+                        break;
+                    }
                 }
             }
         }
@@ -6472,13 +6479,16 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
     }
 }
 
-shared_ptr<Node> MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
+shared_ptr<Node> MegaClient::nodebyfingerprint(string* fingerprint)
 {
-    fingerprint_set::iterator it;
-
-    if ((it = fingerprints.find(fingerprint)) != fingerprints.end())
+    multimap<string, int32_t>::iterator it;
+    if ((it = fingerprinttodbid.find(*fingerprint)) != fingerprinttodbid.end())
     {
-        return shared_ptr<Node>((Node *)*it);
+        string data;
+        sctable->get(it->second, &data);
+        shared_ptr<Node> n = Node::unserialize(this, &data, NULL);
+        n->dbid = it->second;
+        return n;
     }
 
     return NULL;

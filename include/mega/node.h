@@ -154,9 +154,6 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // own position in parent's children
     node_list::iterator child_it;
 
-    // own position in fingerprint set (only valid for file nodes)
-    fingerprint_set::iterator fingerprint_it;
-
 #ifdef ENABLE_SYNC
     // related synced item or NULL
     LocalNode* localnode;
