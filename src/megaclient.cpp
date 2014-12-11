@@ -5744,7 +5744,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 {
                     if (!l->reported)
                     {
-                        LOG_warn << "Sync: Undecryptable child node. " << (*it)->nodekey.c_str();
+                        char* buf = new char[(*it)->nodekey.size() * 4 / 3 + 4];
+                        Base64::btoa((byte *)(*it)->nodekey.data(), (*it)->nodekey.size(), buf);
+
+                        LOG_warn << "Sync: Undecryptable child node. " << buf;
 
                         l->reported = true;
 
@@ -5752,12 +5755,14 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
                         
-                        sprintf(report + 8, " %d %.200s", (*it)->type, (*it)->nodekey.c_str());
+                        sprintf(report + 8, " %d %.200s", (*it)->type, buf);
 
                         reqtag = 0;
 
                         // report an "undecrypted child" event
                         reportevent("CU", report);
+
+                        delete [] buf;
                     }
 
                     continue;
