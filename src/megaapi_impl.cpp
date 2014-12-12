@@ -5140,7 +5140,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 		}
 
         shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(parent);
-        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
+        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); )
 		{
             shared_ptr<Node> n = *it++;
             vector<shared_ptr<Node> >::iterator i = std::lower_bound(childrenNodes.begin(),

@@ -51,7 +51,7 @@ public:
 
     map<handle, int32_t> nodehandletodbid;
     multimap<string, int32_t> fingerprinttodbid;
-    multimap<int32_t, int32_t> nodechildren;
+    multimap<handle, handle> nodechildren;
 
     // all users
     user_map users;

@@ -2106,6 +2106,11 @@ void MegaClient::initsc()
                     break;
                 }
                 nodehandletodbid[it->second->nodehandle] = it->second->dbid;
+                shared_ptr<Node> nnn = nodebydbid(it->second->dbid);
+                if(!nnn.get())
+                {
+                    cout << "ERROR" << endl;
+                }
             }
         }
 
@@ -3566,6 +3571,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
+                nodes[h] = n;
+                if(n->parenthandle == UNDEF)
+                {
+                    dp.push_back(n);
+                }
 
                 n->tag = tag;
 
@@ -6493,9 +6503,13 @@ shared_ptr<Node> MegaClient::nodebyfingerprint(string* fingerprint)
 shared_ptr<Node> MegaClient::nodebydbid(int32_t dbid)
 {
     string data;
-    if(sctable->get(dbid, &data))
+    if(sctable->get(dbid, &data) && PaddedCBC::decrypt(&data, &key))
     {
         shared_ptr<Node> n = Node::unserialize(this, &data, NULL);
+        if(!n.get())
+        {
+            return NULL;
+        }
         n->dbid = dbid;
         return n;
     }
@@ -6505,11 +6519,13 @@ shared_ptr<Node> MegaClient::nodebydbid(int32_t dbid)
 shared_ptr<vector<shared_ptr<Node> > > MegaClient::getchildren(shared_ptr<Node> node)
 {
     vector<shared_ptr<Node>> *children = new vector<shared_ptr<Node>>();
-    std::pair<multimap<int32_t, int32_t>::iterator, multimap<int32_t, int32_t>::iterator> range = nodechildren.equal_range(node->dbid);
-    multimap<int32_t, int32_t>::iterator it = range.first;
+    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range = nodechildren.equal_range(node->nodehandle);
+    multimap<handle, handle>::iterator it = range.first;
     for (; it != range.second; ++it)
     {
-        children->push_back(nodebydbid(it->second));
+        shared_ptr<Node> n = nodebyhandle(it->second);
+        if(n.get())
+            children->push_back(n);
     }
     return shared_ptr<vector<shared_ptr<Node> > >(children);
 }

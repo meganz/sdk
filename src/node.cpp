@@ -68,9 +68,26 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (client)
     {
-        shared_ptr<Node> p;
+        if(parenthandle != UNDEF)
+        {
+            std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
+                    client->nodechildren.equal_range(parenthandle);
+            multimap<handle, handle>::iterator it = range.first;
+            for (; it != range.second; ++it)
+            {
+                if (it->second == nodehandle)
+                {
+                    break;
+                }
+            }
 
-        client->nodes[h] = shared_ptr<Node>(this);
+            if(it == range.second)
+            {
+                client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
+            }
+        }
+
+        shared_ptr<Node> p;
 
         // folder link access: first returned record defines root node and
         // identity
@@ -90,18 +107,18 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
         {
             setparent(p);
         }
-        else
-        {
-            if(dp)
-            {
-                dp->push_back(shared_ptr<Node>(this));
-            }
-        }
     }
 }
 
 Node::~Node()
 {
+    if(!changed.removed)
+    {
+        delete inshare;
+        delete sharekey;
+        return;
+    }
+
     // abort pending direct reads
     client->preadabort(shared_ptr<Node>(this));
 
@@ -145,9 +162,9 @@ Node::~Node()
     }
 
     // remove from parent's children
-    std::pair<multimap<int32_t, int32_t>::iterator, multimap<int32_t, int32_t>::iterator> range =
+    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
             client->nodechildren.equal_range(parenthandle);
-    multimap<int32_t, int32_t>::iterator it = range.first;
+    multimap<handle, handle>::iterator it = range.first;
     for (; it != range.second; ++it) {
         if (it->second == nodehandle) {
             client->nodechildren.erase(it);
@@ -723,9 +740,9 @@ bool Node::setparent(shared_ptr<Node> p)
 
     if (parenthandle != UNDEF)
     {
-        std::pair<multimap<int32_t, int32_t>::iterator, multimap<int32_t, int32_t>::iterator> range =
+        std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
                 client->nodechildren.equal_range(parenthandle);
-        multimap<int32_t, int32_t>::iterator it = range.first;
+        multimap<handle, handle>::iterator it = range.first;
         for (; it != range.second; ++it) {
             if (it->second == nodehandle) {
                 client->nodechildren.erase(it);
@@ -738,7 +755,7 @@ bool Node::setparent(shared_ptr<Node> p)
 
     if (parenthandle != UNDEF)
     {
-        client->nodechildren.insert(pair<int32_t, int32_t>(parenthandle, nodehandle));
+        client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
     }
 
 #ifdef ENABLE_SYNC
