@@ -24,23 +24,37 @@
 
 namespace mega {
 
-PendingContactRequest::PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
+PendingContactRequest::PendingContactRequest(const handle id)
 {
     this->id = id;
+    this->targetemail = "";
+
+    memset(&changed,0,sizeof changed);
+
+}
+
+PendingContactRequest::PendingContactRequest(const handle id,const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
+{
+    this->id = id;
+    this->targetemail = "";
+    this->update(oemail, temail, ts, uts, msg, outgoing);
+}
+
+void PendingContactRequest::update(const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
+{
     if (oemail) {
-        this->originatoremail = oemail;
+        Node::copystring(&(this->originatoremail), oemail);
     }
     if (temail) {
-        this->targetemail = temail;
+        Node::copystring(&(this->targetemail), temail);
     }
     this->ts = ts;
     this->uts = uts;
     if (msg) {
-        this->msg = msg;
+        Node::copystring(&(this->msg), msg);
     }
 
     this->isoutgoing = outgoing;
-
     memset(&changed,0,sizeof changed);
 }
 

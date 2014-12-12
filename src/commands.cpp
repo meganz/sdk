@@ -1292,7 +1292,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -1306,8 +1306,16 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     user = u;
     access = a;
 
-    cmd("s");
+    this->personal_representation = personal_representation;
+    this->msg = msg;
+
+    cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
+
+    // Only for inviting non-contacts
+    if (personal_representation != NULL) arg("e", personal_representation);
+    if (msg != NULL) arg("msg", msg);
+    
 
     if (a != ACCESS_UNKNOWN)
     {
@@ -1333,7 +1341,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     beginarray("s");
     beginobject();
 
-    arg("u", u ? u->uid.c_str() : MegaClient::EXPORTEDLINK);
+    arg("u", u ? u->email.c_str() : MegaClient::EXPORTEDLINK);
 
     if (a != ACCESS_UNKNOWN)
     {
@@ -1426,7 +1434,7 @@ void CommandSetShare::procresult()
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0));
+                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg, personal_representation));
                         return;
                     }
                 }
@@ -2897,7 +2905,9 @@ void CommandFetchNodes::procresult()
                 break;
 
             case 's':
-                // outgoing shares
+                // Fall through
+            case MAKENAMEID2('p', 's'):
+                // outgoing or pending shares
                 client->readoutshares(&client->json);
                 break;
 

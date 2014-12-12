@@ -374,13 +374,15 @@ class MEGA_API CommandSetShare : public Command
     handle sh;
     User* user;
     accesslevel_t access;
+    const char* msg;
+    const char* personal_representation;
 
     bool procuserresult(MegaClient*);
 
 public:
     void procresult();
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char* msg, const char* personal_representation = NULL);
 };
 
 class MEGA_API CommandGetUserData : public Command
