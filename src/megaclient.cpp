@@ -176,7 +176,7 @@ void MegaClient::mergenewshares(bool notify)
                 else
                 {
                     // incoming share deleted - remove tree
-                    if (!n->parent)
+                    if (n->parenthandle != UNDEF)
                     {
                         TreeProcDel td;
                         proctree(n, &td, true);
@@ -273,7 +273,7 @@ void MegaClient::mergenewshares(bool notify)
                         LOG_warn << "Existing inbound share sync or part thereof lost full access";
                         n->localnode->sync->changestate(SYNC_FAILED);
                     }
-                } while ((n = n->parent));
+                } while ((n = n->client->nodebyhandle(n->parenthandle)));
                 
                 // b) have we just lost full access to the subtree a sync is in?
                 for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -362,7 +362,8 @@ shared_ptr<Node> MegaClient::childnodebyname(shared_ptr<Node> p, const char* nam
 
     fsaccess->normalize(&nname);
 
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    shared_ptr<vector<shared_ptr<Node>>> children = getchildren(p);
+    for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
@@ -2926,11 +2927,7 @@ shared_ptr<Node> MegaClient::nodebyhandle(handle h)
 
     if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
     {
-        string data;
-        sctable->get(it->second, &data);
-        shared_ptr<Node> n = Node::unserialize(this, &data, NULL);
-        n->dbid = it->second;
-        return n;
+        return nodebydbid(it->second);
     }
 
     return NULL;
@@ -3073,12 +3070,12 @@ int MegaClient::checkaccess(shared_ptr<Node> n, accesslevel_t a)
             return n->inshare->access >= a;
         }
 
-        if (!n->parent)
+        if (n->parenthandle != UNDEF)
         {
             return n->type > FOLDERNODE;
         }
 
-        n = n->parent;
+        n = nodebyhandle(n->parenthandle);
     }
 
     return 0;
@@ -3090,7 +3087,7 @@ error MegaClient::checkmove(shared_ptr<Node> fn, shared_ptr<Node> tn)
 {
     // condition #1: cannot move top-level node, must have full access to fn's
     // parent
-    if (!fn->parent || !checkaccess(fn->parent, FULL))
+    if (fn->parenthandle != UNDEF || !checkaccess(nodebyhandle(fn->parenthandle), FULL))
     {
         return API_EACCESS;
     }
@@ -3115,24 +3112,24 @@ error MegaClient::checkmove(shared_ptr<Node> fn, shared_ptr<Node> tn)
             return API_ECIRCULAR;
         }
 
-        if (tn->inshare || !tn->parent)
+        if (tn->inshare || tn->parenthandle != UNDEF)
         {
             break;
         }
 
-        tn = tn->parent;
+        tn = nodebyhandle(tn->parenthandle);
     }
 
     // condition #5: fn and tn must be in the same tree (same ultimate parent
     // node or shared by the same user)
     for (;;)
     {
-        if (fn->inshare || !fn->parent)
+        if (fn->inshare || fn->parenthandle != UNDEF)
         {
             break;
         }
 
-        fn = fn->parent;
+        fn = fn->client->nodebyhandle(fn->parenthandle);
     }
 
     // moves within the same tree or between the user's own trees are permitted
@@ -3499,7 +3496,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else
                 {
                     // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle) || n->type != t)
+                    if ((n->parenthandle != UNDEF && ph != n->parenthandle) || n->type != t)
                     {
                         app->reload("shared_ptr<Node> inconsistency (parent linkage)");
                     }
@@ -4197,7 +4194,8 @@ void MegaClient::proctree(shared_ptr<Node> n, TreeProc* tp, bool skipinshares)
 {
     if (n->type != FILENODE)
     {
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
+        shared_ptr<vector<shared_ptr<Node>>> children = getchildren(n);
+        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
         {
             shared_ptr<Node> child = *it++;
             if (!(skipinshares && child->inshare))
@@ -4369,7 +4367,7 @@ void MegaClient::notifynode(shared_ptr<Node> n)
 #ifdef ENABLE_SYNC
     // is this a synced node that was moved to a non-synced location? queue for
     // deletion from LocalNodes.
-    if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
+    if (n->localnode && n->localnode->parent && n->parenthandle != UNDEF && !n->client->nodebyhandle(n->parenthandle)->localnode)
     {
         n->localnode->deleted = true;
         n->localnode->node = NULL;
@@ -4385,9 +4383,9 @@ void MegaClient::notifynode(shared_ptr<Node> n)
             n->localnode->deleted = n->changed.removed;
         }
 
-        if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
+        if (n->parenthandle != UNDEF && n->client->nodebyhandle(n->parenthandle)->localnode && (!n->localnode || (n->localnode->parent != n->client->nodebyhandle(n->parenthandle)->localnode)))
         {
-            n->parent->localnode->deleted = n->changed.removed;
+            n->client->nodebyhandle(n->parenthandle)->localnode->deleted = n->changed.removed;
         }
     }
 #endif
@@ -5277,7 +5275,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 {
                     return API_EEXIST;
                 }
-            } while ((n = n->parent));
+            } while ((n = n->client->nodebyhandle(n->parenthandle)));
         }
     }
 
@@ -5303,7 +5301,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 
             inshare = true;
         }
-    } while ((n = n->parent));
+    } while ((n = n->client->nodebyhandle(n->parenthandle)));
 
     if (inshare)
     {
@@ -5324,7 +5322,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                             {
                                 return API_EACCESS;
                             }
-                        } while ((n = n->parent));
+                        } while ((n = n->client->nodebyhandle(n->parenthandle)));
                     }
                 }
             }
@@ -5454,7 +5452,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, shared_ptr<No
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
     // only use for LocalNodes with a corresponding and properly linked shared_ptr<Node>
-    if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
+    if (l->type != FOLDERNODE || !l->node || (l->parent && nodebyhandle(l->node->parenthandle)->localnode != l->parent))
     {
         return true;
     }
@@ -5472,7 +5470,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     string localname;
 
     // build child hash - nameclash resolution: use newest/largest version
-    for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
+    shared_ptr<vector<shared_ptr<Node>>> children = getchildren(l->node);
+    for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
     {
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
@@ -5733,7 +5732,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         // corresponding remote node present: build child hash - nameclash
         // resolution: use newest version
-        for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
+        shared_ptr<vector<shared_ptr<Node>>> children = getchildren(l->node);
+        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
         {
             // node must be alive
             if ((*it)->syncdeleted == SYNCDEL_NONE)
@@ -6161,7 +6161,7 @@ void MegaClient::movetosyncdebris(shared_ptr<Node> dn, bool unlink)
     shared_ptr<Node> n = dn;
 
     // at least one parent node already on the way to SyncDebris?
-    while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
+    while ((n = nodebyhandle(n->parenthandle)) && n->syncdeleted == SYNCDEL_NONE);
 
     // no: enqueue this one
     if (!n)
@@ -6200,7 +6200,7 @@ void MegaClient::execsyncunlink()
     do {
         n = tn = *tounlink.begin();
 
-        while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
+        while ((n = nodebyhandle(n->parenthandle)) && n->syncdeleted == SYNCDEL_NONE);
 
         if (!n)
         {
@@ -6269,7 +6269,7 @@ void MegaClient::execmovetosyncdebris()
          || n->syncdeleted == SYNCDEL_BIN
          || n->syncdeleted == SYNCDEL_DEBRIS)
         {
-            while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
+            while ((n = nodebyhandle(n->parenthandle)) && n->syncdeleted == SYNCDEL_NONE);
 
             if (!n)
             {
@@ -6484,14 +6484,34 @@ shared_ptr<Node> MegaClient::nodebyfingerprint(string* fingerprint)
     multimap<string, int32_t>::iterator it;
     if ((it = fingerprinttodbid.find(*fingerprint)) != fingerprinttodbid.end())
     {
-        string data;
-        sctable->get(it->second, &data);
-        shared_ptr<Node> n = Node::unserialize(this, &data, NULL);
-        n->dbid = it->second;
-        return n;
+        return nodebydbid(it->second);
     }
 
     return NULL;
+}
+
+shared_ptr<Node> MegaClient::nodebydbid(int32_t dbid)
+{
+    string data;
+    if(sctable->get(dbid, &data))
+    {
+        shared_ptr<Node> n = Node::unserialize(this, &data, NULL);
+        n->dbid = dbid;
+        return n;
+    }
+    return NULL;
+}
+
+shared_ptr<vector<shared_ptr<Node> > > MegaClient::getchildren(shared_ptr<Node> node)
+{
+    vector<shared_ptr<Node>> *children = new vector<shared_ptr<Node>>();
+    std::pair<multimap<int32_t, int32_t>::iterator, multimap<int32_t, int32_t>::iterator> range = nodechildren.equal_range(node->dbid);
+    multimap<int32_t, int32_t>::iterator it = range.first;
+    for (; it != range.second; ++it)
+    {
+        children->push_back(nodebydbid(it->second));
+    }
+    return shared_ptr<vector<shared_ptr<Node> > >(children);
 }
 
 // a chunk transfer request failed: record failed protocol & host

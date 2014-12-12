@@ -76,7 +76,7 @@ void ShareNodeKeys::add(NodeCore* n, shared_ptr<Node> sn, int specific, const by
             keys.append(buf, ptr - buf);
             addnode = 1;
         }
-    } while (!specific && (sn = sn->parent));
+    } while (!specific && (sn = sn->client->nodebyhandle(sn->parenthandle)));
 
     if (addnode)
     {

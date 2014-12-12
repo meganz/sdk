@@ -145,15 +145,6 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 
     void faspec(string*);
 
-    // parent
-    shared_ptr<Node> parent;
-
-    // children
-    node_list children;
-
-    // own position in parent's children
-    node_list::iterator child_it;
-
 #ifdef ENABLE_SYNC
     // related synced item or NULL
     LocalNode* localnode;

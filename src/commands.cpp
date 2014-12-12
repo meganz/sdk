@@ -859,7 +859,7 @@ void CommandMoveNode::procresult()
                                 (*it)->syncdeleted = syncdel;
                                 break;
                             }
-                        } while ((n = n->parent));
+                        } while ((n = client->nodebyhandle(n->parenthandle)));
                     }
                 }
                 else

@@ -51,6 +51,7 @@ public:
 
     map<handle, int32_t> nodehandletodbid;
     multimap<string, int32_t> fingerprinttodbid;
+    multimap<int32_t, int32_t> nodechildren;
 
     // all users
     user_map users;
@@ -490,6 +491,8 @@ public:
 
     shared_ptr<Node> nodebyhandle(handle);
     shared_ptr<Node> nodebyfingerprint(string *);
+    shared_ptr<Node> nodebydbid(int32_t dbid);
+    shared_ptr<vector<shared_ptr<Node>>> getchildren(shared_ptr<Node> node);
 
     // generate & return upload handle
     handle getuploadhandle();

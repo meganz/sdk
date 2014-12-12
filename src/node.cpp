@@ -41,8 +41,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     nodehandle = h;
     parenthandle = ph;
 
-    parent = NULL;
-
 #ifdef ENABLE_SYNC
     localnode = NULL;
     syncget = NULL;
@@ -147,16 +145,14 @@ Node::~Node()
     }
 
     // remove from parent's children
-    if (parent)
-    {
-        parent->children.erase(child_it);
-    }
-
-    // delete child-parent associations (normally not used, as nodes are
-    // deleted bottom-up)
-    for (node_list::iterator it = children.begin(); it != children.end(); it++)
-    {
-        (*it)->parent = NULL;
+    std::pair<multimap<int32_t, int32_t>::iterator, multimap<int32_t, int32_t>::iterator> range =
+            client->nodechildren.equal_range(parenthandle);
+    multimap<int32_t, int32_t>::iterator it = range.first;
+    for (; it != range.second; ++it) {
+        if (it->second == nodehandle) {
+            client->nodechildren.erase(it);
+            break;
+        }
     }
 
     delete inshare;
@@ -389,9 +385,9 @@ bool Node::serialize(string* d)
 
     d->append((char*)&nodehandle, MegaClient::NODEHANDLE);
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        d->append((char*)&parent->nodehandle, MegaClient::NODEHANDLE);
+        d->append((char*)&parenthandle, MegaClient::NODEHANDLE);
     }
     else
     {
@@ -720,21 +716,29 @@ bool Node::applykey()
 // returns whether node was moved
 bool Node::setparent(shared_ptr<Node> p)
 {
-    if (p == parent)
+    if (p->nodehandle == parenthandle)
     {
         return false;
     }
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        parent->children.erase(child_it);
+        std::pair<multimap<int32_t, int32_t>::iterator, multimap<int32_t, int32_t>::iterator> range =
+                client->nodechildren.equal_range(parenthandle);
+        multimap<int32_t, int32_t>::iterator it = range.first;
+        for (; it != range.second; ++it) {
+            if (it->second == nodehandle) {
+                client->nodechildren.erase(it);
+                break;
+            }
+        }
     }
 
-    parent = p;
+    parenthandle = p->nodehandle;
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        child_it = parent->children.insert(parent->children.end(), this);
+        client->nodechildren.insert(pair<int32_t, int32_t>(parenthandle, nodehandle));
     }
 
 #ifdef ENABLE_SYNC
@@ -749,7 +753,7 @@ bool Node::setparent(shared_ptr<Node> p)
                 break;
             }
 
-            p = p->parent;
+            p = client->nodebyhandle(p->parenthandle);
         }
 
         if (!p)
@@ -766,21 +770,26 @@ bool Node::setparent(shared_ptr<Node> p)
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(shared_ptr<Node> p) const
 {
-    const Node* n = this;
+    shared_ptr<Node> n;
+    if (nodehandle == p->nodehandle)
+    {
+        return true;
+    }
+    n = client->nodebyhandle(parenthandle);
 
     for (;;)
     {
-        if (!n)
+        if (!n.get())
         {
             return false;
         }
 
-        if (n == p.get())
+        if (n->nodehandle == p->nodehandle)
         {
             return true;
         }
 
-        n = n->parent.get();
+        n = client->nodebyhandle(n->parenthandle);
     }
 }
 
