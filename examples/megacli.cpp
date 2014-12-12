@@ -1051,6 +1051,18 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                     }
                 }
 
+                if(n->pendingshares)
+                {
+                    for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+                    {
+                        if (it->first)
+                        {
+                            cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
+                                 << accesslevels[it->second->access];
+                        }                        
+                    }
+                }
+
                 if (n->inshare)
                 {
                     cout << ", inbound " << accesslevels[n->inshare->access] << " share";
@@ -1517,7 +1529,7 @@ static void process_line(char* l)
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 #endif
                 cout << "      export remotepath [del]" << endl;
-                cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
+                cout << "      share [remotepath [dstemail [r|rw|full] [origemail] ]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      users" << endl;
@@ -2350,6 +2362,7 @@ static void process_line(char* l)
                             case 2:		// list all outgoing shares on this path
                             case 3:		// remove outgoing share to specified e-mail address
                             case 4:		// add outgoing share to specified e-mail address
+                            case 5:     // user specified a personal representation to appear as for the invitation
                                 if ((n = nodebypath(words[1].c_str())))
                                 {
                                     if (words.size() == 2)
@@ -2359,7 +2372,7 @@ static void process_line(char* l)
                                     else
                                     {
                                         accesslevel_t a = ACCESS_UNKNOWN;
-
+                                        const char* personal_representation = NULL;
                                         if (words.size() > 3)
                                         {
                                             if (words[3] == "r" || words[3] == "ro")
@@ -2380,9 +2393,14 @@ static void process_line(char* l)
 
                                                 return;
                                             }
+
+                                            if (words.size()>4)
+                                            {
+                                                personal_representation = words[4].c_str();
+                                            }
                                         }
 
-                                        client->setshare(n, words[2].c_str(), a);
+                                        client->setshare(n, words[2].c_str(), a, personal_representation);
                                     }
                                 }
                                 else
@@ -2393,7 +2411,7 @@ static void process_line(char* l)
                                 break;
 
                             default:
-                                cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
+                                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                         }
 
                         return;

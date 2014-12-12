@@ -219,7 +219,7 @@ public:
     error invite(const char*, visibility_t = VISIBLE);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t);
+    void setshare(Node*, const char*, accesslevel_t, const char* personal_representation = NULL);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char* temail, opcactions_t action, const char* msg = NULL, const char* oemail = NULL);
@@ -729,6 +729,8 @@ public:
     User* finduser(handle, int = 0);
     void mapuser(handle, const char*);
     void mappcr(handle, PendingContactRequest*);
+
+    PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);

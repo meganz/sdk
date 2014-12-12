@@ -122,6 +122,9 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // outbound shares by user
     share_map *outshares;
 
+    // outbound pending shares
+    share_map *pendingshares;
+
     // incoming/outgoing share key
     SymmCipher* sharekey;
 
@@ -139,6 +142,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
         bool fileattrstring : 1;
         bool inshare : 1;
         bool outshares : 1;
+        bool pendingshares : 1;
         bool parent : 1;
     } changed;
     
