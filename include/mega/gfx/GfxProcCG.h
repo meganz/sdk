@@ -10,7 +10,7 @@
 #define __MegaLib__CGMegaGFX__
 
 #include "mega.h"
-#import <ImageIO/CGImageSource.h>
+#include <ImageIO/CGImageSource.h>
 
 // bitmap graphics processor
 class MEGA_API GfxProcCG : public mega::GfxProc
