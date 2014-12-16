@@ -215,7 +215,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #define FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
 
     int fd;
-    struct fsevent_clone_args fca;
+    fsevent_clone_args fca;
     int8_t event_list[] = { // action to take for each event
                               FSE_REPORT,  // FSE_CREATE_FILE,
                               FSE_REPORT,  // FSE_DELETE,
