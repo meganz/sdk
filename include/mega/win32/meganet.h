@@ -25,6 +25,16 @@
 #include "zlib.h"
 #include "mega.h"
 
+// MinGW shipped winhttp.h does not have these two flags
+#ifdef __MINGW32__
+#ifndef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1
+#define WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 0x00000200
+#endif
+#ifndef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
+#define WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 0x00000800
+#endif
+#endif
+
 namespace mega {
 extern bool debug;
 
