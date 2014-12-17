@@ -1042,9 +1042,6 @@ if test "x$enable_examples" = "xyes" ; then
          ;;
        *)
 
-        SAVE_LIBS=$LIBS
-        LIBS="-ltermcap $LIBS"
-
         # determine if library is installed
         if test -d "$with_readline/lib"; then
             LDFLAGS="-L$with_readline/lib $LDFLAGS"
@@ -1070,7 +1067,6 @@ if test "x$enable_examples" = "xyes" ; then
             AC_MSG_ERROR([readline library is required for the sample client.])])
 
         #restore
-        LIBS=$SAVE_LIBS
         LDFLAGS=$SAVE_LDFLAGS
         CXXFLAGS=$SAVE_CXXFLAGS
         CPPFLAGS=$SAVE_CPPFLAGS
