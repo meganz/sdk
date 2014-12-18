@@ -75,7 +75,7 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
 int EdDSA::genKeySeed(unsigned char* privKey) {
     // Make space for a new key seed (if not present).
     if (!this->keySeed) {
-        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
+        this->keySeed = (unsigned char*)sodium_malloc(crypto_sign_SEEDBYTES);
         if (this->keySeed == NULL) {
             // Something went wrong allocating the memory.
             return(0);
