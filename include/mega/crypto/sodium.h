@@ -34,8 +34,6 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
-    static CryptoPP::AutoSeededRandomPool rng;
-
     EdDSA() : keySeed(NULL) {}
 
     unsigned char* keySeed;
