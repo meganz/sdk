@@ -94,19 +94,13 @@ int EdDSA::genKeySeed(unsigned char* privKey) {
 
 // Derives the Ed25519 public key from the stored private key seed.
 int EdDSA::publicKey(unsigned char* pubKey) {
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
-    }
+    unsigned char privKey[crypto_sign_SECRETKEYBYTES];
     int check = crypto_sign_seed_keypair(pubKey, privKey,
                                          (const unsigned char*)this->keySeed);
+    sodium_memzero(privKey, sizeof privKey);
     if (check != 0) {
-        // Something went wrong deriving keys.
-        free(privKey);
         return(0);
     }
-    free(privKey);
     return(1);
 }
 
