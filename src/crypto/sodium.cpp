@@ -38,74 +38,31 @@ void EdDSA::setKeySeed(const char* data) {
 
 
 // Computes the signature of a message.
-int EdDSA::sign(unsigned char* msg, unsigned long long msglen, char* sig) {
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-    if (pubKey == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
-    }
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        free(pubKey);
-        return(0);
-    }
-    int check = 0;
+int EdDSA::sign(unsigned char* msg, unsigned long long msglen, unsigned char* sig) {
+    unsigned char pubKey[crypto_sign_PUBLICKEYBYTES];
+    unsigned char privKey[crypto_sign_SECRETKEYBYTES];
+    int check;
+
     check = crypto_sign_seed_keypair(pubKey, privKey,
                                      (const unsigned char*)this->keySeed);
     if (check != 0) {
         // Something went wrong deriving keys.
         return(0);
     }
-    unsigned long long bufferlen = 0;
-    unsigned char* sigbuffer = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (sigbuffer == NULL) {
-        // Something went wrong allocating the memory.
-        free(pubKey);
-        free(privKey);
-        return(0);
-    }
-    check = crypto_sign(sigbuffer, &bufferlen, (const unsigned char*)msg, msglen,
-                        (const unsigned char*)privKey);
+    check = crypto_sign_detached(sig, NULL, msg, msglen, privKey);
     if (check != 0) {
         // Something went wrong signing the message.
-        free(sigbuffer);
-        free(pubKey);
-        free(privKey);
         return(0);
     }
-    free(sigbuffer);
-    free(pubKey);
-    free(privKey);
-    return(bufferlen);
+    return(crypto_sign_BYTES + msglen);
 }
 
 
 // Verifies the signature of a message.
 int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
                   const unsigned char* sig, const unsigned char* pubKey) {
-    unsigned char* msgbuffer = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (msgbuffer == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
-    }
-    unsigned char* signedmsg = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (signedmsg == NULL) {
-        // Something went wrong allocating the memory.
-        free(msgbuffer);
-        return(0);
-    }
-
-    // Assemble signed message in one array.
-    memcpy(signedmsg, msg, msglen);
-    memcpy(signedmsg + msglen, sig, crypto_sign_BYTES);
-
-    unsigned long long bufferlen = 0;
-    int result = crypto_sign_open(msgbuffer, &bufferlen,
-                                  signedmsg, msglen + crypto_sign_BYTES, pubKey);
-    free(msgbuffer);
-    free(signedmsg);
-    if (result) {
+    int result = crypto_sign_verify_detached(sig, msg, msglen, pubKey);
+    if (result == 0) {
         return(1);
     } else {
         // crypto_sign_open() returns -1 on failure.
