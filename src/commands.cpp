@@ -1752,6 +1752,48 @@ void CommandPubKeyRequest::procresult()
     }
 }
 
+CommandGetUserData::CommandGetUserData(MegaClient *client)
+{
+    cmd("ug");
+
+    tag = client->reqtag;
+}
+
+void CommandGetUserData::procresult()
+{
+    string name;
+    handle msgid = UNDEF;
+
+    if (client->json.isnumeric())
+    {
+        return client->app->userdata_result(NULL, msgid, (error)client->json.getint());
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID4('n', 'a', 'm', 'e'):
+            client->json.storeobject(&name);
+            break;
+
+        case 'u':
+            msgid = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case EOO:
+            client->app->userdata_result(&name, msgid, API_OK);
+            return;
+
+        default:
+            if (!client->json.storeobject())
+            {
+                return client->app->userdata_result(NULL, msgid, API_EINTERNAL);
+            }
+        }
+    }
+}
+
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
 {
     details = ad;

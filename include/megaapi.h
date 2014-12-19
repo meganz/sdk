@@ -1034,7 +1034,7 @@ class MegaRequest
 			TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL
+            TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA
 		};
 
 		virtual ~MegaRequest() = 0;
@@ -2831,6 +2831,15 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get data about the logged account
+         *
+         * (Development in progress)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserData(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the current session key

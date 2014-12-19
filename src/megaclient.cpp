@@ -3940,6 +3940,11 @@ void MegaClient::login(const char* email, const byte* pwkey)
     reqs[r].add(new CommandLogin(this, email, emailhash));
 }
 
+void MegaClient::getuserdata()
+{
+    reqs[r].add(new CommandGetUserData(this));
+}
+
 // resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
 {

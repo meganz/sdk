@@ -1329,6 +1329,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CANCEL_ATTR_FILE: return "CANCEL_ATTR_FILE";
         case TYPE_GET_PRICING: return "GET_PRICING";
         case TYPE_GET_PAYMENT_URL: return "GET_PAYMENT_URL";
+        case TYPE_GET_USER_DATA: return "GET_USER_DATA";
 	}
     return "UNKNOWN";
 }
@@ -1967,6 +1968,13 @@ void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setSessionKey(session);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getUserData(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_DATA, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4261,6 +4269,21 @@ void MegaApiImpl::login_result(error result)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::userdata_result(string *name, handle msgid, error result)
+{
+    MegaError megaError(result);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_USER_DATA)) return;
+
+    if(result == API_OK)
+    {
+        request->setName(name->c_str());
+        request->setNodeHandle(msgid);
+    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -6585,6 +6608,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_URL:
         {
             client->purchase_enumeratequotaitems();
+            break;
+        }
+        case MegaRequest::TYPE_GET_USER_DATA:
+        {
+            client->getuserdata();
             break;
         }
         default:

@@ -361,6 +361,14 @@ public:
     CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int);
 };
 
+class MEGA_API CommandGetUserData : public Command
+{
+public:
+    void procresult();
+
+    CommandGetUserData(MegaClient*);
+};
+
 class MEGA_API CommandGetUserQuota : public Command
 {
     AccountDetails* details;

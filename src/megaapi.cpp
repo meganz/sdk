@@ -365,6 +365,11 @@ void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
     pImpl->fastLogin(session, listener);
 }
 
+void MegaApi::getUserData(MegaRequestListener *listener)
+{
+    pImpl->getUserData(listener);
+}
+
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     pImpl->login(login, password, listener);

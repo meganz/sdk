@@ -91,6 +91,9 @@ public:
     // session login: binary session, bytecount
     void login(const byte*, int);
 
+    // get user data
+    void getuserdata();
+
     // check if logged in
     sessiontype_t loggedin();
 
