@@ -77,8 +77,6 @@ src_libmega_la_SOURCES+= src/win32/console.cpp
 src_libmega_la_SOURCES+= src/win32/net.cpp
 src_libmega_la_SOURCES+= src/win32/waiter.cpp
 src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
-# need to find a better way to specify sqlite path
-src_libmega_la_SOURCES+= ../sqlite3/sqlite3.c
 
 # posix sources
 else
