@@ -702,6 +702,7 @@ class MegaApiImpl : public MegaApp
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
         static handle base64ToHandle(const char* base64Handle);
         static const char* handleToBase64(MegaHandle handle);
+        static const char* userHandleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);

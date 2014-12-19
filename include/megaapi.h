@@ -2740,15 +2740,26 @@ class MegaApi
         static MegaHandle base64ToHandle(const char* base64Handle);
 
         /**
+         * @brief Converts the handle of a node to a Base64-encoded string
+         *
+         * You take the ownership of the returned value
+         * You can revert this operation using MegaApi::base64ToHandle
+         *
+         * @param handle Node handle to be converted
+         * @return Base64-encoded node handle
+         */
+        static const char* handleToBase64(MegaHandle handle);
+
+        /**
          * @brief Converts a MegaHandle to a Base64-encoded string
          *
          * You take the ownership of the returned value
          * You can revert this operation using MegaApi::base64ToHandle
          *
-         * @param handle to be converted
-         * @return Base64-encoded node handle
+         * @param User handle to be converted
+         * @return Base64-encoded user handle
          */
-        static const char* handleToBase64(MegaHandle handle);
+        static const char* userHandleToBase64(MegaHandle handle);
 
         /**
          * @brief Add entropy to internal random number generators

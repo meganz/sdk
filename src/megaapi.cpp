@@ -345,6 +345,11 @@ const char *MegaApi::handleToBase64(MegaHandle handle)
     return MegaApiImpl::handleToBase64(handle);
 }
 
+const char *MegaApi::userHandleToBase64(MegaHandle handle)
+{
+    return MegaApiImpl::userHandleToBase64(handle);
+}
+
 void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener* listener)
 {
     pImpl->retryPendingConnections(disconnect, includexfers, listener);

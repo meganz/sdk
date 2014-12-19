@@ -1930,6 +1930,13 @@ const char *MegaApiImpl::handleToBase64(MegaHandle handle)
     return base64Handle;
 }
 
+const char *MegaApiImpl::userHandleToBase64(MegaHandle handle)
+{
+    char *base64Handle = new char[14];
+    Base64::btoa((byte*)&(handle),MegaClient::USERHANDLE,base64Handle);
+    return base64Handle;
+}
+
 void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS);
