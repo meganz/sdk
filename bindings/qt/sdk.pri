@@ -41,6 +41,7 @@ SOURCES += src/attrmap.cpp \
     src/megaapi_impl.cpp \
     bindings/qt/QTMegaRequestListener.cpp \
     bindings/qt/QTMegaTransferListener.cpp \
+    bindings/qt/QTMegaSyncListener.cpp \
     bindings/qt/QTMegaListener.cpp \
     bindings/qt/QTMegaEvent.cpp \
     third_party/utf8proc/utf8proc.cpp
@@ -101,6 +102,7 @@ HEADERS  += include/mega.h \
             include/megaapi_impl.h \
             bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
+            bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
             bindings/qt/QTMegaEvent.h \
             third_party/utf8proc/utf8proc.h

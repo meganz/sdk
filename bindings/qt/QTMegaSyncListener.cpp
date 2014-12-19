@@ -1,0 +1,54 @@
+#ifdef ENABLE_SYNC
+
+#include "QTMegaSyncListener.h"
+#include "QTMegaEvent.h"
+
+#include <QCoreApplication>
+
+using namespace mega;
+
+QTMegaSyncListener::QTMegaSyncListener(MegaApi *megaApi, MegaSyncListener *listener) : QObject()
+{
+    this->megaApi = megaApi;
+	this->listener = listener;
+}
+
+QTMegaSyncListener::~QTMegaSyncListener()
+{
+    this->listener = NULL;
+    megaApi->removeSyncListener(this);
+}
+
+void QTMegaSyncListener::onSyncStateChanged(MegaApi *api, MegaSync *sync)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncStateChanged);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
+void QTMegaSyncListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnFileSyncStateChanged);
+    event->setSync(sync->copy());
+    event->setFilePath(MegaApi::strdup(filePath));
+    event->setNewState(newState);
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
+void QTMegaSyncListener::customEvent(QEvent *e)
+{
+    QTMegaEvent *event = (QTMegaEvent *)e;
+    switch(event->type())
+    {
+        case QTMegaEvent::OnSyncStateChanged:
+            if(listener) listener->onSyncStateChanged(event->getMegaApi(), event->getSync());
+            break;
+        case QTMegaEvent::OnFileSyncStateChanged:
+            if(listener) listener->onSyncFileStateChanged(event->getMegaApi(), event->getSync(), event->getFilePath(), event->getNewState());
+            break;
+        default:
+            break;
+    }
+}
+
+#endif

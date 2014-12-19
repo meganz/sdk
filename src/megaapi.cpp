@@ -260,11 +260,16 @@ void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 void MegaListener::onReloadNeeded(MegaApi *)
 { }
 
-void MegaListener::onSyncFileStateChanged(MegaApi *, const char *, int)
+#ifdef ENABLE_SYNC
+void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
-
-void MegaListener::onSyncStateChanged(MegaApi *)
+void MegaListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState)
 { }
+void MegaListener::onSyncStateChanged(MegaApi *api, MegaSync *sync)
+{ }
+void MegaListener::onGlobalSyncStateChanged(MegaApi *api)
+{ }
+#endif
 
 MegaListener::~MegaListener() {}
 
@@ -659,6 +664,11 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
     pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
 }
 
+void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
+{
+    pImpl->removeSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+}
+
 void MegaApi::removeSyncs(MegaRequestListener *listener)
 {
    pImpl->stopSyncs(listener);
@@ -835,6 +845,18 @@ void MegaApi::addGlobalListener(MegaGlobalListener* listener)
 {
     pImpl->addGlobalListener(listener);
 }
+
+#ifdef ENABLE_SYNC
+void MegaApi::addSyncListener(MegaSyncListener *listener)
+{
+    pImpl->addSyncListener(listener);
+}
+
+void MegaApi::removeSyncListener(MegaSyncListener *listener)
+{
+    pImpl->removeSyncListener(listener);
+}
+#endif
 
 void MegaApi::removeListener(MegaListener* listener)
 {
@@ -1034,3 +1056,13 @@ void MegaLogger::log(const char *time, int loglevel, const char *source, const c
 MegaGfxProcessor::~MegaGfxProcessor() { }
 MegaPricing::~MegaPricing() { }
 
+#ifdef ENABLE_SYNC
+MegaSync::~MegaSync() { }
+
+
+void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char *, int )
+{ }
+
+void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
+{ }
+#endif

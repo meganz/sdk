@@ -314,6 +314,43 @@ class MegaTransferPrivate : public MegaTransfer
 		Transfer *transfer;     
 };
 
+#ifdef ENABLE_SYNC
+
+class MegaSyncPrivate : public MegaSync
+{  
+public:
+    MegaSyncPrivate(Sync *sync);
+    MegaSyncPrivate(MegaSyncPrivate &sync);
+
+    virtual ~MegaSyncPrivate();
+
+    virtual MegaSync *copy();
+
+    virtual MegaHandle getMegaHandle() const;
+    void setMegaHandle(MegaHandle handle);
+    virtual const char* getLocalFolder() const;
+    void setLocalFolder(const char*path);
+    virtual long long getLocalFingerprint() const;
+    void setLocalFingerprint(long long fingerprint);
+    virtual int getTag() const;
+    void setTag(int tag);
+    void setListener(MegaSyncListener *listener);
+    MegaSyncListener *getListener();
+    virtual int getState() const;
+    void setState(int state);
+
+protected:
+    MegaHandle megaHandle;
+    string localFolder;
+    int tag;
+    long long fingerprint;
+    MegaSyncListener *listener;
+    int state;
+};
+
+#endif
+
+
 class MegaPricingPrivate;
 class MegaRequestPrivate : public MegaRequest
 {
@@ -380,7 +417,12 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;
-        
+
+#ifdef ENABLE_SYNC
+        void setSyncListener(MegaSyncListener *syncListener);
+        MegaSyncListener *getSyncListener() const;
+#endif
+
     protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -403,6 +445,9 @@ class MegaRequestPrivate : public MegaRequest
         long long totalBytes;
         long long transferredBytes;
 		MegaRequestListener *listener;
+#ifdef ENABLE_SYNC
+        MegaSyncListener *syncListener;
+#endif
         int transfer;
 		int numDetails;
         MegaNode* publicNode;
@@ -610,6 +655,9 @@ class RequestQueue
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
         void removeListener(MegaRequestListener *listener);
+#ifdef ENABLE_SYNC
+        void removeListener(MegaSyncListener *listener);
+#endif
 };
 
 
@@ -638,8 +686,12 @@ class MegaApiImpl : public MegaApp
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
-        void addTransferListener(MegaTransferListener* listener);
+        void addTransferListener(MegaTransferListener* listener);     
         void addGlobalListener(MegaGlobalListener* listener);
+#ifdef ENABLE_SYNC
+        void addSyncListener(MegaSyncListener *listener);
+        void removeSyncListener(MegaSyncListener *listener);
+#endif
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
@@ -820,8 +872,12 @@ protected:
         void fireOnUsersUpdate(MegaUserList *users);
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnReloadNeeded();
-        void fireOnSyncStateChanged();
-        void fireOnFileSyncStateChanged(const char *filePath, int newState);
+
+#ifdef ENABLE_SYNC
+        void fireOnGlobalSyncStateChanged();
+        void fireOnSyncStateChanged(MegaSyncPrivate *sync);
+        void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState);
+#endif
 
         MegaApi *api;
         MegaThread thread;
@@ -836,6 +892,11 @@ protected:
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
         map<int, MegaTransferPrivate *> transferMap;
+
+#ifdef ENABLE_SYNC
+        map<int, MegaSyncPrivate *> syncMap;
+#endif
+
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -844,6 +905,11 @@ protected:
         long long totalUploadedBytes;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
+
+#ifdef ENABLE_SYNC
+        set<MegaSyncListener *> syncListeners;
+#endif
+
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         bool waiting;

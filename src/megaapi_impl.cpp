@@ -870,6 +870,9 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->tag = 0;
 	this->transfer = 0;
 	this->listener = listener;
+#ifdef ENABLE_SYNC
+    this->syncListener = NULL;
+#endif
 	this->nodeHandle = UNDEF;
 	this->link = NULL;
 	this->parentHandle = UNDEF;
@@ -949,6 +952,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->setTotalBytes(request.getTotalBytes());
     this->setTransferredBytes(request.getTransferredBytes());
 	this->listener = request.getListener();
+#ifdef ENABLE_SYNC
+    this->syncListener = request.getSyncListener();
+#endif
 	this->accountDetails = NULL;
     this->megaPricing = (MegaPricingPrivate *)request.getPricing();
 	if(request.getAccountDetails())
@@ -976,8 +982,20 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
 {
-	return accountDetails;
+    return accountDetails;
 }
+
+#ifdef ENABLE_SYNC
+void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
+{
+    this->syncListener = syncListener;
+}
+
+MegaSyncListener *MegaRequestPrivate::getSyncListener() const
+{
+    return syncListener;
+}
+#endif
 
 MegaAccountDetails *MegaRequestPrivate::getMegaAccountDetails() const
 {
@@ -2848,9 +2866,13 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         string utf8name(localPath);
         string localname;
         client->fsaccess->path2local(&utf8name, &localname);
-        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -1);
+        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -nextTag);
         if(!e)
         {
+            MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
+            sync->setListener(request->getSyncListener());
+            syncMap[-nextTag] = sync;
+
             request->setNumber(client->syncs.back()->fsfp);
         }
     }
@@ -3688,13 +3710,17 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
         fireOnRequestFinish(request, MegaError(API_EFAILED));
     }
 
-    fireOnSyncStateChanged();
+    if(syncMap.find(sync->tag) == syncMap.end()) return;
+    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
+    megaSync->setState(newstate);
+
+    fireOnSyncStateChanged(megaSync);
 }
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
     if(client) client->syncscanstate = scanning;
-    fireOnSyncStateChanged();
+    fireOnGlobalSyncStateChanged();
 }
 
 void MegaApiImpl::syncupdate_stuck(string *)
@@ -3778,7 +3804,11 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     string path;
     l->getlocalpath(&local, true);
     fsAccess->local2path(&local, &path);
-    fireOnFileSyncStateChanged(path.data(), (int)l->ts);
+
+    if(syncMap.find(l->sync->tag) == syncMap.end()) return;
+    MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
+
+    fireOnFileSyncStateChanged(megaSync, path.data(), (int)l->ts);
 }
 
 bool MegaApiImpl::sync_syncable(Node *node)
@@ -3810,7 +3840,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
     }
 
     this->waiting = waiting;
-    this->fireOnSyncStateChanged();
+    this->fireOnGlobalSyncStateChanged();
 }
 #endif
 
@@ -4171,14 +4201,19 @@ void MegaApiImpl::clearing()
 
 void MegaApiImpl::notify_retry(dstime dsdelta)
 {
+#ifdef ENABLE_SYNC
     bool previousFlag = waitingRequest;
+#endif
+
     if(!dsdelta)
         waitingRequest = false;
     else if(dsdelta > 10)
         waitingRequest = true;
 
+#ifdef ENABLE_SYNC
     if(previousFlag != waitingRequest)
-        fireOnSyncStateChanged();
+        fireOnGlobalSyncStateChanged();
+#endif
 }
 
 // callback for non-EAGAIN request-level errors
@@ -4697,6 +4732,38 @@ void MegaApiImpl::addGlobalListener(MegaGlobalListener* listener)
     sdkMutex.unlock();
 }
 
+#ifdef ENABLE_SYNC
+void MegaApiImpl::addSyncListener(MegaSyncListener *listener)
+{
+    if(!listener) return;
+
+    sdkMutex.lock();
+    syncListeners.insert(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::removeSyncListener(MegaSyncListener *listener)
+{
+    if(!listener) return;
+
+    sdkMutex.lock();
+    syncListeners.erase(listener);
+
+    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
+    while(it != syncMap.end())
+    {
+        MegaSyncPrivate* sync = it->second;
+        if(sync->getListener() == listener)
+            sync->setListener(NULL);
+
+        it++;
+    }
+    requestQueue.removeListener(listener);
+
+    sdkMutex.unlock();
+}
+#endif
+
 void MegaApiImpl::removeListener(MegaListener* listener)
 {
     if(!listener) return;
@@ -4921,25 +4988,47 @@ void MegaApiImpl::fireOnReloadNeeded()
 		(*it)->onReloadNeeded(api);
 }
 
-void MegaApiImpl::fireOnSyncStateChanged()
+#ifdef ENABLE_SYNC
+void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-    return;
-#else
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onSyncStateChanged(api);
-#endif
+        (*it)->onSyncStateChanged(api, sync);
+
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ; it++)
+        (*it)->onSyncStateChanged(api, sync);
+
+    MegaSyncListener* listener = sync->getListener();
+    if(listener)
+    {
+        listener->onSyncStateChanged(api, sync);
+    }
 }
 
-void MegaApiImpl::fireOnFileSyncStateChanged(const char *filePath, int newState)
+void MegaApiImpl::fireOnGlobalSyncStateChanged()
 {
-#if defined(__ANDROID__) || defined(WINDOWS_PHONE) || defined(TARGET_OS_IPHONE)
-    return;
-#else
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
-        (*it)->onSyncFileStateChanged(api, filePath, newState);
-#endif
+        (*it)->onGlobalSyncStateChanged(api);
+
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+        (*it)->onGlobalSyncStateChanged(api);
 }
+
+void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+        (*it)->onSyncFileStateChanged(api, sync, filePath, newState);
+
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ; it++)
+        (*it)->onSyncFileStateChanged(api, sync, filePath, newState);
+
+    MegaSyncListener* listener = sync->getListener();
+    if(listener)
+    {
+        listener->onSyncFileStateChanged(api, sync, filePath, newState);
+    }
+}
+
+#endif
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
@@ -6387,9 +6476,13 @@ void MegaApiImpl::sendPendingRequests()
             string utf8name(localPath);
             string localname;
             client->fsaccess->path2local(&utf8name, &localname);
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -1);
+            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag);
             if(!e)
             {
+                MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
+                sync->setListener(request->getSyncListener());
+                syncMap[-nextTag] = sync;
+
                 request->setNumber(client->syncs.back()->fsfp);
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
@@ -6401,8 +6494,17 @@ void MegaApiImpl::sendPendingRequests()
             while(it != client->syncs.end())
             {
                 Sync *sync = (*it);
+                int tag = sync->tag;
                 it++;
+
                 client->delsync(sync);
+
+                if(syncMap.find(tag) == syncMap.end())
+                {
+                    MegaSyncPrivate *megaSync = syncMap.at(tag);
+                    syncMap.erase(tag);
+                    delete megaSync;
+                }
             }
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
@@ -6415,12 +6517,21 @@ void MegaApiImpl::sendPendingRequests()
             while(it != client->syncs.end())
             {
                 Sync *sync = (*it);
+                int tag = sync->tag;
                 if(!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
                 {
                     string path;
                     fsAccess->local2path(&sync->localroot.localname, &path);
                     request->setFile(path.c_str());
                     client->delsync(sync);
+
+                    if(syncMap.find(tag) == syncMap.end())
+                    {
+                        MegaSyncPrivate *megaSync = syncMap.at(tag);
+                        syncMap.erase(tag);
+                        delete megaSync;
+                    }
+
                     fireOnRequestFinish(request, MegaError(API_OK));
                     found = true;
                     break;
@@ -6685,6 +6796,24 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
 
     mutex.unlock();
 }
+
+#ifdef ENABLE_SYNC
+void RequestQueue::removeListener(MegaSyncListener *listener)
+{
+    mutex.lock();
+
+    std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
+    while(it != requests.end())
+    {
+        MegaRequestPrivate *request = (*it);
+        if(request->getSyncListener()==listener)
+            request->setSyncListener(NULL);
+        it++;
+    }
+
+    mutex.unlock();
+}
+#endif
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
 {
@@ -6956,3 +7085,98 @@ void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage,
     this->amount.push_back(amount);
     this->currency.push_back(MegaApi::strdup(currency));
 }
+
+#ifdef ENABLE_SYNC
+MegaSyncPrivate::MegaSyncPrivate(Sync *sync)
+{
+    this->tag = sync->tag;
+    sync->client->fsaccess->local2path(&sync->localroot.localname, &localFolder);
+    this->megaHandle = sync->localroot.node->nodehandle;
+    this->fingerprint = sync->fsfp;
+    this->state = sync->state;
+    this->listener = NULL;
+}
+
+MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate &sync)
+{
+    this->setTag(sync.getTag());
+    this->setLocalFolder(sync.getLocalFolder());
+    this->setMegaHandle(sync.getMegaHandle());
+    this->setLocalFingerprint(sync.getLocalFingerprint());
+    this->setState(sync.getState());
+    this->setListener(sync.getListener());
+}
+
+MegaSyncPrivate::~MegaSyncPrivate()
+{
+}
+
+MegaSync *MegaSyncPrivate::copy()
+{
+    return new MegaSyncPrivate(*this);
+}
+
+MegaHandle MegaSyncPrivate::getMegaHandle() const
+{
+    return megaHandle;
+}
+
+void MegaSyncPrivate::setMegaHandle(MegaHandle handle)
+{
+    this->megaHandle = handle;
+}
+
+const char *MegaSyncPrivate::getLocalFolder() const
+{
+    if(!localFolder.size())
+        return NULL;
+
+    return localFolder.c_str();
+}
+
+void MegaSyncPrivate::setLocalFolder(const char *path)
+{
+    this->localFolder = path;
+}
+
+long long MegaSyncPrivate::getLocalFingerprint() const
+{
+    return fingerprint;
+}
+
+void MegaSyncPrivate::setLocalFingerprint(long long fingerprint)
+{
+    this->fingerprint = fingerprint;
+}
+
+int MegaSyncPrivate::getTag() const
+{
+    return tag;
+}
+
+void MegaSyncPrivate::setTag(int tag)
+{
+    this->tag = tag;
+}
+
+void MegaSyncPrivate::setListener(MegaSyncListener *listener)
+{
+    this->listener = listener;
+}
+
+MegaSyncListener *MegaSyncPrivate::getListener()
+{
+    return this->listener;
+}
+
+int MegaSyncPrivate::getState() const
+{
+    return state;
+}
+
+void MegaSyncPrivate::setState(int state)
+{
+    this->state = state;
+}
+
+#endif

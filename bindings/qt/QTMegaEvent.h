@@ -22,9 +22,13 @@ public:
         OnTransferFinish,
         OnUsersUpdate,
         OnNodesUpdate,
-        OnReloadNeeded,
+        OnReloadNeeded
+#if ENABLE_SYNC
+        ,
         OnSyncStateChanged,
-        OnSyncFileStateChanged
+        OnFileSyncStateChanged,
+        OnGlobalSyncStateChanged
+#endif
     };
 
     QTMegaEvent(MegaApi *megaApi, Type type);
@@ -36,16 +40,21 @@ public:
     MegaError* getError();
     MegaNodeList* getNodes();
     MegaUserList* getUsers();
-    const char* getFilePath();
-    int getNewState();
 
     void setRequest(MegaRequest *request);
     void setTransfer(MegaTransfer *transfer);
     void setError(MegaError *error);
     void setNodes(MegaNodeList *nodes);
     void setUsers(MegaUserList *users);
+
+#ifdef ENABLE_SYNC
+    MegaSync *getSync();
+    void setSync(MegaSync *sync);
+    const char* getFilePath();
     void setFilePath(const char* filePath);
+    int getNewState();
     void setNewState(int newState);
+#endif
 
 private:
     MegaApi *megaApi;
@@ -54,8 +63,12 @@ private:
     MegaError *error;
     MegaNodeList *nodes;
     MegaUserList *users;
+
+#ifdef ENABLE_SYNC
+    MegaSync *sync;
     const char* filePath;
     int newState;
+#endif
 };
 
 }

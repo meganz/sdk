@@ -61,6 +61,7 @@ class MegaShare;
 class MegaError;
 class MegaRequest;
 class MegaTransfer;
+class MegaSync;
 class MegaNodeList;
 class MegaUserList;
 class MegaShareList;
@@ -1709,6 +1710,138 @@ class MegaTransfer
         virtual char *getLastBytes() const = 0;
 };
 
+#ifdef ENABLE_SYNC
+
+/**
+ * @brief Provides information about a synchronization
+ *
+ * Developers can use listeners (MegaListener, MegaSyncListener)
+ * to track the progress of each synchronization. MegaSync objects are provided in callbacks sent
+ * to these listeners and allow developers to know the state of the synchronizations and their parameters
+ * and
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the synchronization
+ * when the object is created, they are immutable.
+ *
+ **/
+class MegaSyncListener
+{
+public:
+    /**
+     * @brief This function is called when the state of a synced file changes
+     *
+     * Possible values for the state are:
+     * - MegaApi::STATE_SYNCED = 1
+     * The file is synced with the MEGA account
+     *
+     * - MegaApi::STATE_PENDING = 2
+     * The file isn't synced with the MEGA account. It's waiting to be synced.
+     *
+     * - MegaApi::STATE_SYNCING = 3
+     * The file is being synced with the MEGA account
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param filePath Local path of the file
+     * @param newState New state of the file
+     */
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+
+    /**
+     * @brief This function is called when the state of the synchronization changes
+     *
+     * The SDK calls this function when the state of the synchronization changes, for example
+     * from 'scanning' to 'syncing' or 'failed'.
+     *
+     * You can use MegaSync::getState to get the new state.
+     *
+     * @param api MegaApi object that is synchronizing files
+     */
+    virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
+};
+
+/**
+ * @brief Provides information about a synchronization
+ */
+class MegaSync
+{
+public:
+    enum
+    {
+        SYNC_FAILED = -2,
+        SYNC_CANCELED = -1,
+        SYNC_INITIALSCAN = 0,
+        SYNC_ACTIVE
+    };
+
+    virtual ~MegaSync() = 0;
+
+    /**
+     * @brief Creates a copy of this MegaSync object
+     *
+     * The resulting object is fully independent of the source MegaSync,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaError object
+     */
+    virtual MegaSync *copy() = 0;
+
+    /**
+     * @brief Get the handle of the folder that is being synced
+     * @return Handle of the folder that is being synced in MEGA
+     */
+    virtual MegaHandle getMegaHandle() const = 0;
+
+    /**
+     * @brief Get the path of the local folder that is being synced
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRequest object is deleted.
+     *
+     * @return Local folder that is being synced
+     */
+    virtual const char* getLocalFolder() const = 0;
+
+    /**
+     * @brief Gets an unique identifier of the local folder that is being synced
+     * @return Unique identifier of the local folder that is being synced
+     */
+    virtual long long getLocalFingerprint() const = 0;
+
+    /**
+     * @brief Returns the identifier of this synchronization
+     *
+     * Identifiers of synchronizations are always negative numbers.
+     *
+     * @return Identifier of the synchronization
+     */
+    virtual int getTag() const = 0;
+
+    /**
+     * @brief Get the state of the synchronization
+     *
+     * Possible values are:
+     * - SYNC_FAILED = -2
+     * The synchronization has failed and has been disabled
+     *
+     * - SYNC_CANCELED = -1,
+     * The synchronization has failed and has been disabled
+     *
+     * - SYNC_INITIALSCAN = 0,
+     * The synchronization is doing the initial scan
+     *
+     * - SYNC_ACTIVE
+     * The synchronization is active
+     *
+     * @return State of the synchronization
+     */
+    virtual int getState() const = 0;
+};
+
+#endif
+
 /**
  * @brief Provides information about an error
  */
@@ -2079,6 +2212,19 @@ class MegaGlobalListener
          * @param api MegaApi object connected to the account
          */
         virtual void onReloadNeeded(MegaApi* api);
+
+#ifdef ENABLE_SYNC
+        /**
+         * @brief This function is called with the state of the synchronization engine has changed
+         *
+         * You can call MegaApi::isScanning and MegaApi::isWaiting to know the global state
+         * of the synchronization engine.
+         *
+         * @param api MegaApi object related to the event
+         */
+        virtual void onGlobalSyncStateChanged(MegaApi* api);
+#endif
+
         virtual ~MegaGlobalListener();
 };
 
@@ -2266,41 +2412,46 @@ class MegaListener
          */
         virtual void onReloadNeeded(MegaApi* api);
 
-        /**
-         * @brief This function is called when the state of a synced file changes
-         *
-         * Possible values for the state are:
-         * -STATE_SYNCED = 1
-         * The file is synced with the MEGA account
-         *
-         * -STATE_PENDING = 2
-         * The file isn't synced with the MEGA account. It's waiting to be synced.
-         *
-         * -STATE_SYNCING = 3
-         * The file is being synced with the MEGA account
-         *
-         * Warning: More powerfull callbacks about synchronizations will be provided in future
-         * updates. This function will probably be removed.
-         *
-         * @param api MegaApi object that is synchronizing files
-         * @param filePath Local path of the file
-         * @param newState New state of the file
-         */
-        virtual void onSyncFileStateChanged(MegaApi *api, const char *filePath, int newState);
+#ifdef ENABLE_SYNC
+    /**
+     * @brief This function is called when the state of a synced file changes
+     *
+     * Possible values for the state are:
+     * - MegaApi::STATE_SYNCED = 1
+     * The file is synced with the MEGA account
+     *
+     * - MegaApi::STATE_PENDING = 2
+     * The file isn't synced with the MEGA account. It's waiting to be synced.
+     *
+     * - MegaApi::STATE_SYNCING = 3
+     * The file is being synced with the MEGA account
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param filePath Local path of the file
+     * @param newState New state of the file
+     */
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
 
-        /**
-         * @brief This function is called when the state of the synchronization changes
-         *
-         * The SDK calls this function when the state of the synchronization changes, for example
-         * from 'scanning' to 'syncing' or 'failed'.
-         *
-         * Warning: More powerfull callbacks about synchronizations will be provided in future
-         * updates. This function will probably be removed.
-         *
-         * @param api MegaApi object that is synchronizing files
-         */
-        virtual void onSyncStateChanged(MegaApi *api);
+    /**
+     * @brief This function is called when the state of the synchronization changes
+     *
+     * The SDK calls this function when the state of the synchronization changes. you can use
+     * MegaSync::getState to get the new state of the synchronization
+     *
+     * @param api MegaApi object that is synchronizing files
+     */
+    virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
 
+    /**
+     * @brief This function is called with the state of the synchronization engine has changed
+     *
+     * You can call MegaApi::isScanning and MegaApi::isWaiting to know the global state
+     * of the synchronization engine.
+     *
+     * @param api MegaApi object related to the event
+     */
+    virtual void onGlobalSyncStateChanged(MegaApi* api);
+#endif
         virtual ~MegaListener();
 };
 
@@ -2476,6 +2627,20 @@ class MegaApi
          * @param listener Listener that will receive global events
          */
         void addGlobalListener(MegaGlobalListener* listener);
+
+#ifdef ENABLE_SYNC
+        /**
+         * @brief Add a listener for all events related to synchronizations
+         * @param listener Listener that will receive synchronization events
+         */
+        void addSyncListener(MegaSyncListener *listener);
+
+        /**
+         * @brief Unregister a synchronization listener
+         * @param listener Objet that will be unregistered
+         */
+        void removeSyncListener(MegaSyncListener *listener);
+#endif
 
         /**
          * @brief Unregister a listener
@@ -3539,16 +3704,16 @@ class MegaApi
          * - STATE_NONE = 0
          * The file isn't inside a synced folder
          *
-         * - STATE_SYNCED = 1
+         * - MegaApi::STATE_SYNCED = 1
          * The file is in sync with the MEGA account
          *
-         * - STATE_PENDING = 2
+         * - MegaApi::STATE_PENDING = 2
          * The file is pending to be synced with the MEGA account
          *
-         * - STATE_SYNCING = 3
+         * - MegaApi::STATE_SYNCING = 3
          * The file is being synced with the MEGA account
          *
-         * - STATE_IGNORED = 4
+         * - MegaApi::STATE_IGNORED = 4
          * The file is inside a synced folder, but it is ignored
          * by the selected exclusion filters
          *
@@ -3625,6 +3790,21 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove a synced folder
+         *
+         * The folder will stop being synced. Nothing in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         *
+         * @param sync Synchronization to cancel
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders

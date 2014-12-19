@@ -8,8 +8,12 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
     request = NULL;
     transfer = NULL;
     error = NULL;
+
+#ifdef ENABLE_SYNC
+    sync = NULL;
     filePath = NULL;
     newState = 0;
+#endif
 }
 
 QTMegaEvent::~QTMegaEvent()
@@ -17,7 +21,11 @@ QTMegaEvent::~QTMegaEvent()
     delete request;
     delete transfer;
     delete error;
+
+#ifdef ENABLE_SYNC
+    delete sync;
     delete filePath;
+#endif
 }
 
 MegaApi *QTMegaEvent::getMegaApi()
@@ -50,16 +58,6 @@ MegaUserList *QTMegaEvent::getUsers()
     return users;
 }
 
-const char *QTMegaEvent::getFilePath()
-{
-    return filePath;
-}
-
-int QTMegaEvent::getNewState()
-{
-    return newState;
-}
-
 void QTMegaEvent::setRequest(MegaRequest *request)
 {
     this->request = request;
@@ -85,6 +83,27 @@ void QTMegaEvent::setUsers(MegaUserList *users)
     this->users = users;
 }
 
+#ifdef ENABLE_SYNC
+MegaSync *QTMegaEvent::getSync()
+{
+    return sync;
+}
+
+const char *QTMegaEvent::getFilePath()
+{
+    return filePath;
+}
+
+int QTMegaEvent::getNewState()
+{
+    return newState;
+}
+
+void QTMegaEvent::setSync(MegaSync *sync)
+{
+    this->sync = sync;
+}
+
 void QTMegaEvent::setFilePath(const char *filePath)
 {
     this->filePath = filePath;
@@ -94,4 +113,4 @@ void QTMegaEvent::setNewState(int newState)
 {
     this->newState = newState;
 }
-
+#endif
