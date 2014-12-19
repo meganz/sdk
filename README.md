@@ -34,6 +34,8 @@ In the `examples` folder you can find example apps using:
 Building
 --------
 
+If you plan to develop an app using this SDK, please use the stable branch or the last released tarball. The master branch is continuously evolving, could be unstable and and could change very often.
+
 For platforms with Autotools, the generic way to build and install it is:
 
     sh autogen.sh
