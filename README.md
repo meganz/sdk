@@ -1,22 +1,22 @@
 # MEGA SDK - Client Access Engine
 
 MEGA --- _The Privacy Company_ --- is a Secure Cloud Storage
-provider that protects your data thanks to end-to-end encryption. We call it User Controlled Encryption, 
+provider that protects your data thanks to end-to-end encryption. We call it User Controlled Encryption,
 or UCE, and all our clients automatically manage it.
 
-All files stored on MEGA are encrypted. All data transfers from and to MEGA are encrypted. And while 
-most cloud storage providers can and do claim the same, MEGA is different – unlike the industry norm 
-where the cloud storage provider holds the decryption key, with MEGA, you control the encryption, 
+All files stored on MEGA are encrypted. All data transfers from and to MEGA are encrypted. And while
+most cloud storage providers can and do claim the same, MEGA is different – unlike the industry norm
+where the cloud storage provider holds the decryption key, with MEGA, you control the encryption,
 you hold the keys, and you decide who you grant or deny access to your files.
 
-This SDK brings you all the power of our client applications and let you create 
+This SDK brings you all the power of our client applications and let you create
 your own or analyze the security of our products. Are you ready to start? Please continue reading.
 
 SDK Contents
 ------------
 
-In this SDK, you can find our low level SDK, that was already released few months after the MEGA launch, 
-a new intermediate layer to make it easier to use and to bind with other programming languages, and 
+In this SDK, you can find our low level SDK, that was already released few months after the MEGA launch,
+a new intermediate layer to make it easier to use and to bind with other programming languages, and
 example apps for all our currently supported platforms (Windows, Linux, OSX, Android, iOS and Windows Phone).
 
 In the `examples` folder you can find example apps using:
@@ -44,24 +44,24 @@ For platforms with Autotools, the generic way to build and install it is:
     sudo make install
 
 That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`)
-You also have specific build instuctions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`) 
+You also have specific build instuctions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_static.sh`)
 
-For other platforms, or if you want to see how to use the new intermediate layer, 
-the easiest way is to get a smooth start is to build one of the examples in subfolders 
-of the `examples` folder. 
+For other platforms, or if you want to see how to use the new intermediate layer,
+the easiest way is to get a smooth start is to build one of the examples in subfolders
+of the `examples` folder.
 
-All these folders contains a README.md file with information about how to get the project up and running, 
+All these folders contains a README.md file with information about how to get the project up and running,
 including the installation of all required dependencies.
 
 Usage
 -----
 
-The low level SDK doesn't have inline documentation yet. If you want to use it, 
+The low level SDK doesn't have inline documentation yet. If you want to use it,
 please check one of our example apps (`examples/megacli`, `examples/megasimplesync`).
 
-The new intermediate layer has been documented using Doxygen. The only public header that you need 
-to include to use is `include/megaapi.h`. You can read the documentation in that header file, 
+The new intermediate layer has been documented using Doxygen. The only public header that you need
+to include to use is `include/megaapi.h`. You can read the documentation in that header file,
 or download the same documentation in HTML format from this link:
 
 https://mega.co.nz/#!c5FzhBJL!HUVjsOJTylwkmXPZ0AxT66Wuu4YvZInyHbWGYgvTHt4
@@ -84,13 +84,17 @@ Install the following development packages, if available, or download
 and compile their respective sources (package names are for
 Debian and RedHat derivatives, respectively):
 
-* libcurl compiled with `--enable-ssl`
-* libcares (`libc-ares-dev`, `libcares-devel`)
+* cURL (`libcurl4-openssl-dev`, `libcurl-devel`), compiled with `--enable-ssl`
+* c-ares (`libc-ares-dev`, `libcares-devel`)
+* OpenSSL (`libssl-dev`, `openssl-devel`)
 * Crypto++ (`libcrypto++-dev`, `libcryptopp-devel`)
-* Sodium (`libsodium-dev`, `libsodium-devel`) or configure `--without-sodium`
+* zlib (`zlib1g-dev`, `zlib-devel`)
 * SQLite (`libsqlite3-dev`, `sqlite-devel`) or configure `--without-sqlite`
 * FreeImage (`libfreeimage-dev`, `freeimage-devel`) or configure `--without-freeimage`
 * pthread
+
+Optional dependency:
+* Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.
@@ -110,10 +114,12 @@ To build the client access engine under Windows, you'll need the following:
 * A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
 * Crypto++
 * zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
-* Sodium or configure `--without-sodium`
 * SQLite or configure `--without-sqlite`
 * FreeImage or configure `--without-freeimage`
 * pthreads (MinGW)
+
+Optional dependency:
+* Sodium or configure `--with-sodium`
 
 To build the reference `megacli.exe` example, you will also need to procure
 development packages (at least headers and `.lib`/`.a` libraries) of:
