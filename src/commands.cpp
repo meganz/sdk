@@ -1762,11 +1762,10 @@ CommandGetUserData::CommandGetUserData(MegaClient *client)
 void CommandGetUserData::procresult()
 {
     string name;
-    handle msgid = UNDEF;
 
     if (client->json.isnumeric())
     {
-        return client->app->userdata_result(NULL, msgid, (error)client->json.getint());
+        return client->app->userdata_result(NULL, (error)client->json.getint());
     }
 
     for (;;)
@@ -1777,18 +1776,14 @@ void CommandGetUserData::procresult()
             client->json.storeobject(&name);
             break;
 
-        case 'u':
-            msgid = client->json.gethandle(MegaClient::USERHANDLE);
-            break;
-
         case EOO:
-            client->app->userdata_result(&name, msgid, API_OK);
+            client->app->userdata_result(&name, API_OK);
             return;
 
         default:
             if (!client->json.storeobject())
             {
-                return client->app->userdata_result(NULL, msgid, API_EINTERNAL);
+                return client->app->userdata_result(NULL, API_EINTERNAL);
             }
         }
     }

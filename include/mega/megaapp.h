@@ -38,7 +38,7 @@ struct MEGA_API MegaApp
     virtual void login_result(error) { }
 
     // user data result
-    virtual void userdata_result(string *, handle, error) { }
+    virtual void userdata_result(string*, error) { }
 
     // ephemeral session creation/resumption result
     virtual void ephemeral_result(error) { }

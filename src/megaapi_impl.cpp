@@ -4272,7 +4272,7 @@ void MegaApiImpl::login_result(error result)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::userdata_result(string *name, handle msgid, error result)
+void MegaApiImpl::userdata_result(string *name, error result)
 {
     MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -4281,8 +4281,11 @@ void MegaApiImpl::userdata_result(string *name, handle msgid, error result)
 
     if(result == API_OK)
     {
+        char jid[16];
+        Base32::btoa((byte *)&client->me, MegaClient::USERHANDLE, jid);
+
         request->setName(name->c_str());
-        request->setNodeHandle(msgid);
+        request->setText(jid);
     }
     fireOnRequestFinish(request, megaError);
 }

@@ -1182,6 +1182,7 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
+         * - MegaApi::getUserData - Returns the name of the user
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2835,7 +2836,9 @@ class MegaApi
         /**
          * @brief Get data about the logged account
          *
-         * (Development in progress)
+         * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the name of the logged user
          *
          * @param listener MegaRequestListener to track this request
          */
