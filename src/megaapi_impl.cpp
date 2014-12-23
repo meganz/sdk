@@ -1996,6 +1996,19 @@ void MegaApiImpl::getUserData(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::getUserData(MegaUser *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_DATA, listener);
+    request->setFlag(true);
+    if(user)
+    {
+        request->setEmail(user->getEmail());
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::login(const char *login, const char *password, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -4305,6 +4318,37 @@ void MegaApiImpl::userdata_result(string *name, error result)
         request->setText(jid);
     }
     fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::pubkey_result(User *u)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_USER_DATA)) return;
+
+    if(!u)
+    {
+        fireOnRequestFinish(request, MegaError(API_ENOENT));
+        return;
+    }
+
+    if(!u->pubk.isvalid())
+    {
+        fireOnRequestFinish(request, MegaError(API_EACCESS));
+        return;
+    }
+
+    string key;
+    u->pubk.serializekey(&key, AsymmCipher::PUBKEY);
+    char pubkbuf[AsymmCipher::MAXKEYLENGTH * 4 / 3 + 4];
+    Base64::btoa((byte *)key.data(), key.size(), pubkbuf);
+    request->setPassword(pubkbuf);
+
+    char jid[16];
+    Base32::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, jid);
+    request->setText(jid);
+
+    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 // password change result
@@ -6632,7 +6676,22 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_USER_DATA:
         {
-            client->getuserdata();
+            const char *email = request->getEmail();
+            if(request->getFlag() && !email)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if(!request->getFlag())
+            {
+                client->getuserdata();
+            }
+            else
+            {
+                client->getpubkey(email);
+            }
+
             break;
         }
         default:

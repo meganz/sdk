@@ -712,6 +712,7 @@ class MegaApiImpl : public MegaApp
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
         void getUserData(MegaRequestListener *listener = NULL);
+        void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -932,6 +933,7 @@ protected:
         // login result
         virtual void login_result(error);
         virtual void userdata_result(string *, error);
+        virtual void pubkey_result(User *);
 
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);

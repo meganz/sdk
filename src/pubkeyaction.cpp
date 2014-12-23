@@ -115,4 +115,15 @@ PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, in
     a = sa;
     tag = ctag;
 }
+
+void PubKeyActionNotifyApp::proc(MegaClient *client, User *u)
+{
+    client->app->pubkey_result(u);
+}
+
+PubKeyActionNotifyApp::PubKeyActionNotifyApp(int ctag)
+{
+    tag = ctag;
+}
+
 } // namespace

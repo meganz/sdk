@@ -69,6 +69,14 @@ public:
 
     PubKeyActionPutNodes(NewNode*, int, int);
 };
+
+class MEGA_API PubKeyActionNotifyApp : public PubKeyAction
+{
+public:
+    void proc(MegaClient*, User*);
+
+    PubKeyActionNotifyApp(int);
+};
 } // namespace
 
 #endif

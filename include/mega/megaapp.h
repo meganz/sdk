@@ -40,6 +40,9 @@ struct MEGA_API MegaApp
     // user data result
     virtual void userdata_result(string*, error) { }
 
+    // user public key retrieval result
+    virtual void pubkey_result(User *) { }
+
     // ephemeral session creation/resumption result
     virtual void ephemeral_result(error) { }
     virtual void ephemeral_result(handle, const byte*) { }

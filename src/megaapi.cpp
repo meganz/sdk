@@ -375,6 +375,11 @@ void MegaApi::getUserData(MegaRequestListener *listener)
     pImpl->getUserData(listener);
 }
 
+void MegaApi::getUserData(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->getUserData(user, listener);
+}
+
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     pImpl->login(login, password, listener);

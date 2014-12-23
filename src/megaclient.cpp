@@ -3945,6 +3945,11 @@ void MegaClient::getuserdata()
     reqs[r].add(new CommandGetUserData(this));
 }
 
+void MegaClient::getpubkey(const char *user)
+{
+    queuepubkeyreq(finduser(user, 1), new PubKeyActionNotifyApp(reqtag));
+}
+
 // resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
 {

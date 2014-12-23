@@ -94,6 +94,9 @@ public:
     // get user data
     void getuserdata();
 
+    // get the public key of an user
+    void getpubkey(const char* user);
+
     // check if logged in
     sessiontype_t loggedin();
 

@@ -1182,13 +1182,13 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
-         * - MegaApi::getUserData - Returns the name of the user
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the name of the user
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
+         * - MegaApi::getUserData - Returns the name of the user
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1211,6 +1211,7 @@ class MegaRequest
          * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
          * - MegaApi::addContact - Returns the email of the contact
          * - MegaApi::removeContact - Returns the email of the contact
+         * - MegaApi::getUserData - Returns the email of the contact
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1234,6 +1235,10 @@ class MegaRequest
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
          * - MegaApi::changePassword - Returns the old password of the account (first parameter)
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getUserData - Returns the public RSA key of the contact, Base64-encoded
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1366,6 +1371,10 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::submitFeedback - Returns the comment about the app
          * - MegaApi::reportDebugEvent - Returns the debug message
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getUserData - Returns the XMPP ID of the contact
          *
          * @return Text relative to this request
          */
@@ -2843,6 +2852,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get data about a contact
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the XMPP ID of the contact
+         * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
+         *
+         * @param user Contact to get the data
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the current session key
