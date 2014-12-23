@@ -159,4 +159,70 @@ int Base64::btoa(const byte* b, int blen, char* a)
 
     return p;
 }
+
+byte Base32::to32(byte c)
+{
+    c &= 31;
+
+    if (c < 26)
+    {
+        return c + 'a';
+    }
+
+    return c - 26 + '2';
+}
+
+int Base32::btoa(const byte *b, int blen, char *a)
+{
+    int p = 0;
+
+    for (;;)
+    {
+        if (blen <= 0)
+        {
+            break;
+        }
+
+        a[p++] = to32( *b >> 3);
+        a[p++] = to32((*b << 2) | (((blen > 1) ? b[1] : 0) >> 6));
+
+        if (blen < 2)
+        {
+            break;
+        }
+
+        a[p++] = to32(b[1] >> 1);
+        a[p++] = to32(b[1] << 4 | (((blen > 2) ? b[2] : 0) >> 4));
+
+        if (blen < 3)
+        {
+            break;
+        }
+
+        a[p++] = to32((b[2] << 1) | (((blen > 3) ? b[3] : 0) >> 7));
+
+        if (blen < 4)
+        {
+            break;
+        }
+
+        a[p++] = to32(b[3] >> 2);
+        a[p++] = to32(b[3] << 3 | (((blen > 4) ? b[4] : 0) >> 5));
+
+        if (blen < 5)
+        {
+            break;
+        }
+
+        a[p++] = to32(b[4]);
+
+        blen -= 5;
+        b += 5;
+    }
+
+    a[p] = 0;
+
+    return p;
+}
+
 } // namespace

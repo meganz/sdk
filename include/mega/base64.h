@@ -35,6 +35,15 @@ public:
     static int btoa(const byte*, int, char*);
     static int atob(const char*, byte*, int);
 };
+
+// lowercase base32 encoding
+class MEGA_API Base32
+{
+    static byte to32(byte);
+
+public:
+    static int btoa(const byte*, int, char*);
+};
 } // namespace
 
 #endif
