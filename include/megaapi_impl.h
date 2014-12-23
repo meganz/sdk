@@ -722,7 +722,6 @@ class MegaApiImpl : public MegaApp
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
-        const char* getXMPPUserId();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
@@ -932,7 +931,7 @@ protected:
 
         // login result
         virtual void login_result(error);
-        virtual void userdata_result(string *, error);
+        virtual void userdata_result(string *, handle, error);
         virtual void pubkey_result(User *);
 
         // ephemeral session creation/resumption result

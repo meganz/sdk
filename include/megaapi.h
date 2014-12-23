@@ -3019,18 +3019,6 @@ class MegaApi
         const char* getMyEmail();
 
         /**
-         * @brief Retuns the XMPP ID of the currently open account
-         *
-         * If the MegaApi object isn't logged in or the email isn't available,
-         * this function returns NULL
-         *
-         * You take the ownership of the returned value
-         *
-         * @return XMPP ID of the account
-         */
-        const char* getXMPPUserId();
-
-        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. If you set a log listener using

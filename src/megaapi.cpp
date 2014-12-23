@@ -310,11 +310,6 @@ const char* MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
-const char *MegaApi::getXMPPUserId()
-{
-    return pImpl->getXMPPUserId();
-}
-
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);

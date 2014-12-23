@@ -1844,23 +1844,6 @@ const char* MegaApiImpl::getMyEmail()
     return result;
 }
 
-const char *MegaApiImpl::getXMPPUserId()
-{
-	sdkMutex.lock();
-	if (!client->loggedin())
-	{
-		sdkMutex.unlock();
-		return NULL;
-	}
-
-	char jid[16];
-	Base32::btoa((byte *)&client->me, MegaClient::USERHANDLE, jid);
-	const char *result = MegaApi::strdup(jid);
-	sdkMutex.unlock();
-
-	return result;
-}
-
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     externalLogger.setLogLevel(logLevel);
@@ -4302,7 +4285,7 @@ void MegaApiImpl::login_result(error result)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::userdata_result(string *name, error result)
+void MegaApiImpl::userdata_result(string *name, handle bjid, error result)
 {
     MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -4312,7 +4295,7 @@ void MegaApiImpl::userdata_result(string *name, error result)
     if(result == API_OK)
     {
         char jid[16];
-        Base32::btoa((byte *)&client->me, MegaClient::USERHANDLE, jid);
+        Base32::btoa((byte *)&bjid, MegaClient::USERHANDLE, jid);
 
         request->setName(name->c_str());
         request->setText(jid);
