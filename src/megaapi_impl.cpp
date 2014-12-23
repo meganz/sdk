@@ -1844,6 +1844,23 @@ const char* MegaApiImpl::getMyEmail()
     return result;
 }
 
+const char *MegaApiImpl::getXMPPUserId()
+{
+	sdkMutex.lock();
+	if (!client->loggedin())
+	{
+		sdkMutex.unlock();
+		return NULL;
+	}
+
+	char jid[16];
+	Base32::btoa((byte *)&client->me, MegaClient::USERHANDLE, jid);
+	const char *result = MegaApi::strdup(jid);
+	sdkMutex.unlock();
+
+	return result;
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     externalLogger.setLogLevel(logLevel);

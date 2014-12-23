@@ -721,6 +721,7 @@ class MegaApiImpl : public MegaApp
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         const char* getMyEmail();
+        const char* getXMPPUserId();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
