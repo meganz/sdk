@@ -2883,6 +2883,18 @@ class MegaApi
         const char *dumpSession();
 
         /**
+         * @brief Returns the current XMPP session key
+         *
+         * You have to be logged in to get a valid session key. Otherwise,
+         * this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Current XMPP session key
+         */
+        const char *dumpXMPPSession();
+
+        /**
          * @brief Initialize the creation of a new MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.

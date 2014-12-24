@@ -2018,6 +2018,22 @@ const char *MegaApiImpl::dumpSession()
     return buf;
 }
 
+const char *MegaApiImpl::dumpXMPPSession()
+{
+    sdkMutex.lock();
+    byte session[64];
+    char* buf = NULL;
+    int size;
+    size = client->dumpsession(session, sizeof session);
+    if (size > sizeof(client->key.key))
+    {
+        buf = new char[sizeof(session)*4/3+4];
+        Base64::btoa(session + sizeof(client->key.key), size - sizeof(client->key.key), buf);
+    }
+
+    sdkMutex.unlock();
+    return buf;
+}
 void MegaApiImpl::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);

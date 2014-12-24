@@ -709,6 +709,7 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         const char *dumpSession();
+        const char *dumpXMPPSession();
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
         void getUserData(MegaRequestListener *listener = NULL);
