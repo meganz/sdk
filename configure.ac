@@ -1009,12 +1009,19 @@ if test "x$enable_examples" = "xyes" ; then
          ;;
        yes)
         TERMCAP_LIBS="-ltermcap"
+
+        AC_CHECK_LIB([termcap], [tputs], [], [
+            AC_MSG_ERROR([termcap library is required for the sample client.])])
         ;;
        *)
         TERMCAP_LDFLAGS="-L$with_termcap"
         TERMCAP_LIBS="-ltermcap"
         TERMCAP_CXXFLAGS="-I$with_termcap"
         TERMCAP_CPPFLAGS="-I$with_termcap"
+
+        AC_CHECK_LIB([termcap], [tputs], [], [
+            AC_MSG_ERROR([termcap library is required for the sample client.])])
+
         ;;
        esac
       ]
