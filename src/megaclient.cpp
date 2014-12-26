@@ -948,8 +948,9 @@ void MegaClient::exec()
                 CommandLoadBalancing *command = loadbalancingreqs.front();
 
                 restag = command->tag;
-                json.begin(loadbalancingcs->in.c_str());
-                command->procresult();
+                app->loadbalancing_result(&loadbalancingcs->in, API_OK);
+                //json.begin(loadbalancingcs->in.c_str());
+                //command->procresult();
 
                 delete loadbalancingcs;
                 loadbalancingcs = NULL;
