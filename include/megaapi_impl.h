@@ -844,6 +844,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRubbishNode();
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
+        void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
@@ -1014,6 +1015,7 @@ protected:
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);
+        virtual void loadbalancing_result(string*, error);
 
 #ifdef ENABLE_SYNC
         // sync status updates and events

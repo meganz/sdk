@@ -555,6 +555,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
+        curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
@@ -1282,16 +1283,17 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
     return nmemb;
 }
 
-CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*)
+CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 {
-    SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, NULL);
+    SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, req);
 
     return CURLE_OK;
 }
 
 // SSL public key pinning
-int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
+int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 {
+    HttpReq *request = (HttpReq *)req;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
     EVP_PKEY* evp;
     int ok = 0;
@@ -1303,7 +1305,18 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void*)
         {
             BN_bn2bin(evp->pkey.rsa->n, buf);
 
-            if (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1))
+            if (!memcmp(request->posturl.data(), MegaClient::APIURL, strlen(MegaClient::APIURL)) &&
+                (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
+            {
+                BN_bn2bin(evp->pkey.rsa->e, buf);
+
+                if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
+                {
+                    ok = 1;
+                }
+            }
+            else if (!memcmp(request->posturl.data(), MegaClient::BALANCERURL, strlen(MegaClient::BALANCERURL)) &&
+                     !memcmp(buf, BALANCERMODULUS1, sizeof BALANCERMODULUS1 - 1))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);
 

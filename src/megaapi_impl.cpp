@@ -1330,6 +1330,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PRICING: return "GET_PRICING";
         case TYPE_GET_PAYMENT_URL: return "GET_PAYMENT_URL";
         case TYPE_GET_USER_DATA: return "GET_USER_DATA";
+        case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
 	}
     return "UNKNOWN";
 }
@@ -2034,6 +2035,7 @@ const char *MegaApiImpl::dumpXMPPSession()
     sdkMutex.unlock();
     return buf;
 }
+
 void MegaApiImpl::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
@@ -3280,7 +3282,15 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 	bool result = processor->processMegaNode(n);
 
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_BALANCING, listener);
+    request->setName(service);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
@@ -3731,6 +3741,20 @@ void MegaApiImpl::reportevent_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_REPORT_EVENT)) return;
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::loadbalancing_result(string *servers, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_LOAD_BALANCING)) return;
+
+    if(!e)
+    {
+        request->setText(servers->c_str());
+    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -6691,6 +6715,18 @@ void MegaApiImpl::sendPendingRequests()
                 client->getpubkey(email);
             }
 
+            break;
+        }
+        case MegaRequest::TYPE_LOAD_BALANCING:
+        {
+            const char* service = request->getName();
+            if(!service)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->loadbalancing(service);
             break;
         }
         default:

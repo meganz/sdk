@@ -1034,7 +1034,8 @@ class MegaRequest
 			TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-            TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA
+			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA,
+			TYPE_LOAD_BALANCING
 		};
 
 		virtual ~MegaRequest() = 0;
@@ -1182,6 +1183,7 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
+         * - MegaApi::loadBalancing - Returns the name of the service
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1375,6 +1377,7 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the XMPP ID of the contact
+         * - MegaApi::loadBalancing . Returns the response of the server
          *
          * @return Text relative to this request
          */
@@ -4479,6 +4482,22 @@ class MegaApi
          */
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
+
+        /**
+         * @brief loadBalancing Load balancing request
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOAD_BALANCING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the name of the service
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the response of the server
+         *
+         * @param service Service to get load balancing data
+         * @param listener MegaRequestListener to track this request
+         */
+        void loadBalancing(const char *service, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Function to copy a buffer

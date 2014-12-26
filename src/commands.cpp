@@ -2570,4 +2570,87 @@ void CommandReportEvent::procresult()
         client->app->reportevent_result(API_EINTERNAL);
     }
 }
+
+// load balancing request
+CommandLoadBalancing::CommandLoadBalancing(MegaClient *client, const char *service)
+{
+    this->client = client;
+    this->service = service;
+
+    tag = client->reqtag;
+}
+
+void CommandLoadBalancing::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->loadbalancing_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        error e = API_EINTERNAL;
+        if(!client->json.enterobject())
+        {
+            client->app->loadbalancing_result(NULL, API_EINTERNAL);
+            return;
+        }
+
+        string servers;
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('o', 'k'):
+                    if(client->json.isnumeric() && client->json.getint())
+                    {
+                        e = API_OK;
+                    }
+                    break;
+
+                case 'e':
+                    if(client->json.isnumeric())
+                    {
+                        e = (error)client->json.getint();
+                    }
+                    break;
+
+                case EOO:
+                    client->app->loadbalancing_result(e ? NULL : &servers, e);
+                    return;
+
+                default:
+                    if (!client->json.enterarray())
+                    {
+                        client->app->loadbalancing_result(NULL, API_EINTERNAL);
+                        return;
+                    }
+
+                    while(client->json.enterobject())
+                    {
+                        if(servers.size())
+                        {
+                            servers.append(";");
+                        }
+
+                        while (client->json.getnameid() != EOO)
+                        {
+                            string data;
+                            if (!client->json.storeobject(&data))
+                            {
+                                client->app->loadbalancing_result(NULL, API_EINTERNAL);
+                                return;
+                            }
+                            if(servers.size())
+                            {
+                                servers.append(":");
+                            }
+                            servers.append(data);
+                        }
+                    }
+                    client->json.leavearray();
+                    break;
+            }
+        }
+    }
+}
 } // namespace

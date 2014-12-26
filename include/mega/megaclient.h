@@ -252,6 +252,12 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // root URL for API requests
+    static const char* const APIURL;
+
+    // root URL for load balancing requests
+    static const char* const BALANCERURL;
+
 private:
     // API request queue double buffering:
     // reqs[r] is open for adding commands
@@ -265,9 +271,7 @@ private:
 
     // badhost report
     HttpReq* badhostcs;
-
-    // root URL for API requestrs
-    static const char* const APIURL;
+    HttpReq* loadbalancingcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -611,6 +615,9 @@ public:
     void setchunkfailed(string*);
     string badhosts;
     
+    // queue for load balancing requests
+    std::queue<CommandLoadBalancing*> loadbalancingreqs;
+
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
 
@@ -695,6 +702,9 @@ public:
 
     // hash password
     error pw_key(const char*, byte*) const;
+
+    // load balancing request
+    void loadbalancing(const char *);
 
     // convert hex digit to number
     static int hexval(char);
