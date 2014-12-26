@@ -21,12 +21,16 @@
  # program.
 ##
 
+# global vars
+use_local=0
+make_opts=""
+
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
 }
 
 on_exit_ok() {
-    echo "Successfully compiled SDK examples!"
+    echo "Successfully compiled MEGA SDK!"
 }
 
 print_distro_help()
@@ -36,7 +40,7 @@ print_distro_help()
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
         echo "Please execute the following command:  sudo yum install gcc gcc-c++ libtool unzip autoconf make wget glibc-devel-static"
-        return;
+        return
     fi
 
     # apt-get: Debian, Ubuntu
@@ -44,7 +48,7 @@ print_distro_help()
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
         echo "Please execute the following command:  sudo apt-get install gcc c++ libtool unzip autoconf make wget"
-        return;
+        return
     fi
 }
 
@@ -72,6 +76,11 @@ package_download() {
     local url=$2
     local file=$3
 
+    if [ $use_local -eq 1 ]; then
+        echo "Using local file for $name"
+        return
+    fi
+
     echo "Downloading $name"
 
     if [ -f $file ]; then
@@ -90,6 +99,10 @@ package_extract() {
 
     local filename=$(basename "$file")
     local extension="${filename##*.}"
+
+    if [ ! -f $file ]; then
+        echo "File $file does not exist!"
+    fi
 
     if [ -d $dir ]; then
         rm -fr $dir || exit 1
@@ -147,7 +160,7 @@ package_build() {
     local cwd=$(pwd)
     cd $dir
 
-    make $target &> ../$name.build.log
+    make $make_opts $target &> ../$name.build.log
 
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
@@ -197,6 +210,7 @@ openssl_pkg() {
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
     local openssl_params="--openssldir=$install_dir no-shared shared"
+    local loc_make_opts=$make_opts
 
     package_download $name $openssl_url $openssl_file
     package_extract $name $openssl_file $openssl_dir
@@ -217,7 +231,11 @@ openssl_pkg() {
         package_configure $name $openssl_dir $install_dir "$openssl_params"
     fi
 
+    # OpenSSL has issues with parallel builds, let's use the default options
+    make_opts=""
     package_build $name $openssl_dir
+    make_opts=$loc_make_opts
+
     package_install $name $openssl_dir $install_dir
 }
 
@@ -240,7 +258,7 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.0"
+    local sodium_ver="1.0.1"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
@@ -286,7 +304,7 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3080600"
+    local sqlite_ver="3080704"
     local sqlite_url="http://www.sqlite.org/2014/sqlite-autoconf-$sqlite_ver.tar.gz"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
@@ -320,7 +338,7 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.38.0"
+    local curl_ver="7.39.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
@@ -424,17 +442,17 @@ readline_win_pkg() {
     cp $readline_dir/lib/* $install_dir/lib/ || exit 1
 }
 
-
 build_sdk() {
     local install_dir=$1
     local debug=$2
+    local no_examples=$3
 
     echo "Configuring MEGA SDK"
 
     ./autogen.sh || exit 1
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        ./configure --enable-examples \
+        ./configure \
             --disable-shared --enable-static \
             --disable-silent-rules \
             --disable-curl-checks \
@@ -449,9 +467,10 @@ build_sdk() {
             --with-freeimage=$install_dir \
             --with-readline=$install_dir \
             --with-termcap=$install_dir \
+            $no_examples \
             $debug || exit 1
     else
-        ./configure --enable-examples \
+        ./configure \
             --disable-shared --enable-static \
             --disable-silent-rules \
             --disable-curl-checks \
@@ -465,6 +484,7 @@ build_sdk() {
             --without-curl \
             --with-freeimage=$install_dir \
             --with-readline=$install_dir \
+            $no_examples \
             $debug || exit 1
     fi
 
@@ -474,22 +494,80 @@ build_sdk() {
     make -j9 || exit 1
 }
 
+display_help() {
+    local app=$(basename "$0")
+    echo ""
+    echo "Usage:"
+    echo " $app [-h --help] [-d --debug] [-l --local] [-n --no_examples] [--make_opts] [-p --prefix]"
+    echo ""
+    echo "Options:"
+    echo " -d, --debug: Enable debug build"
+    echo " -l, --local: Use local software archive files instead of downloading"
+    echo " -n, --no_examples: Disable example applications"
+    echo " --make_opts=[opts]: make options"
+    echo " --prefix=[path]: Installation directory"
+    echo ""
+}
+
 main() {
     local cwd=$(pwd)
     local work_dir=$cwd"/static_build/"
     local build_dir=$work_dir"build/"
     local install_dir=$work_dir"install/"
+    local debug=""
+    local no_examples=""
+
+    OPTS=`getopt -o dhln -l debug,no_examples,help,local,make_opts:,prefix: -- "$@"`
+    eval set -- "$OPTS"
+    while true ; do
+        case "$1" in
+            -h)
+                display_help $0
+                exit
+                shift;;
+            --help)
+                display_help $0
+                exit
+                shift;;
+            -d)
+                echo "DEBUG build"
+                debug="--enable-debug"
+                shift;;
+            --debug)
+                echo "DEBUG build"
+                debug="--enable-debug"
+                shift;;
+            -l)
+                echo "Using local files"
+                use_local=1
+                shift;;
+            --local)
+                echo "Using local files"
+                use_local=1
+                shift;;
+            --make_opts)
+                make_opts="$2"
+                shift 2;;
+            -n)
+                echo "DEBUG build"
+                no_examples="--disable-examples"
+                shift;;
+            --no_examples)
+                no_examples="--disable-examples"
+                shift;;
+            --prefix)
+                install_dir=$(readlink -f $2)
+                echo "Installing into $install_dir"
+                shift 2;;
+            --)
+                shift;
+                break;;
+        esac
+    done
 
     check_apps
 
     trap on_exit_error EXIT
-
-    if [ "$1" == "debug" ]; then
-        echo "DEBUG build"
-        local debug="--enable-debug"
-    else
-        local debug=""
-    fi
 
     if [ ! -d $build_dir ]; then
         mkdir -p $build_dir || exit 1
@@ -521,16 +599,19 @@ main() {
     fi
     freeimage_pkg $build_dir $install_dir $cwd
 
-    if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        readline_pkg $build_dir $install_dir
-        termcap_pkg $build_dir $install_dir
-    else
-       readline_win_pkg  $build_dir $install_dir
-    fi
+    # Build readline and termcap if no_examples isn't set
+    if [ -z "$no_examples" ]; then
+        if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+            readline_pkg $build_dir $install_dir
+            termcap_pkg $build_dir $install_dir
+        else
+           readline_win_pkg  $build_dir $install_dir
+       fi
+   fi
 
     cd $cwd
 
-    build_sdk $install_dir $debug
+    build_sdk $install_dir $debug $no_examples
 
     unset PREFIX
     unset LD_RUN_PATH
@@ -539,4 +620,4 @@ main() {
     trap on_exit_ok EXIT
 }
 
-main $1
+main $@
