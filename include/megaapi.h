@@ -1273,6 +1273,10 @@ class MegaRequest
          * - MegaApi::fastCreateAccount - Returns the base64pwKey parameter
          * - MegaApi::fastConfirmAccount - Returns the base64pwKey parameter
          *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getUserData - Returns the private RSA key of the account, Base64-encoded
+         *
          * @return Private key related to the request
          */
 		virtual const char* getPrivateKey() const = 0;
@@ -2849,8 +2853,12 @@ class MegaApi
          * @brief Get data about the logged account
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
-         * Valid data in the MegaRequest object received on callbacks:
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getName - Returns the name of the logged user
+         * - MegaRequest::getPassword - Returns the the public RSA key of the account, Base64-encoded
+         * - MegaRequest::getPrivateKey - Returns the private RSA key of the account, Base64-encoded
          *
          * @param listener MegaRequestListener to track this request
          */

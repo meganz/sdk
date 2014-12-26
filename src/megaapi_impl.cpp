@@ -4325,7 +4325,7 @@ void MegaApiImpl::login_result(error result)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::userdata_result(string *name, handle bjid, error result)
+void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, handle bjid, error result)
 {
     MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -4337,6 +4337,8 @@ void MegaApiImpl::userdata_result(string *name, handle bjid, error result)
         char jid[16];
         Base32::btoa((byte *)&bjid, MegaClient::USERHANDLE, jid);
 
+        request->setPassword(pubk->c_str());
+        request->setPrivateKey(privk->c_str());
         request->setName(name->c_str());
         request->setText(jid);
     }

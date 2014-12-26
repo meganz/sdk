@@ -933,7 +933,7 @@ protected:
 
         // login result
         virtual void login_result(error);
-        virtual void userdata_result(string *, handle, error);
+        virtual void userdata_result(string*, string*, string*, handle, error);
         virtual void pubkey_result(User *);
 
         // ephemeral session creation/resumption result
