@@ -1014,13 +1014,35 @@ if test "x$enable_examples" = "xyes" ; then
             AC_MSG_ERROR([termcap library is required for the sample client.])])
         ;;
        *)
-        TERMCAP_LDFLAGS="-L$with_termcap"
-        TERMCAP_LIBS="-ltermcap"
-        TERMCAP_CXXFLAGS="-I$with_termcap"
-        TERMCAP_CPPFLAGS="-I$with_termcap"
+
+        # determine if library is installed
+        if test -d "$with_termcap/lib"; then
+            LDFLAGS="-L$with_termcap/lib $LDFLAGS"
+            CXXFLAGS="-I$with_termcap/include $CXXFLAGS"
+            CPPFLAGS="-I$with_termcap/include $CPPFLAGS"
+
+            TERMCAP_LDFLAGS="-L$with_termcap/lib"
+            TERMCAP_LIBS="-ltermcap"
+            TERMCAP_CXXFLAGS="-I$with_termcap/include"
+            TERMCAP_CPPFLAGS="-I$with_termcap/include"
+        else
+            LDFLAGS="-L$with_termcap $LDFLAGS"
+            CXXFLAGS="-I$with_termcap $CXXFLAGS"
+            CPPFLAGS="-I$with_termcap $CPPFLAGS"
+
+            TERMCAP_LDFLAGS="-L$with_termcap"
+            TERMCAP_LIBS="-ltermcap"
+            TERMCAP_CXXFLAGS="-I$with_termcap"
+            TERMCAP_CPPFLAGS="-I$with_termcap"
+        fi
 
         AC_CHECK_LIB([termcap], [tputs], [], [
             AC_MSG_ERROR([termcap library is required for the sample client.])])
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
 
         ;;
        esac
