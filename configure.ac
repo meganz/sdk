@@ -1008,9 +1008,6 @@ if test "x$enable_examples" = "xyes" ; then
        no)
          ;;
        yes)
-        AC_CHECK_HEADERS([termcap.h], [],
-            AC_MSG_ERROR([termcap.h header not found or not usable])
-        )
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
             [AC_MSG_ERROR([termcap library is required for the sample client.])]
         )
@@ -1054,9 +1051,6 @@ if test "x$enable_examples" = "xyes" ; then
        esac
       ],
       [AC_MSG_RESULT([--with-termcap not specified])
-        AC_CHECK_HEADERS([termcap.h], [],
-            AC_MSG_ERROR([termcap.h header not found or not usable])
-        )
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
             [AC_MSG_ERROR([termcap library is required for the sample client.])]
         )
