@@ -811,6 +811,32 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
     return pImpl->processMegaTree(n, processor, recursive);
 }
 
+const char *MegaApi::base64ToBase32(const char *base64)
+{
+    unsigned binarylen = strlen(base64) * 3/4 + 4;
+    byte *binary = new byte[binarylen];
+    binarylen = Base64::atob(base64, binary, binarylen);
+
+    char *result = new char[binarylen * 8/5 + 6];
+    Base32::btoa(binary, binarylen, result);
+    delete [] binary;
+
+    return result;
+}
+
+const char *MegaApi::base32ToBase64(const char *base32)
+{
+    unsigned binarylen = strlen(base32) * 5/8 + 8;
+    byte *binary = new byte[binarylen];
+    binarylen = Base32::atob(base32, binary, binarylen);
+
+    char *result = new char[binarylen * 4/3 + 4];
+    Base64::btoa(binary, binarylen, result);
+    delete [] binary;
+
+    return result;
+}
+
 void MegaApi::loadBalancing(const char *service, MegaRequestListener *listener)
 {
     pImpl->loadBalancing(service, listener);

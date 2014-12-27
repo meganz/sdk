@@ -4491,6 +4491,9 @@ class MegaApi
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
 
+        static const char *base64ToBase32(const char *base64);
+        static const char *base32ToBase64(const char *base32);
+
         /**
          * @brief loadBalancing Load balancing request
          *
