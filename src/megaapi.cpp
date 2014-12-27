@@ -818,6 +818,11 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 
 const char *MegaApi::base64ToBase32(const char *base64)
 {
+    if(!base64)
+    {
+        return NULL;
+    }
+
     unsigned binarylen = strlen(base64) * 3/4 + 4;
     byte *binary = new byte[binarylen];
     binarylen = Base64::atob(base64, binary, binarylen);
@@ -831,6 +836,11 @@ const char *MegaApi::base64ToBase32(const char *base64)
 
 const char *MegaApi::base32ToBase64(const char *base32)
 {
+    if(!base32)
+    {
+        return NULL;
+    }
+
     unsigned binarylen = strlen(base32) * 5/8 + 8;
     byte *binary = new byte[binarylen];
     binarylen = Base32::atob(base32, binary, binarylen);

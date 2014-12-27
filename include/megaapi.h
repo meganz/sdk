@@ -4508,7 +4508,28 @@ class MegaApi
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
 
+        /**
+         * @brief Convert a Base64 string to Base32
+         *
+         * If the input pointer is NULL, this function will return NULL.
+         * If the input character array isn't a valid base64 string
+         * the effect is undefined
+         *
+         * @param base64 NULL-terminated Base64 character array
+         * @return NULL-terminated Base32 character array
+         */
         static const char *base64ToBase32(const char *base64);
+
+        /**
+         * @brief Convert a Base32 string to Base64
+         *
+         * If the input pointer is NULL, this function will return NULL.
+         * If the input character array isn't a valid base32 string
+         * the effect is undefined
+         *
+         * @param base32 NULL-terminated Base32 character array
+         * @return NULL-terminated Base64 character array
+         */
         static const char *base32ToBase64(const char *base32);
 
         /**
