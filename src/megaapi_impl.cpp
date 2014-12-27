@@ -1993,6 +1993,15 @@ void MegaApiImpl::getUserData(MegaUser *user, MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_DATA, listener);
+    request->setFlag(true);
+    request->setEmail(user);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::login(const char *login, const char *password, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -4372,6 +4381,11 @@ void MegaApiImpl::pubkey_result(User *u)
     char jid[16];
     Base32::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, jid);
     request->setText(jid);
+
+    if(u->email.size())
+    {
+        request->setEmail(u->email.c_str());
+    }
 
     fireOnRequestFinish(request, MegaError(API_OK));
 }

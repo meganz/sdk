@@ -2882,6 +2882,23 @@ class MegaApi
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get data about a contact
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the XMPP ID of the contact
+         * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
+         *
+         * @param user Email or Base64 handle of the contact
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Returns the current session key
          *
          * You have to be logged in to get a valid session key. Otherwise,
