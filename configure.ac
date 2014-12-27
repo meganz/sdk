@@ -1008,15 +1008,52 @@ if test "x$enable_examples" = "xyes" ; then
        no)
          ;;
        yes)
-        TERMCAP_LIBS="-ltermcap"
+        AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
+            [AC_MSG_ERROR([termcap library is required for the sample client.])]
+        )
         ;;
        *)
-        TERMCAP_LDFLAGS="-L$with_termcap"
-        TERMCAP_LIBS="-ltermcap"
-        TERMCAP_CXXFLAGS="-I$with_termcap"
-        TERMCAP_CPPFLAGS="-I$with_termcap"
+
+        # determine if library is installed
+        if test -d "$with_termcap/lib"; then
+            LDFLAGS="-L$with_termcap/lib $LDFLAGS"
+            CXXFLAGS="-I$with_termcap/include $CXXFLAGS"
+            CPPFLAGS="-I$with_termcap/include $CPPFLAGS"
+
+            AC_CHECK_HEADERS([termcap.h],[
+                TERMCAP_LDFLAGS="-L$with_termcap/lib"
+                TERMCAP_CXXFLAGS="-I$with_termcap/include"
+                TERMCAP_CPPFLAGS="-I$with_termcap/include"],
+                AC_MSG_ERROR([termcap.h header not found or not usable])
+            )
+        else
+            LDFLAGS="-L$with_termcap $LDFLAGS"
+            CXXFLAGS="-I$with_termcap $CXXFLAGS"
+            CPPFLAGS="-I$with_termcap $CPPFLAGS"
+
+            AC_CHECK_HEADERS([termcap.h],[
+                TERMCAP_LDFLAGS="-L$with_termcap"
+                TERMCAP_CXXFLAGS="-I$with_termcap"
+                TERMCAP_CPPFLAGS="-I$with_termcap"],
+                AC_MSG_ERROR([termcap.h header not found or not usable])
+            )
+        fi
+
+        AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"], [
+            AC_MSG_ERROR([termcap library is required for the sample client.])])
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
+
         ;;
        esac
+      ],
+      [AC_MSG_RESULT([--with-termcap not specified])
+        AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
+            [AC_MSG_ERROR([termcap library is required for the sample client.])]
+        )
       ]
     )
     AC_SUBST(TERMCAP_LDFLAGS)
