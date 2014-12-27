@@ -172,6 +172,21 @@ byte Base32::to32(byte c)
     return c - 26 + '2';
 }
 
+byte Base32::from32(byte c)
+{
+    if ((c >= 'a') && (c <= 'z'))
+    {
+        return c - 'a';
+    }
+
+    if ((c >= '2') && (c <= '9'))
+    {
+        return c - '2' + 26;
+    }
+
+    return 255;
+}
+
 int Base32::btoa(const byte *b, int blen, char *a)
 {
     int p = 0;
@@ -221,6 +236,63 @@ int Base32::btoa(const byte *b, int blen, char *a)
     }
 
     a[p] = 0;
+
+    return p;
+}
+
+int Base32::atob(const char *a, byte *b, int blen)
+{
+    byte c[8];
+    int i;
+    int p = 0;
+
+    c[7] = 0;
+
+    for (;;)
+    {
+        for (i = 0; i < 8; i++)
+        {
+            if ((c[i] = from32(*a++)) == 255)
+            {
+                break;
+            }
+        }
+
+        if ((p >= blen) || !i)
+        {
+            return p;
+        }
+
+        b[p++] = (c[0] << 3) | ((c[1] & 0x1C) >> 2);
+
+        if ((p >= blen) || (i < 4))
+        {
+            return p;
+        }
+
+        b[p++] = (c[1] << 6) | (c[2] << 1) | ((c[3] & 0x10) >> 4);
+
+        if ((p >= blen) || (i < 5))
+        {
+            return p;
+        }
+
+        b[p++] = (c[3] << 4) | ((c[4] & 0x1E) >> 1);
+
+        if ((p >= blen) || (i < 7))
+        {
+            return p;
+        }
+
+        b[p++] = (c[4] << 7) | (c[5] << 2) | ((c[6] & 0x18) >> 3);
+
+        if ((p >= blen) || (i < 8))
+        {
+            return p;
+        }
+
+        b[p++] = (c[6] << 5) | c[7];
+    }
 
     return p;
 }

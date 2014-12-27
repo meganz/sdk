@@ -40,9 +40,11 @@ public:
 class MEGA_API Base32
 {
     static byte to32(byte);
+    static byte from32(byte);
 
 public:
     static int btoa(const byte*, int, char*);
+    static int atob(const char*, byte*, int);
 };
 } // namespace
 
