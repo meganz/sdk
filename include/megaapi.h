@@ -446,6 +446,7 @@ class MegaNode
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
          *
          * You take the ownership of the returned string.
+         * Use delete [] to free it.
          *
          * @return Base64-encoded handle of the node
          */
@@ -493,6 +494,7 @@ class MegaNode
          * The return value is only valid for nodes of type TYPE_FILE
          *
          * You take the ownership of the returned string.
+         * Use delete [] to free it.
          *
          * @return Returns the key of the node.
          */
@@ -2493,6 +2495,8 @@ class MegaApiImpl;
  *
  * After using MegaApi::logout you can reuse the same MegaApi object to log in to another MEGA account or a public folder.
  *
+ * Some functions in this class return a pointer and give you the ownership. In all of them, memory allocations
+ * are made using new (for single objects) and new[] (for arrays) so you should use delete and delete[] to free them.
  */
 class MegaApi
 {
@@ -4515,6 +4519,8 @@ class MegaApi
          * If the input character array isn't a valid base64 string
          * the effect is undefined
          *
+         * You take the ownership of the returned value
+         *
          * @param base64 NULL-terminated Base64 character array
          * @return NULL-terminated Base32 character array
          */
@@ -4526,6 +4532,8 @@ class MegaApi
          * If the input pointer is NULL, this function will return NULL.
          * If the input character array isn't a valid base32 string
          * the effect is undefined
+         *
+         * You take the ownership of the returned value
          *
          * @param base32 NULL-terminated Base32 character array
          * @return NULL-terminated Base64 character array
