@@ -1765,6 +1765,8 @@ void CommandGetUserData::procresult()
     string pubk;
     string privk;
     handle jid = UNDEF;
+    byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
+    int len_privk = 0;
 
     if (client->json.isnumeric())
     {
@@ -1788,7 +1790,10 @@ void CommandGetUserData::procresult()
             break;
 
         case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
-            client->json.storeobject(&privk);
+            len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
+            client->key.ecb_decrypt(privkbuf, len_privk);
+            privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+            privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
             break;
 
         case EOO:
