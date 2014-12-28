@@ -498,14 +498,14 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-h --help] [-d --debug] [-l --local] [-n --no_examples] [--make_opts] [-p --prefix]"
+    echo " $app [-h] [-d] [-l] [-m] [-n] [-p]"
     echo ""
     echo "Options:"
-    echo " -d, --debug: Enable debug build"
-    echo " -l, --local: Use local software archive files instead of downloading"
-    echo " -n, --no_examples: Disable example applications"
-    echo " --make_opts=[opts]: make options"
-    echo " --prefix=[path]: Installation directory"
+    echo " -d : Enable debug build"
+    echo " -l : Use local software archive files instead of downloading"
+    echo " -n : Disable example applications"
+    echo " -m [opts]: make options"
+    echo " -p [path]: Installation directory"
     echo ""
 }
 
@@ -517,53 +517,41 @@ main() {
     local debug=""
     local no_examples=""
 
-    OPTS=`getopt -o dhln -l debug,no_examples,help,local,make_opts:,prefix: -- "$@"`
-    eval set -- "$OPTS"
-    while true ; do
-        case "$1" in
-            -h)
+    while getopts ":hdlm:np:" opt; do
+        case $opt in
+            h)
                 display_help $0
                 exit
-                shift;;
-            --help)
-                display_help $0
-                exit
-                shift;;
-            -d)
+                ;;
+            d)
                 echo "DEBUG build"
                 debug="--enable-debug"
-                shift;;
-            --debug)
-                echo "DEBUG build"
-                debug="--enable-debug"
-                shift;;
-            -l)
+                ;;
+            l)
                 echo "Using local files"
                 use_local=1
-                shift;;
-            --local)
-                echo "Using local files"
-                use_local=1
-                shift;;
-            --make_opts)
-                make_opts="$2"
-                shift 2;;
-            -n)
-                echo "DEBUG build"
+                ;;
+            m)
+                make_opts="$OPTARG"
+                ;;
+            n)
                 no_examples="--disable-examples"
-                shift;;
-            --no_examples)
-                no_examples="--disable-examples"
-                shift;;
-            --prefix)
-                install_dir=$(readlink -f $2)
+                ;;
+            p)
+                install_dir=$(readlink -f $OPTARG)
                 echo "Installing into $install_dir"
-                shift 2;;
-            --)
-                shift;
-                break;;
+                ;;
+            \?)
+                display_help $0
+                exit
+                ;;
+            *)
+                display_help $0
+                exit
+                ;;
         esac
     done
+    shift $((OPTIND-1))
 
     check_apps
 
