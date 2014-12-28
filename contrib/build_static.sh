@@ -583,8 +583,8 @@ main() {
     export PREFIX=$install_dir
     local old_pkg_conf=$PKG_CONFIG_PATH
     export PKG_CONFIG_PATH=$install_dir/lib/pkgconfig/
-    export LD_LIBRARY_PATH=$install_dir
-    export LD_RUN_PATH=$install_dir
+    export LD_LIBRARY_PATH="$install_dir/lib"
+    export LD_RUN_PATH="$install_dir/lib"
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         openssl_pkg $build_dir $install_dir
