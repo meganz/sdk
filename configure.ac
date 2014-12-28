@@ -1100,8 +1100,12 @@ if test "x$enable_examples" = "xyes" ; then
             )
         fi
 
+        # readline requires termcap (or ncurses)
+        SAVE_LIBS=$LIBS
+        LIBS="$TERMCAP_LIBS $LIBS"
         AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
+        LIBS=$SAVE_LIBS
 
         #restore
         LDFLAGS=$SAVE_LDFLAGS
