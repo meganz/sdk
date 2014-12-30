@@ -3047,7 +3047,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 
 // update node attributes - optional newattr is { name, value, name, value, ..., NULL }
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char** newattr)
+error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
 {
     if (!checkaccess(n, FULL))
     {
@@ -3073,7 +3073,7 @@ error MegaClient::setattr(Node* n, const char** newattr)
     n->changed.attrs = true;
     notifynode(n);
 
-    reqs[r].add(new CommandSetAttr(this, n, cipher));
+    reqs[r].add(new CommandSetAttr(this, n, cipher, prevattr));
 
     return API_OK;
 }
@@ -3196,7 +3196,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 {
     error e;
 
@@ -3213,7 +3213,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel)
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs[r].add(new CommandMoveNode(this, n, p, syncdel));
+        reqs[r].add(new CommandMoveNode(this, n, p, syncdel, prevparent));
     }
 
     return API_OK;
@@ -4425,11 +4425,25 @@ void MegaClient::getua(User* u, const char* an, int p)
 // queue node for notification
 void MegaClient::notifynode(Node* n)
 {
+    n->applykey();
+
 #ifdef ENABLE_SYNC
     // is this a synced node that was moved to a non-synced location? queue for
     // deletion from LocalNodes.
     if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
     {
+        if(n->changed.removed || n->changed.parent)
+        {
+            if (n->type == FOLDERNODE)
+            {
+                app->syncupdate_remote_folder_deletion(n->localnode->sync, n);
+            }
+            else
+            {
+                app->syncupdate_remote_file_deletion(n->localnode->sync, n);
+            }
+        }
+
         n->localnode->deleted = true;
         n->localnode->node = NULL;
         n->localnode = NULL;
@@ -4447,6 +4461,29 @@ void MegaClient::notifynode(Node* n)
         if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
         {
             n->parent->localnode->deleted = n->changed.removed;
+            if (!n->changed.removed && n->changed.parent)
+            {
+                if(!n->localnode)
+                {
+                    if (n->type == FOLDERNODE)
+                    {
+                        app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
+                    }
+                    else
+                    {
+                        app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
+                    }
+                }
+                else
+                {
+                    app->syncupdate_remote_move(n->localnode->sync, n,
+                        n->localnode->parent ? n->localnode->parent->node : NULL);
+                }
+            }
+        }
+        else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
+        {
+            app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
         }
     }
 #endif
@@ -5698,6 +5735,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                         if (fsaccess->renamelocal(&curpath, localpath))
                         {
+                            fsaccess->local2path(localpath, &localname);
+                            app->syncupdate_local_move(rit->second->localnode->sync,
+                                                       rit->second->localnode, localname.c_str());
+
                             // update LocalNode tree to reflect the move/rename
                             rit->second->localnode->setnameparent(l, localpath);
 
@@ -5725,7 +5766,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         if (!rit->second->syncget)
                         {
                             fsaccess->local2path(localpath, &localname);
-                            app->syncupdate_get(l->sync, localname.c_str());
+                            app->syncupdate_get(l->sync, rit->second, localname.c_str());
 
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
@@ -6150,7 +6191,7 @@ void MegaClient::syncupdate()
 
                 l->getlocalpath(&tmplocalpath, true);
                 fsaccess->local2path(&tmplocalpath, &tmppath);
-                app->syncupdate_put(l->sync, tmppath.c_str());
+                app->syncupdate_put(l->sync, l, tmppath.c_str());
             }
         }
 
@@ -6185,10 +6226,9 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
     // FIXME: retrigger sync decision upload them immediately
     while (nni--)
     {
+        Node* n;
         if (nn[nni].type == FILENODE && !nn[nni].added)
         {
-            Node* n;
-
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
                 if (n->fingerprint_it != fingerprints.end())
@@ -6196,6 +6236,17 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
                     fingerprints.erase(n->fingerprint_it);
                     n->fingerprint_it = fingerprints.end();
                 }
+            }
+        }
+        else if (nn[nni].localnode && (n = nn[nni].localnode->node))
+        {
+            if (n->type == FOLDERNODE)
+            {
+                app->syncupdate_remote_folder_addition(nn[nni].localnode->sync, n);
+            }
+            else
+            {
+                app->syncupdate_remote_file_addition(nn[nni].localnode->sync, n);
             }
         }
     }
@@ -6216,6 +6267,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     // detach node from LocalNode
     if (dn->localnode)
     {
+        dn->tag = dn->localnode->sync->tag;
         dn->localnode->node = NULL;
         dn->localnode = NULL;
     }
@@ -6266,6 +6318,7 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
+            reqtag = tn->tag;
             unlink(tn);
         }
 
@@ -6343,8 +6396,8 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
-                    reqtag = 0;
-                    rename(n, tn, target);
+                    reqtag = n->tag;
+                    rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
                     it++;
                 }
                 else

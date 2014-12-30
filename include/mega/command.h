@@ -243,12 +243,14 @@ public:
 class MEGA_API CommandMoveNode : public Command
 {
     handle h;
+    handle pp;
+    bool syncop;
     syncdel_t syncdel;
 
 public:
     void procresult();
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, handle = UNDEF);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -340,11 +342,13 @@ public:
 class MEGA_API CommandSetAttr : public Command
 {
     handle h;
+    string pa;
+    bool syncop;
 
 public:
     void procresult();
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL);
 };
 
 class MEGA_API CommandSetShare : public Command

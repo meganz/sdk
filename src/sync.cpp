@@ -599,7 +599,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                         client->execmovetosyncdebris();
 
                                         // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
+                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                                         // (in case of a move, this synchronously updates l->parent and l->node->parent)
                                         it->second->setnameparent(parent, localname ? localpath : &tmppath);
@@ -635,7 +635,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                 localbytes -= dsize - l->size;
                             }
 
-                            client->app->syncupdate_local_file_change(this, path.c_str());
+                            client->app->syncupdate_local_file_change(this, l, path.c_str());
 
                             client->stopxfer(l);
                             l->bumpnagleds();
@@ -675,7 +675,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
                 {
-                    client->app->syncupdate_local_move(this, it->second->name.c_str(), path.c_str());
+                    client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)
@@ -719,7 +719,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 if (newnode)
                 {
                     scan(localname ? localpath : &tmppath, fa);
-                    client->app->syncupdate_local_folder_addition(this, path.c_str());
+                    client->app->syncupdate_local_folder_addition(this, l, path.c_str());
 
                     if (!isroot)
                     {
@@ -760,11 +760,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
                     if (newnode)
                     {
-                        client->app->syncupdate_local_file_addition(this, path.c_str());
+                        client->app->syncupdate_local_file_addition(this, l, path.c_str());
                     }
                     else if (changed)
                     {
-                        client->app->syncupdate_local_file_change(this, path.c_str());
+                        client->app->syncupdate_local_file_change(this, l, path.c_str());
                     }
 
                     if (newnode || changed)

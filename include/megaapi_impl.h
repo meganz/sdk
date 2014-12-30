@@ -316,6 +316,36 @@ class MegaTransferPrivate : public MegaTransfer
 
 #ifdef ENABLE_SYNC
 
+class MegaSyncEventPrivate: public MegaSyncEvent
+{
+public:
+    MegaSyncEventPrivate(int type);
+    virtual ~MegaSyncEventPrivate();
+
+    virtual MegaSyncEvent *copy();
+
+    virtual int getType() const;
+    virtual const char *getPath() const;
+    virtual MegaHandle getNodeHandle() const;
+    virtual const char *getNewPath() const;
+    virtual const char* getPrevName() const;
+    virtual MegaHandle getPrevParent() const;
+
+    void setPath(const char* path);
+    void setNodeHandle(MegaHandle nodeHandle);
+    void setNewPath(const char* newPath);
+    void setPrevName(const char* prevName);
+    void setPrevParent(MegaHandle prevParent);
+
+protected:
+    int type;
+    const char* path;
+    const char* newPath;
+    const char* prevName;
+    MegaHandle nodeHandle;
+    MegaHandle prevParent;
+};
+
 class MegaSyncPrivate : public MegaSync
 {  
 public:
@@ -882,6 +912,7 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
+        void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState);
 #endif
 
@@ -1023,21 +1054,21 @@ protected:
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);
         virtual void syncupdate_scanning(bool scanning);
-        virtual void syncupdate_stuck(string*);
-        virtual void syncupdate_local_folder_addition(Sync*, const char*);
-        virtual void syncupdate_local_folder_deletion(Sync*, const char*);
-        virtual void syncupdate_local_file_addition(Sync*, const char*);
-        virtual void syncupdate_local_file_deletion(Sync*, const char*);
-        virtual void syncupdate_local_file_change(Sync*, const char*);
-        virtual void syncupdate_local_move(Sync*, const char*, const char*);
-        virtual void syncupdate_get(Sync*, const char*);
-        virtual void syncupdate_put(Sync*, const char*);
-        virtual void syncupdate_remote_file_addition(Node*);
-        virtual void syncupdate_remote_file_deletion(Node*);
-        virtual void syncupdate_remote_folder_addition(Node*);
-        virtual void syncupdate_remote_folder_deletion(Node*);
+        virtual void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path);
+        virtual void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode);
+        virtual void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path);
+        virtual void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode);
+        virtual void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path);
+        virtual void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path);
+        virtual void syncupdate_get(Sync* sync, Node *node, const char* path);
+        virtual void syncupdate_put(Sync* sync, LocalNode *localNode, const char*);
+        virtual void syncupdate_remote_file_addition(Sync *sync, Node* n);
+        virtual void syncupdate_remote_file_deletion(Sync *sync, Node* n);
+        virtual void syncupdate_remote_folder_addition(Sync *sync, Node* n);
+        virtual void syncupdate_remote_folder_deletion(Sync* sync, Node* n);
         virtual void syncupdate_remote_copy(Sync*, const char*);
-        virtual void syncupdate_remote_move(string*, string*);
+        virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
+        virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
         virtual bool sync_syncable(Node*);
         virtual bool sync_syncable(const char*name, string*, string*);

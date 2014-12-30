@@ -1732,6 +1732,99 @@ class MegaTransfer
 #ifdef ENABLE_SYNC
 
 /**
+ * @brief Provides information about a synchronization event
+ *
+ * This object is provided in callbacks related to the synchronization engine
+ * (MegaListener::onSyncEvent MegaSyncListener::onSyncEvent)
+ */
+class MegaSyncEvent
+{
+public:
+
+    /**
+     * Event types.
+     */
+    enum {
+        TYPE_LOCAL_FOLDER_ADITION, TYPE_LOCAL_FOLDER_DELETION,
+        TYPE_LOCAL_FILE_ADDITION, TYPE_LOCAL_FILE_DELETION,
+        TYPE_LOCAL_FILE_CHANGED, TYPE_LOCAL_MOVE,
+        TYPE_REMOTE_FOLDER_ADDITION, TYPE_REMOTE_FOLDER_DELETION,
+        TYPE_REMOTE_FILE_ADDITION, TYPE_REMOTE_FILE_DELETION,
+        TYPE_REMOTE_MOVE, TYPE_REMOTE_RENAME,
+        TYPE_FILE_GET, TYPE_FILE_PUT
+    };
+
+    virtual ~MegaSyncEvent() = 0;
+
+    virtual MegaSyncEvent *copy() = 0;
+
+    /**
+     * @brief Returns the type of event
+     * @return Type of event
+     */
+    virtual int getType() const = 0;
+
+    /**
+     * @brief Returns the local path related to the event.
+     *
+     * If there isn't any local path related to the event (remote events)
+     * this function returns NULL
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaSyncEvent object is deleted.
+     *
+     * @return Local path related to the event
+     */
+    virtual const char* getPath() const = 0;
+
+    /**
+     * @brief getNodeHandle Returns the node handle related to the event
+     *
+     * If there isn't any local path related to the event (remote events)
+     * this function returns mega::INVALID_HANDLE
+     *
+     * @return Node handle related to the event
+     */
+    virtual MegaHandle getNodeHandle() const = 0;
+
+    /**
+     * @brief Returns the previous path of the local file.
+     *
+     * This data is only valid when the event type is TYPE_LOCAL_MOVE
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaSyncEvent object is deleted.
+     *
+     * @return Previous path of the local file.
+     */
+    virtual const char* getNewPath() const = 0;
+
+    /**
+     * @brief Returns the previous name of the remote node
+     *
+     * This data is only valid when the event type is TYPE_REMOTE_RENAME
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaSyncEvent object is deleted.
+     *
+     * @return Previous name of the remote node
+     */
+    virtual const char* getPrevName() const = 0;
+
+    /**
+     * @brief Returns the handle of the previous parent of the remote node
+     *
+     * This data is only valid when the event type is TYPE_REMOTE_MOVE
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaSyncEvent object is deleted.
+     *
+     * @return Handle of the previous parent of the remote node
+     */
+    virtual MegaHandle getPrevParent() const = 0;
+};
+
+/**
  * @brief Provides information about a synchronization
  *
  * Developers can use listeners (MegaListener, MegaSyncListener)
@@ -1760,6 +1853,7 @@ public:
      * The file is being synced with the MEGA account
      *
      * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object related that manages the file
      * @param filePath Local path of the file
      * @param newState New state of the file
      */
@@ -1774,8 +1868,24 @@ public:
      * You can use MegaSync::getState to get the new state.
      *
      * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that has changed the state
      */
     virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
+
+    /**
+     * @brief This function is called when there is a synchronization event
+     *
+     * Synchronization events can be local deletions, local additions, remote deletions,
+     * remote additions, etc. See MegaSyncEvent to know the full list of event types
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that detects the event
+     * @param event Information about the event
+     *
+     * This parameter will be deleted just after the callback. If you want to save it use
+     * MegaSyncEvent::copy
+     */
+    virtual void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event);
 };
 
 /**
@@ -2446,10 +2556,26 @@ class MegaListener
      * The file is being synced with the MEGA account
      *
      * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object manages the file
      * @param filePath Local path of the file
      * @param newState New state of the file
      */
     virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+
+    /**
+     * @brief This function is called when there is a synchronization event
+     *
+     * Synchronization events can be local deletions, local additions, remote deletions,
+     * remote additions, etc. See MegaSyncEvent to know the full list of event types
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that detects the event
+     * @param event Information about the event
+     *
+     * This parameter will be deleted just after the callback. If you want to save it use
+     * MegaSyncEvent::copy
+     */
+    virtual void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event);
 
     /**
      * @brief This function is called when the state of the synchronization changes
@@ -2458,6 +2584,7 @@ class MegaListener
      * MegaSync::getState to get the new state of the synchronization
      *
      * @param api MegaApi object that is synchronizing files
+     * @param sync MegaSync object that has changed its state
      */
     virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
 

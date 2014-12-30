@@ -149,21 +149,22 @@ struct MEGA_API MegaApp
     // sync status updates and events
     virtual void syncupdate_state(Sync*, syncstate_t) { }
     virtual void syncupdate_scanning(bool) { }
-    virtual void syncupdate_local_folder_addition(Sync*, const char*) { }
-    virtual void syncupdate_local_folder_deletion(Sync*, const char*) { }
-    virtual void syncupdate_local_file_addition(Sync*, const char*) { }
-    virtual void syncupdate_local_file_deletion(Sync*, const char*) { }
-    virtual void syncupdate_local_file_change(Sync*, const char*) { }
-    virtual void syncupdate_local_move(Sync*, const char*, const char*) { }
+    virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
+    virtual void syncupdate_local_file_addition(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_local_file_deletion(Sync*, LocalNode*) { }
+    virtual void syncupdate_local_file_change(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_local_move(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_lockretry(bool) { }
-    virtual void syncupdate_get(Sync*, const char*) { }
-    virtual void syncupdate_put(Sync*, const char*) { }
-    virtual void syncupdate_remote_file_addition(Node*) { }
-    virtual void syncupdate_remote_file_deletion(Node*) { }
-    virtual void syncupdate_remote_folder_addition(Node*) { }
-    virtual void syncupdate_remote_folder_deletion(Node*) { }
+    virtual void syncupdate_get(Sync*, Node*, const char*) { }
+    virtual void syncupdate_put(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_remote_file_addition(Sync*, Node*) { }
+    virtual void syncupdate_remote_file_deletion(Sync*, Node*) { }
+    virtual void syncupdate_remote_folder_addition(Sync*, Node*) { }
+    virtual void syncupdate_remote_folder_deletion(Sync*, Node*) { }
     virtual void syncupdate_remote_copy(Sync*, const char*) { }
-    virtual void syncupdate_remote_move(string*, string*) { }
+    virtual void syncupdate_remote_move(Sync*, Node*, Node*) { }
+    virtual void syncupdate_remote_rename(Sync*, Node*, const char*) { }
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
