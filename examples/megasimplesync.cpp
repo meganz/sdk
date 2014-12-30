@@ -422,7 +422,7 @@ void SyncApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
 
 void SyncApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
 {
-    LOG_debug << "Sync - remote rename " << prevname << " -> " << n->displayname() << endl;
+    LOG_debug << "Sync - remote rename " << prevname << " -> " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_folder_addition(Sync *, Node* n)
