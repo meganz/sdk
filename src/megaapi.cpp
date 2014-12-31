@@ -265,6 +265,8 @@ void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 void MegaListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState)
 { }
+void MegaListener::onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event)
+{ }
 void MegaListener::onSyncStateChanged(MegaApi *api, MegaSync *sync)
 { }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *api)
@@ -1131,4 +1133,12 @@ void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char 
 
 void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
+
+void MegaSyncListener::onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event)
+{ }
+
+MegaSyncEvent::~MegaSyncEvent()
+{ }
+
 #endif
+

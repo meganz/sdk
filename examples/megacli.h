@@ -148,21 +148,22 @@ struct DemoApp : public MegaApp
 #ifdef ENABLE_SYNC
     void syncupdate_state(Sync*, syncstate_t);
     void syncupdate_scanning(bool);
-    void syncupdate_local_folder_addition(Sync*, const char*);
-    void syncupdate_local_folder_deletion(Sync*, const char*);
-    void syncupdate_local_file_addition(Sync*, const char*);
-    void syncupdate_local_file_deletion(Sync*, const char*);
-    void syncupdate_local_file_change(Sync*, const char*);
-    void syncupdate_local_move(Sync*, const char*, const char*);
+    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*);
+    void syncupdate_local_folder_deletion(Sync* , LocalNode*);
+    void syncupdate_local_file_addition(Sync*, LocalNode*, const char*);
+    void syncupdate_local_file_deletion(Sync*, LocalNode*);
+    void syncupdate_local_file_change(Sync*, LocalNode*, const char*);
+    void syncupdate_local_move(Sync*, LocalNode*, const char*);
     void syncupdate_local_lockretry(bool);
-    void syncupdate_get(Sync*, const char*);
-    void syncupdate_put(Sync*, const char*);
-    void syncupdate_remote_file_addition(Node*);
-    void syncupdate_remote_file_deletion(Node*);
-    void syncupdate_remote_folder_addition(Node*);
-    void syncupdate_remote_folder_deletion(Node*);
+    void syncupdate_get(Sync*, Node*, const char*);
+    void syncupdate_put(Sync*, LocalNode*, const char*);
+    void syncupdate_remote_file_addition(Sync*, Node*);
+    void syncupdate_remote_file_deletion(Sync*, Node*);
+    void syncupdate_remote_folder_addition(Sync*, Node*);
+    void syncupdate_remote_folder_deletion(Sync*, Node*);
     void syncupdate_remote_copy(Sync*, const char*);
-    void syncupdate_remote_move(string*, string*);
+    void syncupdate_remote_move(Sync*, Node*, Node*);
+    void syncupdate_remote_rename(Sync*, Node*, const char*);
     void syncupdate_treestate(LocalNode*);
 
     bool sync_syncable(Node*);

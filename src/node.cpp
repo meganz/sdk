@@ -828,9 +828,12 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 if (name != node->attrs.map['n'])
                 {
+                    string prevname = node->attrs.map['n'];
+
                     // set new name
                     node->attrs.map['n'] = name;
-                    sync->client->setattr(node);
+                    sync->client->reqtag = sync->tag;
+                    sync->client->setattr(node, NULL, prevname.c_str());
                     treestate(TREESTATE_SYNCING);
                 }
             }
@@ -854,7 +857,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 
                 // FIXME: detect if rename permitted, copy/delete if not
                 sync->client->reqtag = sync->tag;
-                sync->client->rename(node, parent->node);
+                sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF);
                 treestate(TREESTATE_SYNCING);
             }
         }
@@ -1044,11 +1047,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, name.c_str());
+            sync->client->app->syncupdate_local_folder_deletion(sync, this);
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, name.c_str());
+            sync->client->app->syncupdate_local_file_deletion(sync, this);
         }
     }
 

@@ -275,39 +275,39 @@ void DemoApp::syncupdate_scanning(bool active)
 }
 
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
-void DemoApp::syncupdate_local_folder_addition(Sync* sync, const char* path)
+void DemoApp::syncupdate_local_folder_addition(Sync* sync, LocalNode *, const char* path)
 {
     cout << "Sync - local folder addition detected: " << path;
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_folder_deletion(Sync* sync, const char* path)
+void DemoApp::syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode)
 {
-    cout << "Sync - local folder deletion detected: " << path;
+    cout << "Sync - local folder deletion detected: " << localNode->name;
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_addition(Sync* sync, const char* path)
+void DemoApp::syncupdate_local_file_addition(Sync* sync, LocalNode *, const char* path)
 {
     cout << "Sync - local file addition detected: " << path;
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_deletion(Sync* sync, const char* path)
+void DemoApp::syncupdate_local_file_deletion(Sync* sync, LocalNode *localNode)
 {
-    cout << "Sync - local file deletion detected: " << path;
+    cout << "Sync - local file deletion detected: " << localNode->name;
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_change(Sync* sync, const char* path)
+void DemoApp::syncupdate_local_file_change(Sync* sync, LocalNode *, const char* path)
 {
     cout << "Sync - local file change detected: " << path;
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_move(Sync*, const char* from, const char* to)
+void DemoApp::syncupdate_local_move(Sync*, LocalNode *localNode, const char* path)
 {
-    cout << "Sync - local rename/move " << from << " -> " << to << endl;
+    cout << "Sync - local rename/move " << localNode->name << " -> " << path << endl;
 }
 
 void DemoApp::syncupdate_local_lockretry(bool locked)
@@ -322,37 +322,43 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
     }
 }
 
-void DemoApp::syncupdate_remote_move(string* from, string* to)
+void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
 {
-    cout << "Sync - remote rename/move " << *from << " -> " << *to << endl;
+    cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
+            " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
 }
 
-void DemoApp::syncupdate_remote_folder_addition(Node* n)
+void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
+{
+    cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
+}
+
+void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
 {
     cout << "Sync - remote folder addition detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_file_addition(Node* n)
+void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
 {
     cout << "Sync - remote file addition detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_folder_deletion(Node* n)
+void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
 {
     cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_file_deletion(Node* n)
+void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
 {
     cout << "Sync - remote file deletion detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_get(Sync*, const char* path)
+void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
 {
     cout << "Sync - requesting file " << path << endl;
 }
 
-void DemoApp::syncupdate_put(Sync*, const char* path)
+void DemoApp::syncupdate_put(Sync*, LocalNode *, const char* path)
 {
     cout << "Sync - sending file " << path << endl;
 }

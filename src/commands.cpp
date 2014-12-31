@@ -595,7 +595,7 @@ void CommandGetFile::procresult()
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr)
 {
     cmd("a");
     notself(client);
@@ -610,13 +610,41 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher)
 
     h = n->nodehandle;
     tag = client->reqtag;
+    syncop = prevattr;
+
+    if(prevattr)
+    {
+        pa = prevattr;
+    }
 }
 
 void CommandSetAttr::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->setattr_result(h, (error)client->json.getint());
+        error e = (error)client->json.getint();
+        if(!e && syncop)
+        {
+            Node* node = client->nodebyhandle(h);
+            if(node)
+            {
+                Sync* sync = NULL;
+                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                {
+                    if((*it)->tag == tag)
+                    {
+                        sync = (*it);
+                        break;
+                    }
+                }
+
+                if(sync)
+                {
+                    client->app->syncupdate_remote_rename(sync, node, pa.c_str());
+                }
+            }
+        }
+        client->app->setattr_result(h, e);
     }
     else
     {
@@ -815,10 +843,12 @@ void CommandPutNodes::procresult()
     }
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
 {
     h = n->nodehandle;
     syncdel = csyncdel;
+    pp = prevparent;
+    syncop == pp != UNDEF;
 
     cmd("m");
     notself(client);
@@ -856,6 +886,31 @@ void CommandMoveNode::procresult()
                         do {
                             if (n == syncn)
                             {
+                                if(syncop)
+                                {
+                                    Sync* sync = NULL;
+                                    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                                    {
+                                        if((*it)->tag == tag)
+                                        {
+                                            sync = (*it);
+                                            break;
+                                        }
+                                    }
+
+                                    if(sync)
+                                    {
+                                        if (n->type == FOLDERNODE)
+                                        {
+                                            sync->client->app->syncupdate_remote_folder_deletion(sync, n);
+                                        }
+                                        else
+                                        {
+                                            sync->client->app->syncupdate_remote_file_deletion(sync, n);
+                                        }
+                                    }
+                                }
+
                                 (*it)->syncdeleted = syncdel;
                                 break;
                             }
@@ -865,6 +920,27 @@ void CommandMoveNode::procresult()
                 else
                 {
                     syncn->syncdeleted = SYNCDEL_NONE;
+                }
+            }
+        }
+        else if(syncop)
+        {
+            Node *n = client->nodebyhandle(h);
+            if(n)
+            {
+                Sync *sync = NULL;
+                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                {
+                    if((*it)->tag == tag)
+                    {
+                        sync = (*it);
+                        break;
+                    }
+                }
+
+                if(sync)
+                {
+                    client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
                 }
             }
         }
