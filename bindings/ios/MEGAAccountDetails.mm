@@ -1,5 +1,5 @@
 /**
- * @file MEGAAcountDetails.mm
+ * @file MEGAAccountDetails.mm
  * @brief Details about a MEGA account
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -23,17 +23,14 @@
 
 using namespace mega;
 
-@interface MEGAAcountDetails ()
-
-- (instancetype)initWithMegaAccountDetails:(MegaAccountDetails *)accountDetails cMemoryOwn:(BOOL)cMemoryOwn;
-- (MegaAccountDetails *)getCPtr;
+@interface MEGAAccountDetails ()
 
 @property MegaAccountDetails *accountDetails;
 @property BOOL cMemoryOwn;
 
 @end
 
-@implementation MEGAAcountDetails
+@implementation MEGAAccountDetails
 
 - (instancetype)initWithMegaAccountDetails:(MegaAccountDetails *)accountDetails cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
@@ -53,7 +50,7 @@ using namespace mega;
 }
 
 - (instancetype)clone {
-    return self.accountDetails ? [[MEGAAcountDetails alloc] initWithMegaAccountDetails:self.accountDetails->copy() cMemoryOwn:YES] : nil;
+    return self.accountDetails ? [[MEGAAccountDetails alloc] initWithMegaAccountDetails:self.accountDetails->copy() cMemoryOwn:YES] : nil;
 }
 
 - (MegaAccountDetails *)getCPtr {

@@ -21,6 +21,7 @@
 #import "MEGARequest.h"
 #import "MEGANode+init.h"
 #import "MEGAPricing+init.h"
+#import "MEGAAccountDetails+init.h"
 
 using namespace mega;
 
@@ -161,11 +162,11 @@ using namespace mega;
     return self.megaRequest ? [[NSNumber alloc] initWithLongLong:self.megaRequest->getTotalBytes()] : nil;
 }
 
-- (MEGAAcountDetails *) megaAccountDetails  {
-    return nil;
+- (MEGAAccountDetails *)megaAccountDetails  {
+    return self.megaRequest ? [[MEGAAccountDetails alloc] initWithMegaAccountDetails:self.megaRequest->getMegaAccountDetails() cMemoryOwn:YES] : nil;
 }
 
-- (MEGAPricing *)getPricing {
+- (MEGAPricing *)pricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
 }
 

@@ -1,5 +1,5 @@
 /**
- * @file MEGAAcountDetails.h
+ * @file MEGAAccountDetails.h
  * @brief Details about a MEGA account
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -30,7 +30,7 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
 /**
  * @brief Details about a MEGA account.
  */
-@interface MEGAAcountDetails : NSObject
+@interface MEGAAccountDetails : NSObject
 
 /**
  * @brief Used storage for the account (in bytes).
@@ -64,15 +64,15 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
 @property (readonly, nonatomic) MEGAAccountType type;
 
 /**
- * @brief Creates a copy of this MEGAAcountDetails object.
+ * @brief Creates a copy of this MEGAAccountDetails object.
  *
- * The resulting object is fully independent of the source MEGAAcountDetails,
+ * The resulting object is fully independent of the source MEGAAccountDetails,
  * it contains a copy of all internal attributes, so it will be valid after
  * the original object is deleted.
  *
  * You are the owner of the returned object.
  *
- * @return Copy of the MEGAAcountDetails object.
+ * @return Copy of the MEGAAccountDetails object.
  */
 - (instancetype)clone;
 

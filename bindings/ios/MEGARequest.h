@@ -346,7 +346,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getAccountDetails] - Details of the MEGA account
  *
  */
-@property (readonly, nonatomic) MEGAAcountDetails *megaAcountDetails;
+@property (readonly, nonatomic) MEGAAccountDetails *megaAccountDetails;
 
 /**
  * @brief Available pricing plans to upgrade a MEGA account.

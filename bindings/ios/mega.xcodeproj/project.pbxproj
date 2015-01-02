@@ -95,6 +95,7 @@
 
 /* Begin PBXFileReference section */
 		416812A419EE73CF00C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
+		41AA739B1A56B246008601DD /* MEGAAccountDetails+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAAccountDetails+init.h"; sourceTree = "<group>"; };
 		41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGASdk+init.h"; sourceTree = "<group>"; };
 		41AB68F11A094194003FE608 /* GfxProcCG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GfxProcCG.cpp; sourceTree = "<group>"; };
 		41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
@@ -553,6 +554,7 @@
 				940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */,
 				41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */,
 				41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */,
+				41AA739B1A56B246008601DD /* MEGAAccountDetails+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
