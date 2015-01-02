@@ -84,6 +84,13 @@ void Request::procresult(MegaClient* client)
 
 void Request::clear()
 {
+    for (int i = (int)cmds.size(); i--; )
+    {
+        if (!cmds[i]->persistent)
+        {
+            delete cmds[i];
+        }
+    }
     cmds.clear();
 }
 } // namespace
