@@ -407,7 +407,7 @@ void MegaClient::init()
         rootnodes[i] = UNDEF;
     }
 
-    pendingcs = NULL;
+    delete pendingsc;
     pendingsc = NULL;
 
     curfa = newfa.end();
@@ -439,6 +439,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncadding = 0;
     currsyncid = 0;
 #endif
+
+    pendingcs = NULL;
+    pendingsc = NULL;
 
     init();
 
@@ -1928,6 +1931,9 @@ void MegaClient::logout()
     {
         reqs[i].clear();
     }
+
+    delete pendingcs;
+    pendingcs = NULL;
 
     for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
     {
