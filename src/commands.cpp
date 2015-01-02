@@ -623,6 +623,7 @@ void CommandSetAttr::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+#ifdef ENABLE_SYNC
         if(!e && syncop)
         {
             Node* node = client->nodebyhandle(h);
@@ -644,6 +645,7 @@ void CommandSetAttr::procresult()
                 }
             }
         }
+#endif
         client->app->setattr_result(h, e);
     }
     else

@@ -39,8 +39,9 @@ class SyncApp : public MegaApp
     void fetchnodes_result(error e);
 
     void request_error(error e);
-    void syncupdate_state(Sync *, syncstate_t);
 
+#ifdef ENABLE_SYNC
+    void syncupdate_state(Sync *, syncstate_t);
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *);
     void syncupdate_local_folder_deletion(Sync*, LocalNode*);
     void syncupdate_local_file_addition(Sync*, LocalNode*, const char *);
@@ -57,6 +58,7 @@ class SyncApp : public MegaApp
     void syncupdate_remote_move(Sync*, Node*, Node*);
     void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
     void syncupdate_treestate(LocalNode*);
+#endif
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
 public:
@@ -369,6 +371,7 @@ void SyncApp::request_error(error e)
     exit(1);
 }
 
+#ifdef ENABLE_SYNC
 void SyncApp::syncupdate_state(Sync*, syncstate_t state)
 {
     if (( state == SYNC_CANCELED ) || ( state == SYNC_FAILED ))
@@ -482,11 +485,10 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(LocalNode* l)
 {
-#ifdef ENABLE_SYNC
     LOG_debug << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
-#endif
 }
 
+#endif
 int main(int argc, char *argv[])
 {
 #ifndef ENABLE_SYNC
