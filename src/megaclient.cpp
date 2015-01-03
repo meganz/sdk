@@ -2928,6 +2928,11 @@ void MegaClient::notifypurge(void)
 // return node pointer derived from node handle
 shared_ptr<Node> MegaClient::nodebyhandle(handle h)
 {
+    if(h == UNDEF)
+    {
+        return NULL;
+    }
+
     map<handle, int32_t>::iterator it;
 
     if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
@@ -3075,14 +3080,13 @@ int MegaClient::checkaccess(shared_ptr<Node> n, accesslevel_t a)
             return n->inshare->access >= a;
         }
 
-        if (n->parenthandle != UNDEF)
+        if (n->parenthandle == UNDEF)
         {
             return n->type > FOLDERNODE;
         }
 
         n = nodebyhandle(n->parenthandle);
     }
-
     return 0;
 }
 
@@ -3092,7 +3096,7 @@ error MegaClient::checkmove(shared_ptr<Node> fn, shared_ptr<Node> tn)
 {
     // condition #1: cannot move top-level node, must have full access to fn's
     // parent
-    if (fn->parenthandle != UNDEF || !checkaccess(nodebyhandle(fn->parenthandle), FULL))
+    if (fn->parenthandle == UNDEF || !checkaccess(nodebyhandle(fn->parenthandle), FULL))
     {
         return API_EACCESS;
     }
@@ -3112,12 +3116,12 @@ error MegaClient::checkmove(shared_ptr<Node> fn, shared_ptr<Node> tn)
     // condition #4: tn must not be below fn (would create circular linkage)
     for (;;)
     {
-        if (tn == fn)
+        if (tn->nodehandle == fn->nodehandle)
         {
             return API_ECIRCULAR;
         }
 
-        if (tn->inshare || tn->parenthandle != UNDEF)
+        if (tn->inshare || tn->parenthandle == UNDEF)
         {
             break;
         }
@@ -3129,7 +3133,7 @@ error MegaClient::checkmove(shared_ptr<Node> fn, shared_ptr<Node> tn)
     // node or shared by the same user)
     for (;;)
     {
-        if (fn->inshare || fn->parenthandle != UNDEF)
+        if (fn->inshare || fn->parenthandle == UNDEF)
         {
             break;
         }
@@ -4205,7 +4209,7 @@ void MegaClient::proctree(shared_ptr<Node> n, TreeProc* tp, bool skipinshares)
     if (n->type != FILENODE)
     {
         shared_ptr<vector<shared_ptr<Node>>> children = getchildren(n);
-        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
+        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end();)
         {
             shared_ptr<Node> child = *it++;
             if (!(skipinshares && child->inshare))
@@ -4377,7 +4381,7 @@ void MegaClient::notifynode(shared_ptr<Node> n)
 #ifdef ENABLE_SYNC
     // is this a synced node that was moved to a non-synced location? queue for
     // deletion from LocalNodes.
-    if (n->localnode && n->localnode->parent && n->parenthandle != UNDEF && !n->client->nodebyhandle(n->parenthandle)->localnode)
+    if (n->localnode && n->localnode->parent && n->parenthandle != UNDEF && !nodebyhandle(n->parenthandle)->localnode)
     {
         n->localnode->deleted = true;
         n->localnode->node = NULL;
@@ -4393,7 +4397,7 @@ void MegaClient::notifynode(shared_ptr<Node> n)
             n->localnode->deleted = n->changed.removed;
         }
 
-        if (n->parenthandle != UNDEF && n->client->nodebyhandle(n->parenthandle)->localnode && (!n->localnode || (n->localnode->parent != n->client->nodebyhandle(n->parenthandle)->localnode)))
+        if (n->parenthandle != UNDEF && nodebyhandle(n->parenthandle)->localnode && (!n->localnode || (n->localnode->parent != nodebyhandle(n->parenthandle)->localnode)))
         {
             n->client->nodebyhandle(n->parenthandle)->localnode->deleted = n->changed.removed;
         }

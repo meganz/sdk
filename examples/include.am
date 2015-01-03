@@ -1,5 +1,5 @@
 # applications
-EXAMPLES = examples/megacli examples/megasimplesync
+EXAMPLES = examples/megacli
 
 if BUILD_EXAMPLES
 bin_PROGRAMS = $(EXAMPLES)

@@ -55,7 +55,7 @@ struct AppFileGet : public AppFile
     void update();
     void completed(Transfer*, LocalNode*);
 
-    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL);
+    AppFileGet(shared_ptr<Node>, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL);
     ~AppFileGet();
 };
 
@@ -96,7 +96,7 @@ struct DemoApp : public MegaApp
     void setkeypair_result(error);
 
     void users_updated(User**, int);
-    void nodes_updated(Node**, int);
+    void nodes_updated(shared_ptr<Node>*, int);
     void nodes_current();
 
     int prepare_download(Node*);
@@ -112,7 +112,7 @@ struct DemoApp : public MegaApp
     void share_result(error);
     void share_result(int, error);
 
-    void fa_complete(Node*, fatype, const char*, uint32_t);
+    void fa_complete(shared_ptr<Node>, fatype, const char*, uint32_t);
     int fa_failed(handle, fatype, int);
 
     void putfa_result(handle, fatype, error);
@@ -157,15 +157,15 @@ struct DemoApp : public MegaApp
     void syncupdate_local_lockretry(bool);
     void syncupdate_get(Sync*, const char*);
     void syncupdate_put(Sync*, const char*);
-    void syncupdate_remote_file_addition(Node*);
-    void syncupdate_remote_file_deletion(Node*);
-    void syncupdate_remote_folder_addition(Node*);
-    void syncupdate_remote_folder_deletion(Node*);
+    void syncupdate_remote_file_addition(shared_ptr<Node>);
+    void syncupdate_remote_file_deletion(shared_ptr<Node>);
+    void syncupdate_remote_folder_addition(shared_ptr<Node>);
+    void syncupdate_remote_folder_deletion(shared_ptr<Node>);
     void syncupdate_remote_copy(Sync*, const char*);
     void syncupdate_remote_move(string*, string*);
     void syncupdate_treestate(LocalNode*);
 
-    bool sync_syncable(Node*);
+    bool sync_syncable(shared_ptr<Node>);
     bool sync_syncable(const char*, string*, string*);
 #endif
 

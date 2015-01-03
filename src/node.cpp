@@ -120,7 +120,8 @@ Node::~Node()
     }
 
     // abort pending direct reads
-    client->preadabort(shared_ptr<Node>(this));
+    // TODO: Fix this
+    //client->preadabort(shared_ptr<Node>(this));
 
     // remove node's fingerprint from hash
     if (type == FILENODE)
