@@ -1727,7 +1727,7 @@ void *MegaApiImpl::threadEntryPoint(void *param)
 	return 0;
 }
 
-ExternalLogger MegaApiImpl::externalLogger;
+ExternalLogger *MegaApiImpl::externalLogger = NULL;
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
@@ -1847,17 +1847,29 @@ const char* MegaApiImpl::getMyEmail()
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
-    externalLogger.setLogLevel(logLevel);
+    if(!externalLogger)
+    {
+        externalLogger = new ExternalLogger();
+    }
+    externalLogger->setLogLevel(logLevel);
 }
 
 void MegaApiImpl::setLoggerClass(MegaLogger *megaLogger)
 {
-    externalLogger.setMegaLogger(megaLogger);
+    if(!externalLogger)
+    {
+        externalLogger = new ExternalLogger();
+    }
+    externalLogger->setMegaLogger(megaLogger);
 }
 
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
-    externalLogger.postLog(logLevel, message, filename, line);
+    if(!externalLogger)
+    {
+        return;
+    }
+    externalLogger->postLog(logLevel, message, filename, line);
 }
 
 const char* MegaApiImpl::getBase64PwKey(const char *password)
