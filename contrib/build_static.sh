@@ -23,14 +23,26 @@
 
 # global vars
 use_local=0
+use_dynamic=0
+disable_freeimage=0
+disable_ssl=0
+download_only=0
+enable_megaapi=0
 make_opts=""
+no_examples=""
+configure_only=0
+disable_posix_threads=""
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
 }
 
 on_exit_ok() {
-    echo "Successfully compiled MEGA SDK!"
+    if [ $configure_only -eq 0 ]; then
+        echo "Successfully compiled MEGA SDK!"
+    else
+        echo "Successfully configured MEGA SDK!"
+    fi
 }
 
 print_distro_help()
@@ -74,7 +86,7 @@ check_apps()
 package_download() {
     local name=$1
     local url=$2
-    local file=$3
+    local file=$local_dir/$3
 
     if [ $use_local -eq 1 ]; then
         echo "Using local file for $name"
@@ -92,7 +104,7 @@ package_download() {
 
 package_extract() {
     local name=$1
-    local file=$2
+    local file=$local_dir/$2
     local dir=$3
 
     echo "Extracting $name"
@@ -213,6 +225,10 @@ openssl_pkg() {
     local loc_make_opts=$make_opts
 
     package_download $name $openssl_url $openssl_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $openssl_file $openssl_dir
 
     # handle MacOS
@@ -249,6 +265,10 @@ cryptopp_pkg() {
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
     package_download $name $cryptopp_url $cryptopp_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $cryptopp_file $cryptopp_dir
     package_build $name $cryptopp_dir static
     package_install $name $cryptopp_dir $install_dir
@@ -262,9 +282,17 @@ sodium_pkg() {
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
-    local sodium_params="--disable-shared --enable-static"
+    if [ $use_dynamic -eq 1 ]; then
+        local sodium_params="--enable-shared"
+    else
+        local sodium_params="--disable-shared --enable-static"
+    fi
 
     package_download $name $sodium_url $sodium_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $sodium_file $sodium_dir
     package_configure $name $sodium_dir $install_dir "$sodium_params"
     package_build $name $sodium_dir
@@ -279,9 +307,17 @@ zlib_pkg() {
     local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
-    local zlib_params="--static"
+    if [ $use_dynamic -eq 1 ]; then
+        local zlib_params=""
+    else
+        local zlib_params="--static"
+    fi
 
     package_download $name $zlib_url $zlib_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $zlib_file $zlib_dir
     # Windows must use Makefile.gcc
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -308,9 +344,17 @@ sqlite_pkg() {
     local sqlite_url="http://www.sqlite.org/2014/sqlite-autoconf-$sqlite_ver.tar.gz"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
-    local sqlite_params="--disable-shared --enable-static"
+    if [ $use_dynamic -eq 1 ]; then
+        local sqlite_params="--enable-shared"
+    else
+        local sqlite_params="--disable-shared --enable-static"
+    fi
 
     package_download $name $sqlite_url $sqlite_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $sqlite_file $sqlite_dir
     package_configure $name $sqlite_dir $install_dir "$sqlite_params"
     package_build $name $sqlite_dir
@@ -325,9 +369,17 @@ cares_pkg() {
     local cares_url="http://c-ares.haxx.se/download/c-ares-$cares_ver.tar.gz"
     local cares_file="cares-$cares_ver.tar.gz"
     local cares_dir="c-ares-$cares_ver"
-    local cares_params="--disable-shared --enable-static"
+    if [ $use_dynamic -eq 1 ]; then
+        local cares_params="--enable-shared"
+    else
+        local cares_params="--disable-shared --enable-static"
+    fi
 
     package_download $name $cares_url $cares_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $cares_file $cares_dir
     package_configure $name $cares_dir $install_dir "$cares_params"
     package_build $name $cares_dir
@@ -342,12 +394,32 @@ curl_pkg() {
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
-    local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
-        --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-        --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
-        --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir --with-ssl=$install_dir"
+    local openssl_flags=""
+
+    # use local or system OpenSSL
+    if [ $disable_ssl -eq 0 ]; then
+        openssl_flags="--with-ssl=$install_dir"
+    else
+        openssl_flags="--with-ssl"
+    fi
+
+    if [ $use_dynamic -eq 1 ]; then
+        local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+            --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
+            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
+            --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+    else
+        local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+            --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
+            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
+            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+    fi
 
     package_download $name $curl_url $curl_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $curl_file $curl_dir
     package_configure $name $curl_dir $install_dir "$curl_params"
     package_build $name $curl_dir
@@ -362,9 +434,17 @@ readline_pkg() {
     local readline_url="ftp://ftp.cwru.edu/pub/bash/readline-$readline_ver.tar.gz"
     local readline_file="readline-$readline_ver.tar.gz"
     local readline_dir="readline-$readline_ver"
-    local readline_params="--disable-shared --enable-static"
+    if [ $use_dynamic -eq 1 ]; then
+        local readline_params="--enable-shared"
+    else
+        local readline_params="--disable-shared --enable-static"
+    fi
 
     package_download $name $readline_url $readline_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $readline_file $readline_dir
     package_configure $name $readline_dir $install_dir "$readline_params"
     package_build $name $readline_dir
@@ -379,9 +459,17 @@ termcap_pkg() {
     local termcap_url="http://ftp.gnu.org/gnu/termcap/termcap-$termcap_ver.tar.gz"
     local termcap_file="termcap-$termcap_ver.tar.gz"
     local termcap_dir="termcap-$termcap_ver"
-    local termcap_params="--disable-shared --enable-static"
+    if [ $use_dynamic -eq 1 ]; then
+        local termcap_params="--enable-shared"
+    else
+        local termcap_params="--disable-shared --enable-static"
+    fi
 
     package_download $name $termcap_url $termcap_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $termcap_file $termcap_dir
     package_configure $name $termcap_dir $install_dir "$termcap_params"
     package_build $name $termcap_dir
@@ -401,6 +489,10 @@ freeimage_pkg() {
     local freeimage_params="--disable-shared --enable-static"
 
     package_download $name $freeimage_url $freeimage_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $freeimage_file $freeimage_dir_extract
 
     # replace Makefile on MacOS
@@ -435,6 +527,10 @@ readline_win_pkg() {
     local readline_dir="readline-bin"
 
     package_download $name $readline_url $readline_file
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
     package_extract $name $readline_file $readline_dir
 
     # manually copy binary files
@@ -445,66 +541,116 @@ readline_win_pkg() {
 build_sdk() {
     local install_dir=$1
     local debug=$2
-    local no_examples=$3
+    local static_flags=""
+    local readline_flags=""
+    local freeimage_flags=""
+    local megaapi_flags=""
+    local openssl_flags=""
 
     echo "Configuring MEGA SDK"
 
     ./autogen.sh || exit 1
 
+    # use either static build (by the default) or dynamic
+    if [ $use_dynamic -eq 1 ]; then
+        static_flags="--enable-shared"
+    else
+        static_flags="--disable-shared --enable-static"
+    fi
+
+    # disable freeimage
+    if [ $disable_freeimage -eq 0 ]; then
+        freeimage_flags="--with-freeimage=$install_dir"
+    else
+        freeimage_flags="--without-freeimage"
+    fi
+
+    # enable megaapi
+    if [ $enable_megaapi -eq 0 ]; then
+        megaapi_flags="--disable-megaapi"
+    fi
+
+    # add readline and termcap flags if building examples
+    if [ -z "$no_examples" ]; then
+        readline_flags=" \
+            --with-readline=$install_dir \
+            --with-termcap=$install_dir \
+            "
+    fi
+
+    if [ $disable_ssl -eq 0 ]; then
+        openssl_flags="--with-ssl=$install_dir"
+    fi
+
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         ./configure \
-            --disable-shared --enable-static \
+            $static_flags \
             --disable-silent-rules \
             --disable-curl-checks \
-            --disable-megaapi \
-            --with-openssl=$install_dir \
+            $megaapi_flags \
+            $openssl_flags \
             --with-cryptopp=$install_dir \
             --with-sodium=$install_dir \
             --with-zlib=$install_dir \
             --with-sqlite=$install_dir \
             --with-cares=$install_dir \
             --with-curl=$install_dir \
-            --with-freeimage=$install_dir \
-            --with-readline=$install_dir \
-            --with-termcap=$install_dir \
+            $freeimage_flags \
+            $readline_flags \
+            $disable_posix_threads \
             $no_examples \
             $debug || exit 1
+    # Windows (MinGW) build, uses WinHTTP instead of cURL + c-ares, without OpenSSL
     else
         ./configure \
-            --disable-shared --enable-static \
+            $static_flags \
             --disable-silent-rules \
-            --disable-curl-checks \
             --without-openssl \
-            --disable-megaapi \
+            $megaapi_flags \
             --with-cryptopp=$install_dir \
             --with-sodium=$install_dir \
             --with-zlib=$install_dir \
             --with-sqlite=$install_dir \
             --without-cares \
             --without-curl \
-            --with-freeimage=$install_dir \
-            --with-readline=$install_dir \
+            $freeimage_flags \
+            $readline_flags \
+            $disable_posix_threads \
             $no_examples \
             $debug || exit 1
     fi
 
-    echo "Building MEGA SDK"
+    echo "MEGA SDK is configured"
 
-    make clean
-    make -j9 || exit 1
+    if [ $configure_only -eq 0 ]; then
+        echo "Building MEGA SDK"
+        make clean
+        make -j9 || exit 1
+    fi
 }
 
 display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-h] [-d] [-l] [-m] [-n] [-p]"
+    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-s] [-t] [-w] [-y]"
+    echo ""
+    echo "By the default this script builds static megacli executable."
+    echo "This script can be run with numerous options to configure MEGA SDK."
     echo ""
     echo "Options:"
+    echo " -a : Enable MegaApi"
+    echo " -c : Configure MEGA SDK and exit, do not build it"
     echo " -d : Enable debug build"
+    echo " -f : Disable FreeImage"
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
+    echo " -s : Disable OpenSSL"
+    echo " -t : Disable POSIX Threads support"
+    echo " -w : Download software archives and exit"
+    echo " -y : Build dynamic library and executable (instead of static)"
     echo " -m [opts]: make options"
+    echo " -o [path]: Directory to store and look for downloaded archives"
     echo " -p [path]: Installation directory"
     echo ""
 }
@@ -515,20 +661,33 @@ main() {
     local build_dir=$work_dir"build/"
     local install_dir=$work_dir"install/"
     local debug=""
-    local no_examples=""
+    # by the default store archives in work_dir
+    local_dir=$work_dir
 
-    while getopts ":hdlm:np:" opt; do
+    while getopts ":hacdflm:no:p:styw" opt; do
         case $opt in
             h)
                 display_help $0
                 exit
                 ;;
+            a)
+                echo "* Enabling MegaApi"
+                enable_megaapi=1
+                ;;
+            c)
+                echo "* Configure only"
+                configure_only=1
+                ;;
             d)
-                echo "DEBUG build"
+                echo "* DEBUG build"
                 debug="--enable-debug"
                 ;;
+            f)
+                echo "* Disabling FreeImage"
+                disable_freeimage=1
+                ;;
             l)
-                echo "Using local files"
+                echo "* Using local files"
                 use_local=1
                 ;;
             m)
@@ -537,9 +696,31 @@ main() {
             n)
                 no_examples="--disable-examples"
                 ;;
+            o)
+                local_dir=$(readlink -f $OPTARG)
+                if [ ! -d $local_dir ]; then
+                    mkdir -p $local_dir || exit 1
+                fi
+                echo "* Storing local archive files in $local_dir"
+                ;;
             p)
                 install_dir=$(readlink -f $OPTARG)
-                echo "Installing into $install_dir"
+                echo "* Installing into $install_dir"
+                ;;
+            s)
+                echo "* Disabling OpenSSL"
+                disable_ssl=1
+                ;;
+            t)
+                disable_posix_threads="--disable-posix-threads"
+                ;;
+            w)
+                download_only=1
+                echo "* Downloading software archives only."
+                ;;
+            y)
+                use_dynamic=1
+                echo "* Building dynamic library and executable."
                 ;;
             \?)
                 display_help $0
@@ -557,14 +738,16 @@ main() {
 
     trap on_exit_error EXIT
 
-    if [ ! -d $build_dir ]; then
-        mkdir -p $build_dir || exit 1
-    fi
-    if [ ! -d $install_dir ]; then
-        mkdir -p $install_dir || exit 1
-    fi
+    if [ $download_only -eq 0 ]; then
+        if [ ! -d $build_dir ]; then
+            mkdir -p $build_dir || exit 1
+        fi
+        if [ ! -d $install_dir ]; then
+            mkdir -p $install_dir || exit 1
+        fi
 
-    cd $build_dir
+        cd $build_dir
+    fi
 
     rm -fr *.log
 
@@ -575,7 +758,9 @@ main() {
     export LD_RUN_PATH="$install_dir/lib"
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        openssl_pkg $build_dir $install_dir
+        if [ $disable_ssl -eq 0 ]; then
+            openssl_pkg $build_dir $install_dir
+        fi
     fi
     cryptopp_pkg $build_dir $install_dir
     sodium_pkg $build_dir $install_dir
@@ -585,7 +770,10 @@ main() {
         cares_pkg $build_dir $install_dir
         curl_pkg $build_dir $install_dir
     fi
-    freeimage_pkg $build_dir $install_dir $cwd
+
+    if [ $disable_freeimage -eq 0 ]; then
+        freeimage_pkg $build_dir $install_dir $cwd
+    fi
 
     # Build readline and termcap if no_examples isn't set
     if [ -z "$no_examples" ]; then
@@ -595,11 +783,13 @@ main() {
         else
            readline_win_pkg  $build_dir $install_dir
        fi
-   fi
+    fi
 
-    cd $cwd
+    if [ $download_only -eq 0 ]; then
+        cd $cwd
 
-    build_sdk $install_dir $debug $no_examples
+        build_sdk $install_dir $debug
+    fi
 
     unset PREFIX
     unset LD_RUN_PATH
