@@ -353,7 +353,7 @@ void SyncApp::fetchnodes_result(error e)
                     exit(1);
                 }
 
-                LOG_debug << "Sync started !";
+                LOG_info << "Sync started !";
             }
         }
         else
@@ -381,7 +381,7 @@ void SyncApp::syncupdate_state(Sync*, syncstate_t state)
     }
     else if (state == SYNC_ACTIVE)
     {
-        LOG_debug << "Sync is now active";
+        LOG_info << "Sync is now active";
     }
 }
 
@@ -389,78 +389,78 @@ void SyncApp::syncupdate_state(Sync*, syncstate_t state)
 // change or delete the sync itself
 void SyncApp::syncupdate_local_folder_addition(Sync*, LocalNode *, const char* path)
 {
-    LOG_debug << "Sync - local folder addition detected: " << path;
+    LOG_info << "Sync - local folder addition detected: " << path;
 }
 
 void SyncApp::syncupdate_local_folder_deletion(Sync*, LocalNode *localNode)
 {
-    LOG_debug << "Sync - local folder deletion detected: " << localNode->name;
+    LOG_info << "Sync - local folder deletion detected: " << localNode->name;
 }
 
 void SyncApp::syncupdate_local_file_addition(Sync*, LocalNode *, const char* path)
 {
-    LOG_debug << "Sync - local file addition detected: " << path;
+    LOG_info << "Sync - local file addition detected: " << path;
 }
 
 void SyncApp::syncupdate_local_file_deletion(Sync*, LocalNode *localNode)
 {
-    LOG_debug << "Sync - local file deletion detected: " << localNode->name;
+    LOG_info << "Sync - local file deletion detected: " << localNode->name;
 }
 
 void SyncApp::syncupdate_local_file_change(Sync*, LocalNode *, const char* path)
 {
-    LOG_debug << "Sync - local file change detected: " << path;
+    LOG_info << "Sync - local file change detected: " << path;
 }
 
 void SyncApp::syncupdate_local_move(Sync*, LocalNode *localNode, const char* path)
 {
-    LOG_debug << "Sync - local rename/move " << localNode->name << " -> " << path;
+    LOG_info << "Sync - local rename/move " << localNode->name << " -> " << path;
 }
 
 void SyncApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
 {
-    LOG_debug << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
+    LOG_info << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
                  " -> " << (n->parent ? n->parent->displayname() : "?");
 }
 
 void SyncApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
 {
-    LOG_debug << "Sync - remote rename " << prevname << " -> " << n->displayname();
+    LOG_info << "Sync - remote rename " << prevname << " -> " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_folder_addition(Sync *, Node* n)
 {
-    LOG_debug << "Sync - remote folder addition detected " << n->displayname();
+    LOG_info << "Sync - remote folder addition detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_file_addition(Sync*, Node* n)
 {
-    LOG_debug << "Sync - remote file addition detected " << n->displayname();
+    LOG_info << "Sync - remote file addition detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_folder_deletion(Sync*, Node* n)
 {
-    LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
+    LOG_info << "Sync - remote folder deletion detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_remote_file_deletion(Sync*, Node* n)
 {
-    LOG_debug << "Sync - remote file deletion detected " << n->displayname();
+    LOG_info << "Sync - remote file deletion detected " << n->displayname();
 }
 
 void SyncApp::syncupdate_get(Sync*, Node *, const char* path)
 {
-    LOG_debug << "Sync - requesting file " << path;
+    LOG_info << "Sync - requesting file " << path;
 }
 
 void SyncApp::syncupdate_put(Sync*, LocalNode*, const char* path)
 {
-    LOG_debug  << "Sync - sending file " << path;
+    LOG_info  << "Sync - sending file " << path;
 }
 
 void SyncApp::syncupdate_remote_copy(Sync*, const char* name)
 {
-    LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
+    LOG_info << "Sync - creating remote file " << name << " by copying existing remote file";
 }
 
 static const char* treestatename(treestate_t ts)
@@ -485,7 +485,7 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(LocalNode* l)
 {
-    LOG_debug << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
+    LOG_info << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
 }
 
 #endif
