@@ -235,6 +235,8 @@ public:
     static void incblock(byte*, unsigned = BLOCKSIZE);
 
     SymmCipher() { }
+    SymmCipher(const SymmCipher& ref);
+    SymmCipher& operator=(const SymmCipher& ref);
     SymmCipher(const byte*);
 };
 

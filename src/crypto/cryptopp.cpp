@@ -282,6 +282,17 @@ void SymmCipher::incblock(byte* dst, unsigned len)
     }
 }
 
+SymmCipher::SymmCipher(const SymmCipher &ref)
+{
+    setkey(ref.key);
+}
+
+SymmCipher& SymmCipher::operator=(const SymmCipher& ref)
+{
+    setkey(ref.key);
+    return *this;
+}
+
 // encryption: data must be NUL-padded to BLOCKSIZE
 // decryption: data must be padded to BLOCKSIZE
 // len must be < 2^31
