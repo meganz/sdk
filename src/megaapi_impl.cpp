@@ -4701,19 +4701,11 @@ void MegaApiImpl::nodes_updated(Node** n, int count)
         {
             nodeList = new MegaNodeListPrivate(n, count);
             fireOnNodesUpdate(nodeList);
-            for(int i=0; i < count; i++)
-            {
-                memset(&(n[i]->changed), 0,sizeof n[i]->changed);
-            }
         }
     }
     else
     {
-        for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
-        {
-            memset(&(it->second->changed), 0,sizeof it->second->changed);
-        }
-        fireOnNodesUpdate(nodeList);
+        fireOnNodesUpdate(NULL);
     }
 }
 

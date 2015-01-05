@@ -2959,6 +2959,7 @@ void MegaClient::notifypurge(void)
             else
             {
                 n->notified = false;
+                memset(&(n->changed), 0, sizeof(n->changed));
             }
         }
 
@@ -5139,6 +5140,10 @@ void MegaClient::fetchnodes()
 #endif
         app->fetchnodes_result(API_OK);
         app->nodes_updated(NULL, nodes.size());
+        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+        {
+            memset(&(it->second->changed), 0, sizeof it->second->changed);
+        }
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;

@@ -2626,6 +2626,10 @@ void CommandFetchNodes::procresult()
 
                 // NULL vector: "notify all nodes"
                 client->app->nodes_updated(NULL, client->nodes.size());
+                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+                {
+                    memset(&(it->second->changed), 0, sizeof it->second->changed);
+                }
                 return;
 
             default:
