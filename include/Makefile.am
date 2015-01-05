@@ -49,7 +49,7 @@ nobase_libmegainclude_HEADERS = \
 	../third_party/utf8proc/utf8proc_data.c
 
 if BUILD_MEGAAPI
-	nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
+nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
 endif
 
 if USE_FREEIMAGE
