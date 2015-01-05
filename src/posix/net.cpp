@@ -109,6 +109,7 @@ CurlHttpIO::CurlHttpIO()
     ipv6requestsenabled = ipv6available();
     ipv6proxyenabled = ipv6requestsenabled;
     ipv6deactivationtime = 0;
+    waiter = NULL;
 }
 
 bool CurlHttpIO::ipv6available()
@@ -1038,7 +1039,10 @@ bool CurlHttpIO::doio()
     CURLMsg* msg;
     int dummy;
 
-    ares_process(ares, &waiter->rfds, &waiter->wfds);
+    if(waiter)
+    {
+        ares_process(ares, &waiter->rfds, &waiter->wfds);
+    }
     curl_multi_perform(curlm, &dummy);
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
