@@ -46,7 +46,7 @@ include tests/include.am
 
 SUBDIRS = include
 
-EXTRA_DIST = autogen.sh
+EXTRA_DIST += autogen.sh
 EXTRA_DIST += libmega.pc.in
 EXTRA_DIST += $(DX_CONFIG)
 EXTRA_DIST += m4/ax_prog_doxygen.m4

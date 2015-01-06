@@ -54,8 +54,10 @@ src_libmega_la_SOURCES += src/waiterbase.cpp
 src_libmega_la_SOURCES += src/proxy.cpp
 src_libmega_la_SOURCES += src/crypto/cryptopp.cpp
 src_libmega_la_SOURCES += src/db/sqlite.cpp
-src_libmega_la_SOURCES += third_party/utf8proc/utf8proc.cpp
+src_libmega_la_SOURCES += src/mega_utf8proc.cpp
 src_libmega_la_SOURCES += src/gfx/external.cpp
+
+EXTRA_DIST = src/mega_utf8proc_data.c
 
 if BUILD_MEGAAPI
 src_libmega_la_SOURCES += src/megaapi_impl.cpp

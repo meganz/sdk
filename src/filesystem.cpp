@@ -19,8 +19,7 @@
  * program.
  */
 
-#include <utf8proc.h>
-
+#include "mega/mega_utf8proc.h"
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
@@ -132,7 +131,7 @@ void FileSystemAccess::local2name(string* filename) const
     string t = *filename;
 
     local2path(&t, filename);
-    
+
     unescapefsincompatible(filename);
 }
 

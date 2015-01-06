@@ -43,10 +43,10 @@ nobase_libmegainclude_HEADERS = \
 	mega/thread/cppthread.h \
 	mega/thread/posixthread.h \
 	mega/thread/qtthread.h \
+	mega/thread/win32thread.h \
 	mega/gfx/external.h \
 	mega/gfx/qt.h \
-	../third_party/utf8proc/utf8proc.h \
-	../third_party/utf8proc/utf8proc_data.c
+	mega/mega_utf8proc.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h

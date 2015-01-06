@@ -44,7 +44,7 @@ SOURCES += src/attrmap.cpp \
     bindings/qt/QTMegaSyncListener.cpp \
     bindings/qt/QTMegaListener.cpp \
     bindings/qt/QTMegaEvent.cpp \
-    third_party/utf8proc/utf8proc.cpp
+    src/mega_utf8proc.cpp
 
 win32 {
 SOURCES += src/win32/net.cpp  \
@@ -105,7 +105,7 @@ HEADERS  += include/mega.h \
             bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
             bindings/qt/QTMegaEvent.h \
-            third_party/utf8proc/utf8proc.h
+            include/mega/mega_utf8proc.h
 
 win32 {
     HEADERS  += include/mega/win32/meganet.h  \
@@ -130,7 +130,6 @@ unix {
 DEFINES += USE_SQLITE USE_CRYPTOPP USE_SODIUM USE_QT MEGA_QT_LOGGING ENABLE_SYNC
 LIBS += -lcryptopp
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
-INCLUDEPATH += $$MEGASDK_BASE_PATH/third_party/utf8proc
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
 
