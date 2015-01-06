@@ -42,7 +42,7 @@ m4_define([mega_lt_revision], [0])
 m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], [mega_version], [https://github.com/megaprivacy])
+AC_INIT([libmega], [mega_version], [https://github.com/meganz/sdk])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
