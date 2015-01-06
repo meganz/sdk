@@ -64,6 +64,7 @@ config.sub
 doc/_build
 doc/api
 doc/sphinx_api
+doc/Doxyfile
 
 # Editor and IDE stuff
 *~
