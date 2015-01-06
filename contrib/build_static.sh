@@ -579,7 +579,7 @@ build_sdk() {
     fi
 
     if [ $disable_ssl -eq 0 ]; then
-        openssl_flags="--with-ssl=$install_dir"
+        openssl_flags="--with-openssl=$install_dir"
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
