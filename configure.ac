@@ -1189,6 +1189,7 @@ AC_CONFIG_FILES([
  Makefile
  include/Makefile
  libmega.pc
+ doc/Doxyfile
 ])
 AC_OUTPUT
 
