@@ -39,7 +39,7 @@
  */
 
 
-#include "mega_utf8proc.h"
+#include "mega/mega_utf8proc.h"
 #include "mega_utf8proc_data.c"
 
 
