@@ -353,9 +353,6 @@
     <ClCompile Include="..\..\..\src\crypto\cryptopp.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\third_party\utf8proc\utf8proc.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\src\gfx\external.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
@@ -424,6 +421,9 @@
     </ClCompile>
     <ClCompile Include="..\MPricing.cpp">
       <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
+      <Filter>SDK\Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

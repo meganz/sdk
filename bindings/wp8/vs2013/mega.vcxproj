@@ -248,6 +248,7 @@
     <ClCompile Include="..\..\..\src\megaapi.cpp" />
     <ClCompile Include="..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
+    <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\..\src\proxy.cpp" />
@@ -266,7 +267,6 @@
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\..\src\wp8\waiter.cpp" />
-    <ClCompile Include="..\..\..\third_party\utf8proc\utf8proc.cpp" />
     <ClCompile Include="..\DelegateMGfxProcessor.cpp" />
     <ClCompile Include="..\DelegateMGlobalListener.cpp" />
     <ClCompile Include="..\DelegateMListener.cpp" />
