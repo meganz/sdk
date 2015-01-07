@@ -1,6 +1,6 @@
 /**
- * @file MEGASdk+init.h
- * @brief Private functions of MEGASdk
+ * @file MEGAAccountDetails+init.h
+ * @brief Private functions of MEGAAccountDetails
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
