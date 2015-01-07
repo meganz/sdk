@@ -156,6 +156,7 @@
     <ClCompile Include="..\..\src\filefingerprint.cpp" />
     <ClCompile Include="..\..\src\filesystem.cpp" />
     <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
+    <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\src\gfx.cpp" />
@@ -181,7 +182,6 @@
     <ClCompile Include="..\..\src\transferslot.cpp" />
     <ClCompile Include="..\..\src\treeproc.cpp" />
     <ClCompile Include="..\..\src\user.cpp" />
-    <ClCompile Include="..\..\third_party\utf8proc\utf8proc.cpp" />
     <ClCompile Include="..\..\src\utils.cpp" />
     <ClCompile Include="..\..\src\win32\waiter.cpp" />
     <ClCompile Include="..\..\src\waiterbase.cpp" />
@@ -209,6 +209,7 @@
     <ClInclude Include="..\..\include\megaapi_impl.h" />
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
+    <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />
@@ -232,7 +233,6 @@
     <ClInclude Include="..\..\include\mega\treeproc.h" />
     <ClInclude Include="..\..\include\mega\types.h" />
     <ClInclude Include="..\..\include\mega\user.h" />
-    <ClInclude Include="..\..\third_party\utf8proc\utf8proc.h" />
     <ClInclude Include="..\..\include\mega\utils.h" />
     <ClInclude Include="..\..\include\mega\waiter.h" />
   </ItemGroup>
