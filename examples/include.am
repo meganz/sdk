@@ -1,6 +1,10 @@
 # applications
 EXAMPLES = examples/megacli examples/megasimplesync
 
+if BUILD_FUSE_EXAMPLE
+EXAMPLES += examples/linux/megafuse
+endif
+
 if BUILD_EXAMPLES
 bin_PROGRAMS = $(EXAMPLES)
 endif
@@ -27,6 +31,13 @@ examples_megacli_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(RL_LDFLAGS) $(RL_LIBS) $(ZLI
 
 examples_megasimplesync_CXXFLAGS = $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
 examples_megasimplesync_LDADD = $(FI_LDFLAGS) $(FI_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(top_builddir)/src/libmega.la
+
+if BUILD_FUSE_EXAMPLE
+examples_linux_megafuse_SOURCES =  examples/linux/megafuse.cpp
+examples_linux_megafuse_CXXFLAGS =  $(FUSE_CXXFLAGS)
+examples_linux_megafuse_LDADD =  $(top_builddir)/src/libmega.la $(FUSE_LDFLAGS) $(FUSE_LIBS)
+endif
+
 endif
 
 if ENABLE_STATIC
