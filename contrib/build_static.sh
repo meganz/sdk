@@ -217,7 +217,7 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.1j"
+    local openssl_ver="1.0.1k"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
