@@ -73,6 +73,11 @@ void Request::procresult(MegaClient* client)
             cmds[i]->procresult();
         }
 
+        if(!cmds.size())
+        {
+            return;
+        }
+
         if (!cmds[i]->persistent)
         {
             delete cmds[i];
