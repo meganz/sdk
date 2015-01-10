@@ -1,19 +1,30 @@
-# Windows Example App
+# Windows Example Apps
 
-Visual Studio 2010 solution with the MEGA C++ SDK and a simple console app using the intermediate layer (`include/megaapi.h`).
+Visual Studio 2010 solutions with the MEGA C++ SDK and a console apps using the intermediate layer (`include/megaapi.h`).
 
-The example logs in to your MEGA account, gets your MEGA filesystem, shows the files/folders in your root folder and uploads an image.
+There are two example apps:
 
-## How to run the project
+- testmega
+
+This example logs in to your MEGA account, gets your MEGA filesystem, shows the files/folders in your root folder and uploads an image.
+
+
+- MEGAdokan
+
+This example implements a filesystem driver that can mount a MEGA folders as a system drive. 
+File writes aren't supported and the implementation doesn't make any local caching so the performance could
+be poor in many cases. This isn't an application for final users, please use it for testing and developing purposes only.
+
+## How to run the projects
 
 1. Download the SDK or clone the SDK repository
 2. Download the prebuilt third party dependencies from this link:
-https://mega.co.nz/#!IttCER5A!0EhXmR6eyVSDDqXFm0hD_wHbGEKM32bJSPKeEmi7n90
+https://mega.co.nz/#!VsNmABiQ!RKobitbqZbUt1sEdiyJ_jOG3IJlC1zJG-YP2TRxYFd8
 
 3. Extract and put the 3rdparty folder in `examples/win32/`.
-4. Open `examples/win32/MEGA.sln` with Visual Studio 2010 or a posterior version of Visual Studio for Windows Desktop.
-5. Make sure that the `testmega` project is selected as init or main project
-6. Put the email/password of your MEGA account at the top of `main.cpp` in the `testmega` project
+4. Open the `MEGA.sln` file with Visual Studio 2010 or a posterior version of Visual Studio for Windows Desktop.
+5. Make sure that the console project is selected as init or main project
+6. Put the email/password of your MEGA account at the top of the source file
 7. Build and run the application
 
 ## Notes
