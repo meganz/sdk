@@ -1,5 +1,5 @@
 /**
- * @file win32/testmega/main.cpp
+ * @file examples/win32/testmega/main.cpp
  * @brief Example app for Windows
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand

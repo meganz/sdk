@@ -4,4 +4,4 @@
 *.user
 *.suo
 *.pdb
-/ipch
+*.ipch
