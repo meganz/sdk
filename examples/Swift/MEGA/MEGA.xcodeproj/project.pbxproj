@@ -1,0 +1,440 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		410C423A1A60453C00CA67D3 /* Contacts.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 410C42391A60453C00CA67D3 /* Contacts.storyboard */; };
+		41A990781A5D645600B2094A /* MainTabBarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A990771A5D645600B2094A /* MainTabBarViewController.swift */; };
+		41A9907B1A5D65C100B2094A /* Cloud.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41A9907A1A5D65C100B2094A /* Cloud.storyboard */; };
+		41A9907D1A5D678400B2094A /* CloudDriveTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */; };
+		41A9907F1A5D8C3F00B2094A /* NodeTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A9907E1A5D8C3F00B2094A /* NodeTableViewCell.swift */; };
+		41AB404E1A52D66500E5E16E /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41AB404C1A52D66500E5E16E /* Main.storyboard */; };
+		41AB404F1A52D66500E5E16E /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41AB404D1A52D66500E5E16E /* LoginViewController.swift */; };
+		41ABAEA11A63DD410026CEAD /* ContactsTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */; };
+		41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */; };
+		41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B41A5E94B8008B6E73 /* Helper.swift */; };
+		41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */; };
+		41C6A0441A5FD13300865971 /* Offline.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41C6A0431A5FD13300865971 /* Offline.storyboard */; };
+		41C6A0461A5FD15B00865971 /* OfflineTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C6A0451A5FD15B00865971 /* OfflineTableViewController.swift */; };
+		41C6A0491A5FF8CC00865971 /* Settings.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41C6A0481A5FF8CC00865971 /* Settings.storyboard */; };
+		41C6A04B1A5FFA9B00865971 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C6A04A1A5FFA9B00865971 /* SettingsViewController.swift */; };
+		41F1756F1A51E22500570E30 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F1756E1A51E22500570E30 /* AppDelegate.swift */; };
+		41F175761A51E22500570E30 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41F175751A51E22500570E30 /* Images.xcassets */; };
+		41F175791A51E22500570E30 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41F175771A51E22500570E30 /* LaunchScreen.xib */; };
+		41F175911A51E3A600570E30 /* libmega.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175901A51E3A500570E30 /* libmega.a */; };
+		41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F1759F1A51F17E00570E30 /* ImageIO.framework */; };
+		41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A11A51F18B00570E30 /* MobileCoreServices.framework */; };
+		41F175A41A51F19F00570E30 /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A31A51F19F00570E30 /* libresolv.dylib */; };
+		41F175A61A51F1AF00570E30 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A51A51F1AF00570E30 /* libc++.dylib */; };
+		41F175A81A51F1B700570E30 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A71A51F1B700570E30 /* libz.dylib */; };
+		41F175AA1A51F1C200570E30 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A91A51F1C200570E30 /* libsqlite3.dylib */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		410C42391A60453C00CA67D3 /* Contacts.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Contacts.storyboard; sourceTree = "<group>"; };
+		41A990771A5D645600B2094A /* MainTabBarViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainTabBarViewController.swift; sourceTree = "<group>"; };
+		41A9907A1A5D65C100B2094A /* Cloud.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Cloud.storyboard; sourceTree = "<group>"; };
+		41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudDriveTableViewController.swift; sourceTree = "<group>"; };
+		41A9907E1A5D8C3F00B2094A /* NodeTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NodeTableViewCell.swift; sourceTree = "<group>"; };
+		41AB404C1A52D66500E5E16E /* Main.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
+		41AB404D1A52D66500E5E16E /* LoginViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
+		41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactsTableViewController.swift; sourceTree = "<group>"; };
+		41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactTableViewCell.swift; sourceTree = "<group>"; };
+		41B4A5B41A5E94B8008B6E73 /* Helper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Helper.swift; sourceTree = "<group>"; };
+		41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DetailsNodeInfoViewController.swift; sourceTree = "<group>"; };
+		41C6A0431A5FD13300865971 /* Offline.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Offline.storyboard; sourceTree = "<group>"; };
+		41C6A0451A5FD15B00865971 /* OfflineTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OfflineTableViewController.swift; sourceTree = "<group>"; };
+		41C6A0481A5FF8CC00865971 /* Settings.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Settings.storyboard; sourceTree = "<group>"; };
+		41C6A04A1A5FFA9B00865971 /* SettingsViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		41F175691A51E22500570E30 /* MEGA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MEGA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		41F1756D1A51E22500570E30 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		41F1756E1A51E22500570E30 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		41F175751A51E22500570E30 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
+		41F175781A51E22500570E30 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/LaunchScreen.xib; sourceTree = "<group>"; };
+		41F175901A51E3A500570E30 /* libmega.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmega.a; path = "../../../bindings/ios/build/Debug-iphoneos/libmega.a"; sourceTree = "<group>"; };
+		41F175941A51E5E500570E30 /* MEGA-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGA-Bridging-Header.h"; sourceTree = "<group>"; };
+		41F1759F1A51F17E00570E30 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		41F175A11A51F18B00570E30 /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
+		41F175A31A51F19F00570E30 /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
+		41F175A51A51F1AF00570E30 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
+		41F175A71A51F1B700570E30 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
+		41F175A91A51F1C200570E30 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		41F175661A51E22500570E30 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41F175AA1A51F1C200570E30 /* libsqlite3.dylib in Frameworks */,
+				41F175A81A51F1B700570E30 /* libz.dylib in Frameworks */,
+				41F175A61A51F1AF00570E30 /* libc++.dylib in Frameworks */,
+				41F175A41A51F19F00570E30 /* libresolv.dylib in Frameworks */,
+				41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */,
+				41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */,
+				41F175911A51E3A600570E30 /* libmega.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		410C42381A60453C00CA67D3 /* Contacts */ = {
+			isa = PBXGroup;
+			children = (
+				410C42391A60453C00CA67D3 /* Contacts.storyboard */,
+				41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */,
+				41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */,
+			);
+			path = Contacts;
+			sourceTree = "<group>";
+		};
+		41A990791A5D65A100B2094A /* Cloud drive */ = {
+			isa = PBXGroup;
+			children = (
+				41A9907A1A5D65C100B2094A /* Cloud.storyboard */,
+				41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */,
+				41A9907E1A5D8C3F00B2094A /* NodeTableViewCell.swift */,
+				41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */,
+			);
+			path = "Cloud drive";
+			sourceTree = "<group>";
+		};
+		41AB404B1A52D66500E5E16E /* Login */ = {
+			isa = PBXGroup;
+			children = (
+				41AB404C1A52D66500E5E16E /* Main.storyboard */,
+				41AB404D1A52D66500E5E16E /* LoginViewController.swift */,
+				41A990771A5D645600B2094A /* MainTabBarViewController.swift */,
+			);
+			path = Login;
+			sourceTree = "<group>";
+		};
+		41B4A5B31A5E949D008B6E73 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				41B4A5B41A5E94B8008B6E73 /* Helper.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		41C6A0421A5FD13300865971 /* Offline */ = {
+			isa = PBXGroup;
+			children = (
+				41C6A0431A5FD13300865971 /* Offline.storyboard */,
+				41C6A0451A5FD15B00865971 /* OfflineTableViewController.swift */,
+			);
+			path = Offline;
+			sourceTree = "<group>";
+		};
+		41C6A0471A5FF8CC00865971 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				41C6A0481A5FF8CC00865971 /* Settings.storyboard */,
+				41C6A04A1A5FFA9B00865971 /* SettingsViewController.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		41F175601A51E22500570E30 = {
+			isa = PBXGroup;
+			children = (
+				41F175931A51E57C00570E30 /* Frameworks */,
+				41F1756B1A51E22500570E30 /* MEGA */,
+				41F1756A1A51E22500570E30 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		41F1756A1A51E22500570E30 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				41F175691A51E22500570E30 /* MEGA.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		41F1756B1A51E22500570E30 /* MEGA */ = {
+			isa = PBXGroup;
+			children = (
+				41F1756E1A51E22500570E30 /* AppDelegate.swift */,
+				41AB404B1A52D66500E5E16E /* Login */,
+				41A990791A5D65A100B2094A /* Cloud drive */,
+				41C6A0421A5FD13300865971 /* Offline */,
+				410C42381A60453C00CA67D3 /* Contacts */,
+				41C6A0471A5FF8CC00865971 /* Settings */,
+				41B4A5B31A5E949D008B6E73 /* Utils */,
+				41F175751A51E22500570E30 /* Images.xcassets */,
+				41F175771A51E22500570E30 /* LaunchScreen.xib */,
+				41F1756C1A51E22500570E30 /* Supporting Files */,
+				41F175941A51E5E500570E30 /* MEGA-Bridging-Header.h */,
+			);
+			path = MEGA;
+			sourceTree = "<group>";
+		};
+		41F1756C1A51E22500570E30 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				41F1756D1A51E22500570E30 /* Info.plist */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		41F175931A51E57C00570E30 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				41F175A91A51F1C200570E30 /* libsqlite3.dylib */,
+				41F175A71A51F1B700570E30 /* libz.dylib */,
+				41F175A51A51F1AF00570E30 /* libc++.dylib */,
+				41F175A31A51F19F00570E30 /* libresolv.dylib */,
+				41F175A11A51F18B00570E30 /* MobileCoreServices.framework */,
+				41F1759F1A51F17E00570E30 /* ImageIO.framework */,
+				41F175901A51E3A500570E30 /* libmega.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		41F175681A51E22500570E30 /* MEGA */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 41F175881A51E22500570E30 /* Build configuration list for PBXNativeTarget "MEGA" */;
+			buildPhases = (
+				41F175651A51E22500570E30 /* Sources */,
+				41F175661A51E22500570E30 /* Frameworks */,
+				41F175671A51E22500570E30 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MEGA;
+			productName = MEGA;
+			productReference = 41F175691A51E22500570E30 /* MEGA.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		41F175611A51E22500570E30 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				CLASSPREFIX = "";
+				LastUpgradeCheck = 0610;
+				ORGANIZATIONNAME = "Mega Limited";
+				TargetAttributes = {
+					41F175681A51E22500570E30 = {
+						CreatedOnToolsVersion = 6.1.1;
+					};
+				};
+			};
+			buildConfigurationList = 41F175641A51E22500570E30 /* Build configuration list for PBXProject "MEGA" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 41F175601A51E22500570E30;
+			productRefGroup = 41F1756A1A51E22500570E30 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				41F175681A51E22500570E30 /* MEGA */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		41F175671A51E22500570E30 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41AB404E1A52D66500E5E16E /* Main.storyboard in Resources */,
+				41C6A0441A5FD13300865971 /* Offline.storyboard in Resources */,
+				41F175791A51E22500570E30 /* LaunchScreen.xib in Resources */,
+				41C6A0491A5FF8CC00865971 /* Settings.storyboard in Resources */,
+				41A9907B1A5D65C100B2094A /* Cloud.storyboard in Resources */,
+				410C423A1A60453C00CA67D3 /* Contacts.storyboard in Resources */,
+				41F175761A51E22500570E30 /* Images.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		41F175651A51E22500570E30 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41A990781A5D645600B2094A /* MainTabBarViewController.swift in Sources */,
+				41A9907F1A5D8C3F00B2094A /* NodeTableViewCell.swift in Sources */,
+				41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */,
+				41ABAEA11A63DD410026CEAD /* ContactsTableViewController.swift in Sources */,
+				41C6A0461A5FD15B00865971 /* OfflineTableViewController.swift in Sources */,
+				41AB404F1A52D66500E5E16E /* LoginViewController.swift in Sources */,
+				41A9907D1A5D678400B2094A /* CloudDriveTableViewController.swift in Sources */,
+				41F1756F1A51E22500570E30 /* AppDelegate.swift in Sources */,
+				41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */,
+				41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */,
+				41C6A04B1A5FFA9B00865971 /* SettingsViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		41F175771A51E22500570E30 /* LaunchScreen.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				41F175781A51E22500570E30 /* Base */,
+			);
+			name = LaunchScreen.xib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		41F175861A51E22500570E30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.1;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		41F175871A51E22500570E30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		41F175891A51E22500570E30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = MEGA/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
+				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
+			};
+			name = Debug;
+		};
+		41F1758A1A51E22500570E30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = MEGA/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
+				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		41F175641A51E22500570E30 /* Build configuration list for PBXProject "MEGA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41F175861A51E22500570E30 /* Debug */,
+				41F175871A51E22500570E30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		41F175881A51E22500570E30 /* Build configuration list for PBXNativeTarget "MEGA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41F175891A51E22500570E30 /* Debug */,
+				41F1758A1A51E22500570E30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 41F175611A51E22500570E30 /* Project object */;
+}

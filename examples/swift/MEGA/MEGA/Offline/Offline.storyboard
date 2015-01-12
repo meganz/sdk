@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="6254" systemVersion="13F34" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="faa-Ut-As6">
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6247"/>
+        <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
+    </dependencies>
+    <scenes>
+        <!--Offline documents-->
+        <scene sceneID="MZy-Qo-rqg">
+            <objects>
+                <tableViewController id="0p4-DV-Tt4" customClass="OfflineTableViewController" customModule="MEGA" customModuleProvider="target" sceneMemberID="viewController">
+                    <tableView key="view" clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="none" allowsSelection="NO" rowHeight="60" sectionHeaderHeight="22" sectionFooterHeight="22" id="6pL-lw-K6C">
+                        <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        <prototypes>
+                            <tableViewCell contentMode="scaleToFill" selectionStyle="default" indentationWidth="10" reuseIdentifier="nodeCell" id="OxW-nm-qxP" customClass="NodeTableViewCell" customModule="MEGA" customModuleProvider="target">
+                                <autoresizingMask key="autoresizingMask"/>
+                                <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" tableViewCell="OxW-nm-qxP" id="Ipo-hV-DSj">
+                                    <autoresizingMask key="autoresizingMask"/>
+                                    <subviews>
+                                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="e5P-pC-mA9">
+                                            <rect key="frame" x="68" y="31" width="151" height="21"/>
+                                            <constraints>
+                                                <constraint firstAttribute="width" constant="151" id="73D-De-Akg"/>
+                                                <constraint firstAttribute="height" constant="21" id="A2v-aX-IP9"/>
+                                            </constraints>
+                                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                                            <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                            <nil key="highlightedColor"/>
+                                        </label>
+                                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Ine-fm-vKt">
+                                            <rect key="frame" x="68" y="8" width="532" height="21"/>
+                                            <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                            <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                            <nil key="highlightedColor"/>
+                                        </label>
+                                        <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="NDx-eK-6De">
+                                            <rect key="frame" x="8" y="2" width="55" height="55"/>
+                                        </imageView>
+                                    </subviews>
+                                    <constraints>
+                                        <constraint firstItem="Ine-fm-vKt" firstAttribute="leading" secondItem="NDx-eK-6De" secondAttribute="trailing" constant="5" id="B9s-Nv-Ij8"/>
+                                        <constraint firstItem="e5P-pC-mA9" firstAttribute="leading" secondItem="Ipo-hV-DSj" secondAttribute="leadingMargin" constant="60" id="Dlm-3w-iwT"/>
+                                        <constraint firstItem="Ine-fm-vKt" firstAttribute="top" secondItem="Ipo-hV-DSj" secondAttribute="topMargin" id="K97-lQ-JOi"/>
+                                        <constraint firstItem="e5P-pC-mA9" firstAttribute="leading" secondItem="NDx-eK-6De" secondAttribute="trailing" constant="5" id="Y02-qN-i6j"/>
+                                        <constraint firstItem="e5P-pC-mA9" firstAttribute="top" secondItem="Ine-fm-vKt" secondAttribute="bottom" constant="2" id="YDw-sT-3fA"/>
+                                        <constraint firstItem="NDx-eK-6De" firstAttribute="leading" secondItem="Ipo-hV-DSj" secondAttribute="leadingMargin" id="fbT-Og-vMw"/>
+                                        <constraint firstItem="NDx-eK-6De" firstAttribute="top" secondItem="Ipo-hV-DSj" secondAttribute="topMargin" constant="-6" id="fbx-1n-ReN"/>
+                                        <constraint firstAttribute="bottomMargin" secondItem="NDx-eK-6De" secondAttribute="bottom" constant="-5" id="j1H-s8-o3w"/>
+                                        <constraint firstAttribute="trailing" secondItem="Ine-fm-vKt" secondAttribute="trailing" id="l5P-Rm-Pnp"/>
+                                        <constraint firstItem="e5P-pC-mA9" firstAttribute="top" secondItem="Ipo-hV-DSj" secondAttribute="topMargin" constant="23" id="yo0-g4-VED"/>
+                                    </constraints>
+                                </tableViewCellContentView>
+                                <connections>
+                                    <outlet property="nameLabel" destination="Ine-fm-vKt" id="EtN-bs-ob5"/>
+                                    <outlet property="subtitleLabel" destination="e5P-pC-mA9" id="reI-Ne-WRw"/>
+                                    <outlet property="thumbnailImageView" destination="NDx-eK-6De" id="APT-GW-6JC"/>
+                                </connections>
+                            </tableViewCell>
+                        </prototypes>
+                        <connections>
+                            <outlet property="dataSource" destination="0p4-DV-Tt4" id="eND-oy-e5Y"/>
+                            <outlet property="delegate" destination="0p4-DV-Tt4" id="Ofc-YU-baa"/>
+                        </connections>
+                    </tableView>
+                    <navigationItem key="navigationItem" title="Offline documents" id="MEk-Th-Hbx"/>
+                </tableViewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="l69-UK-FjG" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="2369" y="-2039"/>
+        </scene>
+        <!--Offline-->
+        <scene sceneID="O2u-iM-yft">
+            <objects>
+                <navigationController automaticallyAdjustsScrollViewInsets="NO" id="faa-Ut-As6" sceneMemberID="viewController">
+                    <tabBarItem key="tabBarItem" title="Offline" image="offlineIcon" id="GmS-Ox-gbf"/>
+                    <toolbarItems/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="nZ8-2M-caH">
+                        <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <nil name="viewControllers"/>
+                    <connections>
+                        <segue destination="0p4-DV-Tt4" kind="relationship" relationship="rootViewController" id="9rL-Je-u0b"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="MEU-rO-VWh" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="1635" y="-2039"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="offlineIcon" width="64" height="49"/>
+    </resources>
+</document>

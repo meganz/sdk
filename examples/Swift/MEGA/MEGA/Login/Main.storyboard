@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="6254" systemVersion="13F34" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="BTE-Iq-toX">
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6247"/>
+        <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
+    </dependencies>
+    <scenes>
+        <!--MEGA-->
+        <scene sceneID="yvU-5J-z9a">
+            <objects>
+                <viewController storyboardIdentifier="LoginViewControllerID" id="BTE-Iq-toX" customClass="LoginViewController" customModule="MEGA" customModuleProvider="target" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="Bi1-6o-4kv"/>
+                        <viewControllerLayoutGuide type="bottom" id="JrM-be-CIZ"/>
+                    </layoutGuides>
+                    <view key="view" contentMode="scaleToFill" id="TaN-1F-Yww">
+                        <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                        <subviews>
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Email" minimumFontSize="17" clearButtonMode="whileEditing" translatesAutoresizingMaskIntoConstraints="NO" id="CA9-Z9-FnC">
+                                <rect key="frame" x="16" y="50" width="568" height="30"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <textInputTraits key="textInputTraits" keyboardType="emailAddress"/>
+                            </textField>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Xe6-Ja-m10">
+                                <rect key="frame" x="281" y="164" width="38" height="30"/>
+                                <state key="normal" title="Login">
+                                    <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
+                                </state>
+                                <connections>
+                                    <action selector="touchUpInsideLogin:" destination="BTE-Iq-toX" eventType="touchUpInside" id="esF-0y-mLD"/>
+                                </connections>
+                            </button>
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Password" minimumFontSize="17" clearButtonMode="whileEditing" translatesAutoresizingMaskIntoConstraints="NO" id="2RK-20-yDS">
+                                <rect key="frame" x="16" y="100" width="568" height="30"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <textInputTraits key="textInputTraits" secureTextEntry="YES"/>
+                            </textField>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="qp7-9a-EIH">
+                                <rect key="frame" x="16" y="223" width="568" height="18"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="18" id="vdD-OE-SVO"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" pointSize="15"/>
+                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <progressView hidden="YES" opaque="NO" contentMode="scaleToFill" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="zOG-F4-qmY">
+                                <rect key="frame" x="16" y="272" width="568" height="2"/>
+                            </progressView>
+                        </subviews>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
+                        <constraints>
+                            <constraint firstItem="zOG-F4-qmY" firstAttribute="trailing" secondItem="TaN-1F-Yww" secondAttribute="trailingMargin" id="2cJ-Mw-h2U"/>
+                            <constraint firstItem="CA9-Z9-FnC" firstAttribute="leading" secondItem="2RK-20-yDS" secondAttribute="leading" id="4Jp-In-rVn"/>
+                            <constraint firstItem="CA9-Z9-FnC" firstAttribute="top" secondItem="Bi1-6o-4kv" secondAttribute="bottom" constant="30" id="BeT-wI-5Qs"/>
+                            <constraint firstAttribute="centerX" secondItem="Xe6-Ja-m10" secondAttribute="centerX" id="FhW-jB-cR3"/>
+                            <constraint firstItem="Xe6-Ja-m10" firstAttribute="top" secondItem="Bi1-6o-4kv" secondAttribute="bottom" constant="144" id="Ha6-N5-u55"/>
+                            <constraint firstItem="zOG-F4-qmY" firstAttribute="leading" secondItem="TaN-1F-Yww" secondAttribute="leadingMargin" id="Sso-mK-oNC"/>
+                            <constraint firstItem="zOG-F4-qmY" firstAttribute="top" secondItem="qp7-9a-EIH" secondAttribute="bottom" constant="31" id="Tqu-xh-kl8"/>
+                            <constraint firstItem="qp7-9a-EIH" firstAttribute="top" secondItem="Xe6-Ja-m10" secondAttribute="bottom" constant="29" id="UYj-eT-FWh"/>
+                            <constraint firstItem="qp7-9a-EIH" firstAttribute="leading" secondItem="TaN-1F-Yww" secondAttribute="leadingMargin" id="WdI-7r-7iF"/>
+                            <constraint firstAttribute="centerX" secondItem="zOG-F4-qmY" secondAttribute="centerX" id="Ytd-md-txQ"/>
+                            <constraint firstItem="CA9-Z9-FnC" firstAttribute="leading" secondItem="TaN-1F-Yww" secondAttribute="leadingMargin" id="g9J-nN-Ezc"/>
+                            <constraint firstItem="CA9-Z9-FnC" firstAttribute="width" secondItem="2RK-20-yDS" secondAttribute="width" id="gj6-IZ-SK4"/>
+                            <constraint firstItem="2RK-20-yDS" firstAttribute="top" secondItem="CA9-Z9-FnC" secondAttribute="bottom" constant="20" id="kQy-Pa-ShO"/>
+                            <constraint firstItem="qp7-9a-EIH" firstAttribute="trailing" secondItem="TaN-1F-Yww" secondAttribute="trailingMargin" id="lVj-Bu-0AY"/>
+                            <constraint firstItem="CA9-Z9-FnC" firstAttribute="trailing" secondItem="TaN-1F-Yww" secondAttribute="trailingMargin" id="qbx-W4-TXm"/>
+                            <constraint firstAttribute="centerX" secondItem="qp7-9a-EIH" secondAttribute="centerX" id="v6n-ct-qvi"/>
+                        </constraints>
+                    </view>
+                    <extendedEdge key="edgesForExtendedLayout" bottom="YES"/>
+                    <navigationItem key="navigationItem" title="MEGA" id="dOs-H3-UDo"/>
+                    <connections>
+                        <outlet property="emailTextField" destination="CA9-Z9-FnC" id="1TI-Fr-pBG"/>
+                        <outlet property="informationLabel" destination="qp7-9a-EIH" id="6VP-rG-IYn"/>
+                        <outlet property="loginButton" destination="Xe6-Ja-m10" id="Kva-hK-d5A"/>
+                        <outlet property="loginProgressView" destination="zOG-F4-qmY" id="GHh-Fi-mfA"/>
+                        <outlet property="passwordTextField" destination="2RK-20-yDS" id="h0Z-Yp-YSr"/>
+                        <segue destination="91Z-Od-CCL" kind="show" identifier="showCloudDrive" id="ES1-Yo-nED"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="3Sv-ii-VJT" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="454" y="-561"/>
+        </scene>
+        <!--Main Tab Bar View Controller-->
+        <scene sceneID="rWY-7h-cHQ">
+            <objects>
+                <tabBarController storyboardIdentifier="TabBarControllerID" automaticallyAdjustsScrollViewInsets="NO" id="91Z-Od-CCL" customClass="MainTabBarViewController" customModule="MEGA" customModuleProvider="target" sceneMemberID="viewController">
+                    <toolbarItems/>
+                    <nil key="simulatedBottomBarMetrics"/>
+                    <tabBar key="tabBar" contentMode="scaleToFill" id="hNc-Kx-lFn">
+                        <autoresizingMask key="autoresizingMask"/>
+                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
+                    </tabBar>
+                </tabBarController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="SrT-A8-EPd" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="1221" y="-561"/>
+        </scene>
+    </scenes>
+</document>
