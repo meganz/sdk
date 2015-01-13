@@ -73,6 +73,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
         
         switch request.type {
         case MEGARequestType.Logout:
+            SSKeychain.deletePasswordForService("MEGA", account: "session")
             let cacheDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0].stringByAppendingPathComponent("thumbs")
             
             var error : NSError?

@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		410C423A1A60453C00CA67D3 /* Contacts.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 410C42391A60453C00CA67D3 /* Contacts.storyboard */; };
+		41A29D731A6528C8006B24D2 /* SSKeychain.m in Sources */ = {isa = PBXBuildFile; fileRef = 41A29D401A6528C8006B24D2 /* SSKeychain.m */; };
+		41A29D741A6528C8006B24D2 /* SSKeychainQuery.m in Sources */ = {isa = PBXBuildFile; fileRef = 41A29D421A6528C8006B24D2 /* SSKeychainQuery.m */; };
+		41A29D751A6528C8006B24D2 /* SVProgressHUD.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 41A29D451A6528C8006B24D2 /* SVProgressHUD.bundle */; };
+		41A29D761A6528C8006B24D2 /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 41A29D471A6528C8006B24D2 /* SVProgressHUD.m */; };
 		41A990781A5D645600B2094A /* MainTabBarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A990771A5D645600B2094A /* MainTabBarViewController.swift */; };
 		41A9907B1A5D65C100B2094A /* Cloud.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41A9907A1A5D65C100B2094A /* Cloud.storyboard */; };
 		41A9907D1A5D678400B2094A /* CloudDriveTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */; };
@@ -36,6 +40,14 @@
 
 /* Begin PBXFileReference section */
 		410C42391A60453C00CA67D3 /* Contacts.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Contacts.storyboard; sourceTree = "<group>"; };
+		41A29D3F1A6528C8006B24D2 /* SSKeychain.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SSKeychain.h; sourceTree = "<group>"; };
+		41A29D401A6528C8006B24D2 /* SSKeychain.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SSKeychain.m; sourceTree = "<group>"; };
+		41A29D411A6528C8006B24D2 /* SSKeychainQuery.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SSKeychainQuery.h; sourceTree = "<group>"; };
+		41A29D421A6528C8006B24D2 /* SSKeychainQuery.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SSKeychainQuery.m; sourceTree = "<group>"; };
+		41A29D441A6528C8006B24D2 /* SVProgressHUD-Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "SVProgressHUD-Prefix.pch"; sourceTree = "<group>"; };
+		41A29D451A6528C8006B24D2 /* SVProgressHUD.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = SVProgressHUD.bundle; sourceTree = "<group>"; };
+		41A29D461A6528C8006B24D2 /* SVProgressHUD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVProgressHUD.h; sourceTree = "<group>"; };
+		41A29D471A6528C8006B24D2 /* SVProgressHUD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SVProgressHUD.m; sourceTree = "<group>"; };
 		41A990771A5D645600B2094A /* MainTabBarViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainTabBarViewController.swift; sourceTree = "<group>"; };
 		41A9907A1A5D65C100B2094A /* Cloud.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Cloud.storyboard; sourceTree = "<group>"; };
 		41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudDriveTableViewController.swift; sourceTree = "<group>"; };
@@ -91,6 +103,38 @@
 				41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */,
 			);
 			path = Contacts;
+			sourceTree = "<group>";
+		};
+		41A29CD91A6528C8006B24D2 /* vendor */ = {
+			isa = PBXGroup;
+			children = (
+				41A29D3E1A6528C8006B24D2 /* SSKeychain */,
+				41A29D431A6528C8006B24D2 /* SVProgressHUD */,
+			);
+			name = vendor;
+			path = ../../../iOS/Demo/Demo/vendor;
+			sourceTree = "<group>";
+		};
+		41A29D3E1A6528C8006B24D2 /* SSKeychain */ = {
+			isa = PBXGroup;
+			children = (
+				41A29D3F1A6528C8006B24D2 /* SSKeychain.h */,
+				41A29D401A6528C8006B24D2 /* SSKeychain.m */,
+				41A29D411A6528C8006B24D2 /* SSKeychainQuery.h */,
+				41A29D421A6528C8006B24D2 /* SSKeychainQuery.m */,
+			);
+			path = SSKeychain;
+			sourceTree = "<group>";
+		};
+		41A29D431A6528C8006B24D2 /* SVProgressHUD */ = {
+			isa = PBXGroup;
+			children = (
+				41A29D441A6528C8006B24D2 /* SVProgressHUD-Prefix.pch */,
+				41A29D451A6528C8006B24D2 /* SVProgressHUD.bundle */,
+				41A29D461A6528C8006B24D2 /* SVProgressHUD.h */,
+				41A29D471A6528C8006B24D2 /* SVProgressHUD.m */,
+			);
+			path = SVProgressHUD;
 			sourceTree = "<group>";
 		};
 		41A990791A5D65A100B2094A /* Cloud drive */ = {
@@ -160,6 +204,7 @@
 		41F1756B1A51E22500570E30 /* MEGA */ = {
 			isa = PBXGroup;
 			children = (
+				41A29CD91A6528C8006B24D2 /* vendor */,
 				41F1756E1A51E22500570E30 /* AppDelegate.swift */,
 				41AB404B1A52D66500E5E16E /* Login */,
 				41A990791A5D65A100B2094A /* Cloud drive */,
@@ -259,6 +304,7 @@
 				41C6A0441A5FD13300865971 /* Offline.storyboard in Resources */,
 				41F175791A51E22500570E30 /* LaunchScreen.xib in Resources */,
 				41C6A0491A5FF8CC00865971 /* Settings.storyboard in Resources */,
+				41A29D751A6528C8006B24D2 /* SVProgressHUD.bundle in Resources */,
 				41A9907B1A5D65C100B2094A /* Cloud.storyboard in Resources */,
 				410C423A1A60453C00CA67D3 /* Contacts.storyboard in Resources */,
 				41F175761A51E22500570E30 /* Images.xcassets in Resources */,
@@ -274,13 +320,16 @@
 			files = (
 				41A990781A5D645600B2094A /* MainTabBarViewController.swift in Sources */,
 				41A9907F1A5D8C3F00B2094A /* NodeTableViewCell.swift in Sources */,
+				41A29D741A6528C8006B24D2 /* SSKeychainQuery.m in Sources */,
 				41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */,
+				41A29D731A6528C8006B24D2 /* SSKeychain.m in Sources */,
 				41ABAEA11A63DD410026CEAD /* ContactsTableViewController.swift in Sources */,
 				41C6A0461A5FD15B00865971 /* OfflineTableViewController.swift in Sources */,
 				41AB404F1A52D66500E5E16E /* LoginViewController.swift in Sources */,
 				41A9907D1A5D678400B2094A /* CloudDriveTableViewController.swift in Sources */,
 				41F1756F1A51E22500570E30 /* AppDelegate.swift in Sources */,
 				41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */,
+				41A29D761A6528C8006B24D2 /* SVProgressHUD.m in Sources */,
 				41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */,
 				41C6A04B1A5FFA9B00865971 /* SettingsViewController.swift in Sources */,
 			);

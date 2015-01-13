@@ -22,14 +22,27 @@
 import UIKit
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     
     var window: UIWindow?
     let megaapi: MEGASdk = MEGASdk(appKey: "iOS Swift/1.0", userAgent: "hNF3ELhK", basePath: nil)
     
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-        // Override point for customization after application launch.
         MEGASdk.setLogLevel(MEGALogLevel.Fatal)
+        
+        
+        let storyboard = UIStoryboard(name: "Main", bundle: nil)
+        if (SSKeychain.passwordForService("MEGA", account: "session") != nil) {
+            megaapi.fastLoginWithSession(SSKeychain.passwordForService("MEGA", account: "session"), delegate: self)
+
+            let tabBarC = storyboard.instantiateViewControllerWithIdentifier("TabBarControllerID") as UITabBarController
+            window?.rootViewController = tabBarC
+            
+        } else {
+            let loginVC = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as UIViewController
+            window?.rootViewController = loginVC;
+        }
+        
         return true
     }
     
@@ -53,6 +66,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
     func applicationWillTerminate(application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    }
+    
+    // MARK: - MEGA Request delegate
+    
+    func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+        if error.type != MEGAErrorType.ApiOk {
+            return
+        }
+        
+        if request.type == MEGARequestType.Login {
+            megaapi.fetchNodesWithDelegate(self)
+        }
     }
     
 }

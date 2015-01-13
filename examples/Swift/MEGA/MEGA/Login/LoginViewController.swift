@@ -122,6 +122,8 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
         
         switch request.type {
         case MEGARequestType.Login:
+            let session = megaapi.dumpSession()
+            SSKeychain.setPassword(session, forService: "MEGA", account: "session")
             api.fetchNodesWithDelegate(self)
             
         case MEGARequestType.FetchNodes:

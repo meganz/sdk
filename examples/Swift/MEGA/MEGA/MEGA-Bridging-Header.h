@@ -2,5 +2,6 @@
 #define MEGA_MEGA_Bridging_Header_h
 
 #import "MEGASDk.h"
+#import "SSKeychain.h"
 
 #endif
