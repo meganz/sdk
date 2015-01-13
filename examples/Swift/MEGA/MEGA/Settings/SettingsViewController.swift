@@ -66,6 +66,12 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     
     // MARK: - MEGA Request delegate
     
+    func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
+        if request.type == MEGARequestType.Logout {
+            SVProgressHUD.showWithStatus("Logout")
+        }
+    }
+    
     func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
         if error.type != MEGAErrorType.ApiOk {
             return
@@ -88,6 +94,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
                 println("(Document) Remove file error: \(error)")
             }
             
+            SVProgressHUD.dismiss()
             let storyboard = UIStoryboard(name: "Main", bundle: nil)
             let lvc = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as LoginViewController
             presentViewController(lvc, animated: true, completion: nil)

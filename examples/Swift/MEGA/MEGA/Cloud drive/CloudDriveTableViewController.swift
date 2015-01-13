@@ -146,7 +146,6 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate {
             let folders = megaapi.numberChildFoldersForParent(node)
             
             cell.subtitleLabel.text = "\(folders) folders, \(files) files"
-            cell.thumbnailImageView.image = UIImage(named: "folder")
         }
         
         cell.nodeHandle = node.handle
@@ -196,16 +195,15 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate {
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
-        
-    }
-    
     func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
         if error.type != MEGAErrorType.ApiOk {
             return
         }
         
         switch request.type {
+        case MEGARequestType.FetchNodes:
+            SVProgressHUD.dismiss()
+            
         case MEGARequestType.GetAttrFile:
             for tableViewCell in tableView.visibleCells() as [NodeTableViewCell] {
                 if request?.nodeHandle == tableViewCell.nodeHandle {

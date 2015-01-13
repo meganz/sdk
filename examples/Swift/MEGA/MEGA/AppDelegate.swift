@@ -70,6 +70,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     
     // MARK: - MEGA Request delegate
     
+    func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
+        if request.type == MEGARequestType.FetchNodes {
+            SVProgressHUD.showWithStatus("Updating nodes...")
+        }
+    }
+    
     func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
         if error.type != MEGAErrorType.ApiOk {
             return

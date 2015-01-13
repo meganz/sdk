@@ -193,7 +193,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     
     func onRequestStart(api: MEGASdk!, request: MEGARequest!) {
         if request.type == MEGARequestType.Export {
-            println("Generate link...")
+            SVProgressHUD.showWithStatus("Generate link...")
         }
     }
     
@@ -215,6 +215,8 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
             }
             
         case MEGARequestType.Export:
+            SVProgressHUD.showSuccessWithStatus("Link Generate")
+            SVProgressHUD.dismiss()
             let items = [request.link]
             let activity : UIActivityViewController = UIActivityViewController(activityItems: items, applicationActivities: nil)
             activity.excludedActivityTypes = [UIActivityTypePrint, UIActivityTypeCopyToPasteboard, UIActivityTypeAssignToContact, UIActivityTypeSaveToCameraRoll]

@@ -3,5 +3,6 @@
 
 #import "MEGASDk.h"
 #import "SSKeychain.h"
+#import "SVProgressHUD.h"
 
 #endif
