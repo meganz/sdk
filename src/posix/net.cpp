@@ -335,17 +335,6 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
     LOG_verbose << "c-ares info received";
 
-    if (!req) // the request was cancelled
-    {        
-        if (!httpctx->ares_pending)
-        {
-            LOG_debug << "Request cancelled";
-            delete httpctx;
-        }
-
-        return;
-    }
-
     // check if result is valid
     if (status == ARES_SUCCESS && host && host->h_addr_list[0])
     {
@@ -369,7 +358,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         }
 
         // IPv6 takes precedence over IPv4
-        if (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
+        if (!httpctx->hostip.size() || (host->h_addrtype == PF_INET6 && !httpctx->curl))
         {
             httpctx->isIPv6 = host->h_addrtype == PF_INET6;
 
@@ -396,43 +385,63 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         LOG_err << "Unknown c-ares error";
     }
 
-
-    if (!httpctx->ares_pending)
-    {
-        LOG_verbose << "Name resolution finished";
-
-        // name resolution finished
-        // check for fatal errors
-        if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
-         || (!httpctx->hostip.size() && !httpio->proxyip.size())) // or unable to get the IP for this request
+    if (!req) // the request was cancelled
+    {        
+        if (!httpctx->ares_pending)
         {
-            if(!httpio->proxyinflight)
+            LOG_debug << "Request cancelled";
+            delete httpctx;
+        }
+
+        return;
+    }
+
+    if (httpctx->curl)
+    {
+        LOG_verbose << "Request already sent using a previous DNS response";
+        return;
+    }
+
+    // check for fatal errors
+    if ((httpio->proxyurl.size() && !httpio->proxyhost.size()) //malformed proxy string
+     || (!httpctx->ares_pending && !httpctx->hostip.size())) // or unable to get the IP for this request
+    {
+        if(!httpio->proxyinflight)
+        {
+            req->status = REQ_FAILURE;
+            httpio->statechange = true;
+
+            if (!httpctx->ares_pending && !httpctx->hostip.size())
             {
-                req->status = REQ_FAILURE;
-                httpio->statechange = true;
+                LOG_debug << "Unable to get the IP for " << httpctx->hostname;
 
-                if (!httpctx->hostip.size())
-                {
-                    LOG_debug << "Unable to get the IP for " << httpctx->hostname;
+                // unable to get the IP.
+                httpio->inetstatus(false);
 
-                    // unable to get the IP.
-                    httpio->inetstatus(false);
+                // reinitialize c-ares to prevent permanent hangs
+                httpio->reset = true;
+            }
 
-                    // reinitialize c-ares to prevent permanent hangs
-                    httpio->reset = true;
-                }
+            req->httpiohandle = NULL;
 
-                req->httpiohandle = NULL;
+            httpctx->req = NULL;
+            if (!httpctx->ares_pending)
+            {
                 delete httpctx;
             }
-            else
-            {
-                httpio->pendingrequests.push(httpctx);
-                LOG_debug << "Waiting for the IP of the proxy (1)";
-            }
-
-            return;
         }
+        else if(!httpctx->ares_pending)
+        {
+            httpio->pendingrequests.push(httpctx);
+            LOG_debug << "Waiting for the IP of the proxy (1)";
+        }
+
+        return;
+    }
+
+    if (httpctx->hostip.size())
+    {
+        LOG_verbose << "Name resolution finished";
 
         // if there is no proxy or we already have the IP of the proxy, send the request.
         // otherwise, queue the request until we get the IP of the proxy
@@ -440,7 +449,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         {
             send_request(httpctx);
         }
-        else
+        else if(!httpctx->ares_pending)
         {
             httpio->pendingrequests.push(httpctx);
 
@@ -460,7 +469,8 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             }
         }
     }
-    else
+
+    if(httpctx->ares_pending)
     {
         LOG_verbose << "Waiting for the completion of the c-ares request";
     }
@@ -508,21 +518,32 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
-    if(httpctx->hostip.size())
+
+
+    if(httpio->proxyip.size())
     {
+        LOG_debug << "Using the hostname instead of the IP";
+    }
+    else if(httpctx->hostip.size())
+    {
+        LOG_debug << "Using the IP of the hostname";
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
     else
     {
-        if(httpio->proxyip.size())
+        LOG_err << "No IP nor proxy available";
+        req->status = REQ_FAILURE;
+        req->httpiohandle = NULL;
+        curl_slist_free_all(httpctx->headers);
+
+        httpctx->req = NULL;
+        if(!httpctx->ares_pending)
         {
-            LOG_debug << "Using the hostname instead of the IP";
+            delete httpctx;
         }
-        else
-        {
-            LOG_err << "No IP nor proxy available";
-        }
+        httpio->statechange = true;
+        return;
     }
 
 
@@ -594,7 +615,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         req->status = REQ_FAILURE;
         req->httpiohandle = NULL;
         curl_slist_free_all(httpctx->headers);
-        delete httpctx;
+
+        httpctx->req = NULL;
+        if(!httpctx->ares_pending)
+        {
+            delete httpctx;
+        }
     }
 
     httpio->statechange = true;
@@ -1000,7 +1026,7 @@ void CurlHttpIO::cancel(HttpReq* req)
 
         httpctx->req = NULL;
 
-        if (req->status == REQ_FAILURE || httpctx->curl)
+        if ((req->status == REQ_FAILURE || httpctx->curl) && !httpctx->ares_pending)
         {
             delete httpctx;
         }
@@ -1129,19 +1155,29 @@ bool CurlHttpIO::doio()
                     ipv6deactivationtime = Waiter::ds;
 
                     // for IPv6 errors, try IPv4 before sending an error to the engine
-                    if (dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+                    if((dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS) || httpctx->ares_pending)
                     {
                         curl_multi_remove_handle(curlm, msg->easy_handle);
                         curl_easy_cleanup(msg->easy_handle);
                         curl_slist_free_all(httpctx->headers);
                         httpctx->headers = NULL;
+                        httpctx->curl = NULL;
                         req->httpio = this;
                         req->in.clear();
                         req->status = REQ_INFLIGHT;
-                        httpctx->ares_pending = 0;
-                        httpctx->isIPv6 = false;
-                        httpctx->hostip = dnsEntry.ipv4;
-                        send_request(httpctx);
+
+                        if(dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+                        {
+                            LOG_debug << "Retrying using IPv4 from cache";
+                            httpctx->isIPv6 = false;
+                            httpctx->hostip = dnsEntry.ipv4;
+                            send_request(httpctx);
+                        }
+                        else
+                        {
+                            httpctx->hostip.clear();
+                            LOG_debug << "Retrying with the pending DNS response";
+                        }
                         return true;
                     }
                 }
@@ -1161,8 +1197,13 @@ bool CurlHttpIO::doio()
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
             curl_slist_free_all(httpctx->headers);
-            delete httpctx;
             req->httpiohandle = NULL;
+
+            httpctx->req = NULL;
+            if(!httpctx->ares_pending)
+            {
+                delete httpctx;
+            }
         }
     }
 
@@ -1204,7 +1245,11 @@ void CurlHttpIO::drop_pending_requests()
             statechange = true;
         }
 
-        delete httpctx;
+        httpctx->req = NULL;
+        if(!httpctx->ares_pending)
+        {
+            delete httpctx;
+        }
         pendingrequests.pop();
     }
 }
