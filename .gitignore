@@ -60,6 +60,7 @@ config.guess
 config.log
 config.status
 config.sub
+py-compile
 
 # Documentation generator
 doc/_build
@@ -78,3 +79,13 @@ Release
 
 # Mega SDK runtime
 *.db-journal
+
+# bindings
+bindings/php/mega.php
+bindings/php/megaapi_wrap.cpp
+bindings/php/megaapi_wrap.h
+bindings/php/php_mega.h
+
+bindings/python/mega.py
+bindings/python/megaapi_wrap.cpp
+bindings/python/megaapi_wrap.h

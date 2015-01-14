@@ -44,6 +44,14 @@ include src/include.am
 include examples/include.am
 include tests/include.am
 
+if BUILD_PYTHON
+include bindings/python/include.am
+endif
+
+if BUILD_PHP
+include bindings/php/include.am
+endif
+
 SUBDIRS = include
 
 EXTRA_DIST += autogen.sh

@@ -1232,6 +1232,87 @@ fi
 AM_CONDITIONAL([BUILD_TESTS], [test "$enable_tests" = "yes"])
 AC_MSG_RESULT([$enable_tests])
 
+
+# Bindings
+
+AC_MSG_CHECKING([if building Python bindings])
+AC_ARG_ENABLE(python,
+    AS_HELP_STRING([--enable-python], [build Python language bindings]),
+    [AC_MSG_RESULT([$enableval])],
+    [
+     AC_MSG_RESULT([$enableval])
+     enable_python=no]
+)
+if test "x$enable_python" = "xyes" ; then
+    AM_PATH_PYTHON
+    AX_PYTHON_DEVEL
+    AX_PKG_SWIG(2.0.0, [], [])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+    AX_SWIG_PYTHON
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    if test -z "$PYTHON_VERSION"; then
+        AC_MSG_ERROR([Python development files not found!])
+    fi
+
+fi
+AM_CONDITIONAL([BUILD_PYTHON], [test "$enable_python" = "yes"])
+
+AC_MSG_CHECKING([if building PHP bindings])
+AC_ARG_ENABLE(php,
+    AS_HELP_STRING([--enable-php], [build PHP language bindings]),
+    [AC_MSG_RESULT([$enableval])],
+    [AC_MSG_RESULT([$enableval])
+     enable_php=no]
+)
+if test "x$enable_php" = "xyes" ; then
+    AC_CHECK_PROGS(PHPCONFIG, php-config php5-config php-config5 php4-config php-config4)
+    AC_MSG_CHECKING(for PHP header files)
+    PHPINC="`$PHPCONFIG --includes 2>/dev/null`"
+    if test "$PHPINC"; then
+        AC_MSG_RESULT($PHPINC)
+    else
+        dirs="/usr/include/php /usr/local/include/php /usr/include/php5 /usr/local/include/php5 /usr/include/php4 /usr/local/include/php4 /usr/local/apache/php"
+        for i in $dirs; do
+            if test -r $i/main/php_config.h -o -r $i/main/php_version.h; then
+                AC_MSG_RESULT($i is found)
+                PHPEXT="$i"
+                PHPINC="-I$PHPEXT -I$PHPEXT/main -I$PHPEXT/TSRM -I$PHPEXT/Zend"
+                break;
+            fi
+        done
+    fi
+    if test -z "$PHPINC"; then
+        AC_MSG_ERROR([PHP headers not found!])
+    fi
+
+    AC_MSG_CHECKING(for PHP extension-dir)
+    PHPLIBDIR="`$PHPCONFIG --extension-dir 2>/dev/null | sed "s#/lib/#/lib${LIBPOSTFIX}/#g"`"
+    if test ! -z "$PHPLIBDIR"; then
+        AC_MSG_RESULT($PHPLIBDIR)
+    else
+        AC_MSG_ERROR([PHP development files not found!])
+    fi
+
+    AC_SUBST(PHPINC)
+	AC_SUBST(PHPEXT)
+	AC_SUBST(PHPLIBDIR)
+
+    AX_PKG_SWIG(2.0.0, [], [])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+fi
+AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
+
+
 dnl #########################################################################
 dnl Doxygen settings
 dnl #########################################################################
@@ -1273,6 +1354,9 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
+
+  Python bindings:  $enable_python
+  PHP bindings:     $enable_php
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
   Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS
