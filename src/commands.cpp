@@ -1573,7 +1573,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, 
 {
     priv = p;
     user = client->finduser((char*)uid);
-    attributename = (char*)an;
+    attributename = an;
 
     cmd("uga");
     arg("u", uid);
@@ -1590,8 +1590,8 @@ void CommandGetUA::procresult()
 
 #ifdef USE_SODIUM
         if ((e == API_ENOENT) && (user->userhandle == client->me)
-                && ((priv && strncmp(attributename, "prEd255", 7))
-                        || (!priv && strncmp(attributename, "puEd255", 7))))
+                && ((priv && strncmp(attributename.c_str(), "prEd255", 7))
+                        || (!priv && strncmp(attributename.c_str(), "puEd255", 7))))
         {
             // We apparently don't have Ed25519 keys, yet. Let's make 'em.
             if(!client->inited25519())
@@ -1600,7 +1600,7 @@ void CommandGetUA::procresult()
             }
 
             // Return the required key data.
-            if (strncmp(attributename, "prEd255", 7))
+            if (strncmp(attributename.c_str(), "prEd255", 7))
             {
                 return(client->app->getua_result(client->signkey.keySeed,
                                                  crypto_sign_SEEDBYTES));
