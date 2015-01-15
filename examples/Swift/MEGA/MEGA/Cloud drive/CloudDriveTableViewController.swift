@@ -20,11 +20,14 @@
 */
 
 import UIKit
+import AssetsLibrary
 
-class CloudDriveTableViewController: UITableViewController, MEGADelegate {
+class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActionSheetDelegate, UIAlertViewDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
     
     @IBOutlet weak var headerView: UIView!
     @IBOutlet weak var filesFolderLabel: UILabel!
+    
+    @IBOutlet weak var addBarButtonItem: UIBarButtonItem!
     
     var parentNode : MEGANode!
     var nodes : MEGANodeList!
@@ -64,7 +67,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate {
         var filesAndFolders : String!
         
         if parentNode == nil {
-            navigationItem.title = "Cloud drive"
+            navigationItem.title = "Cloud Drive"
             nodes = megaapi.childrenForParent(megaapi.rootNode)
             
             let files = megaapi.numberChildFilesForParent(megaapi.rootNode)
@@ -193,6 +196,83 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate {
         self.navigationController?.pushViewController(nidvc, animated: true)
     }
     
+    // MARK: - IBActions
+    
+    @IBAction func addOption(sender: UIBarButtonItem) {
+        let actionSheet = UIActionSheet(title: nil, delegate: self, cancelButtonTitle: "Cancel", destructiveButtonTitle: nil, otherButtonTitles: "Create folder", "Upload photo")
+        actionSheet.showFromTabBar(self.tabBarController?.tabBar)
+    }
+    
+    // MARK: - UIActionSheetDelegate
+    
+    func actionSheet(actionSheet: UIActionSheet, clickedButtonAtIndex buttonIndex: Int) {
+        if buttonIndex == 1 { //Create new folder
+            let folderAlertView = UIAlertView(title: "Create new folder", message: "Name of the new folder", delegate: self, cancelButtonTitle: "Cancel", otherButtonTitles: "Create")
+            folderAlertView.alertViewStyle = UIAlertViewStyle.PlainTextInput
+            folderAlertView.textFieldAtIndex(0)?.text = ""
+            folderAlertView.tag = 1
+            folderAlertView.show()
+        } else if buttonIndex == 2 { //Upload photo
+            let imagePickerController = UIImagePickerController()
+            imagePickerController.modalPresentationStyle = UIModalPresentationStyle.CurrentContext
+            imagePickerController.sourceType = UIImagePickerControllerSourceType.PhotoLibrary
+            imagePickerController.delegate = self
+            
+            self.tabBarController?.presentViewController(imagePickerController, animated: true, completion: nil)
+        }
+    }
+    
+    // MARK: - UIAlertViewDelegate
+    
+    func alertView(alertView: UIAlertView, didDismissWithButtonIndex buttonIndex: Int) {
+        if alertView.tag == 1 {
+            if buttonIndex == 1 {
+                if parentNode != nil {
+                    megaapi.createFolderWithName((alertView.textFieldAtIndex(0)?.text), parent: parentNode)
+                } else {
+                    megaapi.createFolderWithName((alertView.textFieldAtIndex(0)?.text), parent: megaapi.rootNode)
+                }
+            }
+        }
+    }
+    
+    // MARK: - UIImagePickerControllerDelegate
+    
+    func imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [NSObject : AnyObject]) {
+        let assetURL = info[UIImagePickerControllerReferenceURL] as NSURL
+        
+        let library = ALAssetsLibrary()
+        library.assetForURL(assetURL, resultBlock: { (let asset: ALAsset!) in
+            let name: String = asset.defaultRepresentation().filename()
+            let modificationTime: NSDate = asset.valueForProperty(ALAssetPropertyDate) as NSDate
+            let imageView = UIImageView()
+            imageView.image = (info[UIImagePickerControllerOriginalImage] as UIImage)
+            let webData: NSData = UIImageJPEGRepresentation(imageView.image, 0.9)
+            
+            let localFilePath: String = NSTemporaryDirectory().stringByAppendingPathComponent(name)
+            webData.writeToFile(localFilePath, atomically: true)
+            
+            var error = NSErrorPointer()
+            NSFileManager.defaultManager().setAttributes([modificationTime: NSFileModificationDate], ofItemAtPath: localFilePath, error: error)
+            if (error != nil) {
+                println("Error change modification date of file \(error)")
+            }
+            
+            if self.parentNode != nil {
+                self.megaapi.startUploadWithLocalPath(localFilePath, parent: self.parentNode)
+            } else {
+                self.megaapi.startUploadWithLocalPath(localFilePath, parent: self.megaapi.rootNode)
+            }
+            
+            self.dismissViewControllerAnimated(true, completion: nil)
+            
+            }, failureBlock: nil)
+    }
+    
+    func imagePickerControllerDidCancel(picker: UIImagePickerController) {
+        self.dismissViewControllerAnimated(true, completion: nil)
+    }
+    
     // MARK: - MEGA Request delegate
     
     func onRequestFinish(api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
@@ -216,7 +296,6 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate {
                     }
                 }
             }
-            break
             
         default:
             break
