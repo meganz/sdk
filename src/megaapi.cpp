@@ -197,7 +197,12 @@ const char* MegaError::toString() const
 
 const char* MegaError::__str__() const 
 { 
-	return getErrorString(); 
+	return getErrorString();
+}
+
+const char *MegaError::__toString() const
+{
+	return getErrorString();
 }
 
 //Request callbacks
@@ -1141,4 +1146,6 @@ MegaSyncEvent::~MegaSyncEvent()
 { }
 
 #endif
+
+
 

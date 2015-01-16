@@ -845,6 +845,11 @@ const char * MegaTransferPrivate::__str__() const
 	return getTransferString();
 }
 
+const char *MegaTransferPrivate::__toString() const
+{
+	return getTransferString();
+}
+
 MegaAccountDetails *MegaAccountDetailsPrivate::fromAccountDetails(AccountDetails *details)
 {
     return new MegaAccountDetailsPrivate(details);
@@ -1351,6 +1356,11 @@ const char *MegaRequestPrivate::toString() const
 }
 
 const char *MegaRequestPrivate::__str__() const
+{
+	return getRequestString();
+}
+
+const char *MegaRequestPrivate::__toString() const
 {
 	return getRequestString();
 }

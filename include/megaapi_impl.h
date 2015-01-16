@@ -264,6 +264,7 @@ class MegaTransferPrivate : public MegaTransfer
 		virtual const char * getTransferString() const;
 		virtual const char* toString() const;
 		virtual const char* __str__() const;
+		virtual const char* __toString() const;
         virtual int64_t getStartTime() const;
 		virtual long long getTransferredBytes() const;
 		virtual long long getTotalBytes() const;
@@ -420,6 +421,7 @@ class MegaRequestPrivate : public MegaRequest
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
 		virtual const char* __str__() const;
+		virtual const char* __toString() const;
         virtual MegaHandle getNodeHandle() const;
 		virtual const char* getLink() const;
         virtual MegaHandle getParentHandle() const;
