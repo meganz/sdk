@@ -400,12 +400,6 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-    AC_CHECK_HEADERS([sodium/core.h],, [
-        AC_MSG_NOTICE([sodium/core.h header not found or not usable])
-    ])
-    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium" sodium=true],[
-            AC_MSG_NOTICE([Could not find libsodium])
-    ])
   ])
 AC_SUBST(SODIUM_CXXFLAGS)
 AC_SUBST(SODIUM_CPPFLAGS)
