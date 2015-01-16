@@ -32,6 +32,7 @@ make_opts=""
 no_examples=""
 configure_only=0
 disable_posix_threads=""
+enable_sodium=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -546,6 +547,7 @@ build_sdk() {
     local freeimage_flags=""
     local megaapi_flags=""
     local openssl_flags=""
+    local sodium_flags=""
 
     echo "Configuring MEGA SDK"
 
@@ -582,6 +584,10 @@ build_sdk() {
         openssl_flags="--with-openssl=$install_dir"
     fi
 
+    if [ $enable_sodium -eq 1 ]; then
+        sodium_flags="--with-sodium=$install_dir"
+    fi
+
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         ./configure \
             $static_flags \
@@ -590,7 +596,7 @@ build_sdk() {
             $megaapi_flags \
             $openssl_flags \
             --with-cryptopp=$install_dir \
-            --with-sodium=$install_dir \
+            $sodium_flags \
             --with-zlib=$install_dir \
             --with-sqlite=$install_dir \
             --with-cares=$install_dir \
@@ -608,7 +614,7 @@ build_sdk() {
             --without-openssl \
             $megaapi_flags \
             --with-cryptopp=$install_dir \
-            --with-sodium=$install_dir \
+            $sodium_flags \
             --with-zlib=$install_dir \
             --with-sqlite=$install_dir \
             --without-cares \
@@ -647,6 +653,7 @@ display_help() {
     echo " -n : Disable example applications"
     echo " -s : Disable OpenSSL"
     echo " -t : Disable POSIX Threads support"
+    echo " -u : Enable Sodium cryptographic library"
     echo " -w : Download software archives and exit"
     echo " -y : Build dynamic library and executable (instead of static)"
     echo " -m [opts]: make options"
@@ -664,7 +671,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdflm:no:p:styw" opt; do
+    while getopts ":hacdflm:no:p:stuyw" opt; do
         case $opt in
             h)
                 display_help $0
@@ -713,6 +720,10 @@ main() {
                 ;;
             t)
                 disable_posix_threads="--disable-posix-threads"
+                ;;
+            u)
+                enable_sodium=1
+                echo "* Enabling Sodium."
                 ;;
             w)
                 download_only=1
@@ -763,7 +774,9 @@ main() {
         fi
     fi
     cryptopp_pkg $build_dir $install_dir
-    sodium_pkg $build_dir $install_dir
+    if [ $enable_sodium -eq 1 ]; then
+        sodium_pkg $build_dir $install_dir
+    fi
     zlib_pkg $build_dir $install_dir
     sqlite_pkg $build_dir $install_dir
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
