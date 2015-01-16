@@ -32,7 +32,6 @@ SOURCES += src/attrmap.cpp \
     src/waiterbase.cpp  \
     src/proxy.cpp \
     src/crypto/cryptopp.cpp  \
-    src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
@@ -92,7 +91,6 @@ HEADERS  += include/mega.h \
             include/mega/waiter.h \
             include/mega/proxy.h \
             include/mega/crypto/cryptopp.h  \
-            include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \
             include/mega/gfx/external.h \
@@ -127,7 +125,7 @@ unix {
             include/mega/config.h
 }
 
-DEFINES += USE_SQLITE USE_CRYPTOPP USE_SODIUM USE_QT MEGA_QT_LOGGING ENABLE_SYNC
+DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC
 LIBS += -lcryptopp
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
@@ -144,9 +142,7 @@ win32 {
     INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
     INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
-    DEFINES += SODIUM_STATIC PCRE_STATIC
-    LIBS += -lsodium
+    DEFINES += PCRE_STATIC
 
     contains(CONFIG, BUILDX64) {
 	release {
@@ -182,16 +178,6 @@ unix:!macx {
    else {
     LIBS += -lcurl
    }
-
-   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
-    DEFINES += SODIUM_STATIC PCRE_STATIC
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/sodium
-    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
-   }
-   else {
-    LIBS += -lsodium
-   }
-
 }
 
 macx {
@@ -199,15 +185,6 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/qt/libs/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
-
-   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
-    DEFINES += SODIUM_STATIC PCRE_STATIC
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/sodium
-    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
-   }
-   else {
-    LIBS += -lsodium
-   }
-
+   DEFINES += PCRE_STATIC
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto
 }
