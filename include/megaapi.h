@@ -110,7 +110,7 @@ public:
      * @param path Path of the file that is going to be processed
      * @return True if the implementation is able to manage the file, false otherwise.
      */
-    virtual bool readBitmap(const char* path) = 0;
+    virtual bool readBitmap(const char* path);
 
     /**
      * @brief Returns the width of the image
@@ -120,7 +120,7 @@ public:
      *
      * @return The width of the image
      */
-    virtual int getWidth() = 0;
+    virtual int getWidth();
 
     /**
      * @brief Returns the height of the image
@@ -130,7 +130,7 @@ public:
      *
      * @return The height of the image
      */
-    virtual int getHeight() = 0;
+    virtual int getHeight();
 
     /**
      * @brief Generates a thumbnail/preview image.
@@ -155,7 +155,7 @@ public:
      * possible to generate it.
      *
      */
-    virtual int getBitmapDataSize(int width, int height, int px, int py, int rw, int rh) = 0;
+    virtual int getBitmapDataSize(int width, int height, int px, int py, int rw, int rh);
 
     /**
      * @brief Copy the thumbnail/preview data to a buffer provided by the SDK
@@ -173,7 +173,7 @@ public:
      *
      * @return True in case of success, false otherwise.
      */
-    virtual bool getBitmapData(char *bitmapData, size_t size) = 0;
+    virtual bool getBitmapData(char *bitmapData, size_t size);
 
     /**
      * @brief Free resources associated with the processing of the current image
@@ -183,9 +183,9 @@ public:
      * the current image, so you can free all related resources.
      *
      */
-    virtual void freeBitmap() = 0;
+    virtual void freeBitmap();
 
-    virtual ~MegaGfxProcessor() = 0;
+    virtual ~MegaGfxProcessor();
 };
 
 /**
@@ -388,7 +388,7 @@ class MegaNode
             CHANGE_TYPE_PARENT          = 0x80
         };
 
-        virtual ~MegaNode() = 0;
+        virtual ~MegaNode();
 
         /**
          * @brief Creates a copy of this MegaNode object.
@@ -401,7 +401,7 @@ class MegaNode
          *
          * @return Copy of the MegaNode object
          */
-        virtual MegaNode *copy() = 0;
+        virtual MegaNode *copy();
 
         /**
          * @brief Returns the type of the node
@@ -427,7 +427,7 @@ class MegaNode
          *
          * @return Type of the node
          */
-        virtual int getType() = 0;
+        virtual int getType();
 
         /**
          * @brief Returns the name of the node
@@ -440,7 +440,7 @@ class MegaNode
          *
          * @return Name of the node
          */
-        virtual const char* getName() = 0;
+        virtual const char* getName();
 
         /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
@@ -450,7 +450,7 @@ class MegaNode
          *
          * @return Base64-encoded handle of the node
          */
-        virtual const char* getBase64Handle() = 0;
+        virtual const char* getBase64Handle();
 
         /**
          * @brief Returns the size of the node
@@ -459,7 +459,7 @@ class MegaNode
          *
          * @return Size of the node
          */
-        virtual int64_t getSize() = 0;
+        virtual int64_t getSize();
 
         /**
          * @brief Returns the creation time of the node in MEGA (in seconds since the epoch)
@@ -468,7 +468,7 @@ class MegaNode
          *
          * @return Creation time of the node (in seconds since the epoch)
          */
-        virtual int64_t getCreationTime() = 0;
+        virtual int64_t getCreationTime();
 
         /**
          * @brief Returns the modification time of the file that was uploaded to MEGA (in seconds since the epoch)
@@ -477,7 +477,7 @@ class MegaNode
          *
          * @return Modification time of the file that was uploaded to MEGA (in seconds since the epoch)
          */
-        virtual int64_t getModificationTime() = 0;
+        virtual int64_t getModificationTime();
 
         /**
          * @brief Returns a handle to identify this MegaNode
@@ -486,7 +486,7 @@ class MegaNode
          *
          * @return Handle that identifies this MegaNode
          */
-        virtual MegaHandle getHandle() = 0;
+        virtual MegaHandle getHandle();
 
         /**
          * @brief Returns the key of the node in a Base64-encoded string
@@ -498,7 +498,7 @@ class MegaNode
          *
          * @return Returns the key of the node.
          */
-        virtual const char* getBase64Key() = 0;
+        virtual const char* getBase64Key();
 
         /**
          * @brief Returns the tag of the operation that created/modified this node in MEGA
@@ -516,20 +516,20 @@ class MegaNode
          *
          * @return The tag associated with the node.
          */
-        virtual int getTag() = 0;
+        virtual int getTag();
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
          * @return true if this node represents a file, otherwise false
          */
-        virtual bool isFile() = 0;
+        virtual bool isFile();
 
         /**
          * @brief Returns true this node represents a folder or a root node
          *
          * @return true this node represents a folder or a root node
          */
-        virtual bool isFolder() = 0;
+        virtual bool isFolder();
 
         /**
          * @brief Returns true if this node has been removed from the MEGA account
@@ -541,7 +541,7 @@ class MegaNode
          *
          * @return true if this node has been removed from the MEGA account
          */
-        virtual bool isRemoved() = 0;
+        virtual bool isRemoved();
 
         /**
          * @brief Returns true if this node has an specific change
@@ -579,7 +579,7 @@ class MegaNode
          *
          * @return true if this node has an specific change
          */
-        virtual bool hasChanged(int changeType) = 0;
+        virtual bool hasChanged(int changeType);
 
         /**
          * @brief Returns a bit field with the changes of the node
@@ -613,19 +613,19 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
          * The parent of the node has changed
          */
-        virtual int getChanges() = 0;
+        virtual int getChanges();
 
         /**
          * @brief Returns true if the node has an associated thumbnail
          * @return true if the node has an associated thumbnail
          */
-        virtual bool hasThumbnail() = 0;
+        virtual bool hasThumbnail();
 
         /**
          * @brief Returns true if the node has an associated preview
          * @return true if the node has an associated preview
          */
-        virtual bool hasPreview() = 0;
+        virtual bool hasPreview();
 
         /**
          * @brief Returns true if this is a public node
@@ -635,7 +635,7 @@ class MegaNode
          *
          * @return true if this is a public node
          */
-        virtual bool isPublic() = 0;
+        virtual bool isPublic();
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
@@ -647,7 +647,7 @@ class MegaNode
          * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
          * Use MegaNode::getBase64Key instead
          */
-        virtual std::string* getNodeKey() = 0;
+        virtual std::string* getNodeKey();
 
         /**
          * @brief Returns a string that contains the encrypted attributes of the file (in binary format)
@@ -663,7 +663,7 @@ class MegaNode
          * Use MegaNode::getName and MegaNode::getModificationTime and MegaApi::getFingerprint. They provide the same information,
          * decrypted and in a manageable format.
          */
-        virtual std::string* getAttrString() = 0;
+        virtual std::string* getAttrString();
 
 #ifdef ENABLE_SYNC
         /**
@@ -677,7 +677,7 @@ class MegaNode
          *
          * @return True if this node was deleted from the MEGA account by the synchronization engine
          */
-        virtual bool isSyncDeleted() = 0;
+        virtual bool isSyncDeleted();
 
         /**
          * @brief Returns the local path associated with this node
@@ -687,7 +687,7 @@ class MegaNode
          *
          * @return The local path associated with this node or an empty string if the node isn't synced-
          */
-        virtual std::string getLocalPath() = 0;
+        virtual std::string getLocalPath();
 #endif
 
 };
@@ -715,7 +715,7 @@ class MegaUser
 			VISIBILITY_ME
 		};
 
-		virtual ~MegaUser() = 0;
+		virtual ~MegaUser();
 
         /**
          * @brief Creates a copy of this MegaUser object.
@@ -728,7 +728,7 @@ class MegaUser
          *
          * @return Copy of the MegaUser object
          */
-		virtual MegaUser *copy() = 0;
+        virtual MegaUser *copy();
 
         /**
          * @brief Returns the email associated with the contact.
@@ -740,7 +740,7 @@ class MegaUser
          *
          * @return The email associated with the contact.
          */
-		virtual const char* getEmail() = 0;
+        virtual const char* getEmail();
 
         /**
          * @brief Get the current visibility of the contact
@@ -761,13 +761,13 @@ class MegaUser
          *
          * @return Current visibility of the contact
          */
-		virtual int getVisibility() = 0;
+        virtual int getVisibility();
 
         /**
          * @brief Returns the timestamp when the contact was added to the contact list (in seconds since the epoch)
          * @return Timestamp when the contact was added to the contact list (in seconds since the epoch)
          */
-		virtual time_t getTimestamp() = 0;
+        virtual time_t getTimestamp();
 };
 
 /**
@@ -794,7 +794,7 @@ class MegaShare
 			ACCESS_OWNER
 		};
 
-		virtual ~MegaShare() = 0;
+		virtual ~MegaShare();
 
         /**
          * @brief Creates a copy of this MegaShare object
@@ -807,7 +807,7 @@ class MegaShare
          *
          * @return Copy of the MegaShare object
          */
-		virtual MegaShare *copy() = 0;
+        virtual MegaShare *copy();
 
         /**
          * @brief Returns the email of the user with whom we are sharing the folder
@@ -816,13 +816,13 @@ class MegaShare
          *
          * @return The email of the user with whom we share the folder, or NULL if it's a public folder
          */
-		virtual const char *getUser() = 0;
+        virtual const char *getUser();
 
         /**
          * @brief Returns the handle of the folder that is being shared
          * @return The handle of the folder that is being shared
          */
-        virtual MegaHandle getNodeHandle() = 0;
+        virtual MegaHandle getNodeHandle();
 
         /**
          * @brief Returns the access level of the sharing
@@ -845,13 +845,13 @@ class MegaShare
          *
          * @return The access level of the sharing
          */
-		virtual int getAccess() = 0;
+        virtual int getAccess();
 
         /**
          * @brief Returns the timestamp when the sharing was created (in seconds since the epoch)
          * @return The timestamp when the sharing was created (in seconds since the epoch)
          */
-        virtual int64_t getTimestamp() = 0;
+        virtual int64_t getTimestamp();
 };
 
 /**
@@ -868,9 +868,9 @@ class MegaShare
 class MegaNodeList
 {
 	public:
-        virtual ~MegaNodeList() = 0;
+		virtual ~MegaNodeList();
 
-		virtual MegaNodeList *copy() = 0;
+		virtual MegaNodeList *copy();
 
         /**
          * @brief Returns the MegaNode at the position i in the MegaNodeList
@@ -883,13 +883,13 @@ class MegaNodeList
          * @param i Position of the MegaNode that we want to get for the list
          * @return MegaNode at the position i in the list
          */
-		virtual MegaNode* get(int i) = 0;
+        virtual MegaNode* get(int i);
 
         /**
          * @brief Returns the number of MegaNode objects in the list
          * @return Number of MegaNode objects in the list
          */
-		virtual int size() = 0;
+        virtual int size();
 };
 
 /**
@@ -907,9 +907,9 @@ class MegaNodeList
 class MegaUserList
 {
 	public:
-        virtual ~MegaUserList() = 0;
+		virtual ~MegaUserList();
 
-		virtual MegaUserList *copy() = 0;
+		virtual MegaUserList *copy();
 
         /**
          * @brief Returns the MegaUser at the position i in the MegaUserList
@@ -922,13 +922,13 @@ class MegaUserList
          * @param i Position of the MegaUser that we want to get for the list
          * @return MegaUser at the position i in the list
          */
-		virtual MegaUser* get(int i) = 0;
+        virtual MegaUser* get(int i);
 
         /**
          * @brief Returns the number of MegaUser objects in the list
          * @return Number of MegaUser objects in the list
          */
-        virtual int size() = 0;
+        virtual int size();
 };
 
 /**
@@ -945,7 +945,7 @@ class MegaUserList
 class MegaShareList
 {
 	public:
-        virtual ~MegaShareList() = 0;
+		virtual ~MegaShareList();
 
         /**
          * @brief Returns the MegaShare at the position i in the MegaShareList
@@ -958,13 +958,13 @@ class MegaShareList
          * @param i Position of the MegaShare that we want to get for the list
          * @return MegaShare at the position i in the list
          */
-		virtual MegaShare* get(int i) = 0;
+        virtual MegaShare* get(int i);
 
         /**
          * @brief Returns the number of MegaShare objects in the list
          * @return Number of MegaShare objects in the list
          */
-		virtual int size() = 0;
+        virtual int size();
 };
 
 /**
@@ -981,7 +981,7 @@ class MegaShareList
 class MegaTransferList
 {
 	public:
-        virtual ~MegaTransferList() = 0;
+		virtual ~MegaTransferList();
 
         /**
          * @brief Returns the MegaTransfer at the position i in the MegaTransferList
@@ -994,13 +994,13 @@ class MegaTransferList
          * @param i Position of the MegaTransfer that we want to get for the list
          * @return MegaTransfer at the position i in the list
          */
-        virtual MegaTransfer* get(int i) = 0;
+        virtual MegaTransfer* get(int i);
 
         /**
          * @brief Returns the number of MegaTransfer objects in the list
          * @return Number of MegaTransfer objects in the list
          */
-		virtual int size() = 0;
+        virtual int size();
 };
 
 /**
@@ -1040,7 +1040,7 @@ class MegaRequest
 			TYPE_LOAD_BALANCING
 		};
 
-		virtual ~MegaRequest() = 0;
+		virtual ~MegaRequest();
 
         /**
          * @brief Creates a copy of this MegaRequest object
@@ -1053,13 +1053,13 @@ class MegaRequest
          *
          * @return Copy of the MegaRequest object
          */
-		virtual MegaRequest *copy() = 0;
+        virtual MegaRequest *copy();
 
         /**
          * @brief Returns the type of request associated with the object
          * @return Type of request associated with the object
          */
-		virtual int getType() const = 0;
+        virtual int getType() const;
 
         /**
          * @brief Returns a readable string that shows the type of request
@@ -1069,7 +1069,7 @@ class MegaRequest
          *
          * @return Readable string showing the type of request
          */
-		virtual const char *getRequestString() const = 0;
+        virtual const char *getRequestString() const;
 
         /**
          * @brief Returns a readable string that shows the type of request
@@ -1079,7 +1079,7 @@ class MegaRequest
          *
          * @return Readable string showing the type of request
          */
-		virtual const char* toString() const = 0;
+        virtual const char* toString() const;
 
         /**
          * @brief Returns a readable string that shows the type of request
@@ -1089,7 +1089,7 @@ class MegaRequest
          *
          * @return Readable string showing the type of request
          */
-        virtual const char* __str__() const = 0;
+        virtual const char* __str__() const;
 
         /**
          * @brief Returns a readable string that shows the type of request
@@ -1099,7 +1099,7 @@ class MegaRequest
          *
          * @return Readable string showing the type of request
          */
-        virtual const char* __toString() const = 0;
+        virtual const char* __toString() const;
 
         /**
          * @brief Returns the handle of a node related to the request
@@ -1132,7 +1132,7 @@ class MegaRequest
          *
          * @return Handle of a node related to the request
          */
-        virtual MegaHandle getNodeHandle() const = 0;
+        virtual MegaHandle getNodeHandle() const;
 
         /**
          * @brief Returns a link related to the request
@@ -1155,7 +1155,7 @@ class MegaRequest
          *
          * @return Link related to the request
          */
-		virtual const char* getLink() const = 0;
+        virtual const char* getLink() const;
 
         /**
          * @brief Returns the handle of a parent node related to the request
@@ -1172,7 +1172,7 @@ class MegaRequest
          *
          * @return Handle of a parent node related to the request
          */
-        virtual MegaHandle getParentHandle() const = 0;
+        virtual MegaHandle getParentHandle() const;
 
         /**
          * @brief Returns a session key related to the request
@@ -1185,7 +1185,7 @@ class MegaRequest
          *
          * @return Session key related to the request
          */
-        virtual const char* getSessionKey() const = 0;
+        virtual const char* getSessionKey() const;
 
         /**
          * @brief Returns a name related to the request
@@ -1209,7 +1209,7 @@ class MegaRequest
          *
          * @return Name related to the request
          */
-		virtual const char* getName() const = 0;
+        virtual const char* getName() const;
 
         /**
          * @brief Returns an email related to the request
@@ -1238,7 +1238,7 @@ class MegaRequest
          *
          * @return Email related to the request
          */
-		virtual const char* getEmail() const = 0;
+        virtual const char* getEmail() const;
 
         /**
          * @brief Returns a password related to the request
@@ -1259,7 +1259,7 @@ class MegaRequest
          *
          * @return Password related to the request
          */
-		virtual const char* getPassword() const = 0;
+        virtual const char* getPassword() const;
 
         /**
          * @brief Returns a new password related to the request
@@ -1272,7 +1272,7 @@ class MegaRequest
          *
          * @return New password related to the request
          */
-		virtual const char* getNewPassword() const = 0;
+        virtual const char* getNewPassword() const;
 
         /**
          * @brief Returns a private key related to the request
@@ -1291,7 +1291,7 @@ class MegaRequest
          *
          * @return Private key related to the request
          */
-		virtual const char* getPrivateKey() const = 0;
+        virtual const char* getPrivateKey() const;
 
         /**
          * @brief Returns an access level related to the request
@@ -1303,7 +1303,7 @@ class MegaRequest
          *
          * @return Access level related to the request
          */
-		virtual int getAccess() const = 0;
+        virtual int getAccess() const;
 
         /**
          * @brief Returns the path of a file related to the request
@@ -1323,13 +1323,13 @@ class MegaRequest
          *
          * @return Path of a file related to the request
          */
-        virtual const char* getFile() const = 0;
+        virtual const char* getFile() const;
 
         /**
          * @brief Return the number of times that a request has temporarily failed
          * @return Number of times that a request has temporarily failed
          */
-		virtual int getNumRetry() const = 0;
+        virtual int getNumRetry() const;
 
         /**
          * @brief Returns a public node related to the request
@@ -1346,7 +1346,7 @@ class MegaRequest
          * MegaRequest::getPublicMegaNode instead.
          *
          */
-        virtual MegaNode *getPublicNode() const = 0;
+        virtual MegaNode *getPublicNode() const;
 
         /**
          * @brief Returns a public node related to the request
@@ -1362,7 +1362,7 @@ class MegaRequest
          *
          * @return Public node related to the request
          */
-        virtual MegaNode *getPublicMegaNode() const = 0;
+        virtual MegaNode *getPublicMegaNode() const;
 
         /**
          * @brief Returns the type of parameter related to the request
@@ -1381,7 +1381,7 @@ class MegaRequest
          *
          * @return Type of parameter related to the request
          */
-        virtual int getParamType() const = 0;
+        virtual int getParamType() const;
 
         /**
          * @brief Returns a text relative to this request
@@ -1397,7 +1397,7 @@ class MegaRequest
          *
          * @return Text relative to this request
          */
-        virtual const char *getText() const = 0;
+        virtual const char *getText() const;
 
         /**
          * @brief Returns a number related to this request
@@ -1412,7 +1412,7 @@ class MegaRequest
          *
          * @return Number related to this request
          */
-        virtual long long getNumber() const = 0;
+        virtual long long getNumber() const;
 
         /**
          * @brief Returns a flag related to the request
@@ -1423,19 +1423,19 @@ class MegaRequest
          *
          * @return Flag related to the request
          */
-        virtual bool getFlag() const = 0;
+        virtual bool getFlag() const;
 
         /**
          * @brief Returns the number of transferred bytes during the request
          * @return Number of transferred bytes during the request
          */
-        virtual long long getTransferredBytes() const = 0;
+        virtual long long getTransferredBytes() const;
 
         /**
          * @brief Returns the number of bytes that the SDK will have to transfer to finish the request
          * @return Number of bytes that the SDK will have to transfer to finish the request
          */
-        virtual long long getTotalBytes() const = 0;
+        virtual long long getTotalBytes() const;
 
         /**
          * @brief Return the MegaRequestListener associated with this request
@@ -1444,7 +1444,7 @@ class MegaRequest
          *
          * @return MegaRequestListener associated with this request
          */
-		virtual MegaRequestListener *getListener() const = 0;
+        virtual MegaRequestListener *getListener() const;
 
         /**
          * @brief Returns details related to the MEGA account
@@ -1455,7 +1455,7 @@ class MegaRequest
          *
          * @return Details related to the MEGA account
          */
-		virtual MegaAccountDetails *getMegaAccountDetails() const = 0;
+        virtual MegaAccountDetails *getMegaAccountDetails() const;
 
         /**
          * @brief Returns available pricing plans to upgrade a MEGA account
@@ -1466,7 +1466,7 @@ class MegaRequest
          *
          * @return Available pricing plans to upgrade a MEGA account
          */
-        virtual MegaPricing *getPricing() const = 0;
+        virtual MegaPricing *getPricing() const;
 
 
         /**
@@ -1477,13 +1477,13 @@ class MegaRequest
          *
          * @return Tag of a transfer related to the request
          */
-        virtual int getTransferTag() const = 0;
+        virtual int getTransferTag() const;
 
         /**
          * @brief Returns the number of details related to this request
          * @return Number of details related to this request
          */
-        virtual int getNumDetails() const = 0;
+        virtual int getNumDetails() const;
 };
 
 /**
@@ -1504,7 +1504,7 @@ class MegaTransfer
         enum {TYPE_DOWNLOAD = 0,
               TYPE_UPLOAD};
         
-		virtual ~MegaTransfer() = 0;
+        virtual ~MegaTransfer();
 
         /**
          * @brief Creates a copy of this MegaTransfer object
@@ -1517,19 +1517,19 @@ class MegaTransfer
          *
          * @return Copy of the MegaTransfer object
          */
-        virtual MegaTransfer *copy() = 0;
+        virtual MegaTransfer *copy();
 
         /**
          * @brief Returns the type of the transfer (TYPE_DOWNLOAD, TYPE_UPLOAD)
          * @return The type of the transfer (TYPE_DOWNLOAD, TYPE_UPLOAD)
          */
-		virtual int getType() const = 0;
+        virtual int getType() const;
 
         /**
          * @brief Returns a readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
-		virtual const char * getTransferString() const = 0;
+        virtual const char *getTransferString() const;
 
         /**
          * @brief Returns a readable string that shows the type of the transfer
@@ -1539,7 +1539,7 @@ class MegaTransfer
          *
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
-        virtual const char* toString() const = 0;
+        virtual const char* toString() const;
 
         /**
          * @brief Returns a readable string that shows the type of the transfer
@@ -1549,7 +1549,7 @@ class MegaTransfer
          *
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
-		virtual const char* __str__() const = 0;
+        virtual const char* __str__() const;
 
         /**
          * @brief Returns a readable string that shows the type of the transfer
@@ -1559,7 +1559,7 @@ class MegaTransfer
          *
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
-        virtual const char* __toString() const = 0;
+        virtual const char *__toString() const;
 
         /**
          * @brief Returns the starting time of the request (in deciseconds)
@@ -1569,19 +1569,19 @@ class MegaTransfer
          *
          * @return Starting time of the transfer (in deciseconds)
          */
-        virtual int64_t getStartTime() const = 0;
+        virtual int64_t getStartTime() const;
 
         /**
          * @brief Returns the number of transferred bytes during this request
          * @return Transferred bytes during this transfer
          */
-		virtual long long getTransferredBytes() const = 0;
+        virtual long long getTransferredBytes() const;
 
         /**
          * @brief Returns the total bytes to be transferred to complete the transfer
          * @return Total bytes to be transferred to complete the transfer
          */
-		virtual long long getTotalBytes() const = 0;
+        virtual long long getTotalBytes() const;
 
         /**
          * @brief Returns the local path related to this request
@@ -1591,7 +1591,7 @@ class MegaTransfer
          *
          * @return Local path related to this transfer
          */
-		virtual const char* getPath() const = 0;
+        virtual const char* getPath() const;
 
         /**
          * @brief Returns the parent path related to this request
@@ -1601,7 +1601,7 @@ class MegaTransfer
          *
          * @return Parent path related to this transfer
          */
-		virtual const char* getParentPath() const = 0;
+        virtual const char* getParentPath() const;
 
         /**
          * @brief Returns the handle related to this transfer
@@ -1614,7 +1614,7 @@ class MegaTransfer
          *
          * @return The handle related to the transfer.
          */
-        virtual MegaHandle getNodeHandle() const = 0;
+        virtual MegaHandle getNodeHandle() const;
 
         /**
          * @brief Returns the handle of the parent node related to this transfer
@@ -1624,7 +1624,7 @@ class MegaTransfer
          *
          * @return The handle of the destination folder for uploads, or mega::INVALID_HANDLE for downloads.
          */
-        virtual MegaHandle getParentHandle() const = 0;
+        virtual MegaHandle getParentHandle() const;
 
         /**
          * @brief Returns the starting position of the transfer for streaming downloads
@@ -1634,7 +1634,7 @@ class MegaTransfer
          *
          * @return Starting position of the transfer for streaming downloads, otherwise 0
          */
-		virtual long long getStartPos() const = 0;
+        virtual long long getStartPos() const;
 
         /**
          * @brief Returns the end position of the transfer for streaming downloads
@@ -1644,7 +1644,7 @@ class MegaTransfer
          *
          * @return End position of the transfer for streaming downloads, otherwise 0
          */
-		virtual long long getEndPos() const = 0;
+        virtual long long getEndPos() const;
 
 		/**
 		 * @brief Returns the name of the file that is being transferred
@@ -1654,7 +1654,7 @@ class MegaTransfer
 		 *
 		 * @return Name of the file that is being transferred
 		 */
-		virtual const char* getFileName() const = 0;
+		virtual const char* getFileName() const;
 
 		/**
 		 * @brief Returns the MegaTransferListener object associated with this transfer
@@ -1664,38 +1664,38 @@ class MegaTransfer
 		 *
 		 * @return Listener associated with this transfer
 		 */
-		virtual MegaTransferListener* getListener() const = 0;
+		virtual MegaTransferListener* getListener() const;
 
 		/**
 		 * @brief Return the number of times that a transfer has temporarily failed
 		 * @return Number of times that a transfer has temporarily failed
 		 */
-		virtual int getNumRetry() const = 0;
+		virtual int getNumRetry() const;
 
 		/**
 		 * @brief Returns the maximum number of times that the transfer will be retried
 		 * @return Mmximum number of times that the transfer will be retried
 		 */
-		virtual int getMaxRetries() const = 0;
+		virtual int getMaxRetries() const;
 
 		/**
 		 * @brief Returns an integer that identifies this transfer
 		 * @return Integer that identifies this transfer
 		 */
-		virtual int getTag() const = 0;
+		virtual int getTag() const;
 
 		/**
 		 * @brief Returns the average speed of this transfer
 		 * @return Average speed of this transfer
 		 */
-		virtual long long getSpeed() const = 0;
+		virtual long long getSpeed() const;
 
 		/**
 		 * @brief Returns the number of bytes transferred since the previous callback
 		 * @return Number of bytes transferred since the previous callback
 		 * @see MegaListener::onTransferUpdate, MegaTransferListener::onTransferUpdate
 		 */
-		virtual long long getDeltaSize() const = 0;
+		virtual long long getDeltaSize() const;
 
 		/**
 		 * @brief Returns the timestamp when the last data was received (in deciseconds)
@@ -1706,7 +1706,7 @@ class MegaTransfer
 		 *
 		 * @return Timestamp when the last data was received (in deciseconds)
 		 */
-        virtual int64_t getUpdateTime() const = 0;
+		virtual int64_t getUpdateTime() const;
 
         /**
          * @brief Returns a public node related to the transfer
@@ -1716,7 +1716,7 @@ class MegaTransfer
          *
          * @return Public node related to the transfer
          */
-        virtual MegaNode *getPublicMegaNode() const = 0;
+        virtual MegaNode *getPublicMegaNode() const;
 
         /**
          * @brief Returns true if this transfer belongs to the synchronization engine
@@ -1730,14 +1730,14 @@ class MegaTransfer
          *
          * @return true if this transfer belongs to the synchronization engine, otherwise false
          */
-        virtual bool isSyncTransfer() const = 0;
+        virtual bool isSyncTransfer() const;
 
         /**
          * @brief Returns true is this is a streaming transfer
          * @return true if this is a streaming transfer, false otherwise
          * @see MegaApi::startStreaming
          */
-        virtual bool isStreamingTransfer() const = 0;
+        virtual bool isStreamingTransfer() const;
 
         /**
          * @brief Returns the received bytes since the last callback
@@ -1746,7 +1746,7 @@ class MegaTransfer
          *
          * @return Received bytes since the last callback
          */
-        virtual char *getLastBytes() const = 0;
+        virtual char *getLastBytes() const;
 };
 
 #ifdef ENABLE_SYNC
@@ -1774,15 +1774,15 @@ public:
         TYPE_FILE_GET, TYPE_FILE_PUT
     };
 
-    virtual ~MegaSyncEvent() = 0;
+    virtual ~MegaSyncEvent();
 
-    virtual MegaSyncEvent *copy() = 0;
+    virtual MegaSyncEvent *copy();
 
     /**
      * @brief Returns the type of event
      * @return Type of event
      */
-    virtual int getType() const = 0;
+    virtual int getType() const;
 
     /**
      * @brief Returns the local path related to the event.
@@ -1795,7 +1795,7 @@ public:
      *
      * @return Local path related to the event
      */
-    virtual const char* getPath() const = 0;
+    virtual const char* getPath() const;
 
     /**
      * @brief getNodeHandle Returns the node handle related to the event
@@ -1805,7 +1805,7 @@ public:
      *
      * @return Node handle related to the event
      */
-    virtual MegaHandle getNodeHandle() const = 0;
+    virtual MegaHandle getNodeHandle() const;
 
     /**
      * @brief Returns the previous path of the local file.
@@ -1817,7 +1817,7 @@ public:
      *
      * @return Previous path of the local file.
      */
-    virtual const char* getNewPath() const = 0;
+    virtual const char* getNewPath() const;
 
     /**
      * @brief Returns the previous name of the remote node
@@ -1829,7 +1829,7 @@ public:
      *
      * @return Previous name of the remote node
      */
-    virtual const char* getPrevName() const = 0;
+    virtual const char* getPrevName() const;
 
     /**
      * @brief Returns the handle of the previous parent of the remote node
@@ -1841,7 +1841,7 @@ public:
      *
      * @return Handle of the previous parent of the remote node
      */
-    virtual MegaHandle getPrevParent() const = 0;
+    virtual MegaHandle getPrevParent() const;
 };
 
 /**
@@ -1922,7 +1922,7 @@ public:
         SYNC_ACTIVE
     };
 
-    virtual ~MegaSync() = 0;
+    virtual ~MegaSync();
 
     /**
      * @brief Creates a copy of this MegaSync object
@@ -1935,13 +1935,13 @@ public:
      *
      * @return Copy of the MegaError object
      */
-    virtual MegaSync *copy() = 0;
+    virtual MegaSync *copy();
 
     /**
      * @brief Get the handle of the folder that is being synced
      * @return Handle of the folder that is being synced in MEGA
      */
-    virtual MegaHandle getMegaHandle() const = 0;
+    virtual MegaHandle getMegaHandle() const;
 
     /**
      * @brief Get the path of the local folder that is being synced
@@ -1951,13 +1951,13 @@ public:
      *
      * @return Local folder that is being synced
      */
-    virtual const char* getLocalFolder() const = 0;
+    virtual const char* getLocalFolder() const;
 
     /**
      * @brief Gets an unique identifier of the local folder that is being synced
      * @return Unique identifier of the local folder that is being synced
      */
-    virtual long long getLocalFingerprint() const = 0;
+    virtual long long getLocalFingerprint() const;
 
     /**
      * @brief Returns the identifier of this synchronization
@@ -1966,7 +1966,7 @@ public:
      *
      * @return Identifier of the synchronization
      */
-    virtual int getTag() const = 0;
+    virtual int getTag() const;
 
     /**
      * @brief Get the state of the synchronization
@@ -1986,7 +1986,7 @@ public:
      *
      * @return State of the synchronization
      */
-    virtual int getState() const = 0;
+    virtual int getState() const;
 };
 
 #endif
@@ -2858,6 +2858,71 @@ class MegaApi
          * @param listener Object that is unregistered
          */
         void removeGlobalListener(MegaGlobalListener* listener);
+
+        /**
+         * @brief Get the current request
+         *
+         * The return value is only valid when this function is synchronously
+         * called inside a callback related to a request. The return value is
+         * the same as the received in the parameter of the callback.
+         * This function is provided to support the creation of bindings for
+         * some programming languaguages like PHP.
+         *
+         * @return Current request
+         */
+        MegaRequest *getCurrentRequest();
+
+        /**
+         * @brief Get the current transfer
+         *
+         * The return value is only valid when this function is synchronously
+         * called inside a callback related to a transfer. The return value is
+         * the same as the received in the parameter of the callback.
+         * This function is provided to support the creation of bindings for
+         * some programming languaguages like PHP.
+         *
+         * @return Current transfer
+         */
+        MegaTransfer *getCurrentTransfer();
+
+        /**
+         * @brief Get the current error
+         *
+         * The return value is only valid when this function is synchronously
+         * called inside a callback. The return value is
+         * the same as the received in the parameter of the callback.
+         * This function is provided to support the creation of bindings for
+         * some programming languaguages like PHP.
+         *
+         * @return Current error
+         */
+        MegaError *getCurrentError();
+
+        /**
+         * @brief Get the current nodes
+         *
+         * The return value is only valid when this function is synchronously
+         * called inside a onNodesUpdate callback. The return value is
+         * the same as the received in the parameter of the callback.
+         * This function is provided to support the creation of bindings for
+         * some programming languaguages like PHP.
+         *
+         * @return Current nodes
+         */
+        MegaNodeList *getCurrentNodes();
+
+        /**
+         * @brief Get the current users
+         *
+         * The return value is only valid when this function is synchronously
+         * called inside a onUsersUpdate callback. The return value is
+         * the same as the received in the parameter of the callback.
+         * This function is provided to support the creation of bindings for
+         * some programming languaguages like PHP.
+         *
+         * @return Current users
+         */
+        MegaUserList *getCurrentUsers();
 
         /**
          * @brief Generates a private key based on the access password
@@ -4806,8 +4871,7 @@ public:
         ACCOUNT_TYPE_PROIII = 3
     };
 
-	virtual ~MegaAccountDetails() = 0;
-
+    virtual ~MegaAccountDetails();
     /**
      * @brief Get the PRO level of the MEGA account
      * @return PRO level of the MEGA account.
@@ -4817,31 +4881,31 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      */
-    virtual int getProLevel() = 0;
+    virtual int getProLevel();
 
     /**
      * @brief Get the maximum storage for the account (in bytes)
      * @return Maximum storage for the account (in bytes)
      */
-    virtual long long getStorageMax() = 0;
+    virtual long long getStorageMax();
 
     /**
      * @brief Get the used storage
      * @return Used storage (in bytes)
      */
-    virtual long long getStorageUsed() = 0;
+    virtual long long getStorageUsed();
 
     /**
      * @brief Get the maximum available bandwidth for the account
      * @return Maximum available bandwidth (in bytes)
      */
-    virtual long long getTransferMax() = 0;
+    virtual long long getTransferMax();
 
     /**
      * @brief Get the used bandwidth
      * @return Used bandwidth (in bytes)
      */
-    virtual long long getTransferOwnUsed() = 0;
+    virtual long long getTransferOwnUsed();
 
     /**
      * @brief Get the used storage in for a node
@@ -4852,7 +4916,7 @@ public:
      * @return Used storage (in bytes)
      * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
      */
-    virtual long long getStorageUsed(MegaHandle handle) = 0;
+    virtual long long getStorageUsed(MegaHandle handle);
 
     /**
      * @brief Get the number of files in a node
@@ -4863,7 +4927,7 @@ public:
      * @return Number of files in the node
      * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
      */
-    virtual long long getNumFiles(MegaHandle handle) = 0;
+    virtual long long getNumFiles(MegaHandle handle);
 
     /**
      * @brief Get the number of folders in a node
@@ -4874,7 +4938,7 @@ public:
      * @return Number of folders in the node
      * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
      */
-    virtual long long getNumFolders(MegaHandle handle) = 0;
+    virtual long long getNumFolders(MegaHandle handle);
 
     /**
      * @brief Creates a copy of this MegaAccountDetails object.
@@ -4887,7 +4951,7 @@ public:
      *
      * @return Copy of the MegaAccountDetails object
      */
-	virtual MegaAccountDetails* copy() = 0;
+    virtual MegaAccountDetails* copy();
 };
 
 /**
@@ -4898,13 +4962,13 @@ public:
 class MegaPricing
 {
 public:
-    virtual ~MegaPricing() = 0;
+    virtual ~MegaPricing();
 
     /**
      * @brief Get the number of available products to upgrade the account
      * @return Number of available products
      */
-    virtual int getNumProducts() = 0;
+    virtual int getNumProducts();
 
     /**
      * @brief Get the handle of a product
@@ -4912,7 +4976,7 @@ public:
      * @return Handle of the product
      * @see MegaApi::getPaymentUrl
      */
-    virtual MegaHandle getHandle(int productIndex) = 0;
+    virtual MegaHandle getHandle(int productIndex);
 
     /**
      * @brief Get the PRO level associated with the product
@@ -4924,35 +4988,35 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      */
-    virtual int getProLevel(int productIndex) = 0;
+    virtual int getProLevel(int productIndex);
 
     /**
      * @brief Get the number of GB of storage associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return number of GB of storage
      */
-    virtual int getGBStorage(int productIndex) = 0;
+    virtual int getGBStorage(int productIndex);
 
     /**
      * @brief Get the number of GB of bandwidth associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return number of GB of bandwidth
      */
-    virtual int getGBTransfer(int productIndex) = 0;
+    virtual int getGBTransfer(int productIndex);
 
     /**
      * @brief Get the duration of the product (in months)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Duration of the product (in months)
      */
-    virtual int getMonths(int productIndex) = 0;
+    virtual int getMonths(int productIndex);
 
     /**
      * @brief getAmount Get the price of the product (in cents)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
-    virtual int getAmount(int productIndex) = 0;
+    virtual int getAmount(int productIndex);
 
     /**
      * @brief Get the currency associated with MegaPricing::getAmount
@@ -4962,7 +5026,7 @@ public:
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Currency associated with MegaPricing::getAmount
      */
-    virtual const char* getCurrency(int productIndex) = 0;
+    virtual const char* getCurrency(int productIndex);
 
     /**
      * @brief Creates a copy of this MegaPricing object.
@@ -4975,7 +5039,7 @@ public:
      *
      * @return Copy of the MegaPricing object
      */
-    virtual MegaPricing *copy() = 0;
+    virtual MegaPricing *copy();
 };
 
 }

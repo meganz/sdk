@@ -91,14 +91,517 @@ const char *MegaProxy::getPassword()
 }
 
 MegaNodeList::~MegaNodeList() { }
+
+MegaNodeList *MegaNodeList::copy()
+{
+    return NULL;
+}
+
+MegaNode *MegaNodeList::get(int i)
+{
+    return NULL;
+}
+
+int MegaNodeList::size()
+{
+    return 0;
+}
+
 MegaTransferList::~MegaTransferList() { }
+
+MegaTransfer *MegaTransferList::get(int i)
+{
+    return NULL;
+}
+
+int MegaTransferList::size()
+{
+    return 0;
+}
+
 MegaUserList::~MegaUserList() { }
+
+MegaUserList *MegaUserList::copy()
+{
+    return NULL;
+}
+
+MegaUser *MegaUserList::get(int i)
+{
+    return NULL;
+}
+
+int MegaUserList::size()
+{
+    return 0;
+}
+
 MegaShareList::~MegaShareList() { }
+
+MegaShare *MegaShareList::get(int i)
+{
+    return NULL;
+}
+
+int MegaShareList::size()
+{
+    return 0;
+}
+
 MegaNode::~MegaNode() { }
+
+MegaNode *MegaNode::copy()
+{
+    return NULL;
+}
+
+int MegaNode::getType()
+{
+    return 0;
+}
+
+const char *MegaNode::getName()
+{
+    return NULL;
+}
+
+const char *MegaNode::getBase64Handle()
+{
+    return NULL;
+}
+
+int64_t MegaNode::getSize()
+{
+    return 0;
+}
+
+int64_t MegaNode::getCreationTime()
+{
+    return 0;
+}
+
+int64_t MegaNode::getModificationTime()
+{
+    return 0;
+}
+
+MegaHandle MegaNode::getHandle()
+{
+    return mega::INVALID_HANDLE;
+}
+
+const char *MegaNode::getBase64Key()
+{
+    return NULL;
+}
+
+int MegaNode::getTag()
+{
+    return 0;
+}
+
+bool MegaNode::isFile()
+{
+    return false;
+}
+
+bool MegaNode::isFolder()
+{
+    return false;
+}
+
+bool MegaNode::isRemoved()
+{
+    return false;
+}
+
+bool MegaNode::hasChanged(int changeType)
+{
+    return false;
+}
+
+int MegaNode::getChanges()
+{
+    return 0;
+}
+
+bool MegaNode::hasThumbnail()
+{
+    return false;
+}
+
+bool MegaNode::hasPreview()
+{
+    return false;
+}
+
+bool MegaNode::isPublic()
+{
+    return false;
+}
+
+string *MegaNode::getNodeKey()
+{
+    return NULL;
+}
+
+string *MegaNode::getAttrString()
+{
+    return NULL;
+}
+
+bool MegaNode::isSyncDeleted()
+{
+    return false;
+}
+
+string MegaNode::getLocalPath()
+{
+    return string();
+}
+
 MegaUser::~MegaUser() { }
+
+MegaUser *MegaUser::copy()
+{
+    return NULL;
+}
+
+const char *MegaUser::getEmail()
+{
+    return NULL;
+}
+
+int MegaUser::getVisibility()
+{
+    return 0;
+}
+
+time_t MegaUser::getTimestamp()
+{
+    return 0;
+}
+
 MegaShare::~MegaShare() { }
+
+MegaShare *MegaShare::copy()
+{
+    return NULL;
+}
+
+const char *MegaShare::getUser()
+{
+    return NULL;
+}
+
+MegaHandle MegaShare::getNodeHandle()
+{
+    return mega::INVALID_HANDLE;
+}
+
+int MegaShare::getAccess()
+{
+    return 0;
+}
+
+int64_t MegaShare::getTimestamp()
+{
+    return 0;
+}
+
 MegaRequest::~MegaRequest() { }
+MegaRequest *MegaRequest::copy()
+{
+	return NULL;
+}
+
+int MegaRequest::getType() const
+{
+	return 0;
+}
+
+const char *MegaRequest::getRequestString() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::toString() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::__str__() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::__toString() const
+{
+	return NULL;
+}
+
+MegaHandle MegaRequest::getNodeHandle() const
+{
+	return mega::INVALID_HANDLE;
+}
+
+const char *MegaRequest::getLink() const
+{
+	return NULL;
+}
+
+MegaHandle MegaRequest::getParentHandle() const
+{
+	return mega::INVALID_HANDLE;
+}
+
+const char *MegaRequest::getSessionKey() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::getName() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::getEmail() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::getPassword() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::getNewPassword() const
+{
+	return NULL;
+}
+
+const char *MegaRequest::getPrivateKey() const
+{
+	return NULL;
+}
+
+int MegaRequest::getAccess() const
+{
+	return 0;
+}
+
+const char *MegaRequest::getFile() const
+{
+	return NULL;
+}
+
+int MegaRequest::getNumRetry() const
+{
+	return 0;
+}
+
+MegaNode *MegaRequest::getPublicNode() const
+{
+	return NULL;
+}
+
+MegaNode *MegaRequest::getPublicMegaNode() const
+{
+	return NULL;
+}
+
+int MegaRequest::getParamType() const
+{
+	return 0;
+}
+
+const char *MegaRequest::getText() const
+{
+	return NULL;
+}
+
+long long MegaRequest::getNumber() const
+{
+	return 0;
+}
+
+bool MegaRequest::getFlag() const
+{
+	return false;
+}
+
+long long MegaRequest::getTransferredBytes() const
+{
+	return 0;
+}
+
+long long MegaRequest::getTotalBytes() const
+{
+	return 0;
+}
+
+MegaRequestListener *MegaRequest::getListener() const
+{
+	return NULL;
+}
+
+MegaAccountDetails *MegaRequest::getMegaAccountDetails() const
+{
+	return NULL;
+}
+
+MegaPricing *MegaRequest::getPricing() const
+{
+	return NULL;
+}
+
+int MegaRequest::getTransferTag() const
+{
+	return 0;
+}
+
+int MegaRequest::getNumDetails() const
+{
+	return 0;
+}
+
+
 MegaTransfer::~MegaTransfer() { }
+
+MegaTransfer *MegaTransfer::copy()
+{
+	return NULL;
+}
+
+int MegaTransfer::getType() const
+{
+	return 0;
+}
+
+const char *MegaTransfer::getTransferString() const
+{
+	return NULL;
+}
+
+const char *MegaTransfer::toString() const
+{
+	return NULL;
+}
+
+const char *MegaTransfer::__str__() const
+{
+	return NULL;
+}
+
+const char *MegaTransfer::__toString() const
+{
+	return NULL;
+}
+
+int64_t MegaTransfer::getStartTime() const
+{
+	return 0;
+}
+
+long long MegaTransfer::getTransferredBytes() const
+{
+	return 0;
+}
+
+long long MegaTransfer::getTotalBytes() const
+{
+	return 0;
+}
+
+const char *MegaTransfer::getPath() const
+{
+	return NULL;
+}
+
+const char *MegaTransfer::getParentPath() const
+{
+	return NULL;
+}
+
+MegaHandle MegaTransfer::getNodeHandle() const
+{
+	return mega::INVALID_HANDLE;
+}
+
+MegaHandle MegaTransfer::getParentHandle() const
+{
+	return mega::INVALID_HANDLE;
+}
+
+long long MegaTransfer::getStartPos() const
+{
+	return 0;
+}
+
+long long MegaTransfer::getEndPos() const
+{
+	return 0;
+}
+
+const char *MegaTransfer::getFileName() const
+{
+	return NULL;
+}
+
+MegaTransferListener *MegaTransfer::getListener() const
+{
+	return NULL;
+}
+
+int MegaTransfer::getNumRetry() const
+{
+	return 0;
+}
+
+int MegaTransfer::getMaxRetries() const
+{
+	return 0;
+}
+
+int MegaTransfer::getTag() const
+{
+	return 0;
+}
+
+long long MegaTransfer::getSpeed() const
+{
+	return 0;
+}
+
+long long MegaTransfer::getDeltaSize() const
+{
+	return 0;
+}
+
+int64_t MegaTransfer::getUpdateTime() const
+{
+	return 0;
+}
+
+MegaNode *MegaTransfer::getPublicMegaNode() const
+{
+	return NULL;
+}
+
+bool MegaTransfer::isSyncTransfer() const
+{
+	return false;
+}
+
+bool MegaTransfer::isStreamingTransfer() const
+{
+	return false;
+}
+
+char *MegaTransfer::getLastBytes() const
+{
+	return NULL;
+}
 
 
 MegaError::MegaError(int errorCode)
@@ -951,6 +1454,31 @@ void MegaApi::removeGlobalListener(MegaGlobalListener* listener)
     pImpl->removeGlobalListener(listener);
 }
 
+MegaRequest *MegaApi::getCurrentRequest()
+{
+    return pImpl->getCurrentRequest();
+}
+
+MegaTransfer *MegaApi::getCurrentTransfer()
+{
+    return pImpl->getCurrentTransfer();
+}
+
+MegaError *MegaApi::getCurrentError()
+{
+    return pImpl->getCurrentError();
+}
+
+mega::MegaNodeList *mega::MegaApi::getCurrentNodes()
+{
+    return pImpl->getCurrentNodes();
+}
+
+mega::MegaUserList *mega::MegaApi::getCurrentUsers()
+{
+    return pImpl->getCurrentUsers();
+}
+
 MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
 {
     return pImpl->checkAccess(megaNode, level);
@@ -1121,16 +1649,163 @@ bool MegaHashSignature::checkSignature(const char *base64Signature)
 
 MegaAccountDetails::~MegaAccountDetails() { }
 
+int MegaAccountDetails::getProLevel()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getStorageMax()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getStorageUsed()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTransferMax()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTransferOwnUsed()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getStorageUsed(mega::MegaHandle handle)
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getNumFiles(mega::MegaHandle handle)
+{
+    return 0;
+}
+
+long long mega::MegaAccountDetails::getNumFolders(mega::MegaHandle handle)
+{
+    return 0;
+}
+
+MegaAccountDetails *mega::MegaAccountDetails::copy()
+{
+    return NULL;
+}
+
 void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
 
 }
 
+bool MegaGfxProcessor::readBitmap(const char *path)
+{
+    return false;
+}
+
+int MegaGfxProcessor::getWidth()
+{
+    return 0;
+}
+
+int MegaGfxProcessor::getHeight()
+{
+    return 0;
+}
+
+int MegaGfxProcessor::getBitmapDataSize(int width, int height, int px, int py, int rw, int rh)
+{
+    return 0;
+}
+
+bool MegaGfxProcessor::getBitmapData(char *bitmapData, size_t size)
+{
+    return 0;
+}
+
+void MegaGfxProcessor::freeBitmap() { }
+
 MegaGfxProcessor::~MegaGfxProcessor() { }
 MegaPricing::~MegaPricing() { }
 
+int MegaPricing::getNumProducts()
+{
+    return 0;
+}
+
+MegaHandle MegaPricing::getHandle(int productIndex)
+{
+    return mega::INVALID_HANDLE;
+}
+
+int MegaPricing::getProLevel(int productIndex)
+{
+    return 0;
+}
+
+int MegaPricing::getGBStorage(int productIndex)
+{
+    return 0;
+}
+
+int MegaPricing::getGBTransfer(int productIndex)
+{
+    return 0;
+}
+
+int MegaPricing::getMonths(int productIndex)
+{
+    return 0;
+}
+
+int MegaPricing::getAmount(int productIndex)
+{
+    return 0;
+}
+
+const char *MegaPricing::getCurrency(int productIndex)
+{
+    return 0;
+}
+
+MegaPricing *mega::MegaPricing::copy()
+{
+    return NULL;
+}
+
 #ifdef ENABLE_SYNC
 MegaSync::~MegaSync() { }
+
+MegaSync *MegaSync::copy()
+{
+    return NULL;
+}
+
+MegaHandle MegaSync::getMegaHandle() const
+{
+    return mega::INVALID_HANDLE;
+}
+
+const char *MegaSync::getLocalFolder() const
+{
+    return NULL;
+}
+
+long long MegaSync::getLocalFingerprint() const
+{
+    return 0;
+}
+
+int MegaSync::getTag() const
+{
+    return 0;
+}
+
+int MegaSync::getState() const
+{
+    return MegaSync::SYNC_FAILED;
+}
 
 
 void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char *, int )
@@ -1144,6 +1819,41 @@ void MegaSyncListener::onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *
 
 MegaSyncEvent::~MegaSyncEvent()
 { }
+
+MegaSyncEvent *MegaSyncEvent::copy()
+{
+    return NULL;
+}
+
+int MegaSyncEvent::getType() const
+{
+    return 0;
+}
+
+const char *MegaSyncEvent::getPath() const
+{
+    return NULL;
+}
+
+MegaHandle MegaSyncEvent::getNodeHandle() const
+{
+    return mega::INVALID_HANDLE;
+}
+
+const char *MegaSyncEvent::getNewPath() const
+{
+    return NULL;
+}
+
+const char *MegaSyncEvent::getPrevName() const
+{
+    return NULL;
+}
+
+MegaHandle MegaSyncEvent::getPrevParent() const
+{
+    return mega::INVALID_HANDLE;
+}
 
 #endif
 

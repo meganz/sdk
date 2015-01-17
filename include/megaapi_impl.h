@@ -729,6 +729,12 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
+        MegaRequest *getCurrentRequest();
+        MegaTransfer *getCurrentTransfer();
+        MegaError *getCurrentError();
+        MegaNodeList *getCurrentNodes();
+        MegaUserList *getCurrentUsers();
+
         //Utils
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
@@ -956,6 +962,12 @@ protected:
         vector<string> excludedNames;
         MegaMutex sdkMutex;
         MegaTransferPrivate *currentTransfer;
+        MegaRequestPrivate *activeRequest;
+        MegaTransferPrivate *activeTransfer;
+        MegaError *activeError;
+        MegaNodeList *activeNodes;
+        MegaUserList *activeUsers;
+
         int threadExit;
         dstime pausetime;
         void loop();

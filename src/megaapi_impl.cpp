@@ -1771,6 +1771,11 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     waitingRequest = false;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
+    activeRequest = NULL;
+    activeTransfer = NULL;
+    activeError = NULL;
+    activeNodes = NULL;
+    activeUsers = NULL;
 
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
@@ -5082,8 +5087,34 @@ void MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
     sdkMutex.unlock();
 }
 
+MegaRequest *mega::MegaApiImpl::getCurrentRequest()
+{
+    return activeRequest;
+}
+
+MegaTransfer *mega::MegaApiImpl::getCurrentTransfer()
+{
+    return activeTransfer;
+}
+
+MegaError *mega::MegaApiImpl::getCurrentError()
+{
+    return activeError;
+}
+
+MegaNodeList *mega::MegaApiImpl::getCurrentNodes()
+{
+    return activeNodes;
+}
+
+MegaUserList *mega::MegaApiImpl::getCurrentUsers()
+{
+    return activeUsers;
+}
+
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
+    activeRequest = request;
     LOG_info << "Request (" << request->getRequestString() << ") starting";
 	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
 		(*it)->onRequestStart(api, request);
@@ -5093,12 +5124,16 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 	MegaRequestListener* listener = request->getListener();
 	if(listener) listener->onRequestStart(api, request);
+	activeRequest = NULL;
 }
 
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+	activeRequest = request;
+	activeError = megaError;
+
     if(e.getErrorCode())
     {
         LOG_warn << "Request (" << request->getRequestString() << ") finished with error: " << e.getErrorString();
@@ -5118,12 +5153,17 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 	if(listener) listener->onRequestFinish(api, request, megaError);
 
     requestMap.erase(request->getTag());
+
+	activeRequest = NULL;
+	activeError = NULL;
 	delete request;
     delete megaError;
 }
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 {
+    activeRequest = request;
+
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
         (*it)->onRequestUpdate(api, request);
 
@@ -5132,11 +5172,16 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 
     MegaRequestListener* listener = request->getListener();
     if(listener) listener->onRequestUpdate(api, request);
+
+    activeRequest = NULL;
 }
 
 void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+	activeRequest = request;
+	activeError = megaError;
+
     request->setNumRetry(request->getNumRetry() + 1);
 
 	for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ; it++)
@@ -5147,11 +5192,16 @@ void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaE
 
 	MegaRequestListener* listener = request->getListener();
 	if(listener) listener->onRequestTemporaryError(api, request, megaError);
+
+	activeRequest = NULL;
+	activeError = NULL;
 	delete megaError;
 }
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 {
+	activeTransfer = transfer;
+
 	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
 		(*it)->onTransferStart(api, transfer);
 
@@ -5160,11 +5210,16 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener) listener->onTransferStart(api, transfer);
+
+	activeTransfer = NULL;
 }
 
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+	activeTransfer = transfer;
+	activeError = megaError;
+
     if(e.getErrorCode())
     {
         LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
@@ -5185,6 +5240,9 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 	if(listener) listener->onTransferFinish(api, transfer, megaError);
 
     transferMap.erase(transfer->getTag());
+
+	activeTransfer = NULL;
+	activeError = NULL;
 	delete transfer;
 	delete megaError;
 }
@@ -5192,6 +5250,9 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e)
 {
 	MegaError *megaError = new MegaError(e);
+	activeTransfer = transfer;
+	activeError = megaError;
+
     transfer->setNumRetry(transfer->getNumRetry() + 1);
 
 	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
@@ -5202,11 +5263,16 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, Me
 
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener) listener->onTransferTemporaryError(api, transfer, megaError);
+
+	activeTransfer = NULL;
+	activeError = NULL;
 	delete megaError;
 }
 
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
+	activeTransfer = transfer;
+
 	for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ; it++)
 		(*it)->onTransferUpdate(api, transfer);
 
@@ -5215,18 +5281,26 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener) listener->onTransferUpdate(api, transfer);
+
+	activeTransfer = NULL;
 }
 
 bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 {
+	activeTransfer = transfer;
+	bool result = false;
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener)
-		return listener->onTransferData(api, transfer, transfer->getLastBytes(), transfer->getDeltaSize());
-	return false;
+		result = listener->onTransferData(api, transfer, transfer->getLastBytes(), transfer->getDeltaSize());
+
+	activeTransfer = NULL;
+	return result;
 }
 
 void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
 {
+	activeUsers = users;
+
 	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
     {
         (*it)->onUsersUpdate(api, users);
@@ -5235,10 +5309,14 @@ void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
     {
         (*it)->onUsersUpdate(api, users);
     }
+
+    activeUsers = NULL;
 }
 
 void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 {
+	activeNodes = nodes;
+
 	for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
     {
         (*it)->onNodesUpdate(api, nodes);
@@ -5247,6 +5325,8 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
     {
         (*it)->onNodesUpdate(api, nodes);
     }
+
+    activeNodes = NULL;
 }
 
 void MegaApiImpl::fireOnReloadNeeded()
