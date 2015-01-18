@@ -1331,6 +1331,11 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
     return pImpl->processMegaTree(n, processor, recursive);
 }
 
+const char *MegaApi::getVersion()
+{
+    return pImpl->getVersion();
+}
+
 const char *MegaApi::base64ToBase32(const char *base64)
 {
     if(!base64)

@@ -225,6 +225,9 @@ public:
     // abort session and free all state information
     void logout();
 
+    // SDK version
+    const char* version();
+
     // maximum outbound throughput (per target server)
     int putmbpscap;
 

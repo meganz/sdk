@@ -4729,6 +4729,16 @@ class MegaApi
          */
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
+        /**
+         * @brief Get the SDK version
+         *
+         * The returned string is an statically allocated array.
+         * Do not delete it.
+         *
+         * @return SDK version
+         */
+        const char *getVersion();
+
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)

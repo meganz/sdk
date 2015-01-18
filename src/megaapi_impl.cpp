@@ -3336,6 +3336,11 @@ void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listen
     waiter->notify();
 }
 
+const char *MegaApiImpl::getVersion()
+{
+    return client->version();
+}
+
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
 	if(!node) return 1;

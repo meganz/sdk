@@ -1971,6 +1971,13 @@ void MegaClient::logout()
 #endif
 }
 
+const char *MegaClient::version()
+{
+    return TOSTRING(MEGA_MAJOR_VERSION)
+            "." TOSTRING(MEGA_MINOR_VERSION)
+            "." TOSTRING(MEGA_MICRO_VERSION);
+}
+
 // process server-client request
 bool MegaClient::procsc()
 {

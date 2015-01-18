@@ -886,6 +886,8 @@ class MegaApiImpl : public MegaApp
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 
+        const char *getVersion();
+
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
