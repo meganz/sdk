@@ -110,6 +110,13 @@
 #endif
 
 #ifdef SWIGPHP
+
+//Disable the management of director parameters
+//to workaround several SWIG bugs
+%typemap(directorin) SWIGTYPE* %{ %}
+%typemap(directorout) SWIGTYPE* %{ %}
+
+//Rename some overloaded functions to workaround a bug in SWIG
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
 %rename (getOutSharesAll, fullname=1) mega::MegaApi::getOutShares();
 %rename (getTransfersAll, fullname=1) mega::MegaApi::getTransfers();
