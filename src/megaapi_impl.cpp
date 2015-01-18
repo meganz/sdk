@@ -5092,27 +5092,27 @@ void MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
     sdkMutex.unlock();
 }
 
-MegaRequest *mega::MegaApiImpl::getCurrentRequest()
+MegaRequest *MegaApiImpl::getCurrentRequest()
 {
     return activeRequest;
 }
 
-MegaTransfer *mega::MegaApiImpl::getCurrentTransfer()
+MegaTransfer *MegaApiImpl::getCurrentTransfer()
 {
     return activeTransfer;
 }
 
-MegaError *mega::MegaApiImpl::getCurrentError()
+MegaError *MegaApiImpl::getCurrentError()
 {
     return activeError;
 }
 
-MegaNodeList *mega::MegaApiImpl::getCurrentNodes()
+MegaNodeList *MegaApiImpl::getCurrentNodes()
 {
     return activeNodes;
 }
 
-MegaUserList *mega::MegaApiImpl::getCurrentUsers()
+MegaUserList *MegaApiImpl::getCurrentUsers()
 {
     return activeUsers;
 }

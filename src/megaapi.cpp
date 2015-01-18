@@ -187,7 +187,7 @@ int64_t MegaNode::getModificationTime()
 
 MegaHandle MegaNode::getHandle()
 {
-    return mega::INVALID_HANDLE;
+    return INVALID_HANDLE;
 }
 
 const char *MegaNode::getBase64Key()
@@ -296,7 +296,7 @@ const char *MegaShare::getUser()
 
 MegaHandle MegaShare::getNodeHandle()
 {
-    return mega::INVALID_HANDLE;
+    return INVALID_HANDLE;
 }
 
 int MegaShare::getAccess()
@@ -342,7 +342,7 @@ const char *MegaRequest::__toString() const
 
 MegaHandle MegaRequest::getNodeHandle() const
 {
-	return mega::INVALID_HANDLE;
+	return INVALID_HANDLE;
 }
 
 const char *MegaRequest::getLink() const
@@ -352,7 +352,7 @@ const char *MegaRequest::getLink() const
 
 MegaHandle MegaRequest::getParentHandle() const
 {
-	return mega::INVALID_HANDLE;
+	return INVALID_HANDLE;
 }
 
 const char *MegaRequest::getSessionKey() const
@@ -525,12 +525,12 @@ const char *MegaTransfer::getParentPath() const
 
 MegaHandle MegaTransfer::getNodeHandle() const
 {
-	return mega::INVALID_HANDLE;
+	return INVALID_HANDLE;
 }
 
 MegaHandle MegaTransfer::getParentHandle() const
 {
-	return mega::INVALID_HANDLE;
+	return INVALID_HANDLE;
 }
 
 long long MegaTransfer::getStartPos() const
@@ -1474,12 +1474,12 @@ MegaError *MegaApi::getCurrentError()
     return pImpl->getCurrentError();
 }
 
-mega::MegaNodeList *mega::MegaApi::getCurrentNodes()
+MegaNodeList *MegaApi::getCurrentNodes()
 {
     return pImpl->getCurrentNodes();
 }
 
-mega::MegaUserList *mega::MegaApi::getCurrentUsers()
+MegaUserList *MegaApi::getCurrentUsers()
 {
     return pImpl->getCurrentUsers();
 }
@@ -1679,22 +1679,22 @@ long long MegaAccountDetails::getTransferOwnUsed()
     return 0;
 }
 
-long long MegaAccountDetails::getStorageUsed(mega::MegaHandle handle)
+long long MegaAccountDetails::getStorageUsed(MegaHandle handle)
 {
     return 0;
 }
 
-long long MegaAccountDetails::getNumFiles(mega::MegaHandle handle)
+long long MegaAccountDetails::getNumFiles(MegaHandle handle)
 {
     return 0;
 }
 
-long long mega::MegaAccountDetails::getNumFolders(mega::MegaHandle handle)
+long long MegaAccountDetails::getNumFolders(MegaHandle handle)
 {
     return 0;
 }
 
-MegaAccountDetails *mega::MegaAccountDetails::copy()
+MegaAccountDetails *MegaAccountDetails::copy()
 {
     return NULL;
 }
@@ -1741,7 +1741,7 @@ int MegaPricing::getNumProducts()
 
 MegaHandle MegaPricing::getHandle(int productIndex)
 {
-    return mega::INVALID_HANDLE;
+    return INVALID_HANDLE;
 }
 
 int MegaPricing::getProLevel(int productIndex)
@@ -1774,7 +1774,7 @@ const char *MegaPricing::getCurrency(int productIndex)
     return 0;
 }
 
-MegaPricing *mega::MegaPricing::copy()
+MegaPricing *MegaPricing::copy()
 {
     return NULL;
 }
@@ -1789,7 +1789,7 @@ MegaSync *MegaSync::copy()
 
 MegaHandle MegaSync::getMegaHandle() const
 {
-    return mega::INVALID_HANDLE;
+    return INVALID_HANDLE;
 }
 
 const char *MegaSync::getLocalFolder() const
@@ -1842,7 +1842,7 @@ const char *MegaSyncEvent::getPath() const
 
 MegaHandle MegaSyncEvent::getNodeHandle() const
 {
-    return mega::INVALID_HANDLE;
+    return INVALID_HANDLE;
 }
 
 const char *MegaSyncEvent::getNewPath() const
@@ -1857,7 +1857,7 @@ const char *MegaSyncEvent::getPrevName() const
 
 MegaHandle MegaSyncEvent::getPrevParent() const
 {
-    return mega::INVALID_HANDLE;
+    return INVALID_HANDLE;
 }
 
 #endif
