@@ -34,7 +34,7 @@ In the `examples` folder you can find example apps using:
 Building
 --------
 
-If you plan to develop an app using this SDK, please use the stable branch or the last released tarball. The master branch is continuously evolving, could be unstable and and could change very often.
+If you plan to develop an app using this SDK, please use the stable branch or the last released tarball. The master branch is continuously evolving, could be unstable and could change very often.
 
 For platforms with Autotools, the generic way to build and install it is:
 
@@ -44,7 +44,7 @@ For platforms with Autotools, the generic way to build and install it is:
     sudo make install
 
 That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`)
-You also have specific build instuctions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
+You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_static.sh`)
 
 For other platforms, or if you want to see how to use the new intermediate layer,
@@ -85,7 +85,7 @@ and compile their respective sources (package names are for
 Debian and RedHat derivatives, respectively):
 
 * cURL (`libcurl4-openssl-dev`, `libcurl-devel`), compiled with `--enable-ssl`
-* c-ares (`libc-ares-dev`, `libcares-devel`)
+* c-ares (`libc-ares-dev`, `libcares-devel`, `c-ares-devel`)
 * OpenSSL (`libssl-dev`, `openssl-devel`)
 * Crypto++ (`libcrypto++-dev`, `libcryptopp-devel`)
 * zlib (`zlib1g-dev`, `zlib-devel`)
@@ -99,7 +99,7 @@ Optional dependency:
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.
 
-To build the the reference `megacli` example, you may also need to install:
+To build the reference `megacli` example, you may also need to install:
 
 * GNU Readline (`libreadline-dev`, `readline-devel`)
 
