@@ -2289,6 +2289,26 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener
     }
     if(target) request->setParentHandle(target->getHandle());
 	requestQueue.push(request);
+	waiter->notify();
+}
+
+void MegaApiImpl::copyNode(MegaNode *node, MegaNode *target, const char *newName, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
+    if(node)
+    {
+        if(node->isPublic())
+        {
+            request->setPublicNode(node);
+        }
+        else
+        {
+            request->setNodeHandle(node->getHandle());
+        }
+    }
+    if(target) request->setParentHandle(target->getHandle());
+    request->setName(newName);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -6341,6 +6361,7 @@ void MegaApiImpl::sendPendingRequests()
 			Node *target = client->nodebyhandle(request->getParentHandle());
 			const char* email = request->getEmail();
             MegaNode *publicNode = request->getPublicNode();
+            const char *newName = request->getName();
 
             if((!node && !publicNode) || (!target && !email)) { e = API_EARGS; break; }
 
@@ -6383,6 +6404,23 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 tc.nn->parenthandle = UNDEF;
+
+                if(nc == 1 && newName && tc.nn[0].nodekey.size())
+                {
+                    SymmCipher key;
+                    AttrMap attrs;
+                    string attrstring;
+
+                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+                    attrs = node->attrs;
+
+                    string sname = newName;
+                    fsAccess->normalize(&sname);
+                    attrs.map['n'] = sname;
+
+                    attrs.getjson(&attrstring);
+                    client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
+                }
 
                 if (target)
                 {
@@ -7109,12 +7147,14 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
-        //TODO: Check if nodekey is empty (this code isn't used in the current release)
-		key.setkey((const byte*)t->nodekey.data(),n->type);
+		t->attrstring = new string;
+		if(t->nodekey.size())
+		{
+			key.setkey((const byte*)t->nodekey.data(),n->type);
 
-		n->attrs.getjson(&attrstring);
-        t->attrstring = new string;
-        client->makeattr(&key,t->attrstring,attrstring.c_str());
+			n->attrs.getjson(&attrstring);
+			client->makeattr(&key,t->attrstring,attrstring.c_str());
+		}
 	}
 	else nc++;
 }

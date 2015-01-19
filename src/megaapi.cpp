@@ -960,6 +960,11 @@ void MegaApi::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *li
     pImpl->copyNode(node, target, listener);
 }
 
+void MegaApi::copyNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
+{
+    pImpl->copyNode(node, newParent, newName, listener);
+}
+
 void MegaApi::renameNode(MegaNode *node, const char *newName, MegaRequestListener *listener)
 {
     pImpl->renameNode(node, newName, listener);

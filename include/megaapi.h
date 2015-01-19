@@ -3395,6 +3395,32 @@ class MegaApi
          */
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
 
+
+        /**
+         * @brief Copy a node in the MEGA account changing the file name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
+         * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+         * - MegaRequest::getPublicMegaNode - Returns the node to copy
+         * - MegaRequest::getName - Returns the name for the new node
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new node
+         *
+         * @param node Node to copy
+         * @param newParent Parent for the new node
+         * @param newName Name for the new node
+         *
+         * This parameter is only used if the original node is a file and it isn't a public node,
+         * otherwise, it's ignored.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Rename a node in the MEGA account
          *
