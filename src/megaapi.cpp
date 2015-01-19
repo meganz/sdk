@@ -250,6 +250,7 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
+#ifdef ENABLE_SYNC
 bool MegaNode::isSyncDeleted()
 {
     return false;
@@ -259,6 +260,7 @@ string MegaNode::getLocalPath()
 {
     return string();
 }
+#endif
 
 MegaUser::~MegaUser() { }
 
