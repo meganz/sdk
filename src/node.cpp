@@ -566,7 +566,7 @@ void Node::setfingerprint()
 
         // if we lack a valid FileFingerprint for this file, use file's key,
         // size and client timestamp instead
-        if (!isvalid)
+        if (!isvalid && !mtime)
         {
             memcpy(crc, nodekey.data(), sizeof crc);
             mtime = ctime;
