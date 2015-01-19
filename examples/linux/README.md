@@ -22,4 +22,6 @@ To build and run the project, follow theses steps:
 2. Run the `megafuse` binary that you will find in this folder
 
 - If you run it without parameters, it will interactively request the required data 
-- You can automate it providing additional parameters: `megafuse [megauser megapassword localmountpoint [megamountpoint]]`
+- You can automate it providing additional parameters: 
+
+  `megafuse [megauser megapassword localmountpoint [megamountpoint]]`
