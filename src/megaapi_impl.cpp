@@ -3520,6 +3520,23 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
     return result;
 }
 
+MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint, MegaNode* parent)
+{
+    if(!fingerprint) return NULL;
+
+    MegaNode *result;
+    sdkMutex.lock();
+    Node *p = NULL;
+    if(parent)
+    {
+        p = client->nodebyhandle(parent->getHandle());
+    }
+
+    result = MegaNodePrivate::fromNode(getNodeByFingerprintInternal(fingerprint, p));
+    sdkMutex.unlock();
+    return result;
+}
+
 bool MegaApiImpl::hasFingerprint(const char *fingerprint)
 {
     return (getNodeByFingerprintInternal(fingerprint) != NULL);
@@ -5738,6 +5755,51 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 
     sdkMutex.lock();
     Node *n  = client->nodebyfingerprint(&fp);
+    sdkMutex.unlock();
+
+    return n;
+}
+
+Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *parent)
+{
+    if(!fingerprint || !fingerprint[0]) return NULL;
+
+    m_off_t size = 0;
+    unsigned int fsize = strlen(fingerprint);
+    unsigned int ssize = fingerprint[0] - 'A';
+    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+        return NULL;
+
+    int len =  sizeof(size) + 1;
+    byte *buf = new byte[len];
+    Base64::atob(fingerprint + 1, buf, len);
+    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+    delete [] buf;
+    if(l <= 0)
+        return NULL;
+
+    string sfingerprint = fingerprint + ssize + 1;
+
+    FileFingerprint fp;
+    if(!fp.unserializefingerprint(&sfingerprint))
+        return NULL;
+
+    fp.size = size;
+
+    sdkMutex.lock();
+    Node *n  = client->nodebyfingerprint(&fp);
+    if(n && parent && n->parent != parent)
+    {
+        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+        {
+            Node* node = (*it);
+            if(*((FileFingerprint *)node) == *((FileFingerprint *)n))
+            {
+                n = node;
+                break;
+            }
+        }
+    }
     sdkMutex.unlock();
 
     return n;

@@ -874,6 +874,8 @@ class MegaApiImpl : public MegaApp
         const char* getFingerprint(const char *filePath);
         const char *getFingerprint(MegaNode *node);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
+        MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
+
         bool hasFingerprint(const char* fingerprint);
 
         //Permissions
@@ -1107,6 +1109,8 @@ protected:
 
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
+        Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
+
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener = NULL);

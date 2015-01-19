@@ -1409,6 +1409,11 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint)
     return pImpl->getNodeByFingerprint(fingerprint);
 }
 
+MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *parent)
+{
+    return pImpl->getNodeByFingerprint(fingerprint, parent);
+}
+
 bool MegaApi::hasFingerprint(const char *fingerprint)
 {
     return pImpl->hasFingerprint(fingerprint);

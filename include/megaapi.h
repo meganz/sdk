@@ -4650,6 +4650,21 @@ class MegaApi
         MegaNode *getNodeByFingerprint(const char* fingerprint);
 
         /**
+         * @brief Returns a node with the provided fingerprint
+         *
+         * If there isn't any node in the account with that fingerprint, this function returns NULL.
+         * If there are several nodes with the same fingerprint, nodes in the preferred
+         * parent folder take precedence.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param fingerprint Fingerprint to check
+         * @param parent Preferred parent node
+         * @return MegaNode object with the provided fingerprint
+         */
+        MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
+
+        /**
          * @brief Check if the account already has a node with the provided fingerprint
          *
          * A fingerprint for a local file can be generated using MegaApi::getFingerprint
