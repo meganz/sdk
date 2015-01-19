@@ -68,7 +68,7 @@ class MegaShell(cmd.Cmd, MegaListener):
 		return
 		
 	def do_login(self, arg):
-		'Usage: login email [password]/folderurl'
+		'Usage: login email password'
 		args = arg.split()
 		if len(args) != 2 or not "@" in args[0]:
 			print self.do_login.__doc__
@@ -181,7 +181,7 @@ class MegaShell(cmd.Cmd, MegaListener):
 		api.startDownload(node, "./");
 		
 	def do_put(self, arg):
-		'Usage: put localfile [path/email]'
+		'Usage: put localfile'
 		args = arg.split()
 		if len(args) != 1:
 			print self.do_put.__doc__
@@ -386,5 +386,3 @@ api = MegaApi('ox8xnQZL', None, None, 'Python megacli')
 api.addListener(listener); 
 shell.cmdloop()
 
-
-				
