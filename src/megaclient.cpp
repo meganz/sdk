@@ -3439,7 +3439,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         const char *sk = NULL;
         accesslevel_t rl = ACCESS_UNKNOWN;
         m_off_t s = NEVER;
-        m_time_t ts = -1, sts = -1, tm = -1;
+        m_time_t ts = -1, sts = -1;
         nameid name;
         int nni = -1;
 
@@ -3481,10 +3481,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 case MAKENAMEID2('t', 's'):  // actual creation timestamp
                     ts = j->getint();
-                    break;
-
-                case MAKENAMEID2('t', 'm'):  // actual creation timestamp
-                    tm = j->getint();
                     break;
 
                 case MAKENAMEID2('f', 'a'):  // file attributes
@@ -3636,10 +3632,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
-                if(tm != -1)
-                {
-                    n->mtime = tm;
-                }
 
                 n->tag = tag;
 
