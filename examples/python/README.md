@@ -18,6 +18,17 @@ It shows a shell like the one in the `megacli` example that allows to:
 
 To build and run the project, follow theses steps:
 
-1. Build the SDK including the option `--enable-python` in the `./configure` step
-2. Run the `megacli.py` file in this folder
+1. Install SWIG in your system (it's required to generate Python bindings)
+2. Build the SDK including the option `--enable-python` in the `./configure` step
+3. Install the required Python dependendy `cmd`.
+4. Run the `megacli.py` file in this folder
 
+If you want to create your own Python app. You can use the `MegaApi` object. However, these bindings are still
+a work in progress and have some invonceniences:
+- You can't use callback parameters out of the callbacs
+You can use the `copy()` method of `MegaRequest`, `MegaTransfer` and `MegaError` to preserve them and to use them later.
+
+- You can't use objects returned by `MegaNodeList`, `MegaTransferList`, `MegaShareList` or `MegaUserList` after losing the
+reference to the original list. You can use the `copy()` method commented above to preserve those objects.
+
+We plan to create a `MegaApiPython` wrapper on top of `MegaApi` to take care of these issues for you.
