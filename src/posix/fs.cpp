@@ -283,7 +283,6 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 }
 
 // read all pending inotify events and queue them for processing
-// FIXME: ignore sync-specific debris folder
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
@@ -356,15 +355,16 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 lastcookie = 0;
 
                                 ignore = &it->second->sync->dirnotify->ignore;
+                                unsigned int insize = strlen(in->name);
 
-                                if (strlen(in->name) < ignore->size()
+                                if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
-                                 || (strlen(in->name) > ignore->size()
+                                 || (insize > ignore->size()
                                   && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
                                 {
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second, in->name,
-                                                                        strlen(in->name));
+                                                                        insize);
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -445,6 +445,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     sync_list::iterator it;
     fd_set rfds;
     timeval tv = { 0 };
+    static char rsrc[] = "/..namedfork/rsrc";
+    static unsigned int rsrcsize = sizeof(rsrc) - 1;
 
     if (notifyfd < 0)
     {
@@ -503,16 +505,21 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             for (i = n; i--; )
             {
                 path = paths[i];
+                unsigned int psize = strlen(path);
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int s = (*it)->localroot.localname.size();
+                    int rsize = (*it)->localroot.localname.size();
+                    int isize = (*it)->dirnotify->ignore.size();
 
-                    if (!memcmp((*it)->localroot.localname.c_str(), path, s)    // prefix match
-                      && (!path[s] || path[s] == '/')               // at end: end of path or path separator
-                      && (memcmp(path + s + 1, (*it)->dirnotify->ignore.c_str(), (*it)->dirnotify->ignore.size())
-                       || (path[s + (*it)->dirnotify->ignore.size() + 1]
-                        && path[s + (*it)->dirnotify->ignore.size() + 1] != '/')))
+                    if (psize >= rsize
+                      && !memcmp((*it)->localroot.localname.c_str(), path, rsize)    // prefix match
+                      && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
+                      && (psize <= (rsize + isize)                          // not ignored
+                          || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
+                          || memcmp(path + rsize + 1, (*it)->dirnotify->ignore.c_str(), isize))
+                      && (psize < rsrcsize                                  // it isn't a resource fork
+                          || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
                         {
                             paths[i] += (*it)->localroot.localname.size() + 1;
                             pathsync[i] = *it;
