@@ -1303,8 +1303,11 @@ size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
         ((CurlHttpIO*)((HttpReq*)target)->httpio)->statechange = true;
     }
 
-    ((HttpReq*)target)->put(ptr, nmemb, true);
-    ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+    if(((HttpReq*)target)->httpio)
+    {
+        ((HttpReq*)target)->put(ptr, nmemb, true);
+        ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
+    }
 
     return nmemb;
 }
