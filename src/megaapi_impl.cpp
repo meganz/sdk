@@ -6861,6 +6861,9 @@ void MegaApiImpl::sendPendingRequests()
                 for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
                 {
                     MegaTransfer *transfer = iter->second;
+                    if(!transfer)
+                        continue;
+
                     m_time_t starttime = transfer->getStartTime();
                     if(starttime)
                     {
