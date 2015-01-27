@@ -3361,6 +3361,11 @@ const char *MegaApiImpl::getVersion()
     return client->version();
 }
 
+const char *MegaApiImpl::getUserAgent()
+{
+    return client->useragent.c_str();
+}
+
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
 	if(!node) return 1;

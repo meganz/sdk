@@ -4780,6 +4780,16 @@ class MegaApi
          */
         const char *getVersion();
 
+        /**
+         * @brief Get the User-Agent header used by the SDK
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaApi object is destructed.
+         *
+         * @return User-Agent used by the SDK
+         */
+        const char *getUserAgent();
+
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)

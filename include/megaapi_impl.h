@@ -890,6 +890,7 @@ class MegaApiImpl : public MegaApp
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 
         const char *getVersion();
+        const char *getUserAgent();
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
