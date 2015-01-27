@@ -194,7 +194,12 @@ void Transfer::complete()
 
             if (!success)
             {
-                if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename,
+                if((tmplocalname.size() ? tmplocalname : localfilename) == (*it)->localname)
+                {
+                    //Identical node downloaded to the same folder
+                    success = true;
+                }
+                else if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename,
                                                &(*it)->localname, mtime))
                 {
                     success = true;
