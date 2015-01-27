@@ -1240,7 +1240,9 @@ AC_ARG_ENABLE(python,
 if test "x$enable_python" = "xyes" ; then
     AM_PATH_PYTHON
     AX_PYTHON_DEVEL
-    AX_PKG_SWIG(2.0.0, [], [])
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
     AX_SWIG_ENABLE_CXX
     AX_SWIG_MULTI_MODULE_SUPPORT
     AX_SWIG_PYTHON
@@ -1296,7 +1298,9 @@ if test "x$enable_php" = "xyes" ; then
 	AC_SUBST(PHPEXT)
 	AC_SUBST(PHPLIBDIR)
 
-    AX_PKG_SWIG(2.0.0, [], [])
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
     AX_SWIG_ENABLE_CXX
     AX_SWIG_MULTI_MODULE_SUPPORT
 
