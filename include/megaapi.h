@@ -4809,6 +4809,31 @@ class MegaApi
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
 
+
+        /**
+         * @brief Make a name suitable for a file name in the local filesystem
+         *
+         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * You can revert this operation using MegaApi::localToName
+         *
+         * You take the ownership of the returned value
+         *
+         * @param name Name to convert
+         * @return Converted name
+         */
+        const char* nameToLocal(const char *name);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::nameToLocal
+         *
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert
+         * @return Converted name
+         */
+        const char* localToName(const char*localName);
+
+
         /**
          * @brief Convert a Base64 string to Base32
          *

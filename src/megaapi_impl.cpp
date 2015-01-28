@@ -3118,7 +3118,21 @@ MegaNode* MegaApiImpl::getRubbishNode()
 bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
 {
 	if(strcasecmp(i->email.c_str(), j->email.c_str())<=0) return 1;
-	return 0;
+    return 0;
+}
+
+const char *MegaApiImpl::nameToLocal(const char *name)
+{
+    string local = name;
+    client->fsaccess->name2local(&local);
+    return MegaApi::strdup(local.c_str());
+}
+
+const char *MegaApiImpl::localToName(const char *localName)
+{
+    string name;
+    client->fsaccess->local2name(&name);
+    return MegaApi::strdup(name.c_str());
 }
 
 

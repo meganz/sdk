@@ -1639,10 +1639,20 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
         utf8data,
         size,
         (wchar_t*)utf16string->data(),
-        utf16string->size())));
+                                                               utf16string->size())));
 }
+
 #endif
 
+const char *MegaApi::nameToLocal(const char *name)
+{
+    return pImpl->nameToLocal(name);
+}
+
+const char *MegaApi::localToName(const char *localName)
+{
+    return pImpl->localToName(localName);
+}
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {

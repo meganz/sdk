@@ -904,6 +904,9 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
+        const char* nameToLocal(const char *name);
+        const char* localToName(const char*localName);
+
 protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
