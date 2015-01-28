@@ -111,6 +111,16 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
+- (NSString *)userAgent {
+    const char *val = self.megaApi->getUserAgent();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -747,6 +757,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return self.megaApi->isShared([node getCPtr]);
 }
 
+- (MEGAShareList *)outShares {
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares() cMemoryOwn:YES];
+}
+
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
@@ -809,6 +823,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (NSNumber *)sizeForNode:(MEGANode *)node {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getSize([node getCPtr])];
+}
+
+- (NSString *)nameToLocal:(NSString *)name {
+    return [[NSString alloc] initWithUTF8String:self.megaApi->nameToLocal([name UTF8String])];
+}
+
+- (NSString *)localToName:(NSString *)localName {
+    return [[NSString alloc] initWithUTF8String:self.megaApi->localToName([localName UTF8String])];
 }
 
 #pragma mark - Debug log messages

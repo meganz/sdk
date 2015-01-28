@@ -164,6 +164,13 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  */
 @property (readonly, nonatomic) NSString *masterKey;
 
+/**
+ * @brief User-Agent header used by the SDK
+ *
+ * The User-Agent used by the SDK
+ */
+@property (readonly, nonatomic) NSString *userAgent;
+
 #pragma mark - Init
 
 /**
@@ -2011,6 +2018,13 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 - (BOOL)isSharedNode:(MEGANode *)node;
 
 /**
+ * @brief Get a list with all active outbound sharings
+ *
+ * @return List of MegaShare objects
+ */
+- (MEGAShareList *)outShares;
+
+/**
  * @brief Get a list with the active outbound sharings for a MEGANode.
  *
  * If the node doesn't exist in the account, this function returns an empty list.
@@ -2148,6 +2162,25 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @return Size of the node tree.
  */
 - (NSNumber *)sizeForNode:(MEGANode *)node;
+
+/**
+ * @brief Make a name suitable for a file name in the local filesystem
+ *
+ * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+ * You can revert this operation using [MEGASdk localToName:]
+ *
+ * @param name Name to convert
+ * @return Converted name
+ */
+- (NSString *)nameToLocal:(NSString *)name;
+
+/**
+ * @brief Unescape a file name escaped with [MEGASdk nameToLocal:]
+ *
+ * @param name Escaped name to convert
+ * @return Converted name
+ */
+- (NSString *)localToName:(NSString *)localName;
 
 #pragma mark - Debug log messages
 
