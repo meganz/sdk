@@ -3130,7 +3130,7 @@ const char *MegaApiImpl::nameToLocal(const char *name)
 
 const char *MegaApiImpl::localToName(const char *localName)
 {
-    string name;
+    string name = localName;
     client->fsaccess->local2name(&name);
     return MegaApi::strdup(name.c_str());
 }
