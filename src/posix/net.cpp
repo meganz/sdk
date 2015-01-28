@@ -1196,13 +1196,16 @@ bool CurlHttpIO::doio()
             inetstatus(req->status);
 
             CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-            curl_slist_free_all(httpctx->headers);
-            req->httpiohandle = NULL;
-
-            httpctx->req = NULL;
-            if(!httpctx->ares_pending)
+            if(httpctx)
             {
-                delete httpctx;
+                curl_slist_free_all(httpctx->headers);
+                req->httpiohandle = NULL;
+
+                httpctx->req = NULL;
+                if(!httpctx->ares_pending)
+                {
+                    delete httpctx;
+                }
             }
         }
     }
