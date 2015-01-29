@@ -1450,6 +1450,7 @@ static void process_line(char* l)
                 cout << "      getua attrname [email|private]" << endl;
                 cout << "      putua attrname [del|set string|load file] [private]" << endl;
                 cout << "      putbps [limit|auto|none]" << endl;
+                cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
                 cout << "      passwd" << endl;
                 cout << "      retry" << endl;
@@ -2983,6 +2984,29 @@ static void process_line(char* l)
                         return;
                     }
                     break;
+                case 11:                    
+                    if (words[0] == "killsession")
+                    {
+                        if (words[1] == "all")
+                        {
+                            // Kill all sessions (except current)
+                            client->killallsessions();
+                        }
+                        else
+                        {
+                            handle sessionid;
+                            if (Base64::atob(words[1].c_str(), (byte*) &sessionid, sizeof sessionid) == sizeof sessionid)
+                            {                                    
+                                client->killsession(sessionid);
+                            }
+                            else
+                            {
+                                cout << "invalid handle provided" << endl;
+                            }                         
+                        }
+                        return;
+                    }
+                    break;
             }
 
             cout << "?Invalid command" << endl;
@@ -3447,7 +3471,29 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (sessions)
     {
-        cout << "Session history:" << endl;
+        cout << "Currently Active Sessions:" << endl;
+        for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
+        {
+            if (it->alive)
+            {
+                time_t ts = it->timestamp;
+                strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                ts = it->mru;
+                strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
+
+                char id[12];
+                int size = Base64::btoa((byte*)&(it->id), sizeof(it->id), id);
+
+                if (it->current)
+                {
+                    printf("\t* Current Session\n");
+                }
+                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
+                        id, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+            }
+        }
+
+        cout << endl << "Full Session history:" << endl;
 
         for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
         {
@@ -3455,7 +3501,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
             ts = it->mru;
             strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
-            printf("\tSession start: %s Most recent activity: %s IP: %s Country: %.2s User-Agent: %s\n",
+            printf("\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
                     timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
         }
     }
@@ -3469,6 +3515,28 @@ void DemoApp::account_details(AccountDetails* ad, error e)
         cout << "Account details retrieval failed (" << errorstring(e) << ")" << endl;
     }
 }
+
+// account details could not be retrieved
+void DemoApp::sessions_killed(handle sessionid, error e)
+{
+    if (e)
+    {
+        cout << "Session killing failed (" << errorstring(e) << ")" << endl;
+        return;
+    }
+
+    if (sessionid == UNDEF)
+    {
+        cout << "All sessions except current have been killed" << endl;
+    }
+    else
+    {
+        char id[12];
+        int size = Base64::btoa((byte*)&(sessionid), sizeof(sessionid), id);
+        cout << "Session with id " << id << " has been killed" << endl;
+    }
+}
+
 
 // user attribute update notification
 void DemoApp::userattr_update(User* u, int priv, const char* n)

@@ -1007,6 +1007,42 @@ void CommandDelNode::procresult()
     }
 }
 
+CommandKillSessions::CommandKillSessions(MegaClient* client)
+{
+    cmd("usr");
+    arg("ko", 1); // Request to kill all sessions except the current one
+    
+    h = UNDEF;
+    tag = client->reqtag;
+}
+
+CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
+{
+    cmd("usr");
+    int len = MegaClient::USERHANDLE;
+    beginarray("s");
+    element(sessionid, len);
+    endarray();
+    
+    h = sessionid;
+    tag = client->reqtag;
+}
+void CommandKillSessions::procresult()
+{
+    error e;
+
+    if (client->json.isnumeric())
+    {
+        e = (error)client->json.getint();
+    }
+    else
+    {
+        e = API_EINTERNAL;
+    }
+
+    client->app->sessions_killed(h, e);
+}
+
 // login request with user e-mail address and user hash
 CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash)
 {
@@ -2190,6 +2226,7 @@ void CommandGetUserPurchases::procresult()
 CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, AccountDetails* ad)
 {
     cmd("usl");
+    arg("x", 1); // Request the additional id and alive information
 
     details = ad;
     tag = client->reqtag;
@@ -2214,6 +2251,9 @@ void CommandGetUserSessions::procresult()
         details->sessions[t].country[2] = 0;
 
         details->sessions[t].current = (int)client->json.getint();
+
+        details->sessions[t].id = client->json.gethandle(8);
+        details->sessions[t].alive = (int)client->json.getint();
 
         client->json.leavearray();
     }

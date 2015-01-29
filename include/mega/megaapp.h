@@ -60,6 +60,9 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool) { }
     virtual void account_details(AccountDetails*, error) { }
 
+    // sessionid is undef if all sessions except the current were killed
+    virtual void sessions_killed(handle sessionid, error e) { }
+
     // node attribute update failed (not invoked unless error != API_OK)
     virtual void setattr_result(handle, error) { }
 

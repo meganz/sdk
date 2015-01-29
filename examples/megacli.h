@@ -125,6 +125,9 @@ struct DemoApp : public MegaApp
     void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool);
     void account_details(AccountDetails*, error);
 
+    // sessionid is undef if all sessions except the current were killed
+    void sessions_killed(handle sessionid, error e);
+
     void exportnode_result(error);
     void exportnode_result(handle, handle);
 

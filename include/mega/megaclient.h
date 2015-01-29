@@ -103,6 +103,10 @@ public:
     // dump current session
     int dumpsession(byte*, int);
 
+    // Kill session id
+    void killsession(handle session);
+    void killallsessions();
+
     // set folder link: node, key
     error folderaccess(const char*, const char*);
 
