@@ -77,14 +77,9 @@ void Request::procresult(MegaClient* client)
         {
             return;
         }
-
-        if (!cmds[i]->persistent)
-        {
-            delete cmds[i];
-        }
     }
 
-    cmds.clear();
+    clear();
 }
 
 void Request::clear()
