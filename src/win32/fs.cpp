@@ -625,7 +625,7 @@ void WinFileSystemAccess::osversion(string* u) const
     char buf[128];
 
 #ifdef WINDOWS_PHONE
-    sprintf(buf, "Windows Phone 8/8.1");
+    sprintf(buf, "Windows Phone");
 #else
     DWORD dwVersion = GetVersion();
 
