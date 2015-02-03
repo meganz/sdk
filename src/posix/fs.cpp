@@ -73,7 +73,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         return true;
     }
 
-    return true;
+    return false;
 }
 
 bool PosixFileAccess::sysopen()
