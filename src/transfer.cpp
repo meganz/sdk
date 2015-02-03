@@ -188,6 +188,8 @@ void Transfer::complete()
             {
                 // the destination path already exists
                 bool synced = false;
+
+#ifdef ENABLE_SYNC
                 for (sync_list::iterator it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
                 {
                     Sync *sync = (*it2);
@@ -206,6 +208,7 @@ void Transfer::complete()
                         break;
                     }
                 }
+#endif
 
                 if (!synced)
                 {
