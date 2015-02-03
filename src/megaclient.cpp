@@ -4063,6 +4063,17 @@ int MegaClient::dumpsession(byte* session, int size)
     return sizeof key.key + sid.size();
 }
 
+void MegaClient::killsession(handle session)
+{
+    reqs[r].add(new CommandKillSessions(this, session));
+}
+
+// Kill all sessions (except current)
+void MegaClient::killallsessions()
+{
+    reqs[r].add(new CommandKillSessions(this));
+}
+
 void MegaClient::opensctable()
 {
     if (dbaccess && !sctable)

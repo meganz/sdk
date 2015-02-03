@@ -269,6 +269,18 @@ public:
     CommandDelNode(MegaClient*, handle);
 };
 
+class MEGA_API CommandKillSessions : public Command
+{
+    handle h;
+    int all;
+
+public:
+    void procresult();
+
+    CommandKillSessions(MegaClient*, handle);
+    CommandKillSessions(MegaClient*);
+};
+
 class MEGA_API CommandPubKeyRequest : public Command
 {
     User* u;
