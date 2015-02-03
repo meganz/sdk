@@ -176,27 +176,29 @@ void Transfer::complete()
         // place file in all target locations - use up to one renames, copy
         // operations for the rest
         // remove and complete successfully completed files
+        string localname;
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             transient_error = false;
             success = false;
+            localname = (*it)->localname;
 
             fa = client->fsaccess->newfileaccess();
-            if (fa->fopen(&(*it)->localname))
+            if (fa->fopen(&localname))
             {
                 // the destination path already exists
                 bool synced = false;
                 for (sync_list::iterator it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
                 {
                     Sync *sync = (*it2);
-                    LocalNode *localNode = sync->localnodebypath(NULL, &(*it)->localname);
+                    LocalNode *localNode = sync->localnodebypath(NULL, &localname);
                     if (localNode)
                     {
                         // the destination file is synced
                         synced = true;
 
                         // try to move to local debris
-                        if(!sync->movetolocaldebris(&(*it)->localname))
+                        if(!sync->movetolocaldebris(&localname))
                         {
                             transient_error = client->fsaccess->transient_error;
                         }
@@ -208,17 +210,17 @@ void Transfer::complete()
                 if (!synced)
                 {
                     // the destination path isn't synced, save with a (x) suffix
-                    unsigned index = (*it)->localname.find_last_of('.');
+                    unsigned index = localname.find_last_of('.');
                     string name;
                     string extension;
                     if (index == string::npos)
                     {
-                        name = (*it)->localname;
+                        name = localname;
                     }
                     else
                     {
-                        name = (*it)->localname.substr(0, index);
-                        extension = (*it)->localname.substr(index);
+                        name = localname.substr(0, index);
+                        extension = localname.substr(index);
                     }
 
                     string suffix;
@@ -234,7 +236,9 @@ void Transfer::complete()
                         newname = name + suffix + extension;
                     } while (fa->fopen(&newname));
 
+
                     (*it)->localname = newname;
+                    localname = newname;
                 }
             }
 
@@ -247,9 +251,9 @@ void Transfer::complete()
 
             if (!tmplocalname.size())
             {                
-                if (client->fsaccess->renamelocal(&localfilename, &(*it)->localname))
+                if (client->fsaccess->renamelocal(&localfilename, &localname))
                 {
-                    tmplocalname = (*it)->localname;
+                    tmplocalname = localname;
                     success = true;
                 }
                 else if (client->fsaccess->transient_error)
@@ -260,13 +264,13 @@ void Transfer::complete()
 
             if (!success)
             {
-                if((tmplocalname.size() ? tmplocalname : localfilename) == (*it)->localname)
+                if((tmplocalname.size() ? tmplocalname : localfilename) == localname)
                 {
                     //Identical node downloaded to the same folder
                     success = true;
                 }
                 else if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename,
-                                               &(*it)->localname, mtime))
+                                               &localname, mtime))
                 {
                     success = true;
                 }
@@ -310,6 +314,22 @@ void Transfer::complete()
         {
             client->fsaccess->unlinklocal(&localfilename);
         }
+
+        if (!files.size())
+        {
+            localfilename = localname;
+            client->app->transfer_complete(this);
+            delete this;
+        }
+        else
+        {
+            // some files are still pending completion, close fa and set retry timer
+            delete slot->fa;
+            slot->fa = NULL;
+
+            slot->retrying = true;
+            slot->retrybt.backoff(11);
+        }
     }
     else
     {
@@ -322,21 +342,6 @@ void Transfer::complete()
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this);
         return;
-    }
-
-    if (!files.size())
-    {
-        client->app->transfer_complete(this);
-        delete this;
-    }
-    else
-    {
-        // some files are still pending completion, close fa and set retry timer
-        delete slot->fa;
-        slot->fa = NULL;
-
-        slot->retrying = true;
-        slot->retrybt.backoff(11);
     }
 }
 

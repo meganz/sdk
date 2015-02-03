@@ -3682,10 +3682,10 @@ void MegaApiImpl::transfer_prepare(Transfer *t)
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
 
 	if (t->type == GET)
-        transfer->setNodeHandle(t->files.front()->h);
+		transfer->setNodeHandle(t->files.back()->h);
 
     string path;
-    fsAccess->local2path(&(t->files.front()->localname), &path);
+    fsAccess->local2path(&(t->files.back()->localname), &path);
     transfer->setPath(path.c_str());
     transfer->setTotalBytes(t->size);
 
@@ -3788,6 +3788,10 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     {
         if(pendingDownloads > 0)
             pendingDownloads--;
+
+        string path;
+        fsAccess->local2path(&tr->localfilename, &path);
+        transfer->setPath(path.c_str());
 
         fireOnTransferFinish(transfer, MegaError(API_OK));
     }
