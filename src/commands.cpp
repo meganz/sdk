@@ -1019,9 +1019,8 @@ CommandKillSessions::CommandKillSessions(MegaClient* client)
 CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
 {
     cmd("usr");
-    int len = MegaClient::USERHANDLE;
     beginarray("s");
-    element(sessionid, len);
+    element(sessionid, MegaClient::USERHANDLE);
     endarray();
     
     h = sessionid;

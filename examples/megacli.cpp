@@ -2987,22 +2987,29 @@ static void process_line(char* l)
                 case 11:                    
                     if (words[0] == "killsession")
                     {
-                        if (words[1] == "all")
+                        if (words.size() == 2)
                         {
-                            // Kill all sessions (except current)
-                            client->killallsessions();
-                        }
-                        else
-                        {
-                            handle sessionid;
-                            if (Base64::atob(words[1].c_str(), (byte*) &sessionid, sizeof sessionid) == sizeof sessionid)
-                            {                                    
-                                client->killsession(sessionid);
+                            if (words[1] == "all")
+                            {
+                                // Kill all sessions (except current)
+                                client->killallsessions();
                             }
                             else
                             {
-                                cout << "invalid handle provided" << endl;
-                            }                         
+                                handle sessionid;
+                                if (Base64::atob(words[1].c_str(), (byte*) &sessionid, sizeof sessionid) == sizeof sessionid)
+                                {                                    
+                                    client->killsession(sessionid);
+                                }
+                                else
+                                {
+                                    cout << "invalid session id provided" << endl;
+                                }                         
+                            }
+                        }
+                        else
+                        {
+                            cout << "      killsession [all|sessionid] " << endl;
                         }
                         return;
                     }
