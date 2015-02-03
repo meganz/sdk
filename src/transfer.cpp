@@ -23,6 +23,7 @@
 #include "mega/megaclient.h"
 #include "mega/transferslot.h"
 #include "mega/megaapp.h"
+#include "mega/sync.h"
 
 namespace mega {
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
@@ -118,14 +119,15 @@ void Transfer::complete()
         if (fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
-            delete fa;
 
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
+                delete fa;
                 client->fsaccess->unlinklocal(&localfilename);
                 return failed(API_EWRITE);
             }
         }
+        delete fa;
 
         int missingattr = 0;
         handle attachh;
@@ -179,8 +181,72 @@ void Transfer::complete()
             transient_error = false;
             success = false;
 
-            if (!tmplocalname.size())
+            fa = client->fsaccess->newfileaccess();
+            if (fa->fopen(&(*it)->localname))
             {
+                // the destination path already exists
+                bool synced = false;
+                for (sync_list::iterator it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
+                {
+                    Sync *sync = (*it2);
+                    LocalNode *localNode = sync->localnodebypath(NULL, &(*it)->localname);
+                    if (localNode)
+                    {
+                        // the destination file is synced
+                        synced = true;
+
+                        // try to move to local debris
+                        if(!sync->movetolocaldebris(&(*it)->localname))
+                        {
+                            transient_error = client->fsaccess->transient_error;
+                        }
+
+                        break;
+                    }
+                }
+
+                if (!synced)
+                {
+                    // the destination path isn't synced, save with a (x) suffix
+                    unsigned index = (*it)->localname.find_last_of('.');
+                    string name;
+                    string extension;
+                    if (index == string::npos)
+                    {
+                        name = (*it)->localname;
+                    }
+                    else
+                    {
+                        name = (*it)->localname.substr(0, index);
+                        extension = (*it)->localname.substr(index);
+                    }
+
+                    string suffix;
+                    string newname;
+                    int num = 0;
+                    do
+                    {
+                        num++;
+                        ostringstream oss;
+                        oss << " (" << num << ")";
+                        suffix = oss.str();
+                        client->fsaccess->name2local(&suffix);
+                        newname = name + suffix + extension;
+                    } while (fa->fopen(&newname));
+
+                    (*it)->localname = newname;
+                }
+            }
+
+            delete fa;
+            if (transient_error)
+            {
+                it++;
+                continue;
+            }
+
+            if (!tmplocalname.size())
+            {                
                 if (client->fsaccess->renamelocal(&localfilename, &(*it)->localname))
                 {
                     tmplocalname = (*it)->localname;
