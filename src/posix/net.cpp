@@ -589,7 +589,14 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
         if (httpio->proxyip.size())
         {
-            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+            if(!httpio->proxyscheme.size() || !httpio->proxyscheme.compare(0, 4, "http"))
+            {
+                curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+            }
+            else if(!httpio->proxyscheme.compare(0, 5, "socks"))
+            {
+                curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
+            }
 
             curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
@@ -653,16 +660,16 @@ void CurlHttpIO::request_proxy_ip()
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
 }
 
-bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
+bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* port)
 {
-    *port = 0;
-
-    hostname->clear();
-
-    if (!url || !url->size() || !hostname || !port)
+    if (!url || !url->size() || !scheme || !hostname || !port)
     {
         return false;
     }
+
+    *port = 0;
+    scheme->clear();
+    hostname->clear();
 
     size_t starthost, endhost, startport, endport;
 
@@ -670,6 +677,7 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
 
     if (starthost != string::npos)
     {
+        *scheme = url->substr(0, starthost);
         starthost += 3;
     }
     else
@@ -755,13 +763,17 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
 
     if (!*port)
     {
-        if (!url->compare(0, 8, "https://"))
+        if (!scheme->compare("https"))
         {
             *port = 443;
         }
-        else if (!url->compare(0, 7, "http://"))
+        else if (!scheme->compare("http"))
         {
             *port = 80;
+        }
+        else if(!scheme->compare(0, 5, "socks"))
+        {
+            *port = 1080;
         }
         else
         {
@@ -773,6 +785,9 @@ bool CurlHttpIO::crackurl(string* url, string* hostname, int* port)
 
     if (*port <= 0 || starthost == string::npos || starthost >= endhost)
     {
+        *port = 0;
+        scheme->clear();
+        hostname->clear();
         return false;
     }
 
@@ -810,7 +825,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
-     || !(validrequest = crackurl(&req->posturl, &httpctx->hostname, &httpctx->port))) // invalid request
+     || !(validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port))) // invalid request
     {
         if(validrequest)
         {
@@ -971,6 +986,7 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     {
         // automatic proxy is not supported
         // invalidate inflight proxy changes
+        proxyscheme.clear();
         proxyhost.clear();
 
         // don't use a proxy
@@ -985,13 +1001,14 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
 
-    if (!crackurl(&proxyurl, &proxyhost, &proxyport))
+    if (!crackurl(&proxyurl, &proxyscheme, &proxyhost, &proxyport))
     {
         // malformed proxy string
         // invalidate inflight proxy changes
 
         // mark the proxy as invalid (proxyurl set but proxyhost not set)
         proxyhost.clear();
+        proxyscheme.clear();
 
         // drop all pending requests
         drop_pending_requests();
