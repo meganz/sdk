@@ -1897,6 +1897,7 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     {
         return;
     }
+
     externalLogger->postLog(logLevel, message, filename, line);
 }
 
@@ -7454,6 +7455,14 @@ ExternalLogger::ExternalLogger()
 	mutex.init(true);
 	this->megaLogger = NULL;
 	SimpleLogger::setOutputClass(this);
+
+    //Initialize outputSettings map
+    SimpleLogger::outputSettings[(LogLevel)logFatal];
+    SimpleLogger::outputSettings[(LogLevel)logError];
+    SimpleLogger::outputSettings[(LogLevel)logWarning];
+    SimpleLogger::outputSettings[(LogLevel)logInfo];
+    SimpleLogger::outputSettings[(LogLevel)logDebug];
+    SimpleLogger::outputSettings[(LogLevel)logMax];
 }
 
 void ExternalLogger::setMegaLogger(MegaLogger *logger)
@@ -7481,7 +7490,9 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
 		filename = "";
 	}
 
+    mutex.lock();
 	SimpleLogger((LogLevel)logLevel, filename, line) << message;
+    mutex.unlock();
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
