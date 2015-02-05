@@ -126,7 +126,7 @@ void AppFileGet::start()
 // returns true to effect a retry, false to effect a failure
 bool AppFile::failed(error e)
 {
-    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 10;
+    return e != API_EKEY && e != API_EBLOCKED && e != API_EOVERQUOTA && transfer->failcount < 10;
 }
 
 // transfer completion
