@@ -517,6 +517,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->publicNode = NULL;
     this->lastBytes = NULL;
     this->syncTransfer = false;
+    this->lastError = API_OK;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
@@ -550,6 +551,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
     this->setPublicNode(transfer.getPublicNode());
     this->setTransfer(transfer.getTransfer());
     this->setSyncTransfer(transfer.isSyncTransfer());
+    this->setLastErrorCode(transfer.getLastErrorCode());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -687,6 +689,11 @@ char * MegaTransferPrivate::getLastBytes() const
     return lastBytes;
 }
 
+error MegaTransferPrivate::getLastErrorCode() const
+{
+    return this->lastError;
+}
+
 void MegaTransferPrivate::setTag(int tag)
 {
 	this->tag = tag;
@@ -741,6 +748,12 @@ void MegaTransferPrivate::setLastBytes(char *lastBytes)
 {
     this->lastBytes = lastBytes;
 }
+
+void MegaTransferPrivate::setLastErrorCode(error errorCode)
+{
+    this->lastError = errorCode;
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
 	if(this->path) delete [] this->path;
@@ -3673,7 +3686,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
             totalUploads--;
     }
 
-    fireOnTransferFinish(transfer, MegaError(API_EINCOMPLETE));
+    fireOnTransferFinish(transfer, MegaError(transfer->getLastErrorCode()));
 }
 
 void MegaApiImpl::transfer_prepare(Transfer *t)
@@ -3739,6 +3752,7 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e)
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
+    transfer->setLastErrorCode(e);
     fireOnTransferTemporaryError(transfer, megaError);
 }
 
@@ -6922,6 +6936,7 @@ void MegaApiImpl::sendPendingRequests()
             #endif
 
             megaTransfer->setSyncTransfer(true);
+            megaTransfer->setLastErrorCode(API_EINCOMPLETE);
 
             file_list files = transfer->files;
             file_list::iterator iterator = files.begin();
@@ -6944,7 +6959,11 @@ void MegaApiImpl::sendPendingRequests()
             {
                 Transfer *transfer = it->second;
                 if(transferMap.find(transfer->tag) != transferMap.end())
-                    transferMap.at(transfer->tag)->setSyncTransfer(true);
+                {
+                    MegaTransferPrivate* megaTransfer = transferMap.at(transfer->tag);
+                    megaTransfer->setSyncTransfer(true);
+                    megaTransfer->setLastErrorCode(API_EINCOMPLETE);
+                }
 
                 it++;
 

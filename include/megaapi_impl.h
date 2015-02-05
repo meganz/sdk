@@ -259,6 +259,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
         void setLastBytes(char *lastBytes);
+        void setLastErrorCode(error errorCode);
 
 		virtual int getType() const;
 		virtual const char * getTransferString() const;
@@ -288,6 +289,7 @@ class MegaTransferPrivate : public MegaTransfer
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
         virtual char *getLastBytes() const;
+        virtual error getLastErrorCode() const;
 
 	protected:		
 		int type;
@@ -311,8 +313,10 @@ class MegaTransferPrivate : public MegaTransfer
 		long long endPos;
 		int retry;
 		int maxRetries;
+
 		MegaTransferListener *listener;
-		Transfer *transfer;     
+        Transfer *transfer;
+        error lastError;
 };
 
 #ifdef ENABLE_SYNC
