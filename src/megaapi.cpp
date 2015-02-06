@@ -1246,6 +1246,16 @@ void MegaApi::setExcludedNames(vector<string> *excludedNames)
     pImpl->setExcludedNames(excludedNames);
 }
 
+void MegaApi::setExclusionLowerSizeLimit(long long limit)
+{
+    pImpl->setExclusionLowerSizeLimit(limit);
+}
+
+void MegaApi::setExclusionUpperSizeLimit(long long limit)
+{
+    pImpl->setExclusionUpperSizeLimit(limit);
+}
+
 #endif
 
 int MegaApi::getNumPendingUploads()

@@ -833,6 +833,8 @@ class MegaApiImpl : public MegaApp
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
+        void setExclusionLowerSizeLimit(long long limit);
+        void setExclusionUpperSizeLimit(long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         bool is_syncable(const char* name);
@@ -973,6 +975,8 @@ protected:
         bool waiting;
         bool waitingRequest;
         vector<string> excludedNames;
+        long long syncLowerSizeLimit;
+        long long syncUpperSizeLimit;
         MegaMutex sdkMutex;
         MegaTransferPrivate *currentTransfer;
         MegaRequestPrivate *activeRequest;

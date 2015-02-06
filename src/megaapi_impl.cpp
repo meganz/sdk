@@ -1789,6 +1789,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeError = NULL;
     activeNodes = NULL;
     activeUsers = NULL;
+    syncLowerSizeLimit = 0;
+    syncUpperSizeLimit = 0;
 
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
@@ -3055,6 +3057,16 @@ void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::setExclusionLowerSizeLimit(long long limit)
+{
+    syncLowerSizeLimit = limit;
+}
+
+void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
+{
+    syncUpperSizeLimit = limit;
+}
+
 string MegaApiImpl::getLocalPath(MegaNode *n)
 {
     if(!n) return string();
@@ -4114,6 +4126,13 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 
 bool MegaApiImpl::sync_syncable(Node *node)
 {
+    long long size = node->size;
+    if((syncUpperSizeLimit && size > syncUpperSizeLimit) ||
+       (syncLowerSizeLimit && size < syncLowerSizeLimit))
+    {
+        return false;
+    }
+
     const char *name = node->displayname();
     sdkMutex.unlock();
     bool result = is_syncable(name);
@@ -4121,8 +4140,16 @@ bool MegaApiImpl::sync_syncable(Node *node)
     return result;
 }
 
-bool MegaApiImpl::sync_syncable(const char *name, string *, string *)
+bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
 {
+    static FileAccess* f = fsAccess->newfileaccess();
+    if(f->fopen(localpath) &&
+       ((syncUpperSizeLimit && f->size > syncUpperSizeLimit) ||
+       (syncLowerSizeLimit && f->size < syncLowerSizeLimit)))
+    {
+        return false;
+    }
+
     sdkMutex.unlock();
     bool result =  is_syncable(name);
     sdkMutex.lock();
@@ -6674,6 +6701,10 @@ void MegaApiImpl::sendPendingRequests()
             totalDownloads = 0;
             waiting = false;
             waitingRequest = false;
+            excludedNames.clear();
+            syncLowerSizeLimit = 0;
+            syncUpperSizeLimit = 0;
+
             requestMap[nextTag] = request;
             fireOnRequestFinish(request, MegaError(errorCode));
 			break;
