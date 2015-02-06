@@ -98,6 +98,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     {
+        retry = false;
         return false;
     }
 

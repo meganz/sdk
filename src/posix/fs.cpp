@@ -57,6 +57,7 @@ PosixFileAccess::~PosixFileAccess()
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
     struct stat statbuf;
+    retry = false;
 
     if (!stat(localname.c_str(), &statbuf))
     {
