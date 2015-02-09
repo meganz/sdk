@@ -850,7 +850,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     h = n->nodehandle;
     syncdel = csyncdel;
     pp = prevparent;
-    syncop == pp != UNDEF;
+    syncop = pp != UNDEF;
 
     cmd("m");
     notself(client);

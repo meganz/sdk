@@ -213,7 +213,7 @@ void Transfer::complete()
                 if (!synced)
                 {
                     // the destination path isn't synced, save with a (x) suffix
-                    unsigned index = localname.find_last_of('.');
+                    string::size_type index = localname.find_last_of('.');
                     string name;
                     string extension;
                     if (index == string::npos)
