@@ -2845,7 +2845,7 @@ static void process_line(char* l)
                     {
                         int del = words.size() == 3 && words[2] == "del";
                         int rmd = words.size() == 3 && words[2] == "rmd";
-                        if (words.size() == 3)
+                        if (words.size() == 2 || words.size() == 3)
                         {
                             if (del || rmd)
                             {
@@ -2853,7 +2853,9 @@ static void process_line(char* l)
                             } 
                             else 
                             {
-                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words[2].c_str());
+                                // Original email is not required, but can be used if this account has multiple email addresses associated,
+                                // to have the invite come from a specific email
+                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size()==3 ? words[2].c_str() : NULL);
                             }
                         }
                         else
