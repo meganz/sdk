@@ -3489,7 +3489,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
 
                 char id[12];
-                int size = Base64::btoa((byte*)&(it->id), sizeof(it->id), id);
+                Base64::btoa((byte*)&(it->id), sizeof(it->id), id);
 
                 if (it->current)
                 {
@@ -3500,16 +3500,19 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             }
         }
 
-        cout << endl << "Full Session history:" << endl;
-
-        for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
+        if(client->debugstate())
         {
-            time_t ts = it->timestamp;
-            strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
-            ts = it->mru;
-            strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
-            printf("\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                    timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+            cout << endl << "Full Session history:" << endl;
+
+            for (vector<AccountSession>::iterator it = ad->sessions.begin(); it != ad->sessions.end(); it++)
+            {
+                time_t ts = it->timestamp;
+                strftime(timebuf, sizeof timebuf, "%c", localtime(&ts));
+                ts = it->mru;
+                strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
+                printf("\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
+                        timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+            }
         }
     }
 }

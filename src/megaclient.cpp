@@ -6664,7 +6664,12 @@ void MegaClient::setchunkfailed(string* url)
 bool MegaClient::toggledebug()
 {
      SimpleLogger::setLogLevel((SimpleLogger::logCurrentLevel >= logDebug) ? logWarning : logDebug);
-     return SimpleLogger::logCurrentLevel >= logDebug;
+     return debugstate();
+}
+
+bool MegaClient::debugstate()
+{
+    return SimpleLogger::logCurrentLevel >= logDebug;
 }
 
 void MegaClient::reportevent(const char* event, const char* details)
