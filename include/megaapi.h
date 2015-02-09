@@ -3738,6 +3738,9 @@ class MegaApi
         /**
          * @brief Get details about the MEGA account
          *
+         * Only basic data will be available. If you can get more data (sessions, transactions, purchases),
+         * use MegaApi::getExtendedAccountDetails.
+         *
          * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -3747,6 +3750,21 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getAccountDetails(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get details about the MEGA account
+         *
+         * This function allows to optionally get data about sessions, transactions and purchases related to the account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getExtendedAccountDetails(bool sessions = false, bool purchases = false, bool transactions = false, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the available pricing plans to upgrade a MEGA account
@@ -4962,6 +4980,195 @@ private:
 	MegaHashSignatureImpl *pImpl;    
 };
 
+/**
+ * @brief Details about a MEGA balance
+ */
+class MegaAccountBalance
+{
+public:
+    virtual ~MegaAccountBalance();
+
+    /**
+     * @brief Get the amount of the balance
+     * @return Amount
+     */
+    virtual double getAmount() const;
+
+    /**
+     * @brief Get the currency of the amount
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Currency of the amount
+     */
+    virtual const char *getCurrency() const;
+};
+
+/**
+ * @brief Details about a MEGA session
+ */
+class MegaAccountSession
+{
+public:
+    virtual ~MegaAccountSession();
+
+    /**
+     * @brief Get the creation date of the session
+     *
+     * In seconds since the Epoch
+     *
+     * @return Creation date of the session
+     */
+    virtual int64_t getCreationTimestamp() const;
+
+    /**
+     * @brief Get the timestamp of the most recent usage of the session
+     * @return Timestamp of the most recent usage of the session (in seconds since the Epoch)
+     */
+    virtual int64_t getMostRecentUsage() const;
+
+    /**
+     * @brief Get the User-Agent of the client that created the session
+     *
+     * You take the ownership of the returned value
+     *
+     * @return User-Agent of the creator of the session
+     */
+    virtual const char *getUserAgent() const;
+
+    /**
+     * @brief Get the IP address of the client that created the session
+     *
+     * You take the ownership of the returned value
+     *
+     * @return IP address of the creator of the session
+     */
+    virtual const char *getIP() const;
+
+    /**
+     * @brief Get the country of the client that created the session
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Country of the creator of the session
+     */
+    virtual const char *getCountry() const;
+
+    /**
+     * @brief Retuns true if the session is the current one
+     * @return True if the session is the current one. Otherwise false.
+     */
+    virtual bool isCurrent() const;
+
+    /**
+     * @brief Get the state of the session
+     * @return True if the session is alive, false otherwise
+     */
+    virtual bool isAlive() const;
+
+    /**
+     * @brief Get the handle of the session
+     * @return Handle of the session
+     */
+    virtual MegaHandle getHandle() const;
+};
+
+/**
+ * @brief Details about a MEGA purchase
+ */
+class MegaAccountPurchase
+{
+public:
+    enum
+    {
+        METHOD_TYPE_BALANCE = 0,
+        METHOD_TYPE_PAYPAL = 1,
+        METHOD_TYPE_ITUNES = 2
+    };
+
+    virtual ~MegaAccountPurchase();
+
+    /**
+     * @brief Get the timestamp of the purchase
+     * @return Timestamp of the purchase (in seconds since the Epoch)
+     */
+    virtual int64_t getTimestamp() const;
+
+    /**
+     * @brief Get the handle of the purchase
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Handle of the purchase
+     */
+    virtual const char *getHandle() const;
+
+    /**
+     * @brief Get the currency of the purchase
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Currency of the purchase
+     */
+    virtual const char* getCurrency() const;
+
+    /**
+     * @brief Get the amount of the purchase
+     * @return Amount of the purchase
+     */
+    virtual double getAmount() const;
+
+    /**
+     * @brief Get the method of the purchase
+     *
+     * These are the valid methods:
+     * - MegaAccountPurchase::METHOD_TYPE_BALANCE = 0
+     * - MegaAccountPurchase::METHOD_TYPE_PAYPAL = 1
+     * - MegaAccountPurchase::METHOD_TYPE_ITUNES = 2
+     *
+     * @return Method of the purchase
+     */
+    virtual int getMethod() const;
+};
+
+/**
+ * @brief Details about a MEGA transaction
+ */
+class MegaAccountTransaction
+{
+public:
+    virtual ~MegaAccountTransaction();
+
+    /**
+     * @brief Get the timestamp of the transaction
+     * @return Timestamp of the transaction (in seconds since the Epoch)
+     */
+    virtual int64_t getTimestamp() const;
+
+    /**
+     * @brief Get the handle of the transaction
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Handle of the transaction
+     */
+    virtual const char *getHandle() const;
+
+    /**
+     * @brief Get the currency of the transaction
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Currency of the transaction
+     */
+    virtual const char* getCurrency() const;
+
+    /**
+     * @brief Get the amount of the transaction
+     * @return Amount of the transaction
+     */
+    virtual double getAmount() const;
+};
 
 /**
  * @brief Details about a MEGA account
@@ -5058,6 +5265,82 @@ public:
      * @return Copy of the MegaAccountDetails object
      */
     virtual MegaAccountDetails* copy();
+
+    /**
+     * @brief Get the number of MegaAccountBalance objects associated with the account
+     *
+     * You can use MegaAccountDetails::getBalance to get those objects.
+     *
+     * @return Number of MegaAccountBalance objects
+     */
+    virtual int getNumBalances() const;
+
+    /**
+     * @brief Returns the MegaAccountBalance object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param i Index of the object
+     * @return MegaAccountBalance object
+     */
+    virtual MegaAccountBalance* getBalance(int i) const;
+
+    /**
+     * @brief Get the number of MegaAccountSession objects associated with the account
+     *
+     * You can use MegaAccountDetails::getSession to get those objects.
+     *
+     * @return Number of MegaAccountSession objects
+     */
+    virtual int getNumSessions() const;
+
+    /**
+     * @brief Returns the MegaAccountSession object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param i Index of the object
+     * @return MegaAccountSession object
+     */
+    virtual MegaAccountSession* getSession(int i) const;
+
+    /**
+     * @brief Get the number of MegaAccountPurchase objects associated with the account
+     *
+     * You can use MegaAccountDetails::getPurchase to get those objects.
+     *
+     * @return Number of MegaAccountPurchase objects
+     */
+    virtual int getNumPurchases() const;
+
+    /**
+     * @brief Returns the MegaAccountPurchase object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param i Index of the object
+     * @return MegaAccountPurchase object
+     */
+    virtual MegaAccountPurchase* getPurchase(int i) const;
+
+    /**
+     * @brief Get the number of MegaAccountTransaction objects associated with the account
+     *
+     * You can use MegaAccountDetails::getTransaction to get those objects.
+     *
+     * @return Number of MegaAccountTransaction objects
+     */
+    virtual int getNumTransactions() const;
+
+    /**
+     * @brief Returns the MegaAccountTransaction object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param i Index of the object
+     * @return MegaAccountTransaction object
+     */
+    virtual MegaAccountTransaction* getTransaction(int i) const;
 };
 
 /**

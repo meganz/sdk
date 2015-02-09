@@ -1064,7 +1064,12 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
 
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(listener);
+    pImpl->getAccountDetails(true, true, true, false, false, false, listener);
+}
+
+void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
+{
+    pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
 }
 
 void MegaApi::getPricing(MegaRequestListener *listener)
@@ -1736,6 +1741,46 @@ MegaAccountDetails *MegaAccountDetails::copy()
     return NULL;
 }
 
+int MegaAccountDetails::getNumBalances() const
+{
+    return 0;
+}
+
+MegaAccountBalance *MegaAccountDetails::getBalance(int i) const
+{
+    return NULL;
+}
+
+int MegaAccountDetails::getNumSessions() const
+{
+    return 0;
+}
+
+MegaAccountSession *MegaAccountDetails::getSession(int i) const
+{
+    return NULL;
+}
+
+int MegaAccountDetails::getNumPurchases() const
+{
+    return 0;
+}
+
+MegaAccountPurchase *MegaAccountDetails::getPurchase(int i) const
+{
+    return NULL;
+}
+
+int MegaAccountDetails::getNumTransactions() const
+{
+    return 0;
+}
+
+MegaAccountTransaction *MegaAccountDetails::getTransaction(int i) const
+{
+    return NULL;
+}
+
 void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
 
@@ -1900,4 +1945,120 @@ MegaHandle MegaSyncEvent::getPrevParent() const
 #endif
 
 
+MegaAccountBalance::~MegaAccountBalance()
+{
 
+}
+
+double MegaAccountBalance::getAmount() const
+{
+    return 0;
+}
+
+const char *MegaAccountBalance::getCurrency() const
+{
+    return NULL;
+}
+
+
+MegaAccountSession::~MegaAccountSession()
+{
+
+}
+
+int64_t MegaAccountSession::getCreationTimestamp() const
+{
+    return 0;
+}
+
+int64_t MegaAccountSession::getMostRecentUsage() const
+{
+    return 0;
+}
+
+const char *MegaAccountSession::getUserAgent() const
+{
+    return NULL;
+}
+
+const char *MegaAccountSession::getIP() const
+{
+    return NULL;
+}
+
+const char *MegaAccountSession::getCountry() const
+{
+    return NULL;
+}
+
+bool MegaAccountSession::isCurrent() const
+{
+    return false;
+}
+
+bool MegaAccountSession::isAlive() const
+{
+    return false;
+}
+
+MegaHandle MegaAccountSession::getHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+
+MegaAccountPurchase::~MegaAccountPurchase()
+{
+
+}
+
+int64_t MegaAccountPurchase::getTimestamp() const
+{
+    return 0;
+}
+
+const char *MegaAccountPurchase::getHandle() const
+{
+    return NULL;
+}
+
+const char *MegaAccountPurchase::getCurrency() const
+{
+    return NULL;
+}
+
+double MegaAccountPurchase::getAmount() const
+{
+    return 0;
+}
+
+int MegaAccountPurchase::getMethod() const
+{
+    return 0;
+}
+
+
+MegaAccountTransaction::~MegaAccountTransaction()
+{
+
+}
+
+int64_t MegaAccountTransaction::getTimestamp() const
+{
+    return 0;
+}
+
+const char *MegaAccountTransaction::getHandle() const
+{
+    return NULL;
+}
+
+const char *MegaAccountTransaction::getCurrency() const
+{
+    return NULL;
+}
+
+double MegaAccountTransaction::getAmount() const
+{
+    return 0;
+}

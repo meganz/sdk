@@ -491,6 +491,77 @@ class MegaRequestPrivate : public MegaRequest
         int tag;
 };
 
+class MegaAccountBalancePrivate : public MegaAccountBalance
+{
+public:
+    static MegaAccountBalance *fromAccountBalance(const AccountBalance *balance);
+    virtual ~MegaAccountBalancePrivate() ;
+    virtual MegaAccountBalance* copy();
+
+    virtual double getAmount() const;
+    virtual const char* getCurrency() const;
+
+protected:
+    MegaAccountBalancePrivate(const AccountBalance *balance);
+    AccountBalance balance;
+};
+
+class MegaAccountSessionPrivate : public MegaAccountSession
+{
+public:
+    static MegaAccountSession *fromAccountSession(const AccountSession *session);
+    virtual ~MegaAccountSessionPrivate() ;
+    virtual MegaAccountSession* copy();
+
+    virtual int64_t getCreationTimestamp() const;
+    virtual int64_t getMostRecentUsage() const;
+    virtual const char *getUserAgent() const;
+    virtual const char *getIP() const;
+    virtual const char *getCountry() const;
+    virtual bool isCurrent() const;
+    virtual bool isAlive() const;
+    virtual MegaHandle getHandle() const;
+
+private:
+    MegaAccountSessionPrivate(const AccountSession *session);
+    AccountSession session;
+};
+
+class MegaAccountPurchasePrivate : public MegaAccountPurchase
+{
+public:   
+    static MegaAccountPurchase *fromAccountPurchase(const AccountPurchase *purchase);
+    virtual ~MegaAccountPurchasePrivate() ;
+    virtual MegaAccountPurchase* copy();
+
+    virtual int64_t getTimestamp() const;
+    virtual const char *getHandle() const;
+    virtual const char *getCurrency() const;
+    virtual double getAmount() const;
+    virtual int getMethod() const;
+
+private:
+    MegaAccountPurchasePrivate(const AccountPurchase *purchase);
+    AccountPurchase purchase;
+};
+
+class MegaAccountTransactionPrivate : public MegaAccountTransaction
+{
+public:
+    static MegaAccountTransaction *fromAccountTransaction(const AccountTransaction *transaction);
+    virtual ~MegaAccountTransactionPrivate() ;
+    virtual MegaAccountTransaction* copy();
+
+    virtual int64_t getTimestamp() const;
+    virtual const char *getHandle() const;
+    virtual const char *getCurrency() const;
+    virtual double getAmount() const;
+
+private:
+    MegaAccountTransactionPrivate(const AccountTransaction *transaction);
+    AccountTransaction transaction;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
 	public:
@@ -509,9 +580,21 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 	
 		virtual MegaAccountDetails* copy();
 
+        virtual int getNumBalances() const;
+        virtual MegaAccountBalance* getBalance(int i) const;
+
+        virtual int getNumSessions() const;
+        virtual MegaAccountSession* getSession(int i) const;
+
+        virtual int getNumPurchases() const;
+        virtual MegaAccountPurchase* getPurchase(int i) const;
+
+        virtual int getNumTransactions() const;
+        virtual MegaAccountTransaction* getTransaction(int i) const;
+
 	private:
 		MegaAccountDetailsPrivate(AccountDetails *details);
-		AccountDetails *details;
+        AccountDetails details;
 };
 
 class MegaPricingPrivate : public MegaPricing
@@ -758,6 +841,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+        void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -795,7 +879,6 @@ class MegaApiImpl : public MegaApp
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
-        void getAccountDetails(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentUrl(handle productHandle, MegaRequestListener *listener = NULL);
         const char *exportMasterKey();
@@ -1125,7 +1208,6 @@ protected:
 
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
-        void getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener = NULL);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);

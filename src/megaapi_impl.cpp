@@ -870,8 +870,7 @@ MegaAccountDetails *MegaAccountDetailsPrivate::fromAccountDetails(AccountDetails
 
 MegaAccountDetailsPrivate::MegaAccountDetailsPrivate(AccountDetails *details)
 {
-    this->details = new AccountDetails;
-    (*(this->details)) = (*details);
+    this->details = (*details);
 }
 
 MegaAccountDetailsPrivate::~MegaAccountDetailsPrivate()
@@ -973,28 +972,13 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
 #ifdef ENABLE_SYNC
     this->syncListener = request.getSyncListener();
 #endif
-	this->accountDetails = NULL;
     this->megaPricing = (MegaPricingPrivate *)request.getPricing();
+
+    this->accountDetails = NULL;
 	if(request.getAccountDetails())
     {
 		this->accountDetails = new AccountDetails();
-        AccountDetails *temp = request.getAccountDetails();
-        this->accountDetails->pro_level = temp->pro_level;
-        this->accountDetails->subscription_type = temp->subscription_type;
-        this->accountDetails->pro_until = temp->pro_until;
-        this->accountDetails->storage_used = temp->storage_used;
-        this->accountDetails->storage_max = temp->storage_max;
-        this->accountDetails->transfer_own_used = temp->transfer_own_used;
-        this->accountDetails->transfer_srv_used = temp->transfer_srv_used;
-        this->accountDetails->transfer_max = temp->transfer_max;
-        this->accountDetails->transfer_own_reserved = temp->transfer_own_reserved;
-        this->accountDetails->transfer_srv_reserved = temp->transfer_srv_reserved;
-        this->accountDetails->srv_ratio = temp->srv_ratio;
-        this->accountDetails->transfer_hist_starttime = temp->transfer_hist_starttime;
-        this->accountDetails->transfer_hist_interval = temp->transfer_hist_interval;
-        this->accountDetails->transfer_reserved = temp->transfer_reserved;
-        this->accountDetails->transfer_limit = temp->transfer_limit;
-        this->accountDetails->storage = temp->storage;
+        *(this->accountDetails) = *(request.getAccountDetails());
 	}
 }
 
@@ -1017,7 +1001,11 @@ MegaSyncListener *MegaRequestPrivate::getSyncListener() const
 
 MegaAccountDetails *MegaRequestPrivate::getMegaAccountDetails() const
 {
-	return MegaAccountDetailsPrivate::fromAccountDetails(accountDetails);
+    if(accountDetails)
+    {
+        return MegaAccountDetailsPrivate::fromAccountDetails(accountDetails);
+    }
+    return NULL;
 }
 
 MegaRequestPrivate::~MegaRequestPrivate()
@@ -2465,11 +2453,6 @@ void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getAccountDetails(MegaRequestListener *listener)
-{
-    getAccountDetails(true, true, true, false, false, false, listener);
-}
-
 void MegaApiImpl::getPricing(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
@@ -2502,12 +2485,12 @@ const char *MegaApiImpl::exportMasterKey()
     return buf;
 }
 
-void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool transactions, bool purchases, bool sessions, MegaRequestListener *listener)
+void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ACCOUNT_DETAILS, listener);
 	int numDetails = 0;
 	if(storage) numDetails |= 0x01;
-	if(transfer) numDetails |= 0x02;
+    if(transfer) numDetails |= 0x02;
 	if(pro) numDetails |= 0x04;
 	if(transactions) numDetails |= 0x08;
 	if(purchases) numDetails |= 0x10;
@@ -7438,47 +7421,103 @@ bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
 
 int MegaAccountDetailsPrivate::getProLevel()
 {
-    return details->pro_level;
+    return details.pro_level;
 }
 
 long long MegaAccountDetailsPrivate::getStorageMax()
 {
-    return details->storage_max;
+    return details.storage_max;
 }
 
 long long MegaAccountDetailsPrivate::getStorageUsed()
 {
-    return details->storage_used;
+    return details.storage_used;
 }
 
 long long MegaAccountDetailsPrivate::getTransferMax()
 {
-    return details->transfer_max;
+    return details.transfer_max;
 }
 
 long long MegaAccountDetailsPrivate::getTransferOwnUsed()
 {
-    return details->transfer_own_used;
+    return details.transfer_own_used;
 }
 
 long long MegaAccountDetailsPrivate::getStorageUsed(MegaHandle handle)
 {
-    return details->storage[handle].bytes;
+    return details.storage[handle].bytes;
 }
 
 long long MegaAccountDetailsPrivate::getNumFiles(MegaHandle handle)
 {
-    return details->storage[handle].files;
+    return details.storage[handle].files;
 }
 
 long long MegaAccountDetailsPrivate::getNumFolders(MegaHandle handle)
 {
-    return details->storage[handle].folders;
+    return details.storage[handle].folders;
 }
 
 MegaAccountDetails* MegaAccountDetailsPrivate::copy()
 {
-	return new MegaAccountDetailsPrivate(details);
+    return new MegaAccountDetailsPrivate(&details);
+}
+
+int MegaAccountDetailsPrivate::getNumBalances() const
+{
+    return details.balances.size();
+}
+
+MegaAccountBalance *MegaAccountDetailsPrivate::getBalance(int i) const
+{
+    if(i < details.balances.size())
+    {
+        return MegaAccountBalancePrivate::fromAccountBalance(&(details.balances[i]));
+    }
+    return NULL;
+}
+
+int MegaAccountDetailsPrivate::getNumSessions() const
+{
+    return details.sessions.size();
+}
+
+MegaAccountSession *MegaAccountDetailsPrivate::getSession(int i) const
+{
+    if(i < details.sessions.size())
+    {
+        return MegaAccountSessionPrivate::fromAccountSession(&(details.sessions[i]));
+    }
+    return NULL;
+}
+
+int MegaAccountDetailsPrivate::getNumPurchases() const
+{
+    return details.purchases.size();
+}
+
+MegaAccountPurchase *MegaAccountDetailsPrivate::getPurchase(int i) const
+{
+    if(i < details.purchases.size())
+    {
+        return MegaAccountPurchasePrivate::fromAccountPurchase(&(details.purchases[i]));
+    }
+    return NULL;
+}
+
+int MegaAccountDetailsPrivate::getNumTransactions() const
+{
+    return details.transactions.size();
+}
+
+MegaAccountTransaction *MegaAccountDetailsPrivate::getTransaction(int i) const
+{
+    if(i < details.transactions.size())
+    {
+        return MegaAccountTransactionPrivate::fromAccountTransaction(&(details.transactions[i]));
+    }
+    return NULL;
 }
 
 ExternalLogger::ExternalLogger()
@@ -7866,3 +7905,181 @@ void MegaSyncEventPrivate::setPrevParent(MegaHandle prevParent)
 }
 
 #endif
+
+
+MegaAccountBalance *MegaAccountBalancePrivate::fromAccountBalance(const AccountBalance *balance)
+{
+    return new MegaAccountBalancePrivate(balance);
+}
+
+MegaAccountBalancePrivate::~MegaAccountBalancePrivate()
+{
+
+}
+
+MegaAccountBalance *MegaAccountBalancePrivate::copy()
+{
+    return new MegaAccountBalancePrivate(&balance);
+}
+
+double MegaAccountBalancePrivate::getAmount() const
+{
+    return balance.amount;
+}
+
+const char *MegaAccountBalancePrivate::getCurrency() const
+{
+    return MegaApi::strdup(balance.currency);
+}
+
+MegaAccountBalancePrivate::MegaAccountBalancePrivate(const AccountBalance *balance)
+{
+    this->balance = *balance;
+}
+
+MegaAccountSession *MegaAccountSessionPrivate::fromAccountSession(const AccountSession *session)
+{
+    return new MegaAccountSessionPrivate(session);
+}
+
+MegaAccountSessionPrivate::~MegaAccountSessionPrivate()
+{
+
+}
+
+MegaAccountSession *MegaAccountSessionPrivate::copy()
+{
+    return new MegaAccountSessionPrivate(&session);
+}
+
+int64_t MegaAccountSessionPrivate::getCreationTimestamp() const
+{
+    return session.timestamp;
+}
+
+int64_t MegaAccountSessionPrivate::getMostRecentUsage() const
+{
+    return session.mru;
+}
+
+const char *MegaAccountSessionPrivate::getUserAgent() const
+{
+    return MegaApi::strdup(session.useragent.c_str());
+}
+
+const char *MegaAccountSessionPrivate::getIP() const
+{
+    return MegaApi::strdup(session.ip.c_str());
+}
+
+const char *MegaAccountSessionPrivate::getCountry() const
+{
+    return MegaApi::strdup(session.country);
+}
+
+bool MegaAccountSessionPrivate::isCurrent() const
+{
+    return session.current;
+}
+
+bool MegaAccountSessionPrivate::isAlive() const
+{
+    return session.alive;
+}
+
+MegaHandle MegaAccountSessionPrivate::getHandle() const
+{
+    return session.id;
+}
+
+MegaAccountSessionPrivate::MegaAccountSessionPrivate(const AccountSession *session)
+{
+    this->session = *session;
+}
+
+
+MegaAccountPurchase *MegaAccountPurchasePrivate::fromAccountPurchase(const AccountPurchase *purchase)
+{
+    return new MegaAccountPurchasePrivate(purchase);
+}
+
+MegaAccountPurchasePrivate::~MegaAccountPurchasePrivate()
+{
+
+}
+
+MegaAccountPurchase *MegaAccountPurchasePrivate::copy()
+{
+    return new MegaAccountPurchasePrivate(&purchase);
+}
+
+int64_t MegaAccountPurchasePrivate::getTimestamp() const
+{
+    return purchase.timestamp;
+}
+
+const char *MegaAccountPurchasePrivate::getHandle() const
+{
+    return MegaApi::strdup(purchase.handle);
+}
+
+const char *MegaAccountPurchasePrivate::getCurrency() const
+{
+    return MegaApi::strdup(purchase.currency);
+}
+
+double MegaAccountPurchasePrivate::getAmount() const
+{
+    return purchase.amount;
+}
+
+int MegaAccountPurchasePrivate::getMethod() const
+{
+    return purchase.method;
+}
+
+MegaAccountPurchasePrivate::MegaAccountPurchasePrivate(const AccountPurchase *purchase)
+{
+    this->purchase = *purchase;
+}
+
+
+MegaAccountTransaction *MegaAccountTransactionPrivate::fromAccountTransaction(const AccountTransaction *transaction)
+{
+    return new MegaAccountTransactionPrivate(transaction);
+}
+
+MegaAccountTransactionPrivate::~MegaAccountTransactionPrivate()
+{
+
+}
+
+MegaAccountTransaction *MegaAccountTransactionPrivate::copy()
+{
+    return new MegaAccountTransactionPrivate(&transaction);
+}
+
+int64_t MegaAccountTransactionPrivate::getTimestamp() const
+{
+    return transaction.timestamp;
+}
+
+const char *MegaAccountTransactionPrivate::getHandle() const
+{
+    return MegaApi::strdup(transaction.handle);
+}
+
+const char *MegaAccountTransactionPrivate::getCurrency() const
+{
+    return MegaApi::strdup(transaction.currency);
+}
+
+double MegaAccountTransactionPrivate::getAmount() const
+{
+    return transaction.delta;
+}
+
+MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransaction *transaction)
+{
+    this->transaction = *transaction;
+}
