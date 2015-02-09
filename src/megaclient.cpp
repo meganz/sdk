@@ -3317,7 +3317,7 @@ void MegaClient::sc_ipc()
                         break;
                     }
 
-                    pcr = new PendingContactRequest(p, NULL, m, ts, uts, msg, false);
+                    pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
                     mappcr(p, pcr);
                 }
                 notifypcr(pcr);

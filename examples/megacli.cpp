@@ -26,6 +26,7 @@
 #define PREFER_STDARG
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <iomanip>
 
 using namespace mega;
 
@@ -1532,6 +1533,7 @@ static void process_line(char* l)
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail] ]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
+                cout << "      showpcr" << endl;
                 cout << "      users" << endl;
                 cout << "      getua attrname [email|private]" << endl;
                 cout << "      putua attrname [del|set string|load file] [private]" << endl;
@@ -3111,8 +3113,54 @@ static void process_line(char* l)
                         cwd = UNDEF;
 
                         return;
+                    } 
+                    else if (words[0] == "showpcr")
+                    {
+                        string outgoing = "";
+                        string incoming = "";
+                        for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
+                        {
+                            if (it->second->isoutgoing)
+                            {
+                                ostringstream os;
+                                os << setw(34) << it->second->targetemail;
+
+                                char buffer[12];
+                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                os << "\t(id: ";
+                                os << buffer;
+                                
+                                os << ", ts: ";
+                                
+                                os << it->second->ts;                                
+
+                                outgoing.append(os.str());
+                                outgoing.append(")\n");
+                            }
+                            else
+                            {
+                                ostringstream os;
+                                os << setw(34) << it->second->originatoremail;
+
+                                char buffer[12];
+                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                os << "\t(id: ";
+                                os << buffer;
+                                
+                                os << ", ts: ";
+                                
+                                os << it->second->ts;                                
+
+                                incoming.append(os.str());
+                                incoming.append(")\n");
+                            }
+                        }
+                        cout << "Incoming PCRs:" << endl << incoming << endl;
+                        cout << "Outgoing PCRs:" << endl << outgoing << endl;
+                        return;
                     }
                     break;
+
                 case 11:                    
                     if (words[0] == "killsession")
                     {
