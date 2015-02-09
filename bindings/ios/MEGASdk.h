@@ -863,8 +863,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
- * - MEGAShareTypeAccessUnkown = 1
- * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessReadWrite = 1
+ * - MEGAShareTypeAccessFull = 2
  * - MEGAShareTypeAccessOwner = 3
  *
  * @param delegate Delegate to track this request.
@@ -891,8 +891,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
- * - MEGAShareTypeAccessUnkown = 1
- * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessReadWrite = 1
+ * - MEGAShareTypeAccessFull = 2
  * - MEGAShareTypeAccessOwner = 3
  *
  */
@@ -920,8 +920,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
- * - MEGAShareTypeAccessUnkown = 1
- * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessReadWrite = 1
+ * - MEGAShareTypeAccessFull = 2
  * - MEGAShareTypeAccessOwner = 3
  *
  * @param delegate MEGARequestDelegate to track this request
@@ -950,8 +950,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
- * - MEGAShareTypeAccessUnkown = 1
- * - MEGAShareTypeAccessReadWrite = 2
+ * - MEGAShareTypeAccessReadWrite = 1
+ * - MEGAShareTypeAccessFull = 2
  * - MEGAShareTypeAccessOwner = 3
  *
  */

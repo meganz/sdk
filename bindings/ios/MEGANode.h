@@ -146,20 +146,20 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 - (instancetype)clone;
 
 /**
- * @brief Returns a Boolean value that indicates if the node represents a file (type == MEGANodeTypeFile)
+ * @brief Returns a BOOL value that indicates if the node represents a file (type == MEGANodeTypeFile)
  * @return YES if the node represents a file, otherwise NO.
  */
 - (BOOL)isFile;
 
 /**
- * @brief Returns a Boolean value that indicates if the node represents a folder or a root node.
+ * @brief Returns a BOOL value that indicates if the node represents a folder or a root node.
  *
  * @return YES if the node represents a folder or a root node, otherwise NO.
  */
 - (BOOL)isFolder;
 
 /**
- * @brief Returns a Boolean value that indicates if the node has been removed from the MEGA account.
+ * @brief Returns a BOOL value that indicates if the node has been removed from the MEGA account.
  *
  * This value is only useful for nodes notified by [MEGADelegate onNodesUpdate:nodeList:] or
  * [MEGAGlobalDelegate onNodesUpdate:nodeList:] that can notify about deleted nodes.
@@ -171,19 +171,19 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 - (BOOL)isRemoved;
 
 /**
- * @brief Returns a Boolean value that indicates if the node has an associated thumbnail.
+ * @brief Returns a BOOL value that indicates if the node has an associated thumbnail.
  * @return YES if the node has an associated thumbnail, otherwise NO
  */
 - (BOOL)hasThumbnail;
 
 /**
- * @brief Returns a Boolean value that indicates if the node has an associated preview.
+ * @brief Returns a BOOL value that indicates if the node has an associated preview.
  * @return YES if the node has an associated preview, otherwise NO.
  */
 - (BOOL)hasPreview;
 
 /**
- * @brief Returns a Boolean value that indicates if the node is a public.
+ * @brief Returns a BOOL value that indicates if the node is a public.
  *
  * Only MEGANode objects generated with [MEGASdk publicNodeWithMegaLink:].
  * will return YES.
