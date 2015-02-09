@@ -1337,6 +1337,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PAYMENT_URL: return "GET_PAYMENT_URL";
         case TYPE_GET_USER_DATA: return "GET_USER_DATA";
         case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
+        case TYPE_KILL_SESSION: return "KILL_SESSION";
 	}
     return "UNKNOWN";
 }
@@ -2007,6 +2008,14 @@ void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setSessionKey(session);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::killSession(MegaHandle sessionHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_KILL_SESSION, listener);
+    request->setNodeHandle(sessionHandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -3873,6 +3882,17 @@ void MegaApiImpl::loadbalancing_result(string *servers, error e)
     {
         request->setText(servers->c_str());
     }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::sessions_killed(handle, error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_KILL_SESSION)) return;
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -7149,6 +7169,19 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->loadbalancing(service);
+            break;
+        }
+        case MegaRequest::TYPE_KILL_SESSION:
+        {
+            MegaHandle handle = request->getNodeHandle();
+            if (handle == INVALID_HANDLE)
+            {
+                client->killallsessions();
+            }
+            else
+            {
+                client->killsession(handle);
+            }
             break;
         }
         default:

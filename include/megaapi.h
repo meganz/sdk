@@ -1037,7 +1037,7 @@ class MegaRequest
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA,
-			TYPE_LOAD_BALANCING
+            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION
 		};
 
 		virtual ~MegaRequest();
@@ -3088,6 +3088,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Close a MEGA session
+         *
+         * All clients using this session will be automatically logged out.
+         *
+         * You can get session information using MegaApi::getExtendedAccountDetails.
+         * Then use MegaAccountDetails::getNumSessions and MegaAccountDetails::getSession
+         * to get session info.
+         * MegaAccountSession::getHandle provides the handle that this function needs.
+         *
+         * If you use mega::INVALID_HANDLE, all sessions except the current one will be closed
+         *
+         * @param Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
+         * @param listener MegaRequestListener to track this request
+         */
+        void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get data about the logged account

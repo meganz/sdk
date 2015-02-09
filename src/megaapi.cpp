@@ -882,6 +882,11 @@ void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
     pImpl->fastLogin(session, listener);
 }
 
+void MegaApi::killSession(MegaHandle sessionHandle, MegaRequestListener *listener)
+{
+    pImpl->killSession(sessionHandle, listener);
+}
+
 void MegaApi::getUserData(MegaRequestListener *listener)
 {
     pImpl->getUserData(listener);

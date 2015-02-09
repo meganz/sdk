@@ -838,6 +838,7 @@ class MegaApiImpl : public MegaApp
         const char *dumpXMPPSession();
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+        void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
@@ -1163,6 +1164,7 @@ protected:
 
         virtual void reportevent_result(error);
         virtual void loadbalancing_result(string*, error);
+        virtual void sessions_killed(handle sessionid, error e);
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
