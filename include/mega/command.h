@@ -374,8 +374,8 @@ class MEGA_API CommandSetShare : public Command
     handle sh;
     User* user;
     accesslevel_t access;
-    const char* msg;
-    const char* personal_representation;
+    string msg;
+    string personal_representation;
 
     bool procuserresult(MegaClient*);
 
