@@ -22,7 +22,6 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include <openssl/pem.h>
 #include "json.h"
 #include "db.h"
 #include "gfx.h"
