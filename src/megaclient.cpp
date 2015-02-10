@@ -298,7 +298,6 @@ void MegaClient::mergenewshares(bool notify)
                                     {
                                         char buffer[12];
                                         int size = Base64::btoa((byte*)&(s->pending), sizeof(s->pending), buffer);
-                                        cout << "SNAP CRACKLE POP with handle " << buffer << "\n\n";
                                     }
                                 }
                                 *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, pcr);
