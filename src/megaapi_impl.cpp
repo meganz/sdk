@@ -345,6 +345,52 @@ bool MegaApiImpl::is_syncable(const char *name)
     return true;
 }
 
+bool MegaApiImpl::is_syncable(long long size)
+{
+    if (!syncLowerSizeLimit)
+    {
+        // No lower limit. Check upper limit only
+        if (syncUpperSizeLimit && size > syncUpperSizeLimit)
+        {
+            return false;
+        }
+    }
+    else if (!syncUpperSizeLimit)
+    {
+        // No upper limit. Check lower limit only
+        if (syncLowerSizeLimit && size < syncLowerSizeLimit)
+        {
+            return false;
+        }
+    }
+    else
+    {
+        //Upper and lower limit
+        if(syncLowerSizeLimit < syncUpperSizeLimit)
+        {
+            // Normal use case:
+            // Exclude files with a size lower than the lower limit
+            // or greater than the upper limit
+            if(size < syncLowerSizeLimit || size > syncUpperSizeLimit)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // Special use case:
+            // Exclude files with a size lower than the lower limit
+            // AND greater than the upper limit
+            if(size < syncLowerSizeLimit && size > syncUpperSizeLimit)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool MegaApiImpl::isIndexing()
 {
     if(client->syncs.size()==0) return false;
@@ -4129,9 +4175,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 
 bool MegaApiImpl::sync_syncable(Node *node)
 {
-    long long size = node->size;
-    if((syncUpperSizeLimit && size > syncUpperSizeLimit) ||
-       (syncLowerSizeLimit && size < syncLowerSizeLimit))
+    if(node->type == FILENODE && !is_syncable(node->size))
     {
         return false;
     }
@@ -4146,9 +4190,7 @@ bool MegaApiImpl::sync_syncable(Node *node)
 bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if(f->fopen(localpath) &&
-       ((syncUpperSizeLimit && f->size > syncUpperSizeLimit) ||
-       (syncLowerSizeLimit && f->size < syncLowerSizeLimit)))
+    if(f->fopen(localpath) && !is_syncable(f->size))
     {
         return false;
     }

@@ -4234,8 +4234,11 @@ class MegaApi
         /**
          * @brief Set a lower limit for synchronized files
          *
-         * Files with a size greater than this limit won't be synchronized
+         * Files with a size lower than this limit won't be synchronized
          * To disable the limit, you can set it to 0
+         *
+         * If both limits are enabled and the lower one is greater than the upper one,
+         * only files between both limits will be excluded
          *
          * @param limit Lower limit for synchronized files
          */
@@ -4244,8 +4247,11 @@ class MegaApi
         /**
          * @brief Set an upper limit for synchronized files
          *
-         * Files with a size lower than this limit won't be synchronized
+         * Files with a size greater than this limit won't be synchronized
          * To disable the limit, you can set it to 0
+         *
+         * If both limits are enabled and the lower one is greater than the upper one,
+         * only files between both limits will be excluded
          *
          * @param limit Upper limit for synchronized files
          */
