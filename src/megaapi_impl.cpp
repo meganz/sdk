@@ -3719,6 +3719,10 @@ void MegaApiImpl::transfer_removed(Transfer *t)
 {
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
+    if(!transfer)
+    {
+        return;
+    }
 
     if (t->type == GET)
     {
