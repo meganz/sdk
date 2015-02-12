@@ -1667,7 +1667,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param size Size of the data to download
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startStreammingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Start an streaming download
@@ -1682,7 +1682,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param startPos First byte to download from the file
  * @param size Size of the data to download
  */
-- (void)startStreammingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
+- (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
 
 /**
  * @brief Cancel a transfer.
@@ -2067,6 +2067,17 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @return MEGANode object with the provided fingerprint.
  */
 - (MEGANode *)nodeForFingerprint:(NSString *)fingerprint;
+
+/**
+ * @brief Returns a node with the provided fingerprint.
+ *
+ * If there isn't any node in the account with that fingerprint, this function returns nil.
+ *
+ * @param fingerprint Fingerprint to check.
+ * @param parent Preferred parent node
+ * @return MEGANode object with the provided fingerprint.
+ */
+- (MEGANode *)nodeForFingerprint:(NSString *)fingerprint parent:(MEGANode *)parent;
 
 /**
  * @brief Check if the account already has a node with the provided fingerprint.
