@@ -1741,6 +1741,11 @@ long long MegaAccountDetails::getTransferOwnUsed()
     return 0;
 }
 
+int MegaAccountDetails::getNumUsageItems()
+{
+    return 0;
+}
+
 long long MegaAccountDetails::getStorageUsed(MegaHandle handle)
 {
     return 0;

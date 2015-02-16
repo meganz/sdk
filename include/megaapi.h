@@ -5299,6 +5299,24 @@ public:
     virtual long long getTransferOwnUsed();
 
     /**
+     * @brief Returns the number of nodes with account usage info
+     *
+     * You can get information about each node using MegaAccountDetails::getStorageUsed,
+     * MegaAccountDetails::getNumFiles, MegaAccountDetails::getNumFolders
+     *
+     * This function can return:
+     * - 0 (no info about any node)
+     * - 3 (info about the root node, the inbox node and the rubbish node)
+     * Use MegaApi::getRootNode MegaApi::getInboxNode and MegaApi::getRubbishNode to get those nodes.
+     *
+     * - >3 (info about root, inbox, rubbish and incoming shares)
+     * Use MegaApi::getInShares to get the incoming shares
+     *
+     * @return Number of items with account usage info
+     */
+    virtual int getNumUsageItems();
+
+    /**
      * @brief Get the used storage in for a node
      *
      * Only root nodes are supported.

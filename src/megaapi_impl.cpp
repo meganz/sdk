@@ -7597,6 +7597,11 @@ long long MegaAccountDetailsPrivate::getTransferOwnUsed()
     return details.transfer_own_used;
 }
 
+int MegaAccountDetailsPrivate::getNumUsageItems()
+{
+    return details.storage.size();
+}
+
 long long MegaAccountDetailsPrivate::getStorageUsed(MegaHandle handle)
 {
     return details.storage[handle].bytes;
