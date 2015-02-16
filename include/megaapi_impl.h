@@ -914,6 +914,7 @@ class MegaApiImpl : public MegaApp
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
         void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
+        void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);

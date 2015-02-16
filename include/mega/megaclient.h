@@ -221,7 +221,7 @@ public:
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
-    void delsync(Sync*);
+    void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
     void disconnect();

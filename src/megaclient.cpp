@@ -4975,6 +4975,8 @@ void MegaClient::createephemeral()
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
 
+    locallogout();
+
     PrnGen::genblock(keybuf, sizeof keybuf);
     PrnGen::genblock(pwbuf, sizeof pwbuf);
     PrnGen::genblock(sscbuf, sizeof sscbuf);
@@ -6501,9 +6503,14 @@ void MegaClient::execmovetosyncdebris()
 
 // we cannot delete the Sync object directly, as it might have pending
 // operations on it
-void MegaClient::delsync(Sync* sync)
+void MegaClient::delsync(Sync* sync, bool deletecache)
 {
     sync->changestate(SYNC_CANCELED);
+
+    if(deletecache)
+    {
+        sync->statecachetable->remove();
+    }
 
     syncactivity = true;
 }

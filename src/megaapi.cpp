@@ -1226,6 +1226,16 @@ void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
     pImpl->removeSync(sync ? sync->getMegaHandle() : UNDEF, listener);
 }
 
+void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
+{
+    pImpl->disableSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
+}
+
+void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
+{
+    pImpl->disableSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+}
+
 void MegaApi::removeSyncs(MegaRequestListener *listener)
 {
    pImpl->stopSyncs(listener);

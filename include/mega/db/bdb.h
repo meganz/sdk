@@ -55,6 +55,7 @@ public:
     void begin();
     void commit();
     void abort();
+    void remove();
 
     uint32_t nextid;
 

@@ -4167,12 +4167,16 @@ class MegaApi
         /**
          * @brief Remove a synced folder
          *
-         * The folder will stop being synced. Nothing in the local nor in the remote folder
+         * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop and the cache of local files will be deleted
+         * If you don't want to delete the local cache use MegaApi::disableSync
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns true
          *
          * @param megaFolder MEGA folder
          * @param listener MegaRequestListener to track this request
@@ -4182,17 +4186,59 @@ class MegaApi
         /**
          * @brief Remove a synced folder
          *
-         * The folder will stop being synced. Nothing in the local nor in the remote folder
+         * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop and the cache of local files will be deleted
+         * If you don't want to delete the local cache use MegaApi::disableSync
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns true
          *
          * @param sync Synchronization to cancel
          * @param listener MegaRequestListener to track this request
          */
         void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Disable a synced folder
+         *
+         * The folder will stop being synced. No files in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop but the cache of local files won't be deleted.
+         * If you want to also delete the local cache use MegaApi::removeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns false
+         *
+         * @param megaFolder MEGA folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableSync(MegaNode *megaFolder, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Disable a synced folder
+         *
+         * The folder will stop being synced. No files in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop but the cache of local files won't be deleted.
+         * If you want to also delete the local cache use MegaApi::removeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns false
+         *
+         * @param sync Synchronization to disable
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders

@@ -3050,6 +3050,16 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
+    request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::disableSync(handle nodehandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
+    request->setNodeHandle(nodehandle);
+    request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6493,6 +6503,12 @@ void MegaApiImpl::sendPendingRequests()
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
+            if(!megaFolderLink && (!login || !password) && !sessionKey && (!login || !base64pwkey))
+            {
+                e = API_EARGS;
+                break;
+            }
+
             requestMap.erase(request->getTag());
             while(!requestMap.empty())
             {
@@ -6506,12 +6522,6 @@ void MegaApiImpl::sendPendingRequests()
                 if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
             }
             requestMap[request->getTag()]=request;
-
-            if(!megaFolderLink && (!login || !password) && !sessionKey && (!login || !base64pwkey))
-            {
-                e = API_EARGS;
-                break;
-            }
 
             if(base64pwkey)
             {
@@ -6989,6 +6999,20 @@ void MegaApiImpl::sendPendingRequests()
 				e = API_EARGS; break;
 			}
 
+            requestMap.erase(request->getTag());
+            while(!requestMap.empty())
+            {
+                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+            }
+
+            while(!transferMap.empty())
+            {
+                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+                if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            }
+            requestMap[request->getTag()]=request;
+
 			client->createephemeral();
 			break;
 		}
@@ -7171,7 +7195,7 @@ void MegaApiImpl::sendPendingRequests()
                     string path;
                     fsAccess->local2path(&sync->localroot.localname, &path);
                     request->setFile(path.c_str());
-                    client->delsync(sync);
+                    client->delsync(sync, request->getFlag());
 
                     if(syncMap.find(tag) == syncMap.end())
                     {

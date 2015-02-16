@@ -61,6 +61,9 @@ public:
     // abort transaction
     virtual void abort() = 0;
 
+    // permanantly remove all database info
+    virtual void remove() = 0;
+
     // autoincrement
     uint32_t nextid;
 
