@@ -4607,12 +4607,6 @@ void MegaApiImpl::notify_retry(dstime dsdelta)
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
 void MegaApiImpl::request_error(error e)
 {
-    if(e == API_ENOENT)
-    {
-        fetchNodes();
-        return;
-    }
-
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
     request->setParamType(e);
