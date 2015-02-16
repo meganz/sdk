@@ -888,6 +888,7 @@ class MegaApiImpl : public MegaApp
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
+        void localLogout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
 
@@ -1082,6 +1083,7 @@ protected:
 
         // login result
         virtual void login_result(error);
+        virtual void logout_result(error);
         virtual void userdata_result(string*, string*, string*, handle, error);
         virtual void pubkey_result(User *);
 

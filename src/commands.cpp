@@ -1042,6 +1042,24 @@ void CommandKillSessions::procresult()
     client->app->sessions_killed(h, e);
 }
 
+CommandLogout::CommandLogout(MegaClient *client)
+{
+    cmd("sml");
+
+    tag = client->reqtag;
+}
+
+void CommandLogout::procresult()
+{
+    error e = (error)client->json.getint();
+    MegaApp *app = client->app;
+    if(!e)
+    {
+        client->locallogout();
+    }
+    app->logout_result(e);
+}
+
 // login request with user e-mail address and user hash
 CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash)
 {

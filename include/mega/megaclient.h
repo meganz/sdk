@@ -229,6 +229,9 @@ public:
     // abort session and free all state information
     void logout();
 
+    // free all state information
+    void locallogout();
+
     // SDK version
     const char* version();
 

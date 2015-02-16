@@ -1102,6 +1102,11 @@ void MegaApi::logout(MegaRequestListener *listener)
     pImpl->logout(listener);
 }
 
+void MegaApi::localLogout(MegaRequestListener *listener)
+{
+    pImpl->localLogout(listener);
+}
+
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
 {
     pImpl->submitFeedback(rating, comment, listener);

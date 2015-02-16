@@ -3873,13 +3873,22 @@ class MegaApi
         void removeContact(MegaUser *user, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Logout of the MEGA account
+         * @brief Logout of the MEGA account invalidating the session
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
          *
          * @param listener MegaRequestListener to track this request
          */
         void logout(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Logout of the MEGA account without invalidating the session
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGOUT
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void localLogout(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit feedback about the app

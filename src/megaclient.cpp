@@ -510,7 +510,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 MegaClient::~MegaClient()
 {
-    logout();
+    locallogout();
 
     delete pendingcs;
     delete pendingsc;
@@ -1910,6 +1910,11 @@ void MegaClient::disconnect()
 }
 
 void MegaClient::logout()
+{
+    reqs[r].add(new CommandLogout(this));
+}
+
+void MegaClient::locallogout()
 {
     int i;
 
@@ -3977,6 +3982,8 @@ error MegaClient::folderaccess(const char* f, const char* k)
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 
+    locallogout();
+
     if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
@@ -3996,7 +4003,7 @@ error MegaClient::folderaccess(const char* f, const char* k)
 // create new session
 void MegaClient::login(const char* email, const byte* pwkey)
 {
-    logout();
+    locallogout();
 
     string lcemail(email);
 
@@ -4020,7 +4027,7 @@ void MegaClient::getpubkey(const char *user)
 // resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
 {
-    logout();
+    locallogout();
    
     if (size == sizeof key.key + SIDLEN)
     {

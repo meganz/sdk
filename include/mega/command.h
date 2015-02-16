@@ -281,6 +281,14 @@ public:
     CommandKillSessions(MegaClient*);
 };
 
+class MEGA_API CommandLogout : public Command
+{
+public:
+    void procresult();
+
+    CommandLogout(MegaClient*);
+};
+
 class MEGA_API CommandPubKeyRequest : public Command
 {
     User* u;

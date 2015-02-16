@@ -2568,7 +2568,16 @@ void MegaApiImpl::changePassword(const char *oldPassword, const char *newPasswor
 void MegaApiImpl::logout(MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
+    request->setFlag(true);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::localLogout(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
+    request->setFlag(false);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -4605,6 +4614,7 @@ void MegaApiImpl::request_error(error e)
     }
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+    request->setFlag(false);
     request->setParamType(e);
     requestQueue.push(request);
     waiter->notify();
@@ -4639,6 +4649,44 @@ void MegaApiImpl::login_result(error result)
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
 
     fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::logout_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_LOGOUT)) return;
+
+    if(!e)
+    {
+        requestMap.erase(request->getTag());
+        while(!requestMap.empty())
+        {
+            std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+            if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+        }
+
+        while(!transferMap.empty())
+        {
+            std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+            if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+        }
+
+        pausetime = 0;
+        pendingUploads = 0;
+        pendingDownloads = 0;
+        totalUploads = 0;
+        totalDownloads = 0;
+        waiting = false;
+        waitingRequest = false;
+        excludedNames.clear();
+        syncLowerSizeLimit = 0;
+        syncUpperSizeLimit = 0;
+
+        fireOnRequestFinish(request, MegaError(request->getParamType()));
+        return;
+    }
+    fireOnRequestFinish(request,MegaError(e));
 }
 
 void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, handle bjid, error result)
@@ -5016,7 +5064,20 @@ void MegaApiImpl::sendsignuplink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
-    client->logout();
+    requestMap.erase(request->getTag());
+    while(!requestMap.empty())
+    {
+        std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+        if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+    }
+
+    while(!transferMap.empty())
+    {
+        std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+        if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+    }
+
+    client->locallogout();
     fireOnRequestFinish(request, megaError);
 }
 
@@ -6438,6 +6499,20 @@ void MegaApiImpl::sendPendingRequests()
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
+            requestMap.erase(request->getTag());
+            while(!requestMap.empty())
+            {
+                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+            }
+
+            while(!transferMap.empty())
+            {
+                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+                if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            }
+            requestMap[request->getTag()]=request;
+
             if(!megaFolderLink && (!login || !password) && !sessionKey && (!login || !base64pwkey))
             {
                 e = API_EARGS;
@@ -6727,35 +6802,16 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_LOGOUT:
 		{
-            int errorCode = request->getParamType();
-            requestMap.erase(nextTag);
-            while(!requestMap.empty())
+            if(request->getFlag())
             {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+                client->logout();
             }
-
-            while(!transferMap.empty())
+            else
             {
-                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-                if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+                client->locallogout();
+                client->restag = nextTag;
+                logout_result(API_OK);
             }
-
-			client->logout();
-
-            pausetime = 0;
-            pendingUploads = 0;
-            pendingDownloads = 0;
-            totalUploads = 0;
-            totalDownloads = 0;
-            waiting = false;
-            waitingRequest = false;
-            excludedNames.clear();
-            syncLowerSizeLimit = 0;
-            syncUpperSizeLimit = 0;
-
-            requestMap[nextTag] = request;
-            fireOnRequestFinish(request, MegaError(errorCode));
 			break;
 		}
 		case MegaRequest::TYPE_GET_ATTR_FILE:

@@ -37,6 +37,9 @@ struct MEGA_API MegaApp
     // login result
     virtual void login_result(error) { }
 
+    // logout result
+    virtual void logout_result(error) { }
+
     // user data result
     virtual void userdata_result(string*, string*, string*, handle, error) { }
 
