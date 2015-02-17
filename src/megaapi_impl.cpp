@@ -3968,14 +3968,14 @@ void MegaApiImpl::sessions_killed(handle, error e)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
-    if(newstate == SYNC_FAILED && sync->localroot.node)
+    if(newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
         request->setNodeHandle(sync->localroot.node->nodehandle);
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        fireOnRequestFinish(request, MegaError(API_EFAILED));
+        fireOnRequestFinish(request, MegaError(sync->errorcode));
     }
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;

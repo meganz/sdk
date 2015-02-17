@@ -39,7 +39,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     client = cclient;
     tag = ctag;
     inshare = cinshare;
-
+    errorcode = API_OK;
     tmpfa = NULL;
 
     localbytes = 0;
@@ -737,6 +737,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 {
                     // root node cannot be a file
                     LOG_err << "The local root node is a file";
+                    errorcode = API_EFAILED;
                     changestate(SYNC_FAILED);
                 }
                 else

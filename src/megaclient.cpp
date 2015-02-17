@@ -274,6 +274,7 @@ void MegaClient::mergenewshares(bool notify)
                     if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
                     {
                         LOG_warn << "Existing inbound share sync or part thereof lost full access";
+                        n->localnode->sync->errorcode = API_EACCESS;
                         n->localnode->sync->changestate(SYNC_FAILED);
                     }
                 } while ((n = n->parent));
@@ -284,6 +285,7 @@ void MegaClient::mergenewshares(bool notify)
                     if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
                     {
                         LOG_warn << "Existing inbound share sync lost full access";
+                        (*it)->errorcode = API_EACCESS;
                         (*it)->changestate(SYNC_FAILED);
                     }
                 }
@@ -1014,6 +1016,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
+                    (*it)->errorcode = API_EFAILED;
                     (*it)->changestate(SYNC_FAILED);
                 }
             }
@@ -1204,6 +1207,7 @@ void MegaClient::exec()
                         if (!(*it)->localroot.node)
                         {
                             LOG_err << "The remote root node doesn't exist";
+                            (*it)->errorcode = API_ENOENT;
                             (*it)->changestate(SYNC_FAILED);
                         }
                         else

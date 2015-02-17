@@ -110,6 +110,9 @@ public:
 
     // original filesystem fingerprint
     fsfp_t fsfp;
+
+    // Error that causes a cancellation
+    error errorcode;
     
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
     ~Sync();
