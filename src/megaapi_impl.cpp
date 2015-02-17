@@ -3263,7 +3263,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
 	for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
 	{
         Node *n;
-		if ((n = client->nodebyhandle(*sit)))
+        if ((n = client->nodebyhandle(*sit)) && !n->parent)
             vNodes.push_back(n);
 	}
     MegaNodeList *nodeList;
@@ -3286,7 +3286,7 @@ MegaNodeList* MegaApiImpl::getInShares()
 
 		for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
 		{
-			if ((n = client->nodebyhandle(*sit)))
+            if ((n = client->nodebyhandle(*sit)) && !n->parent)
 				vNodes.push_back(n);
 		}
 	}
