@@ -792,6 +792,54 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 - (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent;
 
 /**
+ * @brief Copy a node in the MEGA account changing the file name
+ *
+ * The associated request type with this request is MEGARequestTypeCopy
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to copy
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the new node
+ * - [MEGARequest publicNode] - Returns the node to copy
+ * - [MEGARequest name] - Returns the name for the new node
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Handle of the new node
+ *
+ * @param node Node to copy
+ * @param newParent Parent for the new node
+ * @param newName Name for the new node
+ *
+ * This parameter is only used if the original node is a file and it isn't a public node,
+ * otherwise, it's ignored.
+ *
+ * @param delegate Delegate to track this request
+ */
+- (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Copy a node in the MEGA account changing the file name
+ *
+ * The associated request type with this request is MEGARequestTypeCopy
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to copy
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the new node
+ * - [MEGARequest publicNode] - Returns the node to copy
+ * - [MEGARequest name] - Returns the name for the new node
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Handle of the new node
+ *
+ * @param node Node to copy
+ * @param newParent Parent for the new node
+ * @param newName Name for the new node
+ *
+ * This parameter is only used if the original node is a file and it isn't a public node,
+ * otherwise, it's ignored.
+ */
+- (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName;
+
+/**
  * @brief Rename a node in the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeRename.
