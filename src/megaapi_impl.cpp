@@ -5620,7 +5620,10 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
-    if(!megaNode || !level)	return MegaError(API_EARGS);
+    if(!megaNode || level < MegaShare::ACCESS_UNKNOWN || level > MegaShare::ACCESS_OWNER)
+    {
+        return MegaError(API_EARGS);
+    }
 
     sdkMutex.lock();
     Node *node = client->nodebyhandle(megaNode->getHandle());
