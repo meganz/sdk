@@ -1276,7 +1276,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length
     {
-        //sync->client->app->debug_log("LocalNode unserialization failed - short data");
+        LOG_err << "LocalNode unserialization failed - short data";
         return NULL;
     }
 
@@ -1313,7 +1313,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     if (ptr + localnamelen > end)
     {
-        //sync->client->app->debug_log("LocalNode unserialization failed - name too long");
+        LOG_err << "LocalNode unserialization failed - name too long";
         return NULL;
     }
 
@@ -1325,13 +1325,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     {
         if (ptr + 4 * sizeof(int32_t) > end + 1)
         {
-            //sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
+            LOG_err << "LocalNode unserialization failed - short fingerprint";
             return NULL;
         }
 
         if (!Serialize64::unserialize((byte*)ptr + 4 * sizeof(int32_t), end - ptr - 4 * sizeof(int32_t), &mtime))
         {
-            //sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
+            LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
     }

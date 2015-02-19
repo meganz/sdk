@@ -24,6 +24,7 @@
 #include "mega/transferslot.h"
 #include "mega/megaapp.h"
 #include "mega/sync.h"
+#include "mega/logging.h"
 
 namespace mega {
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
@@ -196,6 +197,8 @@ void Transfer::complete()
                     LocalNode *localNode = sync->localnodebypath(NULL, &localname);
                     if (localNode)
                     {
+                        LOG_debug << "Overwritting a local synced file. Moving the previous one to debris";
+
                         // the destination file is synced
                         synced = true;
 
@@ -212,6 +215,8 @@ void Transfer::complete()
 
                 if (!synced)
                 {
+                    LOG_debug << "The destination file exist (not synced). Saving with a different name";
+
                     // the destination path isn't synced, save with a (x) suffix
                     string::size_type index = localname.find_last_of('.');
                     string name;
@@ -243,6 +248,11 @@ void Transfer::complete()
                     (*it)->localname = newname;
                     localname = newname;
                 }
+            }
+            else
+            {
+                LOG_warn << "Transient error checking if the destination file exist";
+                transient_error = fa->retry;
             }
 
             delete fa;
