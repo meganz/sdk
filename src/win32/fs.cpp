@@ -92,7 +92,9 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
     if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
-        retry = WinFileSystemAccess::istransient(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to get the attributes of the file (sysstat). Error code: " << e;
+        retry = WinFileSystemAccess::istransient(e);
         return false;
     }
 
@@ -122,7 +124,9 @@ bool WinFileAccess::sysopen()
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        retry = WinFileSystemAccess::istransient(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        retry = WinFileSystemAccess::istransient(e);
         return false;
     }
 
@@ -435,7 +439,9 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
 
     if (!r)
     {
-        transient_error = istransientorexists(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to move file. Error code: " << e;
+        transient_error = istransientorexists(e);
     }
 
     return r;
@@ -457,7 +463,9 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
 
     if (!r)
     {
-        transient_error = istransientorexists(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to copy file. Error code: " << e;
+        transient_error = istransientorexists(e);
     }
 
     return r;
@@ -471,7 +479,9 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
 
     if (!r)
     {
-        transient_error = istransient(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to delete folder. Error code: " << e;
+        transient_error = istransient(e);
     }
 
     return r;
@@ -485,7 +495,9 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 
     if (!r)
     {
-        transient_error = istransient(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to delete file. Error code: " << e;
+        transient_error = istransient(e);
     }
 
     return r;
@@ -498,7 +510,9 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 
     if (!r)
     {
-        transient_error = istransientorexists(GetLastError());
+        DWORD e = GetLastError();
+        LOG_debug << "Unable to create folder. Error code: " << e;
+        transient_error = istransientorexists(e);
     }
     else if (hidden)
     {
