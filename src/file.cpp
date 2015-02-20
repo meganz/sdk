@@ -140,7 +140,7 @@ void File::terminated()
 // failuresup to 16 times
 bool File::failed(error e)
 {
-    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16;
+    return e != API_EKEY && e != API_EBLOCKED && e != API_EOVERQUOTA && transfer->failcount < 16;
 }
 
 void File::displayname(string* dname)
