@@ -528,6 +528,9 @@ public:
     // app scanstate flag
     bool syncscanstate;
 
+    // scan required flag
+    bool syncdownrequired;
+
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 

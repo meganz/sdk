@@ -396,6 +396,7 @@ void MegaClient::init()
     syncdownretry = false;
     syncnagleretry = false;
     syncsup = true;
+    syncdownrequired = false;
 
     if (syncscanstate)
     {
@@ -438,6 +439,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
+    syncdownrequired = false;
     syncadding = 0;
     currsyncid = 0;
 #endif
@@ -879,7 +881,7 @@ void MegaClient::exec()
         syncactivity = false;
 
         // do not process the SC result until all preconfigured syncs are up and running
-        if (syncsup && jsonsc.pos)
+        if (syncsup && jsonsc.pos && !syncdownrequired)
 #else
         if (jsonsc.pos)
 #endif
@@ -897,6 +899,7 @@ void MegaClient::exec()
             else
             {
                 // a remote node move requires the immediate attention of syncdown()
+                syncdownrequired = true;
                 syncactivity = true;
             }
 #endif
@@ -1214,7 +1217,7 @@ void MegaClient::exec()
                         {
                             localpath = (*it)->localroot.localname;
 
-                            if ((*it)->state == SYNC_ACTIVE && !syncscanstate)
+                            if ((*it)->state == SYNC_ACTIVE && (!syncscanstate || syncdownrequired))
                             {
                                 if (!syncdown(&(*it)->localroot, &localpath, true))
                                 {
@@ -1233,6 +1236,7 @@ void MegaClient::exec()
                     // notify the app if a lock is being retried
                     if (success)
                     {
+                        syncdownrequired = false;
                         if (syncfsopsfailed)
                         {
                             syncfsopsfailed = false;
