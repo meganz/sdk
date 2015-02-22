@@ -5833,14 +5833,11 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                             {
                                 ll->setnode(rit->second);
                                 ll->setnameparent(l, localpath);
+                                ll->sync->statecacheadd(ll);
 
                                 if (!syncdown(ll, localpath, rubbish) && success)
                                 {
                                     success = false;
-                                }
-                                else
-                                {
-                                    ll->sync->statecacheadd(ll);
                                 }
                             }
                         }
