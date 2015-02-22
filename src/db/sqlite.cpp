@@ -89,6 +89,7 @@ SqliteDbTable::~SqliteDbTable()
     }
     abort();
     sqlite3_close(db);
+    LOG_debug << "Database closed";
 }
 
 // set cursor to first record

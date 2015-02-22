@@ -2302,11 +2302,9 @@ void MegaApiImpl::loop()
 	}
 
     sdkMutex.lock();
-    delete client->dbaccess; //Warning, it's deleted in MegaClient's destructor
-    delete client->sctable;  //Warning, it's deleted in MegaClient's destructor
+    delete client;
 
 	//It doesn't seem fully safe to delete those objects :-/
-    // delete client;
     // delete httpio;
     // delete waiter;
     // delete fsAccess;

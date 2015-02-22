@@ -5784,6 +5784,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                             // update LocalNode tree to reflect the move/rename
                             rit->second->localnode->setnameparent(l, localpath);
 
+                            rit->second->localnode->sync->statecacheadd(rit->second->localnode);
+
                             // update filenames so that PUT transfers can continue seamlessly
                             updateputs();
                             syncactivity = true;
