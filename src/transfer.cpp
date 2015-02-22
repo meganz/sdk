@@ -100,6 +100,8 @@ void Transfer::failed(error e)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
+    LOG_debug << "Transfer complete";
+
     if (type == GET)
     {
         // disconnect temp file from slot...
@@ -188,51 +190,76 @@ void Transfer::complete()
             if (fa->fopen(&localname))
             {
                 // the destination path already exists
-                bool synced = false;
-
 #ifdef ENABLE_SYNC
-                for (sync_list::iterator it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
+                if((*it)->syncxfer)
                 {
-                    Sync *sync = (*it2);
-                    LocalNode *localNode = sync->localnodebypath(NULL, &localname);
-                    if (localNode)
+                    sync_list::iterator it2;
+                    for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
                     {
-                        LOG_debug << "Overwritting a local synced file. Moving the previous one to debris";
-
-                        // the destination file is synced
-                        synced = true;
-
-                        // try to move to local debris
-                        if(!sync->movetolocaldebris(&localname))
+                        Sync *sync = (*it2);
+                        LocalNode *localNode = sync->localnodebypath(NULL, &localname);
+                        if (localNode)
                         {
-                            transient_error = client->fsaccess->transient_error;
-                        }
+                            LOG_debug << "Overwritting a local synced file. Moving the previous one to debris";
 
-                        break;
+                            // try to move to local debris
+                            if(!sync->movetolocaldebris(&localname))
+                            {
+                                transient_error = client->fsaccess->transient_error;
+                            }
+
+                            break;
+                        }
+                    }
+
+                    if(it2 == client->syncs.end())
+                    {
+                        LOG_err << "LocalNode for destination file not found";
+
+                        if(client->syncs.size())
+                        {
+                            // try to move to debris in the first sync
+                            if(!client->syncs.front()->movetolocaldebris(&localname))
+                            {
+                                transient_error = client->fsaccess->transient_error;
+                            }
+                        }
                     }
                 }
+                else
 #endif
-
-                if (!synced)
                 {
                     LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
                     // the destination path isn't synced, save with a (x) suffix
-                    string::size_type index = localname.find_last_of('.');
+                    string utf8fullname;
+                    client->fsaccess->local2path(&localname, &utf8fullname);
+                    string::size_type dotindex = utf8fullname.find_last_of('.');
                     string name;
                     string extension;
-                    if (index == string::npos)
+                    if (dotindex == string::npos)
                     {
-                        name = localname;
+                        name = utf8fullname;
                     }
                     else
                     {
-                        name = localname.substr(0, index);
-                        extension = localname.substr(index);
+                        string separator;
+                        client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
+                        string::size_type sepindex = utf8fullname.find_last_of(separator);
+                        if(sepindex == string::npos || sepindex < dotindex)
+                        {
+                            name = utf8fullname.substr(0, dotindex);
+                            extension = utf8fullname.substr(dotindex);
+                        }
+                        else
+                        {
+                            name = utf8fullname;
+                        }
                     }
 
                     string suffix;
                     string newname;
+                    string localnewname;
                     int num = 0;
                     do
                     {
@@ -240,24 +267,24 @@ void Transfer::complete()
                         ostringstream oss;
                         oss << " (" << num << ")";
                         suffix = oss.str();
-                        client->fsaccess->name2local(&suffix);
                         newname = name + suffix + extension;
-                    } while (fa->fopen(&newname));
+                        client->fsaccess->path2local(&newname, &localnewname);
+                    } while (fa->fopen(&localnewname));
 
 
-                    (*it)->localname = newname;
-                    localname = newname;
+                    (*it)->localname = localnewname;
+                    localname = localnewname;
                 }
             }
             else
             {
-                LOG_warn << "Transient error checking if the destination file exist";
                 transient_error = fa->retry;
             }
 
             delete fa;
             if (transient_error)
             {
+                LOG_warn << "Transient error checking if the destination file exist";
                 it++;
                 continue;
             }
