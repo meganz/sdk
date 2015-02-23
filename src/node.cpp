@@ -855,9 +855,22 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 assert(parent->node);
                 
-                // FIXME: detect if rename permitted, copy/delete if not
                 sync->client->reqtag = sync->tag;
-                sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF);
+                if(sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF))
+                {
+                    if(type == FILENODE)
+                    {
+                        LOG_debug << "Using node copy/delete";
+
+                        // delete the source node, otherwise the operation is reverted
+                        sync->client->movetosyncdebris(node, sync->inshare);
+                        // the sync engine creates the new node by copying the deleted one if possible
+                    }
+                    else
+                    {
+                        //FIXME: implement folder copy/delete
+                    }
+                }
                 treestate(TREESTATE_SYNCING);
             }
 
