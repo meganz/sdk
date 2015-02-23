@@ -1997,8 +1997,11 @@ bool MegaClient::procsc()
     nameid name;
 
 #ifdef ENABLE_SYNC
-    nameid prevname = 0;
+    char test[] = "},{\"a\":\"t\",\"i\":\"";
+    char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
+    bool stop = false;
 #endif
+    Node *dn = NULL;
 
     for (;;)
     {
@@ -2064,6 +2067,13 @@ bool MegaClient::procsc()
                             case 'u':
                                 // node update
                                 sc_updatenode();
+#ifdef ENABLE_SYNC
+                                if(jsonsc.pos[1] != ']') // there are more packets
+                                {
+                                    applykeys();
+                                    return false;
+                                }
+#endif
                                 break;
 
                             case 't':
@@ -2072,23 +2082,43 @@ bool MegaClient::procsc()
                                 mergenewshares(1);
 
 #ifdef ENABLE_SYNC
-                                if (prevname == 'd'
-                                 && (!memcmp(jsonsc.pos, "},{\"a\":\"d\"", 10)
-                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"", 10)
-                                  || !memcmp(jsonsc.pos, "},{\"a\":\"t\"", 10)))
+                                if (stop)
                                 {
-                                    // we have a potential move followed by another potential move
-                                    // or rename, which indicates a potential move-overwrite:
-                                    // run syncdown() to process the first move before proceeding
-                                    applykeys();
-                                    return false;
+                                    stop = false;
+
+                                    if(jsonsc.pos[1] != ']') // there are more packets
+                                    {
+                                        // run syncdown() before continuing
+                                        applykeys();
+                                        return false;
+                                    }
                                 }
 #endif
                                 break;
 
                             case 'd':
                                 // node deletion
-                                sc_deltree();
+                                dn = sc_deltree();
+
+#ifdef ENABLE_SYNC
+                                if (dn && !memcmp(jsonsc.pos, test, 16))
+                                {
+                                    Base64::btoa((byte *)&dn->nodehandle, sizeof(dn->nodehandle), &test2[18]);
+                                    if (!memcmp(&jsonsc.pos[26], test2, 26))
+                                    {
+                                        // it's a move operation, stop parsing after completing it
+                                        stop = true;
+                                        break;
+                                    }
+                                }
+
+                                if(jsonsc.pos[1] != ']') // there are more packets
+                                {
+                                    // run syncdown() to process the deletion before continuing
+                                    applykeys();
+                                    return false;
+                                }
+#endif
                                 break;
 
                             case 's':
@@ -2119,10 +2149,6 @@ bool MegaClient::procsc()
                                 sc_userattr();
                         }
                     }
-
-#ifdef ENABLE_SYNC                    
-                    prevname = name;
-#endif
                 }
 
                 jsonsc.leaveobject();
@@ -3008,7 +3034,7 @@ Node* MegaClient::nodebyhandle(handle h)
 }
 
 // server-client deletion
-void MegaClient::sc_deltree()
+Node* MegaClient::sc_deltree()
 {
     Node* n = NULL;
 
@@ -3031,12 +3057,12 @@ void MegaClient::sc_deltree()
                     TreeProcDel td;
                     proctree(n, &td);
                 }
-                return;
+                return n;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return;
+                    return NULL;
                 }
         }
     }
