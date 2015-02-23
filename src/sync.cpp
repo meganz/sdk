@@ -589,7 +589,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                     // e.g. a file deletion/creation cycle that reuses the same inode
                                     if (it->second->mtime != fa->mtime || it->second->size != fa->size)
                                     {
-                                        delete it->second;
+                                        // do not delete the LocalNode if it is in a different sync
+                                        // because it could be a file with the same fsid in another drive
+                                        if(l->sync == it->second->sync)
+                                        {
+                                            delete it->second;
+                                        }
                                     }
                                     else
                                     {
@@ -674,7 +679,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
 
-                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
+                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+                        // additional checks to prevent wrong fsid matches
+                        && it->second->type == fa->type
+                        && ((it->second->type != FILENODE && it->second->sync == parent->sync)
+                            || (it->second->type == FILENODE && it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
