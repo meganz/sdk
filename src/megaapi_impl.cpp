@@ -6387,9 +6387,25 @@ void MegaApiImpl::sendPendingTransfers()
 					if(node)
 					{
 						if(!fileName)
-                            name = node->displayname();
+                        {
+                            attr_map::iterator ait = node->attrs.map.find('n');
+                            if(ait == node->attrs.map.end())
+                            {
+                                name = "CRYPTO_ERROR";
+                            }
+                            else if(!ait->second.size())
+                            {
+                                name = "BLANK";
+                            }
+                            else
+                            {
+                                name = ait->second;
+                            }
+                        }
                         else
+                        {
                             name = fileName;
+                        }
 
                         client->fsaccess->name2local(&name);
                         client->fsaccess->local2path(&name, &securename);
