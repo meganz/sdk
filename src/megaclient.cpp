@@ -2077,6 +2077,20 @@ bool MegaClient::procsc()
                                 break;
 
                             case 't':
+#ifdef ENABLE_SYNC
+                                if(!stop)
+                                {
+                                    for(int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
+                                    {
+                                        if(!memcmp(&jsonsc.pos[i-4], "\"t\":1", 5))
+                                        {
+                                            stop = true;
+                                            break;
+                                        }
+                                    }
+                                }
+#endif
+
                                 // node addition
                                 sc_newnodes();
                                 mergenewshares(1);
