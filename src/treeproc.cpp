@@ -87,5 +87,18 @@ void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
         n->syncget = NULL;
     }
 }
+
+LocalTreeProcChangeSync::LocalTreeProcChangeSync(Sync *sync)
+{
+    this->newsync = sync;
+}
+
+void LocalTreeProcChangeSync::proc(MegaClient *, LocalNode *localnode)
+{
+    localnode->sync->statecachedel(localnode);
+    localnode->sync = newsync;
+    newsync->statecacheadd(localnode);
+}
+
 #endif
 } // namespace

@@ -6389,6 +6389,21 @@ void MegaClient::execsyncdeletions()
     }
 }
 
+void MegaClient::proclocaltree(LocalNode *n, LocalTreeProc *tp)
+{
+    if (n->type != FILENODE)
+    {
+        for (localnode_map::iterator it = n->children.begin(); it != n->children.end(); )
+        {
+            LocalNode *child = it->second;
+            it++;
+            proclocaltree(child, tp);
+        }
+    }
+
+    tp->proc(this, n);
+}
+
 void MegaClient::execsyncunlink()
 {
     Node* n;

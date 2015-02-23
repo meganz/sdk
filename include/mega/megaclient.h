@@ -595,6 +595,9 @@ public:
     
     // commit all queueud deletions
     void execsyncdeletions();
+
+    // process localnode subtree
+    void proclocaltree(LocalNode*, LocalTreeProc*);
 #endif
 
     // recursively cancel transfers in a subtree

@@ -25,6 +25,7 @@
 #include "sharenodekeys.h"
 #include "node.h"
 #include "transfer.h"
+#include "sync.h"
 
 namespace mega {
 // node tree processor
@@ -96,6 +97,24 @@ class MEGA_API TreeProcDelSyncGet : public TreeProc
 public:
     void proc(MegaClient*, Node*);
 };
+
+class MEGA_API LocalTreeProc
+{
+public:
+    virtual void proc(MegaClient*, LocalNode*) = 0;
+
+    virtual ~LocalTreeProc() { }
+};
+
+class MEGA_API LocalTreeProcChangeSync : public LocalTreeProc
+{
+    Sync *newsync;
+
+public:
+    LocalTreeProcChangeSync(Sync*);
+    void proc(MegaClient*, LocalNode*);
+};
+
 #endif
 } // namespace
 

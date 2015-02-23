@@ -860,6 +860,12 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF);
                 treestate(TREESTATE_SYNCING);
             }
+
+            if(sync != parent->sync)
+            {
+                LocalTreeProcChangeSync tp(parent->sync);
+                sync->client->proclocaltree(this, &tp);
+            }
         }
 
         // (we don't construct a UTF-8 or sname for the root path)
