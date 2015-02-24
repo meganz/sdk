@@ -786,9 +786,9 @@ NodeCore::~NodeCore()
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
     bool newnode = !localname.size();
-    Node *todelete = NULL;
+    Node* todelete = NULL;
     int nc = 0;
-    Sync *oldsync = NULL;
+    Sync* oldsync = NULL;
 
     if (parent)
     {
@@ -859,7 +859,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 assert(parent->node);
                 
                 sync->client->reqtag = sync->tag;
-                if(sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
 
@@ -869,13 +869,13 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 treestate(TREESTATE_SYNCING);
             }
 
-            if(sync != parent->sync)
+            if (sync != parent->sync)
             {
                 LOG_debug << "Moving files between different syncs";
                 oldsync = sync;
             }
 
-            if(todelete || oldsync)
+            if (todelete || oldsync)
             {
                 // prepare localnodes for a sync change or/and a copy operation
                 LocalTreeProcMove tp(parent->sync, todelete != NULL);
@@ -894,7 +894,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
         parent->treestate();
 
-        if(todelete)
+        if (todelete)
         {
             // complete the copy/delete operation
             dstime nds = NEVER;
@@ -910,7 +910,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
         }
 
-        if(oldsync)
+        if (oldsync)
         {
             // update local cache if there is a sync change
             oldsync->cachenodes();

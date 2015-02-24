@@ -2023,7 +2023,7 @@ bool MegaClient::procsc()
     char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
     bool stop = false;
 #endif
-    Node *dn = NULL;
+    Node* dn = NULL;
 
     for (;;)
     {
@@ -2090,7 +2090,7 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                if(jsonsc.pos[1] != ']') // there are more packets
+                                if (jsonsc.pos[1] != ']') // there are more packets
                                 {
                                     applykeys();
                                     return false;
@@ -2100,11 +2100,11 @@ bool MegaClient::procsc()
 
                             case 't':
 #ifdef ENABLE_SYNC
-                                if(!stop)
+                                if (!stop)
                                 {
-                                    for(int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
+                                    for (int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
                                     {
-                                        if(!memcmp(&jsonsc.pos[i-4], "\"t\":1", 5))
+                                        if (!memcmp(&jsonsc.pos[i-4], "\"t\":1", 5))
                                         {
                                             stop = true;
                                             break;
@@ -2122,7 +2122,7 @@ bool MegaClient::procsc()
                                 {
                                     stop = false;
 
-                                    if(jsonsc.pos[1] != ']') // there are more packets
+                                    if (jsonsc.pos[1] != ']') // there are more packets
                                     {
                                         // run syncdown() before continuing
                                         applykeys();
@@ -2148,7 +2148,7 @@ bool MegaClient::procsc()
                                     }
                                 }
 
-                                if(jsonsc.pos[1] != ']') // there are more packets
+                                if (jsonsc.pos[1] != ']') // there are more packets
                                 {
                                     // run syncdown() to process the deletion before continuing
                                     applykeys();
@@ -6411,7 +6411,7 @@ void MegaClient::execsyncdeletions()
     }
 }
 
-void MegaClient::proclocaltree(LocalNode *n, LocalTreeProc *tp)
+void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 {
     if (n->type != FILENODE)
     {

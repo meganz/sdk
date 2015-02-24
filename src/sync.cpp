@@ -592,7 +592,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                         // do not delete the LocalNode if it is in a different filesystem
                                         // because it could be a file with the same fsid in another drive
                                         fsfp_t fp1, fp2;
-                                        if(l->sync == it->second->sync
+                                        if (l->sync == it->second->sync
                                             || ((fp1 = l->sync->dirnotify->fsfingerprint())
                                                 && (fp2 = it->second->sync->dirnotify->fsfingerprint())
                                                 && (fp1 == fp2)))
@@ -684,14 +684,14 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 handlelocalnode_map::iterator it;
                 fsfp_t fp1, fp2;
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-                        // additional checks to prevent wrong fsid matches
-                        && it->second->type == fa->type
-                        && ((it->second->sync == parent->sync)
-                            || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
-                                && (fp2 = parent->sync->dirnotify->fsfingerprint())
-                                && (fp1 == fp2)))
-                        && ((it->second->type != FILENODE)
-                            || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
+                    // additional checks to prevent wrong fsid matches
+                    && it->second->type == fa->type
+                    && ((it->second->sync == parent->sync)
+                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
+                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+                            && (fp1 == fp2)))
+                    && ((it->second->type != FILENODE)
+                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
