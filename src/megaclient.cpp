@@ -1121,14 +1121,22 @@ void MegaClient::exec()
                                         {
                                             syncactivity = true;
                                         }
+
+                                        if(syncadding)
+                                        {
+                                            break;
+                                        }
                                     }
                                     else
                                     {
                                         LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                        syncup(&sync->localroot, &nds);
-                                        sync->cachenodes();
+                                        if(!syncadding)
+                                        {
+                                            syncup(&sync->localroot, &nds);
+                                            sync->cachenodes();
+                                        }
 
-                                        // we interrupt processing the notifyq if the the completion
+                                        // we interrupt processing the notifyq if the completion
                                         // of a node creation is required to continue
                                         break;
                                     }
@@ -1161,7 +1169,20 @@ void MegaClient::exec()
                                 sync->cachenodes();
                             }
                         }
+
+                        if(syncadding)
+                        {
+                            break;
+                        }
                     }
+                }
+
+                if(syncadding)
+                {
+                    // do not continue processing syncs while adding nodes
+                    // just go to evaluate the main do-while loop
+                    notifypurge();
+                    continue;
                 }
 
                 // delete files that were overwritten by folders in checkpath()
@@ -1297,7 +1318,8 @@ void MegaClient::exec()
                             {
                                 if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                                  && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                 && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                                 && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size()
+                                 && !syncadding)
                                 {
                                     syncup(&(*it)->localroot, &nds);
                                     (*it)->cachenodes();
@@ -1997,8 +2019,11 @@ bool MegaClient::procsc()
     nameid name;
 
 #ifdef ENABLE_SYNC
-    nameid prevname = 0;
+    char test[] = "},{\"a\":\"t\",\"i\":\"";
+    char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
+    bool stop = false;
 #endif
+    Node* dn = NULL;
 
     for (;;)
     {
@@ -2064,31 +2089,72 @@ bool MegaClient::procsc()
                             case 'u':
                                 // node update
                                 sc_updatenode();
-                                break;
-
-                            case 't':
-                                // node addition
-                                sc_newnodes();
-                                mergenewshares(1);
-
 #ifdef ENABLE_SYNC
-                                if (prevname == 'd'
-                                 && (!memcmp(jsonsc.pos, "},{\"a\":\"d\"", 10)
-                                  || !memcmp(jsonsc.pos, "},{\"a\":\"u\"", 10)
-                                  || !memcmp(jsonsc.pos, "},{\"a\":\"t\"", 10)))
+                                if (jsonsc.pos[1] != ']') // there are more packets
                                 {
-                                    // we have a potential move followed by another potential move
-                                    // or rename, which indicates a potential move-overwrite:
-                                    // run syncdown() to process the first move before proceeding
                                     applykeys();
                                     return false;
                                 }
 #endif
                                 break;
 
+                            case 't':
+#ifdef ENABLE_SYNC
+                                if (!stop)
+                                {
+                                    for (int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
+                                    {
+                                        if (!memcmp(&jsonsc.pos[i-4], "\"t\":1", 5))
+                                        {
+                                            stop = true;
+                                            break;
+                                        }
+                                    }
+                                }
+#endif
+
+                                // node addition
+                                sc_newnodes();
+                                mergenewshares(1);
+
+#ifdef ENABLE_SYNC
+                                if (stop)
+                                {
+                                    stop = false;
+
+                                    if (jsonsc.pos[1] != ']') // there are more packets
+                                    {
+                                        // run syncdown() before continuing
+                                        applykeys();
+                                        return false;
+                                    }
+                                }
+#endif
+                                break;
+
                             case 'd':
                                 // node deletion
-                                sc_deltree();
+                                dn = sc_deltree();
+
+#ifdef ENABLE_SYNC
+                                if (dn && !memcmp(jsonsc.pos, test, 16))
+                                {
+                                    Base64::btoa((byte *)&dn->nodehandle, sizeof(dn->nodehandle), &test2[18]);
+                                    if (!memcmp(&jsonsc.pos[26], test2, 26))
+                                    {
+                                        // it's a move operation, stop parsing after completing it
+                                        stop = true;
+                                        break;
+                                    }
+                                }
+
+                                if (jsonsc.pos[1] != ']') // there are more packets
+                                {
+                                    // run syncdown() to process the deletion before continuing
+                                    applykeys();
+                                    return false;
+                                }
+#endif
                                 break;
 
                             case 's':
@@ -2119,10 +2185,6 @@ bool MegaClient::procsc()
                                 sc_userattr();
                         }
                     }
-
-#ifdef ENABLE_SYNC                    
-                    prevname = name;
-#endif
                 }
 
                 jsonsc.leaveobject();
@@ -3008,7 +3070,7 @@ Node* MegaClient::nodebyhandle(handle h)
 }
 
 // server-client deletion
-void MegaClient::sc_deltree()
+Node* MegaClient::sc_deltree()
 {
     Node* n = NULL;
 
@@ -3031,12 +3093,12 @@ void MegaClient::sc_deltree()
                     TreeProcDel td;
                     proctree(n, &td);
                 }
-                return;
+                return n;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return;
+                    return NULL;
                 }
         }
     }
@@ -5829,18 +5891,15 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         {
                             LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
 
-                            if (ll)
+                            if (ll && ll != (LocalNode*)~0)
                             {
                                 ll->setnode(rit->second);
                                 ll->setnameparent(l, localpath);
+                                ll->sync->statecacheadd(ll);
 
                                 if (!syncdown(ll, localpath, rubbish) && success)
                                 {
                                     success = false;
-                                }
-                                else
-                                {
-                                    ll->sync->statecacheadd(ll);
                                 }
                             }
                         }
@@ -5880,7 +5939,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
     // UTF-8 converted local name
     string localname;
-    string tmpname;
 
     if (l->node)
     {
@@ -5956,6 +6014,22 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
         localname = *lit->first;
         fsaccess->local2name(&localname);
+        if (!localname.size() || !ll->name.size())
+        {
+            if(!ll->reported)
+            {
+                ll->reported = true;
+
+                char report[256];
+                sprintf(report, "%d %d %d %d", lit->first->size(), localname.size(), ll->name.size(), ll->type);
+
+                // report a "no-name localnode" event
+                reqtag = 0;
+                reportevent("LN", report);
+            }
+            continue;
+        }
+
         rit = nchildren.find(&localname);
 
         // do we have a corresponding remote child?
@@ -6350,6 +6424,21 @@ void MegaClient::execsyncdeletions()
     {
         execsyncunlink();
     }
+}
+
+void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
+{
+    if (n->type != FILENODE)
+    {
+        for (localnode_map::iterator it = n->children.begin(); it != n->children.end(); )
+        {
+            LocalNode *child = it->second;
+            it++;
+            proclocaltree(child, tp);
+        }
+    }
+
+    tp->proc(this, n);
 }
 
 void MegaClient::execsyncunlink()

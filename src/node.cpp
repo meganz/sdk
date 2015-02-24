@@ -786,6 +786,9 @@ NodeCore::~NodeCore()
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
     bool newnode = !localname.size();
+    Node* todelete = NULL;
+    int nc = 0;
+    Sync* oldsync = NULL;
 
     if (parent)
     {
@@ -855,10 +858,29 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 assert(parent->node);
                 
-                // FIXME: detect if rename permitted, copy/delete if not
                 sync->client->reqtag = sync->tag;
-                sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF);
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+                {
+                    LOG_debug << "Rename not permitted. Using node copy/delete";
+
+                    // save for deletion
+                    todelete = node;
+                }
                 treestate(TREESTATE_SYNCING);
+            }
+
+            if (sync != parent->sync)
+            {
+                LOG_debug << "Moving files between different syncs";
+                oldsync = sync;
+            }
+
+            if (todelete || oldsync)
+            {
+                // prepare localnodes for a sync change or/and a copy operation
+                LocalTreeProcMove tp(parent->sync, todelete != NULL);
+                sync->client->proclocaltree(this, &tp);
+                nc = tp.nc;
             }
         }
 
@@ -871,6 +893,29 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
 
         parent->treestate();
+
+        if (todelete)
+        {
+            // complete the copy/delete operation
+            dstime nds = NEVER;
+            sync->client->syncup(parent, &nds);
+
+            // check if nodes can be immediately created
+            bool immediatecreation = sync->client->synccreate.size() == nc;
+
+            sync->client->syncupdate();
+
+            // try to keep nodes in syncdebris if they can't be immediately created
+            // to avoid uploads
+            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
+        }
+
+        if (oldsync)
+        {
+            // update local cache if there is a sync change
+            oldsync->cachenodes();
+            sync->cachenodes();
+        }
     }
 }
 

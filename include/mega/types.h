@@ -80,6 +80,7 @@ class PubKeyAction;
 class Request;
 struct Transfer;
 class TreeProc;
+class LocalTreeProc;
 struct User;
 struct Waiter;
 struct Proxy;

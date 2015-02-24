@@ -333,7 +333,7 @@ private:
 
     // server-client command processing
     void sc_updatenode();
-    void sc_deltree();
+    Node* sc_deltree();
     void sc_newnodes();
     void sc_contacts();
     void sc_keys();
@@ -595,6 +595,9 @@ public:
     
     // commit all queueud deletions
     void execsyncdeletions();
+
+    // process localnode subtree
+    void proclocaltree(LocalNode*, LocalTreeProc*);
 #endif
 
     // recursively cancel transfers in a subtree

@@ -589,7 +589,16 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                     // e.g. a file deletion/creation cycle that reuses the same inode
                                     if (it->second->mtime != fa->mtime || it->second->size != fa->size)
                                     {
-                                        delete it->second;
+                                        // do not delete the LocalNode if it is in a different filesystem
+                                        // because it could be a file with the same fsid in another drive
+                                        fsfp_t fp1, fp2;
+                                        if (l->sync == it->second->sync
+                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
+                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                                && (fp1 == fp2)))
+                                        {
+                                            delete it->second;
+                                        }
                                     }
                                     else
                                     {
@@ -673,8 +682,16 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
-
-                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
+                fsfp_t fp1, fp2;
+                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+                    // additional checks to prevent wrong fsid matches
+                    && it->second->type == fa->type
+                    && ((it->second->sync == parent->sync)
+                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
+                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+                            && (fp1 == fp2)))
+                    && ((it->second->type != FILENODE)
+                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
@@ -853,7 +870,8 @@ dstime Sync::procscanq(int q)
         // we return control to the application in case a filenode was added
         // (in order to avoid lengthy blocking episodes due to multiple
         // consecutive fingerprint calculations)
-        if (l && l != (LocalNode*)~0 && l->type == FILENODE)
+        // or if new nodes are being added due to a copy/delete operation
+        if ((l && l != (LocalNode*)~0 && l->type == FILENODE) || client->syncadding)
         {
             break;
         }
