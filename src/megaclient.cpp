@@ -2513,7 +2513,7 @@ bool MegaClient::moretransfers(direction_t d)
     }
 
     // otherwise, don't allow more than two concurrent transfers
-    if (t >= 2)
+    if (total >= 2)
     {
         return false;
     }
