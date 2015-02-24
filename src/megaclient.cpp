@@ -1121,14 +1121,22 @@ void MegaClient::exec()
                                         {
                                             syncactivity = true;
                                         }
+
+                                        if(syncadding)
+                                        {
+                                            break;
+                                        }
                                     }
                                     else
                                     {
                                         LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                        syncup(&sync->localroot, &nds);
-                                        sync->cachenodes();
+                                        if(!syncadding)
+                                        {
+                                            syncup(&sync->localroot, &nds);
+                                            sync->cachenodes();
+                                        }
 
-                                        // we interrupt processing the notifyq if the the completion
+                                        // we interrupt processing the notifyq if the completion
                                         // of a node creation is required to continue
                                         break;
                                     }
@@ -1161,7 +1169,20 @@ void MegaClient::exec()
                                 sync->cachenodes();
                             }
                         }
+
+                        if(syncadding)
+                        {
+                            break;
+                        }
                     }
+                }
+
+                if(syncadding)
+                {
+                    // do not continue processing syncs while adding nodes
+                    // just go to evaluate the main do-while loop
+                    notifypurge();
+                    continue;
                 }
 
                 // delete files that were overwritten by folders in checkpath()
@@ -1297,7 +1318,8 @@ void MegaClient::exec()
                             {
                                 if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                                  && !(*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                 && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                                 && !(*it)->dirnotify->notifyq[DirNotify::RETRY].size()
+                                 && !syncadding)
                                 {
                                     syncup(&(*it)->localroot, &nds);
                                     (*it)->cachenodes();
@@ -5869,7 +5891,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         {
                             LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
 
-                            if (ll)
+                            if (ll && ll != (LocalNode*)~0)
                             {
                                 ll->setnode(rit->second);
                                 ll->setnameparent(l, localpath);

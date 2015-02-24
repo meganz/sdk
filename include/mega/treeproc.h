@@ -106,13 +106,15 @@ public:
     virtual ~LocalTreeProc() { }
 };
 
-class MEGA_API LocalTreeProcChangeSync : public LocalTreeProc
+class MEGA_API LocalTreeProcMove : public LocalTreeProc
 {
     Sync *newsync;
+    bool recreate;
 
 public:
-    LocalTreeProcChangeSync(Sync*);
+    LocalTreeProcMove(Sync*, bool);
     void proc(MegaClient*, LocalNode*);
+    int nc;
 };
 
 #endif

@@ -88,16 +88,29 @@ void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
     }
 }
 
-LocalTreeProcChangeSync::LocalTreeProcChangeSync(Sync *sync)
+LocalTreeProcMove::LocalTreeProcMove(Sync *sync, bool recreate)
 {
     this->newsync = sync;
+    this->recreate = recreate;
+    nc = 0;
 }
 
-void LocalTreeProcChangeSync::proc(MegaClient *, LocalNode *localnode)
+void LocalTreeProcMove::proc(MegaClient *, LocalNode *localnode)
 {
-    localnode->sync->statecachedel(localnode);
-    localnode->sync = newsync;
-    newsync->statecacheadd(localnode);
+    if(newsync != localnode->sync)
+    {
+        localnode->sync->statecachedel(localnode);
+        localnode->sync = newsync;
+        newsync->statecacheadd(localnode);
+    }
+
+    if(recreate)
+    {
+        localnode->created = false;
+        localnode->node = NULL;
+    }
+
+    nc++;
 }
 
 #endif
