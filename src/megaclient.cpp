@@ -5939,7 +5939,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
     // UTF-8 converted local name
     string localname;
-    string tmpname;
 
     if (l->node)
     {
@@ -6015,6 +6014,22 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
         localname = *lit->first;
         fsaccess->local2name(&localname);
+        if (!localname.size() || !ll->name.size())
+        {
+            if(!ll->reported)
+            {
+                ll->reported = true;
+
+                char report[256];
+                sprintf(report, "%d %d %d %d", lit->first->size(), localname.size(), ll->name.size(), ll->type);
+
+                // report a "no-name localnode" event
+                reqtag = 0;
+                reportevent("LN", report);
+            }
+            continue;
+        }
+
         rit = nchildren.find(&localname);
 
         // do we have a corresponding remote child?
