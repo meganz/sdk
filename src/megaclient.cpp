@@ -6021,7 +6021,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", lit->first->size(), localname.size(), ll->name.size(), ll->type);
+                sprintf(report, "%d %d %d %d", (int)lit->first->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
                 reqtag = 0;

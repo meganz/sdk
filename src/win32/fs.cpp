@@ -93,7 +93,6 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to get the attributes of the file (sysstat). Error code: " << e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
