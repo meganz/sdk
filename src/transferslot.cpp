@@ -152,6 +152,11 @@ void TransferSlot::doio(MegaClient* client)
     time_t backoff = 0;
     m_off_t p = 0;
 
+    if (errorcount > 4)
+    {
+        return transfer->failed(API_EFAILED);
+    }
+
     for (int i = connections; i--; )
     {
         if (reqs[i])
@@ -311,29 +316,28 @@ void TransferSlot::doio(MegaClient* client)
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
         failure = true;
+        client->app->transfer_failed(transfer, API_EFAILED);
 
         for (int i = connections; i--; )
         {
             if (reqs[i])
             {
                 client->setchunkfailed(&reqs[i]->posturl);
+                reqs[i]->disconnect();
+                reqs[i]->status = REQ_PREPARED;
             }
         }
     }
 
-    if (errorcount > 10)
+    if (!failure)
     {
-        return transfer->failed(API_EFAILED);
-    }
-    else
-    {
-        if (!backoff)
+        if (!backoff && (Waiter::ds - lastdata) < XFERTIMEOUT)
         {
             // no other backoff: check again at XFERMAXFAIL
             backoff = XFERTIMEOUT - (Waiter::ds - lastdata);
         }
 
-        transfer->bt.backoff(backoff);
+        retrybt.backoff(backoff);
     }
 }
 

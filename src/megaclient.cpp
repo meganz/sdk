@@ -1458,7 +1458,7 @@ int MegaClient::wait()
         // retry transferslots
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
         {
-            if ((*it)->retrying && !(*it)->retrybt.armed())
+            if (!(*it)->retrybt.armed())
             {
                 (*it)->retrybt.update(&nds);
             }

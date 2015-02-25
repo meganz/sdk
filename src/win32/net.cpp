@@ -641,7 +641,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                           (LPWSTR)proxyUsername.data(), (LPWSTR)proxyPassword.data(), NULL);
                 }
 
-                WinHttpSetTimeouts(httpctx->hRequest, 20000, 20000, 0, 0);
+                WinHttpSetTimeouts(httpctx->hRequest, 58000, 58000, 0, 0);
 
                 WinHttpSetStatusCallback(httpctx->hRequest, asynccallback,
                                          WINHTTP_CALLBACK_FLAG_DATA_AVAILABLE
