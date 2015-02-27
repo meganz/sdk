@@ -3969,7 +3969,12 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
     if(newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-        request->setNodeHandle(sync->localroot.node->nodehandle);
+
+        if(sync->localroot.node)
+        {
+            request->setNodeHandle(sync->localroot.node->nodehandle);
+        }
+
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
