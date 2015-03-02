@@ -715,7 +715,6 @@ void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
 
         closedir(dp);
     }
-
 }
 
 bool PosixFileSystemAccess::rmdirlocal(string* name)
@@ -989,7 +988,7 @@ PosixDirAccess::PosixDirAccess()
 {
     dp = NULL;
     globbing = false;
-    globbuf = {0};
+    memset(&globbuf, 0, sizeof(glob_t));
     globindex = 0;
 }
 
