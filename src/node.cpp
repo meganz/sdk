@@ -37,6 +37,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     client = cclient;
     outshares = NULL;
     tag = 0;
+    appdata = NULL;
 
     nodehandle = h;
     parenthandle = ph;
@@ -273,11 +274,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         {
             ptr += (unsigned char)*ptr + 1;
         }
-    }
-
-    if (i >= 0)
-    {
-        return NULL;
     }
 
     short numshares = MemAccess::get<short>(ptr);
@@ -561,7 +557,10 @@ void Node::setfingerprint()
 
         if (it != attrs.map.end())
         {
-            unserializefingerprint(&it->second);
+            if(!unserializefingerprint(&it->second))
+            {
+                LOG_warn << "Invalid fingerprint";
+            }
         }
 
         // if we lack a valid FileFingerprint for this file, use file's key,
@@ -772,6 +771,9 @@ bool Node::isbelow(Node* p) const
 NodeCore::NodeCore()
 {
     attrstring = NULL;
+    nodehandle = UNDEF;
+    parenthandle = UNDEF;
+    type = TYPE_UNKNOWN;
 }
 
 NodeCore::~NodeCore()

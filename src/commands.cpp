@@ -358,10 +358,10 @@ CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p
     arg("g", 1);
 
     tslot = ctslot;
+    ph = h;
 
     if (!tslot)
     {
-        ph = h;
         memcpy(filekey, key, FILENODEKEYLENGTH);
     }
 }

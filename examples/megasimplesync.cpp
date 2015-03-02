@@ -201,11 +201,6 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
                         break;
                     }
                 }
-
-                if (l)
-                {
-                    break;
-                }
             }
         }
 
@@ -497,7 +492,6 @@ int main(int argc, char *argv[])
 #endif
 
     static byte pwkey[SymmCipher::KEYLENGTH];
-    bool is_active = true;
     SyncApp *app;
 
     // use logInfo level
@@ -537,7 +531,7 @@ int main(int argc, char *argv[])
     client->pw_key(getenv("MEGA_PWD"), pwkey);
     client->login(getenv("MEGA_EMAIL"), pwkey);
 
-    while (is_active)
+    while (true)
     {
         // pass the CPU to the engine (nonblocking)
         client->exec();

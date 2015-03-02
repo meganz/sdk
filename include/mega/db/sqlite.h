@@ -56,8 +56,6 @@ public:
     void abort();
     void remove();
 
-    uint32_t nextid;
-
     SqliteDbTable(sqlite3*, FileSystemAccess *fs, string *filepath);
     ~SqliteDbTable();
 };

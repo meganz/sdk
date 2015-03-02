@@ -100,7 +100,6 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 class MEGA_API CommandGetFA : public Command
 {
     int part;
-    handle fahref;
 
 public:
     void procresult();
@@ -272,7 +271,6 @@ public:
 class MEGA_API CommandKillSessions : public Command
 {
     handle h;
-    int all;
 
 public:
     void procresult();

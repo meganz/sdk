@@ -198,7 +198,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
     virtual bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
     virtual void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) { }
 
-    HttpReqXfer() : HttpReq(true) { }
+    HttpReqXfer() : HttpReq(true), size(0) { }
 };
 
 // file chunk upload

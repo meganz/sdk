@@ -28,6 +28,9 @@ Command::Command()
     persistent = false;
     level = -1;
     canceled = false;
+    result = API_OK;
+    client = NULL;
+    tag = 0;
 }
 
 void Command::cancel()

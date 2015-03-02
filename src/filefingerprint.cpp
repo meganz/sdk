@@ -100,7 +100,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
             return true;
         }
 
-        memset((byte*)newcrc + size, 0, sizeof crc - size);
+        if (size < (m_off_t)sizeof(crc))
+        {
+            memset((byte*)newcrc + size, 0, sizeof(crc) - size);
+        }
     }
     else if (size <= MAXFULL)
     {

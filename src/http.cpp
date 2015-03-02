@@ -54,7 +54,13 @@ void HttpIO::inetstatus(bool up)
 // returns true once if an outage just ended
 bool HttpIO::inetisback()
 {
-    return inetback ? !(inetback = false) : false;
+    if(inetback)
+    {
+        inetback = false;
+        return true;
+    }
+
+    return false;
 }
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
@@ -106,6 +112,12 @@ HttpReq::HttpReq(bool b)
     inpurge = 0;
     
     chunked = false;
+
+    type = REQ_JSON;
+    buflen = 0;
+    bufpos = 0;
+    contentlength = 0;
+    lastdata = 0;
 }
 
 HttpReq::~HttpReq()

@@ -31,11 +31,14 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 {
     type = ctype;
     client = cclient;
-
+    size = 0;
     failcount = 0;
     uploadhandle = 0;
     minfa = 0;
-
+    pos = 0;
+    ctriv = 0;
+    metamac = 0;
+    tag = 0;
     slot = NULL;
     
     faputcompletion_it = client->faputcompletion.end();

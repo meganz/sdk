@@ -746,7 +746,6 @@ class OutShareProcessor : public TreeProcessor
         vector<handle> &getHandles();
 
     protected:
-        const char *search;
         vector<Share *> shares;
         vector<handle> handles;
 };

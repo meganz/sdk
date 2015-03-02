@@ -34,8 +34,6 @@ namespace mega {
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
 {
-    string dbname;
-
     client = cclient;
     tag = ctag;
     inshare = cinshare;
@@ -49,6 +47,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     state = SYNC_INITIALSCAN;
 
     fullscan = true;
+    scanseqno = 0;
 
     if (cdebris)
     {

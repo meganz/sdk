@@ -110,6 +110,7 @@ CurlHttpIO::CurlHttpIO()
     ipv6proxyenabled = ipv6requestsenabled;
     ipv6deactivationtime = 0;
     waiter = NULL;
+    proxyport = 0;
 }
 
 bool CurlHttpIO::ipv6available()

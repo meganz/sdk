@@ -393,8 +393,15 @@ bool MegaApiImpl::is_syncable(long long size)
 
 bool MegaApiImpl::isIndexing()
 {
-    if(client->syncs.size()==0) return false;
-    if(!client || client->syncscanstate) return true;
+    if(!client || client->syncs.size() == 0)
+    {
+        return false;
+    }
+
+    if(client->syncscanstate)
+    {
+        return true;
+    }
 
     bool indexing = false;
     sdkMutex.lock();
@@ -814,7 +821,7 @@ void MegaTransferPrivate::setPath(const char* path)
             char *parentPath = MegaApi::strdup(path);
             parentPath[i+1] = '\0';
             setParentPath(parentPath);
-            delete parentPath;
+            delete [] parentPath;
 			return;
 		}
 	}
@@ -4508,6 +4515,7 @@ void MegaApiImpl::additem_result(error e)
     {
         client->purchase_begin();
         fireOnRequestFinish(request, MegaError(e));
+        return;
     }
 
     requestMap.erase(request->getTag());
@@ -4553,6 +4561,10 @@ void MegaApiImpl::checkout_result(const char *response)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_URL)) return;
 
+    fireOnRequestFinish(request, MegaError(API_ETEMPUNAVAIL));
+    return;
+
+#if 0
     MegaPricing *pricing = request->getPricing();
     if(strcmp(response, pricing->getCurrency(request->getNumber())))
     {
@@ -4563,9 +4575,14 @@ void MegaApiImpl::checkout_result(const char *response)
     delete pricing;
 
     client->json.pos++;
-    client->json.enterobject();
+    if(!client->json.enterobject())
+    {
+        fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        return;
+    }
+
     ostringstream oss;
-    oss << "https://www.paypal.com/cgi-bin/webscr?";
+    oss << "PAYMENT_URL";
     string buffer;
     int i = 0;
     while(client->json.storeobject(&buffer))
@@ -4591,6 +4608,7 @@ void MegaApiImpl::checkout_result(const char *response)
 
     request->setLink(oss.str().c_str());
     fireOnRequestFinish(request, MegaError(API_OK));
+#endif
 }
 
 void MegaApiImpl::clearing()
@@ -4855,45 +4873,41 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     m_time_t mtime = 0;
 
-    if(key)
+    SymmCipher nodeKey;
+    keystring.assign((char*)key,FILENODEKEYLENGTH);
+    nodeKey.setkey(key, FILENODE);
+
+    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
+    if(buf)
     {
-        SymmCipher nodeKey;
-        keystring.assign((char*)key,FILENODEKEYLENGTH);
-        nodeKey.setkey(key, FILENODE);
+        JSON json;
+        nameid name;
+        string* t;
+        AttrMap attrs;
 
-        byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-        if(buf)
+        json.begin((char*)buf+5);
+        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+            JSON::unescape(t);
+
+        delete[] buf;
+
+        attr_map::iterator it;
+        it = attrs.map.find('n');
+        if (it == attrs.map.end()) fileName = "CRYPTO_ERROR";
+        else if (!it->second.size()) fileName = "BLANK";
+        else fileName = it->second.c_str();
+
+        it = attrs.map.find('c');
+        if(it != attrs.map.end())
         {
-            JSON json;
-            nameid name;
-            string* t;
-            AttrMap attrs;
-
-            json.begin((char*)buf+5);
-            while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-                JSON::unescape(t);
-
-            delete[] buf;
-
-            attr_map::iterator it;
-            it = attrs.map.find('n');
-            if (it == attrs.map.end()) fileName = "CRYPTO_ERROR";
-            else if (!it->second.size()) fileName = "BLANK";
-            else fileName = it->second.c_str();
-
-            it = attrs.map.find('c');
-            if(it != attrs.map.end())
+            FileFingerprint ffp;
+            if(ffp.unserializefingerprint(&it->second))
             {
-                FileFingerprint ffp;
-                if(ffp.unserializefingerprint(&it->second))
-                {
-                    mtime = ffp.mtime;
-                }
+                mtime = ffp.mtime;
             }
         }
-        else fileName = "CRYPTO_ERROR";
     }
-    else fileName = "NO_KEY";
+    else fileName = "CRYPTO_ERROR";
 
 	if(request->getType() == MegaRequest::TYPE_IMPORT_LINK)
 	{
@@ -6198,11 +6212,6 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
                         break;
                     }
                 }
-
-                if (l)
-                {
-                    break;
-                }
             }
         }
 
@@ -6525,7 +6534,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
-            if(!megaFolderLink && (!login || !password) && !sessionKey && (!login || !base64pwkey))
+            if(!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
                 e = API_EARGS;
                 break;
