@@ -315,8 +315,12 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     {
         if (encrypt)
         {
-            xorblock(data, mac);
-            ecb_encrypt(mac);
+            if(mac)
+            {
+                xorblock(data, mac);
+                ecb_encrypt(mac);
+            }
+
             ecb_encrypt(ctr, tmp);
             xorblock(tmp, data);
         }

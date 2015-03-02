@@ -6554,17 +6554,23 @@ void MegaApiImpl::sendPendingRequests()
             }
             requestMap[request->getTag()]=request;
 
-            if(base64pwkey)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-                client->login(login, pwkey);
-            }
-            else if(sessionKey)
+            if(sessionKey)
             {
                 byte session[sizeof client->key.key + MegaClient::SIDLEN];
                 Base64::atob(sessionKey, (byte *)session, sizeof session);
                 client->login(session, sizeof session);
+            }
+            else if(login && password)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                if((e = client->pw_key(password,pwkey))) break;
+                client->login(login, pwkey);
+            }
+            else if(login && base64pwkey)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
+                client->login(login, pwkey);
             }
             else if(megaFolderLink)
             {
@@ -6582,9 +6588,8 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                if((e = client->pw_key(password,pwkey))) break;
-                client->login(login, pwkey);
+                e = API_EARGS;
+                break;
             }
             break;
 		}

@@ -34,7 +34,7 @@ struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
-    string* useragent;
+    string useragent;
     CURLM* curlm;
     CURLSH* curlsh;
     ares_channel ares;

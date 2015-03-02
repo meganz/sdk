@@ -45,6 +45,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     localnodes[FOLDERNODE] = 0;
 
     state = SYNC_INITIALSCAN;
+    statecachetable = NULL;
 
     fullscan = true;
     scanseqno = 0;
@@ -685,7 +686,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                     // additional checks to prevent wrong fsid matches
                     && it->second->type == fa->type
-                    && ((it->second->sync == parent->sync)
+                    && (!parent
+                        || (it->second->sync == parent->sync)
                         || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
                             && (fp2 = parent->sync->dirnotify->fsfingerprint())
                             && (fp1 == fp2)))

@@ -411,6 +411,7 @@ DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCiph
     ctriv = cctriv;
 
     retries = 0;
+    size = 0;
     
     pendingcmd = NULL;
     

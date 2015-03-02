@@ -152,7 +152,7 @@ CurlHttpIO::~CurlHttpIO()
 
 void CurlHttpIO::setuseragent(string* u)
 {
-    useragent = u;
+    useragent = *u;
 }
 
 void CurlHttpIO::setdnsservers(const char* servers)
@@ -567,7 +567,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         }
 
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent->c_str());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
         curl_easy_setopt(curl, CURLOPT_ENCODING, "");
         curl_easy_setopt(curl, CURLOPT_SHARE, httpio->curlsh);
