@@ -6572,7 +6572,7 @@ void MegaApiImpl::sendPendingRequests()
                 Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
                 client->login(login, pwkey);
             }
-            else if(megaFolderLink)
+            else
             {
                 const char* ptr;
                 if (!((ptr = strstr(megaFolderLink,"#F!")) && (strlen(ptr)>12) && ptr[11] == '!'))
@@ -6586,11 +6586,7 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnRequestFinish(request, MegaError(e));
                 }
             }
-            else
-            {
-                e = API_EARGS;
-                break;
-            }
+
             break;
 		}
         case MegaRequest::TYPE_CREATE_FOLDER:
