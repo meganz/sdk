@@ -502,6 +502,121 @@ bool WinFileSystemAccess::unlinklocal(string* name)
     return r;
 }
 
+// delete all files and folders contained in the specified folder
+// (does not recurse into mounted devices)
+void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
+{
+    HANDLE hDirectory, hFind;
+    dev_t currentdev;
+
+    int added = WinFileSystemAccess::sanitizedriveletter(name);
+    name->append("", 1);
+
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fad)
+        || !(fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        || fad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+    {
+        // discard files and resparse points (links, etc.)
+        name->resize(name->size() - added - 1);
+        return;
+    }
+
+#ifdef WINDOWS_PHONE
+    CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
+    ex.dwSize = sizeof(ex);
+    ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
+    hDirectory = CreateFile2((LPCWSTR)name->data(), GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ,
+                        OPEN_EXISTING, &ex);
+#else
+    hDirectory = CreateFileW((LPCWSTR)name->data(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+#endif
+    name->resize(name->size() - added - 1);
+    if (hDirectory == INVALID_HANDLE_VALUE)
+    {
+        // discard not accessible folders
+        return;
+    }
+
+#ifdef WINDOWS_PHONE
+    FILE_ID_INFO fi = { 0 };
+    if(!GetFileInformationByHandleEx(hDirectory, FileIdInfo, &fi, sizeof(fi)))
+#else
+    BY_HANDLE_FILE_INFORMATION fi;
+    if (!GetFileInformationByHandle(hDirectory, &fi))
+#endif
+    {
+        currentdev = 0;
+    }
+    else
+    {
+    #ifdef WINDOWS_PHONE
+        currentdev = fi.VolumeSerialNumber + 1;
+    #else
+        currentdev = fi.dwVolumeSerialNumber + 1;
+    #endif
+    }
+    CloseHandle(hDirectory);
+    if (basedev && currentdev != basedev)
+    {
+        // discard folders on different devices
+        return;
+    }
+
+    bool removed;
+    for (;;)
+    {
+        // iterate over children and delete
+        removed = false;
+        name->append((char*)L"\\*", 5);
+        WIN32_FIND_DATAW ffd;
+    #ifdef WINDOWS_PHONE
+        hFind = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+    #else
+        hFind = FindFirstFileW((LPCWSTR)name->data(), &ffd);
+    #endif
+        name->resize(name->size() - 5);
+        if (hFind == INVALID_HANDLE_VALUE)
+        {
+            break;
+        }
+
+        bool morefiles = true;
+        while (morefiles)
+        {
+            if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+                && (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                    || *ffd.cFileName != '.'
+                    || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.')
+                    || ffd.cFileName[2]))))
+            {
+                string childname = *name;
+                childname.append((char*)L"\\", 2);
+                childname.append((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
+                if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    emptydirlocal(&childname , currentdev);
+                    childname.append("", 1);
+                    removed |= !!RemoveDirectoryW((LPCWSTR)childname.data());
+                }
+                else
+                {
+                    childname.append("", 1);
+                    removed |= !!DeleteFileW((LPCWSTR)childname.data());
+                }
+            }
+            morefiles = FindNextFileW(hFind, &ffd);
+        }
+
+        FindClose(hFind);
+        if (!removed)
+        {
+            break;
+        }
+    }
+}
+
 bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
 {
     name->append("", 1);

@@ -6500,6 +6500,14 @@ void MegaApiImpl::removeRecursively(const char *path)
 #ifndef _WIN32
     string spath = path;
     PosixFileSystemAccess::emptydirlocal(&spath);
+#else
+    string utf16path;
+    MegaApi::utf8ToUtf16(path, &utf16path);
+    if(utf16path.size())
+    {
+        utf16path.resize(utf16path.size()-2);
+        WinFileSystemAccess::emptydirlocal(&utf16path);
+    }
 #endif
 }
 
