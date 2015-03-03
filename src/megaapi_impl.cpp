@@ -47,6 +47,7 @@
 
     #ifdef TARGET_OS_IPHONE
     #include <resolv.h>
+    #include <netdb.h>
     #endif
 #endif
 
@@ -2250,44 +2251,69 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#ifdef WINDOWS_PHONE
-	// Workaround to get the IP of valid DNS servers on Windows Phone
-	struct hostent *hp;
-	struct in_addr **addr_list;
-	string servers;
-
-	while (true)
-	{
-		hp = gethostbyname("ns.mega.co.nz");
-		if (hp != NULL && hp->h_addr != NULL)
-		{
-			addr_list = (struct in_addr **)hp->h_addr_list;
-			for (int i = 0; addr_list[i] != NULL; i++)
-			{
-				const char *ip = inet_ntoa(*addr_list[i]);
-				if (i > 0) servers.append(",");
-				servers.append(ip);
-			}
-
-			if (servers.size())
-				break;
-		}
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
-
-	httpio->setdnsservers(servers.c_str());
-#elif TARGET_OS_IPHONE
+#if (WINDOWS_PHONE || TARGET_OS_IPHONE)
     string servers;
-    if ((_res.options & RES_INIT) == 0) res_init();
+#endif
 
-    for (int i = 0; i < _res.nscount; i++)
+#ifdef TARGET_OS_IPHONE
+    int resavailable;
+    if ((_res.options & RES_INIT) == 0)
     {
-        const char *ip = inet_ntoa(_res.nsaddr_list[i].sin_addr);
-        if (i > 0) servers.append(",");
-        servers.append(ip);
+       resavailable = !res_init();
     }
 
-    httpio->setdnsservers(servers.c_str());
+    if(resavailable)
+    {
+        for (int i = 0; i < _res.nscount; i++)
+        {
+            const char *ip = inet_ntoa(_res.nsaddr_list[i].sin_addr);
+            if (i > 0) servers.append(",");
+            servers.append(ip);
+        }
+
+        if(servers.size() && servers != "0.0.0.0" && servers != "127.0.0.1")
+        {
+            httpio->setdnsservers(servers.c_str());
+        }
+        else
+        {
+            servers.clear();
+        }
+    }
+#endif
+
+#if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+    if(!servers.size())
+    {
+        // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
+        struct hostent *hp;
+        struct in_addr **addr_list;
+
+        while (true)
+        {
+            hp = gethostbyname("ns.mega.co.nz");
+            if (hp != NULL && hp->h_addr != NULL)
+            {
+                addr_list = (struct in_addr **)hp->h_addr_list;
+                for (int i = 0; addr_list[i] != NULL; i++)
+                {
+                    const char *ip = inet_ntoa(*addr_list[i]);
+                    if (i > 0) servers.append(",");
+                    servers.append(ip);
+                }
+
+                if (servers.size())
+                    break;
+            }
+            #ifdef WINDOWS_PHONE
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            #else
+                sleep(1);
+            #endif
+        }
+
+        httpio->setdnsservers(servers.c_str());
+    }
 #elif _WIN32
     httpio->lock();
 #endif
