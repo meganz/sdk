@@ -88,6 +88,9 @@ public:
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
+    // user login: e-mail, pwkey, emailhash
+    void fastlogin(const char*, const byte*, uint64_t);
+
     // session login: binary session, bytecount
     void login(const byte*, int);
 

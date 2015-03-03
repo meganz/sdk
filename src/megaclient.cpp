@@ -4084,6 +4084,17 @@ void MegaClient::login(const char* email, const byte* pwkey)
     reqs[r].add(new CommandLogin(this, email, emailhash));
 }
 
+void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
+{
+    locallogout();
+
+    string lcemail(email);
+
+    key.setkey((byte*)pwkey);
+
+    reqs[r].add(new CommandLogin(this, email, emailhash));
+}
+
 void MegaClient::getuserdata()
 {
     reqs[r].add(new CommandGetUserData(this));

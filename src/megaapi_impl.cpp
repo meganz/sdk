@@ -1973,14 +1973,13 @@ const char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBu
 	SymmCipher key;
 	key.setkey((byte*)pwkey);
 
-	byte strhash[SymmCipher::KEYLENGTH];
+    uint64_t strhash;
 	string neBuf = inBuf;
 
-	transform(neBuf.begin(),neBuf.end(),neBuf.begin(),::tolower);
-	client->stringhash(neBuf.c_str(),strhash,&key);
+    strhash = client->stringhash64(&neBuf, &key);
 
 	char* buf = new char[8*4/3+4];
-	Base64::btoa(strhash,8,buf);
+    Base64::btoa((byte*)&strhash, 8, buf);
 	return buf;
 }
 
@@ -6605,16 +6604,26 @@ void MegaApiImpl::sendPendingRequests()
                 Base64::atob(sessionKey, (byte *)session, sizeof session);
                 client->login(session, sizeof session);
             }
-            else if(login && password)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                if((e = client->pw_key(password,pwkey))) break;
-                client->login(slogin.c_str(), pwkey);
-            }
             else if(login && base64pwkey)
             {
                 byte pwkey[SymmCipher::KEYLENGTH];
                 Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
+
+                if(password)
+                {
+                    uint64_t emailhash;
+                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
+                    client->fastlogin(slogin.c_str(), pwkey, emailhash);
+                }
+                else
+                {
+                    client->login(slogin.c_str(), pwkey);
+                }
+            }
+            else if(login && password)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                if((e = client->pw_key(password,pwkey))) break;
                 client->login(slogin.c_str(), pwkey);
             }
             else
