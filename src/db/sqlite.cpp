@@ -52,7 +52,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
-#ifndef TARGET_OS_IPHONE
+#if !(TARGET_OS_IPHONE)
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
