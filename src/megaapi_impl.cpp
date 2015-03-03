@@ -32,8 +32,11 @@
 #include "megaapi_impl.h"
 #include "megaapi.h"
 
-
 #include <iomanip>
+#include <algorithm>
+#include <functional>
+#include <cctype>
+#include <locale>
 
 #ifndef _WIN32
 #define _LARGEFILE64_SOURCE
@@ -6574,6 +6577,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            string slogin;
+            if(login)
+            {
+                slogin = login;
+                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
+                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), slogin.end());
+            }
+
             requestMap.erase(request->getTag());
             while(!requestMap.empty())
             {
@@ -6598,13 +6609,13 @@ void MegaApiImpl::sendPendingRequests()
             {
                 byte pwkey[SymmCipher::KEYLENGTH];
                 if((e = client->pw_key(password,pwkey))) break;
-                client->login(login, pwkey);
+                client->login(slogin.c_str(), pwkey);
             }
             else if(login && base64pwkey)
             {
                 byte pwkey[SymmCipher::KEYLENGTH];
                 Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-                client->login(login, pwkey);
+                client->login(slogin.c_str(), pwkey);
             }
             else
             {
