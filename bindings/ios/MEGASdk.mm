@@ -259,8 +259,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
 }
+
 - (void)retryPendingConnections {
     self.megaApi->retryPendingConnections();
+}
+
+- (void)reconnect {
+    self.megaApi->retryPendingConnections(true, true);
 }
 
 #pragma mark - Login Requests

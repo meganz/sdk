@@ -318,9 +318,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Retry all pending requests.
  *
  * When requests fails they wait some time before being retried. That delay grows exponentially if the request
- * fails again. For this reason, and since this request is very lightweight, it's recommended to call it with
- * the default parameters on every user interaction with the application. This will prevent very big delays
- * completing requests.
+ * fails again.
  *
  * The associated request type with this request is MEGARequestTypeRetryPendingConnections.
  * Valid data in the MEGARequest object received on callbacks:
@@ -328,6 +326,21 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * - [MEGARequest number] - Returns the second parameter
  */
 - (void)retryPendingConnections;
+
+/**
+ * @brief Retry all pending requests and transfers.
+ *
+ * When requests and/or transfers fails they wait some time before being retried. That delay grows exponentially 
+ * if the request or transfers fails again.
+ *
+ * Disconnect already connected requests and transfers
+ *
+ * The associated request type with this request is MEGARequestTypeRetryPendingConnections.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ * - [MEGARequest number] - Returns the second parameter
+ */
+- (void)reconnect;
 
 #pragma mark - Login Requests
 
