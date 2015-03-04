@@ -41,7 +41,7 @@
 #include <fcntl.h>
 #endif
 
-#ifdef TARGET_OS_IPHONE
+#if TARGET_OS_IPHONE
 #include "mega/gfx/GfxProcCG.h"
 #endif
 

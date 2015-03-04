@@ -48,7 +48,7 @@
     #include <xlocale.h>
     #include <strings.h>
 
-    #ifdef TARGET_OS_IPHONE
+    #if TARGET_OS_IPHONE
     #include <resolv.h>
     #include <netdb.h>
     #endif
@@ -2257,7 +2257,7 @@ void MegaApiImpl::loop()
     string servers;
 #endif
 
-#ifdef TARGET_OS_IPHONE
+#if TARGET_OS_IPHONE
     int resavailable;
     if ((_res.options & RES_INIT) == 0)
     {
