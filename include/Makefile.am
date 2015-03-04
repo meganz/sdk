@@ -35,10 +35,11 @@ nobase_libmegainclude_HEADERS = \
 	mega/logging.h \
 	mega/waiter.h \
 	mega/proxy.h \
-    mega/crypto/cryptopp.h \
-    mega/crypto/sodium.h \
-    mega/db/sqlite.h \
-    mega/db/bdb.h \
+	mega/pendingcontactrequest.h \
+	mega/crypto/cryptopp.h \
+	mega/crypto/sodium.h \
+	mega/db/sqlite.h \
+	mega/db/bdb.h \
 	mega/thread.h \
 	mega/thread/cppthread.h \
 	mega/thread/posixthread.h \
@@ -59,19 +60,19 @@ endif
 if WIN32
 nobase_libmegainclude_HEADERS += \
 	mega/win32/megasys.h \
-    mega/win32/megafs.h \
-    mega/win32/meganet.h \
-    mega/win32/megawaiter.h \
-    mega/win32/megaconsole.h \
-    mega/win32/megaconsolewaiter.h
+	mega/win32/megafs.h \
+	mega/win32/meganet.h \
+	mega/win32/megawaiter.h \
+	mega/win32/megaconsole.h \
+	mega/win32/megaconsolewaiter.h
 else
 nobase_libmegainclude_HEADERS += \
 	mega/posix/megasys.h \
-    mega/posix/megafs.h \
-    mega/posix/meganet.h \
-    mega/posix/megawaiter.h \
-    mega/posix/megaconsole.h \
-    mega/posix/megaconsolewaiter.h
+	mega/posix/megafs.h \
+	mega/posix/meganet.h \
+	mega/posix/megawaiter.h \
+	mega/posix/megaconsole.h \
+	mega/posix/megaconsolewaiter.h
 endif
 
 #noinst_HEADERS = config.h
