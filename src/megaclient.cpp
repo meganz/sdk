@@ -203,7 +203,6 @@ void MegaClient::mergenewshares(bool notify)
                         delete n->sharekey;
                         n->sharekey = NULL;
                     }
-
                 }
                 else
                 {
@@ -266,7 +265,7 @@ void MegaClient::mergenewshares(bool notify)
                                     // create the outshares list if needed
                                     if (!n->outshares)
                                     {
-                                        n->outshares = new share_map;
+                                        n->outshares = new share_map();
                                     }
 
                                     sharep = &((*n->outshares)[s->peer]);
@@ -277,7 +276,7 @@ void MegaClient::mergenewshares(bool notify)
                                 // Normal outshare
                                 if (!n->outshares)
                                 {
-                                    n->outshares = new share_map;
+                                    n->outshares = new share_map();
                                 }
 
                                 sharep = &((*n->outshares)[s->peer]);
@@ -294,10 +293,10 @@ void MegaClient::mergenewshares(bool notify)
                                 if (!ISUNDEF(s->pending))
                                 {
                                     pcr = findpcr(s->pending);
-                                    if (pcr==NULL)
+                                    if (pcr == NULL)
                                     {
                                         char buffer[12];
-                                        int size = Base64::btoa((byte*)&(s->pending), sizeof(s->pending), buffer);
+                                        Base64::btoa((byte*)&(s->pending), sizeof(s->pending), buffer);
                                     }
                                 }
                                 *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, pcr);
@@ -3216,24 +3215,30 @@ void MegaClient::sc_ipc()
                 else if (pcr && rts != 0)
                 {
                     // reminder
-                    if (uts == 0) {
+                    if (uts == 0)
+                    {
                         LOG_err << "uts element not provided";
                         break;
                     }
 
                     pcr->uts = uts;
                     pcr->changed.reminded = true;
-                } else {
+                }
+                else
+                {
                     // new
-                    if (!m) {
+                    if (!m)
+                    {
                         LOG_err << "m element not provided";
                         break;
                     }
-                    if (ts == 0) {
+                    if (ts == 0)
+                    {
                         LOG_err << "ts element not provided";
                         break;
                     }
-                    if (uts == 0) {
+                    if (uts == 0)
+                    {
                         LOG_err << "uts element not provided";
                         break;
                     }
@@ -3315,32 +3320,39 @@ void MegaClient::sc_opc()
                 else if (pcr)
                 {
                     // reminder
-                    if (uts == 0) {
+                    if (uts == 0)
+                    {
                         LOG_err << "uts element not provided";
                         break;
                     }
-                    if (rts == 0) {
+                    if (rts == 0)
+                    {
                         LOG_err << "rts element not provided";
                         break;
                     }
                     pcr->uts = uts;
                     pcr->changed.reminded = true;
-                } else {
+                }
+                else
+                {
                     // new
-
-                    if (!e) {
+                    if (!e)
+                    {
                         LOG_err << "e element not provided";
                         break;
                     }
-                    if (!m) {
+                    if (!m)
+                    {
                         LOG_err << "m element not provided";
                         break;
                     }
-                    if (ts == 0) {
+                    if (ts == 0)
+                    {
                         LOG_err << "ts element not provided";
                         break;
                     }
-                    if (uts == 0) {
+                    if (uts == 0)
+                    {
                         LOG_err << "uts element not provided";
                         break;
                     }
@@ -3405,15 +3417,18 @@ void MegaClient::sc_upc()
                 }
                 else
                 {                    
-                    if (!m) {
+                    if (!m)
+                    {
                         LOG_err << "m element not provided";
                         break;
                     }
-                    if (s == 0) {
+                    if (s == 0)
+                    {
                         LOG_err << "s element not provided";
                         break;
                     }
-                    if (uts == 0) {
+                    if (uts == 0)
+                    {
                         LOG_err << "uts element not provided";
                         break;
                     }
@@ -4481,15 +4496,18 @@ void MegaClient::readipc(JSON *j)
                             LOG_err << "p element not provided";
                             break;
                         }
-                        if (!m) {
+                        if (!m)
+                        {
                             LOG_err << "m element not provided";
                             break;
                         }
-                        if (ts == 0) {
+                        if (ts == 0)
+                        {
                             LOG_err << "ts element not provided";
                             break;
                         }
-                        if (uts == 0) {
+                        if (uts == 0)
+                        {
                             LOG_err << "uts element not provided";
                             break;
                         }
@@ -4535,7 +4553,8 @@ void MegaClient::readopc(JSON *j)
             bool done = false;
             while (!done)
             {
-                switch (j->getnameid()) {
+                switch (j->getnameid())
+                {
                     case 'e':
                         e = j->getvalue();
                         break;
@@ -4564,15 +4583,18 @@ void MegaClient::readopc(JSON *j)
                             LOG_err << "e element not provided";
                             break;
                         }
-                        if (!m) {
+                        if (!m)
+                        {
                             LOG_err << "m element not provided";
                             break;
                         }
-                        if (ts == 0) {
+                        if (ts == 0)
+                        {
                             LOG_err << "ts element not provided";
                             break;
                         }
-                        if (uts == 0) {
+                        if (uts == 0)
+                        {
                             LOG_err << "uts element not provided";
                             break;
                         }
@@ -5314,8 +5336,10 @@ void MegaClient::notifyuser(User* u)
 }
 
 // queue pcr for notification
-void MegaClient::notifypcr(PendingContactRequest* pcr) {
-    if (!pcr->notified) {
+void MegaClient::notifypcr(PendingContactRequest* pcr)
+{
+    if (!pcr->notified)
+    {
         pcr->notified = true;
         pcrnotify.push_back(pcr);
     }

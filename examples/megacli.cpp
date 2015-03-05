@@ -512,13 +512,13 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
         }
     }
 
-    if (deletecount!=0)
+    if (deletecount != 0)
     {
-        cout << deletecount << " pending contact request" << (deletecount!=1 ? "s" : "") << " deleted" << endl;
+        cout << deletecount << " pending contact request" << (deletecount != 1 ? "s" : "") << " deleted" << endl;
     }
-    if (updatecount!=0)
+    if (updatecount != 0)
     {
-        cout << updatecount << " pending contact request" << (updatecount!=1 ? "s" : "") << " received or updated" << endl;
+        cout << updatecount << " pending contact request" << (updatecount != 1 ? "s" : "") << " received or updated" << endl;
     }
 }
 
@@ -600,14 +600,15 @@ void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
     }
     else
     {
-        if (h==UNDEF) {
+        if (h == UNDEF)
+        {
             // must have been deleted
             cout << "Outgoing pending contact request " << (action==OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
         } 
         else
         {
             char buffer[12];
-            int size = Base64::btoa((byte*)&h, sizeof(h), buffer);
+            Base64::btoa((byte*)&h, sizeof(h), buffer);
             cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
         }
     }
@@ -1052,7 +1053,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                     }
                 }
 
-                if(n->pendingshares)
+                if (n->pendingshares)
                 {
                     for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
                     {
@@ -2078,25 +2079,26 @@ static void process_line(char* l)
                     else if (words[0] == "ipc")
                     {
                         // incoming pending contact action
-                        if (words.size()==3)
+                        if (words.size() == 3)
                         {
                             handle phandle;
                             if (Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
                             {
                                 ipcactions_t action;
-                                if (words[2]=="a")
+                                if (words[2] == "a")
                                 {
                                     action = IPCA_ACCEPT;
                                 }
-                                else if (words[2]=="d") 
+                                else if (words[2] == "d")
                                 {
                                     action = IPCA_DENY;
                                 }
-                                else if (words[2]=="i")
+                                else if (words[2] == "i")
                                 {
                                     action = IPCA_IGNORE;
                                 }
-                                else {
+                                else
+                                {
                                     cout << "      ipc handle a|d|i" << endl;
                                     return;
                                 }
@@ -2122,7 +2124,7 @@ static void process_line(char* l)
                     {
                         xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
                         return;
-                    }                    
+                    }
 #ifdef ENABLE_SYNC
                     else if (words[0] == "sync")
                     {
@@ -2396,7 +2398,7 @@ static void process_line(char* l)
                                                 return;
                                             }
 
-                                            if (words.size()>4)
+                                            if (words.size() > 4)
                                             {
                                                 personal_representation = words[4].c_str();
                                             }
@@ -2855,7 +2857,7 @@ static void process_line(char* l)
                             {
                                 // Original email is not required, but can be used if this account has multiple email addresses associated,
                                 // to have the invite come from a specific email
-                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size()==3 ? words[2].c_str() : NULL);
+                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
                             }
                         }
                         else
