@@ -4604,7 +4604,7 @@ void MegaClient::readipc(JSON *j)
                             break;
                         }
 
-                        if (pcrindex[p]!=NULL)
+                        if (pcrindex[p] != NULL)
                         {
                             pcrindex[p]->update(m, NULL, ts, uts, msg, false);                        
                         } 
@@ -4691,7 +4691,7 @@ void MegaClient::readopc(JSON *j)
                             break;
                         }
 
-                        if (pcrindex[p]!=NULL)
+                        if (pcrindex[p] != NULL)
                         {
                             pcrindex[p]->update(e, m, ts, uts, msg, true);                        
                         } 
@@ -5160,7 +5160,10 @@ void MegaClient::mapuser(handle uh, const char* email)
 
 PendingContactRequest* MegaClient::findpcr(handle p)
 {
-    if (ISUNDEF(p)) return NULL;
+    if (ISUNDEF(p))
+    {
+        return NULL;
+    }
 
     PendingContactRequest* pcr = pcrindex[p];
     if (!pcr)
