@@ -66,7 +66,7 @@ using namespace mega;
 - (NSString *)requestString {
     if(!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getRequestString()] : nil;
+    return self.megaRequest->getRequestString() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getRequestString()] : nil;
 }
 
 - (uint64_t)nodeHandle {
@@ -86,37 +86,37 @@ using namespace mega;
 - (NSString *)sessionKey {
     if (!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getSessionKey()] : nil;
+    return self.megaRequest->getSessionKey() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getSessionKey()] : nil;
 }
 
 - (NSString *)name {
     if (!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getName()] : nil;
+    return self.megaRequest->getName() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getName()] : nil;
 }
 
 - (NSString *)email {
     if (!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getEmail()] : nil;
+    return self.megaRequest->getEmail() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getEmail()] : nil;
 }
 
 - (NSString *)password {
     if (!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPassword()] : nil;
+    return self.megaRequest->getPassword() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPassword()] : nil;
 }
 
 - (NSString *)newPassword {
     if (!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getNewPassword()] : nil;
+    return self.megaRequest->getNewPassword() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getNewPassword()] : nil;
 }
 
 - (NSString *)privateKey {
     if (!self.megaRequest) return nil;
     
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPrivateKey()] : nil;
+    return self.megaRequest->getPrivateKey() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPrivateKey()] : nil;
 }
 
 - (MEGANodeAccessLevel)access {

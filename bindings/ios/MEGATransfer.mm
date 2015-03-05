@@ -64,7 +64,7 @@ using namespace mega;
 - (NSString *)transferString {
     if (!self.megaTransfer) return nil;
     
-    return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getTransferString()] : nil;
+    return self.megaTransfer->getTransferString() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getTransferString()] : nil;
 }
 
 - (NSDate *)startTime {
@@ -82,13 +82,13 @@ using namespace mega;
 - (NSString *)path {
     if (!self.megaTransfer) return nil;
     
-    return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getPath()] : nil;
+    return self.megaTransfer->getPath() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getPath()] : nil;
 }
 
 - (NSString *)parentPath {
     if (!self.megaTransfer) return nil;
     
-    return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getParentPath()] : nil;
+    return self.megaTransfer->getParentPath() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getParentPath()] : nil;
 }
 
 - (uint64_t)nodeHandle {
@@ -102,7 +102,7 @@ using namespace mega;
 - (NSString *)fileName {
     if (!self.megaTransfer) return nil;
     
-    return self.megaTransfer ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getFileName()] : nil;
+    return self.megaTransfer->getFileName() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getFileName()] : nil;
 }
 
 - (NSInteger) numRetry  {
