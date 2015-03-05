@@ -47,7 +47,7 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionCreateShare(handle, accesslevel_t, int, const char* personal_representation=NULL);
+    PubKeyActionCreateShare(handle, accesslevel_t, int, const char* = NULL);
     ~PubKeyActionCreateShare();
 };
 

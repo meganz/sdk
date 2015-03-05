@@ -226,11 +226,11 @@ public:
     error invite(const char*, visibility_t = VISIBLE);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, const char* personal_representation = NULL);
+    void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char* temail, opcactions_t action, const char* msg = NULL, const char* oemail = NULL);
-    void updatepcr(handle p, ipcactions_t action);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int);

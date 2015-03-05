@@ -54,7 +54,7 @@ bool Share::unserialize(MegaClient* client, int direction, handle h,
 
     char version_flag =  (*ptr)[sizeof(handle) + sizeof(m_time_t) + 1];
     handle ph = UNDEF;
-    if (version_flag>=1)
+    if (version_flag >= 1)
     {
         // Pending flag exists
         ph = MemAccess::get<handle>(*ptr + sizeof(handle) + sizeof(m_time_t) + 2);       
@@ -64,7 +64,10 @@ bool Share::unserialize(MegaClient* client, int direction, handle h,
                                              MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key, NULL, ph));
 
     *ptr += sizeof(handle) + sizeof(m_time_t) + 2;
-    if (version_flag>=1) *ptr += sizeof(handle);
+    if (version_flag >= 1)
+    {
+        *ptr += sizeof(handle);
+    }
 
     return true;
 }

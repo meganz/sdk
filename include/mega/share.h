@@ -37,12 +37,12 @@ struct MEGA_API Share
     PendingContactRequest* pcr;
 
     void removeshare(handle);
-    void update(accesslevel_t, m_time_t, PendingContactRequest* pending = NULL);
+    void update(accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 
     void serialize(string*);
     static bool unserialize(MegaClient *, int, handle, const byte *, const char**, const char*);
 
-    Share(User*, accesslevel_t, m_time_t, PendingContactRequest* pending = NULL);
+    Share(User*, accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 };
 
 // new share credentials (will be merged into node as soon as it appears)

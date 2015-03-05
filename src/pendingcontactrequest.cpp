@@ -30,7 +30,6 @@ PendingContactRequest::PendingContactRequest(const handle id)
     this->targetemail = "";
 
     memset(&changed,0,sizeof changed);
-
 }
 
 PendingContactRequest::PendingContactRequest(const handle id,const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
@@ -42,15 +41,18 @@ PendingContactRequest::PendingContactRequest(const handle id,const char *oemail,
 
 void PendingContactRequest::update(const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
 {
-    if (oemail) {
+    if (oemail)
+    {
         Node::copystring(&(this->originatoremail), oemail);
     }
-    if (temail) {
+    if (temail)
+    {
         Node::copystring(&(this->targetemail), temail);
     }
     this->ts = ts;
     this->uts = uts;
-    if (msg) {
+    if (msg)
+    {
         Node::copystring(&(this->msg), msg);
     }
 

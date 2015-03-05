@@ -382,7 +382,7 @@ class MEGA_API CommandSetShare : public Command
 public:
     void procresult();
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char* msg, const char* personal_representation = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char* = NULL);
     ~CommandSetShare();
 };
 
@@ -401,7 +401,7 @@ class MEGA_API CommandSetPendingContact : public Command
 public:
     void procresult();
 
-    CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg = NULL, const char* oemail = NULL);
+    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL);
 };
 
 class MEGA_API CommandUpdatePendingContact : public Command
@@ -411,7 +411,7 @@ class MEGA_API CommandUpdatePendingContact : public Command
 public:
     void procresult();
 
-    CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action);
+    CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t);
 };
 
 class MEGA_API CommandGetUserQuota : public Command
