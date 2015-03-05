@@ -603,7 +603,7 @@ void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
         if (h == UNDEF)
         {
             // must have been deleted
-            cout << "Outgoing pending contact request " << (action==OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
+            cout << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
         } 
         else
         {
@@ -1531,7 +1531,7 @@ static void process_line(char* l)
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 #endif
                 cout << "      export remotepath [del]" << endl;
-                cout << "      share [remotepath [dstemail [r|rw|full] [origemail] ]]" << endl;
+                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
@@ -2079,32 +2079,29 @@ static void process_line(char* l)
                     else if (words[0] == "ipc")
                     {
                         // incoming pending contact action
-                        if (words.size() == 3)
+                        handle phandle;
+                        if (words.size() == 3 && Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
                         {
-                            handle phandle;
-                            if (Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
+                            ipcactions_t action;
+                            if (words[2] == "a")
                             {
-                                ipcactions_t action;
-                                if (words[2] == "a")
-                                {
-                                    action = IPCA_ACCEPT;
-                                }
-                                else if (words[2] == "d")
-                                {
-                                    action = IPCA_DENY;
-                                }
-                                else if (words[2] == "i")
-                                {
-                                    action = IPCA_IGNORE;
-                                }
-                                else
-                                {
-                                    cout << "      ipc handle a|d|i" << endl;
-                                    return;
-                                }
-
-                                client->updatepcr(phandle, action);
+                                action = IPCA_ACCEPT;
                             }
+                            else if (words[2] == "d")
+                            {
+                                action = IPCA_DENY;
+                            }
+                            else if (words[2] == "i")
+                            {
+                                action = IPCA_IGNORE;
+                            }
+                            else
+                            {
+                                cout << "      ipc handle a|d|i" << endl;
+                                return;
+                            }
+
+                            client->updatepcr(phandle, action);
                         }
                         else
                         {
@@ -2363,9 +2360,9 @@ static void process_line(char* l)
                                 }
                                 break;
 
-                            case 2:		// list all outgoing shares on this path
-                            case 3:		// remove outgoing share to specified e-mail address
-                            case 4:		// add outgoing share to specified e-mail address
+                            case 2:	    // list all outgoing shares on this path
+                            case 3:	    // remove outgoing share to specified e-mail address
+                            case 4:	    // add outgoing share to specified e-mail address
                             case 5:     // user specified a personal representation to appear as for the invitation
                                 if ((n = nodebypath(words[1].c_str())))
                                 {

@@ -29,7 +29,7 @@ PendingContactRequest::PendingContactRequest(const handle id)
     this->id = id;
     this->targetemail = "";
 
-    memset(&changed,0,sizeof changed);
+    memset(&changed, 0, sizeof changed);
 }
 
 PendingContactRequest::PendingContactRequest(const handle id,const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
@@ -57,7 +57,7 @@ void PendingContactRequest::update(const char *oemail, const char *temail, const
     }
 
     this->isoutgoing = outgoing;
-    memset(&changed,0,sizeof changed);
+    memset(&changed, 0, sizeof changed);
 }
 
 bool PendingContactRequest::removed()
