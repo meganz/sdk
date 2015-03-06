@@ -609,6 +609,30 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->reportDebugEvent((text != nil) ? [text UTF8String] : NULL);
 }
 
+- (void)getUserDataWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserData([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserData {
+    self.megaApi->getUserData();
+}
+
+- (void)getUserDataWithMEGAUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserData((user != nil) ? [user getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserDataWithMEGAUser:(MEGAUser *)user {
+    self.megaApi->getUserData((user != nil) ? [user getCPtr] : NULL);
+}
+
+- (void)getUserDataWithUser:(NSString *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserDataWithUser:(NSString *)user {
+    self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL);
+}
+
 #pragma mark - Transfer
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {

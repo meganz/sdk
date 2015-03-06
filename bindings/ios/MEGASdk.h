@@ -1656,6 +1656,101 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 - (void)reportDebugEventWithText:(NSString *)text;
 
+/**
+ * @brief Get data about the logged account
+ *
+ * The associated request type with this request is MEGARequestTypeGetUserData.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the name of the logged user
+ * - [MEGARequest password] - Returns the public RSA key of the account, Base64-encoded
+ * - [MEGARequest privateKey] - Returns the private RSA key of the account, Base64-encoded
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserDataWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get data about the logged account
+ *
+ * The associated request type with this request is MEGARequestTypeGetUserData.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the name of the logged user
+ * - [MEGARequest password] - Returns the public RSA key of the account, Base64-encoded
+ * - [MEGARequest privateKey] - Returns the private RSA key of the account, Base64-encoded
+ *
+ */
+- (void)getUserData;
+
+/**
+ * @brief Get data about a contact
+ *
+ * The associated request type with this request is MEGARequestTypeGetUserData.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the XMPP ID of the contact
+ * - [MEGARequest password] - Returns the public RSA key of the contact, Base64-encoded
+ *
+ * @param user Contact to get the data
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserDataWithMEGAUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get data about a contact
+ *
+ * The associated request type with this request is MEGARequestTypeGetUserData.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the XMPP ID of the contact
+ * - [MEGARequest password] - Returns the public RSA key of the contact, Base64-encoded
+ *
+ * @param user Contact to get the data
+ */
+- (void)getUserDataWithMEGAUser:(MEGAUser *)user;
+
+/**
+ * @brief Get data about a contact
+ *
+ * The associated request type with this request is MEGARequestTypeGetUserData.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email or the Base64 handle of the contact
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the XMPP ID of the contact
+ * - [MEGARequest password] - Returns the public RSA key of the contact, Base64-encoded
+ *
+ * @param user Email or Base64 handle of the contact
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserDataWithUser:(NSString *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get data about a contact
+ *
+ * The associated request type with this request is MEGARequestTypeGetUserData.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email or the Base64 handle of the contact
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the XMPP ID of the contact
+ * - [MEGARequest password] - Returns the public RSA key of the contact, Base64-encoded
+ *
+ * @param user Email or Base64 handle of the contact
+ */
+- (void)getUserDataWithUser:(NSString *)user;
+
 #pragma mark - Transfers
 
 /**

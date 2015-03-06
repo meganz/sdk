@@ -53,11 +53,11 @@ using namespace mega;
     return self.shareList;
 }
 
--(MEGAShare *)shareAtIndex:(NSInteger)index {
+- (MEGAShare *)shareAtIndex:(NSInteger)index {
     return self.shareList ? [[MEGAShare alloc] initWithMegaShare:self.shareList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
--(NSNumber *)size {
+- (NSNumber *)size {
     return self.shareList ? [[NSNumber alloc] initWithInt:self.shareList->size()] : nil;
 }
 

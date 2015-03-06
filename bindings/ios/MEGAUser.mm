@@ -60,7 +60,7 @@ using namespace mega;
 - (NSString *)email{
     if (!self.megaUser) return nil;
     
-    return self.megaUser ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
+    return self.megaUser->getEmail() ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
 }
 
 - (MEGAUserVisibility)access {
