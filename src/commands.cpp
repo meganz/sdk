@@ -1055,7 +1055,11 @@ void CommandLogout::procresult()
     MegaApp *app = client->app;
     if(!e)
     {
-        client->sctable->remove();
+        if (client->sctable)
+        {
+            client->sctable->remove();
+        }
+
 #ifdef ENABLE_SYNC
         for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
         {
