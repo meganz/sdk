@@ -950,7 +950,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *requ
     }
     else
     {
-        status = MegaContactRequest::STATUS_UNKNOWN;
+        status = MegaContactRequest::STATUS_PENDING;
     }
 
     outgoing = request->isoutgoing;
