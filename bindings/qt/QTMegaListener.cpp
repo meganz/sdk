@@ -87,7 +87,7 @@ void QTMegaListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 void QTMegaListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnNodesUpdate);
-    event->setNodes(nodes);
+    event->setNodes(nodes ? nodes->copy() : NULL);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
