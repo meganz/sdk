@@ -18,7 +18,6 @@
 		41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */; };
 		41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */; };
 		41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */; };
-		41D4EADB19EED5070097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADA19EED5070097C00F /* libresolv.dylib */; };
 		940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8D19ED9245007E7FA2 /* libcares.a */; };
 		940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8E19ED9245007E7FA2 /* libcrypto.a */; };
 		940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8F19ED9245007E7FA2 /* libcryptopp.a */; };
@@ -115,7 +114,6 @@
 		41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGATransferListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		41B538CA1A0284CB00EABDC9 /* MEGAPricing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAPricing.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAPricing.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
-		41D4EADA19EED5070097C00F /* libresolv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libresolv.dylib; path = usr/lib/libresolv.dylib; sourceTree = SDKROOT; };
 		940BEF8D19ED9245007E7FA2 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = 3rdparty/lib/libcares.a; sourceTree = "<group>"; };
 		940BEF8E19ED9245007E7FA2 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = 3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
 		940BEF8F19ED9245007E7FA2 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = 3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
@@ -259,7 +257,6 @@
 			files = (
 				41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */,
 				41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */,
-				41D4EADB19EED5070097C00F /* libresolv.dylib in Frameworks */,
 				416812A519EE73CF00C72800 /* libc++.dylib in Frameworks */,
 				940BF03219EDB8F2007E7FA2 /* libsqlite3.dylib in Frameworks */,
 				940BF03119EDB720007E7FA2 /* libz.dylib in Frameworks */,
@@ -547,7 +544,6 @@
 			children = (
 				41AB68FB1A09444E003FE608 /* ImageIO.framework */,
 				41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */,
-				41D4EADA19EED5070097C00F /* libresolv.dylib */,
 				416812A419EE73CF00C72800 /* libc++.dylib */,
 				940BF02F19EDB6DB007E7FA2 /* libz.dylib */,
 				940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */,
