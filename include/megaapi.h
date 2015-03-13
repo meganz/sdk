@@ -1814,7 +1814,7 @@ class MegaContactRequest
 {
 public:
     enum {
-        STATUS_PENDING = 0,
+        STATUS_UNRESOLVED = 0,
         STATUS_ACCEPTED,
         STATUS_DENIED,
         STATUS_IGNORED,
