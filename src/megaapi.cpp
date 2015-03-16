@@ -1087,6 +1087,11 @@ void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *liste
     pImpl->getPaymentUrl(productHandle, listener);
 }
 
+void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(receipt, listener);
+}
+
 const char *MegaApi::exportMasterKey()
 {
     return pImpl->exportMasterKey();

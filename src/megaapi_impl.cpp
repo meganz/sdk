@@ -1394,6 +1394,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_USER_DATA: return "GET_USER_DATA";
         case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
         case TYPE_KILL_SESSION: return "KILL_SESSION";
+        case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
 	}
     return "UNKNOWN";
 }
@@ -2521,6 +2522,15 @@ void MegaApiImpl::getPaymentUrl(handle productHandle, MegaRequestListener *liste
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_URL, listener);
     request->setNodeHandle(productHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
+    request->setNumber(3); //Android only for now
+    request->setText(receipt);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4606,6 +4616,15 @@ void MegaApiImpl::checkout_result(const char *response)
     request->setLink(oss.str().c_str());
     fireOnRequestFinish(request, MegaError(API_OK));
 #endif
+}
+
+void MegaApiImpl::submitpurchasereceipt_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::clearing()
@@ -7349,6 +7368,20 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_URL:
         {
             client->purchase_enumeratequotaitems();
+            break;
+        }
+        case MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT:
+        {
+            const char* receipt = request->getText();
+            int type = request->getNumber();
+
+            if(!receipt)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->submitpurchasereceipt(type, receipt);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:
