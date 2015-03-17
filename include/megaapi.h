@@ -1037,7 +1037,7 @@ class MegaRequest
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA,
-            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION
+			TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT
 		};
 
 		virtual ~MegaRequest();
@@ -3818,6 +3818,13 @@ class MegaApi
          * @see MegaApi::getPricing
          */
         void getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         * @param receipt Purchase receipt
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account

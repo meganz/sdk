@@ -259,6 +259,9 @@ public:
     // submit purchased products for payment
     void purchase_checkout(int);
 
+    // submit purchase receipt for verification
+    void submitpurchasereceipt(int, const char*);
+
     // toggle global debug flag
     bool toggledebug();
 

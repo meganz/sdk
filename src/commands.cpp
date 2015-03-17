@@ -2818,4 +2818,31 @@ void CommandLoadBalancing::procresult()
         }
     }
 }
+
+CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt)
+{
+    cmd("vpay");
+    arg("t", type);
+
+    if(receipt)
+    {
+        arg("receipt", (const byte*)receipt, strlen(receipt));
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandSubmitPurchaseReceipt::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->submitpurchasereceipt_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->submitpurchasereceipt_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

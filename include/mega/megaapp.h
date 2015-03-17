@@ -117,6 +117,7 @@ struct MEGA_API MegaApp
     virtual void additem_result(error) { }
     virtual void checkout_result(error) { }
     virtual void checkout_result(const char*) { }
+    virtual void submitpurchasereceipt_result(error) { }
 
     // user invites/attributes
     virtual void invite_result(error) { }

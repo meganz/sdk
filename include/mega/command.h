@@ -494,6 +494,15 @@ public:
 
     CommandLoadBalancing(MegaClient*, const char*);
 };
+
+class MEGA_API CommandSubmitPurchaseReceipt : public Command
+{
+public:
+    void procresult();
+
+    CommandSubmitPurchaseReceipt(MegaClient*, int, const char*);
+};
+
 } // namespace
 
 #endif

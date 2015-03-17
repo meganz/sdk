@@ -4455,6 +4455,11 @@ void MegaClient::purchase_checkout(int gateway)
     reqs[r].add(new CommandPurchaseCheckout(this, gateway));
 }
 
+void MegaClient::submitpurchasereceipt(int type, const char *receipt)
+{
+    reqs[r].add(new CommandSubmitPurchaseReceipt(this, type, receipt));
+}
+
 // add new contact (by e-mail address)
 error MegaClient::invite(const char* email, visibility_t show)
 {
