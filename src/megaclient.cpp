@@ -116,13 +116,11 @@ void MegaClient::mergenewshares(bool notify)
     {
         Node* n;
         NewShare* s = *it;
-        bool skipsharecreation = false;
 
         if ((n = nodebyhandle(s->h)))
         {
             if (!n->sharekey && s->have_key)
             {
-                skipsharecreation = true;
                 // setting an outbound sharekey requires node authentication
                 // unless coming from a trusted source (the local cache)
                 bool auth = true;
@@ -224,56 +222,43 @@ void MegaClient::mergenewshares(bool notify)
                 }
             }
             else
-            {    
-                if (!skipsharecreation)
-                {           
-                    if (s->outgoing)
+            {     
+                if (s->outgoing)
+                {
+                    // perform mandatory verification of outgoing shares:
+                    // only on own nodes and signed unless read from cache
+                    if (checkaccess(n, OWNERPRELOGIN))
                     {
-                        // perform mandatory verification of outgoing shares:
-                        // only on own nodes and signed unless read from cache
-                        if (checkaccess(n, OWNERPRELOGIN))
+                        Share** sharep;
+                        if (!ISUNDEF(s->pending))
                         {
-                            Share** sharep;
-                            if (!ISUNDEF(s->pending))
+                            // Pending share
+                            if (!n->pendingshares)
                             {
-                                // Pending share
-                                if (!n->pendingshares)
-                                {
-                                    n->pendingshares = new share_map;
-                                }
-
-                                sharep = &((*n->pendingshares)[s->pending]);
-
-                                if (*sharep && s->upgrade_pending_to_full)
-                                {
-                                    // This is currently a pending share that needs to be upgraded to a full share
-                                    // erase from pending shares & delete the pending share list if needed
-                                    if (n->pendingshares->erase(s->pending) && notify)
-                                    {
-                                        n->changed.pendingshares = true;
-                                        notifynode(n);
-                                    }
-                                    if (!n->pendingshares->size())
-                                    {
-                                        delete n->pendingshares;
-                                        n->pendingshares = NULL;                            
-                                    } 
-                                    // clear this so we can fall through to below and have it re-create the share in
-                                    // the outshares list       
-                                    s->pending = UNDEF; 
-
-                                    // create the outshares list if needed
-                                    if (!n->outshares)
-                                    {
-                                        n->outshares = new share_map();
-                                    }
-
-                                    sharep = &((*n->outshares)[s->peer]);
-                                }
+                                n->pendingshares = new share_map;
                             }
-                            else
+
+                            sharep = &((*n->pendingshares)[s->pending]);
+
+                            if (*sharep && s->upgrade_pending_to_full)
                             {
-                                // Normal outshare
+                                // This is currently a pending share that needs to be upgraded to a full share
+                                // erase from pending shares & delete the pending share list if needed
+                                if (n->pendingshares->erase(s->pending) && notify)
+                                {
+                                    n->changed.pendingshares = true;
+                                    notifynode(n);
+                                }
+                                if (!n->pendingshares->size())
+                                {
+                                    delete n->pendingshares;
+                                    n->pendingshares = NULL;
+                                }
+                                // clear this so we can fall through to below and have it re-create the share in
+                                // the outshares list
+                                s->pending = UNDEF;
+
+                                // create the outshares list if needed
                                 if (!n->outshares)
                                 {
                                     n->outshares = new share_map();
@@ -281,77 +266,87 @@ void MegaClient::mergenewshares(bool notify)
 
                                 sharep = &((*n->outshares)[s->peer]);
                             }
+                        }
+                        else
+                        {
+                            // Normal outshare
+                            if (!n->outshares)
+                            {
+                                n->outshares = new share_map();
+                            }
 
-                            // modification of existing share or new share
-                            if (*sharep)
-                            {                            
-                                (*sharep)->update(s->access, s->ts, findpcr(s->pending));
+                            sharep = &((*n->outshares)[s->peer]);
+                        }
+
+                        // modification of existing share or new share
+                        if (*sharep)
+                        {
+                            (*sharep)->update(s->access, s->ts, findpcr(s->pending));
+                        }
+                        else
+                        {
+                            PendingContactRequest *pcr = NULL;
+                            if (!ISUNDEF(s->pending))
+                            {
+                                pcr = findpcr(s->pending);
+                                if (pcr == NULL)
+                                {
+                                    char buffer[12];
+                                    Base64::btoa((byte*)&(s->pending), sizeof(s->pending), buffer);
+                                }
+                            }
+                            *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, pcr);
+                        }
+
+                        if (notify)
+                        {
+                            if (!ISUNDEF(s->pending))
+                            {
+                                n->changed.pendingshares = true;
                             }
                             else
                             {
-                                PendingContactRequest *pcr = NULL;
-                                if (!ISUNDEF(s->pending))
-                                {
-                                    pcr = findpcr(s->pending);
-                                    if (pcr == NULL)
-                                    {
-                                        char buffer[12];
-                                        Base64::btoa((byte*)&(s->pending), sizeof(s->pending), buffer);
-                                    }
-                                }
-                                *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, pcr);
+                                n->changed.outshares = true;
                             }
-
-                            if (notify)
-                            {
-                                if (!ISUNDEF(s->pending))
-                                {
-                                    n->changed.pendingshares = true;
-                                }
-                                else
-                                {
-                                    n->changed.outshares = true;
-                                }
-                                notifynode(n);
-                            }
+                            notifynode(n);
                         }
                     }
-                    else
+                }
+                else
+                {
+                    if (!ISUNDEF(s->peer))
                     {
-                        if (!ISUNDEF(s->peer))
+                        if (s->peer)
                         {
-                            if (s->peer)
+                            if (!checkaccess(n, OWNERPRELOGIN))
                             {
-                                if (!checkaccess(n, OWNERPRELOGIN))
+                                // modification of existing share or new share
+                                if (n->inshare)
                                 {
-                                    // modification of existing share or new share
-                                    if (n->inshare)
-                                    {
-                                        n->inshare->update(s->access, s->ts);
-                                    }
-                                    else
-                                    {
-                                        n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
-                                        n->inshare->user->sharing.insert(n->nodehandle);
-                                    }
-
-                                    if (notify)
-                                    {
-                                        n->changed.inshare = true;
-                                        notifynode(n);
-                                    }
+                                    n->inshare->update(s->access, s->ts);
                                 }
                                 else
                                 {
-                                    LOG_warn << "Invalid inbound share location";
+                                    n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                                    n->inshare->user->sharing.insert(n->nodehandle);
+                                }
+
+                                if (notify)
+                                {
+                                    n->changed.inshare = true;
+                                    notifynode(n);
                                 }
                             }
                             else
                             {
-                                LOG_warn << "Invalid null peer on inbound share";
+                                LOG_warn << "Invalid inbound share location";
                             }
                         }
-                    }                
+                        else
+                        {
+                            LOG_warn << "Invalid null peer on inbound share";
+                        }
+                    }
                 }
             }
 #ifdef ENABLE_SYNC
