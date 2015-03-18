@@ -270,8 +270,11 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // disable public key pinning (for testing purposes)
+    static bool disablepkp;
+
     // root URL for API requests
-    static const char* const APIURL;
+    static string APIURL;
 
     // root URL for load balancing requests
     static const char* const BALANCERURL;

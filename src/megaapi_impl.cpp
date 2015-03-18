@@ -3475,6 +3475,19 @@ const char *MegaApiImpl::getUserAgent()
     return client->useragent.c_str();
 }
 
+void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
+{
+    sdkMutex.lock();
+    MegaClient::APIURL = apiURL;
+    if(disablepkp)
+    {
+        MegaClient::disablepkp = true;
+    }
+    client->abortbackoff();
+    client->disconnect();
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
 	if(!node) return 1;

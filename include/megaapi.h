@@ -4913,6 +4913,8 @@ class MegaApi
          */
         const char *getUserAgent();
 
+        void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)

@@ -1388,6 +1388,11 @@ const char *MegaApi::getUserAgent()
     return pImpl->getUserAgent();
 }
 
+void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
+{
+    pImpl->changeApiUrl(apiURL, disablepkp);
+}
+
 const char *MegaApi::base64ToBase32(const char *base64)
 {
     if(!base64)

@@ -987,6 +987,7 @@ class MegaApiImpl : public MegaApp
         const char *getVersion();
         const char *getUserAgent();
 
+        void changeApiUrl(const char *apiURL, bool disablepkp = false);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
