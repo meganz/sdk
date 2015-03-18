@@ -1943,6 +1943,27 @@ void MegaClient::disconnect()
 
 void MegaClient::logout()
 {
+    if(loggedin() != FULLACCOUNT)
+    {
+        if (sctable)
+        {
+            sctable->remove();
+        }
+
+#ifdef ENABLE_SYNC
+        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+        {
+            if((*it)->statecachetable)
+            {
+                (*it)->statecachetable->remove();
+            }
+        }
+#endif
+        locallogout();
+        app->logout_result(API_OK);
+        return;
+    }
+
     reqs[r].add(new CommandLogout(this));
 }
 
