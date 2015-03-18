@@ -878,6 +878,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[NSString alloc] initWithUTF8String:self.megaApi->localToName([localName UTF8String])];
 }
 
+- (void)changeApiUrl:(NSString *)apiURL {
+    self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL);
+}
+
 #pragma mark - Debug log messages
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {

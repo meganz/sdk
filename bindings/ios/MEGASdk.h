@@ -2349,6 +2349,8 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  */
 - (NSString *)localToName:(NSString *)localName;
 
+- (void)changeApiUrl:(NSString *)apiURL;
+
 #pragma mark - Debug log messages
 
 /**
