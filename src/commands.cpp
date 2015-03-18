@@ -1063,7 +1063,10 @@ void CommandLogout::procresult()
 #ifdef ENABLE_SYNC
         for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
         {
-            (*it)->statecachetable->remove();
+            if((*it)->statecachetable)
+            {
+                (*it)->statecachetable->remove();
+            }
         }
 #endif
         client->locallogout();
