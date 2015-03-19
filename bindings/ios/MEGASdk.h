@@ -2349,7 +2349,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  */
 - (NSString *)localToName:(NSString *)localName;
 
-- (void)changeApiUrl:(NSString *)apiURL;
+- (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp;
 
 #pragma mark - Debug log messages
 

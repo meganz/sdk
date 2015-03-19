@@ -878,8 +878,8 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[NSString alloc] initWithUTF8String:self.megaApi->localToName([localName UTF8String])];
 }
 
-- (void)changeApiUrl:(NSString *)apiURL {
-    self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL);
+- (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {
+    self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL, disablepkp);
 }
 
 #pragma mark - Debug log messages
