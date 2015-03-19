@@ -5523,6 +5523,27 @@ public:
     virtual const char* getCurrency(int productIndex);
 
     /**
+     * @brief Get a description of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Description of the product
+     */
+    virtual const char* getDescription(int productIndex);
+
+    /**
+     * @brief getIosID Get the iOS ID of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return iOS ID of the product
+     */
+    virtual const char* getIosID(int productIndex);
+
+    /**
+     * @brief Get the Android ID of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Android ID of the product
+     */
+    virtual const char* getAndroidID(int productIndex);
+
+    /**
      * @brief Creates a copy of this MegaPricing object.
      *
      * The resulting object is fully independent of the source MegaPricing,

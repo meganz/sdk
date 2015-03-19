@@ -1891,6 +1891,21 @@ const char *MegaPricing::getCurrency(int productIndex)
     return 0;
 }
 
+const char *MegaPricing::getDescription(int productIndex)
+{
+    return NULL;
+}
+
+const char *MegaPricing::getIosID(int productIndex)
+{
+    return NULL;
+}
+
+const char *MegaPricing::getAndroidID(int productIndex)
+{
+    return NULL;
+}
+
 MegaPricing *MegaPricing::copy()
 {
     return NULL;

@@ -419,9 +419,9 @@ class MegaRequestPrivate : public MegaRequest
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
         void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, const char *currency);
+                        int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
-        virtual int getType() const;
+		virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
 		virtual const char* __str__() const;
@@ -610,10 +610,13 @@ public:
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
+    virtual const char* getDescription(int productIndex);
+    virtual const char* getIosID(int productIndex);
+    virtual const char* getAndroidID(int productIndex);
     virtual MegaPricing *copy();
 
     void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, const char *currency);
+                    int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
     vector<handle> handles;
     vector<int> proLevel;
@@ -622,6 +625,9 @@ private:
     vector<int> months;
     vector<int> amount;
     vector<const char *> currency;
+    vector<const char *> description;
+    vector<const char *> iosId;
+    vector<const char *> androidId;
 };
 
 class MegaNodeListPrivate : public MegaNodeList
@@ -988,6 +994,7 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -1134,7 +1141,8 @@ protected:
         virtual void putfa_result(handle, fatype, error);
 
         // purchase transactions
-        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency);
+        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
+                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
         virtual void checkout_result(error);

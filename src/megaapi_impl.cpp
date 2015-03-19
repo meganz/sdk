@@ -1332,11 +1332,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     if(megaPricing)
     {
-        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency);
+        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency, description, iosid, androidid);
     }
 }
 
@@ -4471,7 +4471,7 @@ void MegaApiImpl::putfa_result(handle, fatype, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char *currency)
+void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -4481,7 +4481,7 @@ void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, 
         return;
     }
 
-    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency);
+    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency, description, iosid, androidid);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -7928,6 +7928,21 @@ MegaPricingPrivate::~MegaPricingPrivate()
     {
         delete[] currency[i];
     }
+
+    for(unsigned i = 0; i < description.size(); i++)
+    {
+        delete[] description[i];
+    }
+
+    for(unsigned i = 0; i < iosId.size(); i++)
+    {
+        delete[] iosId[i];
+    }
+
+    for(unsigned i = 0; i < androidId.size(); i++)
+    {
+        delete[] androidId[i];
+    }
 }
 
 int MegaPricingPrivate::getNumProducts()
@@ -7991,19 +8006,44 @@ const char *MegaPricingPrivate::getCurrency(int productIndex)
     return NULL;
 }
 
+const char *MegaPricingPrivate::getDescription(int productIndex)
+{
+    if((unsigned)productIndex < description.size())
+        return description[productIndex];
+
+    return NULL;
+}
+
+const char *MegaPricingPrivate::getIosID(int productIndex)
+{
+    if((unsigned)productIndex < iosId.size())
+        return iosId[productIndex];
+
+    return NULL;
+}
+
+const char *MegaPricingPrivate::getAndroidID(int productIndex)
+{
+    if((unsigned)productIndex < androidId.size())
+        return androidId[productIndex];
+
+    return NULL;
+}
+
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
         megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], currency[i]);
+                                months[i], amount[i], currency[i], description[i], iosId[i], androidId[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency,
+                                    const char* description, const char* iosid, const char* androidid)
 {
     this->handles.push_back(product);
     this->proLevel.push_back(proLevel);
@@ -8012,6 +8052,9 @@ void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage,
     this->months.push_back(months);
     this->amount.push_back(amount);
     this->currency.push_back(MegaApi::strdup(currency));
+    this->description.push_back(MegaApi::strdup(description));
+    this->iosId.push_back(MegaApi::strdup(iosid));
+    this->androidId.push_back(MegaApi::strdup(androidid));
 }
 
 #ifdef ENABLE_SYNC
