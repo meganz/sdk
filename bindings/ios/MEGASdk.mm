@@ -260,6 +260,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
 }
 
++ (NSString *)base64HandleForHandle:(uint64_t)handle {
+    return [[NSString alloc] initWithUTF8String:MegaApi::handleToBase64(handle)];
+}
+
 - (void)retryPendingConnections {
     self.megaApi->retryPendingConnections();
 }
