@@ -1049,7 +1049,12 @@ void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequest
 
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
-	pImpl->setAvatar(dstFilePath, listener);
+    pImpl->setAvatar(dstFilePath, listener);
+}
+
+void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setUserAttribute(type, value, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)

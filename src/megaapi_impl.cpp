@@ -2483,7 +2483,12 @@ void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaReq
 
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
-	setUserAttribute(0, dstFilePath, listener);
+	setUserAttr(0, dstFilePath, listener);
+}
+
+void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
+{
+	setUserAttr(type ? type : -1, value, listener);
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -2693,7 +2698,7 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     waiter->notify();
 }
 
-void MegaApiImpl::setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
 	request->setFile(srcFilePath);
@@ -6962,33 +6967,68 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:
 		{
-			const char* srcFilePath = request->getFile();
+			const char* value = request->getFile();
             int type = request->getParamType();
 
-			if (!srcFilePath || (type != 0)) { e = API_EARGS; break; }
-
-			string path = srcFilePath;
-			string localpath;
-			fsAccess->path2local(&path, &localpath);
-
-			string attributedata;
-			FileAccess *f = fsAccess->newfileaccess();
-			if (!f->fopen(&localpath, 1, 0))
+			if (!value || type < 0)
 			{
-				delete f;
-				e = API_EREAD;
+				e = API_EARGS;
 				break;
 			}
 
-			if (!f->fread(&attributedata, f->size, 0, 0))
+			if(!type)
 			{
-				delete f;
-				e = API_EREAD;
-				break;
-			}
-			delete f;
+				string path = value;
+				string localpath;
+				fsAccess->path2local(&path, &localpath);
 
-			client->putua("a", (byte *)attributedata.data(), attributedata.size(), false);
+				string attributedata;
+				FileAccess *f = fsAccess->newfileaccess();
+				if (!f->fopen(&localpath, 1, 0))
+				{
+					delete f;
+					e = API_EREAD;
+					break;
+				}
+
+				if (!f->fread(&attributedata, f->size, 0, 0))
+				{
+					delete f;
+					e = API_EREAD;
+					break;
+				}
+				delete f;
+
+				client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
+			}
+			else
+			{
+				string attrname;
+				switch(type)
+				{
+					case MegaApi::USER_ATTR_FIRSTNAME:
+					{
+						attrname = "firstname";
+						break;
+					}
+
+					case MegaApi::USER_ATTR_LASTNAME:
+					{
+						attrname = "lastname";
+						break;
+					}
+
+					default:
+					{
+						e = API_EARGS;
+						break;
+					}
+				}
+				if(!e)
+				{
+					client->putua(attrname.c_str(), (byte *)value, strlen(value), 2);
+				}
+			}
 			break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_FILE:

@@ -4508,17 +4508,17 @@ error MegaClient::invite(const char* email, visibility_t show)
  * @param an Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
- * @param priv 1 for a private, 0 for a public attribute.
+ * @param priv 1 for a private, 0 for a public attribute, 2 for a default attribute
  * @return Void.
  */
 void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
 {
-    string name = priv ? "*" : "+";
+    string name = priv ? ((priv == 1) ? "*" : "") : "+";
     string data;
 
     name.append(an);
 
-    if (priv)
+    if (priv == 1)
     {
         if (av)
         {
@@ -4539,8 +4539,8 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
     }
 
     reqs[r].add(new CommandPutUA(this, name.c_str(),
-                                 priv ? (const byte*)data.data() : av,
-                                 priv ? data.size() : avl));
+                                 (priv == 1) ? (const byte*)data.data() : av,
+                                 (priv == 1) ? data.size() : avl));
 }
 
 /**

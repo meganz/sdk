@@ -1320,6 +1320,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
+         * - MegaApi::setUserAttribute - Returns the new value for the attribute
          *
          * @return Path of a file related to the request
          */
@@ -1376,8 +1377,8 @@ class MegaRequest
          * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
          * - MegaApi::submitFeedback - Returns MegaApi::EVENT_FEEDBACK
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
-         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or
-         * MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::setUserAttribute - Returns the attribute type
          *
          * @return Type of parameter related to the request
          */
@@ -2691,6 +2692,11 @@ class MegaApi
             ATTR_TYPE_PREVIEW = 1
         };
 
+        enum {
+            USER_ATTR_FIRSTNAME = 1,
+            USER_ATTR_LASTNAME = 2
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -3709,6 +3715,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set an attribute of the current user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getFile - Returns the new value for the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * USER_ATTR_FIRSTNAME = 1
+         * Change the firstname of the user
+         * USER_ATTR_LASTNAME = 2
+         * Change the lastname of the user
+         *
+         * @param value New attribute value
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
