@@ -831,6 +831,7 @@ class MegaApiImpl : public MegaApp
         //Utils
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
+        static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static const char* handleToBase64(MegaHandle handle);
         static const char* userHandleToBase64(MegaHandle handle);

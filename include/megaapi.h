@@ -2960,6 +2960,14 @@ class MegaApi
         const char* getStringHash(const char* base64pwkey, const char* email);
 
         /**
+         * @brief Converts a Base32-encoded user handle (JID) to a MegaHandle
+         *
+         * @param base32Handle Base32-encoded handle (JID)
+         * @return User handle
+         */
+        static MegaHandle base32ToHandle(const char* base32Handle);
+
+        /**
          * @brief Converts a Base64-encoded node handle to a MegaHandle
          *
          * The returned value can be used to recover a MegaNode using MegaApi::getNodeByHandle

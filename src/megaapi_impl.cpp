@@ -1980,7 +1980,16 @@ const char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBu
 
 	char* buf = new char[8*4/3+4];
     Base64::btoa((byte*)&strhash, 8, buf);
-	return buf;
+    return buf;
+}
+
+MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
+{
+	if(!base32Handle) return INVALID_HANDLE;
+
+	handle h = 0;
+	Base32::atob(base32Handle,(byte*)&h, MegaClient::USERHANDLE);
+	return h;
 }
 
 const char* MegaApiImpl::ebcEncryptKey(const char* encryptionKey, const char* plainKey)
