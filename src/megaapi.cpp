@@ -1153,6 +1153,11 @@ MegaTransferList *MegaApi::getTransfers()
     return pImpl->getTransfers();
 }
 
+MegaTransfer *MegaApi::getTransferByTag(int transferTag)
+{
+    return pImpl->getTransferByTag(transferTag);
+}
+
 MegaTransferList *MegaApi::getTransfers(int type)
 {
     return pImpl->getTransfers(type);
@@ -1186,6 +1191,11 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
+}
+
+void MegaApi::cancelTransferByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->cancelTransferByTag(transferTag, listener);
 }
 
 void MegaApi::cancelTransfers(int direction, MegaRequestListener *listener)

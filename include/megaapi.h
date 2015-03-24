@@ -4055,6 +4055,24 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Cancel the transfer with a specific tag
+         *
+         * When a transfer is cancelled, it will finish and will provide the error code
+         * MegaError::API_EINCOMPLETE in MegaTransferListener::onTransferFinish and
+         * MegaListener::onTransferFinish
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         *
+         * @param transferTag tag that identifies the transfer
+         * You can get this tag using MegaTransfer::getTag
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Cancel all transfers of the same type
          *
          * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFERS
@@ -4101,6 +4119,20 @@ class MegaApi
          * @return List with all active transfers
          */
         MegaTransferList *getTransfers();
+
+        /**
+         * @brief Get the transfer with a transfer tag
+         *
+         * That tag can be got using MegaTransfer::getTag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param Transfer tag to check
+         * @return MegaTransfer object with that tag, or NULL if there isn't any
+         * active transfer with it
+         *
+         */
+        MegaTransfer* getTransferByTag(int transferTag);
 
         /**
          * @brief Get all transfers of a specific type (downloads or uploads)

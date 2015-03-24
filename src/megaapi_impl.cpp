@@ -2766,6 +2766,22 @@ MegaTransferList *MegaApiImpl::getTransfers()
     return result;
 }
 
+MegaTransfer *MegaApiImpl::getTransferByTag(int transferTag)
+{
+    MegaTransfer* value = NULL;
+    sdkMutex.lock();
+
+    if(transferMap.find(transferTag) == transferMap.end())
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    value = transferMap.at(transferTag)->copy();
+    sdkMutex.unlock();
+    return value;
+}
+
 MegaTransferList *MegaApiImpl::getTransfers(int type)
 {
     if(type != MegaTransfer::TYPE_DOWNLOAD && type != MegaTransfer::TYPE_UPLOAD)
@@ -2861,7 +2877,18 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTra
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFER, listener);
-    request->setTransferTag(t->getTag());
+    if(t)
+    {
+        request->setTransferTag(t->getTag());
+    }
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::cancelTransferByTag(int transferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFER, listener);
+    request->setTransferTag(transferTag);
     requestQueue.push(request);
     waiter->notify();
 }
