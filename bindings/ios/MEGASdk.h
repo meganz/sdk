@@ -1765,6 +1765,20 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 #pragma mark - Transfers
 
 /**
+ * @brief Get the transfer with a transfer tag
+ *
+ * That tag can be got using [MEGATransfer tag]
+ *
+ * You take the ownership of the returned value
+ *
+ * @param transferTag tag to check
+ * @return MEGATransfer object with that tag, or nil if there isn't any
+ * active transfer with it
+ *
+ */
+- (MEGATransfer *)transferByTag:(NSInteger)transferTag;
+
+/**
  * @brief Upload a file.
  * @param localPath Local path of the file.
  * @param parent Node for the file in the MEGA account.
@@ -1918,6 +1932,43 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  */
 - (void)cancelTransfersForDirection:(NSInteger)direction;
+
+/**
+ * @brief Cancel the transfer with a specific tag
+ *
+ * When a transfer is cancelled, it will finish and will provide the error code
+ * MEGAErrorTypeApiEIncomplete in [MEGATransferDelegate onTransferFinish:] and
+ * [MEGADelegate onTransferFinish:]
+ *
+ * The associated request type with this request is MEGARequestTypeCancelTransfer
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the cancelled transfer ([MEGATransfer tag])
+ *
+ * @param transferTag tag that identifies the transfer
+ * You can get this tag using [MEGATransfer tag]
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+
+- (void)cancelTransferByTag:(NSInteger)transferTag delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel the transfer with a specific tag
+ *
+ * When a transfer is cancelled, it will finish and will provide the error code
+ * MEGAErrorTypeApiEIncomplete in [MEGATransferDelegate onTransferFinish:] and
+ * [MEGADelegate onTransferFinish:]
+ *
+ * The associated request type with this request is MEGARequestTypeCancelTransfer
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the cancelled transfer ([MEGATransfer tag])
+ *
+ * @param transferTag tag that identifies the transfer
+ * You can get this tag using [MEGATransfer tag]
+ *
+ */
+
+- (void)cancelTransferByTag:(NSInteger)transferTag;
 
 /**
  * @brief Pause/resume all transfers.

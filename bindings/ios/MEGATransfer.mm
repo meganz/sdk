@@ -133,7 +133,7 @@ using namespace mega;
     return (self.megaTransfer && self.megaTransfer->getPublicMegaNode()) ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
 }
 
-- (BOOL)isStreammingTransfer {
+- (BOOL)isStreamingTransfer {
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 

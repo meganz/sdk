@@ -639,6 +639,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 #pragma mark - Transfer
 
+- (MEGATransfer *)transferByTag:(NSInteger)transferTag {
+    MegaTransfer *transfer = self.megaApi->getTransferByTag((int)transferTag);
+    
+    return transfer ? [[MEGATransfer alloc] initWithMegaTransfer:transfer cMemoryOwn:YES] : nil;
+}
+
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
@@ -685,6 +691,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)cancelTransfersForDirection:(NSInteger)direction {
     self.megaApi->cancelTransfers((int)direction);
+}
+
+- (void)cancelTransferByTag:(NSInteger)transferTag delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelTransferByTag((int)transferTag, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelTransferByTag:(NSInteger)transferTag {
+    self.megaApi->cancelTransferByTag((int)transferTag);
 }
 
 - (void)pauseTransfers:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
