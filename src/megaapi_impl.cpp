@@ -461,6 +461,10 @@ MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
 
 MegaUser *MegaUserPrivate::fromUser(User *user)
 {
+	if(!user)
+	{
+		return NULL;
+	}
 	return new MegaUserPrivate(user);
 }
 
