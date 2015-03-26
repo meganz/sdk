@@ -21,11 +21,14 @@
 
 
 #include "mega.h"
+#include "mega/secureBuffer.h"
 
 #ifdef USE_SODIUM
 namespace mega {
 
 CryptoPP::AutoSeededRandomPool EdDSA::rng;
+
+const int EdDSA::SODIUM_PK_BYTES = crypto_sign_ed25519_PUBLICKEYBYTES;
 
 // Initialise libsodium crypto system.
 void EdDSA::init() {
@@ -34,125 +37,146 @@ void EdDSA::init() {
 
 
 // Sets a private key seed from a buffer.
-void EdDSA::setKeySeed(const char* data) {
-    memcpy(this->keySeed, data, crypto_sign_SEEDBYTES);
+void EdDSA::setKeySeed(SecureBuffer kSeed) {
+    this->keySeed = kSeed;
 }
 
 
 // Computes the signature of a message.
-int EdDSA::sign(unsigned char* msg, unsigned long long msglen, char* sig) {
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-    if (pubKey == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
-    }
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        free(pubKey);
-        return(0);
-    }
-    int check = 0;
-    check = crypto_sign_seed_keypair(pubKey, privKey,
-                                     (const unsigned char*)this->keySeed);
-    if (check != 0) {
-        // Something went wrong deriving keys.
-        return(0);
-    }
+SecureBuffer EdDSA::sign(unsigned char* msg, unsigned long long msglen) {
+    std::pair<SecureBuffer, SecureBuffer> kPair = getKeyPair();
+
     unsigned long long bufferlen = 0;
-    unsigned char* sigbuffer = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (sigbuffer == NULL) {
+    SecureBuffer sigBuffer(msglen + crypto_sign_ed25519_BYTES);
+    if (sigBuffer.get() == NULL) {
         // Something went wrong allocating the memory.
-        free(pubKey);
-        free(privKey);
-        return(0);
+
+        return sigBuffer;
     }
-    check = crypto_sign(sigbuffer, &bufferlen, (const unsigned char*)msg, msglen,
-                        (const unsigned char*)privKey);
-    if (check != 0) {
-        // Something went wrong signing the message.
-        free(sigbuffer);
-        free(pubKey);
-        free(privKey);
-        return(0);
+
+    if(kPair.first.get() == nullptr || kPair.second.get() == nullptr) {
+        kPair.first.free();
+        kPair.second.free();
+        sigBuffer.free();
+        return 0;
     }
-    free(sigbuffer);
-    free(pubKey);
-    free(privKey);
-    return(bufferlen);
+
+    int check = crypto_sign(sigBuffer.get(), &bufferlen, (const unsigned char*)msg, msglen,
+                        (const unsigned char*)kPair.second.get());
+
+    kPair.first.free();
+    kPair.second.free();
+
+    return sigBuffer;
 }
 
+SecureBuffer EdDSA::signDetatched(unsigned char *msg, unsigned long long msglen) {
+    SecureBuffer sig(crypto_sign_ed25519_BYTES);
+    if(sig.get() == nullptr) {
+        return sig;
+    }
+
+    std::pair<SecureBuffer, SecureBuffer> kPair = getKeyPair();
+    if(kPair.first.get() == nullptr || kPair.second.get() == nullptr) {
+        return sig;
+    }
+
+    unsigned long long int sigLen = 0;
+    crypto_sign_ed25519_detached(sig.get(), &sigLen, msg, msglen,
+            kPair.second.get());
+
+    return sig;
+}
+
+bool EdDSA::verifyDetatched(unsigned char *sig, unsigned char *msg, unsigned long long mlen,
+        unsigned char *pubKey) {
+    return (crypto_sign_ed25519_verify_detached(sig, msg, mlen, pubKey) == 0);
+}
 
 // Verifies the signature of a message.
 int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
-                  const unsigned char* sig, const unsigned char* pubKey) {
-    unsigned char* msgbuffer = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (msgbuffer == NULL) {
+                  const unsigned char* sig, SecureBuffer publicKey) {
+    SecureBuffer signedmsg(msglen + crypto_sign_BYTES);
+    if (signedmsg.get() == NULL) {
         // Something went wrong allocating the memory.
-        return(0);
-    }
-    unsigned char* signedmsg = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (signedmsg == NULL) {
-        // Something went wrong allocating the memory.
-        free(msgbuffer);
-        return(0);
+        return 0;
     }
 
     // Assemble signed message in one array.
-    memcpy(signedmsg, msg, msglen);
-    memcpy(signedmsg + msglen, sig, crypto_sign_BYTES);
+    memcpy(signedmsg.get() + crypto_sign_ed25519_BYTES, msg, msglen);
+    memcpy(signedmsg.get(), sig, crypto_sign_ed25519_BYTES);
+    SecureBuffer result = verify(signedmsg.get(), signedmsg.size(), publicKey);
+    signedmsg.free();
 
-    unsigned long long bufferlen = 0;
-    int result = crypto_sign_open(msgbuffer, &bufferlen,
-                                  signedmsg, msglen + crypto_sign_BYTES, pubKey);
-    free(msgbuffer);
-    free(signedmsg);
-    if (result) {
-        return(1);
-    } else {
-        // crypto_sign_open() returns -1 on failure.
-        return(0);
-    }
+    return (result.get() != nullptr) ? 0 : 1;
 }
 
+SecureBuffer EdDSA::verify(const unsigned char *signedMsg, unsigned long long msglen,
+        SecureBuffer publicKey) {
+    SecureBuffer msgbuffer(msglen - crypto_sign_ed25519_BYTES);
+    if (msgbuffer.get() == NULL) {
+       // Something went wrong allocating the memory.
+       return SecureBuffer();
+    }
+
+    unsigned long long bufferlen = 0;
+    int result = crypto_sign_open(msgbuffer.get(), &bufferlen, signedMsg,
+            msglen, publicKey.get());
+
+    return (result == 0) ? msgbuffer : SecureBuffer();
+
+}
 
 // Generates a new Ed25519 private key seed. The key seed is stored in the object.
-int EdDSA::genKeySeed(unsigned char* privKey) {
+SecureBuffer EdDSA::genKeySeed() {
     // Make space for a new key seed (if not present).
-    if (!this->keySeed) {
-        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
-        if (this->keySeed == NULL) {
+
+    if (this->keySeed.get() == nullptr) {
+        this->keySeed = SecureBuffer(crypto_sign_ed25519_SEEDBYTES);
+        if (this->keySeed.get() == NULL) {
             // Something went wrong allocating the memory.
-            return(0);
+            return this->keySeed;
         }
     }
     // Now make the new key seed.
-    this->rng.GenerateBlock(this->keySeed, crypto_sign_SEEDBYTES);
-    // Copy it to privKey before returning.
-    if (privKey)
-    {
-        memcpy(privKey, this->keySeed, crypto_sign_SEEDBYTES);
-    }
-    return(1);
+    this->rng.GenerateBlock(this->keySeed.get(), crypto_sign_ed25519_SEEDBYTES);
+
+    return this->keySeed;
 }
 
+SecureBuffer EdDSA::genKeySeed(SecureBuffer secretKey) {
+    this->keySeed = SecureBuffer(crypto_sign_ed25519_SEEDBYTES);
+    if(this->keySeed.get() == nullptr) {
+        return this->keySeed;
+    }
+    crypto_sign_ed25519_sk_to_seed(this->keySeed.get(), secretKey.get());
+    return this->keySeed;
+}
 
-// Derives the Ed25519 public key from the stored private key seed.
-int EdDSA::publicKey(unsigned char* pubKey) {
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
+std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair() {
+    SecureBuffer publicKey(crypto_sign_ed25519_PUBLICKEYBYTES);
+    if (publicKey.get() == NULL) {
+       // Something went wrong allocating the memory.
+       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
-    int check = crypto_sign_seed_keypair(pubKey, privKey,
-                                         (const unsigned char*)this->keySeed);
+    SecureBuffer privateKey(crypto_sign_ed25519_SECRETKEYBYTES);
+    if (privateKey.get() == NULL) {
+       // Something went wrong allocating the memory.
+       publicKey.free();
+       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
+    }
+    int check = 0;
+    check = crypto_sign_seed_keypair(publicKey.get(), privateKey.get(),
+                                    (const unsigned char*)this->keySeed.get());
     if (check != 0) {
-        // Something went wrong deriving keys.
-        free(privKey);
-        return(0);
+       // Something went wrong deriving keys.
+       publicKey.free();
+       privateKey.free();
+
+       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
-    free(privKey);
-    return(1);
+
+    return std::pair<SecureBuffer, SecureBuffer>(publicKey, privateKey);
 }
 
 } // namespace

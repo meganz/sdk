@@ -1611,7 +1611,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, 
     attributename = an;
 
     cmd("uga");
-    arg("u", uid);
+    //arg("u", uid);
     arg("ua", an);
 
     tag = client->reqtag;
@@ -1621,39 +1621,41 @@ void CommandGetUA::procresult()
 {
     if (client->json.isnumeric())
     {
+        std::cout << "error processing" << std::endl;
         error e = (error)client->json.getint();
+        std::cout << e << std::endl;
 
-#ifdef USE_SODIUM
-        if ((e == API_ENOENT) && (user->userhandle == client->me)
-                && ((priv && strncmp(attributename.c_str(), "prEd255", 7))
-                        || (!priv && strncmp(attributename.c_str(), "puEd255", 7))))
-        {
-            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-            if(!client->inited25519())
-            {
-                return(client->app->getua_result(API_EINTERNAL));
-            }
-
-            // Return the required key data.
-            if (strncmp(attributename.c_str(), "prEd255", 7))
-            {
-                return(client->app->getua_result(client->signkey.keySeed,
-                                                 crypto_sign_SEEDBYTES));
-            }
-            else
-            {
-                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-                if (!client->signkey.publicKey(pubKey))
-                {
-                    free(pubKey);
-                    return(client->app->getua_result(API_EINTERNAL));
-                }
-
-                return(client->app->getua_result(pubKey,
-                                                 crypto_sign_PUBLICKEYBYTES));
-            }
-        }
-#endif
+//#ifdef USE_SODIUM
+//        if ((e == API_ENOENT) && (user->userhandle == client->me)
+//                && ((priv && strncmp(attributename.c_str(), "prEd255", 7))
+//                        || (!priv && strncmp(attributename.c_str(), "puEd255", 7))))
+//        {
+//            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
+//            if(!client->inited25519())
+//            {
+//                return(client->app->getua_result(API_EINTERNAL));
+//            }
+//
+//            // Return the required key data.
+//            if (strncmp(attributename.c_str(), "prEd255", 7))
+//            {
+//                return(client->app->getua_result(client->signkey.keySeed,
+//                                                 crypto_sign_SEEDBYTES));
+//            }
+//            else
+//            {
+//                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+//                if (!client->signkey.publicKey(pubKey))
+//                {
+//                    free(pubKey);
+//                    return(client->app->getua_result(API_EINTERNAL));
+//                }
+//
+//                return(client->app->getua_result(pubKey,
+//                                                 crypto_sign_PUBLICKEYBYTES));
+//            }
+//        }
+//#endif
 
         return(client->app->getua_result(e));
     }
@@ -1704,12 +1706,135 @@ void CommandGetUA::procresult()
             return(client->app->getua_result((byte*)d.data(), d.size()));
         }
 
+        std::cout << "data = " << data << std::endl;
         client->app->getua_result(data, l);
 
         delete[] data;
     }
 }
 
+// ATTR
+
+CommandGetUserAttr::CommandGetUserAttr(MegaClient *client, const char *uid,
+        const char *an, int p, AttrCallBack callBack) {
+    priv = p;
+    user = client->finduser(uid);
+    attributename = an;
+    cmd("uga");
+    arg("u", user->uid.c_str());
+    arg("ua", an);
+    this->callBack = callBack;
+    tag = client->reqtag;
+}
+
+void
+CommandGetUserAttr::procresult() {
+
+    ValueMap map;
+    if (client->json.isnumeric())
+    {
+
+        error e = (error)client->json.getint();
+        std::cout << e << std::endl;
+        callBack(map, e);
+        return;
+    }
+    else {
+        std::cout << "Retrieved ok" << std::endl;
+        const char *ptr;
+        const char *end;
+        if(!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+
+            callBack(map, API_EINTERNAL);
+            return;
+        }
+
+        int l = (end - ptr) / 4 * 3 + 3;
+        byte data[l];
+        l = Base64::atob(ptr, data, l);
+        char priv = data[0];
+
+        SharedBuffer tlv;
+
+        if(priv == '+'){
+            tlv = SharedBuffer((unsigned char*)data + 1, l - 1);
+        }
+        else if(priv == '*'){
+            std::string d((char*)(data + 1), l - 1);
+            if (l % client->key.BLOCKSIZE == 0)
+            {
+                if (!PaddedCBC::decrypt(&d, &client->key))
+                {
+
+                    callBack(map, API_EINTERNAL);
+                    return;
+                }
+            }
+            else
+            {
+                // We need to shave off our 8 byte IV first.
+                string iv;
+                iv.assign(d, 0, 8);
+                string payload;
+                payload.assign(d, 8, l - 8);
+                d = payload;
+                if (!PaddedCBC::decrypt(&d, &client->key, &iv))
+                {
+
+                    callBack(map, API_EINTERNAL);
+                    return;
+                }
+            }
+
+            tlv = SharedBuffer((byte*)d.c_str(), d.size());
+        }
+        else {
+            callBack(map, API_EINTERNAL);
+        }
+
+
+        try {
+            map = UserAttributes::tlvToValueMap(tlv);
+            callBack(map, API_OK);
+        }
+        catch(std::runtime_error &e) {
+
+            callBack(map, API_EINTERNAL);
+        }
+    }
+
+}
+
+CommandSetUserAttr::CommandSetUserAttr(MegaClient *client, const char *uid,
+        const char *an, byte *av, unsigned int avl, SetAttrCallBack callBack) {
+    int l = avl * (4 * 3 + 3);
+    char data[l];
+    l = Base64::btoa(av, avl, data);
+    cmd("up");
+    arg(an, data, l);
+    this->callBack = callBack;
+    tag = client->reqtag;
+}
+
+void
+CommandSetUserAttr::procresult() {
+    std::cout << "CommandSetUserAttr: procResult" << std::endl;
+    if (client->json.isnumeric())
+    {
+        std::cout << "error processing set" << std::endl;
+        error e = (error)client->json.getint();
+        std::cout << e << std::endl;
+        callBack(e);
+    }
+    else {
+        std::cout << "set ok" << std::endl;
+        client->json.storeobject();
+        callBack(API_OK);
+    }
+}
+
+///////////////////////////////////////////////////////////////////
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
 CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 {
@@ -1900,6 +2025,7 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID4('p', 'u', 'b', 'k'):
             client->json.storeobject(&pubk);
+            std::cout << "We have pk =" << pubk << std::endl;
             break;
 
         case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):

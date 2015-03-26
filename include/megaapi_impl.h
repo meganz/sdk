@@ -33,6 +33,7 @@
 #include "mega/thread/cppthread.h"
 #include "mega/proxy.h"
 #include "megaapi.h"
+#include "mega/userAttributes.h"
 
 #ifndef _WIN32
 #include <openssl/ssl.h>
@@ -421,6 +422,12 @@ class MegaRequestPrivate : public MegaRequest
         void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
                         int months, int amount, const char *currency);
 
+        // ATTR
+        void setAttributeMap(std::map<std::string, std::pair<unsigned char*, unsigned int>>*,
+                int);
+        void setAttributeMap(ValueMap map, int);
+        void setAttributeName(const char *an);
+
         virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
@@ -454,6 +461,14 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;
 
+	    // ATTR
+	    virtual std::map<std::string, std::pair<unsigned char*, unsigned int>>
+	    *getUserAttributeMap() const;
+
+	    // ATTR
+	    virtual ValueMap getAttributeMap() const;
+	    virtual const char *getAttributeName() const;
+	    virtual int getAttributeVis() const;
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
         MegaSyncListener *getSyncListener() const;
@@ -481,6 +496,11 @@ class MegaRequestPrivate : public MegaRequest
         long long totalBytes;
         long long transferredBytes;
 		MegaRequestListener *listener;
+
+		// ATTR
+		const char *attributeName;
+		ValueMap userAttributes;
+		int priv;
 #ifdef ENABLE_SYNC
         MegaSyncListener *syncListener;
 #endif
@@ -842,6 +862,26 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        // ATTR
+        void putGenericUserAttribute(const char *user, const char *attrName,
+                       std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+                       int priv,
+                       MegaRequestListener *listener = NULL);
+
+        void getGenericUserAttribute(const char *user, const char *an,
+               MegaRequestListener *listener = NULL);
+
+        void getOwnStaticKeys(MegaRequestListener *listener = NULL);
+
+        void verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen,
+                MegaRequestListener *listener = NULL);
+
+        void verifyKeyFingerPrint(const char *user, const unsigned char *fPrint,
+                unsigned int fPlen, int rsa, MegaRequestListener *listener);
+
+        /////////////////
+
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
@@ -1142,6 +1182,15 @@ protected:
         virtual void putua_result(error);
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);
+
+        // ATTR
+
+        virtual void putguattr_result(error);
+        virtual void getguattr_result(ValueMap, error);
+
+        virtual void verifyrsasig_result(error);
+
+        virtual void verifykeyfp_result(error);
 
         // file node export result
         virtual void exportnode_result(error);

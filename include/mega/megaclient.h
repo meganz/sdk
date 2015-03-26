@@ -33,6 +33,11 @@
 #include "backofftimer.h"
 #include "http.h"
 #include "pubkeyaction.h"
+#include "userAttributes.h"
+#include "secureBuffer.h"
+#include "sharedbuffer.h"
+
+#include <functional>
 
 namespace mega {
 
@@ -76,6 +81,11 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
+    // set and get user attributes
+    void setuserattribute();
+
+    void getuserattribute();
+
     /**
      * @brief Initialises the Ed25519 EdDSA key user properties.
      *
@@ -93,6 +103,67 @@ public:
 
     // get user data
     void getuserdata();
+
+    // ATTR
+
+    /**
+     * @brief Get the signing keys for the currently loggend in user.
+     *
+     * If the keys do not exist on the server, we will create and upload them
+     * before returning.
+     *
+     * @param reset Create and upload the keys without checking the server.
+     */
+    void getownsigningkeys(bool reset = false);
+
+    void uploadkeys();
+
+    SharedBuffer signRSAKey();
+
+    void verifyRSAKeySignature(const char *user, ValueMap pKey);
+
+    void verifyKeyFingerPrint(const char *user, ValueMap key, int rsa);
+
+    void verifyKeyFingerPrint_(const char *user, ValueMap key, int rsa);
+
+    ValueMap serilizeMap(int rsa);
+
+    bool deserilizeMap(ValueMap map, int rsa);
+
+    /**
+     * @brief Create the FingerPrint for the EdDSA public key.
+     *
+     * @param hex 1 if the value is to be in hex format, 0 in bytes.
+     */
+    SharedBuffer createEdDSAFingerPrint();
+
+    /**
+     * @brief Create the FingerPrint for the RSA public key.
+     *
+     * @param hex 1 if the vaule is to be in hex format, 0 in bytes.
+     */
+    SharedBuffer createRSAFingerPrint();
+
+    /**
+     * @brief Ge the signing key for another user.
+     *
+     * @param user The user to get the public signing key for.
+     */
+    void getothersigningkey(const char *user);
+
+    void getuserattribute(const char *user, const char *an);
+
+    void setuserattribute(const char *user, const char *an, ValueMap map, int priv);
+
+    void getgattribute(const char *user, const char *an,
+            std::function<void(ValueMap, error)>);
+
+    void setgattribute(const char *user, const char *an, ValueMap map, int priv,
+            std::function<void(error)>);
+
+    std::pair<SecureBuffer, SecureBuffer> initstatickeys();
+
+    //////////////////////////
 
     // get the public key of an user
     void getpubkey(const char* user);
@@ -268,6 +339,15 @@ public:
     static const char* const BALANCERURL;
 
 private:
+
+    // Map for storing the handle : rsa_fingerprint-confidence values.
+    std::map<handle, FingerPrintRecord> rsaKeyRing;
+
+    // Map for storing the handle : ed_fingerprint-confidence values.
+    std::map<handle, FingerPrintRecord> edKeyRing;
+
+    bool keysFetched;
+
     // API request queue double buffering:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
@@ -674,7 +754,7 @@ public:
     AsymmCipher asymkey;
 
 #ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
+    /// EdDSA signing key (Ed25519 private key seed).
     EdDSA signkey;
 #endif
 

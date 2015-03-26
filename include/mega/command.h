@@ -27,8 +27,15 @@
 #include "megaclient.h"
 #include "account.h"
 #include "http.h"
+#include "userAttributes.h"
+
+#include <functional>
 
 namespace mega {
+
+using AttrCallBack = std::function<void(ValueMap,error)>;
+using SetAttrCallBack = std::function<void(error)>;
+
 // request command component
 class MEGA_API Command
 {
@@ -210,6 +217,38 @@ public:
 
     void procresult();
 };
+
+// ATTR
+
+class MEGA_API CommandGetUserAttr : public Command
+{
+    int priv;
+    User *user;
+    string attributename;
+    AttrCallBack callBack;
+
+public:
+    CommandGetUserAttr(MegaClient*, const char*, const char*, int,
+            AttrCallBack callBack);
+
+    void procresult();
+};
+
+class MEGA_API CommandSetUserAttr : public Command
+{
+    int priv;
+    User *user;
+    string attributename;
+    SetAttrCallBack callBack;
+
+public:
+    CommandSetUserAttr(MegaClient*, const char*, const char*, byte*,
+            unsigned int, SetAttrCallBack callBack);
+
+    void procresult();
+};
+
+/////////////////////////////////////////////
 
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command

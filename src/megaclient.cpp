@@ -21,6 +21,13 @@
 
 #include "mega.h"
 
+#ifdef USE_SODIUM
+#include <sodium.h>
+#endif
+
+#include <chrono>
+#include <future>
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -378,6 +385,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
 
 void MegaClient::init()
 {
+    keysFetched = false;
     warned = false;
     csretrying = false;
     fetchingnodes = false;
@@ -4012,6 +4020,546 @@ void MegaClient::getuserdata()
     reqs[r].add(new CommandGetUserData(this));
 }
 
+// ATTR
+void MegaClient::setuserattribute(const char *user, const char *an, ValueMap map, int priv) {
+    setgattribute(user, an, map, priv, [this](error e){
+            app->putguattr_result(e);
+        });
+}
+
+void MegaClient::getuserattribute(const char *user, const char *an) {
+    getgattribute(user, an, [this](ValueMap map, error e){
+            app->getguattr_result(map, e);
+        });
+}
+
+void MegaClient::getgattribute(const char *user, const char *an,
+        std::function<void(ValueMap, error)> funct) {
+    reqs[r].add(new CommandGetUserAttr(this, user, an, 0, funct));
+}
+
+void MegaClient::setgattribute(const char *user, const char *an,
+        ValueMap map, int priv, std::function<void(error)> funct) {
+    std::cout << "setgattribute called" << std::endl;
+    SharedBuffer tlv = UserAttributes::vauleMapToTlv(map);
+    SharedBuffer tlvApp;
+    char p = (priv) ? '*' : '+';
+    if(priv) {
+        std::string data((char*)tlv.get(), tlv.size);
+        string iv;
+
+        PaddedCBC::encrypt(&data, &key, &iv);
+
+        // Now prepend the data with the (8 byte) IV.
+        iv.append(data);
+        tlvApp = SharedBuffer(iv.size() + 1);
+        memcpy(tlvApp.get(), &p, 1);
+        memcpy(tlvApp.get() + 1, iv.c_str(), iv.size());
+    }
+    else {
+        tlvApp = SharedBuffer(tlv.size + 1);
+        memcpy(tlvApp.get(), &p, 1);
+        memcpy(tlvApp.get() + 1, tlv.get(), tlv.size);
+    }
+
+    std::cout << "calling CommandSetUserAttr" << std::endl;
+    reqs[r].add(new CommandSetUserAttr(this, user, an, tlvApp.get(),
+            tlvApp.size, funct));
+
+}
+
+void MegaClient::getownsigningkeys(bool reset) {
+    if(reset) {
+        std::cout << "Resetting keys" << std::endl;
+        uploadkeys();
+        return;
+    }
+    std::cout << "reset not enabled" << std::endl;
+    User *user = finduser(me);
+    getgattribute(user->email.c_str(), "prEd255",
+            [this, user](ValueMap map, error e){
+
+        if(e == API_ENOENT) {
+            std::cout << "Calling upload keys, resource not found"
+                    << std::endl;
+            uploadkeys();
+            return;
+        }
+        else if(e != API_OK) {
+            app->getguattr_result(map, e);
+        }
+
+        auto i = map->find("prEd255");
+        if(i == map->end()) {
+            app->getguattr_result(map, API_EINTERNAL);
+            return;
+        }
+        SharedBuffer priKey = i->second;
+        getgattribute(user->email.c_str(), "puEd255",
+             [this, priKey](ValueMap pubMap, error e) {
+
+            if(e == API_ENOENT) {
+                uploadkeys();
+                return;
+            }
+            else if(e != API_OK) {
+                app->getguattr_result(pubMap, e);
+            }
+
+            SecureBuffer priBuff(priKey.size);
+            if(priBuff.get() == nullptr) {
+                app->getguattr_result(pubMap, API_EINTERNAL);
+                return;
+            }
+            this->signkey.genKeySeed(priBuff);
+            pubMap->insert({"prEd255", priKey});
+            app->getguattr_result(pubMap, e);
+        });
+    });
+}
+
+void MegaClient::uploadkeys() {
+    std::pair<SecureBuffer, SecureBuffer> pair = initstatickeys();
+    if(pair.first.get() == nullptr) {
+        std::cout << "uploadkeys: Error with key init" << std::endl;
+        app->getguattr_result(ValueMap(), API_EINTERNAL);
+        return;
+    }
+
+    SharedBuffer pubBuff(pair.first.get(), pair.first.size());
+    ValueMap pubMap(new std::map<std::string, SharedBuffer>());
+    pubMap->insert({ "puEd255", pubBuff});
+    ValueMap priMap(new std::map<std::string, SharedBuffer>());
+    priMap->insert({ "prEd255", SharedBuffer(pair.second.get(),
+            pair.second.size())});
+
+    SharedBuffer sigBuff = signRSAKey();
+    if(sigBuff.get() == nullptr) {
+        app->getguattr_result(pubMap, API_EINTERNAL);
+        return;
+    }
+
+    ValueMap sigMap(new std::map<std::string, SharedBuffer>);
+    sigMap->insert({ "signedRSA", sigBuff });
+
+    SharedBuffer rsaFp = createRSAFingerPrint();
+    if(!rsaFp) {
+        app->getguattr_result(pubMap, API_EINTERNAL);
+        return;
+    }
+    ValueMap rsaFpMap(new std::map<std::string, SharedBuffer>);
+    rsaFpMap->insert({ "RSA_fingerprint", rsaFp });
+
+    SharedBuffer edFp = createEdDSAFingerPrint();
+    if(!edFp) {
+        app->getguattr_result(pubMap, API_EINTERNAL);
+        return;
+    }
+    ValueMap edFpMap(new std::map<std::string, SharedBuffer>);
+    edFpMap->insert({ "Ed_fingerprint", edFp });
+
+    ////////////// Create the chain of API calls /////////////////
+
+    auto finalFun = [this](ValueMap map, error e){
+        app->getguattr_result(map, e);
+        return;
+    };
+
+    std::shared_ptr<std::vector<std::function<void(error)>>> fVec(
+            new std::vector<std::function<void(error)>>());
+
+    // Set puEd255.
+    fVec->push_back([priMap, pubMap, pubBuff, fVec, finalFun, this](error e){
+        if(e != API_OK) {
+            finalFun(priMap, e);
+            return;
+        }
+        setgattribute(finduser(me)->email.c_str(), "prEd255", priMap, 1,
+                (*fVec)[1]);
+    });
+
+    // Then set prEd255.
+    fVec->push_back([priMap, pubBuff, fVec, finalFun, sigMap, this](error e){
+        if(e != API_OK) {
+            finalFun(priMap, e);
+            return;
+        }
+        priMap->insert({ "puEd255", pubBuff });
+        setgattribute(finduser(me)->email.c_str(), "signedRSA", sigMap, 0,
+                (*fVec)[2]);
+    });
+
+    // Then set signedRSA.
+    fVec->push_back([priMap, sigBuff, rsaFpMap, fVec, finalFun, this](error e){
+        if(e != API_OK) {
+            finalFun(priMap, e);
+            return;
+        }
+        priMap->insert({ "signedRSA", sigBuff });
+        setgattribute(finduser(me)->email.c_str(), "RSA_fingerprint",
+                rsaFpMap, 0, (*fVec)[3]);
+    });
+
+    // Then set RSA_fingerprint.
+    fVec->push_back([priMap, rsaFp, edFpMap, finalFun, fVec, this](error e){
+        if(e != API_OK) {
+            finalFun(priMap, e);
+            return;
+        }
+        priMap->insert({"RSA_fingerprint", rsaFp});
+        setgattribute(finduser(me)->email.c_str(), "Ed_fingerprint",
+                edFpMap, 0, (*fVec)[4]);
+    });
+
+    // Then set Ed_fingerprint.
+    fVec->push_back([priMap, sigBuff, edFp, finalFun, fVec, this](error e){
+        if(e != API_OK) {
+            finalFun(priMap, e);
+            return;
+        }
+        priMap->insert({ "Ed_fingerprint", edFp });
+        finalFun(priMap, e);
+    });
+
+    setgattribute(finduser(me)->email.c_str(), "puEd255", pubMap, 0,
+            (*fVec)[0]);
+}
+
+SharedBuffer MegaClient::signRSAKey() {
+    std::chrono::seconds now =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                        std::chrono::system_clock::now().time_since_epoch());
+    long tStamp = now.count();
+
+    std::string auth("keyauth");
+    auth.append((char*)&tStamp, sizeof(tStamp));
+    auth.append(this->asymkey.getPublicKeyBytes().str());
+
+    std::cout << "*** key string = " << std::endl;
+    SecureBuffer pk = signkey.getKeyPair().first;
+    for(int x = 0; x < pk.size(); x++) {
+        std::cout << (int)pk.get()[x] << ", ";
+    }
+    std::cout << std::endl;
+
+    SecureBuffer sig = signkey.signDetatched((unsigned char*)auth.c_str(),
+            auth.length());
+    if(sig.get() == nullptr) {
+        return SharedBuffer();
+    }
+
+    SharedBuffer retBuffer(sizeof(tStamp) + sig.size());
+    memcpy(retBuffer.get(), (void*)&tStamp, sizeof(tStamp));
+    memcpy(retBuffer.get() + sizeof(tStamp),
+            sig.get(), sig.size());
+
+    return retBuffer;
+}
+
+SharedBuffer MegaClient::createEdDSAFingerPrint() {
+    HashSHA256 hash;
+    std::pair<SecureBuffer, SecureBuffer> keyPair =
+            signkey.getKeyPair();
+    if(keyPair.first.get() == nullptr || keyPair.second.get()
+            == nullptr) {
+        return SharedBuffer();
+    }
+
+    hash.add(keyPair.first.get(), keyPair.first.size());
+    std::string keyHash;
+    hash.get(&keyHash);
+
+    // For the bytes, we only want the first 20 for the fingerprint.
+    keyHash.erase(20, std::string::npos);
+    return SharedBuffer((byte*)keyHash.c_str(), keyHash.length());
+}
+
+SharedBuffer MegaClient::createRSAFingerPrint() {
+    HashSHA256 hash;
+    SharedBuffer pKey = this->asymkey.getPublicKeyBytes();
+    if(pKey.get() == nullptr) {
+        return SharedBuffer();
+    }
+
+    hash.add(pKey.get(), pKey.size);
+    std::string keyHash;
+    hash.get(&keyHash);
+
+    keyHash.erase(20, std::string::npos);
+    return SharedBuffer((byte*)keyHash.c_str(), keyHash.length());
+}
+
+void MegaClient::verifyRSAKeySignature(const char *user, ValueMap pMap) {
+    std::shared_ptr<std::vector<std::function<void(ValueMap, error)>>>
+                fVec(new std::vector<std::function<void(ValueMap, error)>>);
+
+    auto i = pMap->find("RSA_fingerprint");
+    if(i == pMap->end()) {
+        app->getguattr_result(pMap, API_EINTERNAL);
+        return;
+    }
+
+    SharedBuffer pKey = i->second;
+    auto fFinal = [this](error e){
+        app->verifyrsasig_result(e);
+    };
+
+    SharedBuffer signKey(EdDSA::SODIUM_PK_BYTES);
+    fVec->push_back([this, user, fFinal, fVec, signKey](ValueMap map, error e)
+            mutable {
+        if(e != API_OK) {
+            fFinal(e);
+            return;
+        }
+
+        auto i = map->find("puEd255");
+        if(i == map->end()) {
+            fFinal(API_EINTERNAL);
+            return;
+        }
+
+        memcpy(signKey.get(), i->second.get(), i->second.size);
+        getgattribute(user, "signedRSA", (*fVec)[1]);
+    });
+
+    fVec->push_back([this, user, fFinal, pKey, signKey](ValueMap map, error e) mutable {
+        std::cout << "Performing verification" << std::endl;
+        if(e != API_OK) {
+            fFinal(e);
+        }
+
+        auto i = map->find("signedRSA");
+        if(i == map->end()) {
+            fFinal(API_EINTERNAL);
+        }
+
+        std::string auth("keyauth");
+        std::string sigStr = i->second.str();
+        int timeStampPos = sigStr.length() - crypto_sign_ed25519_BYTES;
+        std::string timeStamp = sigStr.substr(0, timeStampPos);
+        sigStr = sigStr.substr(timeStampPos);
+        auth.append(timeStamp);
+        auth.append(pKey.str());
+
+        bool ver = EdDSA::verifyDetatched((unsigned char*)sigStr.c_str(),
+                (unsigned char*)auth.c_str(),
+                auth.length(), signKey.get());
+
+        fFinal((ver) ? API_OK : API_EKEYVERFAIL);
+    });
+
+    getgattribute(user, "puEd255", (*fVec)[0]);
+}
+
+void MegaClient::verifyKeyFingerPrint(const char *user, ValueMap key, int rsa) {
+
+    if(!keysFetched) {
+       getgattribute(finduser(me)->email.c_str(), "RSA_keyring",
+               [this, user, key, rsa](ValueMap map, error e){
+           if(e != API_OK && e != API_ENOENT) {
+               app->verifykeyfp_result(e);
+               return;
+           }
+           if(e == API_OK) {
+               if(!deserilizeMap(map, 1)) {
+                   app->verifykeyfp_result(API_EINTERNAL);
+                   return;
+               }
+           }
+
+           getgattribute(finduser(me)->email.c_str(), "Ed_keyring",
+                   [this, user, key, rsa](ValueMap map, error e){
+               if(e != API_OK && e != API_ENOENT) {
+                   app->verifykeyfp_result(e);
+                   return;
+               }
+               if(e == API_OK) {
+                   if(!deserilizeMap(map, 0)) {
+                       app->verifykeyfp_result(API_EINTERNAL);
+                       return;
+                   }
+               }
+               keysFetched = true;
+               verifyKeyFingerPrint_(user, key, rsa);
+           });
+       });
+   }
+   else {
+       verifyKeyFingerPrint_(user, key, rsa);
+   }
+}
+
+void MegaClient::verifyKeyFingerPrint_(const char *user, ValueMap key, int rsa) {
+   User *userObj = finduser(user);
+   if(!userObj) {
+       restag = reqtag;
+       app->verifykeyfp_result(API_EEXIST);
+       return;
+   }
+
+   auto j = key->find("KeyFingerPrint");
+   if(j == key->end()) {
+       restag = reqtag;
+       app->verifykeyfp_result(API_EINTERNAL);
+       return;
+   }
+
+   SharedBuffer keyFp = j->second;
+
+   FingerPrintRecord record;
+   if(rsa) {
+       auto i = rsaKeyRing.find(userObj->userhandle);
+       if(i != rsaKeyRing.end()) {
+           record = i->second;
+       }
+   }
+   else {
+       auto i = edKeyRing.find(userObj->userhandle);
+       if(i != edKeyRing.end()) {
+           record = i->second;
+       }
+   }
+
+   if(record.fingerPrint) {
+       std::cout << "testing from cache" << std::endl;
+       error e = (record.verify(keyFp)) ? API_OK : API_EKEYVERFAIL;
+       std::cout << "e = " << e << std::endl;
+       restag = reqtag;
+       app->verifykeyfp_result(e);
+       return;
+   }
+   std::cout << "getting value" << std::endl;
+
+   std::string kType = (rsa) ? "RSA_fingerprint" : "Ed_fingerprint";
+   getgattribute(user, kType.c_str(),
+           [this, keyFp, userObj, kType, rsa](ValueMap map, error err){
+       if(err != API_OK) {
+           std::cout << "Error getting " << kType << std::endl;
+           app->verifykeyfp_result(err);
+           return;
+       }
+
+       auto k = map->find(kType);
+       if(k == map->end()) {
+           std::cout << "Error getting " << kType << " from map" << std::endl;
+           app->verifykeyfp_result(API_EINTERNAL);
+           return;
+       }
+
+       FingerPrintRecord fRecord(k->second);
+       std::cout << kType << " = ";
+       for(int x = 0; x < k->second.size; x++) {
+           std::cout << (int)k->second[x] << ", ";
+       }
+       std::cout << std::endl;
+
+       if(rsa) {
+           rsaKeyRing.insert({ userObj->userhandle, fRecord });
+       }
+       else {
+           edKeyRing.insert({ userObj->userhandle, fRecord });
+       }
+
+       std::cout << "handle = " << userObj->userhandle << std::endl;
+       error e = (fRecord.verify(keyFp)) ? API_OK : API_EKEYVERFAIL;
+       std::cout << "error = " << e << std::endl;
+       //app->verifykeyfp_result(e);
+       ValueMap sm = serilizeMap(rsa);
+       setgattribute(finduser(me)->email.c_str(), (rsa) ? "RSA_keyring" :
+               "Ed_keyring", sm, 1, [this](error e){
+           app->verifykeyfp_result(e);
+       });
+   });
+}
+
+ValueMap MegaClient::serilizeMap(int rsa) {
+    ValueMap keyFpMap(new std::map<std::string, SharedBuffer>());
+    std::map<handle, FingerPrintRecord> *fpMap;
+    std::string mapName;
+    if(rsa) {
+        mapName.assign("RSA_keyring");
+        fpMap = &rsaKeyRing;
+    }
+    else {
+        mapName.assign("Ed_keyring");
+        fpMap = &edKeyRing;
+    }
+
+    SharedBuffer serBuff(fpMap->size() * (sizeof(handle) + 20 + 1));
+    int count = 0;
+    for(auto &i : *fpMap) {
+        memcpy(serBuff.get() + count, &i.first, sizeof(handle));
+        memcpy(serBuff.get() + (count += sizeof(handle)),
+                i.second.fingerPrint.get(), 20);
+        memcpy(serBuff.get() + (count += 20),
+                &i.second.methodConfidence, 1);
+    }
+
+    keyFpMap->insert({mapName, serBuff});
+    return keyFpMap;
+}
+
+bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
+
+
+    auto i = map->find((rsa) ? std::string("RSA_keyring") :
+            std::string("Ed_keyring"));
+    if(i == map->end()) {
+        return false;
+    }
+    SharedBuffer buff = i->second;
+
+    if((buff.size % (sizeof(handle) + 20 + 1)) != 0) {
+        return false;
+    }
+
+    std::map<handle, FingerPrintRecord> *rMap =
+                         (rsa) ? &rsaKeyRing : &edKeyRing;
+    rMap->clear();
+    int count = 0;
+    while(count < buff.size) {
+        SharedBuffer fp(20);
+        FingerPrintRecord record(fp);
+        handle h = 0;
+        memcpy(&h, buff.get(), sizeof(handle));
+        memcpy(record.fingerPrint.get(), buff.get() +
+                (count += sizeof(handle)), 20);
+        memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
+        rMap->insert({ h, record });
+        count++;
+    }
+
+    return true;
+}
+
+std::pair<SecureBuffer, SecureBuffer> MegaClient::initstatickeys() {
+#ifndef USE_SODIUM
+    throw std::runtime_error("Not currently supported");
+#else
+
+    signkey.init();
+
+    // Make the new key pair and their storage arrays.
+    if (signkey.genKeySeed().get() == nullptr)
+    {
+       LOG_err << "Error generating an Ed25519 key seed.";
+       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(),
+               SecureBuffer());
+    }
+
+    std::pair<SecureBuffer, SecureBuffer> kPair =
+            signkey.getKeyPair();
+    if (kPair.first.get() == nullptr || kPair.second.get() == nullptr)
+    {
+       LOG_err << "Error deriving the Ed25519 public key.";
+       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(),
+               SecureBuffer());
+    }
+
+    return kPair;
+#endif
+}
+
 void MegaClient::getpubkey(const char *user)
 {
     queuepubkeyreq(finduser(user, 1), new PubKeyActionNotifyApp(reqtag));
@@ -5040,6 +5588,7 @@ void MegaClient::setkeypair()
                                       pubks.size()));
 }
 
+
 #ifdef USE_SODIUM
 /**
  * @brief Initialises the Ed25519 EdDSA key user properties.
@@ -5050,28 +5599,28 @@ void MegaClient::setkeypair()
  */
 int MegaClient::inited25519()
 {
-    signkey.init();
-
-    // Make the new key pair and their storage arrays.
-    if (!signkey.genKeySeed())
-    {
-        LOG_err << "Error generating an Ed25519 key seed.";
-        return(0);
-    }
-
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-
-    if (!signkey.publicKey(pubKey))
-    {
-        free(pubKey);
-        LOG_err << "Error deriving the Ed25519 public key.";
-        return(0);
-    }
-
-    // Store the key pair to user attributes.
-    putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
-    putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
-    free(pubKey);
+//    signkey.init();
+//
+//    // Make the new key pair and their storage arrays.
+//    if (!signkey.genKeySeed())
+//    {
+//        LOG_err << "Error generating an Ed25519 key seed.";
+//        return(0);
+//    }
+//
+//    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+//
+//    if (!signkey.publicKey(pubKey))
+//    {
+//        free(pubKey);
+//        LOG_err << "Error deriving the Ed25519 public key.";
+//        return(0);
+//    }
+//
+//    // Store the key -pair to user attributes.
+//    putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
+//    putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
+//    free(pubKey);
     return(1);
 }
 #endif

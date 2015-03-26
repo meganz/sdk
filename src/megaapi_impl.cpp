@@ -31,7 +31,8 @@
 #define PREFER_STDARG
 #include "megaapi_impl.h"
 #include "megaapi.h"
-
+#include "mega/userAttributes.h"
+#include "mega/secureBuffer.h"
 
 #include <iomanip>
 
@@ -64,6 +65,8 @@
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
 #include <openssl/rand.h>
 #endif
+
+#include <memory>
 
 using namespace mega;
 
@@ -1015,6 +1018,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->setTotalBytes(request.getTotalBytes());
     this->setTransferredBytes(request.getTransferredBytes());
 	this->listener = request.getListener();
+	this->userAttributes = request.userAttributes;
 #ifdef ENABLE_SYNC
     this->syncListener = request.getSyncListener();
 #endif
@@ -1328,6 +1332,44 @@ void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage,
     {
         megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency);
     }
+}
+
+// ATTR
+std::map<std::string, std::pair<unsigned char*, unsigned int>>
+*MegaRequestPrivate::getUserAttributeMap() const {
+    std::cout << "Called in MegaRequestPrivate" << std::endl;
+    std::cout << "Is null = " << ((userAttributes) ? false : true) << std::endl;
+    if(!userAttributes) {
+        return NULL;
+    }
+    return UserAttributes::valueMapToMap(userAttributes);
+}
+
+void MegaRequestPrivate::setAttributeMap(std::map<std::string,
+        std::pair<unsigned char*, unsigned int>> *map, int priv) {
+    userAttributes = UserAttributes::mapToValueMap(map);
+    this->priv = priv;
+}
+
+void MegaRequestPrivate::setAttributeMap(ValueMap map, int priv) {
+    userAttributes = map;
+    this->priv = priv;
+}
+
+void MegaRequestPrivate::setAttributeName(const char *an) {
+    attributeName = an;
+}
+
+ValueMap MegaRequestPrivate::getAttributeMap() const {
+    return userAttributes;
+}
+
+const char *MegaRequestPrivate::getAttributeName() const {
+    return attributeName;
+}
+
+int MegaRequestPrivate::getAttributeVis() const {
+    return priv;
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
@@ -2095,6 +2137,67 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
     waiter->notify();
 }
 
+// ATTR
+void MegaApiImpl::putGenericUserAttribute(const char *user, const char *attrName,
+               std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+               int priv,
+               MegaRequestListener *listener) {
+    MegaRequestPrivate *request =
+            new MegaRequestPrivate(MegaRequest::TYPE_SET_USER_ATTRIBUTE, listener);
+    request->setEmail(user);
+    request->setAttributeMap(map, priv);
+    request->setAttributeName(attrName);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getGenericUserAttribute(const char *user, const char *an,
+       MegaRequestListener *listener) {
+    MegaRequestPrivate *request =
+            new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_ATTRIBUTE, listener);
+    request->setEmail(user);
+    request->setAttributeName(an);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getOwnStaticKeys(MegaRequestListener *listener) {
+    MegaRequestPrivate *request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_SIGNING_KEYS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::verifyRSAFingerPrint(const char *user, const unsigned char *fPrint,
+        unsigned int fpLen, MegaRequestListener *listener) {
+    MegaRequestPrivate *request =
+            new MegaRequestPrivate(MegaRequest::TYPE_VERIFY_RSA_SIG, listener);
+    std::map<std::string, std::pair<unsigned char*, unsigned int>> *map
+         = new std::map<std::string, std::pair<unsigned char*, unsigned int>>();
+    std::pair<unsigned char*, unsigned int> pair((unsigned char*)fPrint, fpLen);
+    map->insert({ std::string("RSA_fingerprint"), pair});
+    request->setAttributeMap(map, 0);
+    request->setEmail(user);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::verifyKeyFingerPrint(const char *user, const unsigned char *fPrint,
+        unsigned int fPlen, int rsa, MegaRequestListener *listener) {
+    MegaRequestPrivate *request =
+            new MegaRequestPrivate(MegaRequest::TYPE_VERIFY_KEY_FINGERPRINT, listener);
+    std::map<std::string, std::pair<unsigned char*, unsigned int>> *map
+            = new std::map<std::string, std::pair<unsigned char*, unsigned int>>();
+    std::pair<unsigned char*, unsigned int> pair((unsigned char*)fPrint, fPlen);
+
+    map->insert({ std::string("KeyFingerPrint"), pair});
+    request->setAttributeMap(map, 0);
+    request->setFlag(rsa);
+    request->setEmail(user);
+    requestQueue.push(request);
+    waiter->notify();
+
+}
 void MegaApiImpl::login(const char *login, const char *password, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -4652,7 +4755,6 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, han
     {
         char jid[16];
         Base32::btoa((byte *)&bjid, MegaClient::USERHANDLE, jid);
-
         request->setPassword(pubk->c_str());
         request->setPrivateKey(privk->c_str());
         request->setName(name->c_str());
@@ -4971,6 +5073,47 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
     delete f;
     fireOnRequestFinish(request, MegaError(API_OK));
+}
+
+// ATTR
+
+void MegaApiImpl::putguattr_result(error e) {
+    MegaError error(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SET_USER_ATTRIBUTE)) return;
+
+    fireOnRequestFinish(request, error);
+}
+
+void MegaApiImpl::getguattr_result(ValueMap map, error e) {
+    MegaError error(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_USER_ATTRIBUTE &&
+                   request->getType() != MegaRequest::TYPE_GET_SIGNING_KEYS)) return;
+    request->setAttributeMap(map, 0);
+
+    fireOnRequestFinish(request, error);
+}
+
+void MegaApiImpl::verifyrsasig_result(error e) {
+    MegaError error(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_VERIFY_RSA_SIG)) return;
+    fireOnRequestFinish(request, error);
+}
+
+void MegaApiImpl::verifykeyfp_result(error e) {
+    std::cout << "Calling verifiykeyfp_result" << std::endl;
+    MegaError error(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    std::cout << "request found" << std::endl;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_VERIFY_KEY_FINGERPRINT)) return;
+    std::cout << "Calling verifiykeyfp_result: fireOnRequestFinish" << std::endl;
+    fireOnRequestFinish(request, error);
 }
 
 // user attribute update notification
@@ -7205,6 +7348,31 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
+        // ATTR
+        case MegaRequest::TYPE_GET_USER_ATTRIBUTE:
+        {
+
+            const char *u = request->getEmail();
+            const char *at = request->getAttributeName();
+            client->getuserattribute(u, at);
+
+            break;
+        }
+        case MegaRequest::TYPE_SET_USER_ATTRIBUTE:
+        {
+            const char *u = request->getEmail();
+            const char *an = request->getAttributeName();
+            ValueMap map = request->getAttributeMap();
+            int priv = request->getAttributeVis();
+            client->setuserattribute(u, an, map, priv);
+
+            break;
+        }
+        case MegaRequest::TYPE_GET_SIGNING_KEYS:
+        {
+            client->getownsigningkeys();
+            break;
+        }
         case MegaRequest::TYPE_LOAD_BALANCING:
         {
             const char* service = request->getName();
@@ -7215,6 +7383,21 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->loadbalancing(service);
+            break;
+        }
+        case MegaRequest::TYPE_VERIFY_RSA_SIG:
+        {
+            const char *u = request->getEmail();
+            ValueMap map = request->getAttributeMap();
+            client->verifyRSAKeySignature(u,map);
+            break;
+        }
+        case MegaRequest::TYPE_VERIFY_KEY_FINGERPRINT:
+        {
+            const char *u = request->getEmail();
+            ValueMap map = request->getAttributeMap();
+            int rsa = request->getFlag();
+            client->verifyKeyFingerPrint(u, map, rsa);
             break;
         }
         case MegaRequest::TYPE_KILL_SESSION:

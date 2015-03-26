@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 #include <inttypes.h>
+#include <memory>
+#include <map>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -1037,7 +1039,9 @@ class MegaRequest
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA,
-            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION
+            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SET_USER_ATTRIBUTE,
+            TYPE_GET_USER_ATTRIBUTE, TYPE_GET_SIGNING_KEYS,
+            TYPE_VERIFY_RSA_SIG, TYPE_VERIFY_KEY_FINGERPRINT
 		};
 
 		virtual ~MegaRequest();
@@ -1484,6 +1488,19 @@ class MegaRequest
          * @return Number of details related to this request
          */
         virtual int getNumDetails() const;
+
+        /**
+         * @brief Gets the user attribute map for this request.
+         * @return The map of value:length for the given request attribute.
+         */
+        virtual std::map<std::string, std::pair<unsigned char*, unsigned int>>
+        *getUserAttributeMap() const;
+
+        /**
+         * @brief Gets the name of the attribute for this request.
+         * @return The name of the attribute for this request.
+         */
+        virtual const char *getAttributeName() const;
 };
 
 /**
@@ -3154,6 +3171,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        // ATTR
+        void putGenericUserAttribute(const char *user,
+                const char *attributeName,
+                std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+                int priv,
+                MegaRequestListener *listener = NULL);
+
+        void getGenericUserAttribute(const char *user, const char *an,
+                MegaRequestListener *listener = NULL);
+
+        void getOwnStaticKeys(MegaRequestListener *listener = NULL);
+
+        void verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen,
+                MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Verify the fingerprint for the given users key.
+         *
+         * @param user The user to check the fingerprint for.
+         * @param fPrint The fingerprint to check.
+         * @param fPlen The length of the fingerprint to check.
+         * @param rsa 1 if the key to be checked is rsa, 0 if ed25519.
+         * @param listener The listener to register for the event.
+         *
+         */
+        void verifyKeyFingerPrint(const char *user, const unsigned char *fPrint,
+                unsigned int fPLen, int rsa, MegaRequestListener *listener);
 
         /**
          * @brief Returns the current session key

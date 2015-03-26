@@ -23,6 +23,8 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
+#include <memory>
+
 using namespace mega;
 
 MegaProxy::MegaProxy()
@@ -467,6 +469,12 @@ int MegaRequest::getNumDetails() const
 	return 0;
 }
 
+std::map<std::string, std::pair<unsigned char*, unsigned int>>
+*MegaRequest::getUserAttributeMap() const {
+    std::cout << "called in MegaRequest" << std::endl;
+    return NULL; }
+
+const char *MegaRequest::getAttributeName() const { return NULL; }
 
 MegaTransfer::~MegaTransfer() { }
 
@@ -900,6 +908,33 @@ void MegaApi::getUserData(MegaUser *user, MegaRequestListener *listener)
 void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 {
     pImpl->getUserData(user, listener);
+}
+
+// ATTR
+void MegaApi::putGenericUserAttribute(const char *user, const char *attrName,
+               std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+               int priv,
+               MegaRequestListener *listener) {
+    pImpl->putGenericUserAttribute(user, attrName, map, priv, listener);
+}
+
+void MegaApi::getGenericUserAttribute(const char *user, const char *an,
+       MegaRequestListener *listener) {
+    pImpl->getGenericUserAttribute(user, an, listener);
+}
+
+void MegaApi::getOwnStaticKeys(MegaRequestListener *listener) {
+    pImpl->getOwnStaticKeys(listener);
+}
+
+void MegaApi::verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen, MegaRequestListener *listener) {
+    pImpl->verifyRSAFingerPrint(user, fPrint, fpLen, listener);
+
+}
+
+void MegaApi::verifyKeyFingerPrint(const char *user, const unsigned char *fprint,
+        unsigned int fPlen, int rsa, MegaRequestListener *listener) {
+    pImpl->verifyKeyFingerPrint(user, fprint, fPlen, rsa, listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)

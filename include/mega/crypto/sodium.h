@@ -24,6 +24,9 @@
 #define SODIUM_H 1
 
 #include <sodium.h>
+#include <utility>
+
+#include "mega/secureBuffer.h"
 
 namespace mega {
 using namespace std;
@@ -34,11 +37,14 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
+
+    static const int SODIUM_PK_BYTES;
+
     static CryptoPP::AutoSeededRandomPool rng;
 
-    EdDSA() : keySeed(NULL) {}
+    EdDSA() {}
 
-    unsigned char* keySeed;
+    SecureBuffer keySeed;
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.
@@ -51,7 +57,7 @@ public:
      * @param data Buffer containing the key bytes.
      * @return Void.
      */
-    void setKeySeed(const char* data);
+    void setKeySeed(SecureBuffer kSeed);
 
     /**
      * @brief Computes the signature of a message.
@@ -62,7 +68,12 @@ public:
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
-    int sign(unsigned char* msg, unsigned long long msglen, char* sig);
+    SecureBuffer sign(unsigned char* msg, unsigned long long msglen);
+
+    SecureBuffer signDetatched(unsigned char *msg, unsigned long long msglen);
+
+    static bool verifyDetatched(unsigned char *sig, unsigned char *msg,
+            unsigned long long msglen, unsigned char *pKey);
 
     /**
      * @brief Verifies the signature of a message.
@@ -73,25 +84,45 @@ public:
      * @param buflen Length of the plain text.
      * @return 1 on a valid signature, 0 on a failed verification.
      */
-    static int verify(const unsigned char* msg, unsigned long long msglen,
-                      const unsigned char* sig, const unsigned char* pubKey);
+    static int verify(const unsigned char* msg,
+            unsigned long long msglen, const unsigned char* sig,
+            SecureBuffer publicKey);
+
+    /**
+     * @brief Verify a message with message appended.
+     *
+     * @param signedMessage The message with appended signature.
+     * @param msglen The length of the signed message.
+     * @param publicKey The public key to verify against.
+     *
+     * @return 0 on success, 1 on failure.
+     */
+    static SecureBuffer verify(const unsigned char *signedMessage, unsigned long long msglen,
+            SecureBuffer publicKey);
 
     /**
      * @brief Generates a new Ed25519 private key seed. The key seed is stored
      * in the object.
      *
-     * @param privk Private key seed to return, unless NULL.
-     * @return 1 on success, 0 on failure.
+     * @return A SecureBuffer containing the key seed on success, or
+     * a pointer to null on failure.
      */
-    int genKeySeed(unsigned char* privKey = NULL);
+    SecureBuffer genKeySeed();
 
     /**
-     * @brief Derives the Ed25519 public key from the stored private key seed.
+     * @brief Generates an Ed25519 private key seed from the provided secret key.
      *
-     * @param pubKey Public key.
-     * @return 1 on success, 0 on failure.
+     * @param secretKey The secret key to derive the seed from.
+     * @return The derived seed.
      */
-    int publicKey(unsigned char* pubKey);
+    SecureBuffer genKeySeed(SecureBuffer secretKey);
+
+    /**
+     * @brief Get the key pair for this key.
+     *
+     * @return The key pair for the contained key seed.
+     */
+    std::pair<SecureBuffer, SecureBuffer> getKeyPair();
 };
 
 
