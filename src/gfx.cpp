@@ -144,4 +144,9 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
     
     return numputs;
 }
+
+GfxProc::GfxProc()
+{
+    client = NULL;
+}
 } // namespace

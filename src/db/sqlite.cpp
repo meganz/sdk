@@ -41,7 +41,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     //The previous implementation was closing the first database
     //when the second one was opened.
     sqlite3* db;
-    string dbdir = dbpath + "megaclient_statecache5_" + *name + ".db";
+    string dbdir = dbpath + "megaclient_statecache6_" + *name + ".db";
 
     int rc;
 
@@ -52,7 +52,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
-#ifndef TARGET_OS_IPHONE
+#if !(TARGET_OS_IPHONE)
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
@@ -65,28 +65,41 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
-    return new SqliteDbTable(db);
+    return new SqliteDbTable(db, fsaccess, &dbdir);
 }
 
-SqliteDbTable::SqliteDbTable(sqlite3* cdb)
+SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepath)
 {
     db = cdb;
     pStmt = NULL;
+    fsaccess = fs;
+    dbfile = *filepath;
 }
 
 SqliteDbTable::~SqliteDbTable()
 {
+    if (!db)
+    {
+        return;
+    }
+
     if (pStmt)
     {
         sqlite3_finalize(pStmt);
     }
     abort();
     sqlite3_close(db);
+    LOG_debug << "Database closed";
 }
 
 // set cursor to first record
 void SqliteDbTable::rewind()
 {
+    if (!db)
+    {
+        return;
+    }
+
     if (pStmt)
     {
         sqlite3_reset(pStmt);
@@ -100,6 +113,11 @@ void SqliteDbTable::rewind()
 // retrieve next record through cursor
 bool SqliteDbTable::next(uint32_t* index, string* data)
 {
+    if (!db)
+    {
+        return false;
+    }
+
     if (!pStmt)
     {
         return false;
@@ -124,6 +142,11 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
 // retrieve record by index
 bool SqliteDbTable::get(uint32_t index, string* data)
 {
+    if (!db)
+    {
+        return false;
+    }
+
     sqlite3_stmt *stmt;
 
     int rc = sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
@@ -157,6 +180,11 @@ bool SqliteDbTable::get(uint32_t index, string* data)
 // add/update record by index
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {
+    if (!db)
+    {
+        return false;
+    }
+
     sqlite3_stmt *stmt;
 
     int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
@@ -194,6 +222,11 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 // delete record by index
 bool SqliteDbTable::del(uint32_t index)
 {
+    if (!db)
+    {
+        return false;
+    }
+
     char buf[64];
 
     sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
@@ -204,25 +237,66 @@ bool SqliteDbTable::del(uint32_t index)
 // truncate table
 void SqliteDbTable::truncate()
 {
+    if (!db)
+    {
+        return;
+    }
+
     sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
 }
 
 // begin transaction
 void SqliteDbTable::begin()
 {
+    if (!db)
+    {
+        return;
+    }
+
     sqlite3_exec(db, "BEGIN", 0, 0, NULL);
 }
 
 // commit transaction
 void SqliteDbTable::commit()
 {
+    if (!db)
+    {
+        return;
+    }
+
     sqlite3_exec(db, "COMMIT", 0, 0, NULL);
 }
 
 // abort transaction
 void SqliteDbTable::abort()
 {
+    if (!db)
+    {
+        return;
+    }
+
     sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
+}
+
+void SqliteDbTable::remove()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_finalize(pStmt);
+    }
+    abort();
+    sqlite3_close(db);
+
+    db = NULL;
+
+    string localpath;
+    fsaccess->path2local(&dbfile, &localpath);
+    fsaccess->unlinklocal(&localpath);
 }
 } // namespace
 

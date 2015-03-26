@@ -75,6 +75,8 @@ public:
 
     void osversion(string*) const;
 
+    static void emptydirlocal(string*, dev_t = 0);
+
     WinFileSystemAccess();
 };
 

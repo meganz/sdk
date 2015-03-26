@@ -170,6 +170,7 @@
 %newobject mega::MegaApi::getNodeByFingerprint;
 %newobject mega::MegaApi::hasFingerprint;
 %newobject mega::MegaApi::exportMasterKey;
+%newobject mega::MegaApi::getTransferByTag;
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
 

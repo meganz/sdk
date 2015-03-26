@@ -53,6 +53,8 @@ PosixWaiter::PosixWaiter()
     {
         LOG_err << "fcntl error";
     }
+
+    maxfd = -1;
 }
 
 void PosixWaiter::init(dstime ds)

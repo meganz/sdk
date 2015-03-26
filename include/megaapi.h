@@ -1041,7 +1041,8 @@ class MegaRequest
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SET_USER_ATTRIBUTE,
             TYPE_GET_USER_ATTRIBUTE, TYPE_GET_SIGNING_KEYS,
-            TYPE_VERIFY_RSA_SIG, TYPE_VERIFY_KEY_FINGERPRINT
+            TYPE_VERIFY_RSA_SIG, TYPE_VERIFY_KEY_FINGERPRINT,
+			TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT
 		};
 
 		virtual ~MegaRequest();
@@ -1324,6 +1325,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
+         * - MegaApi::setUserAttribute - Returns the new value for the attribute
          *
          * @return Path of a file related to the request
          */
@@ -1380,8 +1382,8 @@ class MegaRequest
          * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
          * - MegaApi::submitFeedback - Returns MegaApi::EVENT_FEEDBACK
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
-         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or
-         * MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::setUserAttribute - Returns the attribute type
          *
          * @return Type of parameter related to the request
          */
@@ -2708,6 +2710,11 @@ class MegaApi
             ATTR_TYPE_PREVIEW = 1
         };
 
+        enum {
+            USER_ATTR_FIRSTNAME = 1,
+            USER_ATTR_LASTNAME = 2
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -2969,6 +2976,14 @@ class MegaApi
          * @return Base64-encoded hash
          */
         const char* getStringHash(const char* base64pwkey, const char* email);
+
+        /**
+         * @brief Converts a Base32-encoded user handle (JID) to a MegaHandle
+         *
+         * @param base32Handle Base32-encoded handle (JID)
+         * @return User handle
+         */
+        static MegaHandle base32ToHandle(const char* base32Handle);
 
         /**
          * @brief Converts a Base64-encoded node handle to a MegaHandle
@@ -3756,6 +3771,28 @@ class MegaApi
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set an attribute of the current user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getFile - Returns the new value for the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * USER_ATTR_FIRSTNAME = 1
+         * Change the firstname of the user
+         * USER_ATTR_LASTNAME = 2
+         * Change the lastname of the user
+         *
+         * @param value New attribute value
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -3865,6 +3902,13 @@ class MegaApi
         void getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Submit a purchase receipt for verification
+         * @param receipt Purchase receipt
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Export the master key of the account
          *
          * The returned value is a Base64-encoded string
@@ -3918,13 +3962,22 @@ class MegaApi
         void removeContact(MegaUser *user, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Logout of the MEGA account
+         * @brief Logout of the MEGA account invalidating the session
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
          *
          * @param listener MegaRequestListener to track this request
          */
         void logout(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Logout of the MEGA account without invalidating the session
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGOUT
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void localLogout(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit feedback about the app
@@ -4056,6 +4109,24 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Cancel the transfer with a specific tag
+         *
+         * When a transfer is cancelled, it will finish and will provide the error code
+         * MegaError::API_EINCOMPLETE in MegaTransferListener::onTransferFinish and
+         * MegaListener::onTransferFinish
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         *
+         * @param transferTag tag that identifies the transfer
+         * You can get this tag using MegaTransfer::getTag
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Cancel all transfers of the same type
          *
          * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFERS
@@ -4102,6 +4173,20 @@ class MegaApi
          * @return List with all active transfers
          */
         MegaTransferList *getTransfers();
+
+        /**
+         * @brief Get the transfer with a transfer tag
+         *
+         * That tag can be got using MegaTransfer::getTag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param Transfer tag to check
+         * @return MegaTransfer object with that tag, or NULL if there isn't any
+         * active transfer with it
+         *
+         */
+        MegaTransfer* getTransferByTag(int transferTag);
 
         /**
          * @brief Get all transfers of a specific type (downloads or uploads)
@@ -4203,12 +4288,16 @@ class MegaApi
         /**
          * @brief Remove a synced folder
          *
-         * The folder will stop being synced. Nothing in the local nor in the remote folder
+         * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop and the cache of local files will be deleted
+         * If you don't want to delete the local cache use MegaApi::disableSync
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns true
          *
          * @param megaFolder MEGA folder
          * @param listener MegaRequestListener to track this request
@@ -4218,17 +4307,59 @@ class MegaApi
         /**
          * @brief Remove a synced folder
          *
-         * The folder will stop being synced. Nothing in the local nor in the remote folder
+         * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop and the cache of local files will be deleted
+         * If you don't want to delete the local cache use MegaApi::disableSync
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns true
          *
          * @param sync Synchronization to cancel
          * @param listener MegaRequestListener to track this request
          */
         void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Disable a synced folder
+         *
+         * The folder will stop being synced. No files in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop but the cache of local files won't be deleted.
+         * If you want to also delete the local cache use MegaApi::removeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns false
+         *
+         * @param megaFolder MEGA folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableSync(MegaNode *megaFolder, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Disable a synced folder
+         *
+         * The folder will stop being synced. No files in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The synchronization will stop but the cache of local files won't be deleted.
+         * If you want to also delete the local cache use MegaApi::removeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFlag - Returns false
+         *
+         * @param sync Synchronization to disable
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders
@@ -4896,6 +5027,8 @@ class MegaApi
          */
         const char *getUserAgent();
 
+        void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)
@@ -5289,6 +5422,24 @@ public:
     virtual long long getTransferOwnUsed();
 
     /**
+     * @brief Returns the number of nodes with account usage info
+     *
+     * You can get information about each node using MegaAccountDetails::getStorageUsed,
+     * MegaAccountDetails::getNumFiles, MegaAccountDetails::getNumFolders
+     *
+     * This function can return:
+     * - 0 (no info about any node)
+     * - 3 (info about the root node, the inbox node and the rubbish node)
+     * Use MegaApi::getRootNode MegaApi::getInboxNode and MegaApi::getRubbishNode to get those nodes.
+     *
+     * - >3 (info about root, inbox, rubbish and incoming shares)
+     * Use MegaApi::getInShares to get the incoming shares
+     *
+     * @return Number of items with account usage info
+     */
+    virtual int getNumUsageItems();
+
+    /**
      * @brief Get the used storage in for a node
      *
      * Only root nodes are supported.
@@ -5484,6 +5635,27 @@ public:
      * @return Currency associated with MegaPricing::getAmount
      */
     virtual const char* getCurrency(int productIndex);
+
+    /**
+     * @brief Get a description of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Description of the product
+     */
+    virtual const char* getDescription(int productIndex);
+
+    /**
+     * @brief getIosID Get the iOS ID of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return iOS ID of the product
+     */
+    virtual const char* getIosID(int productIndex);
+
+    /**
+     * @brief Get the Android ID of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Android ID of the product
+     */
+    virtual const char* getAndroidID(int productIndex);
 
     /**
      * @brief Creates a copy of this MegaPricing object.

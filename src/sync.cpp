@@ -34,12 +34,10 @@ namespace mega {
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
 {
-    string dbname;
-
     client = cclient;
     tag = ctag;
     inshare = cinshare;
-
+    errorcode = API_OK;
     tmpfa = NULL;
 
     localbytes = 0;
@@ -47,8 +45,10 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     localnodes[FOLDERNODE] = 0;
 
     state = SYNC_INITIALSCAN;
+    statecachetable = NULL;
 
     fullscan = true;
+    scanseqno = 0;
 
     if (cdebris)
     {
@@ -241,6 +241,7 @@ void Sync::cachenodes()
 {
     if (statecachetable && (state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
     {
+        LOG_debug << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
         statecachetable->begin();
 
         // deletions
@@ -588,7 +589,16 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                     // e.g. a file deletion/creation cycle that reuses the same inode
                                     if (it->second->mtime != fa->mtime || it->second->size != fa->size)
                                     {
-                                        delete it->second;
+                                        // do not delete the LocalNode if it is in a different filesystem
+                                        // because it could be a file with the same fsid in another drive
+                                        fsfp_t fp1, fp2;
+                                        if (l->sync == it->second->sync
+                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
+                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                                && (fp1 == fp2)))
+                                        {
+                                            delete it->second;
+                                        }
                                     }
                                     else
                                     {
@@ -672,8 +682,17 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
-
-                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
+                fsfp_t fp1, fp2;
+                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+                    // additional checks to prevent wrong fsid matches
+                    && it->second->type == fa->type
+                    && (!parent
+                        || (it->second->sync == parent->sync)
+                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
+                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+                            && (fp1 == fp2)))
+                    && ((it->second->type != FILENODE)
+                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
@@ -737,6 +756,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 {
                     // root node cannot be a file
                     LOG_err << "The local root node is a file";
+                    errorcode = API_EFAILED;
                     changestate(SYNC_FAILED);
                 }
                 else
@@ -851,7 +871,8 @@ dstime Sync::procscanq(int q)
         // we return control to the application in case a filenode was added
         // (in order to avoid lengthy blocking episodes due to multiple
         // consecutive fingerprint calculations)
-        if (l && l != (LocalNode*)~0 && l->type == FILENODE)
+        // or if new nodes are being added due to a copy/delete operation
+        if ((l && l != (LocalNode*)~0 && l->type == FILENODE) || client->syncadding)
         {
             break;
         }

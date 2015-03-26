@@ -106,7 +106,7 @@ class MEGA_API PosixFileAccess : public FileAccess
 public:
     int fd;
 
-#ifndef USE_FDOPENDIR
+#ifndef HAVE_FDOPENDIR
     DIR* dp;
 #endif
 

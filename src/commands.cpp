@@ -358,10 +358,10 @@ CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p
     arg("g", 1);
 
     tslot = ctslot;
+    ph = h;
 
     if (!tslot)
     {
-        ph = h;
         memcpy(filekey, key, FILENODEKEYLENGTH);
     }
 }
@@ -1042,6 +1042,38 @@ void CommandKillSessions::procresult()
     client->app->sessions_killed(h, e);
 }
 
+CommandLogout::CommandLogout(MegaClient *client)
+{
+    cmd("sml");
+
+    tag = client->reqtag;
+}
+
+void CommandLogout::procresult()
+{
+    error e = (error)client->json.getint();
+    MegaApp *app = client->app;
+    if(!e)
+    {
+        if (client->sctable)
+        {
+            client->sctable->remove();
+        }
+
+#ifdef ENABLE_SYNC
+        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+        {
+            if((*it)->statecachetable)
+            {
+                (*it)->statecachetable->remove();
+            }
+        }
+#endif
+        client->locallogout();
+    }
+    app->logout_result(e);
+}
+
 // login request with user e-mail address and user hash
 CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash)
 {
@@ -1414,6 +1446,7 @@ void CommandSetShare::procresult()
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
+    arg("f", 1);
 
     tag = client->reqtag;
 }
@@ -1430,7 +1463,13 @@ void CommandEnumerateQuotaItems::procresult()
     unsigned amount;
     const char* a;
     const char* c;
+    const char* d;
+    const char* ios;
+    const char* android;
     string currency;
+    string description;
+    string ios_id;
+    string android_id;
 
     while (client->json.enterarray())
     {
@@ -1440,13 +1479,20 @@ void CommandEnumerateQuotaItems::procresult()
                 || ((gbtransfer = client->json.getint()) < 0)
                 || ((months = client->json.getint()) < 0)
                 || !(a = client->json.getvalue())
-                || !(c = client->json.getvalue()))
+                || !(c = client->json.getvalue())
+                || !(d = client->json.getvalue())
+                || !(ios = client->json.getvalue())
+                || !(android = client->json.getvalue()))
         {
             return client->app->enumeratequotaitems_result(API_EINTERNAL);
         }
 
 
         Node::copystring(&currency, c);
+        Node::copystring(&description, d);
+        Node::copystring(&ios_id, ios);
+        Node::copystring(&android_id, android);
+
 
         amount = atoi(a) * 100;
         if ((c = strchr(a, '.')))
@@ -1465,7 +1511,8 @@ void CommandEnumerateQuotaItems::procresult()
 
         client->app->enumeratequotaitems_result(product, prolevel, gbstorage,
                                                 gbtransfer, months, amount,
-                                                currency.c_str());
+                                                currency.c_str(), description.c_str(),
+                                                ios_id.c_str(), android_id.c_str());
         client->json.leavearray();
     }
 
@@ -2915,4 +2962,31 @@ void CommandLoadBalancing::procresult()
         }
     }
 }
+
+CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt)
+{
+    cmd("vpay");
+    arg("t", type);
+
+    if(receipt)
+    {
+        arg("receipt", (const byte*)receipt, strlen(receipt));
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandSubmitPurchaseReceipt::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->submitpurchasereceipt_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->submitpurchasereceipt_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

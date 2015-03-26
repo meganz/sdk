@@ -110,6 +110,7 @@ CurlHttpIO::CurlHttpIO()
     ipv6proxyenabled = ipv6requestsenabled;
     ipv6deactivationtime = 0;
     waiter = NULL;
+    proxyport = 0;
 }
 
 bool CurlHttpIO::ipv6available()
@@ -151,7 +152,7 @@ CurlHttpIO::~CurlHttpIO()
 
 void CurlHttpIO::setuseragent(string* u)
 {
-    useragent = u;
+    useragent = *u;
 }
 
 void CurlHttpIO::setdnsservers(const char* servers)
@@ -566,7 +567,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
         }
 
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent->c_str());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, httpio->useragent.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, httpctx->headers);
         curl_easy_setopt(curl, CURLOPT_ENCODING, "");
         curl_easy_setopt(curl, CURLOPT_SHARE, httpio->curlsh);
@@ -1370,6 +1371,11 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     EVP_PKEY* evp;
     int ok = 0;
 
+    if(MegaClient::disablepkp)
+    {
+        return 1;
+    }
+
     if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(ctx->cert))))
     {
         if (BN_num_bytes(evp->pkey.rsa->n) == sizeof APISSLMODULUS1 - 1
@@ -1377,7 +1383,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         {
             BN_bn2bin(evp->pkey.rsa->n, buf);
 
-            if (!memcmp(request->posturl.data(), MegaClient::APIURL, strlen(MegaClient::APIURL)) &&
+            if (!memcmp(request->posturl.data(), MegaClient::APIURL.data(), MegaClient::APIURL.size()) &&
                 (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
             {
                 BN_bn2bin(evp->pkey.rsa->e, buf);

@@ -40,6 +40,9 @@ struct MEGA_API MegaApp
     // login result
     virtual void login_result(error) { }
 
+    // logout result
+    virtual void logout_result(error) { }
+
     // user data result
     virtual void userdata_result(string*, string*, string*, handle, error) { }
 
@@ -116,11 +119,12 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, const char*) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*) { }
+    virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
     virtual void checkout_result(error) { }
     virtual void checkout_result(const char*) { }
+    virtual void submitpurchasereceipt_result(error) { }
 
     // user invites/attributes
     virtual void invite_result(error) { }

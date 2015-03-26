@@ -259,8 +259,17 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
 }
+
++ (NSString *)base64HandleForHandle:(uint64_t)handle {
+    return [[NSString alloc] initWithUTF8String:MegaApi::handleToBase64(handle)];
+}
+
 - (void)retryPendingConnections {
     self.megaApi->retryPendingConnections();
+}
+
+- (void)reconnect {
+    self.megaApi->retryPendingConnections(true, true);
 }
 
 #pragma mark - Login Requests
@@ -395,6 +404,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent {
     self.megaApi->copyNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL);
+}
+
+- (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->copyNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL, (newName != nil) ? [newName UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)copyNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName {
+    self.megaApi->copyNode((node != nil) ? [node getCPtr] : NULL, (newParent != nil) ? [newParent getCPtr] : NULL, (newName != nil) ? [newName UTF8String] : NULL);
 }
 
 - (void)renameNode:(MEGANode *)node newName:(NSString *)newName delegate:(id<MEGARequestDelegate>)delegate {
@@ -596,7 +613,37 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->reportDebugEvent((text != nil) ? [text UTF8String] : NULL);
 }
 
+- (void)getUserDataWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserData([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserData {
+    self.megaApi->getUserData();
+}
+
+- (void)getUserDataWithMEGAUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserData((user != nil) ? [user getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserDataWithMEGAUser:(MEGAUser *)user {
+    self.megaApi->getUserData((user != nil) ? [user getCPtr] : NULL);
+}
+
+- (void)getUserDataWithUser:(NSString *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserDataWithUser:(NSString *)user {
+    self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL);
+}
+
 #pragma mark - Transfer
+
+- (MEGATransfer *)transferByTag:(NSInteger)transferTag {
+    MegaTransfer *transfer = self.megaApi->getTransferByTag((int)transferTag);
+    
+    return transfer ? [[MEGATransfer alloc] initWithMegaTransfer:transfer cMemoryOwn:YES] : nil;
+}
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
@@ -644,6 +691,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)cancelTransfersForDirection:(NSInteger)direction {
     self.megaApi->cancelTransfers((int)direction);
+}
+
+- (void)cancelTransferByTag:(NSInteger)transferTag delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelTransferByTag((int)transferTag, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelTransferByTag:(NSInteger)transferTag {
+    self.megaApi->cancelTransferByTag((int)transferTag);
 }
 
 - (void)pauseTransfers:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
@@ -839,6 +894,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (NSString *)localToName:(NSString *)localName {
     return [[NSString alloc] initWithUTF8String:self.megaApi->localToName([localName UTF8String])];
+}
+
+- (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {
+    self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL, disablepkp);
 }
 
 #pragma mark - Debug log messages

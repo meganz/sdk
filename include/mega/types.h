@@ -81,6 +81,7 @@ class Request;
 class SharedBuffer;
 struct Transfer;
 class TreeProc;
+class LocalTreeProc;
 struct User;
 struct Waiter;
 struct Proxy;

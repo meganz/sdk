@@ -41,6 +41,8 @@ class MEGA_API SqliteDbTable : public DbTable
 {
     sqlite3* db;
     sqlite3_stmt* pStmt;
+    string dbfile;
+    FileSystemAccess *fsaccess;
 
 public:
     void rewind();
@@ -52,10 +54,9 @@ public:
     void begin();
     void commit();
     void abort();
+    void remove();
 
-    uint32_t nextid;
-
-    SqliteDbTable(sqlite3*);
+    SqliteDbTable(sqlite3*, FileSystemAccess *fs, string *filepath);
     ~SqliteDbTable();
 };
 } // namespace

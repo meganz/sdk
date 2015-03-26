@@ -98,6 +98,9 @@ public:
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
+    // user login: e-mail, pwkey, emailhash
+    void fastlogin(const char*, const byte*, uint64_t);
+
     // session login: binary session, bytecount
     void login(const byte*, int);
 
@@ -292,13 +295,16 @@ public:
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
-    void delsync(Sync*);
+    void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
     void disconnect();
 
     // abort session and free all state information
     void logout();
+
+    // free all state information
+    void locallogout();
 
     // SDK version
     const char* version();
@@ -324,6 +330,9 @@ public:
     // submit purchased products for payment
     void purchase_checkout(int);
 
+    // submit purchase receipt for verification
+    void submitpurchasereceipt(int, const char*);
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -332,8 +341,11 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // disable public key pinning (for testing purposes)
+    static bool disablepkp;
+
     // root URL for API requests
-    static const char* const APIURL;
+    static string APIURL;
 
     // root URL for load balancing requests
     static const char* const BALANCERURL;
@@ -410,7 +422,7 @@ private:
 
     // server-client command processing
     void sc_updatenode();
-    void sc_deltree();
+    Node* sc_deltree();
     void sc_newnodes();
     void sc_contacts();
     void sc_keys();
@@ -605,6 +617,9 @@ public:
     // app scanstate flag
     bool syncscanstate;
 
+    // scan required flag
+    bool syncdownrequired;
+
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 
@@ -669,6 +684,9 @@ public:
     
     // commit all queueud deletions
     void execsyncdeletions();
+
+    // process localnode subtree
+    void proclocaltree(LocalNode*, LocalTreeProc*);
 #endif
 
     // recursively cancel transfers in a subtree

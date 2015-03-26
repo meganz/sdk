@@ -225,6 +225,14 @@ void BdbTable::abort()
         dbtxn = NULL;
     }
 }
+
+void BdbTable::remove()
+{
+    abort();
+    begin()
+    truncate();
+    commit();
+}
 } // namespace
 
 #endif

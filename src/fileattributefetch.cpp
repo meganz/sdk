@@ -29,6 +29,8 @@ FileAttributeFetchChannel::FileAttributeFetchChannel()
     req.binary = true;
     req.status = REQ_READY;
     urltime = 0;
+    fahref = UNDEF;
+    inbytes = 0;
 }
 
 FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)

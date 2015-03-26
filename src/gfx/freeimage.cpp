@@ -41,6 +41,10 @@ namespace mega {
 
 GfxProcFreeImage::GfxProcFreeImage()
 {
+    dib = NULL;
+    w = 0;
+    h = 0;
+
 #ifdef FREEIMAGE_LIB
 	FreeImage_Initialise(TRUE);
 #endif

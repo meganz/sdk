@@ -63,7 +63,7 @@ public:
     
     MegaClient* client;
 
-    GfxProc() { }
+    GfxProc();
     virtual ~GfxProc() { }
 };
 } // namespace

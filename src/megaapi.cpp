@@ -855,6 +855,11 @@ const char* MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
     return pImpl->getStringHash(base64pwkey, inBuf);
 }
 
+MegaHandle MegaApi::base32ToHandle(const char *base32Handle)
+{
+    return MegaApiImpl::base32ToHandle(base32Handle);
+}
+
 uint64_t MegaApi::base64ToHandle(const char* base64Handle)
 {
     return MegaApiImpl::base64ToHandle(base64Handle);
@@ -1084,7 +1089,12 @@ void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequest
 
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
-	pImpl->setAvatar(dstFilePath, listener);
+    pImpl->setAvatar(dstFilePath, listener);
+}
+
+void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setUserAttribute(type, value, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -1122,6 +1132,11 @@ void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *liste
     pImpl->getPaymentUrl(productHandle, listener);
 }
 
+void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(receipt, listener);
+}
+
 const char *MegaApi::exportMasterKey()
 {
     return pImpl->exportMasterKey();
@@ -1135,6 +1150,11 @@ void MegaApi::changePassword(const char *oldPassword, const char *newPassword, M
 void MegaApi::logout(MegaRequestListener *listener)
 {
     pImpl->logout(listener);
+}
+
+void MegaApi::localLogout(MegaRequestListener *listener)
+{
+    pImpl->localLogout(listener);
 }
 
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
@@ -1173,6 +1193,11 @@ MegaTransferList *MegaApi::getTransfers()
     return pImpl->getTransfers();
 }
 
+MegaTransfer *MegaApi::getTransferByTag(int transferTag)
+{
+    return pImpl->getTransferByTag(transferTag);
+}
+
 MegaTransferList *MegaApi::getTransfers(int type)
 {
     return pImpl->getTransfers(type);
@@ -1206,6 +1231,11 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     pImpl->cancelTransfer(t, listener);
+}
+
+void MegaApi::cancelTransferByTag(int transferTag, MegaRequestListener *listener)
+{
+    pImpl->cancelTransferByTag(transferTag, listener);
 }
 
 void MegaApi::cancelTransfers(int direction, MegaRequestListener *listener)
@@ -1254,6 +1284,16 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
     pImpl->removeSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+}
+
+void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
+{
+    pImpl->disableSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
+}
+
+void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
+{
+    pImpl->disableSync(sync ? sync->getMegaHandle() : UNDEF, listener);
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
@@ -1401,6 +1441,11 @@ const char *MegaApi::getVersion()
 const char *MegaApi::getUserAgent()
 {
     return pImpl->getUserAgent();
+}
+
+void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
+{
+    pImpl->changeApiUrl(apiURL, disablepkp);
 }
 
 const char *MegaApi::base64ToBase32(const char *base64)
@@ -1761,6 +1806,11 @@ long long MegaAccountDetails::getTransferOwnUsed()
     return 0;
 }
 
+int MegaAccountDetails::getNumUsageItems()
+{
+    return 0;
+}
+
 long long MegaAccountDetails::getStorageUsed(MegaHandle handle)
 {
     return 0;
@@ -1894,6 +1944,21 @@ int MegaPricing::getAmount(int productIndex)
 const char *MegaPricing::getCurrency(int productIndex)
 {
     return 0;
+}
+
+const char *MegaPricing::getDescription(int productIndex)
+{
+    return NULL;
+}
+
+const char *MegaPricing::getIosID(int productIndex)
+{
+    return NULL;
+}
+
+const char *MegaPricing::getAndroidID(int productIndex)
+{
+    return NULL;
 }
 
 MegaPricing *MegaPricing::copy()

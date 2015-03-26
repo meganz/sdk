@@ -42,7 +42,7 @@
 #include <fcntl.h>
 #endif
 
-#ifdef TARGET_OS_IPHONE
+#if TARGET_OS_IPHONE
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
@@ -420,7 +420,7 @@ class MegaRequestPrivate : public MegaRequest
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
         void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, const char *currency);
+                        int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
         // ATTR
         void setAttributeMap(std::map<std::string, std::pair<unsigned char*, unsigned int>>*,
@@ -594,6 +594,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 		virtual long long getTransferMax();
 		virtual long long getTransferOwnUsed();
 
+        virtual int getNumUsageItems();
 		virtual long long getStorageUsed(MegaHandle handle);
 		virtual long long getNumFiles(MegaHandle handle);
 		virtual long long getNumFolders(MegaHandle handle);
@@ -629,10 +630,13 @@ public:
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
+    virtual const char* getDescription(int productIndex);
+    virtual const char* getIosID(int productIndex);
+    virtual const char* getAndroidID(int productIndex);
     virtual MegaPricing *copy();
 
     void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, const char *currency);
+                    int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
     vector<handle> handles;
     vector<int> proLevel;
@@ -641,6 +645,9 @@ private:
     vector<int> months;
     vector<int> amount;
     vector<const char *> currency;
+    vector<const char *> description;
+    vector<const char *> iosId;
+    vector<const char *> androidId;
 };
 
 class MegaNodeListPrivate : public MegaNodeList
@@ -765,7 +772,6 @@ class OutShareProcessor : public TreeProcessor
         vector<handle> &getHandles();
 
     protected:
-        const char *search;
         vector<Share *> shares;
         vector<handle> handles;
 };
@@ -845,6 +851,7 @@ class MegaApiImpl : public MegaApp
         //Utils
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
+        static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static const char* handleToBase64(MegaHandle handle);
         static const char* userHandleToBase64(MegaHandle handle);
@@ -917,17 +924,21 @@ class MegaApiImpl : public MegaApp
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentUrl(handle productHandle, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
         const char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
         void logout(MegaRequestListener *listener = NULL);
+        void localLogout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
 
@@ -940,10 +951,12 @@ class MegaApiImpl : public MegaApp
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
+        void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, MegaRequestListener* listener=NULL);
         void setUploadLimit(int bpslimit);
         MegaTransferList *getTransfers();
+        MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
 
 #ifdef ENABLE_SYNC
@@ -953,6 +966,7 @@ class MegaApiImpl : public MegaApp
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
         void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
+        void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
@@ -1022,6 +1036,8 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         const char *getUserAgent();
+
+        void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
@@ -1122,6 +1138,7 @@ protected:
 
         // login result
         virtual void login_result(error);
+        virtual void logout_result(error);
         virtual void userdata_result(string*, string*, string*, handle, error);
         virtual void pubkey_result(User *);
 
@@ -1168,11 +1185,13 @@ protected:
         virtual void putfa_result(handle, fatype, error);
 
         // purchase transactions
-        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency);
+        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
+                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
         virtual void checkout_result(error);
         virtual void checkout_result(const char*);
+        virtual void submitpurchasereceipt_result(error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
@@ -1264,7 +1283,7 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
 

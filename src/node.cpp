@@ -37,6 +37,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     client = cclient;
     outshares = NULL;
     tag = 0;
+    appdata = NULL;
 
     nodehandle = h;
     parenthandle = ph;
@@ -273,11 +274,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         {
             ptr += (unsigned char)*ptr + 1;
         }
-    }
-
-    if (i >= 0)
-    {
-        return NULL;
     }
 
     short numshares = MemAccess::get<short>(ptr);
@@ -561,7 +557,10 @@ void Node::setfingerprint()
 
         if (it != attrs.map.end())
         {
-            unserializefingerprint(&it->second);
+            if(!unserializefingerprint(&it->second))
+            {
+                LOG_warn << "Invalid fingerprint";
+            }
         }
 
         // if we lack a valid FileFingerprint for this file, use file's key,
@@ -772,6 +771,9 @@ bool Node::isbelow(Node* p) const
 NodeCore::NodeCore()
 {
     attrstring = NULL;
+    nodehandle = UNDEF;
+    parenthandle = UNDEF;
+    type = TYPE_UNKNOWN;
 }
 
 NodeCore::~NodeCore()
@@ -786,6 +788,9 @@ NodeCore::~NodeCore()
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
     bool newnode = !localname.size();
+    Node* todelete = NULL;
+    int nc = 0;
+    Sync* oldsync = NULL;
 
     if (parent)
     {
@@ -855,10 +860,29 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 assert(parent->node);
                 
-                // FIXME: detect if rename permitted, copy/delete if not
                 sync->client->reqtag = sync->tag;
-                sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF);
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+                {
+                    LOG_debug << "Rename not permitted. Using node copy/delete";
+
+                    // save for deletion
+                    todelete = node;
+                }
                 treestate(TREESTATE_SYNCING);
+            }
+
+            if (sync != parent->sync)
+            {
+                LOG_debug << "Moving files between different syncs";
+                oldsync = sync;
+            }
+
+            if (todelete || oldsync)
+            {
+                // prepare localnodes for a sync change or/and a copy operation
+                LocalTreeProcMove tp(parent->sync, todelete != NULL);
+                sync->client->proclocaltree(this, &tp);
+                nc = tp.nc;
             }
         }
 
@@ -871,6 +895,29 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
 
         parent->treestate();
+
+        if (todelete)
+        {
+            // complete the copy/delete operation
+            dstime nds = NEVER;
+            sync->client->syncup(parent, &nds);
+
+            // check if nodes can be immediately created
+            bool immediatecreation = sync->client->synccreate.size() == nc;
+
+            sync->client->syncupdate();
+
+            // try to keep nodes in syncdebris if they can't be immediately created
+            // to avoid uploads
+            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
+        }
+
+        if (oldsync)
+        {
+            // update local cache if there is a sync change
+            oldsync->cachenodes();
+            sync->cachenodes();
+        }
     }
 }
 
@@ -1276,7 +1323,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
                   + MegaClient::NODEHANDLE  // handle
                   + sizeof(short))          // localname length
     {
-        //sync->client->app->debug_log("LocalNode unserialization failed - short data");
+        LOG_err << "LocalNode unserialization failed - short data";
         return NULL;
     }
 
@@ -1313,7 +1360,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     if (ptr + localnamelen > end)
     {
-        //sync->client->app->debug_log("LocalNode unserialization failed - name too long");
+        LOG_err << "LocalNode unserialization failed - name too long";
         return NULL;
     }
 
@@ -1325,13 +1372,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     {
         if (ptr + 4 * sizeof(int32_t) > end + 1)
         {
-            //sync->client->app->debug_log("LocalNode unserialization failed - short fingerprint");
+            LOG_err << "LocalNode unserialization failed - short fingerprint";
             return NULL;
         }
 
         if (!Serialize64::unserialize((byte*)ptr + 4 * sizeof(int32_t), end - ptr - 4 * sizeof(int32_t), &mtime))
         {
-            //sync->client->app->debug_log("LocalNode unserialization failed - malformed fingerprint mtime");
+            LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
     }

@@ -69,6 +69,9 @@ struct MEGA_API NewNode : public NodeCore
     {
         syncid = UNDEF;
         added = false;
+        source = NEW_NODE;
+        uploadhandle = UNDEF;
+        localnode = NULL;
     }
 };
 

@@ -59,7 +59,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeReportEvent,
     MEGARequestTypeCancelAttrFile,
     MEGARequestTypeGetPricing,
-    MEGARequestTypeGetPaymentURL
+    MEGARequestTypeGetPaymentURL,
+    MEGARequestTypeGetUserData
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

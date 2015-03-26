@@ -21,6 +21,7 @@
 
 #include "mega/request.h"
 #include "mega/command.h"
+#include "mega/logging.h"
 
 namespace mega {
 void Request::add(Command* c)
@@ -50,7 +51,10 @@ void Request::get(string* req) const
 
 void Request::procresult(MegaClient* client)
 {
-    client->json.enterarray();
+    if (!client->json.enterarray())
+    {
+        LOG_err << "Invalid response from server";
+    }
 
     for (int i = 0; i < (int)cmds.size(); i++)
     {
@@ -61,12 +65,20 @@ void Request::procresult(MegaClient* client)
         if (client->json.enterobject())
         {
             cmds[i]->procresult();
-            client->json.leaveobject();
+
+            if (!client->json.leaveobject())
+            {
+                LOG_err << "Invalid object";
+            }
         }
         else if (client->json.enterarray())
         {
             cmds[i]->procresult();
-            client->json.leavearray();
+
+            if (!client->json.leavearray())
+            {
+                LOG_err << "Invalid array";
+            }
         }
         else
         {

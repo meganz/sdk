@@ -814,11 +814,6 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                         break;
                     }
                 }
-
-                if (l)
-                {
-                    break;
-                }
             }
         }
 

@@ -184,9 +184,10 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     localseparator = "/";
 
 #ifdef USE_INOTIFY
+    lastcookie = 0;
+    lastlocalnode = NULL;
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
-        lastcookie = 0;
         notifyfailed = false;
     }
 #endif
@@ -714,7 +715,6 @@ void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
 
         closedir(dp);
     }
-
 }
 
 bool PosixFileSystemAccess::rmdirlocal(string* name)
@@ -827,6 +827,8 @@ PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotif
 #ifdef __MACH__
     failed = false;
 #endif
+
+    fsaccess = NULL;
 }
 
 void PosixDirNotify::addnotify(LocalNode* l, string* path)
@@ -862,16 +864,12 @@ void PosixDirNotify::delnotify(LocalNode* l)
 
 fsfp_t PosixDirNotify::fsfingerprint()
 {
-#ifdef __MACH__
-    return 0;
-#else
     struct statfs statfsbuf;
 
     // FIXME: statfs() does not really do what we want.
     if (statfs(localbasepath.c_str(), &statfsbuf)) return 0;
 
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
-#endif
 }
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
@@ -990,6 +988,8 @@ PosixDirAccess::PosixDirAccess()
 {
     dp = NULL;
     globbing = false;
+    memset(&globbuf, 0, sizeof(glob_t));
+    globindex = 0;
 }
 
 PosixDirAccess::~PosixDirAccess()

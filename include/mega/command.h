@@ -107,7 +107,6 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 class MEGA_API CommandGetFA : public Command
 {
     int part;
-    handle fahref;
 
 public:
     void procresult();
@@ -311,13 +310,20 @@ public:
 class MEGA_API CommandKillSessions : public Command
 {
     handle h;
-    int all;
 
 public:
     void procresult();
 
     CommandKillSessions(MegaClient*, handle);
     CommandKillSessions(MegaClient*);
+};
+
+class MEGA_API CommandLogout : public Command
+{
+public:
+    void procresult();
+
+    CommandLogout(MegaClient*);
 };
 
 class MEGA_API CommandPubKeyRequest : public Command
@@ -527,6 +533,15 @@ public:
 
     CommandLoadBalancing(MegaClient*, const char*);
 };
+
+class MEGA_API CommandSubmitPurchaseReceipt : public Command
+{
+public:
+    void procresult();
+
+    CommandSubmitPurchaseReceipt(MegaClient*, int, const char*);
+};
+
 } // namespace
 
 #endif

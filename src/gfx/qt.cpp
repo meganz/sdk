@@ -162,6 +162,27 @@ unsigned Get32u(const void * Long, int MotorolaOrder){
     return (unsigned)Get32s(Long, MotorolaOrder) & 0xffffffff;
 }
 
+int getFormatSize(int Format)
+{
+     switch(Format){
+         case FMT_SBYTE:
+         case FMT_BYTE:
+            return 1;
+         case FMT_USHORT:
+            return 2;
+         case FMT_ULONG:
+            return 4;
+         case FMT_URATIONAL:
+         case FMT_SRATIONAL:
+             return 8;
+         case FMT_SSHORT:
+            return 2;
+         case FMT_SLONG:
+            return 4;
+     }
+     return 0;
+}
+
 // Evaluate number, be it int, rational, or float from directory.
 double ConvertAnyFormat(const void * ValuePtr, int Format, int MotorolaOrder){
      double Value;
@@ -206,6 +227,7 @@ double ConvertAnyFormat(const void * ValuePtr, int Format, int MotorolaOrder){
 int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint32_t exifSize, uint32_t nesting, int MotorolaOrder){
     int numDirEntries;
     int orientation;
+    int tam;
 
     if(nesting>4) return -1; // Maximum Exif directory nesting exceeded (corrupt Exif header)
 
@@ -218,6 +240,11 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
         int ByteCount;
 
         DirEntry = DIR_ENTRY_ADDR(DirStart, de);
+        if((DirEntry + 8) > (OffsetBase + exifSize))
+        {
+            return -1;
+        }
+
         Tag        = Get16u(DirEntry,   MotorolaOrder);
         Format     = Get16u(DirEntry+2, MotorolaOrder);
         Components = Get32u(DirEntry+4, MotorolaOrder);
@@ -228,6 +255,11 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
         ByteCount = Components * BytesPerFormat[Format];
 
         if (ByteCount > 4){ // If its bigger than 4 bytes, the dir entry contains an offset.
+            if((DirEntry + 12) > (OffsetBase + exifSize))
+            {
+                return -1;
+            }
+
             unsigned OffsetVal = Get32u(DirEntry+8, MotorolaOrder);
             if (OffsetVal+ByteCount > exifSize) continue; // Bogus pointer offset and / or bytecount value
             ValuePtr = OffsetBase+OffsetVal;
@@ -238,6 +270,12 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
         // Extract useful components of tag
         switch(Tag){
             case TAG_ORIENTATION:
+                tam = getFormatSize(Format);
+                if(!tam || ((ValuePtr + tam) > (OffsetBase + exifSize)))
+                {
+                    break;
+                }
+
                 orientation = (int)ConvertAnyFormat(ValuePtr, Format, MotorolaOrder);
                 if (orientation >= 0 && orientation <= 8)
                     return orientation;
@@ -246,6 +284,11 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
             case TAG_EXIF_OFFSET:
             case TAG_INTEROP_OFFSET:
                 const char * SubdirStart;
+                if((ValuePtr + 4) > (OffsetBase + exifSize))
+                {
+                    continue;
+                }
+
                 SubdirStart = OffsetBase + Get32u(ValuePtr, MotorolaOrder);
                 if(!(SubdirStart < OffsetBase || SubdirStart > OffsetBase+ exifSize))
                 {
@@ -269,6 +312,11 @@ int GfxProcQT::processEXIFDir(const char *DirStart, const char *OffsetBase, uint
 // Describes all the drivel that most digital cameras include...
 int GfxProcQT::processEXIF(QByteArray *data, int itemlen){
     int MotorolaOrder = 0;
+    if(data->size() < 8)
+    {
+        return -1;
+    }
+
     if(data->mid(6,2) == "II") MotorolaOrder = 0;
     else if(data->mid(6,2) == "MM") MotorolaOrder = 1;
     else return -1;
