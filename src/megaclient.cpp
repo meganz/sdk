@@ -4555,7 +4555,7 @@ void MegaClient::getua(User* u, const char* an, int p)
 {
     if (an)
     {
-        string name = p ? "*" : "+";
+        string name = p ? ((p == 1) ? "*" : "") : "+";
 
         name.append(an);
 

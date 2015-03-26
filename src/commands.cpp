@@ -1721,7 +1721,7 @@ void CommandGetUA::procresult()
 
         l = Base64::atob(ptr, data, l);
 
-        if (priv)
+        if (priv == 1)
         {
             d.assign((char*)data, l);
             delete[] data;
@@ -1749,6 +1749,14 @@ void CommandGetUA::procresult()
                 }
             }
             return(client->app->getua_result((byte*)d.data(), d.size()));
+        }
+        else if (priv == 2)
+        {
+            return(client->app->getua_result(data,l));
+        }
+        else
+        {
+            return(client->app->getua_result(API_EARGS));
         }
 
         client->app->getua_result(data, l);
