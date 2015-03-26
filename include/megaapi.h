@@ -1379,6 +1379,7 @@ class MegaRequest
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
+         * - MegaApi::getUserAttribute - Returns the attribute type
          *
          * @return Type of parameter related to the request
          */
@@ -3651,6 +3652,27 @@ class MegaApi
          */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get an attribute of the current user.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getFile - Returns the new value for the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * USER_ATTR_FIRSTNAME = 1
+         * Change the firstname of the user
+         * USER_ATTR_LASTNAME = 2
+         * Change the lastname of the user
+         *
+         * @param value
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the retrieval of a thumbnail

@@ -1057,6 +1057,11 @@ void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
     pImpl->setAvatar(dstFilePath, listener);
 }
 
+void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
+{
+    pImpl->getUserAttribute(user, type, listener);
+}
+
 void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
     pImpl->setUserAttribute(type, value, listener);
