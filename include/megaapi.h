@@ -3653,23 +3653,23 @@ class MegaApi
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get an attribute of the current user.
+         * @brief Get an attribute of a MegaUser.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
          * - MegaRequest::getFile - Returns the new value for the attribute
          *
+         * @param user MegaUser to get the attribute
          * @param type Attribute type
          *
          * Valid values are:
          *
          * USER_ATTR_FIRSTNAME = 1
-         * Change the firstname of the user
+         * Get the firstname of the user
          * USER_ATTR_LASTNAME = 2
-         * Change the lastname of the user
+         * Get the lastname of the user
          *
-         * @param value
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
