@@ -28,8 +28,10 @@ namespace mega {
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
 
+bool MegaClient::disablepkp = false;
+
 // root URL for API access
-const char* const MegaClient::APIURL = "https://g.api.mega.co.nz/";
+string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
 // root URL for the load balancer
 const char* const MegaClient::BALANCERURL = "https://karere-001.developers.mega.co.nz:4434/";
@@ -1941,6 +1943,27 @@ void MegaClient::disconnect()
 
 void MegaClient::logout()
 {
+    if(loggedin() != FULLACCOUNT)
+    {
+        if (sctable)
+        {
+            sctable->remove();
+        }
+
+#ifdef ENABLE_SYNC
+        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+        {
+            if((*it)->statecachetable)
+            {
+                (*it)->statecachetable->remove();
+            }
+        }
+#endif
+        locallogout();
+        app->logout_result(API_OK);
+        return;
+    }
+
     reqs[r].add(new CommandLogout(this));
 }
 
@@ -4485,17 +4508,17 @@ error MegaClient::invite(const char* email, visibility_t show)
  * @param an Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
- * @param priv 1 for a private, 0 for a public attribute.
+ * @param priv 1 for a private, 0 for a public attribute, 2 for a default attribute
  * @return Void.
  */
 void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
 {
-    string name = priv ? "*" : "+";
+    string name = priv ? ((priv == 1) ? "*" : "") : "+";
     string data;
 
     name.append(an);
 
-    if (priv)
+    if (priv == 1)
     {
         if (av)
         {
@@ -4516,8 +4539,8 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
     }
 
     reqs[r].add(new CommandPutUA(this, name.c_str(),
-                                 priv ? (const byte*)data.data() : av,
-                                 priv ? data.size() : avl));
+                                 (priv == 1) ? (const byte*)data.data() : av,
+                                 (priv == 1) ? data.size() : avl));
 }
 
 /**

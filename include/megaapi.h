@@ -1320,6 +1320,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
+         * - MegaApi::setUserAttribute - Returns the new value for the attribute
          *
          * @return Path of a file related to the request
          */
@@ -1376,8 +1377,8 @@ class MegaRequest
          * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
          * - MegaApi::submitFeedback - Returns MegaApi::EVENT_FEEDBACK
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
-         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or
-         * MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
+         * - MegaApi::setUserAttribute - Returns the attribute type
          *
          * @return Type of parameter related to the request
          */
@@ -2691,6 +2692,11 @@ class MegaApi
             ATTR_TYPE_PREVIEW = 1
         };
 
+        enum {
+            USER_ATTR_FIRSTNAME = 1,
+            USER_ATTR_LASTNAME = 2
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -2952,6 +2958,14 @@ class MegaApi
          * @return Base64-encoded hash
          */
         const char* getStringHash(const char* base64pwkey, const char* email);
+
+        /**
+         * @brief Converts a Base32-encoded user handle (JID) to a MegaHandle
+         *
+         * @param base32Handle Base32-encoded handle (JID)
+         * @return User handle
+         */
+        static MegaHandle base32ToHandle(const char* base32Handle);
 
         /**
          * @brief Converts a Base64-encoded node handle to a MegaHandle
@@ -3711,6 +3725,28 @@ class MegaApi
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set an attribute of the current user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getFile - Returns the new value for the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * USER_ATTR_FIRSTNAME = 1
+         * Change the firstname of the user
+         * USER_ATTR_LASTNAME = 2
+         * Change the lastname of the user
+         *
+         * @param value New attribute value
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -4027,6 +4063,24 @@ class MegaApi
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Cancel the transfer with a specific tag
+         *
+         * When a transfer is cancelled, it will finish and will provide the error code
+         * MegaError::API_EINCOMPLETE in MegaTransferListener::onTransferFinish and
+         * MegaListener::onTransferFinish
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the tag of the cancelled transfer (MegaTransfer::getTag)
+         *
+         * @param transferTag tag that identifies the transfer
+         * You can get this tag using MegaTransfer::getTag
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Cancel all transfers of the same type
          *
          * The associated request type with this request is MegaRequest::TYPE_CANCEL_TRANSFERS
@@ -4073,6 +4127,20 @@ class MegaApi
          * @return List with all active transfers
          */
         MegaTransferList *getTransfers();
+
+        /**
+         * @brief Get the transfer with a transfer tag
+         *
+         * That tag can be got using MegaTransfer::getTag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param Transfer tag to check
+         * @return MegaTransfer object with that tag, or NULL if there isn't any
+         * active transfer with it
+         *
+         */
+        MegaTransfer* getTransferByTag(int transferTag);
 
         /**
          * @brief Get all transfers of a specific type (downloads or uploads)
@@ -4913,6 +4981,8 @@ class MegaApi
          */
         const char *getUserAgent();
 
+        void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
 	#ifdef _WIN32
 		/**
 		 * @brief Convert an UTF16 string to UTF8 (Windows only)
@@ -5519,6 +5589,27 @@ public:
      * @return Currency associated with MegaPricing::getAmount
      */
     virtual const char* getCurrency(int productIndex);
+
+    /**
+     * @brief Get a description of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Description of the product
+     */
+    virtual const char* getDescription(int productIndex);
+
+    /**
+     * @brief getIosID Get the iOS ID of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return iOS ID of the product
+     */
+    virtual const char* getIosID(int productIndex);
+
+    /**
+     * @brief Get the Android ID of the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Android ID of the product
+     */
+    virtual const char* getAndroidID(int productIndex);
 
     /**
      * @brief Creates a copy of this MegaPricing object.

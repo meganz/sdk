@@ -115,12 +115,12 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 /**
  * @brief Number of times that a transfer has temporarily failed.
  */
-@property (readonly, nonatomic) NSInteger  numRetry ;
+@property (readonly, nonatomic) NSInteger  numRetry;
 
 /**
  * @brief Maximum number of times that the transfer will be retried.
  */
-@property (readonly, nonatomic) NSInteger  maxRetries ;
+@property (readonly, nonatomic) NSInteger  maxRetries;
 
 /**
  * @brief An integer that identifies this transfer.
@@ -160,7 +160,7 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
  * @return YES if this is a streaming transfer, NO otherwise
  * @see [MEGASdk startStreamingNode:startPos:size:];
  */
-@property (readonly, nonatomic) BOOL isStreammingTransfer;
+@property (readonly, nonatomic) BOOL isStreamingTransfer;
 
 /**
  * @brief Creates a copy of this MEGATransfer object

@@ -419,9 +419,9 @@ class MegaRequestPrivate : public MegaRequest
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
         void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, const char *currency);
+                        int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
-        virtual int getType() const;
+		virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
 		virtual const char* __str__() const;
@@ -610,10 +610,13 @@ public:
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
+    virtual const char* getDescription(int productIndex);
+    virtual const char* getIosID(int productIndex);
+    virtual const char* getAndroidID(int productIndex);
     virtual MegaPricing *copy();
 
     void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, const char *currency);
+                    int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
     vector<handle> handles;
     vector<int> proLevel;
@@ -622,6 +625,9 @@ private:
     vector<int> months;
     vector<int> amount;
     vector<const char *> currency;
+    vector<const char *> description;
+    vector<const char *> iosId;
+    vector<const char *> androidId;
 };
 
 class MegaNodeListPrivate : public MegaNodeList
@@ -825,6 +831,7 @@ class MegaApiImpl : public MegaApp
         //Utils
         const char* getBase64PwKey(const char *password);
         const char* getStringHash(const char* base64pwkey, const char* inBuf);
+        static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static const char* handleToBase64(MegaHandle handle);
         static const char* userHandleToBase64(MegaHandle handle);
@@ -877,6 +884,7 @@ class MegaApiImpl : public MegaApp
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
+		void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -903,10 +911,12 @@ class MegaApiImpl : public MegaApp
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
+        void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, MegaRequestListener* listener=NULL);
         void setUploadLimit(int bpslimit);
         MegaTransferList *getTransfers();
+        MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
 
 #ifdef ENABLE_SYNC
@@ -986,6 +996,8 @@ class MegaApiImpl : public MegaApp
 
         const char *getVersion();
         const char *getUserAgent();
+
+        void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
@@ -1133,7 +1145,8 @@ protected:
         virtual void putfa_result(handle, fatype, error);
 
         // purchase transactions
-        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency);
+        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
+                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
         virtual void checkout_result(error);
@@ -1221,7 +1234,7 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
 

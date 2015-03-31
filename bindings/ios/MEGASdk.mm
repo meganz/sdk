@@ -260,6 +260,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
 }
 
++ (NSString *)base64HandleForHandle:(uint64_t)handle {
+    return [[NSString alloc] initWithUTF8String:MegaApi::handleToBase64(handle)];
+}
+
 - (void)retryPendingConnections {
     self.megaApi->retryPendingConnections();
 }
@@ -635,6 +639,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 #pragma mark - Transfer
 
+- (MEGATransfer *)transferByTag:(NSInteger)transferTag {
+    MegaTransfer *transfer = self.megaApi->getTransferByTag((int)transferTag);
+    
+    return transfer ? [[MEGATransfer alloc] initWithMegaTransfer:transfer cMemoryOwn:YES] : nil;
+}
+
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
@@ -681,6 +691,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)cancelTransfersForDirection:(NSInteger)direction {
     self.megaApi->cancelTransfers((int)direction);
+}
+
+- (void)cancelTransferByTag:(NSInteger)transferTag delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelTransferByTag((int)transferTag, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelTransferByTag:(NSInteger)transferTag {
+    self.megaApi->cancelTransferByTag((int)transferTag);
 }
 
 - (void)pauseTransfers:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
@@ -876,6 +894,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (NSString *)localToName:(NSString *)localName {
     return [[NSString alloc] initWithUTF8String:self.megaApi->localToName([localName UTF8String])];
+}
+
+- (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {
+    self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL, disablepkp);
 }
 
 #pragma mark - Debug log messages

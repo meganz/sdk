@@ -461,6 +461,10 @@ MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
 
 MegaUser *MegaUserPrivate::fromUser(User *user)
 {
+	if(!user)
+	{
+		return NULL;
+	}
 	return new MegaUserPrivate(user);
 }
 
@@ -1332,11 +1336,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     if(megaPricing)
     {
-        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency);
+        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency, description, iosid, androidid);
     }
 }
 
@@ -1980,7 +1984,16 @@ const char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBu
 
 	char* buf = new char[8*4/3+4];
     Base64::btoa((byte*)&strhash, 8, buf);
-	return buf;
+    return buf;
+}
+
+MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
+{
+	if(!base32Handle) return INVALID_HANDLE;
+
+	handle h = 0;
+	Base32::atob(base32Handle,(byte*)&h, MegaClient::USERHANDLE);
+	return h;
 }
 
 const char* MegaApiImpl::ebcEncryptKey(const char* encryptionKey, const char* plainKey)
@@ -2483,7 +2496,12 @@ void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaReq
 
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
-	setUserAttribute(0, dstFilePath, listener);
+	setUserAttr(0, dstFilePath, listener);
+}
+
+void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
+{
+	setUserAttr(type ? type : -1, value, listener);
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -2693,7 +2711,7 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
     waiter->notify();
 }
 
-void MegaApiImpl::setUserAttribute(int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
 	request->setFile(srcFilePath);
@@ -2759,6 +2777,22 @@ MegaTransferList *MegaApiImpl::getTransfers()
 
     sdkMutex.unlock();
     return result;
+}
+
+MegaTransfer *MegaApiImpl::getTransferByTag(int transferTag)
+{
+    MegaTransfer* value = NULL;
+    sdkMutex.lock();
+
+    if(transferMap.find(transferTag) == transferMap.end())
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    value = transferMap.at(transferTag)->copy();
+    sdkMutex.unlock();
+    return value;
 }
 
 MegaTransferList *MegaApiImpl::getTransfers(int type)
@@ -2856,7 +2890,18 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTra
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFER, listener);
-    request->setTransferTag(t->getTag());
+    if(t)
+    {
+        request->setTransferTag(t->getTag());
+    }
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::cancelTransferByTag(int transferTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFER, listener);
+    request->setTransferTag(transferTag);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -3473,6 +3518,19 @@ const char *MegaApiImpl::getVersion()
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
+}
+
+void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
+{
+    sdkMutex.lock();
+    MegaClient::APIURL = apiURL;
+    if(disablepkp)
+    {
+        MegaClient::disablepkp = true;
+    }
+    client->abortbackoff();
+    client->disconnect();
+    sdkMutex.unlock();
 }
 
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
@@ -4458,7 +4516,7 @@ void MegaApiImpl::putfa_result(handle, fatype, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char *currency)
+void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -4468,7 +4526,7 @@ void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, 
         return;
     }
 
-    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency);
+    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency, description, iosid, androidid);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -6949,33 +7007,68 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:
 		{
-			const char* srcFilePath = request->getFile();
+			const char* value = request->getFile();
             int type = request->getParamType();
 
-			if (!srcFilePath || (type != 0)) { e = API_EARGS; break; }
-
-			string path = srcFilePath;
-			string localpath;
-			fsAccess->path2local(&path, &localpath);
-
-			string attributedata;
-			FileAccess *f = fsAccess->newfileaccess();
-			if (!f->fopen(&localpath, 1, 0))
+			if (!value || type < 0)
 			{
-				delete f;
-				e = API_EREAD;
+				e = API_EARGS;
 				break;
 			}
 
-			if (!f->fread(&attributedata, f->size, 0, 0))
+			if(!type)
 			{
-				delete f;
-				e = API_EREAD;
-				break;
-			}
-			delete f;
+				string path = value;
+				string localpath;
+				fsAccess->path2local(&path, &localpath);
 
-			client->putua("a", (byte *)attributedata.data(), attributedata.size(), false);
+				string attributedata;
+				FileAccess *f = fsAccess->newfileaccess();
+				if (!f->fopen(&localpath, 1, 0))
+				{
+					delete f;
+					e = API_EREAD;
+					break;
+				}
+
+				if (!f->fread(&attributedata, f->size, 0, 0))
+				{
+					delete f;
+					e = API_EREAD;
+					break;
+				}
+				delete f;
+
+				client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
+			}
+			else
+			{
+				string attrname;
+				switch(type)
+				{
+					case MegaApi::USER_ATTR_FIRSTNAME:
+					{
+						attrname = "firstname";
+						break;
+					}
+
+					case MegaApi::USER_ATTR_LASTNAME:
+					{
+						attrname = "lastname";
+						break;
+					}
+
+					default:
+					{
+						e = API_EARGS;
+						break;
+					}
+				}
+				if(!e)
+				{
+					client->putua(attrname.c_str(), (byte *)value, strlen(value), 2);
+				}
+			}
 			break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_FILE:
@@ -7915,6 +8008,21 @@ MegaPricingPrivate::~MegaPricingPrivate()
     {
         delete[] currency[i];
     }
+
+    for(unsigned i = 0; i < description.size(); i++)
+    {
+        delete[] description[i];
+    }
+
+    for(unsigned i = 0; i < iosId.size(); i++)
+    {
+        delete[] iosId[i];
+    }
+
+    for(unsigned i = 0; i < androidId.size(); i++)
+    {
+        delete[] androidId[i];
+    }
 }
 
 int MegaPricingPrivate::getNumProducts()
@@ -7978,19 +8086,44 @@ const char *MegaPricingPrivate::getCurrency(int productIndex)
     return NULL;
 }
 
+const char *MegaPricingPrivate::getDescription(int productIndex)
+{
+    if((unsigned)productIndex < description.size())
+        return description[productIndex];
+
+    return NULL;
+}
+
+const char *MegaPricingPrivate::getIosID(int productIndex)
+{
+    if((unsigned)productIndex < iosId.size())
+        return iosId[productIndex];
+
+    return NULL;
+}
+
+const char *MegaPricingPrivate::getAndroidID(int productIndex)
+{
+    if((unsigned)productIndex < androidId.size())
+        return androidId[productIndex];
+
+    return NULL;
+}
+
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
         megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], currency[i]);
+                                months[i], amount[i], currency[i], description[i], iosId[i], androidId[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency)
+void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, const char *currency,
+                                    const char* description, const char* iosid, const char* androidid)
 {
     this->handles.push_back(product);
     this->proLevel.push_back(proLevel);
@@ -7999,6 +8132,9 @@ void MegaPricingPrivate::addProduct(handle product, int proLevel, int gbStorage,
     this->months.push_back(months);
     this->amount.push_back(amount);
     this->currency.push_back(MegaApi::strdup(currency));
+    this->description.push_back(MegaApi::strdup(description));
+    this->iosId.push_back(MegaApi::strdup(iosid));
+    this->androidId.push_back(MegaApi::strdup(androidid));
 }
 
 #ifdef ENABLE_SYNC

@@ -512,6 +512,11 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
         case WINHTTP_CALLBACK_STATUS_SENDING_REQUEST:
         {
+            if(MegaClient::disablepkp)
+            {
+                break;
+            }
+
             PCCERT_CONTEXT cert;
             DWORD len = sizeof cert;
 
