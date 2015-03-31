@@ -383,10 +383,10 @@ TEST_F(ApiTest, testSetup) {
         tcFive.success = false;
 
         tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcOne);
-        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcTwo);
-        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcThree);
-        tcOne.api->getGenericUserAttribute("mholmwood@gmail.com", "puEd255", &tcFour);
-        tcOne.api->getGenericUserAttribute("mh@mega.co.nz", "puEd255", &tcFive);
+//        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcTwo);
+//        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcThree);
+//        tcOne.api->getGenericUserAttribute("mholmwood@gmail.com", "puEd255", &tcFour);
+//        tcOne.api->getGenericUserAttribute("mh@mega.co.nz", "puEd255", &tcFive);
 
         while(tcOne.wait) {
            std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -404,48 +404,48 @@ TEST_F(ApiTest, testSetup) {
         std::cout << std::endl;
 
 
-        ASSERT_TRUE(tcTwo.success);
-        auto m1 = tcTwo.valMap->find("puEd255");
-        ASSERT_TRUE(m1 != tcTwo.valMap->end());
-        retVal.assign((char*)m1->second.first, m1->second.second);
-
-        for(int x = 0; x < retVal.size(); x++) {
-           std::cout << (int)retVal.c_str()[x] << ",";
-        }
-        std::cout << std::endl;
-
-        //ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
-        ASSERT_TRUE(tcThree.success);
-        auto m3 = tcThree.valMap->find("puEd255");
-        ASSERT_TRUE(m3 != tcThree.valMap->end());
-        retVal.assign((char*)m3->second.first, m3->second.second);
-
-        for(int x = 0; x < retVal.size(); x++) {
-            std::cout << (int)retVal.c_str()[x] << ",";
-        }
-        std::cout << std::endl;
-
-        //ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
-        ASSERT_TRUE(tcFour.success);
-        auto m4 = tcFour.valMap->find("puEd255");
-        ASSERT_TRUE(m4 != tcFour.valMap->end());
-        retVal.assign((char*)m4->second.first, m4->second.second);
-
-        for(int x = 0; x < retVal.size(); x++) {
-           std::cout << (int)retVal.c_str()[x] << ",";
-        }
-        std::cout << std::endl;
-
-
-        ASSERT_TRUE(tcFive.success);
-        auto m5 = tcFive.valMap->find("puEd255");
-        ASSERT_TRUE(m5 != tcFive.valMap->end());
-        retVal.assign((char*)m5->second.first, m5->second.second);
-
-        for(int x = 0; x < retVal.size(); x++) {
-           std::cout << (int)retVal.c_str()[x] << ",";
-        }
-        std::cout << std::endl;
+//        ASSERT_TRUE(tcTwo.success);
+//        auto m1 = tcTwo.valMap->find("puEd255");
+//        ASSERT_TRUE(m1 != tcTwo.valMap->end());
+//        retVal.assign((char*)m1->second.first, m1->second.second);
+//
+//        for(int x = 0; x < retVal.size(); x++) {
+//           std::cout << (int)retVal.c_str()[x] << ",";
+//        }
+//        std::cout << std::endl;
+//
+//        //ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
+//        ASSERT_TRUE(tcThree.success);
+//        auto m3 = tcThree.valMap->find("puEd255");
+//        ASSERT_TRUE(m3 != tcThree.valMap->end());
+//        retVal.assign((char*)m3->second.first, m3->second.second);
+//
+//        for(int x = 0; x < retVal.size(); x++) {
+//            std::cout << (int)retVal.c_str()[x] << ",";
+//        }
+//        std::cout << std::endl;
+//
+//        //ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
+//        ASSERT_TRUE(tcFour.success);
+//        auto m4 = tcFour.valMap->find("puEd255");
+//        ASSERT_TRUE(m4 != tcFour.valMap->end());
+//        retVal.assign((char*)m4->second.first, m4->second.second);
+//
+//        for(int x = 0; x < retVal.size(); x++) {
+//           std::cout << (int)retVal.c_str()[x] << ",";
+//        }
+//        std::cout << std::endl;
+//
+//
+//        ASSERT_TRUE(tcFive.success);
+//        auto m5 = tcFive.valMap->find("puEd255");
+//        ASSERT_TRUE(m5 != tcFive.valMap->end());
+//        retVal.assign((char*)m5->second.first, m5->second.second);
+//
+//        for(int x = 0; x < retVal.size(); x++) {
+//           std::cout << (int)retVal.c_str()[x] << ",";
+//        }
+//        std::cout << std::endl;
 
         tcOne.wait = true;
         tcOne.success = false;
@@ -454,14 +454,14 @@ TEST_F(ApiTest, testSetup) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         ASSERT_TRUE(tcOne.success);
-        ASSERT_EQ(2, tcOne.valMap->size());
+        ASSERT_EQ(5, tcOne.valMap->size());
         ASSERT_TRUE(tcOne.valMap->find("prEd255") != tcOne.valMap->end());
         ASSERT_TRUE(tcOne.valMap->find("puEd255") != tcOne.valMap->end());
     }
     else {
         std::cout << "login tcOne failed" << std::endl;
+        exit(-1);
     }
-    return;
     if(tcTwo.login()) {
         tcTwo.wait = true;
         tcTwo.success = false;
@@ -473,7 +473,7 @@ TEST_F(ApiTest, testSetup) {
 
         tcTwo.wait = true;
         tcTwo.success = false;
-        tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "signedRSA", &tcTwo);
+        tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "authRSA", &tcTwo);
         while(tcTwo.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }

@@ -7663,7 +7663,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_SIGNING_KEYS:
         {
-            client->getownsigningkeys();
+            client->getownsigningkeys(true);
             break;
         }
         case MegaRequest::TYPE_LOAD_BALANCING:

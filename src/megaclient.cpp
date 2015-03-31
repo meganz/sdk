@@ -4187,7 +4187,7 @@ void MegaClient::getownsigningkeys(bool reset) {
     }
     std::cout << "reset not enabled" << std::endl;
     User *user = finduser(me);
-    getgattribute(user->email.c_str(), "prEd255",
+    getgattribute(user->email.c_str(), "keyring",
             [this, user](ValueMap map, error e){
 
         if(e == API_ENOENT) {
@@ -4249,9 +4249,9 @@ void MegaClient::uploadkeys() {
         app->getguattr_result(pubMap, API_EINTERNAL);
         return;
     }
-
+    // signedRSA = authRSA
     ValueMap sigMap(new std::map<std::string, SharedBuffer>);
-    sigMap->insert({ "signedRSA", sigBuff });
+    sigMap->insert({ "authRSA", sigBuff });
 
     SharedBuffer rsaFp = createRSAFingerPrint();
     if(!rsaFp) {
@@ -4285,7 +4285,7 @@ void MegaClient::uploadkeys() {
             finalFun(priMap, e);
             return;
         }
-        setgattribute(finduser(me)->email.c_str(), "prEd255", priMap, 1,
+        setgattribute(finduser(me)->email.c_str(), "keyring", priMap, 1,
                 (*fVec)[1]);
     });
 
@@ -4296,7 +4296,7 @@ void MegaClient::uploadkeys() {
             return;
         }
         priMap->insert({ "puEd255", pubBuff });
-        setgattribute(finduser(me)->email.c_str(), "signedRSA", sigMap, 0,
+        setgattribute(finduser(me)->email.c_str(), "authRSA", sigMap, 0,
                 (*fVec)[2]);
     });
 
@@ -4306,7 +4306,7 @@ void MegaClient::uploadkeys() {
             finalFun(priMap, e);
             return;
         }
-        priMap->insert({ "signedRSA", sigBuff });
+        priMap->insert({ "authRSA", sigBuff });
         setgattribute(finduser(me)->email.c_str(), "RSA_fingerprint",
                 rsaFpMap, 0, (*fVec)[3]);
     });
@@ -4430,7 +4430,7 @@ void MegaClient::verifyRSAKeySignature(const char *user, ValueMap pMap) {
         }
 
         memcpy(signKey.get(), i->second.get(), i->second.size);
-        getgattribute(user, "signedRSA", (*fVec)[1]);
+        getgattribute(user, "authRSA", (*fVec)[1]);
     });
 
     fVec->push_back([this, user, fFinal, pKey, signKey](ValueMap map, error e) mutable {
@@ -4439,7 +4439,7 @@ void MegaClient::verifyRSAKeySignature(const char *user, ValueMap pMap) {
             fFinal(e);
         }
 
-        auto i = map->find("signedRSA");
+        auto i = map->find("authRSA");
         if(i == map->end()) {
             fFinal(API_EINTERNAL);
         }
