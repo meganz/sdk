@@ -668,10 +668,11 @@ if test "x$WIN32" = "xno" ; then
             AC_CHECK_HEADERS([openssl/ssl.h], [],
                 AC_MSG_ERROR([ssl.h header not found or not usable])
             )
+            LIBS="-lcrypto $LIBS"
             AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
                 AC_MSG_ERROR([Could not find OpenSSL library!])
             )
-
+            LIBS=$SAVE_LIBS
             AC_SUBST(LIBSSL_LIBS)
             openssl=true
          ;;
@@ -711,10 +712,11 @@ if test "x$WIN32" = "xno" ; then
         AC_CHECK_HEADERS([openssl/ssl.h], [],
             AC_MSG_ERROR([ssl.h header not found or not usable])
         )
+        LIBS="-lcrypto $LIBS"
         AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
             AC_MSG_ERROR([Could not find OpenSSL library!])
         )
-
+        LIBS=$SAVE_LIBS
         AC_SUBST(LIBSSL_LIBS)
         openssl=true
       ]
