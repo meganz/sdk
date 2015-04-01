@@ -2,7 +2,7 @@
 # @file configure.ac
 # @brief an input file for autoconf tool
 #
-# (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+# (c) 2013-2015 by Mega Limited, Auckland, New Zealand
 #
 # This file is part of the MEGA SDK - Client Access Engine.
 #
@@ -137,7 +137,7 @@ AC_STRUCT_TM
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 
-AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
+AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl glob.h malloc.h sys/malloc.h malloc/malloc.h])
 
 # Debug
 AC_ARG_ENABLE(debug,
@@ -184,6 +184,7 @@ AC_CHECK_LIB([sendfile], [sendfile])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([rt], [clock_gettime])
 
+# check for malloc
 AC_FUNC_MALLOC
 
 # Check if building for Win32, determine Win32 API libs
@@ -221,6 +222,8 @@ AC_ARG_ENABLE(posix-threads,
     [enable_posix_threads=yes])
 if test x$enable_posix_threads != xno; then
     AC_CHECK_LIB(pthread, pthread_create, [HAVE_PTHREAD=yes], [HAVE_PTHREAD=no])
+else
+    HAVE_PTHREAD=no
 fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
@@ -665,7 +668,7 @@ if test "x$WIN32" = "xno" ; then
             AC_CHECK_HEADERS([openssl/ssl.h], [],
                 AC_MSG_ERROR([ssl.h header not found or not usable])
             )
-            AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+            AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
                 AC_MSG_ERROR([Could not find OpenSSL library!])
             )
 
@@ -708,7 +711,7 @@ if test "x$WIN32" = "xno" ; then
         AC_CHECK_HEADERS([openssl/ssl.h], [],
             AC_MSG_ERROR([ssl.h header not found or not usable])
         )
-        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
             AC_MSG_ERROR([Could not find OpenSSL library!])
         )
 
