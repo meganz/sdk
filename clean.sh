@@ -38,7 +38,7 @@ src/win32/.deps src/win32/.dirstamp
 tests/.deps tests/.dirstamp
 doc/api doc/sphinx_api doc/_build
 megacli1 megacli2 sync_in sync_out out
-static_build
+sdk_build
 "
 for file in $TARGETS
 do

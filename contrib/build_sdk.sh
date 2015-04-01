@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ##
- # @file contrib/build_static.sh
+ # @file contrib/build_sdk.sh
  # @brief Builds MEGA SDK static library and static examples
  #
  # (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -21,6 +21,11 @@
  # program.
 ##
 
+# Warn about /bin/sh ins't bash.
+if [ -z "$BASH_VERSION" ] ; then
+    echo "WARNING: The shell running this script isn't bash."
+fi
+
 # global vars
 use_local=0
 use_dynamic=0
@@ -29,10 +34,12 @@ disable_ssl=0
 download_only=0
 enable_megaapi=0
 make_opts=""
+config_opts=""
 no_examples=""
 configure_only=0
 disable_posix_threads=""
 enable_sodium=0
+android_build=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -148,7 +155,7 @@ package_configure() {
     if [ -f $conf_f1 ]; then
         $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exit 1
     elif [ -f $conf_f2 ]; then
-        $conf_f2 --prefix=$install_dir $params &> ../$name.conf.log || exit 1
+        $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exit 1
     else
         local exit_code=$?
         echo "Failed to configure $name, exit status: $exit_code"
@@ -218,7 +225,7 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.1k"
+    local openssl_ver="1.0.2a"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
@@ -232,20 +239,30 @@ openssl_pkg() {
 
     package_extract $name $openssl_file $openssl_dir
 
-    # handle MacOS
-    if [ "$(uname)" == "Darwin" ]; then
-        # OpenSSL compiles 32bit binaries, we need to explicitly tell to use x86_64 mode
-        if [ "$(uname -m)" == "x86_64" ]; then
-            echo "Configuring $name"
-            local cwd=$(pwd)
-            cd $openssl_dir
-            ./Configure darwin64-x86_64-cc --prefix=$install_dir $openssl_params &> ../$name.conf.log || exit 1
-            cd $cwd
+    if [ $android_build -eq 1 ]; then
+        echo "Configuring $name"
+        local cwd=$(pwd)
+        cd $openssl_dir
+        perl -pi -e 's/install: all install_docs install_sw/install: install_docs install_sw/g' Makefile.org
+        ./config shared no-ssl2 no-ssl3 no-comp no-hw no-engine --prefix=$install_dir
+        make depend || exit 1
+        cd $cwd
+    else
+        # handle MacOS
+        if [ "$(uname)" == "Darwin" ]; then
+            # OpenSSL compiles 32bit binaries, we need to explicitly tell to use x86_64 mode
+            if [ "$(uname -m)" == "x86_64" ]; then
+                echo "Configuring $name"
+                local cwd=$(pwd)
+                cd $openssl_dir
+                ./Configure darwin64-x86_64-cc --prefix=$install_dir $openssl_params &> ../$name.conf.log || exit 1
+                cd $cwd
+            else
+                package_configure $name $openssl_dir $install_dir "$openssl_params"
+            fi
         else
             package_configure $name $openssl_dir $install_dir "$openssl_params"
         fi
-    else
-        package_configure $name $openssl_dir $install_dir "$openssl_params"
     fi
 
     # OpenSSL has issues with parallel builds, let's use the default options
@@ -264,13 +281,22 @@ cryptopp_pkg() {
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
+    local cryptopp_mobile_url="http://www.cryptopp.com/w/images/a/a0/Cryptopp-mobile.zip"
+    local cryptopp_mobile_file="Cryptopp-mobile.zip"
 
     package_download $name $cryptopp_url $cryptopp_file
+    if [ $android_build -eq 1 ]; then
+        package_download $name $cryptopp_mobile_url $cryptopp_mobile_file
+    fi
     if [ $download_only -eq 1 ]; then
         return
     fi
 
     package_extract $name $cryptopp_file $cryptopp_dir
+    if [ $android_build -eq 1 ]; then
+        local file=$local_dir/$cryptopp_mobile_file
+        unzip -o $file -d $cryptopp_dir || exit 1
+    fi
     package_build $name $cryptopp_dir static
     package_install $name $cryptopp_dir $install_dir
 }
@@ -308,6 +334,7 @@ zlib_pkg() {
     local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
+    local loc_conf_opts=$config_opts
     if [ $use_dynamic -eq 1 ]; then
         local zlib_params=""
     else
@@ -320,6 +347,10 @@ zlib_pkg() {
     fi
 
     package_extract $name $zlib_file $zlib_dir
+
+    # doesn't recognize --host=xxx
+    config_opts=""
+
     # Windows must use Makefile.gcc
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         package_configure $name $zlib_dir $install_dir "$zlib_params"
@@ -335,6 +366,8 @@ zlib_pkg() {
         unset INCLUDE_PATH
         unset LIBRARY_PATH
     fi
+    config_opts=$loc_conf_opts
+
 }
 
 sqlite_pkg() {
@@ -482,7 +515,7 @@ freeimage_pkg() {
     local install_dir=$2
     local cwd=$3
     local name="FreeImage"
-    local freeimage_ver="3160"
+    local freeimage_ver="3170"
     local freeimage_url="http://downloads.sourceforge.net/freeimage/FreeImage$freeimage_ver.zip"
     local freeimage_file="freeimage-$freeimage_ver.zip"
     local freeimage_dir_extract="freeimage-$freeimage_ver"
@@ -499,6 +532,10 @@ freeimage_pkg() {
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
         cp $cwd/contrib/FreeImage.Makefile.osx $freeimage_dir/Makefile.osx
+    fi
+
+    if [ $android_build -eq 1 ]; then
+        sed -i '/#define HAVE_SEARCH_H 1/d' $freeimage_dir/Source/LibTIFF4/tif_config.h
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -605,6 +642,8 @@ build_sdk() {
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
+            $config_opts \
+            --prefix=$install_dir \
             $debug || exit 1
     # Windows (MinGW) build, uses WinHTTP instead of cURL + c-ares, without OpenSSL
     else
@@ -623,6 +662,8 @@ build_sdk() {
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
+            $config_opts \
+            --prefix=$install_dir \
             $debug || exit 1
     fi
 
@@ -632,6 +673,7 @@ build_sdk() {
         echo "Building MEGA SDK"
         make clean
         make -j9 || exit 1
+        make install
     fi
 }
 
@@ -639,10 +681,10 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-s] [-t] [-w] [-y]"
+    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y]"
     echo ""
     echo "By the default this script builds static megacli executable."
-    echo "This script can be run with numerous options to configure MEGA SDK."
+    echo "This script can be run with numerous options to configure and build MEGA SDK."
     echo ""
     echo "Options:"
     echo " -a : Enable MegaApi"
@@ -652,11 +694,13 @@ display_help() {
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
     echo " -s : Disable OpenSSL"
+    echo " -r : Enable Android build"
     echo " -t : Disable POSIX Threads support"
     echo " -u : Enable Sodium cryptographic library"
     echo " -w : Download software archives and exit"
     echo " -y : Build dynamic library and executable (instead of static)"
     echo " -m [opts]: make options"
+    echo " -x [opts]: configure options"
     echo " -o [path]: Directory to store and look for downloaded archives"
     echo " -p [path]: Installation directory"
     echo ""
@@ -664,14 +708,14 @@ display_help() {
 
 main() {
     local cwd=$(pwd)
-    local work_dir=$cwd"/static_build/"
+    local work_dir=$cwd"/sdk_build/"
     local build_dir=$work_dir"build/"
     local install_dir=$work_dir"install/"
     local debug=""
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdflm:no:p:stuyw" opt; do
+    while getopts ":hacdflm:no:p:rstuyx:w" opt; do
         case $opt in
             h)
                 display_help $0
@@ -714,6 +758,10 @@ main() {
                 install_dir=$(readlink -f $OPTARG)
                 echo "* Installing into $install_dir"
                 ;;
+            r)
+                echo "* Building for Android"
+                android_build=1
+                ;;
             s)
                 echo "* Disabling OpenSSL"
                 disable_ssl=1
@@ -728,6 +776,10 @@ main() {
             w)
                 download_only=1
                 echo "* Downloading software archives only."
+                ;;
+            x)
+                config_opts="$OPTARG"
+                echo "* Using configuration options: $config_opts"
                 ;;
             y)
                 use_dynamic=1
@@ -768,6 +820,10 @@ main() {
     export LD_LIBRARY_PATH="$install_dir/lib"
     export LD_RUN_PATH="$install_dir/lib"
 
+    if [ $android_build -eq 1 ]; then
+        echo "SYSROOT: $SYSROOT"
+    fi
+
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         if [ $disable_ssl -eq 0 ]; then
             openssl_pkg $build_dir $install_dir
@@ -777,6 +833,7 @@ main() {
     if [ $enable_sodium -eq 1 ]; then
         sodium_pkg $build_dir $install_dir
     fi
+
     zlib_pkg $build_dir $install_dir
     sqlite_pkg $build_dir $install_dir
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -811,4 +868,4 @@ main() {
     trap on_exit_ok EXIT
 }
 
-main $@
+main "$@"
