@@ -45,7 +45,7 @@ For platforms with Autotools, the generic way to build and install it is:
 
 That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`)
 You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
-and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_static.sh`)
+and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
 
 For other platforms, or if you want to see how to use the new intermediate layer,
 the easiest way is to get a smooth start is to build one of the examples in subfolders
