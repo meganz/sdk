@@ -22,6 +22,8 @@
 #include "mega.h"
 #include "mega/thread/posixthread.h"
 
+#ifdef USE_PTHREAD
+
 namespace mega {
 
 PosixThread::PosixThread()
@@ -90,3 +92,5 @@ PosixMutex::~PosixMutex()
 
 
 } // namespace
+
+#endif
