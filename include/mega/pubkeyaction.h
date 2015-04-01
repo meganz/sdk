@@ -42,11 +42,13 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
 {
     handle h;   // node to create share on
     accesslevel_t a;    // desired access level
+    string *selfemail;  // optional personal representation when sharing to a non-contact
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionCreateShare(handle, accesslevel_t, int);
+    PubKeyActionCreateShare(handle, accesslevel_t, int, const char* = NULL);
+    ~PubKeyActionCreateShare();
 };
 
 class MEGA_API PubKeyActionSendShareKey : public PubKeyAction

@@ -31,6 +31,7 @@ SOURCES += src/attrmap.cpp \
     src/logging.cpp \
     src/waiterbase.cpp  \
     src/proxy.cpp \
+    src/pendingcontactrequest.cpp \
     src/crypto/cryptopp.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/qt.cpp \
@@ -90,6 +91,7 @@ HEADERS  += include/mega.h \
             include/mega/logging.h \
             include/mega/waiter.h \
             include/mega/proxy.h \
+            include/mega/pendingcontactrequest.h \
             include/mega/crypto/cryptopp.h  \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \

@@ -361,6 +361,7 @@
     <ClInclude Include="..\..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\include\mega\node.h" />
+    <ClInclude Include="..\..\..\include\mega\pendingcontactrequest.h" />
     <ClInclude Include="..\..\..\include\mega\proxy.h" />
     <ClInclude Include="..\..\..\include\mega\pubkeyaction.h" />
     <ClInclude Include="..\..\..\include\mega\request.h" />
@@ -437,6 +438,7 @@
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\posix\net.cpp" />
+    <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\..\src\proxy.cpp" />
     <ClCompile Include="..\..\..\src\pubkeyaction.cpp" />
     <ClCompile Include="..\..\..\src\request.cpp" />
