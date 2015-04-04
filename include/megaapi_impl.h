@@ -889,7 +889,7 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
-        void getPaymentUrl(handle productHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
 
         const char *exportMasterKey();
@@ -1149,8 +1149,6 @@ protected:
                                                 unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
-        virtual void checkout_result(error);
-        virtual void checkout_result(const char*);
         virtual void submitpurchasereceipt_result(error);
 
         virtual void checkfile_result(handle h, error e);

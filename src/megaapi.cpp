@@ -1092,9 +1092,9 @@ void MegaApi::getPricing(MegaRequestListener *listener)
     pImpl->getPricing(listener);
 }
 
-void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener)
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentUrl(productHandle, listener);
+    pImpl->getPaymentId(productHandle, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
