@@ -41,6 +41,10 @@
 
 namespace mega {
 
+typedef std::function<void(error)> VerifyKeyCallback;
+typedef std::function<void(ValueMap, error)> GetSigKeysCallback;
+typedef std::function<void(error)> FetchKeyringsCallback;
+
 class MEGA_API MegaClient
 {
 public:
@@ -79,7 +83,7 @@ public:
     void sendsignuplink(const char*, const char*, const byte*);
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
-    void setkeypair();
+    void setkeypair(std::function<void(error)> callback);
 
     // set and get user attributes
     void setuserattribute();
@@ -119,7 +123,11 @@ public:
      */
     void getownsigningkeys(bool reset = false);
 
+    void getownsigningkeys(GetSigKeysCallback callback, bool reset = false);
+
     void uploadkeys();
+
+    void uploadkeys(GetSigKeysCallback callback);
 
     SharedBuffer signRSAKey();
 
@@ -128,6 +136,20 @@ public:
     void verifyKeyFingerPrint(const char *user, ValueMap key, int rsa);
 
     void verifyKeyFingerPrint_(const char *user, ValueMap key, int rsa);
+
+    /////////// Fixed up functions ///////////////////////
+
+    void fetchKeyrings(FetchKeyringsCallback callback);
+
+    void verifyKeyFingerPrint(const char *user, SharedBuffer &key, int rsa,
+            VerifyKeyCallback callback);
+
+    void verifyKeyFingerPrint_(const char *user, SharedBuffer &key, int rsa,
+            VerifyKeyCallback callback);
+
+    void getPublicStaticKey(const char *user);
+
+    //////////////////////////////////////////////////////
 
     ValueMap serilizeMap(int rsa);
 
@@ -143,9 +165,14 @@ public:
     /**
      * @brief Create the FingerPrint for the RSA public key.
      *
-     * @param hex 1 if the vaule is to be in hex format, 0 in bytes.
+     * @return
      */
     SharedBuffer createRSAFingerPrint();
+
+    /**
+     * @brief Create the fingerprint for the given key.
+     */
+    SharedBuffer createFingerPrint(SharedBuffer &keyBytes);
 
     /**
      * @brief Ge the signing key for another user.
@@ -161,8 +188,11 @@ public:
     void getgattribute(const char *user, const char *an,
             std::function<void(ValueMap, error)>);
 
-    void setgattribute(const char *user, const char *an, ValueMap map, int priv,
+    void setgattribute(const char *an, ValueMap map, int priv,
             std::function<void(error)>);
+
+    void getgattribute(std::string &email, const char *an,
+            std::function<void(ValueMap, error)>);
 
     std::pair<SecureBuffer, SecureBuffer> initstatickeys();
 

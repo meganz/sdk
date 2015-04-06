@@ -118,7 +118,17 @@ PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, in
 
 void PubKeyActionNotifyApp::proc(MegaClient *client, User *u)
 {
-    client->app->pubkey_result(u);
+    if(u) {
+        SharedBuffer key = u->pubk.getPublicKeyBytes();
+        client->verifyKeyFingerPrint(u->email.c_str(), key, 1,
+                [u, client](error e){
+            client->app->pubkey_result(u, e);
+        });
+    }
+    else {
+        client->app->pubkey_result(u, API_OK);
+    }
+
 }
 
 PubKeyActionNotifyApp::PubKeyActionNotifyApp(int ctag)

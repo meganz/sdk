@@ -942,6 +942,10 @@ void MegaApi::verifyKeyFingerPrint(const char *user, const unsigned char *fprint
     pImpl->verifyKeyFingerPrint(user, fprint, fPlen, rsa, listener);
 }
 
+void MegaApi::getPublicStaticKey(const char *user, MegaRequestListener *listener) {
+    pImpl->getPublicStaticKey(user, listener);
+}
+
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     pImpl->login(login, password, listener);

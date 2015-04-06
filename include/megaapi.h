@@ -1042,7 +1042,7 @@ class MegaRequest
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SET_USER_ATTRIBUTE,
             TYPE_GET_USER_ATTRIBUTE, TYPE_GET_SIGNING_KEYS,
             TYPE_VERIFY_RSA_SIG, TYPE_VERIFY_KEY_FINGERPRINT,
-            TYPE_SUBMIT_PURCHASE_RECEIPT
+            TYPE_SUBMIT_PURCHASE_RECEIPT, TYPE_GET_STATIC_PUB_KEY
 		};
 
 		virtual ~MegaRequest();
@@ -2834,6 +2834,7 @@ class MegaApi
         void addGlobalListener(MegaGlobalListener* listener);
 
 #ifdef ENABLE_SYNC
+
         /**
          * @brief Add a listener for all events related to synchronizations
          * @param listener Listener that will receive synchronization events
@@ -2845,6 +2846,7 @@ class MegaApi
          * @param listener Objet that will be unregistered
          */
         void removeSyncListener(MegaSyncListener *listener);
+
 #endif
 
         /**
@@ -3201,6 +3203,8 @@ class MegaApi
 
         void verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen,
                 MegaRequestListener *listener = NULL);
+
+        void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Verify the fingerprint for the given users key.

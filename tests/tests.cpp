@@ -195,6 +195,17 @@ public:
             }
             wait = false;
             break;
+        case MegaRequest::TYPE_GET_STATIC_PUB_KEY :
+            std::cout << "Type = get signing keys" << std::endl;
+            if(e->getErrorCode() == MegaError::API_OK) {
+                success = true;
+                valMap = request->getUserAttributeMap();
+            }
+            else {
+                success = false;
+            }
+            wait = false;
+            break;
         case MegaRequest::TYPE_GET_SIGNING_KEYS :
             std::cout << "Type = get signing keys" << std::endl;
 
@@ -315,12 +326,18 @@ public:
 
 TEST_F(ApiTest, testSetup) {
     TestClient tcOne(loginNameOne, passWordOne);
-    TestClient tcTwo(loginNameTwo, passWordTwo);
-    TestClient tcThree(loginNameThree, passWordThree);
-    TestClient tcFour(loginNameThree, passWordThree);
-    TestClient tcFive(loginNameThree, passWordThree);
-    TestClient tcSix(loginNameThree, passWordThree);
-    TestClient tcSeven(loginNameThree, passWordThree);
+    TestClient tcTwo(loginNameThree, passWordThree);
+    TestClient tcThree(loginNameTwo, passWordTwo);
+//    TestClient tcFour(loginNameThree, passWordThree);
+//    TestClient tcFive(loginNameThree, passWordThree);
+//    TestClient tcSix(loginNameThree, passWordThree);
+//    TestClient tcSeven(loginNameThree, passWordThree);
+
+    std::map<std::string, std::pair<unsigned char*, unsigned int>> resetMap;
+    resetMap.insert({"authRSA", {(unsigned char*)"", 0}});
+
+    std::map<std::string, std::pair<unsigned char*, unsigned int>> resetMapE;
+    resetMapE.insert({"authring", {(unsigned char*)"", 0}});
 
     if(tcOne.login()) {
         tcOne.wait = true;
@@ -373,14 +390,36 @@ TEST_F(ApiTest, testSetup) {
         }
         ASSERT_TRUE(tcOne.success);
 
+        ////////// Uncomment to reset keyrings ///////////////
+//        tcOne.wait = true;
+//        tcOne.success = false;
+//
+//        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//                "authRSA", &resetMap, 1, &tcOne);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
+//
+//        tcOne.wait = true;
+//        tcOne.success = false;
+//
+//        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//                "authring", &resetMapE, 1, &tcOne);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
+        /////////////////////////////////////////////////////
+
         std::cout << "BIG_TEST" << std::endl;
         tcOne.wait = true;
         tcOne.success = false;
 //        tcTwo.wait = true;
         tcTwo.success = false;
-        tcThree.success = false;
-        tcFour.success = false;
-        tcFive.success = false;
+//        tcThree.success = false;
+//        tcFour.success = false;
+//        tcFive.success = false;
 
         tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcOne);
 //        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcTwo);
@@ -454,7 +493,7 @@ TEST_F(ApiTest, testSetup) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         ASSERT_TRUE(tcOne.success);
-        ASSERT_EQ(5, tcOne.valMap->size());
+        //ASSERT_EQ(2, tcOne.valMap->size());
         ASSERT_TRUE(tcOne.valMap->find("prEd255") != tcOne.valMap->end());
         ASSERT_TRUE(tcOne.valMap->find("puEd255") != tcOne.valMap->end());
     }
@@ -462,6 +501,42 @@ TEST_F(ApiTest, testSetup) {
         std::cout << "login tcOne failed" << std::endl;
         exit(-1);
     }
+    if(tcThree.login()) {
+        tcThree.wait = true;
+        tcThree.success = false;
+        tcThree.api->getOwnStaticKeys(&tcThree);
+        while(tcThree.wait) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        ASSERT_TRUE(tcThree.success);
+
+        //////// Uncomment to reset keyrings ///////////////
+//        tcThree.wait = true;
+//        tcThree.success = false;
+//
+//        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
+//                "authRSA", &resetMap, 1, &tcThree);
+//        while(tcThree.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcThree.success);
+//
+//        tcThree.wait = true;
+//        tcThree.success = false;
+//
+//        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
+//                "authring", &resetMapE, 1, &tcThree);
+//        while(tcThree.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcThree.success);
+        ///////////////////////////////////////////////////
+    }
+    else {
+        std::cout << "login tcThree failed" << std::endl;
+        exit(-1);
+    }
+
     if(tcTwo.login()) {
         tcTwo.wait = true;
         tcTwo.success = false;
@@ -473,12 +548,35 @@ TEST_F(ApiTest, testSetup) {
 
         tcTwo.wait = true;
         tcTwo.success = false;
-        tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "authRSA", &tcTwo);
+        tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "sgPubk", &tcTwo);
         while(tcTwo.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         ASSERT_TRUE(tcTwo.success);
 
+        ////////// Uncomment to reset keyrings ///////////////
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//
+//        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//                "authRSA", &resetMap, 1, &tcTwo);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//
+//        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//                "authring", &resetMapE, 1, &tcTwo);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
+        /////////////////////////////////////////////////////
+
+        std::cout << "****Getting other user data" << std::endl;
         tcTwo.wait = true;
         tcTwo.success = false;
         tcTwo.api->getUserData("michaelholmwood@mega.co.nz", &tcTwo);
@@ -487,179 +585,198 @@ TEST_F(ApiTest, testSetup) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        ASSERT_TRUE(tcTwo.success);
-
-        unsigned char rsa[] = {
-                238, 48, 151, 211, 94, 237, 170,
-                197, 5, 225, 170, 242, 150, 35,
-                255, 34, 248, 228, 237, 11, 0,
-                149, 52, 253, 91, 31, 5, 112, 141,
-                249, 250, 184, 73, 230, 71, 231,
-                70, 214, 91, 180, 187, 31, 177,
-                17, 118, 65, 6, 236, 14, 184, 70,
-                159, 99, 55, 146, 56, 192, 143,
-                28, 138, 18, 106, 123, 37, 183,
-                150, 1, 111, 115, 182, 59, 39,
-                25, 111, 124, 177, 35, 102, 86,
-                99, 138, 212, 126, 221, 188, 225,
-                32, 228, 188, 158, 85, 153, 220,
-                253, 43, 225, 19, 126, 82, 243,
-                18, 46, 137, 59, 5, 107, 133,
-                237, 99, 115, 30, 77, 217, 115,
-                32, 254, 144, 211, 139, 26,
-                167, 192, 62, 229, 50, 153, 3,
-                127, 252, 228, 191, 86, 59,
-                184, 76, 176, 165, 231, 48,
-                187, 35, 189, 184, 126, 191,
-                211, 132, 239, 92, 158, 242,
-                223, 2, 204, 183, 146, 62, 110,
-                205, 84, 121, 87, 178, 245, 37,
-                149, 181, 42, 42, 137, 109, 221,
-                197, 5, 105, 37, 121, 174, 240,
-                104, 206, 81, 172, 210, 4, 71,
-                58, 123, 119, 4, 245, 57, 10,
-                69, 24, 241, 14, 168, 220, 184,
-                105, 255, 253, 195, 60, 37, 163,
-                121, 197, 68, 212, 53, 114, 45,
-                206, 197, 88, 239, 0, 53, 79,
-                213, 58, 90, 5, 69, 191, 138, 61,
-                118, 191, 248, 240, 51, 161,
-                108, 53, 134, 68, 180, 149,
-                40, 49, 145, 245, 187, 87, 142,
-                212, 48, 238, 232, 74, 231, 240, 183};
-
-        unsigned char rsafp[] = {
-                48, 72, 122, 58, 31, 218, 139,
-                69, 52, 102, 155, 247, 32, 41,
-                58, 55, 215, 0, 236, 8,
-        };
-
-        unsigned char edfp[] = {
-                50, 22, 79, 220, 117, 185, 97,
-                57, 63, 191, 192, 71, 119, 164,
-                190, 130, 177, 144, 195, 25,
-        };
-
+        std::cout << "****Getting other user data" << std::endl;
         tcTwo.wait = true;
         tcTwo.success = false;
-        std::cout << "sizeof rsa = " << sizeof(rsa) << std::endl;
-        std::cout << "calling verifyRSA" << std::endl;
-        tcTwo.api->verifyRSAFingerPrint("michaelholmwood@mega.co.nz",
-                rsa, sizeof(rsa), &tcTwo);
+        tcTwo.api->getUserData("mh@mega.co.nz", &tcTwo);
+
+        while(tcTwo.wait) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        ASSERT_TRUE(tcTwo.success);
+
+        std::cout << "****Calling getPublicStaticKey" << std::endl;
+        tcTwo.wait = true;
+        tcTwo.success = false;
+        tcTwo.api->getPublicStaticKey("michaelholmwood@mega.co.nz", &tcTwo);
+
         while(tcTwo.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
         ASSERT_TRUE(tcTwo.success);
 
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->verifyKeyFingerPrint("michaelholmwood@mega.co.nz",
-                rsafp, sizeof(rsafp), 1, &tcTwo);
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->verifyKeyFingerPrint("michaelholmwood@mega.co.nz",
-                edfp, sizeof(edfp), 0, &tcTwo);
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getGenericUserAttribute("mh@mega.co.nz", "RSA_keyring", &tcTwo);
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-
-
-        int count = 0;
-
-        auto i = tcTwo.valMap->find((rsa) ? std::string("RSA_keyring") :
-                std::string("Ed_keyring"));
-        ASSERT_TRUE(i != tcTwo.valMap->end());
-
-        SharedBuffer buff(i->second.first, i->second.second);
-
-        ASSERT_TRUE((buff.size % (sizeof(handle) + 20 + 1)) == 0);
-
-        std::map<handle, FingerPrintRecord> rMap;
-        while(count < buff.size) {
-            SharedBuffer fp(20);
-            FingerPrintRecord record(fp);
-            handle h = 0;
-            memcpy(&h, buff.get(), sizeof(handle));
-            memcpy(record.fingerPrint.get(), buff.get() +
-                    (count += sizeof(handle)), 20);
-            memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
-            rMap.insert({ h, record });
-            count++;
-        }
-
-        handle uHandle = rMap.begin()->first;
-        FingerPrintRecord rec = rMap.begin()->second;
-        ASSERT_EQ(12273408314354856008, uHandle);
-        ASSERT_EQ(20, rec.fingerPrint.size);
-        for(int x = 0; x < rec.fingerPrint.size; x++) {
-            ASSERT_EQ(rsafp[x], rec.fingerPrint[x]);
-            std::cout << "rsafp[" << x << "] = " <<
-                    (int)rsafp[x] <<
-                    " fp[" << x << "] = " << (int)rec.fingerPrint[x]
-                     << std::endl;
-        }
-
-
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getGenericUserAttribute("mh@mega.co.nz", "Ed_keyring", &tcTwo);
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-        count = 0;
-
-        auto w = tcTwo.valMap->find(std::string("Ed_keyring"));
-        ASSERT_TRUE(w != tcTwo.valMap->end());
-
-        SharedBuffer buffEd(w->second.first, w->second.second);
-
-        ASSERT_TRUE((buffEd.size % (sizeof(handle) + 20 + 1)) == 0);
-
-        std::map<handle, FingerPrintRecord> rMapEd;
-        while(count < buffEd.size) {
-            SharedBuffer fp(20);
-            FingerPrintRecord record(fp);
-            handle h = 0;
-            memcpy(&h, buffEd.get(), sizeof(handle));
-            memcpy(record.fingerPrint.get(), buffEd.get() +
-                    (count += sizeof(handle)), 20);
-            memcpy(&record.methodConfidence, buffEd.get() + (count += 20), 1);
-            rMapEd.insert({ h, record });
-            count++;
-        }
-
-        handle uHandleEd = rMapEd.begin()->first;
-        FingerPrintRecord recEd = rMapEd.begin()->second;
-        ASSERT_EQ(12273408314354856008, uHandleEd);
-        ASSERT_EQ(20, recEd.fingerPrint.size);
-        for(int x = 0; x < recEd.fingerPrint.size; x++) {
-            ASSERT_EQ(edfp[x], recEd.fingerPrint[x]);
-            std::cout << "edfp[" << x << "] = " <<
-                    (int)edfp[x] <<
-                    " recEd.fp[" << x << "] = " << (int)recEd.fingerPrint[x]
-                     << std::endl;
-        }
-    }
-    else {
-        std::cout << "login tcTwo failed" << std::endl;
+//        unsigned char rsa[] = {
+//                238, 48, 151, 211, 94, 237, 170,
+//                197, 5, 225, 170, 242, 150, 35,
+//                255, 34, 248, 228, 237, 11, 0,
+//                149, 52, 253, 91, 31, 5, 112, 141,
+//                249, 250, 184, 73, 230, 71, 231,
+//                70, 214, 91, 180, 187, 31, 177,
+//                17, 118, 65, 6, 236, 14, 184, 70,
+//                159, 99, 55, 146, 56, 192, 143,
+//                28, 138, 18, 106, 123, 37, 183,
+//                150, 1, 111, 115, 182, 59, 39,
+//                25, 111, 124, 177, 35, 102, 86,
+//                99, 138, 212, 126, 221, 188, 225,
+//                32, 228, 188, 158, 85, 153, 220,
+//                253, 43, 225, 19, 126, 82, 243,
+//                18, 46, 137, 59, 5, 107, 133,
+//                237, 99, 115, 30, 77, 217, 115,
+//                32, 254, 144, 211, 139, 26,
+//                167, 192, 62, 229, 50, 153, 3,
+//                127, 252, 228, 191, 86, 59,
+//                184, 76, 176, 165, 231, 48,
+//                187, 35, 189, 184, 126, 191,
+//                211, 132, 239, 92, 158, 242,
+//                223, 2, 204, 183, 146, 62, 110,
+//                205, 84, 121, 87, 178, 245, 37,
+//                149, 181, 42, 42, 137, 109, 221,
+//                197, 5, 105, 37, 121, 174, 240,
+//                104, 206, 81, 172, 210, 4, 71,
+//                58, 123, 119, 4, 245, 57, 10,
+//                69, 24, 241, 14, 168, 220, 184,
+//                105, 255, 253, 195, 60, 37, 163,
+//                121, 197, 68, 212, 53, 114, 45,
+//                206, 197, 88, 239, 0, 53, 79,
+//                213, 58, 90, 5, 69, 191, 138, 61,
+//                118, 191, 248, 240, 51, 161,
+//                108, 53, 134, 68, 180, 149,
+//                40, 49, 145, 245, 187, 87, 142,
+//                212, 48, 238, 232, 74, 231, 240, 183};
+//
+//        unsigned char rsafp[] = {
+//                48, 72, 122, 58, 31, 218, 139,
+//                69, 52, 102, 155, 247, 32, 41,
+//                58, 55, 215, 0, 236, 8,
+//        };
+//
+//        unsigned char edfp[] = {
+//                50, 22, 79, 220, 117, 185, 97,
+//                57, 63, 191, 192, 71, 119, 164,
+//                190, 130, 177, 144, 195, 25,
+//        };
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//        std::cout << "sizeof rsa = " << sizeof(rsa) << std::endl;
+//        std::cout << "calling verifyRSA" << std::endl;
+//        tcTwo.api->verifyRSAFingerPrint("michaelholmwood@mega.co.nz",
+//                rsa, sizeof(rsa), &tcTwo);
+//        while(tcTwo.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//
+//        ASSERT_TRUE(tcTwo.success);
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//        tcTwo.api->verifyKeyFingerPrint("michaelholmwood@mega.co.nz",
+//                rsafp, sizeof(rsafp), 1, &tcTwo);
+//        while(tcTwo.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcTwo.success);
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//        tcTwo.api->verifyKeyFingerPrint("michaelholmwood@mega.co.nz",
+//                edfp, sizeof(edfp), 0, &tcTwo);
+//        while(tcTwo.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcTwo.success);
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//        tcTwo.api->getGenericUserAttribute("mholmwood@gmail.co.nz", "authRSA", &tcTwo);
+//        while(tcTwo.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcTwo.success);
+//
+//
+//
+//        int count = 0;
+//
+//        auto i = tcTwo.valMap->find((rsa) ? std::string("authRSA") :
+//                std::string("authring"));
+//        ASSERT_TRUE(i != tcTwo.valMap->end());
+//
+//        SharedBuffer buff(i->second.first, i->second.second);
+//
+//        ASSERT_TRUE((buff.size % (sizeof(handle) + 20 + 1)) == 0);
+//
+//        std::map<handle, FingerPrintRecord> rMap;
+//        while(count < buff.size) {
+//            SharedBuffer fp(20);
+//            FingerPrintRecord record(fp);
+//            handle h = 0;
+//            memcpy(&h, buff.get(), sizeof(handle));
+//            memcpy(record.fingerPrint.get(), buff.get() +
+//                    (count += sizeof(handle)), 20);
+//            memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
+//            rMap.insert({ h, record });
+//            count++;
+//        }
+//
+//        handle uHandle = rMap.begin()->first;
+//        FingerPrintRecord rec = rMap.begin()->second;
+//        ASSERT_EQ(12273408314354856008, uHandle);
+//        ASSERT_EQ(20, rec.fingerPrint.size);
+//        for(int x = 0; x < rec.fingerPrint.size; x++) {
+//            ASSERT_EQ(rsafp[x], rec.fingerPrint[x]);
+//            std::cout << "rsafp[" << x << "] = " <<
+//                    (int)rsafp[x] <<
+//                    " fp[" << x << "] = " << (int)rec.fingerPrint[x]
+//                     << std::endl;
+//        }
+//
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//        tcTwo.api->getGenericUserAttribute("mh@mega.co.nz", "authring", &tcTwo);
+//        while(tcTwo.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcTwo.success);
+//
+//        count = 0;
+//
+//        auto w = tcTwo.valMap->find(std::string("authring"));
+//        ASSERT_TRUE(w != tcTwo.valMap->end());
+//
+//        SharedBuffer buffEd(w->second.first, w->second.second);
+//
+//        ASSERT_TRUE((buffEd.size % (sizeof(handle) + 20 + 1)) == 0);
+//
+//        std::map<handle, FingerPrintRecord> rMapEd;
+//        while(count < buffEd.size) {
+//            SharedBuffer fp(20);
+//            FingerPrintRecord record(fp);
+//            handle h = 0;
+//            memcpy(&h, buffEd.get(), sizeof(handle));
+//            memcpy(record.fingerPrint.get(), buffEd.get() +
+//                    (count += sizeof(handle)), 20);
+//            memcpy(&record.methodConfidence, buffEd.get() + (count += 20), 1);
+//            rMapEd.insert({ h, record });
+//            count++;
+//        }
+//
+//        handle uHandleEd = rMapEd.begin()->first;
+//        FingerPrintRecord recEd = rMapEd.begin()->second;
+//        ASSERT_EQ(12273408314354856008, uHandleEd);
+//        ASSERT_EQ(20, recEd.fingerPrint.size);
+//        for(int x = 0; x < recEd.fingerPrint.size; x++) {
+//            ASSERT_EQ(edfp[x], recEd.fingerPrint[x]);
+//            std::cout << "edfp[" << x << "] = " <<
+//                    (int)edfp[x] <<
+//                    " recEd.fp[" << x << "] = " << (int)recEd.fingerPrint[x]
+//                     << std::endl;
+//        }
+//    }
+//    else {
+//        std::cout << "login tcTwo failed" << std::endl;
     }
 }
 

@@ -1086,6 +1086,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     {
         arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
+        this->email.assign(email);
     }
 
     if (client->cachedscsn != UNDEF)
@@ -1109,6 +1110,7 @@ void CommandLogin::procresult()
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0;
     handle me = UNDEF;
+    bool setKeypair = false;
 
     for (;;)
     {
@@ -1120,6 +1122,8 @@ void CommandLogin::procresult()
 
             case 'u':
                 me = client->json.gethandle(MegaClient::USERHANDLE);
+                //client->json.storebinary((byte*)&me, sizeof me);
+                std::cout << "ME " << me << std::endl;
                 break;
 
             case MAKENAMEID4('t', 's', 'i', 'd'):
@@ -1169,7 +1173,8 @@ void CommandLogin::procresult()
 
                     // add missing RSA keypair
                     LOG_info << "Generating and adding missing RSA keypair";
-                    client->setkeypair();
+                    //client->setkeypair();
+                    setKeypair = true;
                 }
                 else
                 {
@@ -1203,10 +1208,37 @@ void CommandLogin::procresult()
                         client->setsid(sidbuf, MegaClient::SIDLEN);
                     }
                 }
-
                 client->me = me;
+                //client->app->login_result(API_OK);
+                {
+                    MegaClient *c = client;
+                    int reqtag = tag;
 
-                return client->app->login_result(API_OK);
+                    c->getownsigningkeys([c, reqtag, setKeypair](ValueMap map, error e){
+                        if(e == API_OK)
+                        {
+                            c->fetchKeyrings([c, reqtag, setKeypair](error e){
+                                if(setKeypair) {
+                                    c->setkeypair([c, reqtag](error e){
+                                        c->restag = reqtag;
+                                        c->app->login_result(e);
+                                    });
+                                }
+                                else {
+                                    c->restag = reqtag;
+                                    c->app->login_result(e);
+                                }
+                            });
+                        }
+                        else
+                        {
+                            c->restag = reqtag;
+                            c->app->login_result(e);
+                        }
+                    });
+                }
+
+                return;
 
             default:
                 if (!client->json.storeobject())
@@ -1768,9 +1800,23 @@ CommandGetUserAttr::CommandGetUserAttr(MegaClient *client, const char *uid,
     user = client->finduser(uid);
     attributename = an;
     cmd("uga");
+    std::cout << "-----> uid = " << user->uid << std::endl;
     arg("u", user->uid.c_str());
     arg("ua", an);
     this->callBack = callBack;
+    tag = client->reqtag;
+}
+
+CommandGetUserAttr::CommandGetUserAttr(MegaClient *client, std::string &email,
+        const char *an, int p, AttrCallBack callback) {
+    priv = p;
+    attributename = an;
+    user = NULL;
+    cmd("uga");
+    std::cout << "----> email = " << email.c_str() << std::endl;
+    arg("u", email.c_str());
+    arg("ua", an);
+    this->callBack = callback;
     tag = client->reqtag;
 }
 
@@ -1838,6 +1884,7 @@ CommandGetUserAttr::procresult() {
         }
         else {
             callBack(map, API_EINTERNAL);
+            return;
         }
 
 
@@ -1846,14 +1893,13 @@ CommandGetUserAttr::procresult() {
             callBack(map, API_OK);
         }
         catch(std::runtime_error &e) {
-
             callBack(map, API_EINTERNAL);
         }
     }
 
 }
 
-CommandSetUserAttr::CommandSetUserAttr(MegaClient *client, const char *uid,
+CommandSetUserAttr::CommandSetUserAttr(MegaClient *client,
         const char *an, byte *av, unsigned int avl, SetAttrCallBack callBack) {
     int l = avl * (4 * 3 + 3);
     char data[l];
@@ -2019,6 +2065,7 @@ void CommandPubKeyRequest::procresult()
                         len_pubk = 0;
                 }
 
+
                 // satisfy all pending PubKeyAction requests for this user
                 while (u->pkrs.size())
                 {
@@ -2072,7 +2119,6 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID4('p', 'u', 'b', 'k'):
             client->json.storeobject(&pubk);
-            std::cout << "We have pk =" << pubk << std::endl;
             break;
 
         case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
@@ -2083,9 +2129,10 @@ void CommandGetUserData::procresult()
             break;
 
         case EOO:
+        {
             client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
             return;
-
+        }
         default:
             if (!client->json.storeobject())
             {
@@ -2732,12 +2779,13 @@ void CommandConfirmSignupLink::procresult()
 
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
                                      unsigned privklen, const byte* pubk,
-                                     unsigned pubklen)
+                                     unsigned pubklen,
+                                     CreateKeypairCallback callback)
 {
     cmd("up");
     arg("privk", privk, privklen);
     arg("pubk", pubk, pubklen);
-
+    this->callback = callback;
     tag = client->reqtag;
 }
 
@@ -2745,12 +2793,12 @@ void CommandSetKeyPair::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->setkeypair_result((error)client->json.getint());
+        return callback((error)client->json.getint());
     }
 
     client->json.storeobject();
 
-    client->app->setkeypair_result(API_OK);
+    callback(API_OK);
 }
 
 // fetch full node tree
@@ -2833,7 +2881,27 @@ void CommandFetchNodes::procresult()
 #ifdef ENABLE_SYNC
                 client->syncsup = false;
 #endif
+//                {
+//                    MegaClient *c = client;
+//                    int reqtag = tag;
+//                    client->getownsigningkeys([c, reqtag](ValueMap map, error e){
+//                        if(e == API_OK)
+//                        {
+//                            c->fetchKeyrings([c, reqtag](error e){
+//                                c->restag = reqtag;
+//                                c->app->fetchnodes_result(e);
+//                            });
+//                        }
+//                        else
+//                        {
+//                            c->restag = reqtag;
+//                            c->app->fetchnodes_result(e);
+//                        }
+//
+//                    });
+//                }
                 client->app->fetchnodes_result(API_OK);
+                //client->app->fetchnodes_result(API_OK);
                 client->initsc();
 
                 // NULL vector: "notify all nodes"

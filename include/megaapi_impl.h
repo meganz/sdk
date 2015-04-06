@@ -887,6 +887,9 @@ class MegaApiImpl : public MegaApp
         void verifyKeyFingerPrint(const char *user, const unsigned char *fPrint,
                 unsigned int fPlen, int rsa, MegaRequestListener *listener);
 
+        void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
+
+
         /////////////////
 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener = NULL);
@@ -1140,7 +1143,7 @@ protected:
         virtual void login_result(error);
         virtual void logout_result(error);
         virtual void userdata_result(string*, string*, string*, handle, error);
-        virtual void pubkey_result(User *);
+        virtual void pubkey_result(User *, error e);
 
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);

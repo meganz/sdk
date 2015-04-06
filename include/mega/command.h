@@ -35,6 +35,7 @@ namespace mega {
 
 using AttrCallBack = std::function<void(ValueMap,error)>;
 using SetAttrCallBack = std::function<void(error)>;
+using CreateKeypairCallback = std::function<void(error)>;
 
 // request command component
 class MEGA_API Command
@@ -117,6 +118,7 @@ public:
 class MEGA_API CommandLogin : public Command
 {
     bool checksession;
+    std::string email;
 
 public:
     void procresult();
@@ -181,10 +183,12 @@ public:
 
 class MEGA_API CommandSetKeyPair : public Command
 {
+    CreateKeypairCallback callback;
 public:
     void procresult();
 
-    CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
+    CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned,
+            CreateKeypairCallback);
 };
 
 // invite contact/set visibility
@@ -227,9 +231,8 @@ class MEGA_API CommandGetUserAttr : public Command
     AttrCallBack callBack;
 
 public:
-    CommandGetUserAttr(MegaClient*, const char*, const char*, int,
-            AttrCallBack callBack);
-
+    CommandGetUserAttr(MegaClient*, const char*, const char*, int, AttrCallBack);
+    CommandGetUserAttr(MegaClient*, std::string&, const char*, int, AttrCallBack);
     void procresult();
 };
 
@@ -241,9 +244,8 @@ class MEGA_API CommandSetUserAttr : public Command
     SetAttrCallBack callBack;
 
 public:
-    CommandSetUserAttr(MegaClient*, const char*, const char*, byte*,
-            unsigned int, SetAttrCallBack callBack);
-
+    CommandSetUserAttr(MegaClient*, const char*, byte*,
+            unsigned int, SetAttrCallBack);
     void procresult();
 };
 
