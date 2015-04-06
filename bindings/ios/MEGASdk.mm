@@ -565,12 +565,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getPricing();
 }
 
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getPaymentUrl(productHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPaymentId(productHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle {
-    self.megaApi->getPaymentUrl(productHandle);
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle {
+    self.megaApi->getPaymentId(productHandle);
 }
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {

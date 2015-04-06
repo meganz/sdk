@@ -1452,7 +1452,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the available pricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the pricing plans provided by this function
- * using [MEGASdk getPaymentURLForProductHandle:].
+ * using [MEGASdk getPaymentIdForProductHandle:].
  *
  * The associated request type with this request is MEGARequestTypeGetPricing.
  *
@@ -1462,7 +1462,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param delegate Delegate to track this request.
  *
- * @see [MEGASdk getPaymentURLForProductHandle:].
+ * @see [MEGASdk getPaymentIdForProductHandle:].
  */
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate;
 
@@ -1470,7 +1470,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the available getPricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the getPricing plans provided by this function
- * using [MEGASdk getPaymentURLForProductHandle:].
+ * using [MEGASdk getPaymentIdForProductHandle:].
  *
  * The associated request type with this request is MEGARequestTypeGetPricing.
  *
@@ -1478,14 +1478,14 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
  *
- * @see [MEGASdk getPaymentURLForProductHandle:].
+ * @see [MEGASdk getPaymentIdForProductHandle:].
  */
 - (void)getPricing;
 
 /**
  * @brief Get the payment URL for an upgrade.
  *
- * The associated request type with this request is MEGARequestTypeGetPaymentURL.
+ * The associated request type with this request is MEGARequestTypeGetPaymentId.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the product
  *
@@ -1498,12 +1498,12 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @see [MEGASdk getPricing].
  */
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the payment URL for an upgrade.
  *
- * The associated request type with this request is MEGARequestTypeGetPaymentURL.
+ * The associated request type with this request is MEGARequestTypeGetPaymentId.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the product
  *
@@ -1515,7 +1515,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @see [MEGASdk getPricing].
  */
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle;
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle;
 
 /**
  * @brief Change the password of the MEGA account.

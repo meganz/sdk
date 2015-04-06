@@ -59,7 +59,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeReportEvent,
     MEGARequestTypeCancelAttrFile,
     MEGARequestTypeGetPricing,
-    MEGARequestTypeGetPaymentURL,
+    MEGARequestTypeGetPaymentId,
     MEGARequestTypeGetUserData
 };
 
@@ -121,7 +121,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk setPreviewNode:sourceFilePath:] - Returns the handle of the node
  * - [MEGASdk exportNode:] - Returns the handle of the node
  * - [MEGASdk disableExportNode:] - Returns the handle of the node
- * - [MEGASdk getPaymentURLForProductHandle:] - Returns the handle of the folder in MEGA
+ * - [MEGASdk getPaymentIdForProductHandle:] - Returns the handle of the folder in MEGA
  *
  * This value is valid for these requests in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
@@ -146,7 +146,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * This value is valid for these requests in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk exportNode:] - Returns the public link
- * - [MEGASdk getPaymentURLForProductHandle:] - Returns the payment link
+ * - [MEGASdk getPaymentIdForProductHandle:] - Returns the payment link
  *
  */
 @property (readonly, nonatomic) NSString *link;
