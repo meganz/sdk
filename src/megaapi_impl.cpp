@@ -2917,7 +2917,15 @@ void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener *listener)
 void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
-	if(node) transfer->setNodeHandle(node->getHandle());
+	if(node && !node->isPublic())
+	{
+		transfer->setNodeHandle(node->getHandle());
+	}
+	else
+	{
+		transfer->setPublicNode(node);
+	}
+
 	transfer->setStartPos(startPos);
 	transfer->setEndPos(startPos + size - 1);
 	transfer->setMaxRetries(maxRetries);
@@ -6453,6 +6461,7 @@ void MegaApiImpl::sendPendingTransfers()
                 	if(startPos < 0 || endPos < 0 || startPos > endPos) { e = API_EARGS; break; }
                 	if(node)
                 	{
+                        transfer->setFileName(node->displayname());
                 		if(startPos >= node->size || endPos >= node->size)
                 		{ e = API_EARGS; break; }
 
@@ -6466,8 +6475,21 @@ void MegaApiImpl::sendPendingTransfers()
                 	}
                 	else
                 	{
-                		{ e = API_EARGS; break; }
-                		//TODO: Implement streaming of public nodes
+                        transfer->setFileName(publicNode->getName());
+                        if(startPos >= publicNode->getSize() || endPos >= publicNode->getSize())
+                        { e = API_EARGS; break; }
+
+                        m_off_t totalBytes = endPos - startPos + 1;
+                        transferMap[nextTag]=transfer;
+                        transfer->setTotalBytes(totalBytes);
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        SymmCipher cipher;
+                        cipher.setkey(publicNode->getNodeKey());
+                        client->pread(publicNode->getHandle(), &cipher,
+                            MemAccess::get<int64_t>((const char*)publicNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
+                                      startPos, totalBytes, transfer);
+                        waiter->notify();
                 	}
                 }
 
