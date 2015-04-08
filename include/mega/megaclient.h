@@ -131,6 +131,15 @@ public:
 
     SharedBuffer signRSAKey();
 
+    /**
+     * @brief Verify the users RSA key with the sigPubk stored in the attribute server.
+     *
+     * @param The user to verify the key for.
+     */
+    void verifyRSAKeySignature(User *user, std::function<void(error)>);
+
+    bool verifyRSAKeySignature_(User *user, SharedBuffer &sig);
+
     void verifyRSAKeySignature(const char *user, ValueMap pKey);
 
     void verifyKeyFingerPrint(const char *user, ValueMap key, int rsa);

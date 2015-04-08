@@ -1104,7 +1104,7 @@ void CommandLogin::procresult()
     {
         return client->app->login_result((error)client->json.getint());
     }
-
+    std::cout << "Returned" << std::endl;
     byte hash[SymmCipher::KEYLENGTH];
     byte sidbuf[AsymmCipher::MAXKEYLENGTH];
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
@@ -1173,7 +1173,7 @@ void CommandLogin::procresult()
 
                     // add missing RSA keypair
                     LOG_info << "Generating and adding missing RSA keypair";
-                    //client->setkeypair();
+                    client->setkeypair([](error e){});
                     setKeypair = true;
                 }
                 else
@@ -1213,21 +1213,23 @@ void CommandLogin::procresult()
                 {
                     MegaClient *c = client;
                     int reqtag = tag;
-
+                    std::cout << "getownsigningkeys" << std::endl;
                     c->getownsigningkeys([c, reqtag, setKeypair](ValueMap map, error e){
                         if(e == API_OK)
                         {
+                            std::cout << "fetchKeyrings" << std::endl;
                             c->fetchKeyrings([c, reqtag, setKeypair](error e){
-                                if(setKeypair) {
-                                    c->setkeypair([c, reqtag](error e){
-                                        c->restag = reqtag;
-                                        c->app->login_result(e);
-                                    });
-                                }
-                                else {
+//                                if(e == API_OK && setKeypair) {
+//                                    std::cout << "setkeypair" << std::endl;
+//                                    c->setkeypair([c, reqtag](error e){
+//                                        c->restag = reqtag;
+//                                        c->app->login_result(e);
+//                                    });
+//                                }
+//                                else {
                                     c->restag = reqtag;
                                     c->app->login_result(e);
-                                }
+                                //}
                             });
                         }
                         else

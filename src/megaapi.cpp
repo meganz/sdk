@@ -696,6 +696,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Read error";
 		case API_EAPPKEY:
             return "Invalid application key";
+		case API_EKEYVERFAIL:
+		    return "Key verification failure";
 		default:
             return "Unknown error";
 		}

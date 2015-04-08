@@ -351,6 +351,9 @@ public:
      * @return A SharedBuffer with the bytes for the public key.
      */
     SharedBuffer getPublicKeyBytes();
+
+    SharedBuffer getPublicKeyBytesFromPrivate();
+
 };
 
 class MEGA_API Hash

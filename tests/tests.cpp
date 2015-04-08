@@ -178,7 +178,7 @@ public:
                 rsaBase64 = request->getPassword();
             }
             else {
-                std::cerr << "Error logging in: " << std::endl;
+                std::cerr << "Error getting user data: " << std::endl;
                 std::cerr << e->getErrorString() << std::endl;
             }
             std::cout << "request finished" << std::endl;
@@ -410,7 +410,7 @@ TEST_F(ApiTest, testSetup) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
 //        ASSERT_TRUE(tcOne.success);
-        /////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////
 
         std::cout << "BIG_TEST" << std::endl;
         tcOne.wait = true;
@@ -584,6 +584,8 @@ TEST_F(ApiTest, testSetup) {
         while(tcTwo.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
+        ASSERT_TRUE(tcTwo.success);
+        std::cout << "***other data ok" << std::endl;
 
         std::cout << "****Getting other user data" << std::endl;
         tcTwo.wait = true;

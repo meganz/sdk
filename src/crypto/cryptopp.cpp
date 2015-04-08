@@ -588,15 +588,30 @@ void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
 }
 
 SharedBuffer AsymmCipher::getPublicKeyBytes() {
+    Integer e = 17;
     int keyPQSize = key[PUB_PQ].MinEncodedSize();
-    int keyESize = key[PUB_E].MinEncodedSize();
+    int keyESize = e.MinEncodedSize();
 
     SharedBuffer pkey(keyPQSize + keyESize);
 
-    key[PUB_E].Encode(pkey.get(), keyESize);
+    e.Encode(pkey.get(), keyESize);
     key[PUB_PQ].Encode(pkey.get() + keyESize, keyPQSize);
 
     return pkey;
+}
+
+SharedBuffer AsymmCipher::getPublicKeyBytesFromPrivate() {
+    Integer pubk[PUBKEY];
+    pubk[PUB_E] = 17;
+    pubk[PUB_PQ] = key[PRIV_P] * key[PRIV_Q];
+    int keyPQSize = pubk[PUB_PQ].MinEncodedSize();
+    int keyESize = pubk[PUB_E].MinEncodedSize();
+    SharedBuffer pKey(keyPQSize + keyESize);
+    pubk[PUB_E].Encode(pKey.get(), keyESize);
+    pubk[PUB_PQ].Encode(pKey.get() + keyESize, keyPQSize);
+
+    return pKey;
+
 }
 
 void Hash::add(const byte* data, unsigned len)

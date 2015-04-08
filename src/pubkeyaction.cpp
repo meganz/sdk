@@ -120,9 +120,16 @@ void PubKeyActionNotifyApp::proc(MegaClient *client, User *u)
 {
     if(u) {
         SharedBuffer key = u->pubk.getPublicKeyBytes();
-        client->verifyKeyFingerPrint(u->email.c_str(), key, 1,
-                [u, client](error e){
-            client->app->pubkey_result(u, e);
+        int savedreqtag = client->reqtag;
+        client->verifyRSAKeySignature(u, [u, client, key](error e) mutable {
+            if(e != API_OK) {
+                client->app->pubkey_result(u, e);
+                return;
+            }
+            client->verifyKeyFingerPrint(u->email.c_str(), key, 1,
+                    [u, client](error e){
+                client->app->pubkey_result(u, e);
+            });
         });
     }
     else {

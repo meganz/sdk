@@ -4239,7 +4239,7 @@ void MegaClient::getownsigningkeys(bool reset) {
 void MegaClient::getownsigningkeys(GetSigKeysCallback callback, bool reset) {
     if(reset) {
     std::cout << "Resetting keys" << std::endl;
-        uploadkeys();
+        uploadkeys(callback);
         return;
     }
 
@@ -4367,12 +4367,19 @@ SharedBuffer MegaClient::signRSAKey() {
 
     std::string auth("keyauth");
     auth.append((char*)&tStamp, sizeof(tStamp));
-    auth.append(this->asymkey.getPublicKeyBytes().str());
+    auth.append(this->asymkey.getPublicKeyBytesFromPrivate().str());
 
-    std::cout << "*** key string = " << std::endl;
+    std::cout << "*** pub key string = " << std::endl;
     SecureBuffer pk = signkey.getKeyPair().first;
     for(int x = 0; x < pk.size(); x++) {
         std::cout << (int)pk.get()[x] << ", ";
+    }
+    std::cout << std::endl;
+
+
+    std::cout << "*** auth string = " << std::endl;
+    for(int x = 0; x < auth.size(); x++) {
+        std::cout << (int)auth.c_str()[x] << ", ";
     }
     std::cout << std::endl;
 
@@ -4382,10 +4389,22 @@ SharedBuffer MegaClient::signRSAKey() {
         return SharedBuffer();
     }
 
+    std::cout << "*** sig  = " << std::endl;
+    for(int x = 0; x < sig.size(); x++) {
+        std::cout << (int)sig.get()[x] << ", ";
+    }
+    std::cout << std::endl;
+
     SharedBuffer retBuffer(sizeof(tStamp) + sig.size());
     memcpy(retBuffer.get(), (void*)&tStamp, sizeof(tStamp));
     memcpy(retBuffer.get() + sizeof(tStamp),
             sig.get(), sig.size());
+
+    std::cout << "*** sig string = " << std::endl;
+    for(int x = 0; x < retBuffer.size; x++) {
+        std::cout << (int)retBuffer.get()[x] << ", ";
+    }
+    std::cout << std::endl;
 
     return retBuffer;
 }
@@ -4431,6 +4450,98 @@ SharedBuffer MegaClient::createFingerPrint(SharedBuffer &keyBytes) {
     keyHash.erase(20, std::string::npos);
 
     return SharedBuffer((byte*)keyHash.c_str(), keyHash.length());
+}
+
+void MegaClient::verifyRSAKeySignature(User *user, function<void(error)> funct) {
+    if(user->rsaVerified) {
+        funct(API_OK);
+        return;
+    }
+
+    getgattribute(user->uid, "sgPubk", [user, funct, this](ValueMap map, error e) mutable {
+        if(e != API_OK) {
+            std::cout << "Could not get authRSA" << std::endl;
+            funct(e);
+            return;
+        }
+        auto i = map->find("sgPubk");
+        if(i == map->end()) {
+            std::cout << "No record for sgPubk" << std::endl;
+            funct(API_EINTERNAL);
+            return;
+        }
+        SharedBuffer sig = i->second;
+        if(user->puEd25519) {
+            std::cout << "test rsa key exist" << std::endl;
+            user->rsaVerified = verifyRSAKeySignature_(user, sig);
+            funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+            return;
+        }
+        else {
+            getgattribute(user->uid, "puEd255", [funct, user, this, sig](ValueMap map, error e) mutable {
+                if(e != API_OK) {
+                    std::cout << "could not get puEd255" << std::endl;
+                    funct(e);
+                    return;
+                }
+
+                auto i = map->find("puEd255");
+                if(i == map->end()) {
+                    funct(API_EINTERNAL);
+                    return;
+                }
+
+                user->puEd25519 = i->second;
+                std::cout << "puEd25519 size = " << user->puEd25519.size << std::endl;
+                std::cout << "rsa key size = " << user->pubk.getPublicKeyBytes().size << std::endl;
+                std::cout << "test rsa key" << std::endl;
+                std::cout << "sig size = " << sig.size << std::endl;
+                user->rsaVerified = verifyRSAKeySignature_(user, sig);
+                std::cout << user->rsaVerified << std::endl;
+                funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+                return;
+            });
+        }
+    });
+
+}
+
+bool MegaClient::verifyRSAKeySignature_(User *user, SharedBuffer &sig) {
+    std::cout << "*** pub key string = " << std::endl;
+
+    for(int x = 0; x < user->puEd25519.size; x++) {
+        std::cout << (int)user->puEd25519.get()[x] << ", ";
+    }
+    std::cout << std::endl;
+    std::cout << "*** sig string = " << std::endl;
+
+    for(int x = 0; x < sig.size; x++) {
+        std::cout << (int)sig.get()[x] << ", ";
+    }
+    std::cout << std::endl;
+    std::string auth("keyauth");
+    std::string sigStr = sig.str();
+    int timeStampPos = sigStr.length() - crypto_sign_ed25519_BYTES;
+    std::string timeStamp = sigStr.substr(0, timeStampPos);
+    sigStr = sigStr.substr(timeStampPos);
+    auth.append(timeStamp);
+    auth.append(user->pubk.getPublicKeyBytes().str());
+
+    std::cout << "*** auth string = " << std::endl;
+    for(int x = 0; x < auth.size(); x++) {
+        std::cout << (int)auth.c_str()[x] << ", ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "*** sig  = " << std::endl;
+    for(int x = 0; x < sigStr.size(); x++) {
+        std::cout << (int)sigStr.c_str()[x] << ", ";
+    }
+    std::cout << std::endl;
+
+    return EdDSA::verifyDetatched((unsigned char*)sigStr.c_str(),
+           (unsigned char*)auth.c_str(),
+           auth.length(), user->puEd25519.get());
 }
 
 void MegaClient::verifyRSAKeySignature(const char *user, ValueMap pMap) {
