@@ -94,6 +94,7 @@ enum LogLevel {
     logError,     // Error information but will continue application to keep running.
     logWarning,   // Information representing errors in application but application will keep running
     logInfo,      // Mainly useful to represent current progress of application.
+    logTest,      // Log information in tests.
     logDebug,     // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
     logMax
 };
@@ -148,6 +149,7 @@ public:
             case logWarning: return "warn";
             case logError: return "err";
             case logFatal: return "FATAL";
+            case logTest : return "test";
             default: return "";
         }
         return "";
@@ -222,6 +224,12 @@ public:
     if (SimpleLogger::logCurrentLevel < logMax) ;\
     else \
         SimpleLogger(logMax, __FILE__, __LINE__)
+
+// output test with line break.
+#define LOG_test \
+    if(SimpleLogger::logCurrentLevel < logTest) ;\
+    else \
+        SimpleLogger(logTest, __FILE__, __LINE__)
 
 // output VERBOSE log without line break
 #define LOGn_verbose \

@@ -423,8 +423,7 @@ class MegaRequestPrivate : public MegaRequest
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
         // ATTR
-        void setAttributeMap(std::map<std::string, std::pair<unsigned char*, unsigned int>>*,
-                int);
+        void setAttributeMap(TLV*, unsigned int tlvLen, int);
         void setAttributeMap(ValueMap map, int);
         void setAttributeName(const char *an);
 
@@ -462,8 +461,7 @@ class MegaRequestPrivate : public MegaRequest
 	    AccountDetails * getAccountDetails() const;
 
 	    // ATTR
-	    virtual std::map<std::string, std::pair<unsigned char*, unsigned int>>
-	    *getUserAttributeMap() const;
+	    virtual void getUserAttributeMap(TLV**, unsigned int*) const;
 
 	    // ATTR
 	    virtual ValueMap getAttributeMap() const;
@@ -872,7 +870,7 @@ class MegaApiImpl : public MegaApp
 
         // ATTR
         void putGenericUserAttribute(const char *user, const char *attrName,
-                       std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+                       TLV *tlvArray, unsigned int tlvLen,
                        int priv,
                        MegaRequestListener *listener = NULL);
 
@@ -880,12 +878,6 @@ class MegaApiImpl : public MegaApp
                MegaRequestListener *listener = NULL);
 
         void getOwnStaticKeys(MegaRequestListener *listener = NULL);
-
-        void verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen,
-                MegaRequestListener *listener = NULL);
-
-        void verifyKeyFingerPrint(const char *user, const unsigned char *fPrint,
-                unsigned int fPlen, int rsa, MegaRequestListener *listener);
 
         void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
 

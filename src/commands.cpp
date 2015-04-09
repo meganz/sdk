@@ -1104,7 +1104,7 @@ void CommandLogin::procresult()
     {
         return client->app->login_result((error)client->json.getint());
     }
-    std::cout << "Returned" << std::endl;
+
     byte hash[SymmCipher::KEYLENGTH];
     byte sidbuf[AsymmCipher::MAXKEYLENGTH];
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
@@ -1123,7 +1123,7 @@ void CommandLogin::procresult()
             case 'u':
                 me = client->json.gethandle(MegaClient::USERHANDLE);
                 //client->json.storebinary((byte*)&me, sizeof me);
-                std::cout << "ME " << me << std::endl;
+                LOG_info << "ME ";
                 break;
 
             case MAKENAMEID4('t', 's', 'i', 'd'):
@@ -1209,15 +1209,14 @@ void CommandLogin::procresult()
                     }
                 }
                 client->me = me;
-                //client->app->login_result(API_OK);
+
                 {
                     MegaClient *c = client;
                     int reqtag = tag;
-                    std::cout << "getownsigningkeys" << std::endl;
+
                     c->getownsigningkeys([c, reqtag, setKeypair](ValueMap map, error e){
                         if(e == API_OK)
                         {
-                            std::cout << "fetchKeyrings" << std::endl;
                             c->fetchKeyrings([c, reqtag, setKeypair](error e){
 //                                if(e == API_OK && setKeypair) {
 //                                    std::cout << "setkeypair" << std::endl;
@@ -1702,41 +1701,7 @@ void CommandGetUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        std::cout << "error processing" << std::endl;
         error e = (error)client->json.getint();
-        std::cout << e << std::endl;
-
-//#ifdef USE_SODIUM
-//        if ((e == API_ENOENT) && (user->userhandle == client->me)
-//                && ((priv && strncmp(attributename.c_str(), "prEd255", 7))
-//                        || (!priv && strncmp(attributename.c_str(), "puEd255", 7))))
-//        {
-//            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-//            if(!client->inited25519())
-//            {
-//                return(client->app->getua_result(API_EINTERNAL));
-//            }
-//
-//            // Return the required key data.
-//            if (strncmp(attributename.c_str(), "prEd255", 7))
-//            {
-//                return(client->app->getua_result(client->signkey.keySeed,
-//                                                 crypto_sign_SEEDBYTES));
-//            }
-//            else
-//            {
-//                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-//                if (!client->signkey.publicKey(pubKey))
-//                {
-//                    free(pubKey);
-//                    return(client->app->getua_result(API_EINTERNAL));
-//                }
-//
-//                return(client->app->getua_result(pubKey,
-//                                                 crypto_sign_PUBLICKEYBYTES));
-//            }
-//        }
-//#endif
 
         return(client->app->getua_result(e));
     }
@@ -1787,7 +1752,6 @@ void CommandGetUA::procresult()
             return(client->app->getua_result((byte*)d.data(), d.size()));
         }
 
-        std::cout << "data = " << data << std::endl;
         client->app->getua_result(data, l);
 
         delete[] data;
@@ -1802,7 +1766,6 @@ CommandGetUserAttr::CommandGetUserAttr(MegaClient *client, const char *uid,
     user = client->finduser(uid);
     attributename = an;
     cmd("uga");
-    std::cout << "-----> uid = " << user->uid << std::endl;
     arg("u", user->uid.c_str());
     arg("ua", an);
     this->callBack = callBack;
@@ -1815,7 +1778,6 @@ CommandGetUserAttr::CommandGetUserAttr(MegaClient *client, std::string &email,
     attributename = an;
     user = NULL;
     cmd("uga");
-    std::cout << "----> email = " << email.c_str() << std::endl;
     arg("u", email.c_str());
     arg("ua", an);
     this->callBack = callback;
@@ -1828,14 +1790,12 @@ CommandGetUserAttr::procresult() {
     ValueMap map;
     if (client->json.isnumeric())
     {
-
         error e = (error)client->json.getint();
-        std::cout << e << std::endl;
         callBack(map, e);
         return;
     }
     else {
-        std::cout << "Retrieved ok" << std::endl;
+
         const char *ptr;
         const char *end;
         if(!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
@@ -1914,16 +1874,14 @@ CommandSetUserAttr::CommandSetUserAttr(MegaClient *client,
 
 void
 CommandSetUserAttr::procresult() {
-    std::cout << "CommandSetUserAttr: procResult" << std::endl;
     if (client->json.isnumeric())
     {
-        std::cout << "error processing set" << std::endl;
+        LOG_debug << "error processing set";
         error e = (error)client->json.getint();
-        std::cout << e << std::endl;
         callBack(e);
     }
     else {
-        std::cout << "set ok" << std::endl;
+        LOG_debug << "Attribute Set";
         client->json.storeobject();
         callBack(API_OK);
     }
@@ -2015,8 +1973,34 @@ CommandPubKeyRequest::CommandPubKeyRequest(MegaClient* client, User* user)
     cmd("uk");
     arg("u", user->uid.c_str());
 
-    u = user;
     tag = client->reqtag;
+    u = user;
+    callback = [client, this](handle uh, byte *pk, int len_pubk) mutable {
+      // satisfy all pending PubKeyAction requests for this user
+        while (u->pkrs.size())
+        {
+             client->restag = tag;
+             u->pkrs[0]->proc(client, u);
+             delete u->pkrs[0];
+             u->pkrs.pop_front();
+        }
+
+         if (len_pubk)
+         {
+             client->notifyuser(u);
+         }
+    };
+}
+
+CommandPubKeyRequest::CommandPubKeyRequest(MegaClient *client, User *user,
+        std::function<void(handle, byte*, int)> callback)
+{
+    cmd("uk");
+    arg("u", user->uid.c_str());
+
+    tag = client->reqtag;
+    u = user;
+    this->callback = callback;
 }
 
 void CommandPubKeyRequest::procresult()
@@ -2067,20 +2051,7 @@ void CommandPubKeyRequest::procresult()
                         len_pubk = 0;
                 }
 
-
-                // satisfy all pending PubKeyAction requests for this user
-                while (u->pkrs.size())
-                {
-                    client->restag = tag;
-                    u->pkrs[0]->proc(client, u);
-                    delete u->pkrs[0];
-                    u->pkrs.pop_front();
-                }
-
-                if (len_pubk)
-                {
-                    client->notifyuser(u);
-                }
+                callback(uh, pubkbuf, len_pubk);
                 return;
         }
     }

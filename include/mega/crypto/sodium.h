@@ -42,9 +42,44 @@ public:
 
     static CryptoPP::AutoSeededRandomPool rng;
 
+    /**
+     * @brief No-arg constructor for EdDSA;
+     */
     EdDSA() {}
 
+    /**
+     * @brief Destructor for EdDSA.
+     *
+     * Deletes keySeed if it exists.
+     *
+     */
+    virtual ~EdDSA() {
+        if(keySeed) keySeed.free();
+        if(publicKey) publicKey.free();
+        if(privateKey) privateKey.free();
+    }
+
+    /**
+     * @brief The keyseed for this key pair.
+     */
     SecureBuffer keySeed;
+
+    /**
+     * @brief The public key.
+     */
+    SecureBuffer publicKey;
+
+    /**
+     * @brief The private key.
+     */
+    SecureBuffer privateKey;
+
+    /**
+     * @brief Check to see if the keySeed has been generated/set.
+     *
+     * @return true if the keySeed is set, false otherwise.
+     */
+    bool keySet();
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.

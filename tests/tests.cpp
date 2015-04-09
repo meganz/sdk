@@ -40,6 +40,7 @@
 #include "../include/megaapi.h"
 #include "../include/sodium.h"
 #include "../include/mega/base64.h"
+#include "../include/mega/logging.h"
 
 //#ifdef USE_SODIUM
 #include <sodium.h>
@@ -151,44 +152,61 @@ public:
         loginName(loginName), passWord(passWord),
                 valMap(nullptr) {
         api = new MegaApi("sdfsdfsdf", (const char*)NULL, "sdk_test");
+        api->setLogLevel(mega::logTest);
     }
 
     virtual ~TestClient() {
         delete api;
     }
 
+    void tlvArrayToMap(TLV *tlvArray, unsigned int tlvLen) {
+        valMap = new std::map<std::string, std::pair<unsigned char*, unsigned int>>();
+        for(int x = 0; x < tlvLen; x++)
+        {
+            std::pair<unsigned char*, unsigned int> p;
+            p.second = tlvArray[x].length;
+            p.first = (unsigned char*)malloc(p.second);
+            memcpy(p.first, tlvArray[x].value, p.second);
+            valMap->insert({std::string(tlvArray[x].type), p});
+        }
+    }
+
     virtual void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) {
-        std::cout << "onRequestFinish called" << std::endl;
+        LOG_test << "onRequestFinish called";
         const char *eM;
+        TLV *tlvArray = nullptr;
+        unsigned int tlvLen = 0;
         switch(request->getType()) {
         case MegaRequest::TYPE_LOGIN :
-            std::cout << "Type login" << std::endl;
+            LOG_test << "Type login";
             success = e->getErrorCode() == MegaError::API_OK;
             wait = false;
             break;
 
         case MegaRequest::TYPE_GET_USER_DATA :
-            std::cout << "Type get user data" << std::endl;
+            LOG_test << "Type get user data";
             eM = request->getText();
-            std::cout << "em true = " << ((eM) ? "true" : "false") << std::endl;
-            if(e->getErrorCode() == MegaError::API_OK && eM) {
-                std::cout << "Process message" << std::endl;
+
+            if(e->getErrorCode() == MegaError::API_OK && eM)
+            {
                 success = true;
                 email = std::string(eM);
                 rsaBase64 = request->getPassword();
             }
-            else {
-                std::cerr << "Error getting user data: " << std::endl;
+            else
+            {
+                LOG_test << "Error getting user data: ";
                 std::cerr << e->getErrorString() << std::endl;
             }
-            std::cout << "request finished" << std::endl;
+            LOG_test << "request finished";
             wait = false;
             break;
         case MegaRequest::TYPE_GET_USER_ATTRIBUTE :
-            std::cout << "Type = get user attribute" << std::endl;
+            LOG_test << "Type = get user attribute";
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
-                valMap = request->getUserAttributeMap();
+                request->getUserAttributeMap(&tlvArray, &tlvLen);
+                tlvArrayToMap(tlvArray, tlvLen);
             }
             else {
                 success = false;
@@ -196,10 +214,11 @@ public:
             wait = false;
             break;
         case MegaRequest::TYPE_GET_STATIC_PUB_KEY :
-            std::cout << "Type = get signing keys" << std::endl;
+            LOG_test << "Type = get signing keys";
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
-                valMap = request->getUserAttributeMap();
+                request->getUserAttributeMap(&tlvArray, &tlvLen);
+                tlvArrayToMap(tlvArray, tlvLen);
             }
             else {
                 success = false;
@@ -207,11 +226,12 @@ public:
             wait = false;
             break;
         case MegaRequest::TYPE_GET_SIGNING_KEYS :
-            std::cout << "Type = get signing keys" << std::endl;
+            LOG_test << "Type = get signing keys";
 
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
-                valMap = request->getUserAttributeMap();
+                request->getUserAttributeMap(&tlvArray, &tlvLen);
+                tlvArrayToMap(tlvArray, tlvLen);
             }
             else {
                 success = false;
@@ -219,7 +239,7 @@ public:
             wait = false;
             break;
         case MegaRequest::TYPE_SET_USER_ATTRIBUTE :
-            std::cout << "Type = set user attribute" << std::endl;
+            LOG_test << "Type = set user attribute";
 
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
@@ -230,7 +250,7 @@ public:
             wait = false;
             break;
         case MegaRequest::TYPE_FETCH_NODES :
-            std::cout << "Type = fetch nodes" << std::endl;
+            LOG_test << "Type = fetch nodes";
 
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
@@ -242,7 +262,7 @@ public:
             break;
         case MegaRequest::TYPE_VERIFY_RSA_SIG:
         {
-            std::cout << "Type = verify rsa sig" << std::endl;
+            LOG_test << "Type = verify rsa sig";
 
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
@@ -255,7 +275,7 @@ public:
         }
         case MegaRequest::TYPE_VERIFY_KEY_FINGERPRINT:
         {
-            std::cout << "Type = verify key fp" << std::endl;
+            LOG_test << "Type = verify key fp";
 
             if(e->getErrorCode() == MegaError::API_OK) {
                 success = true;
@@ -268,29 +288,29 @@ public:
         }
         default:
             wait = false;
-            std::cout << "other type: " << request->getType() << std::endl;
+            LOG_test << "other type: " << request->getType();
         }
 
-        std::cout << "exit" << std::endl;
+        LOG_test << "exit";
     }
 
     bool login() {
         wait = true;
-        std::cout << "logging in" << std::endl;
+        LOG_info << "logging in";
 
         api->login(loginName.c_str(), passWord.c_str(), this);
-        std::cout << "Waiting" << std::endl;
+        LOG_test << "Waiting";
 
         while(wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        std::cout << "exit wait" << std::endl;
+        LOG_test << "exit wait";
         if(!success) {
-            std::cout << "login failed" << std::endl;
+            LOG_test << "login failed";
             return false;
         }
-        std::cout << "login success" << std::endl;
+        LOG_test << "login success";
 
         wait = true;
         success = false;
@@ -304,10 +324,9 @@ public:
             return false;
         }
 
-        std::cout << "rsa key = " << rsaBase64 << std::endl;
         byte data[4096];
         int l = Base64::atob(rsaBase64, data, sizeof(data));
-        std::cout << "size of bytes = " << l << std::endl;
+        LOG_test << "size of bytes = " << l;
 
         wait = true;
         success = false;
@@ -316,7 +335,7 @@ public:
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if(!success) {
-            std::cout << "fetch nodes failed" << std::endl;
+            LOG_test << "fetch nodes failed";
             return false;
         }
 
@@ -356,15 +375,10 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(j != vMap->end());
         std::string val((char*)j->second.get(), j->second.size);
         ASSERT_STREQ(testValueStr.c_str(), val.c_str());
-        std::map<std::string, std::pair<unsigned char*, unsigned int>> *retMap
-                = UserAttributes::valueMapToMap(vMap);
-        auto k = retMap->find("uName");
-        ASSERT_TRUE(k != retMap->end());
-        std::string retVal((char*)k->second.first, k->second.second);
-        ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
-        std::cout << "RETVAL = " << retVal << std::endl;
+        TLV *retMap = UserAttributes::valueMapToTLVarray(vMap);
 
-        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", &map, 0, &tcOne);
+        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", retMap,
+                vMap->size(), 0, &tcOne);
         while(tcOne.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -379,12 +393,13 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcOne.success);
         auto l = tcOne.valMap->find("uName");
         ASSERT_TRUE(l != tcOne.valMap->end());
-        retVal.assign((char*)l->second.first, l->second.second);
+        std::string retVal((char*)l->second.first, l->second.second);
         ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
 
         tcOne.wait = true;
         tcOne.success = false;
-        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", &map, 1, &tcOne);
+        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", retMap,
+                vMap->size(), 1, &tcOne);
         while(tcOne.wait) {
            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -412,7 +427,7 @@ TEST_F(ApiTest, testSetup) {
 //        ASSERT_TRUE(tcOne.success);
         ///////////////////////////////////////////////////
 
-        std::cout << "BIG_TEST" << std::endl;
+        LOG_test << "BIG_TEST";
         tcOne.wait = true;
         tcOne.success = false;
 //        tcTwo.wait = true;
@@ -498,7 +513,7 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcOne.valMap->find("puEd255") != tcOne.valMap->end());
     }
     else {
-        std::cout << "login tcOne failed" << std::endl;
+        LOG_test << "login tcOne failed";
         exit(-1);
     }
     if(tcThree.login()) {
@@ -533,7 +548,7 @@ TEST_F(ApiTest, testSetup) {
         ///////////////////////////////////////////////////
     }
     else {
-        std::cout << "login tcThree failed" << std::endl;
+        LOG_test << "login tcThree failed";
         exit(-1);
     }
 
@@ -576,7 +591,7 @@ TEST_F(ApiTest, testSetup) {
 //        ASSERT_TRUE(tcOne.success);
         /////////////////////////////////////////////////////
 
-        std::cout << "****Getting other user data" << std::endl;
+        LOG_test << "****Getting other user data";
         tcTwo.wait = true;
         tcTwo.success = false;
         tcTwo.api->getUserData("michaelholmwood@mega.co.nz", &tcTwo);
@@ -585,9 +600,9 @@ TEST_F(ApiTest, testSetup) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         ASSERT_TRUE(tcTwo.success);
-        std::cout << "***other data ok" << std::endl;
+        LOG_test << "***other data ok";
 
-        std::cout << "****Getting other user data" << std::endl;
+        LOG_test << "****Getting other user data";
         tcTwo.wait = true;
         tcTwo.success = false;
         tcTwo.api->getUserData("mh@mega.co.nz", &tcTwo);
@@ -597,7 +612,7 @@ TEST_F(ApiTest, testSetup) {
         }
         ASSERT_TRUE(tcTwo.success);
 
-        std::cout << "****Calling getPublicStaticKey" << std::endl;
+        LOG_test << "****Calling getPublicStaticKey";
         tcTwo.wait = true;
         tcTwo.success = false;
         tcTwo.api->getPublicStaticKey("michaelholmwood@mega.co.nz", &tcTwo);
@@ -608,177 +623,6 @@ TEST_F(ApiTest, testSetup) {
 
         ASSERT_TRUE(tcTwo.success);
 
-//        unsigned char rsa[] = {
-//                238, 48, 151, 211, 94, 237, 170,
-//                197, 5, 225, 170, 242, 150, 35,
-//                255, 34, 248, 228, 237, 11, 0,
-//                149, 52, 253, 91, 31, 5, 112, 141,
-//                249, 250, 184, 73, 230, 71, 231,
-//                70, 214, 91, 180, 187, 31, 177,
-//                17, 118, 65, 6, 236, 14, 184, 70,
-//                159, 99, 55, 146, 56, 192, 143,
-//                28, 138, 18, 106, 123, 37, 183,
-//                150, 1, 111, 115, 182, 59, 39,
-//                25, 111, 124, 177, 35, 102, 86,
-//                99, 138, 212, 126, 221, 188, 225,
-//                32, 228, 188, 158, 85, 153, 220,
-//                253, 43, 225, 19, 126, 82, 243,
-//                18, 46, 137, 59, 5, 107, 133,
-//                237, 99, 115, 30, 77, 217, 115,
-//                32, 254, 144, 211, 139, 26,
-//                167, 192, 62, 229, 50, 153, 3,
-//                127, 252, 228, 191, 86, 59,
-//                184, 76, 176, 165, 231, 48,
-//                187, 35, 189, 184, 126, 191,
-//                211, 132, 239, 92, 158, 242,
-//                223, 2, 204, 183, 146, 62, 110,
-//                205, 84, 121, 87, 178, 245, 37,
-//                149, 181, 42, 42, 137, 109, 221,
-//                197, 5, 105, 37, 121, 174, 240,
-//                104, 206, 81, 172, 210, 4, 71,
-//                58, 123, 119, 4, 245, 57, 10,
-//                69, 24, 241, 14, 168, 220, 184,
-//                105, 255, 253, 195, 60, 37, 163,
-//                121, 197, 68, 212, 53, 114, 45,
-//                206, 197, 88, 239, 0, 53, 79,
-//                213, 58, 90, 5, 69, 191, 138, 61,
-//                118, 191, 248, 240, 51, 161,
-//                108, 53, 134, 68, 180, 149,
-//                40, 49, 145, 245, 187, 87, 142,
-//                212, 48, 238, 232, 74, 231, 240, 183};
-//
-//        unsigned char rsafp[] = {
-//                48, 72, 122, 58, 31, 218, 139,
-//                69, 52, 102, 155, 247, 32, 41,
-//                58, 55, 215, 0, 236, 8,
-//        };
-//
-//        unsigned char edfp[] = {
-//                50, 22, 79, 220, 117, 185, 97,
-//                57, 63, 191, 192, 71, 119, 164,
-//                190, 130, 177, 144, 195, 25,
-//        };
-//
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//        std::cout << "sizeof rsa = " << sizeof(rsa) << std::endl;
-//        std::cout << "calling verifyRSA" << std::endl;
-//        tcTwo.api->verifyRSAFingerPrint("michaelholmwood@mega.co.nz",
-//                rsa, sizeof(rsa), &tcTwo);
-//        while(tcTwo.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//
-//        ASSERT_TRUE(tcTwo.success);
-//
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//        tcTwo.api->verifyKeyFingerPrint("michaelholmwood@mega.co.nz",
-//                rsafp, sizeof(rsafp), 1, &tcTwo);
-//        while(tcTwo.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcTwo.success);
-//
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//        tcTwo.api->verifyKeyFingerPrint("michaelholmwood@mega.co.nz",
-//                edfp, sizeof(edfp), 0, &tcTwo);
-//        while(tcTwo.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcTwo.success);
-//
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//        tcTwo.api->getGenericUserAttribute("mholmwood@gmail.co.nz", "authRSA", &tcTwo);
-//        while(tcTwo.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcTwo.success);
-//
-//
-//
-//        int count = 0;
-//
-//        auto i = tcTwo.valMap->find((rsa) ? std::string("authRSA") :
-//                std::string("authring"));
-//        ASSERT_TRUE(i != tcTwo.valMap->end());
-//
-//        SharedBuffer buff(i->second.first, i->second.second);
-//
-//        ASSERT_TRUE((buff.size % (sizeof(handle) + 20 + 1)) == 0);
-//
-//        std::map<handle, FingerPrintRecord> rMap;
-//        while(count < buff.size) {
-//            SharedBuffer fp(20);
-//            FingerPrintRecord record(fp);
-//            handle h = 0;
-//            memcpy(&h, buff.get(), sizeof(handle));
-//            memcpy(record.fingerPrint.get(), buff.get() +
-//                    (count += sizeof(handle)), 20);
-//            memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
-//            rMap.insert({ h, record });
-//            count++;
-//        }
-//
-//        handle uHandle = rMap.begin()->first;
-//        FingerPrintRecord rec = rMap.begin()->second;
-//        ASSERT_EQ(12273408314354856008, uHandle);
-//        ASSERT_EQ(20, rec.fingerPrint.size);
-//        for(int x = 0; x < rec.fingerPrint.size; x++) {
-//            ASSERT_EQ(rsafp[x], rec.fingerPrint[x]);
-//            std::cout << "rsafp[" << x << "] = " <<
-//                    (int)rsafp[x] <<
-//                    " fp[" << x << "] = " << (int)rec.fingerPrint[x]
-//                     << std::endl;
-//        }
-//
-//
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//        tcTwo.api->getGenericUserAttribute("mh@mega.co.nz", "authring", &tcTwo);
-//        while(tcTwo.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcTwo.success);
-//
-//        count = 0;
-//
-//        auto w = tcTwo.valMap->find(std::string("authring"));
-//        ASSERT_TRUE(w != tcTwo.valMap->end());
-//
-//        SharedBuffer buffEd(w->second.first, w->second.second);
-//
-//        ASSERT_TRUE((buffEd.size % (sizeof(handle) + 20 + 1)) == 0);
-//
-//        std::map<handle, FingerPrintRecord> rMapEd;
-//        while(count < buffEd.size) {
-//            SharedBuffer fp(20);
-//            FingerPrintRecord record(fp);
-//            handle h = 0;
-//            memcpy(&h, buffEd.get(), sizeof(handle));
-//            memcpy(record.fingerPrint.get(), buffEd.get() +
-//                    (count += sizeof(handle)), 20);
-//            memcpy(&record.methodConfidence, buffEd.get() + (count += 20), 1);
-//            rMapEd.insert({ h, record });
-//            count++;
-//        }
-//
-//        handle uHandleEd = rMapEd.begin()->first;
-//        FingerPrintRecord recEd = rMapEd.begin()->second;
-//        ASSERT_EQ(12273408314354856008, uHandleEd);
-//        ASSERT_EQ(20, recEd.fingerPrint.size);
-//        for(int x = 0; x < recEd.fingerPrint.size; x++) {
-//            ASSERT_EQ(edfp[x], recEd.fingerPrint[x]);
-//            std::cout << "edfp[" << x << "] = " <<
-//                    (int)edfp[x] <<
-//                    " recEd.fp[" << x << "] = " << (int)recEd.fingerPrint[x]
-//                     << std::endl;
-//        }
-//    }
-//    else {
-//        std::cout << "login tcTwo failed" << std::endl;
     }
 }
 
@@ -1251,4 +1095,62 @@ TEST_F(UserAttributesTest, test_encode) {
     }
 
     o += testLvTwo.size;
+}
+
+TEST_F(UserAttributesTest, testStaticFunctions) {
+    std::string testDataOne("testDataOne");
+    std::string testDataTwo("testDataTwo");
+    std::string testDataThree("testDataThree");
+    TLV tlv[] = {
+            { "testDataOne", testDataOne.size(), (unsigned char*)testDataOne.c_str() },
+            { "testDataTwo", testDataTwo.size(), (unsigned char*)testDataTwo.c_str() },
+            { "testDataThree", testDataThree.size(), (unsigned char*)testDataThree.c_str() }
+    };
+
+    ValueMap map = UserAttributes::tlvArrayToValueMap(tlv, 3);
+    ASSERT_TRUE(map->find("testDataOne") != map->end());
+    ASSERT_TRUE(map->find("testDataTwo") != map->end());
+    ASSERT_TRUE(map->find("testDataThree") != map->end());
+
+    for(int x = 0; x < tlv[0].length; x++) {
+        ASSERT_EQ((*map)["testDataOne"].get()[x], tlv[0].value[x]);
+    }
+    for(int x = 0; x < tlv[1].length; x++) {
+        ASSERT_EQ((*map)["testDataTwo"].get()[x], tlv[1].value[x]);
+    }
+    for(int x = 0; x < tlv[2].length; x++) {
+        ASSERT_EQ((*map)["testDataThree"].get()[x], tlv[2].value[x]);
+    }
+
+    ValueMap vMap = ValueMap(new std::map<std::string, SharedBuffer>);
+    SharedBuffer vOne((unsigned char*)testDataOne.c_str(), testDataOne.size());
+    SharedBuffer vTwo((unsigned char*)testDataTwo.c_str(), testDataTwo.size());
+    SharedBuffer vThree((unsigned char*)testDataThree.c_str(), testDataThree.size());
+    vMap->insert({"testDataOne", testDataOne});
+    vMap->insert({"testDataTwo", testDataTwo});
+    vMap->insert({"testDataThree", testDataThree});
+
+    TLV *rArr = UserAttributes::valueMapToTLVarray(vMap);
+
+    for(int x = 0; x < 3; x++)
+    {
+        SharedBuffer test;
+        if(strcmp(rArr[x].type, "testDataOne") == 0)
+        {
+            test = vOne;
+        }
+        else if(strcmp(rArr[x].type, "testDataTwo") == 0)
+        {
+            test = vTwo;
+        }
+        else if(strcmp(rArr[x].type, "testDataThree") == 0)
+        {
+            test = vThree;
+        }
+
+        for(int y = 0; y < test.size; y++)
+        {
+            ASSERT_EQ(test.get()[y], rArr[x].value[y]);
+        }
+    }
 }

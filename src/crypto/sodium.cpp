@@ -30,6 +30,11 @@ CryptoPP::AutoSeededRandomPool EdDSA::rng;
 
 const int EdDSA::SODIUM_PK_BYTES = crypto_sign_ed25519_PUBLICKEYBYTES;
 
+bool EdDSA::keySet()
+{
+    return (keySeed) ? true : false;
+}
+
 // Initialise libsodium crypto system.
 void EdDSA::init() {
     sodium_init();
@@ -154,12 +159,16 @@ SecureBuffer EdDSA::genKeySeed(SecureBuffer secretKey) {
 }
 
 std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair() {
-    SecureBuffer publicKey(crypto_sign_ed25519_PUBLICKEYBYTES);
+    if(publicKey && privateKey) {
+        return std::pair<SecureBuffer, SecureBuffer>(publicKey, privateKey);
+    }
+
+    publicKey = SecureBuffer(crypto_sign_ed25519_PUBLICKEYBYTES);
     if (publicKey.get() == NULL) {
        // Something went wrong allocating the memory.
        return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
-    SecureBuffer privateKey(crypto_sign_ed25519_SECRETKEYBYTES);
+    privateKey = SecureBuffer(crypto_sign_ed25519_SECRETKEYBYTES);
     if (privateKey.get() == NULL) {
        // Something went wrong allocating the memory.
        publicKey.free();

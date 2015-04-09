@@ -469,10 +469,11 @@ int MegaRequest::getNumDetails() const
 	return 0;
 }
 
-std::map<std::string, std::pair<unsigned char*, unsigned int>>
-*MegaRequest::getUserAttributeMap() const {
-    std::cout << "called in MegaRequest" << std::endl;
-    return NULL; }
+
+void MegaRequest::getUserAttributeMap(TLV **, unsigned int*) const
+{
+    return;
+}
 
 const char *MegaRequest::getAttributeName() const { return NULL; }
 
@@ -919,10 +920,10 @@ void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 
 // ATTR
 void MegaApi::putGenericUserAttribute(const char *user, const char *attrName,
-               std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+               TLV *tlvArray, unsigned int tlvLen,
                int priv,
                MegaRequestListener *listener) {
-    pImpl->putGenericUserAttribute(user, attrName, map, priv, listener);
+    pImpl->putGenericUserAttribute(user, attrName, tlvArray, tlvLen, priv, listener);
 }
 
 void MegaApi::getGenericUserAttribute(const char *user, const char *an,
@@ -932,16 +933,6 @@ void MegaApi::getGenericUserAttribute(const char *user, const char *an,
 
 void MegaApi::getOwnStaticKeys(MegaRequestListener *listener) {
     pImpl->getOwnStaticKeys(listener);
-}
-
-void MegaApi::verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen, MegaRequestListener *listener) {
-    pImpl->verifyRSAFingerPrint(user, fPrint, fpLen, listener);
-
-}
-
-void MegaApi::verifyKeyFingerPrint(const char *user, const unsigned char *fprint,
-        unsigned int fPlen, int rsa, MegaRequestListener *listener) {
-    pImpl->verifyKeyFingerPrint(user, fprint, fPlen, rsa, listener);
 }
 
 void MegaApi::getPublicStaticKey(const char *user, MegaRequestListener *listener) {

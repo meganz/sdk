@@ -8,7 +8,6 @@
 #ifndef INCLUDE_MEGA_SECUREBUFFER_H_
 #define INCLUDE_MEGA_SECUREBUFFER_H_
 #include <stdexcept>
-
 //#ifdef USE_SODIUM
 #include <sodium.h>
 //#endif
@@ -101,6 +100,8 @@ public:
     };
 
     inline unsigned int size() { return _size; }
+
+    inline operator bool() { (buffer) ? true : false; }
 };
 
 } /* namespace mega */

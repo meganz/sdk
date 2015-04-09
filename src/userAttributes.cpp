@@ -8,6 +8,7 @@
 #include "userAttributes.h"
 #include <stdexcept>
 #include "sharedbuffer.h"
+#include "megaapi.h"
 
 namespace mega {
 

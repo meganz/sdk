@@ -71,6 +71,18 @@ class MegaTransferList;
 class MegaApi;
 
 /**
+ * @brief TLV structure used to put attributes.
+ *
+ */
+struct TLV
+{
+    const char *type; ///< The type (or name) of the attribute.
+    unsigned int length; ///< The length of the attribute.
+    unsigned char *value; ///< The value for this attribute.
+};
+
+
+/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -1495,8 +1507,7 @@ class MegaRequest
          * @brief Gets the user attribute map for this request.
          * @return The map of value:length for the given request attribute.
          */
-        virtual std::map<std::string, std::pair<unsigned char*, unsigned int>>
-        *getUserAttributeMap() const;
+        virtual void getUserAttributeMap(TLV **, unsigned int*) const;
 
         /**
          * @brief Gets the name of the attribute for this request.
@@ -3192,7 +3203,7 @@ class MegaApi
         // ATTR
         void putGenericUserAttribute(const char *user,
                 const char *attributeName,
-                std::map<std::string, std::pair<unsigned char*, unsigned int>> *map,
+                TLV *tlvArray, unsigned int tlvLen,
                 int priv,
                 MegaRequestListener *listener = NULL);
 
@@ -3201,23 +3212,7 @@ class MegaApi
 
         void getOwnStaticKeys(MegaRequestListener *listener = NULL);
 
-        void verifyRSAFingerPrint(const char *user, const unsigned char *fPrint, unsigned int fpLen,
-                MegaRequestListener *listener = NULL);
-
         void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Verify the fingerprint for the given users key.
-         *
-         * @param user The user to check the fingerprint for.
-         * @param fPrint The fingerprint to check.
-         * @param fPlen The length of the fingerprint to check.
-         * @param rsa 1 if the key to be checked is rsa, 0 if ed25519.
-         * @param listener The listener to register for the event.
-         *
-         */
-        void verifyKeyFingerPrint(const char *user, const unsigned char *fPrint,
-                unsigned int fPLen, int rsa, MegaRequestListener *listener);
 
         /**
          * @brief Returns the current session key

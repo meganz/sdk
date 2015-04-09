@@ -15,7 +15,7 @@
 #ifdef __TEST
 #include <gtest/gtest.h>
 #endif
-
+#include "megaapi.h"
 #include "sharedbuffer.h"
 
 namespace mega {
@@ -24,10 +24,6 @@ namespace mega {
 #define VALUE_NOT_FOUND "The specified value does not exist in this store."
 #define NULL_DELIMITER_NOT_FOUND "The given data string does not have a null delimiter."
 #define INVALID_DATA_LENGTH "The provided data is not of valid length."
-
-struct TLV {
-    unsigned char *value;
-};
 
 typedef std::shared_ptr<std::map<std::string, SharedBuffer>> ValueMap;
 class UserAttributes {
@@ -131,7 +127,46 @@ public:
         return map;
     }
 
+    /**
+     * @brief Convert an array of tlv values to a value map.
+     *
+     * @param tlvArray The array of tlv values.
+     * @param length The length of the array.
+     * @return A ValueMap containing the values in the array.
+     */
+    static ValueMap tlvArrayToValueMap(TLV *tlvArray, unsigned int length)
+    {
+        ValueMap vMap(new std::map<std::string, SharedBuffer>);
+        for(int x = 0; x < length; x++)
+        {
+            SharedBuffer b(tlvArray[x].value, tlvArray[x].length);
+            vMap->insert({std::string(tlvArray[x].type), b});
+        }
+        return vMap;
+    }
 
+    /**
+     * @brief Convert a ValueMap to a tlv array.
+     *
+     * @param map The ValueMap to convert.
+     * @return A tlv array with the values contained in the ValueMap.
+     */
+    static TLV *valueMapToTLVarray(const ValueMap &map)
+    {
+        TLV *tlvArray = (TLV*)malloc(map->size() * sizeof(TLV));
+        memset(tlvArray, 0, map->size() * sizeof(TLV));
+        int x = 0;
+        for(auto i : *map)
+        {
+            tlvArray[x] = { i.first.c_str() };
+            tlvArray[x].value = (unsigned char*)malloc(i.second.size);
+            memcpy(tlvArray[x].value, i.second.get(), i.second.size);
+            tlvArray[x].length = i.second.size;
+            x++;
+        }
+
+        return tlvArray;
+    }
 
     /**
      * @brief A map of valueName : value-size.

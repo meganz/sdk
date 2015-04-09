@@ -129,7 +129,7 @@ public:
 
     void uploadkeys(GetSigKeysCallback callback);
 
-    SharedBuffer signRSAKey();
+    SharedBuffer signRSAKey(SharedBuffer&&);
 
     /**
      * @brief Verify the users RSA key with the sigPubk stored in the attribute server.
@@ -139,12 +139,6 @@ public:
     void verifyRSAKeySignature(User *user, std::function<void(error)>);
 
     bool verifyRSAKeySignature_(User *user, SharedBuffer &sig);
-
-    void verifyRSAKeySignature(const char *user, ValueMap pKey);
-
-    void verifyKeyFingerPrint(const char *user, ValueMap key, int rsa);
-
-    void verifyKeyFingerPrint_(const char *user, ValueMap key, int rsa);
 
     /////////// Fixed up functions ///////////////////////
 

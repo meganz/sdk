@@ -331,11 +331,13 @@ public:
 class MEGA_API CommandPubKeyRequest : public Command
 {
     User* u;
+    std::function<void(handle, byte*, int)> callback;
 
 public:
     void procresult();
 
     CommandPubKeyRequest(MegaClient*, User*);
+    CommandPubKeyRequest(MegaClient*, User*, std::function<void(handle, byte*, int)>);
 };
 
 class MEGA_API CommandDirectRead : public Command
