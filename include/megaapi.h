@@ -3202,19 +3202,71 @@ class MegaApi
 
         // ATTR
         /**
-         * @brief
+         * @brief Put an attribute into the server for the currently logged in
+         * user.
+         *
+         * If the value is private, then it can be an aggregate of several
+         * different values. However if the attribute is public, then only one
+         * vaule can be saved to the server. This will be the first in the map
+         * generated from the given array.
+         *
+         * The flag for nonhistoric values is only really valid for private
+         * attributes. The character '!' is added to the attribute but is
+         * currently ignored by the server.
+         *
+         * @param user Currently ignored.
+         * @param attributeName The name that the vaule will be stored under.
+         * @param tlvArray The array of tlv objects to upload.
+         * @param tlvLen the length of the array of tlv objects.
+         * @param priv 0 if the value is to be public, 1 if private.
+         * @param nonhistoric 0 if the value is to be historic, 1 if not.
+         * @param listener The listerer for this request.
          */
-        void putGenericUserAttribute(const char *user,
-                const char *attributeName,
+        void putGenericUserAttribute(const char *user, const char *attributeName,
                 TLV *tlvArray, unsigned int tlvLen,
                 int priv, int nonhistoric,
                 MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get an attribute for the given user.
+         *
+         * This can be used to retrieve both public and private attributes for
+         * the currently logged in user, or just public attributes for other users.
+         *
+         * Valid data in the MegaRequest object recevied on callbacks:
+         * - MegaRequest::getUserAttributeMap Get the array of tlvs returned
+         *   by the call.
+         * @param user The user to get the attribute for.
+         * @param an The name of the attribute to get.
+         * @listener The listener for this request.
+         */
         void getGenericUserAttribute(const char *user, const char *an,
                 MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get the static keys for the current logged in user.
+         *
+         * This returns the ed25519 static keypair for the currently logged
+         * in user. If they have not been fetched already, a call to get
+         * them from the server will be made.
+         *
+         * Valid data in the MegaRequest object recevied on callbacks:
+         * - MegaRequest::getUserAttributeMap Get the array of tlvs returned
+         *   by the call.
+         * @param listener The listener for this request.
+         */
         void getOwnStaticKeys(MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get the public static key for another user.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getUserAttributeMap Get the array of tlvs returned
+         *  by the call.
+         * @param user The email or ASCII encoded handle of the user.
+         * @param listener The listener for this request.
+         *
+         */
         void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
 
         /**

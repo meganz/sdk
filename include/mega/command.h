@@ -230,12 +230,14 @@ class MEGA_API CommandGetUserAttr : public Command
     string attributename;
     AttrCallBack callBack;
 
+// Get a users attributes.
 public:
     CommandGetUserAttr(MegaClient*, const char*, const char*, int, AttrCallBack);
     CommandGetUserAttr(MegaClient*, std::string&, const char*, int, AttrCallBack);
     void procresult();
 };
 
+// Set a users attributes.
 class MEGA_API CommandSetUserAttr : public Command
 {
     int priv;
@@ -248,8 +250,6 @@ public:
             unsigned int, SetAttrCallBack);
     void procresult();
 };
-
-/////////////////////////////////////////////
 
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command
