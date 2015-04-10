@@ -921,9 +921,10 @@ void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 // ATTR
 void MegaApi::putGenericUserAttribute(const char *user, const char *attrName,
                TLV *tlvArray, unsigned int tlvLen,
-               int priv,
+               int priv, int nonhistoric,
                MegaRequestListener *listener) {
-    pImpl->putGenericUserAttribute(user, attrName, tlvArray, tlvLen, priv, listener);
+    pImpl->putGenericUserAttribute(user, attrName, tlvArray, tlvLen, priv,
+            nonhistoric, listener);
 }
 
 void MegaApi::getGenericUserAttribute(const char *user, const char *an,

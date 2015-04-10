@@ -1995,10 +1995,11 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener) {
 void MegaApiImpl::putGenericUserAttribute(const char *user,
         const char *attrName,
         TLV *tlvArray, unsigned int tlvLen,
-        int priv, MegaRequestListener *listener) {
+        int priv, int nonhistoric, MegaRequestListener *listener) {
     MegaRequestPrivate *request = new MegaRequestPrivate(
             MegaRequest::TYPE_SET_USER_ATTRIBUTE, listener);
     request->setEmail(user);
+    request->setFlag(nonhistoric);
     request->setAttributeMap(tlvArray, tlvLen, priv);
     request->setAttributeName(attrName);
     requestQueue.push(request);
@@ -7461,7 +7462,8 @@ void MegaApiImpl::sendPendingRequests() {
             const char *an = request->getAttributeName();
             ValueMap map = request->getAttributeMap();
             int priv = request->getAttributeVis();
-            client->setuserattribute(u, an, map, priv);
+            int nonhistoric = request->getFlag();
+            client->setuserattribute(u, an, map, priv, nonhistoric);
 
             break;
         }

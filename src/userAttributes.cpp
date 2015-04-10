@@ -19,7 +19,7 @@ UserAttributes::addUserAttribute(std::string &valueName, ValueMap &value,
         throw std::runtime_error(ATTRIBUTE_EXISTS);
     }
 
-    SharedBuffer buffer = this->vauleMapToTlv(value, visibility);
+    SharedBuffer buffer = this->valueMapToTlv(value, visibility);
     tlvStore.insert({ valueName, buffer });
 }
 
@@ -48,7 +48,7 @@ UserAttributes::getUserAttributeTlv(std::string &valueName) {
 }
 
 SharedBuffer
-UserAttributes::vauleMapToTlv(ValueMap &valueMap, Visibility visibility) {
+UserAttributes::valueMapToTlv(ValueMap &valueMap, Visibility visibility) {
     int length = 0;
         for(auto &i : *valueMap) {
             length += (i.first.length() + i.second.size + 1 + 2);
@@ -83,7 +83,7 @@ UserAttributes::tlvToValueMap(SharedBuffer &data) {
 
     int oldVal = 0;
     for(unsigned int x = 0; x < data.size; x++) {
-    while(data.get()[++x] != '\0' && x < data.size);
+        while(data.get()[x] != '\0' && x < data.size && ++x);
         if(x == data.size) {
             throw std::runtime_error(NULL_DELIMITER_NOT_FOUND);
         }
@@ -105,8 +105,9 @@ UserAttributes::tlvToValueMap(SharedBuffer &data) {
         SharedBuffer value(size);
         memcpy(value.get(), data.get() + ++x, value.size);
         map->insert({tag, value});
-        oldVal = x + size;
-        x += size - 1;
+        x += size;
+        oldVal = x;
+
     }
 
     return map;

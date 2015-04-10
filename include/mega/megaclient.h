@@ -186,12 +186,13 @@ public:
 
     void getuserattribute(const char *user, const char *an);
 
-    void setuserattribute(const char *user, const char *an, ValueMap map, int priv);
+    void setuserattribute(const char *user, const char *an, ValueMap map, int priv,
+            int nonhistoric);
 
     void getgattribute(const char *user, const char *an,
             std::function<void(ValueMap, error)>);
 
-    void setgattribute(const char *an, ValueMap map, int priv,
+    void setgattribute(const char *an, ValueMap map, int priv, int historic,
             std::function<void(error)>);
 
     void getgattribute(std::string &email, const char *an,

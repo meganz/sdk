@@ -195,8 +195,8 @@ public:
             }
             else
             {
-                LOG_test << "Error getting user data: ";
-                std::cerr << e->getErrorString() << std::endl;
+                LOG_err << e->toString();
+                success = false;
             }
             LOG_test << "request finished";
             wait = false;
@@ -209,6 +209,7 @@ public:
                 tlvArrayToMap(tlvArray, tlvLen);
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -221,6 +222,7 @@ public:
                 tlvArrayToMap(tlvArray, tlvLen);
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -234,6 +236,7 @@ public:
                 tlvArrayToMap(tlvArray, tlvLen);
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -245,6 +248,7 @@ public:
                 success = true;
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -256,6 +260,7 @@ public:
                 success = true;
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -268,6 +273,7 @@ public:
                 success = true;
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -281,6 +287,7 @@ public:
                 success = true;
             }
             else {
+                LOG_err << e->toString();
                 success = false;
             }
             wait = false;
@@ -352,12 +359,14 @@ TEST_F(ApiTest, testSetup) {
 //    TestClient tcSix(loginNameThree, passWordThree);
 //    TestClient tcSeven(loginNameThree, passWordThree);
 
-    std::map<std::string, std::pair<unsigned char*, unsigned int>> resetMap;
-    resetMap.insert({"authRSA", {(unsigned char*)"", 0}});
+//    std::map<std::string, std::pair<unsigned char*, unsigned int>> resetMap;
+//    resetMap.insert({"authRSA", {(unsigned char*)"", 0}});
+//
+//    std::map<std::string, std::pair<unsigned char*, unsigned int>> resetMapE;
+//    resetMapE.insert({"authring", {(unsigned char*)"", 0}});
 
-    std::map<std::string, std::pair<unsigned char*, unsigned int>> resetMapE;
-    resetMapE.insert({"authring", {(unsigned char*)"", 0}});
-
+    TLV resetMap[] = { "authRSA", 0, nullptr};
+    TLV resetMapE[] = { "authring", 0, nullptr};
     if(tcOne.login()) {
         tcOne.wait = true;
         tcOne.success = false;
@@ -378,7 +387,7 @@ TEST_F(ApiTest, testSetup) {
         TLV *retMap = UserAttributes::valueMapToTLVarray(vMap);
 
         tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", retMap,
-                vMap->size(), 0, &tcOne);
+                vMap->size(), 0, 1, &tcOne);
         while(tcOne.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -391,7 +400,7 @@ TEST_F(ApiTest, testSetup) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         ASSERT_TRUE(tcOne.success);
-        auto l = tcOne.valMap->find("uName");
+        auto l = tcOne.valMap->find("");
         ASSERT_TRUE(l != tcOne.valMap->end());
         std::string retVal((char*)l->second.first, l->second.second);
         ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
@@ -399,7 +408,7 @@ TEST_F(ApiTest, testSetup) {
         tcOne.wait = true;
         tcOne.success = false;
         tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", retMap,
-                vMap->size(), 1, &tcOne);
+                vMap->size(), 1, 0, &tcOne);
         while(tcOne.wait) {
            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -410,7 +419,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcOne.success = false;
 //
 //        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-//                "authRSA", &resetMap, 1, &tcOne);
+//                "authRSA", resetMap, 1, 1, 1, &tcOne);
 //        while(tcOne.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
@@ -420,42 +429,38 @@ TEST_F(ApiTest, testSetup) {
 //        tcOne.success = false;
 //
 //        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-//                "authring", &resetMapE, 1, &tcOne);
+//                "authring", resetMapE, 1, 1, 1, &tcOne);
 //        while(tcOne.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
 //        ASSERT_TRUE(tcOne.success);
         ///////////////////////////////////////////////////
 
-        LOG_test << "BIG_TEST";
-        tcOne.wait = true;
-        tcOne.success = false;
+//        LOG_test << "BIG_TEST";
+//        tcOne.wait = true;
+//        tcOne.success = false;
 //        tcTwo.wait = true;
-        tcTwo.success = false;
+//        tcTwo.success = false;
 //        tcThree.success = false;
 //        tcFour.success = false;
 //        tcFive.success = false;
 
-        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcOne);
+//        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcOne);
 //        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcTwo);
 //        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcThree);
 //        tcOne.api->getGenericUserAttribute("mholmwood@gmail.com", "puEd255", &tcFour);
 //        tcOne.api->getGenericUserAttribute("mh@mega.co.nz", "puEd255", &tcFive);
 
-        while(tcOne.wait) {
-           std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        ASSERT_TRUE(tcOne.success);
-        auto m = tcOne.valMap->find("puEd255");
-        ASSERT_TRUE(m != tcOne.valMap->end());
-        retVal.assign((char*)m->second.first, m->second.second);
+//        while(tcOne.wait) {
+//           std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//
+//        ASSERT_TRUE(tcOne.success);
+//        auto m = tcOne.valMap->find("puEd255");
+//        ASSERT_TRUE(m != tcOne.valMap->end());
+//        retVal.assign((char*)m->second.first, m->second.second);
         //ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
 
-        for(int x = 0; x < retVal.size(); x++) {
-            std::cout << (int)retVal.c_str()[x] << ",";
-        }
-        std::cout << std::endl;
 
 
 //        ASSERT_TRUE(tcTwo.success);
@@ -510,7 +515,7 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcOne.success);
         //ASSERT_EQ(2, tcOne.valMap->size());
         ASSERT_TRUE(tcOne.valMap->find("prEd255") != tcOne.valMap->end());
-        ASSERT_TRUE(tcOne.valMap->find("puEd255") != tcOne.valMap->end());
+        ASSERT_TRUE(tcOne.valMap->find("") != tcOne.valMap->end());
     }
     else {
         LOG_test << "login tcOne failed";
@@ -530,7 +535,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcThree.success = false;
 //
 //        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
-//                "authRSA", &resetMap, 1, &tcThree);
+//                "authRSA", resetMap, 1, 1, 1, &tcThree);
 //        while(tcThree.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
@@ -540,7 +545,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcThree.success = false;
 //
 //        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
-//                "authring", &resetMapE, 1, &tcThree);
+//                "authring", resetMapE, 1, 1, 1, &tcThree);
 //        while(tcThree.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
@@ -574,7 +579,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcTwo.success = false;
 //
 //        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-//                "authRSA", &resetMap, 1, &tcTwo);
+//                "authRSA", resetMap, 1, 1, 1, &tcTwo);
 //        while(tcOne.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
@@ -584,7 +589,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcTwo.success = false;
 //
 //        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-//                "authring", &resetMapE, 1, &tcTwo);
+//                "authring", resetMapE, 1, 1, 1, &tcTwo);
 //        while(tcOne.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //        }
@@ -624,6 +629,29 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcTwo.success);
 
     }
+}
+
+TEST_F(UserAttributesTest, test_null_key) {
+    std::string testData("hello this is a test.");
+    SharedBuffer testValue((unsigned char*)testData.c_str(), testData.size());
+    ValueMap map(new std::map<std::string, SharedBuffer>);
+    map->insert({"", testValue});
+    SharedBuffer tlv = mega::UserAttributes::valueMapToTlv(map);
+    std::cout << tlv.size << std::endl;
+    for(int x = 0; x < tlv.size; x++)
+    {
+        std::cout << "tlv[" << x << "] = " << (char)tlv.get()[x] << ", ";
+    }
+    std::cout << endl;
+    for(int x = 0; x < tlv.size; x++)
+    {
+       std::cout << "tlv[" << x << "] = " << (int)tlv.get()[x] << ", ";
+    }
+    std::cout << endl;
+
+    ValueMap retMap = mega::UserAttributes::tlvToValueMap(tlv);
+    auto i = retMap->find("");
+    ASSERT_TRUE(i != retMap->end());
 }
 
 TEST_F(UserAttributesTest, test_decode_correct_data) {
@@ -898,7 +926,7 @@ TEST_F(UserAttributesTest, test_encode_decode_single_value) {
     SharedBuffer testValue((unsigned char*)testData.c_str(), testData.length());
     ValueMap testMap(new std::map<std::string, SharedBuffer>());
     testMap->insert({testTag, testValue});
-    SharedBuffer encData = store.vauleMapToTlv(testMap);
+    SharedBuffer encData = store.valueMapToTlv(testMap);
 
     ValueMap testMapTwo = store.tlvToValueMap(encData);
     ASSERT_EQ((unsigned int)1, testMapTwo->size());
@@ -931,7 +959,7 @@ TEST_F(UserAttributesTest, test_encode_decode_multiple_values) {
     testMap->insert({testTagTwo, testValueTwo});
     testMap->insert({testTagThree, testValueThree});
 
-    SharedBuffer encData = store.vauleMapToTlv(testMap);
+    SharedBuffer encData = store.valueMapToTlv(testMap);
 
     ValueMap testMapTwo = store.tlvToValueMap(encData);
     ASSERT_EQ((unsigned int)3, testMapTwo->size());
@@ -1021,7 +1049,7 @@ TEST_F(UserAttributesTest, test_encode) {
     testMap->insert({testTagTwo, testLvTwo});
     testMap->insert({testTagThree, testLvThree});
 
-    SharedBuffer testBuffer = store.vauleMapToTlv(testMap);
+    SharedBuffer testBuffer = store.valueMapToTlv(testMap);
 
     unsigned int testLength =
             // Length of tagOne.

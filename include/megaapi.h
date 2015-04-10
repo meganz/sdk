@@ -3201,10 +3201,13 @@ class MegaApi
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
 
         // ATTR
+        /**
+         * @brief
+         */
         void putGenericUserAttribute(const char *user,
                 const char *attributeName,
                 TLV *tlvArray, unsigned int tlvLen,
-                int priv,
+                int priv, int nonhistoric,
                 MegaRequestListener *listener = NULL);
 
         void getGenericUserAttribute(const char *user, const char *an,

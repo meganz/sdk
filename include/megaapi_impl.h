@@ -871,7 +871,7 @@ class MegaApiImpl : public MegaApp
         // ATTR
         void putGenericUserAttribute(const char *user, const char *attrName,
                        TLV *tlvArray, unsigned int tlvLen,
-                       int priv,
+                       int priv, int nonhistoric,
                        MegaRequestListener *listener = NULL);
 
         void getGenericUserAttribute(const char *user, const char *an,

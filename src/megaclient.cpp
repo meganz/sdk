@@ -4132,33 +4132,41 @@ void MegaClient::getuserdata()
 }
 
 // ATTR
-void MegaClient::setuserattribute(const char *user, const char *an, ValueMap map, int priv) {
+void MegaClient::setuserattribute(const char *user, const char *an, ValueMap map, int priv,
+        int nonhistoric) {
     int savedrt = reqtag;
-    setgattribute(an, map, priv, [this, savedrt](error e){
+    setgattribute(an, map, priv, nonhistoric, [this, savedrt](error e){
             restag = savedrt;
             app->putguattr_result(e);
         });
 }
 
-void MegaClient::getuserattribute(const char *user, const char *an) {
+void MegaClient::getuserattribute(const char *user, const char *an)
+{
     int savedrt = reqtag;
-    getgattribute(user, an, [this, savedrt](ValueMap map, error e){
+    getgattribute(user, an, [this, savedrt](ValueMap map, error e)
+    {
             restag = savedrt;
             app->getguattr_result(map, e);
     });
 }
 
 void MegaClient::getgattribute(const char *user, const char *an,
-        std::function<void(ValueMap, error)> funct) {
+        std::function<void(ValueMap, error)> funct)
+{
     reqs[r].add(new CommandGetUserAttr(this, user, an, 0, funct));
 }
 
 void MegaClient::setgattribute(const char *an,
-        ValueMap map, int priv, std::function<void(error)> funct) {
-    SharedBuffer tlv = UserAttributes::vauleMapToTlv(map);
+        ValueMap map, int priv, int nonhistoric, std::function<void(error)> funct)
+{
+
     SharedBuffer tlvApp;
     char p = (priv) ? '*' : '+';
+    int hV = (nonhistoric) ? 1 : 0;
+    char h = '!';
     if(priv) {
+        SharedBuffer tlv = UserAttributes::valueMapToTlv(map);
         std::string data((char*)tlv.get(), tlv.size);
         string iv;
 
@@ -4166,14 +4174,25 @@ void MegaClient::setgattribute(const char *an,
 
         // Now prepend the data with the (8 byte) IV.
         iv.append(data);
-        tlvApp = SharedBuffer(iv.size() + 1);
+        tlvApp = SharedBuffer(iv.size() + 1 + hV);
         memcpy(tlvApp.get(), &p, 1);
-        memcpy(tlvApp.get() + 1, iv.c_str(), iv.size());
+        if(nonhistoric) {
+            memcpy(tlvApp.get() + 1, &h, 1);
+        }
+        memcpy(tlvApp.get() + 1 + hV, iv.c_str(), iv.size());
     }
-    else {
-        tlvApp = SharedBuffer(tlv.size + 1);
+    else
+    {
+        SharedBuffer value = map->begin()->second;
+        tlvApp = SharedBuffer(value.size + 1 + hV);
         memcpy(tlvApp.get(), &p, 1);
-        memcpy(tlvApp.get() + 1, tlv.get(), tlv.size);
+        if(nonhistoric) {
+            memcpy(tlvApp.get() + 1, &h, 1);
+        }
+        memcpy(tlvApp.get() + 1 + hV, value.get(), value.size);
+        //tlvApp = SharedBuffer(tlv.size + 1);
+        //memcpy(tlvApp.get(), &p, 1);
+        //memcpy(tlvApp.get() + 1, tlv.get(), tlv.size);
     }
 
     reqs[r].add(new CommandSetUserAttr(this, an, tlvApp.get(),
@@ -4182,15 +4201,19 @@ void MegaClient::setgattribute(const char *an,
 }
 
 void MegaClient::getgattribute(std::string &email, const char *an,
-        std::function<void(ValueMap, error)> funct) {
+        std::function<void(ValueMap, error)> funct)
+{
     reqs[r].add(new CommandGetUserAttr(this, email, an, 0, funct));
 }
 
-void MegaClient::getownsigningkeys(bool reset) {
-    if(signkey.keySet()) {
+void MegaClient::getownsigningkeys(bool reset)
+{
+    if(signkey.keySet())
+    {
         LOG_info << "Using cached signing keys";
         std::pair<SecureBuffer, SecureBuffer> keyPair = signkey.getKeyPair();
-        if(!(keyPair.first && keyPair.second)) {
+        if(!(keyPair.first && keyPair.second))
+        {
             app->getguattr_result(ValueMap(), API_EINTERNAL);
             return;
         }
@@ -4208,12 +4231,15 @@ void MegaClient::getownsigningkeys(bool reset) {
 
     int savedrq = reqtag;
     LOG_info << "Fetching signing keys";
-    getownsigningkeys([this, savedrq](ValueMap map, error e){
+    getownsigningkeys([this, savedrq](ValueMap map, error e)
+    {
         restag = savedrq;
-        app->getguattr_result(map, e);}, reset);
+        app->getguattr_result(map, e);
+    }, reset);
 }
 
-void MegaClient::getownsigningkeys(GetSigKeysCallback callback, bool reset) {
+void MegaClient::getownsigningkeys(GetSigKeysCallback callback, bool reset)
+{
     if(reset) {
     LOG_info << "Resetting keys";
         uploadkeys(callback);
@@ -4224,7 +4250,8 @@ void MegaClient::getownsigningkeys(GetSigKeysCallback callback, bool reset) {
     Base64::btoa((byte*)&me, sizeof me, h);
     std::string hand(h, 11);
     getgattribute(hand, "keyring",
-       [this, callback, hand](ValueMap map, error e) mutable {
+       [this, callback, hand](ValueMap map, error e) mutable
+    {
 
         if(e == API_ENOENT)
         {
@@ -4283,7 +4310,8 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback)
 
     SharedBuffer pubBuff(pair.first.get(), pair.first.size());
     ValueMap pubMap(new std::map<std::string, SharedBuffer>());
-    pubMap->insert({ "puEd255", pubBuff});
+    // pubMap->insert("puEd255");
+    pubMap->insert({ "", pubBuff});
     ValueMap priMap(new std::map<std::string, SharedBuffer>());
     priMap->insert({ "prEd255", SharedBuffer(pair.second.get(),
             pair.second.size())});
@@ -4308,7 +4336,7 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback)
             finalFunc(priMap, e);
             return;
         }
-        setgattribute("keyring", priMap, 1,
+        setgattribute("keyring", priMap, 1, 0,
                 (*fVec)[1]);
     });
 
@@ -4340,7 +4368,7 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback)
             // signedRSA = authRSA
             ValueMap sigMap(new std::map<std::string, SharedBuffer>);
             sigMap->insert({ "sgPubk", sigBuff });
-            setgattribute("sgPubk", sigMap, 0,
+            setgattribute("sgPubk", sigMap, 0, 0,
                             (*fVec)[2]);
         }));
 
@@ -4352,7 +4380,7 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback)
         finalFunc(priMap, e);
     });
 
-    setgattribute("puEd255", pubMap, 0,
+    setgattribute("puEd255", pubMap, 0, 0,
             (*fVec)[0]);
 }
 
@@ -4369,7 +4397,8 @@ SharedBuffer MegaClient::signRSAKey(SharedBuffer &&keyBytes)
 
     SecureBuffer sig = signkey.signDetatched((unsigned char*)auth.c_str(),
             auth.length());
-    if(sig.get() == nullptr) {
+    if(sig.get() == nullptr)
+    {
         LOG_err << "Error creating signature for RSA key";
         return SharedBuffer();
     }
@@ -4409,7 +4438,8 @@ void MegaClient::verifyRSAKeySignature(User *user, function<void(error)> funct)
             funct(e);
             return;
         }
-        auto i = map->find("sgPubk");
+        //auto i = map->find("sgPubk");
+        auto i = map->find("");
         if(i == map->end())
         {
             LOG_err << "No record for sgPubk in VaueMap";
@@ -4434,7 +4464,8 @@ void MegaClient::verifyRSAKeySignature(User *user, function<void(error)> funct)
                     return;
                 }
 
-                auto i = map->find("puEd255");
+                //auto i = map->find("puEd255");
+                auto i = map->find("");
                 if(i == map->end())
                 {
                     funct(API_EINTERNAL);
@@ -4620,7 +4651,7 @@ void MegaClient::verifyKeyFingerPrint_(const char *user, SharedBuffer &key, int 
 
    ValueMap sm = serilizeMap(rsa);
    setgattribute((rsa) ? "authRSA" :
-           "authring", sm, 1, [this, callback](error e)
+           "authring", sm, 1, 1, [this, callback](error e)
    {
        callback(e);
    });
@@ -4656,7 +4687,8 @@ void MegaClient::getPublicStaticKey(const char *user)
             app->getguattr_result(map, e);
             return;
         }
-        auto k = map->find("puEd255");
+        //auto k = map->find("puEd255");
+        auto k = map->find("");
         if(k == map->end())
         {
             LOG_err << "puEd255 record not found";

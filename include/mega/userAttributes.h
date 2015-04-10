@@ -75,7 +75,7 @@ public:
      * @param value The values to encode.
      * @return A sharedBuffer with the resulting bytes.
      */
-    static SharedBuffer vauleMapToTlv(ValueMap &value,
+    static SharedBuffer valueMapToTlv(ValueMap &value,
             Visibility visibility = VS_PUBLIC);
 
     static void addValue(const std::string &valueName, SharedBuffer &vaule, SharedBuffer &target,

@@ -1172,8 +1172,8 @@ void CommandLogin::procresult()
                     }
 
                     // add missing RSA keypair
-                    LOG_info << "Generating and adding missing RSA keypair";
-                    client->setkeypair([](error e){});
+                    // LOG_info << "Generating and adding missing RSA keypair";
+                    //client->setkeypair([](error e){});
                     setKeypair = true;
                 }
                 else
@@ -1214,29 +1214,46 @@ void CommandLogin::procresult()
                     MegaClient *c = client;
                     int reqtag = tag;
 
-                    c->getownsigningkeys([c, reqtag, setKeypair](ValueMap map, error e){
-                        if(e == API_OK)
-                        {
-                            c->fetchKeyrings([c, reqtag, setKeypair](error e){
-//                                if(e == API_OK && setKeypair) {
-//                                    std::cout << "setkeypair" << std::endl;
-//                                    c->setkeypair([c, reqtag](error e){
-//                                        c->restag = reqtag;
-//                                        c->app->login_result(e);
-//                                    });
-//                                }
-//                                else {
-                                    c->restag = reqtag;
-                                    c->app->login_result(e);
-                                //}
-                            });
-                        }
-                        else
-                        {
+                    // Series of lambdas for performing initialization.
+                    // Here we make no assumptions as to whether the ed25519 keys
+                    // have been set or not, as the account may have been created
+                    // before their addition. If there is a failure to upload the
+                    // RSA keys we *must* fail early, as the signature for the key
+                    // could change on retry.
+                    auto f = [c, reqtag](error e){
+                        if(e != API_OK) {
                             c->restag = reqtag;
                             c->app->login_result(e);
+                            return;
                         }
-                    });
+                        // Get own signing keys, bail on failure.
+                        c->getownsigningkeys([c, reqtag](ValueMap map, error e){
+                            if(e != API_OK) {
+                                c->restag = reqtag;
+                                c->app->login_result(e);
+                            }
+                            // Fetch ed25519 and RSA keyrings.
+                            c->fetchKeyrings([c, reqtag](error e){
+                                c->restag = reqtag;
+                                c->app->login_result(e);
+                            });
+
+                        });
+                        // set final parameter to true to reset keys.
+                    };
+
+                    // If we need to set the keypair, then do so, and pass in f
+                    // as the callback.
+                    if(setKeypair)
+                    {
+                        LOG_info << "Generating and adding missing RSA keypair";
+                        c->setkeypair(f);
+                    }
+                    // Otherwise, just call f.
+                    else
+                    {
+                        f(API_OK);
+                    }
                 }
 
                 return;
@@ -1813,10 +1830,17 @@ CommandGetUserAttr::procresult() {
         SharedBuffer tlv;
 
         if(priv == '+'){
-            tlv = SharedBuffer((unsigned char*)data + 1, l - 1);
+            int offset = ((priv = data[1]) == '!') ? 2 : 1;
+            tlv = SharedBuffer((unsigned char*)data + offset, l - offset);
+            map = ValueMap(new std::map<std::string, SharedBuffer>);
+            map->insert({"", tlv});
+            callBack(map, API_OK);
         }
         else if(priv == '*'){
-            std::string d((char*)(data + 1), l - 1);
+
+            int offset = ((priv = data[1]) == '!') ? 2 : 1;
+
+            std::string d((char*)(data + offset), l - offset);
             if (l % client->key.BLOCKSIZE == 0)
             {
                 if (!PaddedCBC::decrypt(&d, &client->key))
@@ -1843,20 +1867,20 @@ CommandGetUserAttr::procresult() {
             }
 
             tlv = SharedBuffer((byte*)d.c_str(), d.size());
+
+            try {
+               map = UserAttributes::tlvToValueMap(tlv);
+               callBack(map, API_OK);
+            }
+            catch(std::runtime_error &e) {
+                callBack(map, API_EINTERNAL);
+            }
         }
         else {
             callBack(map, API_EINTERNAL);
             return;
         }
 
-
-        try {
-            map = UserAttributes::tlvToValueMap(tlv);
-            callBack(map, API_OK);
-        }
-        catch(std::runtime_error &e) {
-            callBack(map, API_EINTERNAL);
-        }
     }
 
 }
