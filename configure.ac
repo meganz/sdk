@@ -1331,10 +1331,6 @@ AC_ARG_WITH(java-include-dir,
 	    [--with-java-include-dir=DIR look in DIR for Java headers],
 	    [JAVA_INCLUDE_DIR=$withval],)
 AC_SUBST(JAVA_INCLUDE_DIR)
-AC_ARG_WITH(java-lib-dir,
-	    [--with-java-lib-dir=DIR look in DIR for Java libraries],
-	    [JAVA_LIB_DIR=$withval],)
-AC_SUBST(JAVA_LIB_DIR)
 
 if test "x$enable_java" = "xyes" ; then
     AX_PKG_SWIG(2.0.0, [], [
@@ -1362,7 +1358,7 @@ if test "x$enable_java" = "xyes" ; then
 
     SAVE_CPPFLAGS=$CPPFLAGS
     CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
-    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h.])])
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
     CPPFLAGS=$SAVE_CPPFLAGS
 fi
 AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])

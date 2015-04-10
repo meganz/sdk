@@ -89,3 +89,7 @@ bindings/php/php_mega.h
 bindings/python/mega.py
 bindings/python/megaapi_wrap.cpp
 bindings/python/megaapi_wrap.h
+
+bindings/java/*.java
+bindings/java/megaapi_wrap.cpp
+bindings/java/megaapi_wrap.h
