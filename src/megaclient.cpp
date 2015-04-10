@@ -3203,9 +3203,13 @@ void MegaClient::sc_ipc()
 
                 if (dts != 0)
                 {
-                    // this is a delete, find the existing object in state
-                    pcr->uts = dts;
-                    pcr->changed.deleted = true;
+                    //Trying to remove an ignored request
+                    if(pcr)
+                    {
+                        // this is a delete, find the existing object in state
+                        pcr->uts = dts;
+                        pcr->changed.deleted = true;
+                    }
                 }
                 else if (pcr && rts != 0)
                 {
@@ -5336,7 +5340,7 @@ void MegaClient::notifyuser(User* u)
 // queue pcr for notification
 void MegaClient::notifypcr(PendingContactRequest* pcr)
 {
-    if (!pcr->notified)
+    if (pcr && !pcr->notified)
     {
         pcr->notified = true;
         pcrnotify.push_back(pcr);
