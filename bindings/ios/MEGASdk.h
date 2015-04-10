@@ -1995,6 +1995,52 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 - (void)pauseTransfers:(BOOL)pause;
 
 /**
+ * @brief Pause/resume all transfers in one direction (uploads or downloads)
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfers
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ * - [MEGARequest number] - Returns the direction of the transfers to pause/resume
+ *
+ * @param pause YES to pause transfers / NO to resume transfers
+ * @param direction Direction of transfers to pause/resume
+ * Valid values for this parameter are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume all transfers in one direction (uploads or downloads)
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfers
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ * - [MEGARequest number] - Returns the direction of the transfers to pause/resume
+ *
+ * @param pause YES to pause transfers / NO to resume transfers
+ * @param direction Direction of transfers to pause/resume
+ * Valid values for this parameter are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ */
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction;
+
+/**
+ * @brief Returns the state (paused/unpaused) of transfers
+ * @param direction Direction of transfers to check
+ * Valid values for this parameter are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ * @return YES if transfers on that direction are paused, NO otherwise
+ */
+- (BOOL)areTransferPausedForDirection:(NSInteger)direction;
+
+/**
  * @brief Set the upload speed limit.
  *
  * The limit will be applied on the server side when starting a transfer. Thus the limit won't be

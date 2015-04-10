@@ -324,7 +324,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * This value is valid for these requests:
  * - [MEGASdk retryPendingConnections] - Returns if request are disconnected
- * - [MEGASdk pauseTransfers:] - Returns YES if transfers were paused, NO if they were resumed
+ * - [MEGASdk pauseTransfers:] - Returns the direction of the transfers to pause/resume
  *
  */
 @property (readonly, nonatomic) BOOL flag;

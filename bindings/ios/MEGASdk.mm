@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+
 #import "MEGASdk.h"
 #import "megaapi.h"
 #import "MEGANode+init.h"
@@ -707,6 +708,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)pauseTransfers:(BOOL)pause {
     self.megaApi->pauseTransfers(pause);
+}
+
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->pauseTransfers(pause, (int)direction, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction {
+    self.megaApi->pauseTransfers(pause, (int)direction);
+}
+
+- (BOOL)areTransferPausedForDirection:(NSInteger)direction {
+    return self.megaApi->areTansfersPaused((int)direction);
 }
 
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit {
