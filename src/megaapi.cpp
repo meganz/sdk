@@ -1144,7 +1144,17 @@ void MegaApi::removeContact(MegaUser *user, MegaRequestListener* listener)
 
 void MegaApi::pauseTransfers(bool pause, MegaRequestListener* listener)
 {
-    pImpl->pauseTransfers(pause, listener);
+    pImpl->pauseTransfers(pause, -1, listener);
+}
+
+void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *listener)
+{
+    pImpl->pauseTransfers(pause, direction, listener);
+}
+
+bool MegaApi::areTansfersPaused(int direction)
+{
+    pImpl->areTansfersPaused(direction);
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s

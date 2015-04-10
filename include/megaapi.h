@@ -1406,6 +1406,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if transfers are retried
          * - MegaApi::submitFeedback - Returns the rating for the app
+         * - MegaApi::pauseTransfers - Returns the direction of the transfers to pause/resume
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4107,6 +4108,35 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransfers(bool pause, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief  Pause/resume all transfers in one direction (uploads or downloads)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFERS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns the first parameter
+         * - MegaRequest::getNumber - Returns the direction of the transfers to pause/resume
+         *
+         * @param pause true to pause transfers / false to resume transfers
+         * @param direction Direction of transfers to pause/resume
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Returns the state (paused/unpaused) of transfers
+         * @param direction Direction of transfers to check
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         *
+         * @return true if transfers on that direction are paused, false otherwise
+         */
+        bool areTansfersPaused(int direction);
 
         /**
          * @brief Set the upload speed limit

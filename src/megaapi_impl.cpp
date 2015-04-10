@@ -2740,12 +2740,34 @@ void MegaApiImpl::removeContact(MegaUser *user, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::pauseTransfers(bool pause, MegaRequestListener* listener)
+void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PAUSE_TRANSFERS, listener);
     request->setFlag(pause);
+    request->setNumber(direction);
     requestQueue.push(request);
     waiter->notify();
+}
+
+bool MegaApiImpl::areTansfersPaused(int direction)
+{
+    if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
+    {
+        return false;
+    }
+
+    bool result;
+    sdkMutex.lock();
+    if(direction == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        result = client->xferpaused[GET];
+    }
+    else
+    {
+        result = client->xferpaused[PUT];
+    }
+    sdkMutex.unlock();
+    return result;
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
@@ -7184,6 +7206,15 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_PAUSE_TRANSFERS:
         {
             bool pause = request->getFlag();
+            int direction = request->getNumber();
+            if(direction != -1
+                    && direction != MegaTransfer::TYPE_DOWNLOAD
+                    && direction != MegaTransfer::TYPE_UPLOAD)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             if(pause)
             {
                 if(!pausetime) pausetime = Waiter::ds;
@@ -7206,8 +7237,20 @@ void MegaApiImpl::sendPendingRequests()
                 pausetime = 0;
             }
 
-            client->pausexfers(PUT, pause);
-            client->pausexfers(GET, pause);
+            if(direction == -1)
+            {
+                client->pausexfers(PUT, pause);
+                client->pausexfers(GET, pause);
+            }
+            else if(direction == MegaTransfer::TYPE_DOWNLOAD)
+            {
+                client->pausexfers(GET, pause);
+            }
+            else
+            {
+                client->pausexfers(PUT, pause);
+            }
+
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
