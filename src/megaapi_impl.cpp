@@ -3135,9 +3135,10 @@ void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::inviteContact(const char *email, const char *message, MegaRequestListener *listener)
+void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
+    request->setNumber(action);
     request->setEmail(email);
     request->setText(message);
     requestQueue.push(request);
@@ -8251,13 +8252,14 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *email = request->getEmail();
             const char *message = request->getText();
+            int action = request->getNumber();
             if(!email)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->setpcr(email, OPCA_ADD, message);
+            client->setpcr(email, (opcactions_t)action, message);
             break;
         }
         case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
@@ -8265,7 +8267,7 @@ void MegaApiImpl::sendPendingRequests()
             handle h = request->getNodeHandle();
             int action = request->getNumber();
 
-            if(h == INVALID_HANDLE || action < 0 || action > MegaContactRequest::ACTION_IGNORE)
+            if(h == INVALID_HANDLE || action < 0 || action > MegaContactRequest::REPLY_ACTION_IGNORE)
             {
                 e = API_EARGS;
                 break;

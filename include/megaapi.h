@@ -1871,9 +1871,15 @@ public:
     };
 
     enum {
-        ACTION_ACCEPT = 0,
-        ACTION_DENY,
-        ACTION_IGNORE
+        REPLY_ACTION_ACCEPT = 0,
+        REPLY_ACTION_DENY,
+        REPLY_ACTION_IGNORE
+    };
+
+    enum {
+        INVITE_ACTION_ADD = 0,
+        INVITE_ACTION_DELETE,
+        INVITE_ACTION_REMIND
     };
 
     virtual ~MegaContactRequest();
@@ -4395,17 +4401,22 @@ class MegaApi
          *
          * @param email Email of the new contact
          * @param message Message for the user (can be NULL)
+         * @param action Action for this contact request. Valid values are:
+         * - MegaContactRequest::INVITE_ACTION_ADD = 0
+         * - MegaContactRequest::INVITE_ACTION_DELETE = 1
+         * - MegaContactRequest::INVITE_ACTION_REMIND = 2
+         *
          * @param listener MegaRequestListener to track this request
          */
-        void inviteContact(const char* email, const char* message, MegaRequestListener* listener = NULL);
+        void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Reply to a contact request
          * @param request Contact request. You can get your pending contact requests using MegaApi::getIncomingContactRequests
          * @param action Action for this contact request. Valid values are:
-         * - MegaContactRequest::ACTION_ACCEPT = 0
-         * - MegaContactRequest::ACTION_DENY = 1
-         * - MegaContactRequest::ACTION_IGNORE = 2
+         * - MegaContactRequest::REPLY_ACTION_ACCEPT = 0
+         * - MegaContactRequest::REPLY_ACTION_DENY = 1
+         * - MegaContactRequest::REPLY_ACTION_IGNORE = 2
          *
          * The associated request type with this request is MegaRequest::TYPE_REPLY_CONTACT_REQUEST
          * Valid data in the MegaRequest object received on callbacks:
