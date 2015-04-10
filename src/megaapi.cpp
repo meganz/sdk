@@ -1154,7 +1154,7 @@ void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *lis
 
 bool MegaApi::areTansfersPaused(int direction)
 {
-    pImpl->areTansfersPaused(direction);
+    return pImpl->areTansfersPaused(direction);
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
