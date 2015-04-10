@@ -1233,8 +1233,9 @@ AM_CONDITIONAL([BUILD_TESTS], [test "$enable_tests" = "yes"])
 AC_MSG_RESULT([$enable_tests])
 
 
-# Bindings
+## Bindings
 
+# Python
 AC_MSG_CHECKING([if building Python bindings])
 AC_ARG_ENABLE(python,
     AS_HELP_STRING([--enable-python], [build Python language bindings]),
@@ -1264,6 +1265,7 @@ if test "x$enable_python" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PYTHON], [test "$enable_python" = "yes"])
 
+# PHP
 AC_MSG_CHECKING([if building PHP bindings])
 AC_ARG_ENABLE(php,
     AS_HELP_STRING([--enable-php], [build PHP language bindings]),
@@ -1316,6 +1318,55 @@ if test "x$enable_php" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
+# Java
+AC_MSG_CHECKING([if building Java bindings])
+AC_ARG_ENABLE(java,
+    AS_HELP_STRING([--enable-java], [build Java language bindings]),
+    [AC_MSG_RESULT([$enableval])],
+    [
+     AC_MSG_RESULT([$enableval])
+     enable_java=no]
+)
+AC_ARG_WITH(java-include-dir,
+	    [--with-java-include-dir=DIR look in DIR for Java headers],
+	    [JAVA_INCLUDE_DIR=$withval],)
+AC_SUBST(JAVA_INCLUDE_DIR)
+AC_ARG_WITH(java-lib-dir,
+	    [--with-java-lib-dir=DIR look in DIR for Java libraries],
+	    [JAVA_LIB_DIR=$withval],)
+AC_SUBST(JAVA_LIB_DIR)
+
+if test "x$enable_java" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    AC_CHECK_PROG(JAVA, java, yes, no)
+    if test "x$JAVA" = "xno"; then
+      AC_MSG_ERROR([no java binary in PATH])
+    fi
+    AC_CHECK_PROG(JAVAC, javac, yes, no)
+    if test "x$JAVAC" = "xno"; then
+      AC_MSG_ERROR([no javac binary in PATH])
+    fi
+    AC_CHECK_PROG(JAR, jar, yes, no)
+    if test "x$JAR" = "xno"; then
+      AC_MSG_ERROR([no jar binary in PATH])
+    fi
+
+    SAVE_CPPFLAGS=$CPPFLAGS
+    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h.])])
+    CPPFLAGS=$SAVE_CPPFLAGS
+fi
+AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
+
 
 dnl #########################################################################
 dnl Doxygen settings
@@ -1361,6 +1412,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
 
   Python bindings:  $enable_python
   PHP bindings:     $enable_php
+  Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
   Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS

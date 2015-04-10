@@ -52,6 +52,10 @@ if BUILD_PHP
 include bindings/php/include.am
 endif
 
+if BUILD_JAVA
+include bindings/java/include.am
+endif
+
 SUBDIRS = include
 
 EXTRA_DIST += autogen.sh
