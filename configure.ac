@@ -1074,9 +1074,12 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
+        # readline requires termcap (or ncurses)
+        SAVE_LIBS=$LIBS
+        LIBS="$TERMCAP_LIBS $LIBS"
         AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
-
+        LIBS=$SAVE_LIBS
          ;;
        *)
 
@@ -1119,8 +1122,12 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
+        # readline requires termcap (or ncurses)
+        SAVE_LIBS=$LIBS
+        LIBS="$TERMCAP_LIBS $LIBS"
         AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
+        LIBS=$SAVE_LIBS
       ]
       )
       AC_SUBST(RL_LDFLAGS)
@@ -1328,8 +1335,8 @@ AC_ARG_ENABLE(java,
      enable_java=no]
 )
 AC_ARG_WITH(java-include-dir,
-	    [--with-java-include-dir=DIR look in DIR for Java headers],
-	    [JAVA_INCLUDE_DIR=$withval],)
+    [--with-java-include-dir=DIR look in DIR for Java headers],
+	[JAVA_INCLUDE_DIR=$withval],)
 AC_SUBST(JAVA_INCLUDE_DIR)
 
 if test "x$enable_java" = "xyes" ; then
