@@ -152,7 +152,7 @@ public:
         loginName(loginName), passWord(passWord),
                 valMap(nullptr) {
         api = new MegaApi("sdfsdfsdf", (const char*)NULL, "sdk_test");
-        api->setLogLevel(mega::logTest);
+        api->setLogLevel(mega::logMax);
     }
 
     virtual ~TestClient() {

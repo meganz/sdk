@@ -35,10 +35,10 @@ nobase_libmegainclude_HEADERS = \
 	mega/logging.h \
 	mega/waiter.h \
 	mega/proxy.h \
-    mega/crypto/cryptopp.h \
-    mega/crypto/sodium.h \
-    mega/db/sqlite.h \
-    mega/db/bdb.h \
+	mega/crypto/cryptopp.h \
+	mega/crypto/sodium.h \
+	mega/db/sqlite.h \
+	mega/db/bdb.h \
 	mega/thread.h \
 	mega/thread/cppthread.h \
 	mega/thread/posixthread.h \
@@ -46,14 +46,11 @@ nobase_libmegainclude_HEADERS = \
 	mega/thread/win32thread.h \
 	mega/gfx/external.h \
 	mega/gfx/qt.h \
-	mega/mega_utf8proc.h
+	mega/mega_utf8proc.h \
+	mega/gfx/freeimage.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
-endif
-
-if USE_FREEIMAGE
-nobase_libmegainclude_HEADERS += mega/gfx/freeimage.h
 endif
 
 if WIN32

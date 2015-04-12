@@ -50,7 +50,7 @@
  * @brief Get the handle of a product.
  * @param index Product index (from 0 to [MEGAPricing products]).
  * @return Handle of the product.
- * @see [MEGASdk getPaymentURLForProductHandle:].
+ * @see [MEGASdk getPaymentIdForProductHandle:].
  */
 - (uint64_t)handleAtProductIndex:(NSInteger)index;
 

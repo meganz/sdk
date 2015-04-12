@@ -2,7 +2,7 @@
 # @file configure.ac
 # @brief an input file for autoconf tool
 #
-# (c) 2013-2014 by Mega Limited, Wellsford, New Zealand
+# (c) 2013-2015 by Mega Limited, Auckland, New Zealand
 #
 # This file is part of the MEGA SDK - Client Access Engine.
 #
@@ -137,7 +137,7 @@ AC_STRUCT_TM
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 
-AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl])
+AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h sys/socket.h sys/timeb.h htonl glob.h malloc.h sys/malloc.h malloc/malloc.h])
 
 # Debug
 AC_ARG_ENABLE(debug,
@@ -184,7 +184,9 @@ AC_CHECK_LIB([sendfile], [sendfile])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([rt], [clock_gettime])
 
-AC_FUNC_MALLOC
+# check for malloc only on for native builds
+# users report issues with cross-compiling builds
+AS_IF([test "x$cross_compiling" != "xyes"], [AC_FUNC_MALLOC AC_FUNC_REALLOC])
 
 # Check if building for Win32, determine Win32 API libs
 WIN32=no
@@ -221,6 +223,8 @@ AC_ARG_ENABLE(posix-threads,
     [enable_posix_threads=yes])
 if test x$enable_posix_threads != xno; then
     AC_CHECK_LIB(pthread, pthread_create, [HAVE_PTHREAD=yes], [HAVE_PTHREAD=no])
+else
+    HAVE_PTHREAD=no
 fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
@@ -665,10 +669,11 @@ if test "x$WIN32" = "xno" ; then
             AC_CHECK_HEADERS([openssl/ssl.h], [],
                 AC_MSG_ERROR([ssl.h header not found or not usable])
             )
-            AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+            LIBS="-lcrypto $LIBS"
+            AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
                 AC_MSG_ERROR([Could not find OpenSSL library!])
             )
-
+            LIBS=$SAVE_LIBS
             AC_SUBST(LIBSSL_LIBS)
             openssl=true
          ;;
@@ -708,10 +713,11 @@ if test "x$WIN32" = "xno" ; then
         AC_CHECK_HEADERS([openssl/ssl.h], [],
             AC_MSG_ERROR([ssl.h header not found or not usable])
         )
-        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl"],
+        LIBS="-lcrypto $LIBS"
+        AC_CHECK_LIB(ssl, [SSL_new], [LIBSSL_LIBS="-lssl -lcrypto"],
             AC_MSG_ERROR([Could not find OpenSSL library!])
         )
-
+        LIBS=$SAVE_LIBS
         AC_SUBST(LIBSSL_LIBS)
         openssl=true
       ]
@@ -1068,9 +1074,12 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
+        # readline requires termcap (or ncurses)
+        SAVE_LIBS=$LIBS
+        LIBS="$TERMCAP_LIBS $LIBS"
         AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
-
+        LIBS=$SAVE_LIBS
          ;;
        *)
 
@@ -1113,8 +1122,12 @@ if test "x$enable_examples" = "xyes" ; then
         AC_CHECK_HEADERS([readline/readline.h],, [
             AC_MSG_ERROR([readline/readline.h header not found or not usable])
         ])
+        # readline requires termcap (or ncurses)
+        SAVE_LIBS=$LIBS
+        LIBS="$TERMCAP_LIBS $LIBS"
         AC_CHECK_LIB([readline], [rl_save_prompt], [RL_LIBS="-lreadline"], [
             AC_MSG_ERROR([readline library is required for the sample client.])])
+        LIBS=$SAVE_LIBS
       ]
       )
       AC_SUBST(RL_LDFLAGS)
@@ -1227,8 +1240,9 @@ AM_CONDITIONAL([BUILD_TESTS], [test "$enable_tests" = "yes"])
 AC_MSG_RESULT([$enable_tests])
 
 
-# Bindings
+## Bindings
 
+# Python
 AC_MSG_CHECKING([if building Python bindings])
 AC_ARG_ENABLE(python,
     AS_HELP_STRING([--enable-python], [build Python language bindings]),
@@ -1258,6 +1272,7 @@ if test "x$enable_python" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PYTHON], [test "$enable_python" = "yes"])
 
+# PHP
 AC_MSG_CHECKING([if building PHP bindings])
 AC_ARG_ENABLE(php,
     AS_HELP_STRING([--enable-php], [build PHP language bindings]),
@@ -1310,6 +1325,51 @@ if test "x$enable_php" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
+# Java
+AC_MSG_CHECKING([if building Java bindings])
+AC_ARG_ENABLE(java,
+    AS_HELP_STRING([--enable-java], [build Java language bindings]),
+    [AC_MSG_RESULT([$enableval])],
+    [
+     AC_MSG_RESULT([$enableval])
+     enable_java=no]
+)
+AC_ARG_WITH(java-include-dir,
+    [--with-java-include-dir=DIR look in DIR for Java headers],
+	[JAVA_INCLUDE_DIR=$withval],)
+AC_SUBST(JAVA_INCLUDE_DIR)
+
+if test "x$enable_java" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    AC_CHECK_PROG(JAVA, java, yes, no)
+    if test "x$JAVA" = "xno"; then
+      AC_MSG_ERROR([no java binary in PATH])
+    fi
+    AC_CHECK_PROG(JAVAC, javac, yes, no)
+    if test "x$JAVAC" = "xno"; then
+      AC_MSG_ERROR([no javac binary in PATH])
+    fi
+    AC_CHECK_PROG(JAR, jar, yes, no)
+    if test "x$JAR" = "xno"; then
+      AC_MSG_ERROR([no jar binary in PATH])
+    fi
+
+    SAVE_CPPFLAGS=$CPPFLAGS
+    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
+    CPPFLAGS=$SAVE_CPPFLAGS
+fi
+AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
+
 
 dnl #########################################################################
 dnl Doxygen settings
@@ -1355,6 +1415,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
 
   Python bindings:  $enable_python
   PHP bindings:     $enable_php
+  Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
   Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS

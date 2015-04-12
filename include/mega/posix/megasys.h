@@ -71,7 +71,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <fcntl.h>
-#include <glob.h>
+
+#ifdef HAVE_GLOB_H
+    #include <glob.h>
+#endif
 
 #ifdef HAVE_DIRENT_H
     #include <dirent.h>

@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+
 #import "MEGASdk.h"
 #import "megaapi.h"
 #import "MEGANode+init.h"
@@ -565,12 +566,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->getPricing();
 }
 
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getPaymentUrl(productHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPaymentId(productHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle {
-    self.megaApi->getPaymentUrl(productHandle);
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle {
+    self.megaApi->getPaymentId(productHandle);
 }
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
@@ -707,6 +708,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)pauseTransfers:(BOOL)pause {
     self.megaApi->pauseTransfers(pause);
+}
+
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->pauseTransfers(pause, (int)direction, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction {
+    self.megaApi->pauseTransfers(pause, (int)direction);
+}
+
+- (BOOL)areTransferPausedForDirection:(NSInteger)direction {
+    return self.megaApi->areTansfersPaused((int)direction);
 }
 
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit {

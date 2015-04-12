@@ -1125,9 +1125,9 @@ void MegaApi::getPricing(MegaRequestListener *listener)
     pImpl->getPricing(listener);
 }
 
-void MegaApi::getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener)
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentUrl(productHandle, listener);
+    pImpl->getPaymentId(productHandle, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
@@ -1177,7 +1177,17 @@ void MegaApi::removeContact(MegaUser *user, MegaRequestListener* listener)
 
 void MegaApi::pauseTransfers(bool pause, MegaRequestListener* listener)
 {
-    pImpl->pauseTransfers(pause, listener);
+    pImpl->pauseTransfers(pause, -1, listener);
+}
+
+void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *listener)
+{
+    pImpl->pauseTransfers(pause, direction, listener);
+}
+
+bool MegaApi::areTansfersPaused(int direction)
+{
+    return pImpl->areTansfersPaused(direction);
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s

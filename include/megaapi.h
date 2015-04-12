@@ -1050,7 +1050,7 @@ class MegaRequest
 			TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-			TYPE_GET_PRICING, TYPE_GET_PAYMENT_URL, TYPE_GET_USER_DATA,
+			TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SET_USER_ATTRIBUTE,
             TYPE_GET_USER_ATTRIBUTE, TYPE_GET_SIGNING_KEYS,
             TYPE_VERIFY_RSA_SIG, TYPE_VERIFY_KEY_FINGERPRINT,
@@ -1136,7 +1136,7 @@ class MegaRequest
          * - MegaApi::setPreview - Returns the handle of the node
          * - MegaApi::exportNode - Returns the handle of the node
          * - MegaApi::disableExport - Returns the handle of the node
-         * - MegaApi::getPaymentUrl - Returns the handle of the product
+         * - MegaApi::getPaymentId - Returns the handle of the product
          * - MegaApi::syncFolder - Returns the handle of the folder in MEGA
          * - MegaApi::resumeSync - Returns the handle of the folder in MEGA
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
@@ -1165,7 +1165,7 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
-         * - MegaApi::getPaymentUrl - Returns the payment link
+         * - MegaApi::getPaymentId - Returns the payment identifier
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1423,6 +1423,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if transfers are retried
          * - MegaApi::submitFeedback - Returns the rating for the app
+         * - MegaApi::pauseTransfers - Returns the direction of the transfers to pause/resume
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3922,8 +3923,8 @@ class MegaApi
         /**
          * @brief Get the available pricing plans to upgrade a MEGA account
          *
-         * You can get a payment URL for any of the pricing plans provided by this function
-         * using MegaApi::getPaymentUrl
+         * You can get a payment ID for any of the pricing plans provided by this function
+         * using MegaApi::getPaymentId
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_PRICING
          *
@@ -3933,27 +3934,27 @@ class MegaApi
          *
          * @param listener MegaRequestListener to track this request
          *
-         * @see MegaApi::getPaymentUrl
+         * @see MegaApi::getPaymentId
          */
         void getPricing(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the payment URL for an upgrade
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_URL
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the product
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getLink - Payment link
+         * - MegaRequest::getLink - Payment ID
          *
          * @param productHandle Handle of the product (see MegaApi::getPricing)
          * @param listener MegaRequestListener to track this request
          *
          * @see MegaApi::getPricing
          */
-        void getPaymentUrl(MegaHandle productHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(MegaHandle productHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit a purchase receipt for verification
@@ -4207,6 +4208,35 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransfers(bool pause, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief  Pause/resume all transfers in one direction (uploads or downloads)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFERS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns the first parameter
+         * - MegaRequest::getNumber - Returns the direction of the transfers to pause/resume
+         *
+         * @param pause true to pause transfers / false to resume transfers
+         * @param direction Direction of transfers to pause/resume
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Returns the state (paused/unpaused) of transfers
+         * @param direction Direction of transfers to check
+         * Valid values for this parameter are:
+         * - MegaTransfer::TYPE_DOWNLOAD = 0
+         * - MegaTransfer::TYPE_UPLOAD = 1
+         *
+         * @return true if transfers on that direction are paused, false otherwise
+         */
+        bool areTansfersPaused(int direction);
 
         /**
          * @brief Set the upload speed limit
@@ -5636,7 +5666,7 @@ public:
      * @brief Get the handle of a product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Handle of the product
-     * @see MegaApi::getPaymentUrl
+     * @see MegaApi::getPaymentId
      */
     virtual MegaHandle getHandle(int productIndex);
 

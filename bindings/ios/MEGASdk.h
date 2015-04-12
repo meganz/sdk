@@ -1452,7 +1452,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the available pricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the pricing plans provided by this function
- * using [MEGASdk getPaymentURLForProductHandle:].
+ * using [MEGASdk getPaymentIdForProductHandle:].
  *
  * The associated request type with this request is MEGARequestTypeGetPricing.
  *
@@ -1462,7 +1462,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @param delegate Delegate to track this request.
  *
- * @see [MEGASdk getPaymentURLForProductHandle:].
+ * @see [MEGASdk getPaymentIdForProductHandle:].
  */
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate;
 
@@ -1470,7 +1470,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @brief Get the available getPricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the getPricing plans provided by this function
- * using [MEGASdk getPaymentURLForProductHandle:].
+ * using [MEGASdk getPaymentIdForProductHandle:].
  *
  * The associated request type with this request is MEGARequestTypeGetPricing.
  *
@@ -1478,14 +1478,14 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
  *
- * @see [MEGASdk getPaymentURLForProductHandle:].
+ * @see [MEGASdk getPaymentIdForProductHandle:].
  */
 - (void)getPricing;
 
 /**
  * @brief Get the payment URL for an upgrade.
  *
- * The associated request type with this request is MEGARequestTypeGetPaymentURL.
+ * The associated request type with this request is MEGARequestTypeGetPaymentId.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the product
  *
@@ -1498,12 +1498,12 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @see [MEGASdk getPricing].
  */
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the payment URL for an upgrade.
  *
- * The associated request type with this request is MEGARequestTypeGetPaymentURL.
+ * The associated request type with this request is MEGARequestTypeGetPaymentId.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the product
  *
@@ -1515,7 +1515,7 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  *
  * @see [MEGASdk getPricing].
  */
-- (void)getPaymentURLForProductHandle:(uint64_t)productHandle;
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle;
 
 /**
  * @brief Change the password of the MEGA account.
@@ -1993,6 +1993,52 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param delegate Delegate to track this request.
  */
 - (void)pauseTransfers:(BOOL)pause;
+
+/**
+ * @brief Pause/resume all transfers in one direction (uploads or downloads)
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfers
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ * - [MEGARequest number] - Returns the direction of the transfers to pause/resume
+ *
+ * @param pause YES to pause transfers / NO to resume transfers
+ * @param direction Direction of transfers to pause/resume
+ * Valid values for this parameter are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume all transfers in one direction (uploads or downloads)
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfers
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns the first parameter
+ * - [MEGARequest number] - Returns the direction of the transfers to pause/resume
+ *
+ * @param pause YES to pause transfers / NO to resume transfers
+ * @param direction Direction of transfers to pause/resume
+ * Valid values for this parameter are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ */
+- (void)pauseTransfers:(BOOL)pause forDirection:(NSInteger)direction;
+
+/**
+ * @brief Returns the state (paused/unpaused) of transfers
+ * @param direction Direction of transfers to check
+ * Valid values for this parameter are:
+ * - MEGATransferTypeDownload = 0
+ * - MEGATransferTypeUpload = 1
+ *
+ * @return YES if transfers on that direction are paused, NO otherwise
+ */
+- (BOOL)areTransferPausedForDirection:(NSInteger)direction;
 
 /**
  * @brief Set the upload speed limit.
