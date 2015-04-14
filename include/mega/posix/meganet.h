@@ -23,8 +23,12 @@
 #define HTTPIO_CLASS CurlHttpIO
 
 #include "mega.h"
-#include <curl/curl.h>
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
 #include <openssl/ssl.h>
+#endif
+
+#include <curl/curl.h>
 #include <ares.h>
 
 namespace mega {
@@ -59,8 +63,12 @@ protected:
     static size_t read_data(void*, size_t, size_t, void*);
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
+#endif
+
     static void proxy_ready_callback(void*, int, int, struct hostent*);
     static void ares_completed_callback(void*, int, int, struct hostent*);
     static void send_request(CurlHttpContext*);
