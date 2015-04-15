@@ -172,8 +172,8 @@ namespace mega
 		void getAccountDetails();
 		void getPricing(MRequestListenerInterface^ listener);
 		void getPricing();
-		void getPaymentUrl(uint64 productHandle, MRequestListenerInterface^ listener);
-		void getPaymentUrl(uint64 productHandle);
+		void getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener);
+		void getPaymentId(uint64 productHandle);
 		String^ exportMasterKey();
 		void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
 		void changePassword(String^ oldPassword, String^ newPassword);
