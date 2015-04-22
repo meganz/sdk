@@ -47,11 +47,12 @@ public:
      * @brief Add the given bytes to this UserAttributes object.
      *
      * @param valueName The name of the vaule to add.
-     * @buffer The value to add.
+     * @param value The value to add.
+     * @param visibility The visibility of the vaule.
      * @throw runtime_error if the value already exists.
      */
     void addUserAttribute(std::string &valueName, ValueMap &value,
-            Visibility visibilitiy = VS_PUBLIC);
+            Visibility visibilitiy = M_VS_PUBLIC);
 
     /**
      * @brief Get the given value from this UserAttributes object.
@@ -73,11 +74,20 @@ public:
      * @brief Convert a map of values to a concatenated buffer.
      *
      * @param value The values to encode.
+     * @param visibility The visibility of the attribute - public or private.
      * @return A sharedBuffer with the resulting bytes.
      */
     static SharedBuffer valueMapToTlv(ValueMap &value,
-            Visibility visibility = VS_PUBLIC);
+            Visibility visibility = M_VS_PUBLIC);
 
+    /**
+     * @brief Add a value to the tlv string of user attributes.
+     *
+     * @param valueName The name of the value to add.
+     * @param value The value to add.
+     * @param target The target tlv string to add it to.
+     * @param offset The offset from the beginning of the string to add the vale to.
+     */
     static void addValue(const std::string &valueName, SharedBuffer &vaule, SharedBuffer &target,
             int *offset);
 
@@ -91,6 +101,7 @@ public:
 
     /**
      * @brief Create a ValueMap from a basic map.
+     * @deprecated Not currently used in the MEGA SDK.
      *
      * @param map Pointer to the map to convert.
      * @return ValueMap The map of values converted.

@@ -29,13 +29,13 @@
 namespace mega {
 
 typedef enum {
-    WMF_BASE_64,
-    PLAIN_BYTES
-} WireMessageFormat;
+    M_WMF_BASE_64,
+    M_PLAIN_BYTES
+} M_WireMessageFormat;
 
 typedef enum {
-    VS_PUBLIC,
-    VS_PRIVATE
+    M_VS_PUBLIC,
+    M_VS_PRIVATE
 } Visibility;
 
 struct SharedBuffer : public std::shared_ptr<unsigned char> {
@@ -47,19 +47,19 @@ struct SharedBuffer : public std::shared_ptr<unsigned char> {
         std::shared_ptr<unsigned char>(),
         size(0),
         error(0),
-        format(PLAIN_BYTES),
-        visibility(VS_PUBLIC) { }
+        format(M_PLAIN_BYTES),
+        visibility(M_VS_PUBLIC) { }
 
     /**
      * @brief Create a SharedBuffer of the given size.
      *
      * @param size The size of the buffer to create.
      */
-    SharedBuffer(unsigned int size, Visibility visibility = VS_PUBLIC) :
+    SharedBuffer(unsigned int size, Visibility visibility = M_VS_PUBLIC) :
         std::shared_ptr<unsigned char>((unsigned char*)malloc(size), DeleteBuffer),
         size(size),
         error(0),
-        format(PLAIN_BYTES),
+        format(M_PLAIN_BYTES),
         visibility(visibility) { }
 
     /**
@@ -69,11 +69,11 @@ struct SharedBuffer : public std::shared_ptr<unsigned char> {
      * @param size The number of bytes to copy into the buffer.
      */
     SharedBuffer(const unsigned char *buffer, unsigned int size,
-            Visibility visibility = VS_PUBLIC) :
+            Visibility visibility = M_VS_PUBLIC) :
         std::shared_ptr<unsigned char>((unsigned char*)malloc(size), DeleteBuffer),
         size(size),
         error(0),
-        format(PLAIN_BYTES),
+        format(M_PLAIN_BYTES),
         visibility(visibility) {
         memcpy(get(), buffer, size);
     }
@@ -89,8 +89,8 @@ struct SharedBuffer : public std::shared_ptr<unsigned char> {
         std::shared_ptr<unsigned char>((unsigned char*)malloc(data.length() + 1), DeleteBuffer),
                 size(data.length() + 1),
                 error(0),
-                format(PLAIN_BYTES),
-                visibility(visibility) {
+                format(M_PLAIN_BYTES),
+                visibility(M_VS_PUBLIC) {
         memcpy(get(), data.c_str(), size);
     }
 
@@ -134,7 +134,7 @@ struct SharedBuffer : public std::shared_ptr<unsigned char> {
     /**
      * @brief The format that the data in this SharedBuffer is in.
      */
-    WireMessageFormat format;
+    M_WireMessageFormat format;
 
     /**
      * @brief The visibility of the given attribute.

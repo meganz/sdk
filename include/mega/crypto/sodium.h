@@ -82,15 +82,14 @@ public:
     bool keySet();
 
     /**
-     *  @brief Initialise libsodium crypto system. Should be called only once.
+     *  @brief Initialize libsodium crypto system. Only needs to be called once.
      */
     static void init();
 
     /**
-     * @brief Sets a private key seed from a buffer.
+     * @brief Sets the seed for the keypair from a buffer.
      *
-     * @param data Buffer containing the key bytes.
-     * @return Void.
+     * @param kSeed Buffer containing the seed for this key pair.
      */
     void setKeySeed(SecureBuffer kSeed);
 
@@ -105,18 +104,35 @@ public:
      */
     SecureBuffer sign(unsigned char* msg, unsigned long long msglen);
 
+    /**
+     * @brief Sign the given bytes without prepending the signature to the message.
+     *
+     * @param msg The message to sign.
+     * @param msglen The length of the message.
+     * @return A buffer with the signature.
+     */
     SecureBuffer signDetatched(unsigned char *msg, unsigned long long msglen);
 
+    /**
+     * @brief Verify the signature of the given message with the signature not
+     * prepended.
+     *
+     * @param sig The signature of the message.
+     * @param msg The message to verify.
+     * @param msglen The length of the message.
+     * @param pKey The public signing key to use for the verification.
+     * @return True if the signature is verified.
+     */
     static bool verifyDetatched(unsigned char *sig, unsigned char *msg,
             unsigned long long msglen, unsigned char *pKey);
 
     /**
      * @brief Verifies the signature of a message.
      *
-     * @param cipher The cipher text to encrypt.
-     * @param cipherlen Length of the cipher text.
-     * @param buf Buffer to take the plain text..
-     * @param buflen Length of the plain text.
+     * @param msg The message to verify.
+     * @param msglen The length of the message.
+     * @param sig The signature to verify against.
+     * @param publicKey The public signing key to verify with.
      * @return 1 on a valid signature, 0 on a failed verification.
      */
     static int verify(const unsigned char* msg,

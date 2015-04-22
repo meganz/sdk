@@ -1172,8 +1172,6 @@ void CommandLogin::procresult()
                     }
 
                     // add missing RSA keypair
-                    // LOG_info << "Generating and adding missing RSA keypair";
-                    //client->setkeypair([](error e){});
                     setKeypair = true;
                 }
                 else
@@ -1709,7 +1707,6 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, 
     attributename = an;
 
     cmd("uga");
-    //arg("u", uid);
     arg("ua", an);
 
     tag = client->reqtag;

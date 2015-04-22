@@ -50,17 +50,17 @@ UserAttributes::getUserAttributeTlv(std::string &valueName) {
 SharedBuffer
 UserAttributes::valueMapToTlv(ValueMap &valueMap, Visibility visibility) {
     int length = 0;
-        for(auto &i : *valueMap) {
-            length += (i.first.length() + i.second.size + 1 + 2);
-        }
+    for(auto &i : *valueMap) {
+        length += (i.first.length() + i.second.size + 1 + 2);
+    }
 
-        SharedBuffer buffer(length, visibility);
-        int offset = 0;
-        for(auto &i : *valueMap) {
-            addValue(i.first, i.second, buffer, &offset);
-        }
+    SharedBuffer buffer(length, visibility);
+    int offset = 0;
+    for(auto &i : *valueMap) {
+        addValue(i.first, i.second, buffer, &offset);
+    }
 
-        return buffer;
+    return buffer;
 }
 
 void

@@ -1506,9 +1506,13 @@ class MegaRequest
 
         /**
          * @brief Gets the user attribute map for this request.
+         *
+         * @param tlv Pointer to ponter where the array is to be stored.
+         * @param tlvLen Pointer to int where the length of the array is to
+         *        be stored.
          * @return The map of value:length for the given request attribute.
          */
-        virtual void getUserAttributeMap(TLV **, unsigned int*) const;
+        virtual void getUserAttributeMap(TLV **tlv, unsigned int *tlvLen) const;
 
         /**
          * @brief Gets the name of the attribute for this request.
@@ -3239,7 +3243,7 @@ class MegaApi
          *   by the call.
          * @param user The user to get the attribute for.
          * @param an The name of the attribute to get.
-         * @listener The listener for this request.
+         * @param The listener for this request.
          */
         void getGenericUserAttribute(const char *user, const char *an,
                 MegaRequestListener *listener = NULL);
