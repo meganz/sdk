@@ -42,6 +42,7 @@ src_libmega_la_SOURCES += src/pubkeyaction.cpp
 src_libmega_la_SOURCES += src/request.cpp
 src_libmega_la_SOURCES += src/serialize64.cpp
 src_libmega_la_SOURCES += src/share.cpp
+src_libmega_la_SOURCES += src/userAttributes.cpp
 src_libmega_la_SOURCES += src/sharenodekeys.cpp
 src_libmega_la_SOURCES += src/sync.cpp
 src_libmega_la_SOURCES += src/transfer.cpp

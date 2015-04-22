@@ -54,6 +54,13 @@ struct MEGA_API User : public Cachable
     AsymmCipher pubk;
     int pubkrequested;
 
+    // user public signing key.
+    SharedBuffer puEd25519;
+
+    // denotes if the RSA key for this user has been checked against their
+    // stored key signature.
+    bool rsaVerified;
+
     // actions to take after arrival of the public key
     deque<class PubKeyAction*> pkrs;
 

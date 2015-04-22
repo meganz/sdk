@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 #include <inttypes.h>
+#include <memory>
+#include <map>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -67,6 +69,18 @@ class MegaUserList;
 class MegaShareList;
 class MegaTransferList;
 class MegaApi;
+
+/**
+ * @brief TLV structure used to put attributes.
+ *
+ */
+struct TLV
+{
+    const char *type; ///< The type (or name) of the attribute.
+    unsigned int length; ///< The length of the attribute.
+    unsigned char *value; ///< The value for this attribute.
+};
+
 
 /**
  * @brief Interface to provide an external GFX processor
@@ -1037,7 +1051,10 @@ class MegaRequest
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
-			TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT
+            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SET_USER_ATTRIBUTE,
+            TYPE_GET_USER_ATTRIBUTE, TYPE_GET_SIGNING_KEYS,
+            TYPE_VERIFY_RSA_SIG, TYPE_VERIFY_KEY_FINGERPRINT,
+            TYPE_SUBMIT_PURCHASE_RECEIPT, TYPE_GET_STATIC_PUB_KEY
 		};
 
 		virtual ~MegaRequest();
@@ -1486,6 +1503,22 @@ class MegaRequest
          * @return Number of details related to this request
          */
         virtual int getNumDetails() const;
+
+        /**
+         * @brief Gets the user attribute map for this request.
+         *
+         * @param tlv Pointer to ponter where the array is to be stored.
+         * @param tlvLen Pointer to int where the length of the array is to
+         *        be stored.
+         * @return The map of value:length for the given request attribute.
+         */
+        virtual void getUserAttributeMap(TLV **tlv, unsigned int *tlvLen) const;
+
+        /**
+         * @brief Gets the name of the attribute for this request.
+         * @return The name of the attribute for this request.
+         */
+        virtual const char *getAttributeName() const;
 };
 
 /**
@@ -2820,6 +2853,7 @@ class MegaApi
         void addGlobalListener(MegaGlobalListener* listener);
 
 #ifdef ENABLE_SYNC
+
         /**
          * @brief Add a listener for all events related to synchronizations
          * @param listener Listener that will receive synchronization events
@@ -2831,6 +2865,7 @@ class MegaApi
          * @param listener Objet that will be unregistered
          */
         void removeSyncListener(MegaSyncListener *listener);
+
 #endif
 
         /**
@@ -3172,6 +3207,75 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        // ATTR
+        /**
+         * @brief Put an attribute into the server for the currently logged in
+         * user.
+         *
+         * If the value is private, then it can be an aggregate of several
+         * different values. However if the attribute is public, then only one
+         * vaule can be saved to the server. This will be the first in the map
+         * generated from the given array.
+         *
+         * The flag for nonhistoric values is only really valid for private
+         * attributes. The character '!' is added to the attribute but is
+         * currently ignored by the server.
+         *
+         * @param user Currently ignored.
+         * @param attributeName The name that the vaule will be stored under.
+         * @param tlvArray The array of tlv objects to upload.
+         * @param tlvLen the length of the array of tlv objects.
+         * @param priv 0 if the value is to be public, 1 if private.
+         * @param nonhistoric 0 if the value is to be historic, 1 if not.
+         * @param listener The listerer for this request.
+         */
+        void putGenericUserAttribute(const char *user, const char *attributeName,
+                TLV *tlvArray, unsigned int tlvLen,
+                int priv, int nonhistoric,
+                MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get an attribute for the given user.
+         *
+         * This can be used to retrieve both public and private attributes for
+         * the currently logged in user, or just public attributes for other users.
+         *
+         * Valid data in the MegaRequest object recevied on callbacks:
+         * - MegaRequest::getUserAttributeMap Get the array of tlvs returned
+         *   by the call.
+         * @param user The user to get the attribute for.
+         * @param an The name of the attribute to get.
+         * @param The listener for this request.
+         */
+        void getGenericUserAttribute(const char *user, const char *an,
+                MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the static keys for the current logged in user.
+         *
+         * This returns the ed25519 static keypair for the currently logged
+         * in user. If they have not been fetched already, a call to get
+         * them from the server will be made.
+         *
+         * Valid data in the MegaRequest object recevied on callbacks:
+         * - MegaRequest::getUserAttributeMap Get the array of tlvs returned
+         *   by the call.
+         * @param listener The listener for this request.
+         */
+        void getOwnStaticKeys(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the public static key for another user.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getUserAttributeMap Get the array of tlvs returned
+         *  by the call.
+         * @param user The email or ASCII encoded handle of the user.
+         * @param listener The listener for this request.
+         *
+         */
+        void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the current session key

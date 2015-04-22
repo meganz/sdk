@@ -27,8 +27,16 @@
 #include "megaclient.h"
 #include "account.h"
 #include "http.h"
+#include "userAttributes.h"
+
+#include <functional>
 
 namespace mega {
+
+using AttrCallBack = std::function<void(ValueMap,error)>;
+using SetAttrCallBack = std::function<void(error)>;
+using CreateKeypairCallback = std::function<void(error)>;
+
 // request command component
 class MEGA_API Command
 {
@@ -110,6 +118,7 @@ public:
 class MEGA_API CommandLogin : public Command
 {
     bool checksession;
+    std::string email;
 
 public:
     void procresult();
@@ -174,10 +183,12 @@ public:
 
 class MEGA_API CommandSetKeyPair : public Command
 {
+    CreateKeypairCallback callback;
 public:
     void procresult();
 
-    CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
+    CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned,
+            CreateKeypairCallback);
 };
 
 // invite contact/set visibility
@@ -207,6 +218,36 @@ class MEGA_API CommandGetUA : public Command
 public:
     CommandGetUA(MegaClient*, const char*, const char*, int);
 
+    void procresult();
+};
+
+// ATTR
+
+class MEGA_API CommandGetUserAttr : public Command
+{
+    int priv;
+    User *user;
+    string attributename;
+    AttrCallBack callBack;
+
+// Get a users attributes.
+public:
+    CommandGetUserAttr(MegaClient*, const char*, const char*, int, AttrCallBack);
+    CommandGetUserAttr(MegaClient*, std::string&, const char*, int, AttrCallBack);
+    void procresult();
+};
+
+// Set a users attributes.
+class MEGA_API CommandSetUserAttr : public Command
+{
+    int priv;
+    User *user;
+    string attributename;
+    SetAttrCallBack callBack;
+
+public:
+    CommandSetUserAttr(MegaClient*, const char*, byte*,
+            unsigned int, SetAttrCallBack);
     void procresult();
 };
 
@@ -290,11 +331,13 @@ public:
 class MEGA_API CommandPubKeyRequest : public Command
 {
     User* u;
+    std::function<void(handle, byte*, int)> callback;
 
 public:
     void procresult();
 
     CommandPubKeyRequest(MegaClient*, User*);
+    CommandPubKeyRequest(MegaClient*, User*, std::function<void(handle, byte*, int)>);
 };
 
 class MEGA_API CommandDirectRead : public Command

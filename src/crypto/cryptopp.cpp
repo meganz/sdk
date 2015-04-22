@@ -587,6 +587,33 @@ void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
     privk[PRIV_U] = privk[PRIV_P].InverseMod(privk[PRIV_Q]);
 }
 
+SharedBuffer AsymmCipher::getPublicKeyBytes() {
+    Integer e = 17;
+    int keyPQSize = key[PUB_PQ].MinEncodedSize();
+    int keyESize = e.MinEncodedSize();
+
+    SharedBuffer pkey(keyPQSize + keyESize);
+
+    e.Encode(pkey.get(), keyESize);
+    key[PUB_PQ].Encode(pkey.get() + keyESize, keyPQSize);
+
+    return pkey;
+}
+
+SharedBuffer AsymmCipher::getPublicKeyBytesFromPrivate() {
+    Integer pubk[PUBKEY];
+    pubk[PUB_E] = 17;
+    pubk[PUB_PQ] = key[PRIV_P] * key[PRIV_Q];
+    int keyPQSize = pubk[PUB_PQ].MinEncodedSize();
+    int keyESize = pubk[PUB_E].MinEncodedSize();
+    SharedBuffer pKey(keyPQSize + keyESize);
+    pubk[PUB_E].Encode(pKey.get(), keyESize);
+    pubk[PUB_PQ].Encode(pKey.get() + keyESize, keyPQSize);
+
+    return pKey;
+
+}
+
 void Hash::add(const byte* data, unsigned len)
 {
     hash.Update(data, len);
@@ -596,6 +623,15 @@ void Hash::get(string* out)
 {
     out->resize(hash.DigestSize());
     hash.Final((byte*)out->data());
+}
+
+void HashSHA256::add(const byte *data, unsigned int len) {
+    hash.Update(data, len);
+}
+
+void HashSHA256::get(std::string *retStr) {
+    retStr->resize(hash.DigestSize());
+    hash.Final((byte*)retStr->data());
 }
 
 void HashCRC32::add(const byte* data, unsigned len)

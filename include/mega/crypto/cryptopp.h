@@ -36,6 +36,8 @@
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
 
+#include "mega/sharedbuffer.h"
+
 namespace mega {
 using namespace std;
 
@@ -342,6 +344,16 @@ public:
      * @return Always returns 1.
      */
     void genkeypair(CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+
+    /**
+     * @brief Gets the public key bytes for this RSA keypair.
+     *
+     * @return A SharedBuffer with the bytes for the public key.
+     */
+    SharedBuffer getPublicKeyBytes();
+
+    SharedBuffer getPublicKeyBytesFromPrivate();
+
 };
 
 class MEGA_API Hash
@@ -353,6 +365,15 @@ public:
     void get(string*);
 };
 
+class MEGA_API HashSHA256
+{
+    CryptoPP::SHA256 hash;
+
+public:
+    void add(const byte*, unsigned int);
+    void get(string*);
+};
+
 class MEGA_API HashCRC32
 {
     CryptoPP::CRC32 hash;
@@ -361,6 +382,20 @@ public:
     void add(const byte*, unsigned);
     void get(byte*);
 };
+
+struct MEGA_API FingerPrintRecord {
+    SharedBuffer fingerPrint;
+    byte methodConfidence;
+
+    FingerPrintRecord() : fingerPrint(), methodConfidence(0) {}
+    FingerPrintRecord(SharedBuffer fingerPrint) :
+        fingerPrint(fingerPrint), methodConfidence(0) {}
+
+    inline bool verify(SharedBuffer pubKey) {
+        return memcmp(fingerPrint.get(), pubKey.get(), fingerPrint.size) == 0;
+    }
+};
+
 } // namespace
 
 #endif

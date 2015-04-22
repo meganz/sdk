@@ -29,7 +29,7 @@ User::User(const char* cemail)
     show = VISIBILITY_UNKNOWN;
     ctime = 0;
     pubkrequested = 0;
-
+    rsaVerified = false;
     if (cemail)
     {
         email = cemail;

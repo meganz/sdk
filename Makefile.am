@@ -23,7 +23,7 @@ AUTOMAKE_OPTIONS=foreign 1.9 subdir-objects
 ACLOCAL_AMFLAGS=-I m4
 
 AM_CPPFLAGS = \
-	-I$(top_srcdir)/include -I$(top_srcdir)/third_party/utf8proc
+	-I$(top_srcdir)/include -I$(top_srcdir)/third_party/utf8proc -std=c++11
 
 include m4/aminclude.am
 

@@ -33,8 +33,17 @@
 #include "backofftimer.h"
 #include "http.h"
 #include "pubkeyaction.h"
+#include "userAttributes.h"
+#include "secureBuffer.h"
+#include "sharedbuffer.h"
+
+#include <functional>
 
 namespace mega {
+
+typedef std::function<void(error)> VerifyKeyCallback;
+typedef std::function<void(ValueMap, error)> GetSigKeysCallback;
+typedef std::function<void(error)> FetchKeyringsCallback;
 
 class MEGA_API MegaClient
 {
@@ -74,10 +83,15 @@ public:
     void sendsignuplink(const char*, const char*, const byte*);
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
-    void setkeypair();
+    void setkeypair(std::function<void(error)> callback);
+
+    // set and get user attributes
+    void setuserattribute();
+
+    void getuserattribute();
 
     /**
-     * @brief Initialises the Ed25519 EdDSA key user properties.
+     * @brief Initializes the Ed25519 EdDSA key user properties.
      *
      * A key pair will be added, if not present, yet.
      *
@@ -96,6 +110,195 @@ public:
 
     // get user data
     void getuserdata();
+
+    // ATTR
+
+    /**
+     * @brief Get the signing keys for the currently loggend in user.
+     *
+     * If the keys do not exist on the server, we will create and upload them
+     * before returning.
+     *
+     * @param reset Create and upload the keys without checking the server.
+     */
+    void getownsigningkeys(bool reset = false);
+
+    /**
+     * @brief Get the signing keys for the currently logged in user.
+     *
+     * @param callback The callback for the end of thd request.
+     * @param reset Reset the key information for the currently logged in user.
+     */
+    void getownsigningkeys(GetSigKeysCallback callback, bool reset = false);
+
+    /**
+     * @param Upload the key informaiton for the currently logged in user.
+     */
+    void uploadkeys();
+
+    /**
+     * @brief Generate the keys for the given user and upload them to the server.
+     *
+     * @param callback The calback for the enrd of the request.
+     */
+    void uploadkeys(GetSigKeysCallback callback);
+
+    /**
+     * @brief Sign the given RSA key.
+     *
+     * @param SharedBuffer a buffer with the RSA key.
+     * @return A buffer with the key signature.
+     */
+    SharedBuffer signRSAKey(SharedBuffer &&buffer);
+
+    /**
+     * @brief Verify the users RSA key with the sigPubk stored in the attribute server.
+     *
+     * @param user The user to verify the key for.
+     * @param funct The callback function for the completion of the request.
+     */
+    void verifyRSAKeySignature(User *user, std::function<void(error)> funct);
+
+    /**
+     * @brief Complete the verification of the signature for the given users
+     * public RSA key.
+     *
+     * The RSA key for the user should have already been fetched at this point.
+     *
+     * @param user The user to verify for.
+     * @param sig The signature of the key to verify.
+     */
+    bool verifyRSAKeySignature_(User *user, SharedBuffer &sig);
+
+    /**
+     * @brief Fetch the RSA and ed25519 keyrings.
+     *
+     * @param callback The callback for when the request completes.
+     */
+    void fetchKeyrings(FetchKeyringsCallback callback);
+
+    /**
+     * @param Verify the given key aganist the keyring.
+     *
+     * @param user The users email address or ASCII encoded handle.
+     * @param key The key to verify.
+     * @param rsa 1 if the key is an RSA public key, 0 if its an ed25519 public
+     *            key.
+     * @param callback The callback for when the request completes.
+     */
+    void verifyKeyFingerPrint(const char *user, SharedBuffer &key, int rsa,
+            VerifyKeyCallback callback);
+
+    /**
+     * @brief Complete the key verification.
+     *
+     * @param user The users email address or ASCII encoded handle.
+     * @param key The key to verify.
+     * @param rsa 1 if the key is an rsa key, 0 if ed25519.
+     * @param callback The callback for when the request completes.
+     */
+    void verifyKeyFingerPrint_(const char *user, SharedBuffer &key, int rsa,
+            VerifyKeyCallback callback);
+
+    /**
+     * @brief Get the ed25519 public static key for the given user.
+     *
+     * @param user The email address or ASCII encoded handle for the user.
+     */
+    void getPublicStaticKey(const char *user);
+
+    /**
+     * @brief Serilize one of the keyring maps to a value map.
+     *
+     * @param rsa 1 if the map to serilize is the rsa keyring, 0 if its the
+     *            ed25519 keyring.
+     * @return A ValueMap containing the serilized map.
+     */
+    ValueMap serilizeMap(int rsa);
+
+    /**
+     * @brief Deserilize the given map and set it in this client.
+     *
+     * @param map The ValueMap with the map to deserilize.
+     * @param rsa 1 if the map to deserilize is an rsa keyring, 1 for ed25519.
+     */
+    bool deserilizeMap(ValueMap map, int rsa);
+
+    /**
+     * @brief Create the fingerprint for the given key.
+     *
+     * @param keyBytes The key to generate the fingerprint for.
+     * @return A SharedBuffer with the generated fingerprint.
+     */
+    SharedBuffer createFingerPrint(SharedBuffer &keyBytes);
+
+    /**
+     * @brief Ge the signing key for another user.
+     *
+     * @param user The user to get the public signing key for.
+     */
+    void getothersigningkey(const char *user);
+
+    /**
+     * @brief Get a user attribute.
+     *
+     * @param user The users email or ASCII encoded handle.
+     * @param an The name of the attribute to get.
+     */
+    void getuserattribute(const char *user, const char *an);
+
+    /**
+     * @brief Set a generic attribute for the currenly logged in user.
+     *
+     * @param user The users email or ASCII encoded handle.
+     * @param an The name of the attribute to set.
+     * @param map The ValueMap with the attribute values.
+     * @param priv 0 if the attribute is to be public, 1 if private.
+     * @param nonhistoric 0 if the attribute is to be historic, 1 if not.
+     */
+    void setuserattribute(const char *user, const char *an, ValueMap map, int priv,
+            int nonhistoric);
+
+    /**
+     * @brief Get a generic user attribute from the server.
+     *
+     * @param user The users email or ASCII encoded handle.
+     * @param an The name of the attribute to get.
+     * @param funct The callback for the end of the request.
+     */
+    void getgattribute(const char *user, const char *an,
+            std::function<void(ValueMap, error)> funct);
+
+    /**
+     * @brief Set a generic attribute for the currently logged in user.
+     *
+     * @param an The name of the attribute to set.
+     * @param map The ValueMap of attribute values.
+     * @param priv 0 if the attribute is public, 1 if private.
+     * @param nonhistoric 0 if the attribute is to be historic, 1 if not.
+     * @param funct The callback for the end of the request.
+     */
+    void setgattribute(const char *an, ValueMap map, int priv, int nonhistoric,
+            std::function<void(error)> funct);
+
+    /**
+     * @param Get a generic user attribute from the server.
+     *
+     * @param email The email address or ASCII encoded handle for the user.
+     * @param an The name of the attribute to fetch.
+     * @param funct The callback for the end of the request.
+     */
+    void getgattribute(std::string &email, const char *an,
+            std::function<void(ValueMap, error)> funct);
+
+    /**
+     * @brief Init the static ed25519 keys for the currently logged in user.
+     *
+     * @return The generated keypair for the user.
+     */
+    std::pair<SecureBuffer, SecureBuffer> initstatickeys();
+
+    //////////////////////////
 
     // get the public key of an user
     void getpubkey(const char* user);
@@ -280,6 +483,15 @@ public:
     static const char* const BALANCERURL;
 
 private:
+
+    // Map for storing the handle : rsa_fingerprint-confidence values.
+    std::map<handle, FingerPrintRecord> rsaKeyRing;
+
+    // Map for storing the handle : ed_fingerprint-confidence values.
+    std::map<handle, FingerPrintRecord> edKeyRing;
+
+    bool keysFetched;
+
     // API request queue double buffering:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
@@ -692,7 +904,7 @@ public:
     AsymmCipher asymkey;
 
 #ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
+    /// EdDSA signing key (Ed25519 private key seed).
     EdDSA signkey;
 #endif
 

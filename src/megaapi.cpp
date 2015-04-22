@@ -23,6 +23,8 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
+#include <memory>
+
 using namespace mega;
 
 MegaProxy::MegaProxy()
@@ -468,6 +470,13 @@ int MegaRequest::getNumDetails() const
 }
 
 
+void MegaRequest::getUserAttributeMap(TLV **, unsigned int*) const
+{
+    return;
+}
+
+const char *MegaRequest::getAttributeName() const { return NULL; }
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -688,6 +697,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Read error";
 		case API_EAPPKEY:
             return "Invalid application key";
+		case API_EKEYVERFAIL:
+		    return "Key verification failure";
 		default:
             return "Unknown error";
 		}
@@ -905,6 +916,28 @@ void MegaApi::getUserData(MegaUser *user, MegaRequestListener *listener)
 void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 {
     pImpl->getUserData(user, listener);
+}
+
+// ATTR
+void MegaApi::putGenericUserAttribute(const char *user, const char *attrName,
+               TLV *tlvArray, unsigned int tlvLen,
+               int priv, int nonhistoric,
+               MegaRequestListener *listener) {
+    pImpl->putGenericUserAttribute(user, attrName, tlvArray, tlvLen, priv,
+            nonhistoric, listener);
+}
+
+void MegaApi::getGenericUserAttribute(const char *user, const char *an,
+       MegaRequestListener *listener) {
+    pImpl->getGenericUserAttribute(user, an, listener);
+}
+
+void MegaApi::getOwnStaticKeys(MegaRequestListener *listener) {
+    pImpl->getOwnStaticKeys(listener);
+}
+
+void MegaApi::getPublicStaticKey(const char *user, MegaRequestListener *listener) {
+    pImpl->getPublicStaticKey(user, listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)

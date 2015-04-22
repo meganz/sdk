@@ -78,6 +78,7 @@ struct Node;
 struct NodeCore;
 class PubKeyAction;
 class Request;
+class SharedBuffer;
 struct Transfer;
 class TreeProc;
 class LocalTreeProc;
@@ -146,7 +147,8 @@ typedef enum ErrorCodes
                                          post-write integrity check). */
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
-    API_EAPPKEY = -22               ///< Invalid or missing application key.
+    API_EAPPKEY = -22,              ///< Invalid or missing application key.
+    API_EKEYVERFAIL = -23           ///< Key verification failure.
 } error;
 
 // returned by loggedin()

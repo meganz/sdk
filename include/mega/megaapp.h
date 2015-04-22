@@ -22,7 +22,10 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include "secureBuffer.h"
+
 namespace mega {
+
 // callback interface
 struct MEGA_API MegaApp
 {
@@ -44,7 +47,7 @@ struct MEGA_API MegaApp
     virtual void userdata_result(string*, string*, string*, handle, error) { }
 
     // user public key retrieval result
-    virtual void pubkey_result(User *) { }
+    virtual void pubkey_result(User *, error) { }
 
     // ephemeral session creation/resumption result
     virtual void ephemeral_result(error) { }
@@ -58,6 +61,10 @@ struct MEGA_API MegaApp
                                         size_t) { }
     virtual void confirmsignuplink_result(error) { }
     virtual void setkeypair_result(error) { }
+
+    virtual void verifyrsasig_result(error) { }
+
+    virtual void verifykeyfp_result(error) { }
 
     // account credentials, properties and history
     virtual void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool) { }
@@ -124,6 +131,11 @@ struct MEGA_API MegaApp
     virtual void putua_result(error) { }
     virtual void getua_result(error) { }
     virtual void getua_result(byte*, unsigned) { }
+
+    // ATTR
+    // user attribute functions
+    virtual void putguattr_result(error) {}
+    virtual void getguattr_result(ValueMap map, error) {}
 
     // file node export result
     virtual void exportnode_result(error) { }

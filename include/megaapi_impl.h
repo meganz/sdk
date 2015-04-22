@@ -33,6 +33,7 @@
 #include "mega/thread/cppthread.h"
 #include "mega/proxy.h"
 #include "megaapi.h"
+#include "mega/userAttributes.h"
 
 #ifndef _WIN32
     #if (!defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
@@ -423,7 +424,12 @@ class MegaRequestPrivate : public MegaRequest
         void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
-		virtual int getType() const;
+        // ATTR
+        void setAttributeMap(TLV*, unsigned int tlvLen, int);
+        void setAttributeMap(ValueMap map, int);
+        void setAttributeName(const char *an);
+
+        virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
 		virtual const char* __str__() const;
@@ -456,6 +462,13 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;
 
+	    // ATTR
+	    virtual void getUserAttributeMap(TLV**, unsigned int*) const;
+
+	    // ATTR
+	    virtual ValueMap getAttributeMap() const;
+	    virtual const char *getAttributeName() const;
+	    virtual int getAttributeVis() const;
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
         MegaSyncListener *getSyncListener() const;
@@ -483,6 +496,11 @@ class MegaRequestPrivate : public MegaRequest
         long long totalBytes;
         long long transferredBytes;
 		MegaRequestListener *listener;
+
+		// ATTR
+		const char *attributeName;
+		ValueMap userAttributes;
+		int priv;
 #ifdef ENABLE_SYNC
         MegaSyncListener *syncListener;
 #endif
@@ -851,6 +869,23 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        // ATTR
+        void putGenericUserAttribute(const char *user, const char *attrName,
+                       TLV *tlvArray, unsigned int tlvLen,
+                       int priv, int nonhistoric,
+                       MegaRequestListener *listener = NULL);
+
+        void getGenericUserAttribute(const char *user, const char *an,
+               MegaRequestListener *listener = NULL);
+
+        void getOwnStaticKeys(MegaRequestListener *listener = NULL);
+
+        void getPublicStaticKey(const char *user, MegaRequestListener *listener = NULL);
+
+
+        /////////////////
+
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
@@ -1103,7 +1138,7 @@ protected:
         virtual void login_result(error);
         virtual void logout_result(error);
         virtual void userdata_result(string*, string*, string*, handle, error);
-        virtual void pubkey_result(User *);
+        virtual void pubkey_result(User *, error e);
 
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);
@@ -1162,6 +1197,15 @@ protected:
         virtual void putua_result(error);
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);
+
+        // ATTR
+
+        virtual void putguattr_result(error);
+        virtual void getguattr_result(ValueMap, error);
+
+        virtual void verifyrsasig_result(error);
+
+        virtual void verifykeyfp_result(error);
 
         // file node export result
         virtual void exportnode_result(error);
