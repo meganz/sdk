@@ -152,7 +152,7 @@ public:
         loginName(loginName), passWord(passWord),
                 valMap(nullptr) {
         api = new MegaApi("sdfsdfsdf", (const char*)NULL, "sdk_test");
-        api->setLogLevel(mega::logMax);
+        api->setLogLevel(mega::logTest);
     }
 
     virtual ~TestClient() {
@@ -358,6 +358,7 @@ TEST_F(ApiTest, testSetup) {
     TLV resetMap[] = { "authRSA", 0, nullptr};
     TLV resetMapE[] = { "authring", 0, nullptr};
     if(tcOne.login()) {
+        LOG_test << "Login success";
         tcOne.wait = true;
         tcOne.success = false;
         std::map<std::string, std::pair<unsigned char*, unsigned int>> map;
@@ -442,6 +443,7 @@ TEST_F(ApiTest, testSetup) {
         exit(-1);
     }
     if(tcThree.login()) {
+        LOG_test << "Login success";
         tcThree.wait = true;
         tcThree.success = false;
         tcThree.api->getOwnStaticKeys(&tcThree);
@@ -478,6 +480,7 @@ TEST_F(ApiTest, testSetup) {
     }
 
     if(tcTwo.login()) {
+        LOG_test << "Login success";
         tcTwo.wait = true;
         tcTwo.success = false;
         tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcTwo);

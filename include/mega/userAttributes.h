@@ -46,9 +46,9 @@ public:
     /**
      * @brief Add the given bytes to this UserAttributes object.
      *
-     * @param valueName The name of the vaule to add.
+     * @param valueName The name of the value to add.
      * @param value The value to add.
-     * @param visibility The visibility of the vaule.
+     * @param visibility The visibility of the value.
      * @throw runtime_error if the value already exists.
      */
     void addUserAttribute(std::string &valueName, ValueMap &value,
@@ -68,7 +68,7 @@ public:
      * @param valueName The name of the value to retrieve.
      * @return The value requested.
      */
-    SharedBuffer getUserAttributeTlv(std::string &vauleName);
+    SharedBuffer getUserAttributeTlv(std::string &valueName);
 
     /**
      * @brief Convert a map of values to a concatenated buffer.
@@ -86,7 +86,7 @@ public:
      * @param valueName The name of the value to add.
      * @param value The value to add.
      * @param target The target tlv string to add it to.
-     * @param offset The offset from the beginning of the string to add the vale to.
+     * @param offset The offset from the beginning of the string to add the value to.
      */
     static void addValue(const std::string &valueName, SharedBuffer &vaule, SharedBuffer &target,
             int *offset);
