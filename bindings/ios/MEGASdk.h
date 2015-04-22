@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+
 #import <Foundation/Foundation.h>
 
 #import "MEGANode.h"
@@ -25,6 +26,8 @@
 #import "MEGATransfer.h"
 #import "MEGARequest.h"
 #import "MEGAError.h"
+#import "MEGAPricing.h"
+#import "MEGAAccountDetails.h"
 #import "MEGATransferList.h"
 #import "MEGANodeList.h"
 #import "MEGAUserList.h"
