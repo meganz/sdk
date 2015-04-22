@@ -140,7 +140,7 @@ typedef enum ErrorCodes
     API_EKEY = -14,                 ///< Cryptographic error.
     API_ESID = -15,                 ///< Bad session ID.
     API_EBLOCKED = -16,             ///< Resource administratively blocked.
-    API_EOVERQUOTA = -17,           ///< Quote exceeded.
+    API_EOVERQUOTA = -17,           ///< Quota exceeded.
     API_ETEMPUNAVAIL = -18,         ///< Resource temporarily not available.
     API_ETOOMANYCONNECTIONS = -19,  ///< Too many connections on this resource.
     API_EWRITE = -20,               /**< File could not be written to (or failed

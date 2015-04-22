@@ -60,11 +60,13 @@ CurlHttpIO::CurlHttpIO()
     string curlssl = data->ssl_version;
     std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
 
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
     if (!strstr(curlssl.c_str(), "openssl"))
     {
         LOG_fatal << "cURL built without OpenSSL support. Aborting.";
         exit(EXIT_FAILURE);
     }
+#endif
 
     int i;
 
@@ -577,9 +579,30 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_PRIVATE, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
+
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
+#else
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+        if(!MegaClient::disablepkp)
+        {
+            if(!req->posturl.compare(0, MegaClient::APIURL.size(), MegaClient::APIURL))
+            {
+                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "g.api.mega.co.nz.der");
+            }
+            else if(!req->posturl.compare(0, strlen(MegaClient::BALANCERURL), MegaClient::BALANCERURL))
+            {
+                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "karere-001.developers.mega.co.nz.der");
+            }
+            else
+            {
+                curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "unknown_server.der");
+            }
+        }
+#endif
+
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_easy_setopt(curl, CURLOPT_CAINFO, NULL);
         curl_easy_setopt(curl, CURLOPT_CAPATH, NULL);
@@ -1356,6 +1379,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
     return nmemb;
 }
 
+#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
 CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 {
     SSL_CTX_set_cert_verify_callback((SSL_CTX*)sslctx, cert_verify_callback, req);
@@ -1410,6 +1434,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 
     return ok;
 }
+#endif
 
 CurlDNSEntry::CurlDNSEntry()
 {

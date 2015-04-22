@@ -65,7 +65,7 @@
 #define strncasecmp _strnicmp
 #endif
 
-#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+#if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
 #include <openssl/rand.h>
 #endif
 
@@ -2035,7 +2035,7 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size) {
         EdDSA::rng.IncorporateEntropy((const byte*) data, size);
 #endif
 
-#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+#if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
     RAND_seed(data, size);
 #endif
 }

@@ -36,8 +36,10 @@
 #include "mega/userAttributes.h"
 
 #ifndef _WIN32
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
+    #if (!defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
+    #include <openssl/ssl.h>
+    #include <openssl/rand.h>
+    #endif
 #include <curl/curl.h>
 #include <fcntl.h>
 #endif

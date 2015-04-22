@@ -2031,46 +2031,49 @@ public:
  */
 class MegaError
 {
-	public:
-		// error codes
-		enum {
-			API_OK = 0,
-			API_EINTERNAL = -1,		// internal error
-			API_EARGS = -2,			// bad arguments
-			API_EAGAIN = -3,		// request failed, retry with exponential backoff
-			API_ERATELIMIT = -4,	// too many requests, slow down
-			API_EFAILED = -5,		// request failed permanently
-			API_ETOOMANY = -6,		// too many requests for this resource
-			API_ERANGE = -7,		// resource access out of rage
-			API_EEXPIRED = -8,		// resource expired
-			API_ENOENT = -9,		// resource does not exist
-			API_ECIRCULAR = -10,	// circular linkage
-			API_EACCESS = -11,		// access denied
-			API_EEXIST = -12,		// resource already exists
-			API_EINCOMPLETE = -13,	// request incomplete
-			API_EKEY = -14,			// cryptographic error
-			API_ESID = -15,			// bad session ID
-			API_EBLOCKED = -16,		// resource administratively blocked
-			API_EOVERQUOTA = -17,	// quote exceeded
-			API_ETEMPUNAVAIL = -18,	// resource temporarily not available
-			API_ETOOMANYCONNECTIONS = -19, // too many connections on this resource
-			API_EWRITE = -20,		// file could not be written to
-			API_EREAD = -21,		// file could not be read from
-			API_EAPPKEY = -22		// invalid or missing application key
-		};
+public:
+    /**
+     * @brief Declaration of API error codes.
+     */
+    enum
+    {
+        API_OK = 0,             ///< Everything OK
+        API_EINTERNAL = -1,     ///< Internal error.
+        API_EARGS = -2,         ///< Bad arguments.
+        API_EAGAIN = -3,        ///< Request failed, retry with exponential back-off.
+        API_ERATELIMIT = -4,    ///< Too many requests, slow down.
+        API_EFAILED = -5,       ///< Request failed permanently.
+        API_ETOOMANY = -6,      ///< Too many requests for this resource.
+        API_ERANGE = -7,        ///< Resource access out of rage.
+        API_EEXPIRED = -8,      ///< Resource expired.
+        API_ENOENT = -9,        ///< Resource does not exist.
+        API_ECIRCULAR = -10,    ///< Circular linkage.
+        API_EACCESS = -11,      ///< Access denied.
+        API_EEXIST = -12,       ///< Resource already exists.
+        API_EINCOMPLETE = -13,  ///< Request incomplete.
+        API_EKEY = -14,         ///< Cryptographic error.
+        API_ESID = -15,         ///< Bad session ID.
+        API_EBLOCKED = -16,     ///< Resource administratively blocked.
+        API_EOVERQUOTA = -17,   ///< Quota exceeded.
+        API_ETEMPUNAVAIL = -18, ///< Resource temporarily not available.
+        API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
+        API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
+        API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
+        API_EAPPKEY = -22       ///< Invalid or missing application key.
+    };
 
-		/**
-		 * @brief Creates a new MegaError object
-         * @param errorCode Error code for this error
-		 */
-		MegaError(int errorCode);
+    /**
+     * @brief Creates a new MegaError object
+     * @param errorCode Error code for this error
+     */
+    MegaError(int errorCode);
 
-		/**
-		 * @brief Creates a new MegaError object copying another one
-         * @param megaError MegaError object to be copied
-		 */
-		MegaError(const MegaError &megaError);
-		virtual ~MegaError();
+    /**
+     * @brief Creates a new MegaError object copying another one
+     * @param megaError MegaError object to be copied
+     */
+    MegaError(const MegaError &megaError);
+    virtual ~MegaError();
 
         /**
          * @brief Creates a copy of this MegaError object

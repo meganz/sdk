@@ -40,7 +40,7 @@ For platforms with Autotools, the generic way to build and install it is:
 
     sh autogen.sh
     ./configure
-    make -j
+    make
     sudo make install
 
 That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`)

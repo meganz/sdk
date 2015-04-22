@@ -904,14 +904,14 @@ void MegaSDK::getPricing()
 	megaApi->getPricing();
 }
 
-void MegaSDK::getPaymentUrl(uint64 productHandle, MRequestListenerInterface^ listener)
+void MegaSDK::getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener)
 {
-	megaApi->getPaymentUrl(productHandle, createDelegateMRequestListener(listener));
+	megaApi->getPaymentId(productHandle, createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::getPaymentUrl(uint64 productHandle)
+void MegaSDK::getPaymentId(uint64 productHandle)
 {
-	megaApi->getPaymentUrl(productHandle);
+	megaApi->getPaymentId(productHandle);
 }
 
 String^ MegaSDK::exportMasterKey()
