@@ -380,6 +380,46 @@ void MegaSDK::fastLogin(String^ session, MRequestListenerInterface^ listener)
 		createDelegateMRequestListener(listener));
 }
 
+void MegaSDK::getUserData(MRequestListenerInterface^ listener)
+{
+	megaApi->getUserData(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getUserData()
+{
+	megaApi->getUserData();
+}
+
+void MegaSDK::getUserData(MUser^ user, MRequestListenerInterface^ listener)
+{
+	megaApi->getUserData((user != nullptr) ? user->getCPtr() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getUserData(MUser^ user)
+{
+	megaApi->getUserData((user != nullptr) ? user->getCPtr() : NULL);
+}
+
+void MegaSDK::getUserData(String^ user, MRequestListenerInterface^ listener)
+{
+	std::string utf8user;
+	if (user != nullptr)
+		MegaApi::utf16ToUtf8(user->Data(), user->Length(), &utf8user);
+
+	megaApi->getUserData((user != nullptr) ? utf8user.c_str() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getUserData(String^ user)
+{
+	std::string utf8user;
+	if (user != nullptr)
+		MegaApi::utf16ToUtf8(user->Data(), user->Length(), &utf8user);
+
+	megaApi->getUserData((user != nullptr) ? utf8user.c_str() : NULL);
+}
+
 void MegaSDK::createAccount(String^ email, String^ password, String^ name)
 {
 	std::string utf8email;
