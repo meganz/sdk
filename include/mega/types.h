@@ -44,13 +44,13 @@ typedef int64_t m_off_t;
 typedef uint64_t fsfp_t;
 
 #ifdef USE_CRYPTOPP
-#include "crypto/cryptopp.h"
+#include "mega/crypto/cryptopp.h"
 #else
 #include "megacrypto.h"
 #endif
 
 #ifdef USE_SODIUM
-#include "crypto/sodium.h"
+#include "mega/crypto/sodium.h"
 #endif
 
 namespace mega {
