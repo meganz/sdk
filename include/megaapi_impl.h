@@ -983,8 +983,12 @@ class MegaApiImpl : public MegaApp
         const char *getFingerprint(MegaNode *node);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
-
         bool hasFingerprint(const char* fingerprint);
+
+        //CRC
+        const char* getCRC(const char *filePath);
+        const char* getCRC(MegaNode *node);
+        MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 
         //Permissions
         MegaError checkAccess(MegaNode* node, int level);

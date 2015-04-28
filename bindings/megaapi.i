@@ -171,6 +171,8 @@
 %newobject mega::MegaApi::hasFingerprint;
 %newobject mega::MegaApi::exportMasterKey;
 %newobject mega::MegaApi::getTransferByTag;
+%newobject mega::MegaApi::getCRC;
+%newobject mega::MegaApi::getNodeByCRC;
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
 

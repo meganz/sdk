@@ -4899,6 +4899,51 @@ class MegaApi
         bool hasFingerprint(const char* fingerprint);
 
         /**
+         * @brief getCRC Get the CRC of a file
+         *
+         * The CRC of a file is a hash of its contents.
+         * If you need a more realiable method to check files, use fingerprint functions
+         * (MegaApi::getFingerprint, MegaApi::getNodeByFingerprint) that also takes into
+         * account the size and the modification time of the file to create the fingerprint.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param filePath Local file path
+         * @return Base64-encoded CRC of the file
+         */
+        const char* getCRC(const char *filePath);
+
+        /**
+         * @brief getCRC Get the CRC of a node
+         *
+         * The CRC of a node is a hash of its contents.
+         * If you need a more realiable method to check files, use fingerprint functions
+         * (MegaApi::getFingerprint, MegaApi::getNodeByFingerprint) that also takes into
+         * account the size and the modification time of the node to create the fingerprint.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param node Node for which we want to get the CRC
+         * @return Base64-encoded CRC of the node
+         */
+        const char* getCRC(MegaNode *node);
+
+        /**
+         * @brief getNodeByCRC Returns a node with the provided CRC
+         *
+         * If there isn't any node in the selected folder with that CRC, this function returns NULL.
+         * If there are several nodes with the same CRC, anyone can be returned.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param crc CRC to check
+         * @param parent Parent node to scan. It must be a folder.
+         * @return  Node with the selected CRC in the selected folder, or NULL
+         * if it's not found.
+         */
+        MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
+
+        /**
          * @brief Check if a node has an access level
          *
          * @param node Node to check

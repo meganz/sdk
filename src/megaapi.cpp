@@ -1499,6 +1499,21 @@ bool MegaApi::hasFingerprint(const char *fingerprint)
     return pImpl->hasFingerprint(fingerprint);
 }
 
+const char *MegaApi::getCRC(const char *filePath)
+{
+    return pImpl->getCRC(filePath);
+}
+
+const char *MegaApi::getCRC(MegaNode *node)
+{
+    return pImpl->getCRC(node);
+}
+
+MegaNode *MegaApi::getNodeByCRC(const char *crc, MegaNode *parent)
+{
+    return pImpl->getNodeByCRC(crc, parent);
+}
+
 void MegaApi::addListener(MegaListener* listener)
 {
     pImpl->addListener(listener);
