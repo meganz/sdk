@@ -2357,6 +2357,46 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 - (BOOL)hasFingerprint:(NSString *)fingerprint;
 
 /**
+ * @brief Get the CRC of a file
+ *
+ * The CRC of a file is a hash of its contents.
+ * If you need a more realiable method to check files, use fingerprint functions
+ * ([MEGASdk fingerprintForFilePath:], [MEGASdk nodeForFingerprint:]) that also takes into
+ * account the size and the modification time of the file to create the fingerprint.
+ *
+ * @param filePath Local file path
+ * @return Base64-encoded CRC of the file
+ */
+- (NSString *)CRCForFilePath:(NSString *)filePath;
+
+/**
+ * @brief Get the CRC of a node
+ *
+ * The CRC of a node is a hash of its contents.
+ * If you need a more realiable method to check files, use fingerprint functions
+ * ([MEGASdk fingerprintForFilePath:], [MEGASdk nodeForFingerprint:]) that also takes into
+ * account the size and the modification time of the node to create the fingerprint.
+ *
+ * @param node MEGANode for which we want to get the CRC
+ * @return Base64-encoded CRC of the node
+ */
+- (NSString *)CRCForNode:(MEGANode *)node;
+
+/**
+ * @brief Returns a node with the provided CRC
+ *
+ * If there isn't any node in the selected folder with that CRC, this function returns nil.
+ * If there are several nodes with the same CRC, anyone can be returned.
+ *
+ * @param crc CRC to check
+ * @param parent Parent MEGANode to scan. It must be a folder.
+ * @return node with the selected CRC in the selected folder, or nil
+ * if it's not found.
+ */
+
+- (MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent;
+
+/**
  * @brief Get the access level of a MEGANode.
  * @param node MEGANode to check.
  * @return Access level of the node.

@@ -873,6 +873,32 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return self.megaApi->hasFingerprint([fingerprint UTF8String]);
 }
 
+- (NSString *)CRCForFilePath:(NSString *)filePath {
+    if (filePath == nil) return nil;
+    
+    const char *val = self.megaApi->getCRC([filePath UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
+}
+
+- (NSString *)CRCForNode:(MEGANode *)node {
+    if (node == nil) return nil;
+    
+    return self.megaApi->getCRC([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getCRC([node getCPtr])] : nil;
+}
+
+- (MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent {
+    if (crc == nil) return nil;
+    
+    MegaNode *node = self.megaApi->getNodeByCRC([crc UTF8String], (parent != nil) ? [parent getCPtr] : NULL);
+    
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
 - (NSInteger)accessLevelForNode:(MEGANode *)node {
     if (node == nil) return -1;
     
