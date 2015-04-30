@@ -165,24 +165,27 @@ std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair() {
 
     publicKey = SecureBuffer(crypto_sign_ed25519_PUBLICKEYBYTES);
     if (publicKey.get() == NULL) {
+        LOG_err << "Error allocating memory for public key bytes";
        // Something went wrong allocating the memory.
        return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
     privateKey = SecureBuffer(crypto_sign_ed25519_SECRETKEYBYTES);
     if (privateKey.get() == NULL) {
        // Something went wrong allocating the memory.
-       publicKey.free();
-       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
+        LOG_err << "Error allocating memory for private key bytes";
+        publicKey.free();
+        return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
     int check = 0;
     check = crypto_sign_seed_keypair(publicKey.get(), privateKey.get(),
                                     (const unsigned char*)this->keySeed.get());
     if (check != 0) {
        // Something went wrong deriving keys.
-       publicKey.free();
-       privateKey.free();
+        LOG_err << "Error deriving public key";
+        publicKey.free();
+        privateKey.free();
 
-       return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
+        return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
 
     return std::pair<SecureBuffer, SecureBuffer>(publicKey, privateKey);

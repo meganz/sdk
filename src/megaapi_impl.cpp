@@ -837,58 +837,6 @@ MegaRequest *MegaRequestPrivate::copy() {
     return new MegaRequestPrivate(*this);
 }
 
-//MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
-//{
-//    this->link = NULL;
-//    this->sessionKey = NULL;
-//    this->name = NULL;
-//    this->email = NULL;
-//    this->text = NULL;
-//    this->password = NULL;
-//    this->newPassword = NULL;
-//    this->privateKey = NULL;
-//    this->access = MegaShare::ACCESS_UNKNOWN;
-//    this->publicNode = NULL;
-//    this->file = NULL;
-//    this->publicNode = NULL;
-//
-//    this->type = request.getType();
-//    this->setTag(request.getTag());
-//    this->setNodeHandle(request.getNodeHandle());
-//    this->setLink(request.getLink());
-//    this->setParentHandle(request.getParentHandle());
-//    this->setSessionKey(request.getSessionKey());
-//    this->setName(request.getName());
-//    this->setEmail(request.getEmail());
-//    this->setPassword(request.getPassword());
-//    this->setNewPassword(request.getNewPassword());
-//    this->setPrivateKey(request.getPrivateKey());
-//    this->setAccess(request.getAccess());
-//    this->setNumRetry(request.getNumRetry());
-//    this->numDetails = 0;
-//    this->setFile(request.getFile());
-//    this->setParamType(request.getParamType());
-//    this->setText(request.getText());
-//    this->setNumber(request.getNumber());
-//    this->setPublicNode(request.getPublicNode());
-//    this->setFlag(request.getFlag());
-//    this->setTransferTag(request.getTransferTag());
-//    this->setTotalBytes(request.getTotalBytes());
-//    this->setTransferredBytes(request.getTransferredBytes());
-//    this->listener = request.getListener();
-//#ifdef ENABLE_SYNC
-//    this->syncListener = request.getSyncListener();
-//#endif
-//    this->megaPricing = (MegaPricingPrivate *)request.getPricing();
-//
-//    this->accountDetails = NULL;
-//    if(request.getAccountDetails())
-//    {
-//        this->accountDetails = new AccountDetails();
-//        *(this->accountDetails) = *(request.getAccountDetails());
-//    }
-//}
-
 MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 {
     this->type = type;

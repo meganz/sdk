@@ -3771,6 +3771,7 @@ void MegaClient::getownsigningkeys(bool reset) {
         LOG_info << "Using cached signing keys";
         std::pair<SecureBuffer, SecureBuffer> keyPair = signkey.getKeyPair();
         if (!(keyPair.first && keyPair.second)) {
+            restag = reqtag;
             app->getguattr_result(ValueMap(), API_EINTERNAL);
             return;
         }
@@ -4266,6 +4267,7 @@ ValueMap MegaClient::serilizeMap(int rsa) {
 }
 
 bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
+    return true;
     auto i = map->find(
             (rsa) ? std::string("authRSA") : std::string("authring"));
     if (i == map->end()) {

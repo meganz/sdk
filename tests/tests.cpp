@@ -121,6 +121,8 @@ public:
     std::string apiKeyOne = "sdfsdfsdf";
     std::string loginNameOne = "michaelholmwood@mega.co.nz";
     std::string passWordOne = "Fractal*hidden*stuff!";
+    //std::string loginNameOne = "megachatclitest1@gmail.com";
+    //std::string passWordOne = "Meg@test4fun";
     std::string apiKeyTwo = "sdfsdfsdf";
     std::string loginNameTwo = "mh@mega.co.nz";
     std::string passWordTwo = "Fractal*hidden*stuff!";
@@ -377,7 +379,7 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_STREQ(testValueStr.c_str(), val.c_str());
         TLV *retMap = UserAttributes::valueMapToTLVarray(vMap);
 
-        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", retMap,
+        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(), "Names", retMap,
                 vMap->size(), 0, 1, &tcOne);
         while(tcOne.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -386,7 +388,7 @@ TEST_F(ApiTest, testSetup) {
 
         tcOne.wait = true;
         tcOne.success = false;
-        tcOne.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", &tcOne);
+        tcOne.api->getGenericUserAttribute(loginNameOne.c_str(), "Names", &tcOne);
         while(tcOne.wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -398,7 +400,7 @@ TEST_F(ApiTest, testSetup) {
 
         tcOne.wait = true;
         tcOne.success = false;
-        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz", "Names", retMap,
+        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(), "Names", retMap,
                 vMap->size(), 1, 0, &tcOne);
         while(tcOne.wait) {
            std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -409,7 +411,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcOne.wait = true;
 //        tcOne.success = false;
 //
-//        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
 //                "authRSA", resetMap, 1, 1, 1, &tcOne);
 //        while(tcOne.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -419,7 +421,7 @@ TEST_F(ApiTest, testSetup) {
 //        tcOne.wait = true;
 //        tcOne.success = false;
 //
-//        tcOne.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
 //                "authring", resetMapE, 1, 1, 1, &tcOne);
 //        while(tcOne.wait) {
 //            std::this_thread::sleep_for(std::chrono::milliseconds(100));
