@@ -156,6 +156,16 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     {
         if (!fstat(fd, &statbuf))
         {
+            #ifdef __MACH__
+                //If creation time equal to kMagicBusyCreationDate
+                if(statbuf.st_birthtimespec.tv_sec == -2082844800)
+                {
+                    LOG_debug << "File is busy: " << f->c_str();
+                    retry = true;
+                    return false;
+                }
+            #endif
+
             size = statbuf.st_size;
             mtime = statbuf.st_mtime;
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;

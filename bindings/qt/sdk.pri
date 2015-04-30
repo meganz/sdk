@@ -185,6 +185,6 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/qt/libs/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
-   DEFINES += PCRE_STATIC
+   DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto
 }
