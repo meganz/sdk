@@ -10,14 +10,14 @@ You have two options, using a prebuilt native library or building it by yourself
 To use a prebuilt library (the easy way), follow these steps:
 
 1. Download, build and install the SDK
-`
+```
 git clone https://github.com/meganz/sdk
 cd sdk
 sh autogen.sh
 ./configure --enable-java
 make
 sudo make install
-`
+```
 2. On Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java/JavaBindingSample`
 3. Open the "Properties" of the project and go to "Java Build Path" -> "Source"
 4. Click "Link Source..." and select the folder `sdk/bindings/java`
