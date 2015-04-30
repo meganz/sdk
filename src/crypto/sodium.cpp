@@ -36,19 +36,22 @@ bool EdDSA::keySet()
 }
 
 // Initialise libsodium crypto system.
-void EdDSA::init() {
+void EdDSA::init()
+{
     sodium_init();
 }
 
 
 // Sets a private key seed from a buffer.
-void EdDSA::setKeySeed(SecureBuffer kSeed) {
+void EdDSA::setKeySeed(SecureBuffer kSeed)
+{
     this->keySeed = kSeed;
 }
 
 
 // Computes the signature of a message.
-SecureBuffer EdDSA::sign(unsigned char* msg, unsigned long long msglen) {
+SecureBuffer EdDSA::sign(unsigned char* msg, unsigned long long msglen)
+{
     std::pair<SecureBuffer, SecureBuffer> kPair = getKeyPair();
 
     unsigned long long bufferlen = 0;
@@ -59,7 +62,8 @@ SecureBuffer EdDSA::sign(unsigned char* msg, unsigned long long msglen) {
         return sigBuffer;
     }
 
-    if(kPair.first.get() == nullptr || kPair.second.get() == nullptr) {
+    if(kPair.first.get() == nullptr || kPair.second.get() == nullptr)
+    {
         kPair.first.free();
         kPair.second.free();
         sigBuffer.free();
@@ -75,14 +79,16 @@ SecureBuffer EdDSA::sign(unsigned char* msg, unsigned long long msglen) {
     return sigBuffer;
 }
 
-SecureBuffer EdDSA::signDetatched(unsigned char *msg, unsigned long long msglen) {
+SecureBuffer EdDSA::signDetatched(unsigned char *msg, unsigned long long msglen)
+{
     SecureBuffer sig(crypto_sign_ed25519_BYTES);
     if(sig.get() == nullptr) {
         return sig;
     }
 
     std::pair<SecureBuffer, SecureBuffer> kPair = getKeyPair();
-    if(kPair.first.get() == nullptr || kPair.second.get() == nullptr) {
+    if(kPair.first.get() == nullptr || kPair.second.get() == nullptr)
+    {
         return sig;
     }
 
@@ -94,15 +100,18 @@ SecureBuffer EdDSA::signDetatched(unsigned char *msg, unsigned long long msglen)
 }
 
 bool EdDSA::verifyDetatched(unsigned char *sig, unsigned char *msg, unsigned long long mlen,
-        unsigned char *pubKey) {
+        unsigned char *pubKey)
+{
     return (crypto_sign_ed25519_verify_detached(sig, msg, mlen, pubKey) == 0);
 }
 
 // Verifies the signature of a message.
 int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
-                  const unsigned char* sig, SecureBuffer publicKey) {
+                  const unsigned char* sig, SecureBuffer publicKey)
+{
     SecureBuffer signedmsg(msglen + crypto_sign_BYTES);
-    if (signedmsg.get() == NULL) {
+    if (signedmsg.get() == NULL)
+    {
         // Something went wrong allocating the memory.
         return 0;
     }
@@ -117,7 +126,8 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
 }
 
 SecureBuffer EdDSA::verify(const unsigned char *signedMsg, unsigned long long msglen,
-        SecureBuffer publicKey) {
+        SecureBuffer publicKey)
+{
     SecureBuffer msgbuffer(msglen - crypto_sign_ed25519_BYTES);
     if (msgbuffer.get() == NULL) {
        // Something went wrong allocating the memory.
@@ -133,14 +143,17 @@ SecureBuffer EdDSA::verify(const unsigned char *signedMsg, unsigned long long ms
 }
 
 // Generates a new Ed25519 private key seed. The key seed is stored in the object.
-SecureBuffer EdDSA::genKeySeed() {
+SecureBuffer EdDSA::genKeySeed()
+{
     // Make space for a new key seed (if not present).
 
-    if (this->keySeed.get() == nullptr) {
+    if (this->keySeed.get() == nullptr)
+    {
         this->keySeed = SecureBuffer(crypto_sign_ed25519_SEEDBYTES);
-        if (this->keySeed.get() == NULL) {
-            // Something went wrong allocating the memory.
-            return this->keySeed;
+        if (this->keySeed.get() == NULL)
+        {
+            LOG_err << "Could not allocate memory for keySeed";
+            return SecureBuffer();
         }
     }
     // Now make the new key seed.
@@ -149,7 +162,8 @@ SecureBuffer EdDSA::genKeySeed() {
     return this->keySeed;
 }
 
-SecureBuffer EdDSA::genKeySeed(SecureBuffer secretKey) {
+SecureBuffer EdDSA::genKeySeed(SecureBuffer secretKey)
+{
     this->keySeed = SecureBuffer(crypto_sign_ed25519_SEEDBYTES);
     if(this->keySeed.get() == nullptr) {
         return this->keySeed;
@@ -158,7 +172,14 @@ SecureBuffer EdDSA::genKeySeed(SecureBuffer secretKey) {
     return this->keySeed;
 }
 
-std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair() {
+std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair()
+{
+    if(!keySeed)
+    {
+        LOG_err << "Key seed not set, cannot generate keys";
+        return std::pair<SecureBuffer, SecureBuffer()>(SecureBuffer(), SecureBuffer());
+    }
+
     if(publicKey && privateKey) {
         return std::pair<SecureBuffer, SecureBuffer>(publicKey, privateKey);
     }
@@ -169,6 +190,7 @@ std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair() {
        // Something went wrong allocating the memory.
        return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
+
     privateKey = SecureBuffer(crypto_sign_ed25519_SECRETKEYBYTES);
     if (privateKey.get() == NULL) {
        // Something went wrong allocating the memory.
