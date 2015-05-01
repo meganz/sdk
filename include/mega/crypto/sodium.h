@@ -54,9 +54,9 @@ public:
      *
      */
     virtual ~EdDSA() {
-        if(keySeed) keySeed.free();
-        if(publicKey) publicKey.free();
-        if(privateKey) privateKey.free();
+        if(keySeed) keySeed.free_buffer();
+        if(publicKey) publicKey.free_buffer();
+        if(privateKey) privateKey.free_buffer();
     }
 
     /**

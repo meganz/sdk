@@ -1122,8 +1122,6 @@ void CommandLogin::procresult()
 
             case 'u':
                 me = client->json.gethandle(MegaClient::USERHANDLE);
-                //client->json.storebinary((byte*)&me, sizeof me);
-                LOG_info << "ME ";
                 break;
 
             case MAKENAMEID4('t', 's', 'i', 'd'):
@@ -1809,13 +1807,12 @@ CommandGetUserAttr::procresult() {
         callBack(map, e);
         return;
     }
-    else {
-
+    else
+    {
         const char *ptr;
         const char *end;
         if(!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-
             callBack(map, API_EINTERNAL);
             return;
         }
@@ -1827,15 +1824,16 @@ CommandGetUserAttr::procresult() {
 
         SharedBuffer tlv;
 
-        if(priv == '+'){
+        if(priv == '+')
+        {
             int offset = ((priv = data[1]) == '!') ? 2 : 1;
             tlv = SharedBuffer((unsigned char*)data + offset, l - offset);
             map = ValueMap(new std::map<std::string, SharedBuffer>);
             map->insert({"", tlv});
             callBack(map, API_OK);
         }
-        else if(priv == '*'){
-
+        else if(priv == '*')
+        {
             int offset = ((priv = data[1]) == '!') ? 2 : 1;
 
             std::string d((char*)(data + offset), l - offset);
@@ -1843,7 +1841,6 @@ CommandGetUserAttr::procresult() {
             {
                 if (!PaddedCBC::decrypt(&d, &client->key))
                 {
-
                     callBack(map, API_EINTERNAL);
                     return;
                 }
@@ -1856,9 +1853,9 @@ CommandGetUserAttr::procresult() {
                 string payload;
                 payload.assign(d, 8, l - 8);
                 d = payload;
+
                 if (!PaddedCBC::decrypt(&d, &client->key, &iv))
                 {
-
                     callBack(map, API_EINTERNAL);
                     return;
                 }
@@ -1866,17 +1863,19 @@ CommandGetUserAttr::procresult() {
 
             tlv = SharedBuffer((byte*)d.c_str(), d.size());
 
-            try {
+            try
+            {
                map = UserAttributes::tlvToValueMap(tlv);
                callBack(map, API_OK);
             }
-            catch(std::runtime_error &e) {
+            catch(std::runtime_error &e)
+            {
                 callBack(map, API_EINTERNAL);
             }
         }
-        else {
+        else
+        {
             callBack(map, API_EINTERNAL);
-            return;
         }
 
     }
@@ -2876,27 +2875,7 @@ void CommandFetchNodes::procresult()
 #ifdef ENABLE_SYNC
                 client->syncsup = false;
 #endif
-//                {
-//                    MegaClient *c = client;
-//                    int reqtag = tag;
-//                    client->getownsigningkeys([c, reqtag](ValueMap map, error e){
-//                        if(e == API_OK)
-//                        {
-//                            c->fetchKeyrings([c, reqtag](error e){
-//                                c->restag = reqtag;
-//                                c->app->fetchnodes_result(e);
-//                            });
-//                        }
-//                        else
-//                        {
-//                            c->restag = reqtag;
-//                            c->app->fetchnodes_result(e);
-//                        }
-//
-//                    });
-//                }
                 client->app->fetchnodes_result(API_OK);
-                //client->app->fetchnodes_result(API_OK);
                 client->initsc();
 
                 // NULL vector: "notify all nodes"

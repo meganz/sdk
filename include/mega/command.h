@@ -33,9 +33,9 @@
 
 namespace mega {
 
-using AttrCallBack = std::function<void(ValueMap,error)>;
-using SetAttrCallBack = std::function<void(error)>;
-using CreateKeypairCallback = std::function<void(error)>;
+typedef std::function<void(ValueMap,error)> AttrCallBack;
+typedef std::function<void(error)> SetAttrCallBack;
+typedef std::function<void(error)> CreateKeypairCallback;
 
 // request command component
 class MEGA_API Command

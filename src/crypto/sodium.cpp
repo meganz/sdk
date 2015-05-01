@@ -56,25 +56,26 @@ SecureBuffer EdDSA::sign(unsigned char* msg, unsigned long long msglen)
 
     unsigned long long bufferlen = 0;
     SecureBuffer sigBuffer(msglen + crypto_sign_ed25519_BYTES);
-    if (sigBuffer.get() == NULL) {
-        // Something went wrong allocating the memory.
+    if (sigBuffer.get() == NULL)
+    {
+        // Something went wrong allocating memory.
 
         return sigBuffer;
     }
 
     if(kPair.first.get() == nullptr || kPair.second.get() == nullptr)
     {
-        kPair.first.free();
-        kPair.second.free();
-        sigBuffer.free();
+        kPair.first.free_buffer();
+        kPair.second.free_buffer();
+        sigBuffer.free_buffer();
         return 0;
     }
 
     int check = crypto_sign(sigBuffer.get(), &bufferlen, (const unsigned char*)msg, msglen,
                         (const unsigned char*)kPair.second.get());
 
-    kPair.first.free();
-    kPair.second.free();
+    kPair.first.free_buffer();
+    kPair.second.free_buffer();
 
     return sigBuffer;
 }
@@ -120,7 +121,7 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
     memcpy(signedmsg.get() + crypto_sign_ed25519_BYTES, msg, msglen);
     memcpy(signedmsg.get(), sig, crypto_sign_ed25519_BYTES);
     SecureBuffer result = verify(signedmsg.get(), signedmsg.size(), publicKey);
-    signedmsg.free();
+    signedmsg.free_buffer();
 
     return (result.get() != nullptr) ? 0 : 1;
 }
@@ -165,9 +166,12 @@ SecureBuffer EdDSA::genKeySeed()
 SecureBuffer EdDSA::genKeySeed(SecureBuffer secretKey)
 {
     this->keySeed = SecureBuffer(crypto_sign_ed25519_SEEDBYTES);
-    if(this->keySeed.get() == nullptr) {
+    if(this->keySeed.get() == NULL)
+    {
+        LOG_err << "Error allocating memory for keySeed";
         return this->keySeed;
     }
+
     crypto_sign_ed25519_sk_to_seed(this->keySeed.get(), secretKey.get());
     return this->keySeed;
 }
@@ -177,7 +181,7 @@ std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair()
     if(!keySeed)
     {
         LOG_err << "Key seed not set, cannot generate keys";
-        return std::pair<SecureBuffer, SecureBuffer()>(SecureBuffer(), SecureBuffer());
+        return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
 
     if(publicKey && privateKey) {
@@ -195,7 +199,7 @@ std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair()
     if (privateKey.get() == NULL) {
        // Something went wrong allocating the memory.
         LOG_err << "Error allocating memory for private key bytes";
-        publicKey.free();
+        publicKey.free_buffer();
         return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }
     int check = 0;
@@ -204,8 +208,8 @@ std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair()
     if (check != 0) {
        // Something went wrong deriving keys.
         LOG_err << "Error deriving public key";
-        publicKey.free();
-        privateKey.free();
+        publicKey.free_buffer();
+        privateKey.free_buffer();
 
         return std::pair<SecureBuffer, SecureBuffer>(SecureBuffer(), SecureBuffer());
     }

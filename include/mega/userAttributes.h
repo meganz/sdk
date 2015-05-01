@@ -124,11 +124,13 @@ public:
      * @return A pointer to a basic map.
      */
     static std::map<std::string, std::pair<unsigned char*, unsigned int>>
-    *valueMapToMap(const ValueMap &valueMap) {
+    *valueMapToMap(const ValueMap &valueMap)
+    {
         std::map<std::string, std::pair<unsigned char*, unsigned int>> *map
             = new std::map<std::string, std::pair<unsigned char*, unsigned int>>();
 
-        for(auto i : *valueMap) {
+        for(auto i : *valueMap)
+        {
             unsigned char *value = (unsigned char*)malloc(i.second.size);
             memcpy(value, i.second.get(), i.second.size);
             std::pair<unsigned char*, unsigned int> p(value, i.second.size);
