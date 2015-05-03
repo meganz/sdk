@@ -408,25 +408,25 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcOne.success);
 
         ////////// Uncomment to reset keyrings ///////////////
-        tcOne.wait = true;
-        tcOne.success = false;
-
-        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
-                "authRSA", resetMap, 1, 1, 1, &tcOne);
-        while(tcOne.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcOne.success);
-
-        tcOne.wait = true;
-        tcOne.success = false;
-
-        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
-                "authring", resetMapE, 1, 1, 1, &tcOne);
-        while(tcOne.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcOne.success);
+//        tcOne.wait = true;
+//        tcOne.success = false;
+//
+//        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
+//                "authRSA", resetMap, 1, 1, 1, &tcOne);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
+//
+//        tcOne.wait = true;
+//        tcOne.success = false;
+//
+//        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
+//                "authring", resetMapE, 1, 1, 1, &tcOne);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
         ///////////////////////////////////////////////////
 
         tcOne.wait = true;
@@ -455,25 +455,25 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcThree.success);
 
         //////// Uncomment to reset keyrings ///////////////
-        tcThree.wait = true;
-        tcThree.success = false;
-
-        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
-                "authRSA", resetMap, 1, 1, 1, &tcThree);
-        while(tcThree.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcThree.success);
-
-        tcThree.wait = true;
-        tcThree.success = false;
-
-        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
-                "authring", resetMapE, 1, 1, 1, &tcThree);
-        while(tcThree.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcThree.success);
+//        tcThree.wait = true;
+//        tcThree.success = false;
+//
+//        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
+//                "authRSA", resetMap, 1, 1, 1, &tcThree);
+//        while(tcThree.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcThree.success);
+//
+//        tcThree.wait = true;
+//        tcThree.success = false;
+//
+//        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
+//                "authring", resetMapE, 1, 1, 1, &tcThree);
+//        while(tcThree.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcThree.success);
         ///////////////////////////////////////////////////
     }
     else {
@@ -500,25 +500,25 @@ TEST_F(ApiTest, testSetup) {
         ASSERT_TRUE(tcTwo.success);
 
         ////////// Uncomment to reset keyrings ///////////////
-        tcTwo.wait = true;
-        tcTwo.success = false;
-
-        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-                "authRSA", resetMap, 1, 1, 1, &tcTwo);
-        while(tcOne.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcOne.success);
-
-        tcTwo.wait = true;
-        tcTwo.success = false;
-
-        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-                "authring", resetMapE, 1, 1, 1, &tcTwo);
-        while(tcOne.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcOne.success);
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//
+//        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//                "authRSA", resetMap, 1, 1, 1, &tcTwo);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
+//
+//        tcTwo.wait = true;
+//        tcTwo.success = false;
+//
+//        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
+//                "authring", resetMapE, 1, 1, 1, &tcTwo);
+//        while(tcOne.wait) {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//        }
+//        ASSERT_TRUE(tcOne.success);
         /////////////////////////////////////////////////////
 
         LOG_test << "****Getting other user data";

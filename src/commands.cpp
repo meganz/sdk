@@ -1234,7 +1234,7 @@ void CommandLogin::procresult()
                                 c->app->login_result(e);
                             });
 
-                        }, true);
+                        });
                         // set final parameter to true to reset keys.
                     };
 

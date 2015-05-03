@@ -7346,9 +7346,9 @@ error MegaApiImpl::requestCancelTransfer(MegaRequestPrivate *request)
     file_list::iterator iterator = files.begin();
     while (iterator != files.end())
     {
-     File *file = *iterator;
-     iterator++;
-     if(!file->syncxfer) client->stopxfer(file);
+        File *file = *iterator;
+        iterator++;
+        if(!file->syncxfer) client->stopxfer(file);
     }
     fireOnRequestFinish(request, MegaError(API_OK));
 
