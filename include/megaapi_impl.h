@@ -1281,6 +1281,53 @@ protected:
         void getUserAttribute(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
+
+private:
+        error requestLogin(MegaRequestPrivate*);
+        error requestCreateFolder(MegaRequestPrivate*);
+        error requestMove(MegaRequestPrivate*);
+        error requestCopy(MegaRequestPrivate*);
+        error requestRename(MegaRequestPrivate*);
+        error requestRemove(MegaRequestPrivate*);
+        error requestShare(MegaRequestPrivate*);
+        error requestGetPublicNode(MegaRequestPrivate*);
+        error requestFetchNodes(MegaRequestPrivate*);
+        error requestExport(MegaRequestPrivate*);
+        error requestAccountDetails(MegaRequestPrivate*);
+        error requestChangePw(MegaRequestPrivate*);
+        error requestLogout(MegaRequestPrivate*);
+        error requestGetAttrFile(MegaRequestPrivate*);
+        error requestGetAttrUser(MegaRequestPrivate*);
+        error requestSetAttrUser(MegaRequestPrivate*);
+        error requestSetAttrFile(MegaRequestPrivate*);
+        error requestCancelAttrFile(MegaRequestPrivate*);
+        error requestRetryPendingConn(MegaRequestPrivate*);
+        error requestAddContact(MegaRequestPrivate*);
+        error requestRemoveContact(MegaRequestPrivate*);
+        error requestCreateAccount(MegaRequestPrivate*);
+        error requestConfirmAccount(MegaRequestPrivate*);
+        error requestPauseTransfers(MegaRequestPrivate*);
+        error requestCancelTransfer(MegaRequestPrivate*);
+        error requestCancelTransfers(MegaRequestPrivate*);
+
+#ifdef ENABLE_SYNC
+        error requestAddSync(MegaRequestPrivate*);
+        error requestRemoveSyncs(MegaRequestPrivate*);
+        error requestRemoveSync(MegaRequestPrivate*);
+#endif
+        error requestReportEvent(MegaRequestPrivate*);
+        error requestDelete(MegaRequestPrivate*);
+        error requestGetPaymentId(MegaRequestPrivate*);
+        error requestSubmitPurchaseReceipt(MegaRequestPrivate*);
+        error requestGetUserData(MegaRequestPrivate*);
+        error requestGetUserAttribute(MegaRequestPrivate*);
+        error requestSetUserAttribute(MegaRequestPrivate*);
+        error requestGetSigningKeys(MegaRequestPrivate*);
+        error requestLoadBalancing(MegaRequestPrivate*);
+        error requestGetStaticPublicKey(MegaRequestPrivate*);
+        error requestKillSession(MegaRequestPrivate*);
+
+        static std::map<int, error (MegaApiImpl::*)(MegaRequestPrivate*)> requestCallMap;
 };
 
 class MegaHashSignatureImpl

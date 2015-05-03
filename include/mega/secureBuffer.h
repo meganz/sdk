@@ -120,7 +120,7 @@ public:
 
     inline operator bool()
     {
-        (buffer) ? true : false;
+        return (buffer) ? true : false;
     }
 };
 

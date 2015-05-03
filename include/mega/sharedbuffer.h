@@ -21,7 +21,13 @@
 #ifndef SHARED_MEGA_BUFFER_H_
 #define SHARED_MEGA_BUFFER_H_
 
+#if __cplusplus >= 201103L
 #include <memory>
+using std::shared_ptr;
+#else
+#include <tr1/memory>
+using std::tr1::shared_ptr;
+#endif
 #include <iostream>
 #include <cstring>
 #include <functional>

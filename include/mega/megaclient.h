@@ -484,6 +484,31 @@ public:
 
 private:
 
+    // The timestamp code below comes courtesy of A. Vasilev, pulled from karere-common.
+    typedef int64_t Ts;
+#ifdef _WIN32
+    //We need to have these static vars extern in order to have the functions static inlined
+    extern Ts _gLastTimeValue;
+    extern Ts _gTimeBase;
+
+    static inline Ts timestampMs()
+    {
+        Ts now = timeGetTime();
+        if (now < _gLastTimeValue)
+            _gTimeBase+=0xFFFFFFFF;
+        _gLastTimeValue = now;
+        now += _gTimeBase;
+        return now;
+    }
+#else
+static inline Ts timestampMs()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (Ts)tv.tv_sec * 1000 + (Ts)tv.tv_usec / 1000;
+}
+#endif
+
     // Map for storing the handle : rsa_fingerprint-confidence values.
     std::map<handle, FingerPrintRecord> rsaKeyRing;
 

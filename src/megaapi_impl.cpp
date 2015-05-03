@@ -6590,975 +6590,14 @@ void MegaApiImpl::sendPendingRequests()
         e = API_OK;
 
         fireOnRequestStart(request);
-        switch(request->getType())
-        {
-        case MegaRequest::TYPE_LOGIN:
-        {
-            const char *login = request->getEmail();
-            const char *password = request->getPassword();
-            const char* megaFolderLink = request->getLink();
-            const char* base64pwkey = request->getPrivateKey();
-            const char* sessionKey = request->getSessionKey();
 
-            if(!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            string slogin;
-            if(login)
-            {
-                slogin = login;
-                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
-                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), slogin.end());
-            }
-
-            requestMap.erase(request->getTag());
-            while(!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while(!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-                if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-            requestMap[request->getTag()]=request;
-
-            if(sessionKey)
-            {
-                byte session[sizeof client->key.key + MegaClient::SIDLEN];
-                Base64::atob(sessionKey, (byte *)session, sizeof session);
-                client->login(session, sizeof session);
-            }
-            else if(login && base64pwkey)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-
-                if(password)
-                {
-                    uint64_t emailhash;
-                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-                    client->fastlogin(slogin.c_str(), pwkey, emailhash);
-                }
-                else
-                {
-                    client->login(slogin.c_str(), pwkey);
-                }
-            }
-            else if(login && password)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                if((e = client->pw_key(password,pwkey))) break;
-                client->login(slogin.c_str(), pwkey);
-            }
-            else
-            {
-                const char* ptr;
-                if (!((ptr = strstr(megaFolderLink,"#F!")) && (strlen(ptr)>12) && ptr[11] == '!'))
-                {
-                    e = API_EARGS;
-                    break;
-                }
-                e = client->folderaccess(ptr+3,ptr+12);
-                if(e == API_OK)
-                {
-                    fireOnRequestFinish(request, MegaError(e));
-                }
-            }
-
-            break;
-        }
-        case MegaRequest::TYPE_CREATE_FOLDER:
-        {
-            Node *parent = client->nodebyhandle(request->getParentHandle());
-            const char *name = request->getName();
-            if(!name || !parent) { e = API_EARGS; break; }
-
-            NewNode *newnode = new NewNode[1];
-            SymmCipher key;
-            string attrstring;
-            byte buf[FOLDERNODEKEYLENGTH];
-
-            // set up new node as folder node
-            newnode->source = NEW_NODE;
-            newnode->type = FOLDERNODE;
-            newnode->nodehandle = 0;
-            newnode->parenthandle = UNDEF;
-
-            // generate fresh random key for this folder node
-            PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
-            newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
-            key.setkey(buf);
-
-            // generate fresh attribute object with the folder name
-            AttrMap attrs;
-            string sname = name;
-            fsAccess->normalize(&sname);
-            attrs.map['n'] = sname;
-
-            // JSON-encode object and encrypt attribute string
-            attrs.getjson(&attrstring);
-            newnode->attrstring = new string;
-            client->makeattr(&key,newnode->attrstring,attrstring.c_str());
-
-            // add the newly generated folder node
-            client->putnodes(parent->nodehandle,newnode,1);
-            break;
-        }
-        case MegaRequest::TYPE_MOVE:
-        {
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-            Node *newParent = client->nodebyhandle(request->getParentHandle());
-            if(!node || !newParent) { e = API_EARGS; break; }
-
-            if(node->parent == newParent)
-            {
-                fireOnRequestFinish(request, MegaError(API_OK));
-                break;
-            }
-            if((e = client->checkmove(node,newParent))) break;
-
-            e = client->rename(node, newParent);
-            break;
-        }
-        case MegaRequest::TYPE_COPY:
-        {
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-            Node *target = client->nodebyhandle(request->getParentHandle());
-            const char* email = request->getEmail();
-            MegaNode *publicNode = request->getPublicNode();
-            const char *newName = request->getName();
-
-            if((!node && !publicNode) || (!target && !email)) { e = API_EARGS; break; }
-
-            if(publicNode)
-            {
-                NewNode *newnode = new NewNode[1];
-                newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
-                newnode->attrstring = new string;
-                newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
-                newnode->nodehandle = publicNode->getHandle();
-                newnode->source = NEW_PUBLIC;
-                newnode->type = FILENODE;
-                newnode->parenthandle = UNDEF;
-
-                if(target)
-                {
-                    client->putnodes(target->nodehandle,newnode, 1);
-                }
-                else
-                {
-                    client->putnodes(email, newnode, 1);
-                }
-            }
-            else
-            {
-                unsigned nc;
-                TreeProcCopy tc;
-
-                // determine number of nodes to be copied
-                client->proctree(node,&tc);
-                tc.allocnodes();
-                nc = tc.nc;
-
-                // build new nodes array
-                client->proctree(node,&tc);
-                if (!nc)
-                {
-                    e = API_EARGS;
-                    break;
-                }
-
-                tc.nn->parenthandle = UNDEF;
-
-                if(nc == 1 && newName && tc.nn[0].nodekey.size())
-                {
-                    SymmCipher key;
-                    AttrMap attrs;
-                    string attrstring;
-
-                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
-                    attrs = node->attrs;
-
-                    string sname = newName;
-                    fsAccess->normalize(&sname);
-                    attrs.map['n'] = sname;
-
-                    attrs.getjson(&attrstring);
-                    client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
-                }
-
-                if (target)
-                {
-                    client->putnodes(target->nodehandle,tc.nn,nc);
-                }
-                else
-                {
-                    client->putnodes(email, tc.nn, nc);
-                }
-            }
-            break;
-        }
-        case MegaRequest::TYPE_RENAME:
-        {
-            Node* node = client->nodebyhandle(request->getNodeHandle());
-            const char* newName = request->getName();
-            if(!node || !newName) { e = API_EARGS; break; }
-
-            if (!client->checkaccess(node,FULL)) { e = API_EACCESS; break; }
-
-            string sname = newName;
-            fsAccess->normalize(&sname);
-            node->attrs.map['n'] = sname;
-            e = client->setattr(node);
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE:
-        {
-            Node* node = client->nodebyhandle(request->getNodeHandle());
-            if(!node) { e = API_EARGS; break; }
-
-            e = client->unlink(node);
-            break;
-        }
-        case MegaRequest::TYPE_SHARE:
-        {
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-            const char* email = request->getEmail();
-            int access = request->getAccess();
-            if(!node || !email || !strchr(email, '@'))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            accesslevel_t a;
-            switch(access)
-            {
-                case MegaShare::ACCESS_UNKNOWN:
-                    a = ACCESS_UNKNOWN;
-                    break;
-                case MegaShare::ACCESS_READ:
-                    a = RDONLY;
-                    break;
-                case MegaShare::ACCESS_READWRITE:
-                    a = RDWR;
-                    break;
-                case MegaShare::ACCESS_FULL:
-                    a = FULL;
-                    break;
-                case MegaShare::ACCESS_OWNER:
-                    a = OWNER;
-                    break;
-                default:
-                    e = API_EARGS;
-            }
-
-            if(e == API_OK)
-                client->setshare(node, email, a);
-            break;
-        }
-        case MegaRequest::TYPE_IMPORT_LINK:
-        case MegaRequest::TYPE_GET_PUBLIC_NODE:
-        {
-            Node *node = client->nodebyhandle(request->getParentHandle());
-            const char* megaFileLink = request->getLink();
-            if(!megaFileLink) { e = API_EARGS; break; }
-            if((request->getType()==MegaRequest::TYPE_IMPORT_LINK) && (!node)) { e = API_EARGS; break; }
-
-            e = client->openfilelink(megaFileLink, 1);
-            break;
-        }
-        case MegaRequest::TYPE_EXPORT:
-        {
-            Node* node = client->nodebyhandle(request->getNodeHandle());
-            if(!node) { e = API_EARGS; break; }
-
-            e = client->exportnode(node, !request->getAccess());
-            break;
-        }
-        case MegaRequest::TYPE_FETCH_NODES:
-        {
-            client->fetchnodes();
-            break;
-        }
-        case MegaRequest::TYPE_ACCOUNT_DETAILS:
-        {
-            int numDetails = request->getNumDetails();
-            bool storage = (numDetails & 0x01) != 0;
-            bool transfer = (numDetails & 0x02) != 0;
-            bool pro = (numDetails & 0x04) != 0;
-            bool transactions = (numDetails & 0x08) != 0;
-            bool purchases = (numDetails & 0x10) != 0;
-            bool sessions = (numDetails & 0x20) != 0;
-
-            numDetails = 1;
-            if(transactions) numDetails++;
-            if(purchases) numDetails++;
-            if(sessions) numDetails++;
-
-            request->setNumDetails(numDetails);
-
-            client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
-            break;
-        }
-        case MegaRequest::TYPE_CHANGE_PW:
-        {
-            const char* oldPassword = request->getPassword();
-            const char* newPassword = request->getNewPassword();
-            if(!oldPassword || !newPassword) { e = API_EARGS; break; }
-
-            byte pwkey[SymmCipher::KEYLENGTH];
-            byte newpwkey[SymmCipher::KEYLENGTH];
-            if((e = client->pw_key(oldPassword, pwkey))) { e = API_EARGS; break; }
-            if((e = client->pw_key(newPassword, newpwkey))) { e = API_EARGS; break; }
-            e = client->changepw(pwkey, newpwkey);
-            break;
-        }
-        case MegaRequest::TYPE_LOGOUT:
-        {
-            if(request->getFlag())
-            {
-                client->logout();
-            }
-            else
-            {
-                client->locallogout();
-                client->restag = nextTag;
-                logout_result(API_OK);
-            }
-            break;
-        }
-        case MegaRequest::TYPE_GET_ATTR_FILE:
-        {
-            const char* dstFilePath = request->getFile();
-            int type = request->getParamType();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-
-            if(!dstFilePath || !node) { e = API_EARGS; break; }
-
-            e = client->getfa(node, type);
-            if(e == API_EEXIST)
-            {
-                e = API_OK;
-                int prevtag = client->restag;
-                MegaRequestPrivate* req = NULL;
-                while(prevtag)
-                {
-                    if(requestMap.find(prevtag) == requestMap.end())
-                    {
-                        LOG_err << "Invalid duplicate getattr request";
-                        req = NULL;
-                        e = API_EINTERNAL;
-                        break;
-                    }
-
-                    req = requestMap.at(prevtag);
-                    if(!req || (req->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
-                    {
-                        LOG_err << "Invalid duplicate getattr type";
-                        req = NULL;
-                        e = API_EINTERNAL;
-                        break;
-                    }
-
-                    prevtag = req->getNumber();
-                }
-
-                if(req)
-                {
-                    LOG_debug << "Duplicate getattr detected";
-                    req->setNumber(request->getTag());
-                }
-            }
-            break;
-        }
-        case MegaRequest::TYPE_GET_ATTR_USER:
-        {
-            const char* dstFilePath = request->getFile();
-            int type = request->getParamType();
-            User *user = client->finduser(request->getEmail(), 0);
-
-            if(!dstFilePath || !user || (type != 0)) { e = API_EARGS; break; }
-
-            client->getua(user, "a", false);
-            break;
-        }
-        case MegaRequest::TYPE_SET_ATTR_USER:
-        {
-            const char* value = request->getFile();
-            int type = request->getParamType();
-
-            if (!value || type < 0)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            if(!type)
-            {
-                string path = value;
-                string localpath;
-                fsAccess->path2local(&path, &localpath);
-
-                string attributedata;
-                FileAccess *f = fsAccess->newfileaccess();
-                if (!f->fopen(&localpath, 1, 0))
-                {
-                    delete f;
-                    e = API_EREAD;
-                    break;
-                }
-
-                if (!f->fread(&attributedata, f->size, 0, 0))
-                {
-                    delete f;
-                    e = API_EREAD;
-                    break;
-                }
-                delete f;
-
-                client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
-            }
-            else
-            {
-                string attrname;
-                switch(type)
-                {
-                    case MegaApi::USER_ATTR_FIRSTNAME:
-                    {
-                        attrname = "firstname";
-                        break;
-                    }
-
-                    case MegaApi::USER_ATTR_LASTNAME:
-                    {
-                        attrname = "lastname";
-                        break;
-                    }
-
-                    default:
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-                }
-                if(!e)
-                {
-                    client->putua(attrname.c_str(), (byte *)value, strlen(value), 2);
-                }
-            }
-            break;
-        }
-        case MegaRequest::TYPE_SET_ATTR_FILE:
-        {
-            const char* srcFilePath = request->getFile();
-            int type = request->getParamType();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-
-            if(!srcFilePath || !node) { e = API_EARGS; break; }
-
-            string path = srcFilePath;
-            string localpath;
-            fsAccess->path2local(&path, &localpath);
-
-            string attributedata;
-            FileAccess *f = fsAccess->newfileaccess();
-            if (!f->fopen(&localpath, 1, 0))
-            {
-                delete f;
-                e = API_EREAD;
-                break;
-            }
-
-            if(!f->fread(&attributedata, f->size, 0, 0))
-            {
-                delete f;
-                e = API_EREAD;
-                break;
-            }
-            delete f;
-
-            client->putfa(node->nodehandle, type, node->nodecipher(), &attributedata);
-            break;
-        }
-        case MegaRequest::TYPE_CANCEL_ATTR_FILE:
-        {
-            int type = request->getParamType();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-
-            if (!node) { e = API_EARGS; break; }
-
-            e = client->getfa(node, type, 1);
-            if (!e)
-            {
-                std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
-                while(it != requestMap.end())
-                {
-                    MegaRequestPrivate *r = it->second;
-                    it++;
-                    if (r->getType() == MegaRequest::TYPE_GET_ATTR_FILE &&
-                        r->getParamType() == request->getParamType() &&
-                        r->getNodeHandle() == request->getNodeHandle())
-                    {
-                        fireOnRequestFinish(r, MegaError(API_EINCOMPLETE));
-                    }
-                }
-                fireOnRequestFinish(request, MegaError(e));
-            }
-            break;
-        }
-        case MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS:
-        {
-            bool disconnect = request->getFlag();
-            bool includexfers = request->getNumber();
-            client->abortbackoff(includexfers);
-            if(disconnect)
-            {
-#if (WINDOWS_PHONE || TARGET_OS_IPHONE)
-                string servers;
-                if(!servers.size())
-                {
-                    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-                    struct hostent *hp;
-                    struct in_addr **addr_list;
-
-                    while (true)
-                    {
-                        hp = gethostbyname("ns.mega.co.nz");
-                        if (hp != NULL && hp->h_addr != NULL)
-                        {
-                            addr_list = (struct in_addr **)hp->h_addr_list;
-                            for (int i = 0; addr_list[i] != NULL; i++)
-                            {
-                                const char *ip = inet_ntoa(*addr_list[i]);
-                                if (i > 0) servers.append(",");
-                                servers.append(ip);
-                            }
-
-                            if (servers.size())
-                                break;
-                        }
-#ifdef WINDOWS_PHONE
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
-                        sleep(1);
-#endif
-                    }
-
-                    LOG_debug << "Using MEGA DNS servers";
-                    httpio->setdnsservers(servers.c_str());
-                }
-#endif
-                client->disconnect();
-            }
-
-            fireOnRequestFinish(request, MegaError(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_ADD_CONTACT:
-        {
-            const char *email = request->getEmail();
-            if(!email) { e = API_EARGS; break; }
-            e = client->invite(email, VISIBLE);
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE_CONTACT:
-        {
-            const char *email = request->getEmail();
-            if(!email) { e = API_EARGS; break; }
-            e = client->invite(email, HIDDEN);
-            break;
-        }
-        case MegaRequest::TYPE_CREATE_ACCOUNT:
-        {
-            const char *email = request->getEmail();
-            const char *password = request->getPassword();
-            const char *name = request->getName();
-            const char *pwkey = request->getPrivateKey();
-
-            if(!email || !name || (!password && !pwkey))
-            {
-                e = API_EARGS; break;
-            }
-
-            requestMap.erase(request->getTag());
-            while(!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while(!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-                if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-            requestMap[request->getTag()]=request;
-
-            client->createephemeral();
-            break;
-        }
-        case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
-        case MegaRequest::TYPE_CONFIRM_ACCOUNT:
-        {
-            const char *link = request->getLink();
-            const char *password = request->getPassword();
-            const char *pwkey = request->getPrivateKey();
-
-            if(!link || (request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT && !password && !pwkey))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            const char* ptr = link;
-            const char* tptr;
-
-            if ((tptr = strstr(ptr,"#confirm"))) ptr = tptr+8;
-
-            unsigned len = (strlen(link)-(ptr-link))*3/4+4;
-            byte *c = new byte[len];
-            len = Base64::atob(ptr,c,len);
-            client->querysignuplink(c,len);
-            delete[] c;
-            break;
-        }
-        case MegaRequest::TYPE_PAUSE_TRANSFERS:
-        {
-            bool pause = request->getFlag();
-            int direction = request->getNumber();
-            if(direction != -1
-                    && direction != MegaTransfer::TYPE_DOWNLOAD
-                    && direction != MegaTransfer::TYPE_UPLOAD)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            if(pause)
-            {
-                if(!pausetime) pausetime = Waiter::ds;
-            }
-            else if(pausetime)
-            {
-                for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
-                {
-                    MegaTransfer *transfer = iter->second;
-                    if(!transfer)
-                        continue;
-
-                    m_time_t starttime = transfer->getStartTime();
-                    if(starttime)
-                    {
-                        m_time_t timepaused = Waiter::ds - pausetime;
-                        iter->second->setStartTime(starttime + timepaused);
-                    }
-                }
-                pausetime = 0;
-            }
-
-            if(direction == -1)
-            {
-                client->pausexfers(PUT, pause);
-                client->pausexfers(GET, pause);
-            }
-            else if(direction == MegaTransfer::TYPE_DOWNLOAD)
-            {
-                client->pausexfers(GET, pause);
-            }
-            else
-            {
-                client->pausexfers(PUT, pause);
-            }
-
-            fireOnRequestFinish(request, MegaError(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_CANCEL_TRANSFER:
-        {
-            int transferTag = request->getTransferTag();
-            if(transferMap.find(transferTag) == transferMap.end()) { e = API_ENOENT; break; };
-
-            MegaTransferPrivate* megaTransfer = transferMap.at(transferTag);
-            Transfer *transfer = megaTransfer->getTransfer();
-
-            #ifdef _WIN32
-                if(transfer->type==GET)
-                {
-                    transfer->localfilename.append("", 1);
-                    WIN32_FILE_ATTRIBUTE_DATA fad;
-                    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
-                        SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-                    transfer->localfilename.resize(transfer->localfilename.size()-1);
-                }
-            #endif
-
-            megaTransfer->setSyncTransfer(true);
-            megaTransfer->setLastErrorCode(API_EINCOMPLETE);
-
-            file_list files = transfer->files;
-            file_list::iterator iterator = files.begin();
-            while (iterator != files.end())
-            {
-                File *file = *iterator;
-                iterator++;
-                if(!file->syncxfer) client->stopxfer(file);
-            }
-            fireOnRequestFinish(request, MegaError(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_CANCEL_TRANSFERS:
-        {
-            int direction = request->getParamType();
-            if((direction != MegaTransfer::TYPE_DOWNLOAD) && (direction != MegaTransfer::TYPE_UPLOAD))
-                { e = API_EARGS; break; }
-
-            for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; )
-            {
-                Transfer *transfer = it->second;
-                if(transferMap.find(transfer->tag) != transferMap.end())
-                {
-                    MegaTransferPrivate* megaTransfer = transferMap.at(transfer->tag);
-                    megaTransfer->setSyncTransfer(true);
-                    megaTransfer->setLastErrorCode(API_EINCOMPLETE);
-                }
-
-                it++;
-
-                file_list files = transfer->files;
-                file_list::iterator iterator = files.begin();
-                while (iterator != files.end())
-                {
-                    File *file = *iterator;
-                    iterator++;
-                    if(!file->syncxfer) client->stopxfer(file);
-                }
-            }
-            fireOnRequestFinish(request, MegaError(API_OK));
-            break;
-        }
-#ifdef ENABLE_SYNC
-        case MegaRequest::TYPE_ADD_SYNC:
-        {
-            const char *localPath = request->getFile();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-            if(!node || (node->type==FILENODE) || !localPath)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            string utf8name(localPath);
-            string localname;
-            client->fsaccess->path2local(&utf8name, &localname);
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag);
-            if(!e)
-            {
-                MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
-                sync->setListener(request->getSyncListener());
-                syncMap[-nextTag] = sync;
-
-                request->setNumber(client->syncs.back()->fsfp);
-                fireOnRequestFinish(request, MegaError(API_OK));
-            }
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE_SYNCS:
-        {
-            sync_list::iterator it = client->syncs.begin();
-            while(it != client->syncs.end())
-            {
-                Sync *sync = (*it);
-                int tag = sync->tag;
-                it++;
-
-                client->delsync(sync);
-
-                if(syncMap.find(tag) == syncMap.end())
-                {
-                    MegaSyncPrivate *megaSync = syncMap.at(tag);
-                    syncMap.erase(tag);
-                    delete megaSync;
-                }
-            }
-            fireOnRequestFinish(request, MegaError(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE_SYNC:
-        {
-            handle nodehandle = request->getNodeHandle();
-            sync_list::iterator it = client->syncs.begin();
-            bool found = false;
-            while(it != client->syncs.end())
-            {
-                Sync *sync = (*it);
-                int tag = sync->tag;
-                if(!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
-                {
-                    string path;
-                    fsAccess->local2path(&sync->localroot.localname, &path);
-                    request->setFile(path.c_str());
-                    client->delsync(sync, request->getFlag());
-
-                    if(syncMap.find(tag) == syncMap.end())
-                    {
-                        MegaSyncPrivate *megaSync = syncMap.at(tag);
-                        syncMap.erase(tag);
-                        delete megaSync;
-                    }
-
-                    fireOnRequestFinish(request, MegaError(API_OK));
-                    found = true;
-                    break;
-                }
-                it++;
-            }
-
-            if(!found) e = API_ENOENT;
-            break;
-        }
-#endif
-        case MegaRequest::TYPE_REPORT_EVENT:
-        {
-            int evtType = request->getParamType();
-            const char *details = request->getText();
-            int number = request->getNumber();
-
-            if(evtType < 0 || evtType >= MegaApi::EVENT_INVALID)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            string event;
-            switch(evtType)
-            {
-                case MegaApi::EVENT_FEEDBACK:
-                    event = "F";
-                    if(number < 1 || number > 5)
-                        e = API_EARGS;
-                    else
-                        event.append(1, '0'+number);
-                    break;
-                case MegaApi::EVENT_DEBUG:
-                    event = "A"; //Application event
-                    break;
-                default:
-                    e = API_EINTERNAL;
-            }
-
-            if(!e)
-                client->reportevent(event.c_str(), details);
-            break;
-        }
-        case MegaRequest::TYPE_DELETE:
-        {
-            threadExit = 1;
-            break;
-        }
-        case MegaRequest::TYPE_GET_PRICING:
-        case MegaRequest::TYPE_GET_PAYMENT_ID:
-        {
-            client->purchase_enumeratequotaitems();
-            break;
-        }
-        case MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT:
-        {
-            const char* receipt = request->getText();
-            int type = request->getNumber();
-
-            if(!receipt)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->submitpurchasereceipt(type, receipt);
-            break;
-        }
-        case MegaRequest::TYPE_GET_USER_DATA:
-        {
-            const char *email = request->getEmail();
-            if(request->getFlag() && !email)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            if(!request->getFlag())
-            {
-                client->getuserdata();
-            }
-            else
-            {
-                client->getpubkey(email);
-            }
-
-            break;
-        }
-        case MegaRequest::TYPE_GET_USER_ATTRIBUTE: {
-
-            const char *u = request->getEmail();
-            const char *at = request->getAttributeName();
-            client->getuserattribute(u, at);
-
-            break;
-        }
-        case MegaRequest::TYPE_SET_USER_ATTRIBUTE: {
-            const char *u = request->getEmail();
-            const char *an = request->getAttributeName();
-            ValueMap map = request->getAttributeMap();
-            int priv = request->getAttributeVis();
-            int nonhistoric = request->getFlag();
-            client->setuserattribute(u, an, map, priv, nonhistoric);
-
-            break;
-        }
-        case MegaRequest::TYPE_GET_SIGNING_KEYS: {
-            client->getownsigningkeys(false);
-            break;
-        }
-        case MegaRequest::TYPE_LOAD_BALANCING:
-        {
-            const char* service = request->getName();
-            if(!service)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->loadbalancing(service);
-            break;
-        }
-        case MegaRequest::TYPE_GET_STATIC_PUB_KEY : {
-            const char *u = request->getEmail();
-            client->getPublicStaticKey(u);
-            break;
-        }
-        case MegaRequest::TYPE_KILL_SESSION:
-        {
-            MegaHandle handle = request->getNodeHandle();
-            if (handle == INVALID_HANDLE)
-            {
-                client->killallsessions();
-            }
-            else
-            {
-                client->killsession(handle);
-            }
-            break;
-        }
-        default:
+        auto f = requestCallMap.find(request->getType());
+        if(f == requestCallMap.end())
         {
             e = API_EINTERNAL;
         }
-        }
+
+        e = (this->*(f->second))(request);
 
         if(e)
         {
@@ -7570,6 +6609,1059 @@ void MegaApiImpl::sendPendingRequests()
     }
 }
 
+//////////////////////////
+error MegaApiImpl::requestLogin(MegaRequestPrivate *request) {
+    const char *login = request->getEmail();
+    const char *password = request->getPassword();
+    const char* megaFolderLink = request->getLink();
+    const char* base64pwkey = request->getPrivateKey();
+    const char* sessionKey = request->getSessionKey();
+
+    error e = API_OK;
+
+    if(!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
+    {
+        return API_EARGS;
+    }
+
+    string slogin;
+    if(login)
+    {
+        slogin = login;
+        slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
+        slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), slogin.end());
+    }
+
+    requestMap.erase(request->getTag());
+    while(!requestMap.empty())
+    {
+        std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+        if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+    }
+
+    while(!transferMap.empty())
+    {
+        std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+        if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+    }
+    requestMap[request->getTag()]=request;
+
+    if(sessionKey)
+    {
+        byte session[sizeof client->key.key + MegaClient::SIDLEN];
+        Base64::atob(sessionKey, (byte *)session, sizeof session);
+        client->login(session, sizeof session);
+    }
+    else if(login && base64pwkey)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
+
+        if(password)
+        {
+            uint64_t emailhash;
+            Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
+            client->fastlogin(slogin.c_str(), pwkey, emailhash);
+        }
+        else
+        {
+            client->login(slogin.c_str(), pwkey);
+        }
+    }
+    else if(login && password)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        if((e = client->pw_key(password,pwkey))) return e;
+        client->login(slogin.c_str(), pwkey);
+    }
+    else
+    {
+        const char* ptr;
+        if (!((ptr = strstr(megaFolderLink,"#F!")) && (strlen(ptr)>12) && ptr[11] == '!'))
+        {
+            return API_EARGS;
+        }
+        e = client->folderaccess(ptr+3,ptr+12);
+        if(e == API_OK)
+        {
+            fireOnRequestFinish(request, MegaError(e));
+        }
+    }
+
+    return e;
+}
+
+error MegaApiImpl::requestCreateFolder(MegaRequestPrivate *request)
+{
+    Node *parent = client->nodebyhandle(request->getParentHandle());
+    const char *name = request->getName();
+    if(!name || !parent) { return API_EARGS; }
+
+    NewNode *newnode = new NewNode[1];
+    SymmCipher key;
+    string attrstring;
+    byte buf[FOLDERNODEKEYLENGTH];
+
+    // set up new node as folder node
+    newnode->source = NEW_NODE;
+    newnode->type = FOLDERNODE;
+    newnode->nodehandle = 0;
+    newnode->parenthandle = UNDEF;
+
+    // generate fresh random key for this folder node
+    PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
+    newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+    key.setkey(buf);
+
+    // generate fresh attribute object with the folder name
+    AttrMap attrs;
+    string sname = name;
+    fsAccess->normalize(&sname);
+    attrs.map['n'] = sname;
+
+    // JSON-encode object and encrypt attribute string
+    attrs.getjson(&attrstring);
+    newnode->attrstring = new string;
+    client->makeattr(&key,newnode->attrstring,attrstring.c_str());
+
+    // add the newly generated folder node
+    client->putnodes(parent->nodehandle,newnode,1);
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestMove(MegaRequestPrivate *request)
+{
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+    Node *newParent = client->nodebyhandle(request->getParentHandle());
+    error e = API_OK;
+    if(!node || !newParent) { return API_EARGS; }
+
+    if(node->parent == newParent)
+    {
+        fireOnRequestFinish(request, MegaError(API_OK));
+        return e;
+    }
+    if((e = client->checkmove(node,newParent))) return e;
+
+    return client->rename(node, newParent);
+}
+
+error MegaApiImpl::requestCopy(MegaRequestPrivate *request)
+{
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+    Node *target = client->nodebyhandle(request->getParentHandle());
+    const char* email = request->getEmail();
+    MegaNode *publicNode = request->getPublicNode();
+    const char *newName = request->getName();
+
+    if((!node && !publicNode) || (!target && !email)) { return API_EARGS; }
+
+    if(publicNode)
+    {
+        NewNode *newnode = new NewNode[1];
+        newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
+        newnode->attrstring = new string;
+        newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+        newnode->nodehandle = publicNode->getHandle();
+        newnode->source = NEW_PUBLIC;
+        newnode->type = FILENODE;
+        newnode->parenthandle = UNDEF;
+
+        if(target)
+        {
+            client->putnodes(target->nodehandle,newnode, 1);
+        }
+        else
+        {
+            client->putnodes(email, newnode, 1);
+        }
+    }
+    else
+    {
+        unsigned nc;
+        TreeProcCopy tc;
+
+        // determine number of nodes to be copied
+        client->proctree(node,&tc);
+        tc.allocnodes();
+        nc = tc.nc;
+
+        // build new nodes array
+        client->proctree(node,&tc);
+        if (!nc)
+        {
+            return API_EARGS;
+        }
+
+        tc.nn->parenthandle = UNDEF;
+
+        if(nc == 1 && newName && tc.nn[0].nodekey.size())
+        {
+            SymmCipher key;
+            AttrMap attrs;
+            string attrstring;
+
+            key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+            attrs = node->attrs;
+
+            string sname = newName;
+            fsAccess->normalize(&sname);
+            attrs.map['n'] = sname;
+
+            attrs.getjson(&attrstring);
+            client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
+        }
+
+        if (target)
+        {
+            client->putnodes(target->nodehandle,tc.nn,nc);
+        }
+        else
+        {
+            client->putnodes(email, tc.nn, nc);
+        }
+    }
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestRename(MegaRequestPrivate *request)
+{
+    Node* node = client->nodebyhandle(request->getNodeHandle());
+    const char* newName = request->getName();
+    if(!node || !newName) { return API_EARGS; }
+
+    if (!client->checkaccess(node,FULL)) { return API_EACCESS; }
+
+    string sname = newName;
+    fsAccess->normalize(&sname);
+    node->attrs.map['n'] = sname;
+    return  client->setattr(node);
+}
+
+error MegaApiImpl::requestRemove(MegaRequestPrivate *request)
+{
+    Node* node = client->nodebyhandle(request->getNodeHandle());
+    if(!node) { return API_EARGS; }
+
+    return client->unlink(node);
+}
+
+error MegaApiImpl::requestShare(MegaRequestPrivate *request)
+{
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+    const char* email = request->getEmail();
+    int access = request->getAccess();
+    if(!node || !email || !strchr(email, '@'))
+    {
+        return API_EARGS;
+    }
+    error e = API_OK;
+    accesslevel_t a;
+    switch(access)
+    {
+        case MegaShare::ACCESS_UNKNOWN:
+            a = ACCESS_UNKNOWN;
+            break;
+        case MegaShare::ACCESS_READ:
+            a = RDONLY;
+            break;
+        case MegaShare::ACCESS_READWRITE:
+            a = RDWR;
+            break;
+        case MegaShare::ACCESS_FULL:
+            a = FULL;
+            break;
+        case MegaShare::ACCESS_OWNER:
+            a = OWNER;
+            break;
+        default:
+            e = API_EARGS;
+    }
+
+    if(e == API_OK)
+        client->setshare(node, email, a);
+
+    return e;
+}
+
+error MegaApiImpl::requestGetPublicNode(MegaRequestPrivate *request)
+{
+    Node *node = client->nodebyhandle(request->getParentHandle());
+    const char* megaFileLink = request->getLink();
+    if(!megaFileLink) { return API_EARGS; }
+    if((request->getType()==MegaRequest::TYPE_IMPORT_LINK) && (!node))
+    {
+        return API_EARGS;
+    }
+
+    return client->openfilelink(megaFileLink, 1);
+}
+
+error MegaApiImpl::requestExport(MegaRequestPrivate *request)
+{
+    Node* node = client->nodebyhandle(request->getNodeHandle());
+    if(!node) { return  API_EARGS; }
+
+    return client->exportnode(node, !request->getAccess());
+}
+
+error MegaApiImpl::requestFetchNodes(MegaRequestPrivate *request)
+{
+    client->fetchnodes();
+    return API_OK;
+}
+
+error MegaApiImpl::requestAccountDetails(MegaRequestPrivate *request)
+{
+    int numDetails = request->getNumDetails();
+    bool storage = (numDetails & 0x01) != 0;
+    bool transfer = (numDetails & 0x02) != 0;
+    bool pro = (numDetails & 0x04) != 0;
+    bool transactions = (numDetails & 0x08) != 0;
+    bool purchases = (numDetails & 0x10) != 0;
+    bool sessions = (numDetails & 0x20) != 0;
+
+    numDetails = 1;
+    if(transactions) numDetails++;
+    if(purchases) numDetails++;
+    if(sessions) numDetails++;
+
+    request->setNumDetails(numDetails);
+
+    client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestChangePw(MegaRequestPrivate *request)
+{
+    const char* oldPassword = request->getPassword();
+    const char* newPassword = request->getNewPassword();
+    if(!oldPassword || !newPassword) { return API_EARGS;}
+
+    byte pwkey[SymmCipher::KEYLENGTH];
+    byte newpwkey[SymmCipher::KEYLENGTH];
+    if(client->pw_key(oldPassword, pwkey)) { return API_EARGS; }
+    if(client->pw_key(newPassword, newpwkey)) { return API_EARGS; }
+
+    return client->changepw(pwkey, newpwkey);
+}
+
+error MegaApiImpl::requestLogout(MegaRequestPrivate *request)
+{
+    if(request->getFlag())
+    {
+       client->logout();
+    }
+    else
+    {
+       client->locallogout();
+       client->restag = request->getTag();
+       logout_result(API_OK);
+    }
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestGetAttrFile(MegaRequestPrivate *request)
+{
+    const char* dstFilePath = request->getFile();
+    int type = request->getParamType();
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+
+    if(!dstFilePath || !node) { return API_EARGS; }
+
+    error e = API_OK;
+    e = client->getfa(node, type);
+    if(e == API_EEXIST)
+    {
+        e = API_OK;
+        int prevtag = client->restag;
+        MegaRequestPrivate* req = NULL;
+        while(prevtag)
+        {
+           if(requestMap.find(prevtag) == requestMap.end())
+           {
+               LOG_err << "Invalid duplicate getattr request";
+               req = NULL;
+               return API_EINTERNAL;
+           }
+
+           req = requestMap.at(prevtag);
+           if(!req || (req->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
+           {
+               LOG_err << "Invalid duplicate getattr type";
+               req = NULL;
+               return API_EINTERNAL;
+           }
+
+           prevtag = req->getNumber();
+        }
+
+        if(req)
+        {
+           LOG_debug << "Duplicate getattr detected";
+           req->setNumber(request->getTag());
+        }
+    }
+
+    return e;
+}
+
+error MegaApiImpl::requestGetAttrUser(MegaRequestPrivate *request)
+{
+    const char* dstFilePath = request->getFile();
+    int type = request->getParamType();
+    User *user = client->finduser(request->getEmail(), 0);
+
+    if(!dstFilePath || !user || (type != 0)) { return API_EARGS; }
+
+    client->getua(user, "a", false);
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestSetAttrUser(MegaRequestPrivate *request)
+{
+    const char* value = request->getFile();
+    int type = request->getParamType();
+    error e = API_OK;
+    if (!value || type < 0)
+    {
+        return API_EARGS;
+    }
+
+    if(!type)
+    {
+        string path = value;
+        string localpath;
+        fsAccess->path2local(&path, &localpath);
+
+        string attributedata;
+        FileAccess *f = fsAccess->newfileaccess();
+        if (!f->fopen(&localpath, 1, 0))
+        {
+            delete f;
+            return API_EREAD;
+        }
+
+        if (!f->fread(&attributedata, f->size, 0, 0))
+        {
+            delete f;
+            return API_EREAD;
+        }
+        delete f;
+
+        client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
+    }
+    else
+    {
+        string attrname;
+        switch(type)
+        {
+            case MegaApi::USER_ATTR_FIRSTNAME:
+            {
+                attrname = "firstname";
+                break;
+            }
+
+            case MegaApi::USER_ATTR_LASTNAME:
+            {
+                attrname = "lastname";
+                break;
+            }
+
+            default:
+            {
+                e = API_EARGS;
+                break;
+            }
+        }
+        if(!e)
+        {
+            client->putua(attrname.c_str(), (byte *)value, strlen(value), 2);
+        }
+    }
+
+    return e;
+}
+
+error MegaApiImpl::requestSetAttrFile(MegaRequestPrivate *request)
+{
+    const char* srcFilePath = request->getFile();
+    int type = request->getParamType();
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+
+    if(!srcFilePath || !node) { return API_EARGS; }
+
+    string path = srcFilePath;
+    string localpath;
+    fsAccess->path2local(&path, &localpath);
+
+    string attributedata;
+    FileAccess *f = fsAccess->newfileaccess();
+    if (!f->fopen(&localpath, 1, 0))
+    {
+        delete f;
+        return API_EREAD;
+    }
+
+    if(!f->fread(&attributedata, f->size, 0, 0))
+    {
+        delete f;
+        return API_EREAD;
+    }
+    delete f;
+
+    client->putfa(node->nodehandle, type, node->nodecipher(), &attributedata);
+
+}
+
+error MegaApiImpl::requestCancelAttrFile(MegaRequestPrivate *request)
+{
+    int type = request->getParamType();
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+
+    if (!node) { return API_EARGS; }
+
+    error e = client->getfa(node, type, 1);
+    if (!e)
+    {
+        std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
+        while(it != requestMap.end())
+        {
+            MegaRequestPrivate *r = it->second;
+            it++;
+            if (r->getType() == MegaRequest::TYPE_GET_ATTR_FILE &&
+                r->getParamType() == request->getParamType() &&
+                r->getNodeHandle() == request->getNodeHandle())
+            {
+                fireOnRequestFinish(r, MegaError(API_EINCOMPLETE));
+            }
+        }
+        fireOnRequestFinish(request, MegaError(e));
+    }
+
+    return e;
+}
+
+error MegaApiImpl::requestRetryPendingConn(MegaRequestPrivate *request)
+{
+    bool disconnect = request->getFlag();
+     bool includexfers = request->getNumber();
+     client->abortbackoff(includexfers);
+     if(disconnect)
+     {
+#if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+         string servers;
+         if(!servers.size())
+         {
+             // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
+             struct hostent *hp;
+             struct in_addr **addr_list;
+
+             while (true)
+             {
+                 hp = gethostbyname("ns.mega.co.nz");
+                 if (hp != NULL && hp->h_addr != NULL)
+                 {
+                     addr_list = (struct in_addr **)hp->h_addr_list;
+                     for (int i = 0; addr_list[i] != NULL; i++)
+                     {
+                         const char *ip = inet_ntoa(*addr_list[i]);
+                         if (i > 0) servers.append(",");
+                         servers.append(ip);
+                     }
+
+                     if (servers.size())
+                         break;
+                 }
+#ifdef WINDOWS_PHONE
+                 std::this_thread::sleep_for(std::chrono::seconds(1));
+#else
+                 sleep(1);
+#endif
+             }
+
+             LOG_debug << "Using MEGA DNS servers";
+             httpio->setdnsservers(servers.c_str());
+         }
+#endif
+         client->disconnect();
+     }
+
+     fireOnRequestFinish(request, MegaError(API_OK));
+
+     return API_OK;
+}
+
+error MegaApiImpl::requestAddContact(MegaRequestPrivate *request)
+{
+    const char *email = request->getEmail();
+    if(!email) { return API_EARGS; }
+    return client->invite(email, VISIBLE);
+}
+
+error MegaApiImpl::requestRemoveContact(MegaRequestPrivate *request)
+{
+    const char *email = request->getEmail();
+    if(!email) { return API_EARGS; }
+    return client->invite(email, HIDDEN);
+
+}
+
+error MegaApiImpl::requestCreateAccount(MegaRequestPrivate *request)
+{
+    const char *email = request->getEmail();
+    const char *password = request->getPassword();
+    const char *name = request->getName();
+    const char *pwkey = request->getPrivateKey();
+
+    if(!email || !name || (!password && !pwkey))
+    {
+        return API_EARGS;
+    }
+
+    requestMap.erase(request->getTag());
+    while(!requestMap.empty())
+    {
+        std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+        if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+    }
+
+    while(!transferMap.empty())
+    {
+        std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
+        if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+    }
+    requestMap[request->getTag()]=request;
+
+    client->createephemeral();
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestConfirmAccount(MegaRequestPrivate *request)
+{
+    const char *link = request->getLink();
+    const char *password = request->getPassword();
+    const char *pwkey = request->getPrivateKey();
+
+    if(!link || (request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT && !password && !pwkey))
+    {
+      return API_EARGS;
+    }
+
+    const char* ptr = link;
+    const char* tptr;
+
+    if ((tptr = strstr(ptr,"#confirm"))) ptr = tptr+8;
+
+    unsigned len = (strlen(link)-(ptr-link))*3/4+4;
+    byte *c = new byte[len];
+    len = Base64::atob(ptr,c,len);
+    client->querysignuplink(c,len);
+    delete[] c;
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestPauseTransfers(MegaRequestPrivate *request)
+{
+    bool pause = request->getFlag();
+    int direction = request->getNumber();
+    if(direction != -1
+            && direction != MegaTransfer::TYPE_DOWNLOAD
+            && direction != MegaTransfer::TYPE_UPLOAD)
+    {
+        return API_EARGS;
+    }
+
+    if(pause)
+    {
+        if(!pausetime) pausetime = Waiter::ds;
+    }
+    else if(pausetime)
+    {
+        for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
+        {
+            MegaTransfer *transfer = iter->second;
+            if(!transfer)
+                continue;
+
+            m_time_t starttime = transfer->getStartTime();
+            if(starttime)
+            {
+                m_time_t timepaused = Waiter::ds - pausetime;
+                iter->second->setStartTime(starttime + timepaused);
+            }
+        }
+        pausetime = 0;
+    }
+
+    if(direction == -1)
+    {
+        client->pausexfers(PUT, pause);
+        client->pausexfers(GET, pause);
+    }
+    else if(direction == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        client->pausexfers(GET, pause);
+    }
+    else
+    {
+        client->pausexfers(PUT, pause);
+    }
+
+    fireOnRequestFinish(request, MegaError(API_OK));
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestCancelTransfer(MegaRequestPrivate *request)
+{
+    int transferTag = request->getTransferTag();
+    if(transferMap.find(transferTag) == transferMap.end()) { return API_ENOENT; };
+
+    MegaTransferPrivate* megaTransfer = transferMap.at(transferTag);
+    Transfer *transfer = megaTransfer->getTransfer();
+
+    #ifdef _WIN32
+     if(transfer->type==GET)
+     {
+         transfer->localfilename.append("", 1);
+         WIN32_FILE_ATTRIBUTE_DATA fad;
+         if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
+             SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+         transfer->localfilename.resize(transfer->localfilename.size()-1);
+     }
+    #endif
+
+    megaTransfer->setSyncTransfer(true);
+    megaTransfer->setLastErrorCode(API_EINCOMPLETE);
+
+    file_list files = transfer->files;
+    file_list::iterator iterator = files.begin();
+    while (iterator != files.end())
+    {
+     File *file = *iterator;
+     iterator++;
+     if(!file->syncxfer) client->stopxfer(file);
+    }
+    fireOnRequestFinish(request, MegaError(API_OK));
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestCancelTransfers(MegaRequestPrivate *request)
+{
+    int direction = request->getParamType();
+    if((direction != MegaTransfer::TYPE_DOWNLOAD) && (direction != MegaTransfer::TYPE_UPLOAD))
+       { return API_EARGS; }
+
+    for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; )
+    {
+       Transfer *transfer = it->second;
+       if(transferMap.find(transfer->tag) != transferMap.end())
+       {
+           MegaTransferPrivate* megaTransfer = transferMap.at(transfer->tag);
+           megaTransfer->setSyncTransfer(true);
+           megaTransfer->setLastErrorCode(API_EINCOMPLETE);
+       }
+
+       it++;
+
+       file_list files = transfer->files;
+       file_list::iterator iterator = files.begin();
+       while (iterator != files.end())
+       {
+           File *file = *iterator;
+           iterator++;
+           if(!file->syncxfer) client->stopxfer(file);
+       }
+    }
+    fireOnRequestFinish(request, MegaError(API_OK));
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestAddSync(MegaRequestPrivate *request)
+{
+    const char *localPath = request->getFile();
+     Node *node = client->nodebyhandle(request->getNodeHandle());
+     if(!node || (node->type==FILENODE) || !localPath)
+     {
+         return API_EARGS;
+     }
+
+     string utf8name(localPath);
+     string localname;
+     client->fsaccess->path2local(&utf8name, &localname);
+     error e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -(request->getTag()));
+     if(!e)
+     {
+         MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
+         sync->setListener(request->getSyncListener());
+         syncMap[-(request->getTag())] = sync;
+
+         request->setNumber(client->syncs.back()->fsfp);
+         fireOnRequestFinish(request, MegaError(API_OK));
+     }
+
+     return e;
+}
+
+error MegaApiImpl::requestRemoveSyncs(MegaRequestPrivate *request)
+{
+    sync_list::iterator it = client->syncs.begin();
+    while(it != client->syncs.end())
+    {
+        Sync *sync = (*it);
+        int tag = sync->tag;
+        it++;
+
+        client->delsync(sync);
+
+        if(syncMap.find(tag) == syncMap.end())
+        {
+            MegaSyncPrivate *megaSync = syncMap.at(tag);
+            syncMap.erase(tag);
+            delete megaSync;
+        }
+    }
+    fireOnRequestFinish(request, MegaError(API_OK));
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestRemoveSync(MegaRequestPrivate *request)
+{
+    handle nodehandle = request->getNodeHandle();
+    sync_list::iterator it = client->syncs.begin();
+    bool found = false;
+    while(it != client->syncs.end())
+    {
+        Sync *sync = (*it);
+        int tag = sync->tag;
+        if(!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
+        {
+            string path;
+            fsAccess->local2path(&sync->localroot.localname, &path);
+            request->setFile(path.c_str());
+            client->delsync(sync, request->getFlag());
+
+            if(syncMap.find(tag) == syncMap.end())
+            {
+                MegaSyncPrivate *megaSync = syncMap.at(tag);
+                syncMap.erase(tag);
+                delete megaSync;
+            }
+
+            fireOnRequestFinish(request, MegaError(API_OK));
+            found = true;
+            break;
+        }
+        it++;
+    }
+
+    if(!found) return API_ENOENT;
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestReportEvent(MegaRequestPrivate *request)
+{
+    int evtType = request->getParamType();
+    const char *details = request->getText();
+    int number = request->getNumber();
+
+    if(evtType < 0 || evtType >= MegaApi::EVENT_INVALID)
+    {
+        return API_EARGS;
+    }
+    error e = API_OK;
+    string event;
+    switch(evtType)
+    {
+        case MegaApi::EVENT_FEEDBACK:
+            event = "F";
+            if(number < 1 || number > 5)
+                e = API_EARGS;
+            else
+                event.append(1, '0'+number);
+            break;
+        case MegaApi::EVENT_DEBUG:
+            event = "A"; //Application event
+            break;
+        default:
+            e = API_EINTERNAL;
+    }
+
+    if(!e)
+        client->reportevent(event.c_str(), details);
+
+    return e;
+}
+
+error MegaApiImpl::requestDelete(MegaRequestPrivate *request)
+{
+    threadExit = 1;
+    return API_OK;
+}
+
+error MegaApiImpl::requestGetPaymentId(MegaRequestPrivate *request)
+{
+    client->purchase_enumeratequotaitems();
+    return API_OK;
+}
+
+error MegaApiImpl::requestSubmitPurchaseReceipt(MegaRequestPrivate *request)
+{
+    const char* receipt = request->getText();
+    int type = request->getNumber();
+
+    if(!receipt)
+    {
+        return API_EARGS;
+    }
+
+    client->submitpurchasereceipt(type, receipt);
+}
+
+error MegaApiImpl::requestGetUserData(MegaRequestPrivate *request)
+{
+    const char *email = request->getEmail();
+    if(request->getFlag() && !email)
+    {
+        return API_EARGS;
+    }
+
+    if(!request->getFlag())
+    {
+        client->getuserdata();
+    }
+    else
+    {
+        client->getpubkey(email);
+    }
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestGetUserAttribute(MegaRequestPrivate *request)
+{
+    const char *u = request->getEmail();
+    const char *at = request->getAttributeName();
+    client->getuserattribute(u, at);
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestSetUserAttribute(MegaRequestPrivate *request)
+{
+    const char *u = request->getEmail();
+    const char *an = request->getAttributeName();
+    ValueMap map = request->getAttributeMap();
+    int priv = request->getAttributeVis();
+    int nonhistoric = request->getFlag();
+    client->setuserattribute(u, an, map, priv, nonhistoric);
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestGetSigningKeys(MegaRequestPrivate *request)
+{
+    client->getownsigningkeys(false);
+    return API_OK;
+}
+
+error MegaApiImpl::requestLoadBalancing(MegaRequestPrivate *request)
+{
+    const char* service = request->getName();
+    if(!service)
+    {
+        return API_EARGS;
+    }
+
+    client->loadbalancing(service);
+    return API_OK;
+}
+
+error MegaApiImpl::requestGetStaticPublicKey(MegaRequestPrivate *request)
+{
+    const char *u = request->getEmail();
+    client->getPublicStaticKey(u);
+
+    return API_OK;
+}
+
+error MegaApiImpl::requestKillSession(MegaRequestPrivate *request)
+{
+    MegaHandle handle = request->getNodeHandle();
+    if (handle == INVALID_HANDLE)
+    {
+        client->killallsessions();
+    }
+    else
+    {
+        client->killsession(handle);
+    }
+
+    return API_OK;
+}
+
+std::map<int, error (MegaApiImpl::*)(MegaRequestPrivate*)> MegaApiImpl::requestCallMap =
+{
+        { MegaRequest::TYPE_LOGIN, &MegaApiImpl::requestLogin },
+        { MegaRequest::TYPE_CREATE_FOLDER, &MegaApiImpl::requestCreateFolder },
+        { MegaRequest::TYPE_MOVE, &MegaApiImpl::requestMove },
+        { MegaRequest::TYPE_COPY, &MegaApiImpl::requestCopy },
+        { MegaRequest::TYPE_RENAME, &MegaApiImpl::requestRename },
+        { MegaRequest::TYPE_REMOVE, &MegaApiImpl::requestRemove },
+        { MegaRequest::TYPE_SHARE, &MegaApiImpl::requestShare },
+        { MegaRequest::TYPE_IMPORT_LINK, &MegaApiImpl::requestGetPublicNode },
+        { MegaRequest::TYPE_GET_PUBLIC_NODE, &MegaApiImpl::requestGetPublicNode },
+        { MegaRequest::TYPE_EXPORT, &MegaApiImpl::requestExport },
+        { MegaRequest::TYPE_FETCH_NODES, &MegaApiImpl::requestFetchNodes },
+        { MegaRequest::TYPE_ACCOUNT_DETAILS, &MegaApiImpl::requestAccountDetails },
+        { MegaRequest::TYPE_CHANGE_PW, &MegaApiImpl::requestChangePw },
+        { MegaRequest::TYPE_LOGOUT, &MegaApiImpl::requestLogout },
+        { MegaRequest::TYPE_GET_ATTR_FILE, &MegaApiImpl::requestGetAttrFile },
+        { MegaRequest::TYPE_GET_ATTR_USER, &MegaApiImpl::requestGetAttrUser },
+        { MegaRequest::TYPE_SET_ATTR_USER, &MegaApiImpl::requestSetAttrUser },
+        { MegaRequest::TYPE_SET_ATTR_FILE, &MegaApiImpl::requestSetAttrFile },
+        { MegaRequest::TYPE_CANCEL_ATTR_FILE, &MegaApiImpl::requestCancelAttrFile },
+        { MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS, &MegaApiImpl::requestRetryPendingConn },
+        { MegaRequest::TYPE_ADD_CONTACT, &MegaApiImpl::requestAddContact },
+        { MegaRequest::TYPE_REMOVE_CONTACT, &MegaApiImpl::requestRemoveContact },
+        { MegaRequest::TYPE_CREATE_ACCOUNT, &MegaApiImpl::requestCreateAccount },
+        { MegaRequest::TYPE_QUERY_SIGNUP_LINK, &MegaApiImpl::requestConfirmAccount },
+        { MegaRequest::TYPE_CONFIRM_ACCOUNT, &MegaApiImpl::requestConfirmAccount },
+        { MegaRequest::TYPE_PAUSE_TRANSFERS, &MegaApiImpl::requestPauseTransfers },
+        { MegaRequest::TYPE_CANCEL_TRANSFER, &MegaApiImpl::requestCancelTransfer },
+        { MegaRequest::TYPE_CANCEL_TRANSFERS, &MegaApiImpl::requestCancelTransfers },
+#ifdef ENABLE_SYNC
+        { MegaRequest::TYPE_ADD_SYNC, &MegaApiImpl::requestAddSync },
+        { MegaRequest::TYPE_REMOVE_SYNCS, &MegaApiImpl::requestRemoveSyncs },
+        { MegaRequest::TYPE_REMOVE_SYNC, &MegaApiImpl::requestRemoveSync },
+#endif
+        { MegaRequest::TYPE_REPORT_EVENT, &MegaApiImpl::requestReportEvent },
+        { MegaRequest::TYPE_DELETE, &MegaApiImpl::requestDelete },
+        { MegaRequest::TYPE_GET_PRICING, &MegaApiImpl::requestGetPaymentId },
+        { MegaRequest::TYPE_GET_PAYMENT_ID, &MegaApiImpl::requestGetPaymentId },
+        { MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, &MegaApiImpl::requestSubmitPurchaseReceipt },
+        { MegaRequest::TYPE_GET_USER_DATA, &MegaApiImpl::requestGetUserData },
+        { MegaRequest::TYPE_GET_USER_ATTRIBUTE, &MegaApiImpl::requestGetUserAttribute },
+        { MegaRequest::TYPE_SET_USER_ATTRIBUTE, &MegaApiImpl::requestSetUserAttribute },
+        { MegaRequest::TYPE_GET_SIGNING_KEYS, &MegaApiImpl::requestGetSigningKeys },
+        { MegaRequest::TYPE_LOAD_BALANCING, &MegaApiImpl::requestLoadBalancing },
+        { MegaRequest::TYPE_GET_STATIC_PUB_KEY, &MegaApiImpl::requestGetStaticPublicKey },
+        { MegaRequest::TYPE_KILL_SESSION, &MegaApiImpl::requestKillSession },
+};
+
+//////////////////////////
 char* MegaApiImpl::stringToArray(string &buffer) {
     char *newbuffer = new char[buffer.size() + 1];
     memcpy(newbuffer, buffer.data(), buffer.size());

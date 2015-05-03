@@ -25,9 +25,6 @@
 #include <sodium.h>
 #endif
 
-#include <chrono>
-#include <future>
-
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -54,7 +51,8 @@ const char* const MegaClient::EXPORTEDLINK = "EXP";
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc,
-        int type, handle node) {
+        int type, handle node)
+{
     int sl;
     const char* ptr = sk;
 
@@ -106,10 +104,12 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc,
 }
 
 // apply queued new shares
-void MegaClient::mergenewshares(bool notify) {
+void MegaClient::mergenewshares(bool notify)
+{
     newshare_list::iterator it;
 
-    for (it = newshares.begin(); it != newshares.end();) {
+    for (it = newshares.begin(); it != newshares.end();)
+    {
         Node* n;
         NewShare* s = *it;
 
@@ -3781,7 +3781,7 @@ void MegaClient::getownsigningkeys(bool reset) {
                 keyPair.first.size());
         SharedBuffer prBuff = SharedBuffer(keyPair.second.get(),
                 keyPair.second.size());
-        map->insert( { "puEd255", puBuff });
+        map->insert( { "", puBuff });
         map->insert( { "prEd255", prBuff });
         restag = reqtag;
         app->getguattr_result(map, API_OK);
@@ -3913,22 +3913,21 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback) {
 
         // Get the public key for 'this' user.
             reqs[r].add(new CommandPubKeyRequest(this, u,
-                            [finalFunc, fVec, this, priMap, u](handle hd, byte *kBytes, int keyLen) mutable
-                            {
-                                SharedBuffer sigBuff = signRSAKey(u->pubk.getPublicKeyBytes());
-                                delete u;
-                                if(sigBuff.get() == nullptr)
-                                {
-                                    finalFunc(priMap, API_EINTERNAL);
-                                    return;
-                                }
-                                // signedRSA = authRSA
-                                ValueMap sigMap(new std::map<std::string, SharedBuffer>);
-                                sigMap->insert( {"sgPubk", sigBuff});
-                                setgattribute("sgPubk", sigMap, 0, 0,
-                                        (*fVec)[2]);
-                            }));
-
+                [finalFunc, fVec, this, priMap, u](handle hd, byte *kBytes, int keyLen) mutable
+                {
+                    SharedBuffer sigBuff = signRSAKey(u->pubk.getPublicKeyBytes());
+                    delete u;
+                    if(sigBuff.get() == nullptr)
+                    {
+                        finalFunc(priMap, API_EINTERNAL);
+                        return;
+                    }
+                    // signedRSA = authRSA
+                    ValueMap sigMap(new std::map<std::string, SharedBuffer>);
+                    sigMap->insert( {"sgPubk", sigBuff});
+                    setgattribute("sgPubk", sigMap, 0, 0,
+                            (*fVec)[2]);
+                }));
         });
 
     // Then set signedRSA.
@@ -3941,17 +3940,15 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback) {
 }
 
 SharedBuffer MegaClient::signRSAKey(SharedBuffer &&keyBytes) {
-    std::chrono::seconds now = std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch());
-    long tStamp = now.count();
-
+    Ts tStamp = timestampMs();
     std::string auth("keyauth");
-    auth.append((char*) &tStamp, sizeof(tStamp));
+    auth.append((char*) &tStamp, sizeof(Ts));
     auth.append(keyBytes.str());
 
     SecureBuffer sig = signkey.signDetatched((unsigned char*) auth.c_str(),
             auth.length());
-    if (sig.get() == nullptr) {
+    if (sig.get() == nullptr)
+    {
         LOG_err << "Error creating signature for RSA key";
         return SharedBuffer();
     }
@@ -3959,6 +3956,7 @@ SharedBuffer MegaClient::signRSAKey(SharedBuffer &&keyBytes) {
     SharedBuffer retBuffer(sizeof(tStamp) + sig.size());
     memcpy(retBuffer.get(), (void*) &tStamp, sizeof(tStamp));
     memcpy(retBuffer.get() + sizeof(tStamp), sig.get(), sig.size());
+    sig.free_buffer();
 
     return retBuffer;
 }
