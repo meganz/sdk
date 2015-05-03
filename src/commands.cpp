@@ -1222,12 +1222,14 @@ void CommandLogin::procresult()
                             c->app->login_result(e);
                             return;
                         }
+                        LOG_info << "Logged in, fetching signing keys";
                         // Get own signing keys, bail on failure.
                         c->getownsigningkeys([c, reqtag](ValueMap map, error e){
                             if(e != API_OK) {
                                 c->restag = reqtag;
                                 c->app->login_result(e);
                             }
+                            LOG_info << "Signing keys obtained, fetching keyrings";
                             // Fetch ed25519 and RSA keyrings.
                             c->fetchKeyrings([c, reqtag](error e){
                                 c->restag = reqtag;

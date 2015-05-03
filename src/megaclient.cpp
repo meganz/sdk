@@ -3979,56 +3979,56 @@ void MegaClient::verifyRSAKeySignature(User *user,
     }
 
     getgattribute(user->uid, "sgPubk",
-            [user, funct, this](ValueMap map, error e) mutable
+        [user, funct, this](ValueMap map, error e) mutable
+        {
+            if(e != API_OK)
             {
-                if(e != API_OK)
-                {
-                    LOG_err << "Could not get sgPubk attribute.";
-                    funct(e);
-                    return;
-                }
-                //auto i = map->find("sgPubk");
-                auto i = map->find("");
-                if(i == map->end())
-                {
-                    LOG_err << "No record for sgPubk in VaueMap";
-                    funct(API_EINTERNAL);
-                    return;
-                }
-                SharedBuffer sig = i->second;
-                if(user->puEd25519)
-                {
-                    LOG_debug << "test rsa key from cache.";
-                    user->rsaVerified = verifyRSAKeySignature_(user, sig);
-                    funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
-                    return;
-                }
-                else
-                {
-                    getgattribute(user->uid, "puEd255", [funct, user, this, sig](ValueMap map, error e) mutable
+                LOG_err << "Could not get sgPubk attribute.";
+                funct(e);
+                return;
+            }
+            //auto i = map->find("sgPubk");
+            auto i = map->find("");
+            if(i == map->end())
+            {
+                LOG_err << "No record for sgPubk in VaueMap";
+                funct(API_EINTERNAL);
+                return;
+            }
+            SharedBuffer sig = i->second;
+            if(user->puEd25519)
+            {
+                LOG_debug << "test rsa key from cache.";
+                user->rsaVerified = verifyRSAKeySignature_(user, sig);
+                funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+                return;
+            }
+            else
+            {
+                getgattribute(user->uid, "puEd255", [funct, user, this, sig](ValueMap map, error e) mutable
+                        {
+                            if(e != API_OK)
                             {
-                                if(e != API_OK)
-                                {
-                                    funct(e);
-                                    return;
-                                }
-
-                                //auto i = map->find("puEd255");
-                                auto i = map->find("");
-                                if(i == map->end())
-                                {
-                                    funct(API_EINTERNAL);
-                                    return;
-                                }
-
-                                user->puEd25519 = i->second;
-                                user->rsaVerified = verifyRSAKeySignature_(user, sig);
-                                LOG_info << "RSA key verifed: " << user->rsaVerified;
-                                funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+                                funct(e);
                                 return;
-                            });
-                }
-            });
+                            }
+
+                            //auto i = map->find("puEd255");
+                            auto i = map->find("");
+                            if(i == map->end())
+                            {
+                                funct(API_EINTERNAL);
+                                return;
+                            }
+
+                            user->puEd25519 = i->second;
+                            user->rsaVerified = verifyRSAKeySignature_(user, sig);
+                            LOG_info << "RSA key verifed: " << user->rsaVerified;
+                            funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+                            return;
+                        });
+            }
+        });
 }
 
 bool MegaClient::verifyRSAKeySignature_(User *user, SharedBuffer &sig) {
@@ -4096,43 +4096,45 @@ void MegaClient::verifyKeyFingerPrint(const char *user, SharedBuffer &key,
 
     if (!keysFetched) {
         getgattribute(finduser(me)->email.c_str(), "authRSA",
-                [this, user, key, rsa, callback](ValueMap map, error e) mutable
+            [this, user, key, rsa, callback](ValueMap map, error e) mutable
+            {
+                if(e != API_OK && e != API_ENOENT)
                 {
-                    if(e != API_OK && e != API_ENOENT)
-                    {
-                        callback(e);
+                    callback(e);
+                    return;
+                }
+                if(e == API_OK)
+                {
+                    LOG_info << "authRSA map obtained";
+                    if(!deserilizeMap(map, 1)) {
+                        LOG_err << "could not deserilize rsa map.";
+                        callback(API_EINTERNAL);
                         return;
                     }
-                    if(e == API_OK)
-                    {
-                        if(!deserilizeMap(map, 1)) {
-                            LOG_err << "could not deserilize rsa map.";
-                            callback(API_EINTERNAL);
-                            return;
-                        }
-                    }
+                }
 
-                    getgattribute(finduser(me)->email.c_str(), "authring",
-                            [this, user, key, rsa, callback](ValueMap map, error e) mutable
+                getgattribute(finduser(me)->email.c_str(), "authring",
+                        [this, user, key, rsa, callback](ValueMap map, error e) mutable
+                        {
+                            if(e != API_OK && e != API_ENOENT)
                             {
-                                if(e != API_OK && e != API_ENOENT)
+                                callback(e);
+                                return;
+                            }
+                            if(e == API_OK)
+                            {
+                                LOG_info << "authring map obtained";
+                                if(!deserilizeMap(map, 0))
                                 {
-                                    callback(e);
+                                    LOG_err << "could not deserilize ed map.";
+                                    callback(API_EINTERNAL);
                                     return;
                                 }
-                                if(e == API_OK)
-                                {
-                                    if(!deserilizeMap(map, 0))
-                                    {
-                                        LOG_err << "could not deserilize ed map.";
-                                        callback(API_EINTERNAL);
-                                        return;
-                                    }
-                                }
-                                keysFetched = true;
-                                verifyKeyFingerPrint_(user, key, rsa, callback);
-                            });
-                });
+                            }
+                            keysFetched = true;
+                            verifyKeyFingerPrint_(user, key, rsa, callback);
+                        });
+            });
     } else {
         verifyKeyFingerPrint_(user, key, rsa, callback);
     }
@@ -4189,6 +4191,7 @@ void MegaClient::verifyKeyFingerPrint_(const char *user, SharedBuffer &key,
 void MegaClient::getPublicStaticKey(const char *user) {
     User *u = finduser(user);
     if (!u) {
+        restag = reqtag;
         app->getguattr_result(ValueMap(), API_EINTERNAL);
         return;
     }
@@ -4242,10 +4245,12 @@ ValueMap MegaClient::serilizeMap(int rsa) {
     std::map<handle, FingerPrintRecord> *fpMap;
     std::string mapName;
     if (rsa) {
-        mapName.assign("authRSA");
+        mapName.assign("");
+        //mapName.assign("authRSA")
         fpMap = &rsaKeyRing;
     } else {
-        mapName.assign("authring");
+        //mapName.assign("authring");
+        mapName.assign("");
         fpMap = &edKeyRing;
     }
 
@@ -4265,9 +4270,9 @@ ValueMap MegaClient::serilizeMap(int rsa) {
 }
 
 bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
-    return true;
-    auto i = map->find(
-            (rsa) ? std::string("authRSA") : std::string("authring"));
+//    auto i = map->find(
+//            (rsa) ? std::string("authRSA") : std::string("authring"));
+    auto i = map->find("");
     if (i == map->end()) {
         return false;
     }
@@ -4291,6 +4296,7 @@ bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
         memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
         rMap->insert( { h, record });
         count++;
+        LOG_info << "Received record for " << h;
     }
 
     return true;

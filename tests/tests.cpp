@@ -357,8 +357,8 @@ TEST_F(ApiTest, testSetup) {
     TestClient tcTwo(loginNameThree, passWordThree);
     TestClient tcThree(loginNameTwo, passWordTwo);
 
-    TLV resetMap[] = { "authRSA", 0, nullptr};
-    TLV resetMapE[] = { "authring", 0, nullptr};
+    TLV resetMap[] = { "", 0, nullptr};
+    TLV resetMapE[] = { "", 0, nullptr};
     if(tcOne.login()) {
         LOG_test << "Login success";
         tcOne.wait = true;
