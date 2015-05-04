@@ -28,333 +28,320 @@ import nz.mega.sdk.MegaRequestListenerInterface;
 
 public class MainWindow extends JFrame implements MegaRequestListenerInterface, MegaLoggerInterface {
 
-	private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
-	static MegaApiSwing megaApi = null;
-	
-	static final String APP_KEY = "YYJwAIRI";
-	static final String USER_AGENT = "MEGA Java Sample Demo SDK";
+    static MegaApiSwing megaApi = null;
 
-	static JPanel panel;
-	static JTextField loginText;
-	static JTextField passwordText;
-	static JButton loginButton;
-	static JScrollPane listFiles;
-	static DefaultListModel<String> listModel;
-	static JLabel statusLabel;
+    static final String APP_KEY = "YYJwAIRI";
+    static final String USER_AGENT = "MEGA Java Sample Demo SDK";
 
-	private static final String STR_APP_TITLE = "Java Bindings Example";
-	private static final String STR_EMAIL_TEXT = "Email:";
-	private static final String STR_PWD_TEXT = "Password:";
-	private static final String STR_LOGIN_TEXT = "Login";
-	private static final String STR_LOGOUT_TEXT = "Logout";
-	private static final String STR_INITIAL_STATUS = "Please, enter your login details";
-	private static final String STR_ERROR_ENTER_EMAIL = "Please, enter your email address";
-	private static final String STR_ERROR_INVALID_EMAIL = "Invalid email address";
-	private static final String STR_ERROR_ENTER_PWD = "Please, enter your password";
-	private static final String STR_ERROR_INCORRECT_EMAIL_OR_PWD = "Incorrect email or password";
-	private static final String STR_LOGGING_IN = "Logging in...";
-	private static final String STR_FETCHING_NODES = "Fetching nodes...";
-	private static final String STR_PREPARING_NODES = "Preparing nodes...";
-	
-	public MainWindow() throws HeadlessException {
-		super(STR_APP_TITLE);
-		
-		initializeMegaApi();	
-		initializeGUI();
-	}
+    static JPanel panel;
+    static JTextField loginText;
+    static JTextField passwordText;
+    static JButton loginButton;
+    static JScrollPane listFiles;
+    static DefaultListModel<String> listModel;
+    static JLabel statusLabel;
 
-	/**
-	 * Set logger and get reference to MEGA API
-	 */
-	private void initializeMegaApi() {
-		
-		MegaApiSwing.setLoggerObject(this);
-		MegaApiSwing.setLogLevel(MegaApiSwing.LOG_LEVEL_MAX);
-		
-		if(megaApi == null)
-		{
-			String path = System.getProperty("user.dir");			
-			megaApi = new MegaApiSwing(MainWindow.APP_KEY, MainWindow.USER_AGENT, path);
-		}
-	}
-	
-	/**
-	 * Create GUI components and configure them
-	 */
-	private void initializeGUI() {
-		// Create and set up the window.
-		this.setSize(270, 120);
-		this.setResizable(false);
-		this.setLocationByPlatform(true);
-		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    private static final String STR_APP_TITLE = "Java Bindings Example";
+    private static final String STR_EMAIL_TEXT = "Email:";
+    private static final String STR_PWD_TEXT = "Password:";
+    private static final String STR_LOGIN_TEXT = "Login";
+    private static final String STR_LOGOUT_TEXT = "Logout";
+    private static final String STR_INITIAL_STATUS = "Please, enter your login details";
+    private static final String STR_ERROR_ENTER_EMAIL = "Please, enter your email address";
+    private static final String STR_ERROR_INVALID_EMAIL = "Invalid email address";
+    private static final String STR_ERROR_ENTER_PWD = "Please, enter your password";
+    private static final String STR_ERROR_INCORRECT_EMAIL_OR_PWD = "Incorrect email or password";
+    private static final String STR_LOGGING_IN = "Logging in...";
+    private static final String STR_FETCHING_NODES = "Fetching nodes...";
+    private static final String STR_PREPARING_NODES = "Preparing nodes...";
 
-		panel = new JPanel();
-		this.add(panel);
+    public MainWindow() throws HeadlessException {
+        super(STR_APP_TITLE);
 
-		panel.setLayout(null);
+        initializeMegaApi();
+        initializeGUI();
+    }
 
-		JLabel loginLabel = new JLabel(STR_EMAIL_TEXT);
-		loginLabel.setBounds(10, 10, 80, 25);
-		panel.add(loginLabel);
+    /**
+     * Set logger and get reference to MEGA API
+     */
+    private void initializeMegaApi() {
 
-		loginText = new JTextField(20);
-		loginText.setBounds(100, 10, 160, 25);
-		panel.add(loginText);
+        MegaApiSwing.setLoggerObject(this);
+        MegaApiSwing.setLogLevel(MegaApiSwing.LOG_LEVEL_MAX);
 
-		JLabel passwordLabel = new JLabel(STR_PWD_TEXT);
-		passwordLabel.setBounds(10, 40, 80, 25);
-		panel.add(passwordLabel);
+        if (megaApi == null) {
+            String path = System.getProperty("user.dir");
+            megaApi = new MegaApiSwing(MainWindow.APP_KEY, MainWindow.USER_AGENT, path);
+        }
+    }
 
-		passwordText = new JPasswordField(20);
-		passwordText.setBounds(100, 40, 160, 25);
-		panel.add(passwordText);
+    /**
+     * Create GUI components and configure them
+     */
+    private void initializeGUI() {
+        // Create and set up the window.
+        this.setSize(270, 120);
+        this.setResizable(false);
+        this.setLocationByPlatform(true);
+        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-		loginButton = new JButton(STR_LOGIN_TEXT);
-		loginButton.setBounds(160, 70, 100, 25);
-		panel.add(loginButton);
+        panel = new JPanel();
+        this.add(panel);
 
-		loginButton.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent e) {
-				JButton loginButton = (JButton) e.getSource();	
+        panel.setLayout(null);
 
-				if(loginButton.getText().compareTo(STR_LOGIN_TEXT) == 0) {
-					initLogin();
-				}
-				else if(loginButton.getText().compareTo(STR_LOGOUT_TEXT) == 0) {
-					initLogout();
-				}
-			}
-		});
-		getRootPane().setDefaultButton(loginButton);
+        JLabel loginLabel = new JLabel(STR_EMAIL_TEXT);
+        loginLabel.setBounds(10, 10, 80, 25);
+        panel.add(loginLabel);
 
-		listModel = new DefaultListModel<String>();
-		JList<String> list = new JList<String>(listModel);
-		listFiles = new JScrollPane(list);
-		listFiles.setBounds(10,100,this.getWidth()-20,200);
-		// panel.add(listFiles); // Do not add it yet
+        loginText = new JTextField(20);
+        loginText.setBounds(100, 10, 160, 25);
+        panel.add(loginText);
 
-		statusLabel = new JLabel();
-		statusLabel.setBounds(10, this.getHeight()-16, this.getWidth()-20, 15);
-		setStatus(STR_INITIAL_STATUS);
-		panel.add(statusLabel);
+        JLabel passwordLabel = new JLabel(STR_PWD_TEXT);
+        passwordLabel.setBounds(10, 40, 80, 25);
+        panel.add(passwordLabel);
 
-		this.setVisible(true);
-	}
-	
-	/**
-	 * Change the design of Main window when a session is opened.
-	 *  - Prevent user to modify 'email' and 'password'
-	 *  - Rename button to 'Logout'
-	 *  - Prevent user to click on button 'login'
-	 *  - Show the component where nodes are listed
-	 */
-	private void setLoggedInMode() {
+        passwordText = new JPasswordField(20);
+        passwordText.setBounds(100, 40, 160, 25);
+        panel.add(passwordText);
 
-		loginButton.setText(STR_LOGOUT_TEXT);
-		loginButton.setEnabled(true);	// It might be disabled if called during a login process
-		loginText.setEnabled(false);
-		passwordText.setEnabled(false);
-		
-		setSize(270, 321);
-		statusLabel.setBounds(10, getHeight()-16, getWidth()-20, 15);
-		panel.add(listFiles);
-	}
-	
-	/**
-	 * Change the design of Main window when a session is closed:
-	 *  - Allow user to modify 'email' and 'password'
-	 *  - Rename button to 'Login'
-	 *  - Allow user to click on button 'login'
-	 *  - Hide the component where nodes are listed
-	 */
-	private void setLoggedOutMode() {
-		loginButton.setText(STR_LOGIN_TEXT);
-		enableUserInteraction(true);
+        loginButton = new JButton(STR_LOGIN_TEXT);
+        loginButton.setBounds(160, 70, 100, 25);
+        panel.add(loginButton);
 
-		setSize(270, 140);
-		statusLabel.setBounds(10, getHeight()-16, getWidth()-20, 15);
-		panel.remove(listFiles);
-	}
+        loginButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                JButton loginButton = (JButton) e.getSource();
 
-	private void enableUserInteraction(boolean b) {
-		loginText.setEnabled(b);
-		passwordText.setEnabled(b);
-		loginButton.setEnabled(b);		
-	}
-	
-	private void initLogin() {
+                if (loginButton.getText().compareTo(STR_LOGIN_TEXT) == 0) {
+                    initLogin();
+                } else if (loginButton.getText().compareTo(STR_LOGOUT_TEXT) == 0) {
+                    initLogout();
+                }
+            }
+        });
+        getRootPane().setDefaultButton(loginButton);
 
-		if (!validateForm()) {
-			return;
-		}
-		
-		enableUserInteraction(false);
-		
-		String email = loginText.getText().toString().toLowerCase(Locale.ENGLISH).trim();
-		String password = passwordText.getText().toString();
-		
-		megaApi.login(email,password,this);
-	}
+        listModel = new DefaultListModel<String>();
+        JList<String> list = new JList<String>(listModel);
+        listFiles = new JScrollPane(list);
+        listFiles.setBounds(10, 100, this.getWidth() - 20, 200);
+        // panel.add(listFiles); // Do not add it yet
 
-	private boolean validateForm() {
-		String emailError = getEmailError();
-		String passwordError = getPasswordError();
+        statusLabel = new JLabel();
+        statusLabel.setBounds(10, this.getHeight() - 16, this.getWidth() - 20, 15);
+        setStatus(STR_INITIAL_STATUS);
+        panel.add(statusLabel);
 
-		if (emailError != null) {
-			JOptionPane.showMessageDialog(null, emailError);
-			loginText.requestFocus();
-			return false;
-		} else if (passwordError != null) {
-			JOptionPane.showMessageDialog(null, passwordError);
-			passwordText.requestFocus();
-			return false;
-		}
-		return true;
-	}
+        this.setVisible(true);
+    }
 
-	/**
-	 * Validate email: not empty and valid format
-	 */
-	private String getEmailError() {
-		String value = loginText.getText();
-		if (value.length() == 0) {
-			return STR_ERROR_ENTER_EMAIL;
-		}
-		if (!rfc2822.matcher(value).matches ()) {
-			return STR_ERROR_INVALID_EMAIL;
-		}
-		return null;
-	}
-	
-	final static Pattern rfc2822 = Pattern
-            .compile ("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?");
-	
-	/**
-	 * Validate password: not empty
-	 */
-	private String getPasswordError() {
-		String value = passwordText.getText();
-		if (value.length() == 0) {
-			return STR_ERROR_ENTER_PWD;
-		}
-		return null;
-	}
+    /**
+     * Change the design of Main window when a session is opened.
+     * - Prevent user to modify 'email' and 'password'
+     * - Rename button to 'Logout'
+     * - Prevent user to click on button 'login'
+     * - Show the component where nodes are listed
+     */
+    private void setLoggedInMode() {
 
-	protected void initLogout() {
-		megaApi.logout(this);
-		
-		setLoggedOutMode();
-		setStatus(STR_LOGOUT_TEXT);
-	}
-		
-	public static void main(String[] args) {		
-		// Schedule a job for the event-dispatching thread
-		javax.swing.SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				new MainWindow();
-			}
-		});
-	}
+        loginButton.setText(STR_LOGOUT_TEXT);
+        loginButton.setEnabled(true); // It might be disabled if called during a login process
+        loginText.setEnabled(false);
+        passwordText.setEnabled(false);
 
-	@Override
-	public void onRequestStart(MegaApiJava api, MegaRequest request) {
-		log("onRequestStart: " + request.getRequestString());
+        setSize(270, 321);
+        statusLabel.setBounds(10, getHeight() - 16, getWidth() - 20, 15);
+        panel.add(listFiles);
+    }
 
-		if (request.getType() == MegaRequest.TYPE_LOGIN){
-			setStatus(STR_LOGGING_IN);
-		}
-		else if (request.getType() == MegaRequest.TYPE_FETCH_NODES){
-			setStatus(STR_FETCHING_NODES);
-		}
-	}
+    /**
+     * Change the design of Main window when a session is closed:
+     * - Allow user to modify 'email' and 'password'
+     * - Rename button to 'Login'
+     * - Allow user to click on button 'login'
+     * - Hide the component where nodes are listed
+     */
+    private void setLoggedOutMode() {
+        loginButton.setText(STR_LOGIN_TEXT);
+        enableUserInteraction(true);
 
-	@Override
-	public void onRequestUpdate(MegaApiJava api, MegaRequest request) {
-		log("onRequestUpdate: " + request.getRequestString());
+        setSize(270, 140);
+        statusLabel.setBounds(10, getHeight() - 16, getWidth() - 20, 15);
+        panel.remove(listFiles);
+    }
 
-		if (request.getType() == MegaRequest.TYPE_FETCH_NODES)
-		{
-			if (request.getTotalBytes() > 0)
-			{
-				double progressValue = 100.0 * request.getTransferredBytes() / request.getTotalBytes();
-				if ((progressValue > 99) || (progressValue < 0)) {
-					progressValue = 100;
-				}
-				log("progressValue = " + (int)progressValue);	
-				setStatus(STR_PREPARING_NODES+String.valueOf((int)progressValue)+"%");
-			}
-		}
-	}
+    private void enableUserInteraction(boolean b) {
+        loginText.setEnabled(b);
+        passwordText.setEnabled(b);
+        loginButton.setEnabled(b);
+    }
 
-	@Override
-	public void onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e) {
-		log("onRequestFinish: " + request.getRequestString());
+    private void initLogin() {
 
-		if (request.getType() == MegaRequest.TYPE_LOGIN)
-		{
-			if (e.getErrorCode() == MegaError.API_OK){
-				megaApi.fetchNodes(this);
-			}
-			else{
-				String errorMessage = e.getErrorString();
-				if (e.getErrorCode() == MegaError.API_ENOENT) {
-					errorMessage = STR_ERROR_INCORRECT_EMAIL_OR_PWD;
-				}
+        if (!validateForm()) {
+            return;
+        }
 
-				JOptionPane.showMessageDialog(null, errorMessage);
-				setStatus(errorMessage);
-				
-				// Enable user to change the credentials and hit 'login' again
-				enableUserInteraction(true);
-			}
-		}
-		else if (request.getType() == MegaRequest.TYPE_FETCH_NODES)
-		{
-			if (e.getErrorCode() != MegaError.API_OK) 
-			{
-				JOptionPane.showMessageDialog(null, e.getErrorString());
-				setStatus(e.getErrorString());
-				
-				// TODO: investigate errors from Request==TYPE_FETCH_NODES
-				// and adapt the behaviour of GUI components below
-				enableUserInteraction(true);
+        enableUserInteraction(false);
 
-			}
-			else{
-				MegaNode parentNode = megaApi.getRootNode();
-				ArrayList<MegaNode> nodes = megaApi.getChildren(parentNode);
-				
-				listModel.clear();
-				MegaNode temp;
-				for(int i=0; i < nodes.size(); i++)
-				{
-					temp = nodes.get(i);
-					listModel.addElement(temp.getName());
-				}
-				
-				setLoggedInMode();
-				setStatus("Done");
-			}
-		}
-	}
+        String email = loginText.getText().toString().toLowerCase(Locale.ENGLISH).trim();
+        String password = passwordText.getText().toString();
 
-	@Override
-	public void onRequestTemporaryError(MegaApiJava api, MegaRequest request,
-			MegaError e) {
-		log("onRequestTemporaryError: " + request.getRequestString());
-	}
+        megaApi.login(email, password, this);
+    }
 
-	public static void log(String message) {
-		MegaApiSwing.log(MegaApiSwing.LOG_LEVEL_INFO, message, "MainActivity");
-	}
+    private boolean validateForm() {
+        String emailError = getEmailError();
+        String passwordError = getPasswordError();
 
-	@Override
-	public void log(String time, int loglevel, String source, String message) {
-		System.out.println("["+time+"] " + message + " (Source: "+source+")");		
-	}
+        if (emailError != null) {
+            JOptionPane.showMessageDialog(null, emailError);
+            loginText.requestFocus();
+            return false;
+        } else if (passwordError != null) {
+            JOptionPane.showMessageDialog(null, passwordError);
+            passwordText.requestFocus();
+            return false;
+        }
+        return true;
+    }
 
-	private void setStatus(String status) {
-		statusLabel.setText(status);
-	}
+    /**
+     * Validate email: not empty and valid format
+     */
+    private String getEmailError() {
+        String value = loginText.getText();
+        if (value.length() == 0) {
+            return STR_ERROR_ENTER_EMAIL;
+        }
+        if (!rfc2822.matcher(value).matches()) {
+            return STR_ERROR_INVALID_EMAIL;
+        }
+        return null;
+    }
+
+    final static Pattern rfc2822 = Pattern
+            .compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?");
+
+    /**
+     * Validate password: not empty
+     */
+    private String getPasswordError() {
+        String value = passwordText.getText();
+        if (value.length() == 0) {
+            return STR_ERROR_ENTER_PWD;
+        }
+        return null;
+    }
+
+    protected void initLogout() {
+        megaApi.logout(this);
+
+        setLoggedOutMode();
+        setStatus(STR_LOGOUT_TEXT);
+    }
+
+    public static void main(String[] args) {
+        // Schedule a job for the event-dispatching thread
+        javax.swing.SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                new MainWindow();
+            }
+        });
+    }
+
+    @Override
+    public void onRequestStart(MegaApiJava api, MegaRequest request) {
+        log("onRequestStart: " + request.getRequestString());
+
+        if (request.getType() == MegaRequest.TYPE_LOGIN) {
+            setStatus(STR_LOGGING_IN);
+        } else if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
+            setStatus(STR_FETCHING_NODES);
+        }
+    }
+
+    @Override
+    public void onRequestUpdate(MegaApiJava api, MegaRequest request) {
+        log("onRequestUpdate: " + request.getRequestString());
+
+        if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
+            if (request.getTotalBytes() > 0) {
+                double progressValue = 100.0 * request.getTransferredBytes() / request.getTotalBytes();
+                if ((progressValue > 99) || (progressValue < 0)) {
+                    progressValue = 100;
+                }
+                log("progressValue = " + (int) progressValue);
+                setStatus(STR_PREPARING_NODES + String.valueOf((int) progressValue) + "%");
+            }
+        }
+    }
+
+    @Override
+    public void onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e) {
+        log("onRequestFinish: " + request.getRequestString());
+
+        if (request.getType() == MegaRequest.TYPE_LOGIN) {
+            if (e.getErrorCode() == MegaError.API_OK) {
+                megaApi.fetchNodes(this);
+            } else {
+                String errorMessage = e.getErrorString();
+                if (e.getErrorCode() == MegaError.API_ENOENT) {
+                    errorMessage = STR_ERROR_INCORRECT_EMAIL_OR_PWD;
+                }
+
+                JOptionPane.showMessageDialog(null, errorMessage);
+                setStatus(errorMessage);
+
+                // Enable user to change the credentials and hit 'login' again
+                enableUserInteraction(true);
+            }
+        } else if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
+            if (e.getErrorCode() != MegaError.API_OK) {
+                JOptionPane.showMessageDialog(null, e.getErrorString());
+                setStatus(e.getErrorString());
+
+                // TODO: investigate errors from Request==TYPE_FETCH_NODES
+                // and adapt the behaviour of GUI components below
+                enableUserInteraction(true);
+
+            } else {
+                MegaNode parentNode = megaApi.getRootNode();
+                ArrayList<MegaNode> nodes = megaApi.getChildren(parentNode);
+
+                listModel.clear();
+                MegaNode temp;
+                for (int i = 0; i < nodes.size(); i++) {
+                    temp = nodes.get(i);
+                    listModel.addElement(temp.getName());
+                }
+
+                setLoggedInMode();
+                setStatus("Done");
+            }
+        }
+    }
+
+    @Override
+    public void onRequestTemporaryError(MegaApiJava api, MegaRequest request, MegaError e) {
+        log("onRequestTemporaryError: " + request.getRequestString());
+    }
+
+    public static void log(String message) {
+        MegaApiSwing.log(MegaApiSwing.LOG_LEVEL_INFO, message, "MainActivity");
+    }
+
+    @Override
+    public void log(String time, int loglevel, String source, String message) {
+        System.out.println("[" + time + "] " + message + " (Source: " + source + ")");
+    }
+
+    private void setStatus(String status) {
+        statusLabel.setText(status);
+    }
 }
