@@ -83,7 +83,7 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
      */
     private void initializeGUI() {
         // Create and set up the window.
-        this.setSize(270, 120);
+        this.setSize(270, 160);
         this.setResizable(false);
         this.setLocationByPlatform(true);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -133,7 +133,7 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
         // panel.add(listFiles); // Do not add it yet
 
         statusLabel = new JLabel();
-        statusLabel.setBounds(10, this.getHeight() - 16, this.getWidth() - 20, 15);
+        statusLabel.setBounds(10, 110, this.getWidth() - 20, 15);
         setStatus(STR_INITIAL_STATUS);
         panel.add(statusLabel);
 
@@ -154,8 +154,8 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
         loginText.setEnabled(false);
         passwordText.setEnabled(false);
 
-        setSize(270, 321);
-        statusLabel.setBounds(10, getHeight() - 16, getWidth() - 20, 15);
+        setSize(270, 360);
+        statusLabel.setBounds(10, 310, getWidth() - 20, 15);
         panel.add(listFiles);
     }
 
@@ -170,8 +170,8 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
         loginButton.setText(STR_LOGIN_TEXT);
         enableUserInteraction(true);
 
-        setSize(270, 140);
-        statusLabel.setBounds(10, getHeight() - 16, getWidth() - 20, 15);
+        setSize(270, 160);
+        statusLabel.setBounds(10, 110, getWidth() - 20, 15);
         panel.remove(listFiles);
     }
 
