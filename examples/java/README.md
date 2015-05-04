@@ -26,7 +26,7 @@ To use a prebuilt library (the easy way), follow these steps:
 5. Copy the library `libmegajava.so` into the `libs` folder in your project.
     
     ```
-    cp sdk/bindings/java/.lib/libmegajava.so sdk/examples/java/libs
+    cp bindings/java/.lib/libmegajava.so examples/java/libs
     ```
     
 6. Build and run the project in Eclipse
