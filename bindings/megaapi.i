@@ -30,11 +30,6 @@
   }
 %}
 
-%insert("runtime") %{
-#define SWIG_JAVA_ATTACH_CURRENT_THREAD_AS_DAEMON
-#define SWIG_JAVA_NO_DETACH_CURRENT_THREAD
-%}
-
 //Use compilation-time constants in Java
 %javaconst(1);
 
