@@ -1365,6 +1365,14 @@ if test "x$enable_java" = "xyes" ; then
 
     SAVE_CPPFLAGS=$CPPFLAGS
     CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+
+    # on Fedora / CentOS jni_md.h header is not included
+    if test -d "$JAVA_INCLUDE_DIR/linux"; then
+        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
+        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
+        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
+    fi
+
     AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
     CPPFLAGS=$SAVE_CPPFLAGS
 fi
