@@ -176,8 +176,16 @@ unix:!macx {
     LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
    }
    else {
-    LIBS += -lcurl
+    LIBS += -lcurl -lz -lssl -lcrypto -lcares
    }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
+   }
+   else {
+    LIBS += -lsodium
+   }
+
 }
 
 macx {
