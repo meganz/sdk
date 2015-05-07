@@ -499,7 +499,7 @@ TEST_F(ApiTest, testSetup) {
         }
         ASSERT_TRUE(tcTwo.success);
 
-        ////////// Uncomment to reset keyrings ///////////////
+//        ////////// Uncomment to reset keyrings ///////////////
 //        tcTwo.wait = true;
 //        tcTwo.success = false;
 //
