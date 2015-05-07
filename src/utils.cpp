@@ -20,6 +20,7 @@
  */
 
 #include "mega/utils.h"
+#include "mega/base64.h"
 
 namespace mega {
 Cachable::Cachable()
@@ -231,4 +232,118 @@ bool HashSignature::check(AsymmCipher* pubk, const byte* sig, unsigned len)
 
     return s == h;
 }
+
+PayCrypter::PayCrypter()
+{
+    PrnGen::genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
+    encKey = keys;
+    hmacKey = keys+ENC_KEY_BYTES;
+
+    PrnGen::genblock(iv, IV_BYTES);
+}
+
+void PayCrypter::setKeys(byte *newEncKey, byte *newHmacKey, byte *newIv)
+{
+    memcpy(encKey, newEncKey, ENC_KEY_BYTES);
+    memcpy(hmacKey, newHmacKey, MAC_KEY_BYTES);
+    memcpy(iv, newIv, IV_BYTES);
+}
+
+bool PayCrypter::encryptPayload(string *cleartext, string *result)
+{
+    //Check parameters
+    if(!cleartext || !result)
+    {
+        return false;
+    }
+
+    //AES-CBC encryption
+    string encResult;
+    SymmCipher sym(encKey);
+    sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult);
+
+    //Prepare the message to authenticate (IV + cipher text)
+    string toAuthenticate((char *)iv, IV_BYTES);
+    toAuthenticate.append(encResult);
+
+    //HMAC-SHA256
+    HMACSHA256 hmacProcessor(hmacKey, MAC_KEY_BYTES);
+    hmacProcessor.add((byte *)toAuthenticate.data(), toAuthenticate.size());
+    result->resize(32);
+    hmacProcessor.get((byte *)result->data());
+
+    //Complete the result (HMAC + IV - ciphertext)
+    result->append((char *)iv, IV_BYTES);
+    result->append(encResult);
+    return true;
+}
+
+bool PayCrypter::rsaEncryptKeys(string *cleartext, char *base64pubk, string *result, bool randompadding)
+{
+    //Check parameters
+    if(!cleartext || !base64pubk || !result)
+    {
+        return false;
+    }
+
+    //Convert key to binary
+    string pubk;
+    pubk.resize(AsymmCipher::MAXKEYLENGTH);
+    pubk.resize(Base64::atob(base64pubk, (byte *)pubk.data(), pubk.size()));
+
+    //Create an AsymmCipher with the key
+    AsymmCipher asym;
+    asym.setkey(AsymmCipher::PUBKEY, (byte *)pubk.data(), pubk.size());
+
+    //Prepare the message to encrypt (2-byte header + clear text)
+    string keyString;
+    keyString.append(1, (byte)(cleartext->size() >> 8));
+    keyString.append(1, (byte)(cleartext->size()));
+    keyString.append(*cleartext);
+
+    //Save the length of the valid message
+    int keylen = keyString.size();
+
+    //Resize to add padding
+    keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
+
+    //Add padding
+    if(randompadding)
+    {
+        PrnGen::genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
+    }
+
+    //RSA encryption
+    result->resize(pubk.size());
+    result->resize(asym.rawencrypt((byte *)keyString.data(), keyString.size(), (byte *)result->data(), result->size()));
+
+    //Complete the result (2-byte header + RSA result)
+    int reslen = result->size();
+    result->insert(0, 1, (byte)(reslen >> 8));
+    result->insert(1, 1, (byte)(reslen));
+    return true;
+}
+
+bool PayCrypter::hybridEncrypt(string *cleartext, char *base64pubk, string *result, bool randompadding)
+{
+    if(!cleartext || !base64pubk || !result)
+    {
+        return false;
+    }
+
+    //Generate the payload
+    string payloadString;
+    encryptPayload(cleartext, &payloadString);
+
+    //RSA encryption
+    string rsaKeyCipher;
+    string keysString;
+    keysString.assign((char *)keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
+    rsaEncryptKeys(&keysString, base64pubk, &rsaKeyCipher, randompadding);
+
+    //Complete the result
+    *result = rsaKeyCipher + payloadString;
+    return true;
+}
+
 } // namespace

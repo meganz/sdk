@@ -95,6 +95,99 @@ public:
     ~HashSignature();
 };
 
+/**
+ * @brief Crypto functions related to payments
+ */
+class MEGA_API PayCrypter
+{
+    /**
+     * @brief Length of the AES key
+     */
+    static const int ENC_KEY_BYTES = 16;
+
+    /**
+     * @brief Lenght of the key to generate the HMAC
+     */
+    static const int MAC_KEY_BYTES = 32;
+
+    /**
+     * @brief Length of the IV for AES-CBC
+     */
+    static const int IV_BYTES = 16;
+
+    /**
+     * @brief Buffer for the AES key and the HMAC key
+     */
+    byte keys[ENC_KEY_BYTES+MAC_KEY_BYTES];
+
+    /**
+     * @brief Pointer to the buffer with the AES key
+     */
+    byte *encKey;
+
+    /**
+     * @brief Pointer to the buffer with the HMAC key
+     */
+    byte *hmacKey;
+
+    /**
+     * @brief Buffer with the IV for AES-CBC
+     */
+    byte iv[IV_BYTES];
+
+public:
+
+    /**
+     * @brief Constructor. Initializes keys with random values.
+     */
+    PayCrypter();
+
+    /**
+     * @brief Updates the crypto keys (mainly for testing)
+     * @param newEncKey New AES key (must contain ENC_KEY_BYTES bytes)
+     * @param newHmacKey New HMAC key (must contain MAC_KEY_BYTES bytes)
+     * @param newIv New IV for AES-CBC (must contain IV_BYTES bytes)
+     */
+    void setKeys(byte *newEncKey, byte *newHmacKey, byte *newIv);
+
+    /**
+     * @brief Encrypts the cleartext and returns the payload string.
+     *
+     * The clear text is encrypted with AES-CBC, then a HMAC-SHA256 is generated for (IV + ciphertext)
+     * and finally returns (HMAC + IV + ciphertext)
+     *
+     * @param cleartext Clear text to generate the payload
+     * @param result The function will fill this string with the generated payload
+     * @return True if the funcion succeeds, otherwise false
+     */
+    bool encryptPayload(string *cleartext, string *result);
+
+    /**
+     * @brief Encrypts the cleartext using RSA with random padding.
+     *
+     * A 2-byte header is inserted just before the clear text with the size in bytes.
+     * The result is padded with random bytes. Then RSA is applied and the result is returned
+     * in the third parameter, with a 2-byte header that contains the size of the result of RSA.
+     *
+     * @param cleartext Clear text to encrypt with RSA
+     * @param base64pubk Public key in Base64 format (result of AsymmCipher::serializekey and Base64::btoa)
+     * @param randompadding Enables padding with random bytes. Otherwise, the cleartext is 0-padded
+     * @param result RSA encrypted text, with a 2-byte header with the size of the RSA buffer in bytes
+     * @return True if the funcion succeeds, otherwise false
+     */
+    bool rsaEncryptKeys(string *cleartext, char *base64pubk, string *result, bool randompadding = true);
+
+    /**
+     * @brief Encrypts clear text data to an authenticated ciphertext, authenticated with an HMAC.
+     * @param cleartext Clear text as byte string
+     * @param base64pubk Public key in Base64 format (result of AsymmCipher::serializekey and Base64::btoa)
+     * @param randompadding Enables padding with random bytes. Otherwise, the cleartext is 0-padded
+     * @param result Encrypted data block as byte string.
+     * @return True if the funcion succeeds, otherwise false
+     */
+    bool hybridEncrypt(string *cleartext, char *base64pubk, string *result, bool randompadding = true);
+};
+
 // read/write multibyte words
 struct MEGA_API MemAccess
 {
