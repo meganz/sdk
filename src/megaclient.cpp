@@ -3781,8 +3781,8 @@ void MegaClient::getownsigningkeys(bool reset) {
                 keyPair.first.size());
         SharedBuffer prBuff = SharedBuffer(keyPair.second.get(),
                 keyPair.second.size());
-        map->insert( { "", puBuff });
-        map->insert( { "prEd255", prBuff });
+        map->insert(std::make_pair( "", puBuff ));
+        map->insert(std::make_pair( "prEd255", prBuff ));
         restag = reqtag;
         app->getguattr_result(map, API_OK);
 
@@ -3799,144 +3799,153 @@ void MegaClient::getownsigningkeys(bool reset) {
 }
 
 void MegaClient::getownsigningkeys(GetSigKeysCallback callback, bool reset) {
-    if (reset) {
-        LOG_info << "Resetting keys";
-        uploadkeys(callback);
-        return;
-    }
+	if (reset) {
+		LOG_info << "Resetting keys";
+		uploadkeys(callback);
+		return;
+	}
 
-    char h[12];
-    Base64::btoa((byte*) &me, sizeof me, h);
-    std::string hand(h, 11);
-    getgattribute(hand, "keyring",
-            [this, callback, hand](ValueMap map, error e) mutable
-            {
+	char h[12];
+	Base64::btoa((byte*)&me, sizeof me, h);
+	std::string hand(h, 11);
+	ValueMap retMap(new std::map<std::string, SharedBuffer>());
+	auto getPk =
+		[this, callback, retMap](ValueMap pubMap, error e) mutable
+	{
+		LOG_info << "Public key fetched";
+		if (e == API_ENOENT)
+		{
+			uploadkeys(callback);
+			return;
+		}
+		else if (e != API_OK)
+		{
+			callback(pubMap, e);
+		}
 
-                if(e == API_ENOENT)
-                {
-                    LOG_info << "Calling upload keys, resource not found";
-                    uploadkeys(callback);
-                    return;
-                }
-                else if(e != API_OK)
-                {
-                    callback(map, e);
-                }
+		auto i = pubMap->find("");
+		if (i == pubMap->end()) {
+			callback(retMap, API_EINTERNAL);
+			return;
+		}
 
-                auto i = map->find("prEd255");
-                if(i == map->end())
-                {
-                    callback(map, API_EINTERNAL);
-                    return;
-                }
-                SharedBuffer priKey = i->second;
-                getgattribute(hand, "puEd255",
-                        [this, priKey, callback](ValueMap pubMap, error e) mutable
-                        {
+		retMap->insert(std::make_pair("", i->second));
+		SecureBuffer pubKey = i->second.toSecureBuffer();
+		SecureBuffer priKey = retMap->find("prEd255")->second.toSecureBuffer();
+		this->signkey.setKeyPair(std::make_pair(pubKey, priKey));
+		callback(retMap, e);
+	};
 
-                            if(e == API_ENOENT)
-                            {
-                                uploadkeys(callback);
-                                return;
-                            }
-                            else if(e != API_OK)
-                            {
-                                callback(pubMap, e);
-                            }
+	getgattribute(hand, "keyring",
+		[this, callback, hand, getPk, retMap](ValueMap map, error e) mutable
+	{
+		LOG_info << "Private key fetched";
+		if (e == API_ENOENT)
+		{
+			LOG_info << "Calling upload keys, resource not found";
+			uploadkeys(callback);
+			return;
+		}
+		else if (e != API_OK)
+		{
+			callback(map, e);
+		}
 
-                            SecureBuffer priBuff(priKey.size);
-                            if(priBuff.get() == nullptr)
-                            {
-                                callback(pubMap, API_EINTERNAL);
-                                return;
-                            }
-                            this->signkey.genKeySeed(priBuff);
-                            pubMap->insert( {"prEd255", priKey});
-                            callback(pubMap, e);
-                        });
-            });
+		auto i = map->find("prEd255");
+		if (i == map->end())
+		{
+			callback(map, API_EINTERNAL);
+			return;
+		}
+
+		retMap->insert(std::make_pair("prEd255", i->second));
+		getgattribute(hand, "puEd255", getPk);
+	});
 }
 
 void MegaClient::uploadkeys(GetSigKeysCallback callback) {
-    std::pair<SecureBuffer, SecureBuffer> pair = initstatickeys();
-    if (pair.first.get() == nullptr) {
-        LOG_err << "uploadkeys: Error with key init";
-        callback(ValueMap(), API_EINTERNAL);
-        return;
-    }
+	std::pair<SecureBuffer, SecureBuffer> pair = initstatickeys();
+	if (pair.first.get() == nullptr) {
+		LOG_err << "uploadkeys: Error with key init";
+		callback(ValueMap(), API_EINTERNAL);
+		return;
+	}
 
-    SharedBuffer pubBuff(pair.first.get(), pair.first.size());
-    ValueMap pubMap(new std::map<std::string, SharedBuffer>());
-    // pubMap->insert("puEd255");
-    pubMap->insert( { "", pubBuff });
-    ValueMap priMap(new std::map<std::string, SharedBuffer>());
-    priMap->insert(
-            { "prEd255", SharedBuffer(pair.second.get(), pair.second.size()) });
+	SharedBuffer pubBuff(pair.first.get(), pair.first.size());
+	ValueMap pubMap(new std::map<std::string, SharedBuffer>());
+	// pubMap->insert("puEd255");
+	pubMap->insert(std::make_pair("", pubBuff ));
+	ValueMap priMap(new std::map<std::string, SharedBuffer>());
+	priMap->insert(std::make_pair("prEd255", SharedBuffer(pair.second.get(),
+		pair.second.size())));
 
-    ////////////// Create the chain of API calls /////////////////
+	////////////// Create the chain of API calls /////////////////
 
-    std::shared_ptr<std::vector<std::function<void(error)>>>fVec(
-            new std::vector<std::function<void(error)>>());
+	std::shared_ptr<std::vector<std::function<void(error)>>>fVec(
+		new std::vector<std::function<void(error)>>());
 
-    int savedrt = reqtag;
-    auto finalFunc = [this, callback, savedrt](ValueMap map, error e)
-    {
-        restag = reqtag;
-        callback(map, e);
-    };
+	int savedrt = reqtag;
+	auto finalFunc = [this, callback, savedrt](ValueMap map, error e)
+	{
+		restag = reqtag;
+		callback(map, e);
+	};
 
-    // Set puEd255.
-    fVec->push_back([priMap, pubMap, pubBuff, fVec, finalFunc, this](error e)
-    {
-        if(e != API_OK)
-        {
-            finalFunc(priMap, e);
-            return;
-        }
-        setgattribute("keyring", priMap, 1, 0,
-                (*fVec)[1]);
-    });
+	// Set puEd255.
+	fVec->push_back([priMap, pubMap, pubBuff, fVec, finalFunc, this](error e)
+	{
+		if (e != API_OK)
+		{
+			finalFunc(priMap, e);
+			return;
+		}
+		setgattribute("keyring", priMap, 1, 0,
+			(*fVec)[1]);
+	});
 
-    // Then set prEd255.
-    fVec->push_back([priMap, pubBuff, fVec, finalFunc, this](error e)
-    {
-        if(e != API_OK)
-        {
-            finalFunc(priMap, e);
-            return;
-        }
-        priMap->insert( {"puEd255", pubBuff});
-        User *u = new User(nullptr);
-        char h[12];
-        Base64::btoa((byte*)&me, sizeof me, h);
-        u->uid = std::string(h, 11);
+	// Bit of a hack, use this user to fetch the public key.
+	User *u = new User(nullptr);
+	auto fetchSig = [finalFunc, fVec, this, priMap, u](handle hd, byte *kBytes, int keyLen) mutable
+	{
+		SharedBuffer sigBuff = signRSAKey(u->pubk.getPublicKeyBytes());
+		delete u;
+		if (sigBuff.get() == nullptr)
+		{
+			finalFunc(priMap, API_EINTERNAL);
+			return;
+		}
+		// signedRSA = authRSA
+		ValueMap sigMap(new std::map<std::string, SharedBuffer>);
+		sigMap->insert(std::make_pair("sgPubk", sigBuff));
+		setgattribute("sgPubk", sigMap, 0, 0,
+			(*fVec)[2]);
+	};
 
-        // Get the public key for 'this' user.
-            reqs[r].add(new CommandPubKeyRequest(this, u,
-                [finalFunc, fVec, this, priMap, u](handle hd, byte *kBytes, int keyLen) mutable
-                {
-                    SharedBuffer sigBuff = signRSAKey(u->pubk.getPublicKeyBytes());
-                    delete u;
-                    if(sigBuff.get() == nullptr)
-                    {
-                        finalFunc(priMap, API_EINTERNAL);
-                        return;
-                    }
-                    // signedRSA = authRSA
-                    ValueMap sigMap(new std::map<std::string, SharedBuffer>);
-                    sigMap->insert( {"sgPubk", sigBuff});
-                    setgattribute("sgPubk", sigMap, 0, 0,
-                            (*fVec)[2]);
-                }));
-        });
+	// Then set prEd255.
+	fVec->push_back([priMap, pubBuff, fVec, finalFunc, u, fetchSig, this](error e)
+	{
+		if (e != API_OK)
+		{
+			finalFunc(priMap, e);
+			return;
+		}
+		priMap->insert(std::make_pair("puEd255", pubBuff ));
 
-    // Then set signedRSA.
-    fVec->push_back([priMap, fVec, finalFunc, this](error e)
-    {
-        finalFunc(priMap, e);
-    });
+		char h[12];
+		Base64::btoa((byte*)&me, sizeof me, h);
+		u->uid = std::string(h, 11);
 
-    setgattribute("puEd255", pubMap, 0, 0, (*fVec)[0]);
+		// Get the public key for 'this' user.
+		reqs[r].add(new CommandPubKeyRequest(this, u, fetchSig));
+	});
+
+	// Then set signedRSA.
+	fVec->push_back([priMap, fVec, finalFunc, this](error e)
+	{
+		finalFunc(priMap, e);
+	});
+
+	setgattribute("puEd255", pubMap, 0, 0, (*fVec)[0]);
 }
 
 SharedBuffer MegaClient::signRSAKey(SharedBuffer &&keyBytes) {
@@ -3971,64 +3980,66 @@ SharedBuffer MegaClient::createFingerPrint(SharedBuffer &keyBytes) {
     return SharedBuffer((byte*) keyHash.c_str(), keyHash.length());
 }
 
-void MegaClient::verifyRSAKeySignature(User *user,
-        function<void(error)> funct) {
-    if (user->rsaVerified) {
-        funct(API_OK);
-        return;
-    }
+void MegaClient::verifyRSAKeySignature(User *user, function<void(error)> funct) {
+	if (user->rsaVerified) {
+		funct(API_OK);
+		return;
+	}
 
-    getgattribute(user->uid, "sgPubk",
-        [user, funct, this](ValueMap map, error e) mutable
-        {
-            if(e != API_OK)
-            {
-                LOG_err << "Could not get sgPubk attribute.";
-                funct(e);
-                return;
-            }
-            //auto i = map->find("sgPubk");
-            auto i = map->find("");
-            if(i == map->end())
-            {
-                LOG_err << "No record for sgPubk in VaueMap";
-                funct(API_EINTERNAL);
-                return;
-            }
-            SharedBuffer sig = i->second;
-            if(user->puEd25519)
-            {
-                LOG_debug << "test rsa key from cache.";
-                user->rsaVerified = verifyRSAKeySignature_(user, sig);
-                funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
-                return;
-            }
-            else
-            {
-                getgattribute(user->uid, "puEd255", [funct, user, this, sig](ValueMap map, error e) mutable
-                        {
-                            if(e != API_OK)
-                            {
-                                funct(e);
-                                return;
-                            }
+	auto getSig = [funct, user, this](ValueMap map, error e) mutable
+	{
+		if (e != API_OK)
+		{
+			funct(e);
+			return;
+		}
 
-                            //auto i = map->find("puEd255");
-                            auto i = map->find("");
-                            if(i == map->end())
-                            {
-                                funct(API_EINTERNAL);
-                                return;
-                            }
+		//auto i = map->find("puEd255");
+		auto i = map->find("");
+		if (i == map->end())
+		{
+			funct(API_EINTERNAL);
+			return;
+		}
 
-                            user->puEd25519 = i->second;
-                            user->rsaVerified = verifyRSAKeySignature_(user, sig);
-                            LOG_info << "RSA key verifed: " << user->rsaVerified;
-                            funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
-                            return;
-                        });
-            }
-        });
+		user->puEd25519 = i->second;
+		user->rsaVerified = verifyRSAKeySignature_(user, user->keySig);
+		LOG_info << "RSA key verifed: " << user->rsaVerified;
+		funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+		return;
+	};
+
+	getgattribute(user->uid, "sgPubk",
+		[user, funct, this, getSig](ValueMap map, error e) mutable
+	{
+		if (e != API_OK)
+		{
+			LOG_err << "Could not get sgPubk attribute.";
+			funct(e);
+			return;
+		}
+		//auto i = map->find("sgPubk");
+		auto i = map->find("");
+		if (i == map->end())
+		{
+			LOG_err << "No record for sgPubk in VaueMap";
+			funct(API_EINTERNAL);
+			return;
+		}
+		user->keySig = i->second;
+
+		if (user->puEd25519)
+		{
+			LOG_debug << "test rsa key from cache.";
+			user->rsaVerified = verifyRSAKeySignature_(user, user->keySig);
+			funct((user->rsaVerified) ? API_OK : API_EKEYVERFAIL);
+			return;
+		}
+		else
+		{
+			getgattribute(user->uid, "puEd255", getSig);
+		}
+	});
 }
 
 bool MegaClient::verifyRSAKeySignature_(User *user, SharedBuffer &sig) {
@@ -4045,99 +4056,73 @@ bool MegaClient::verifyRSAKeySignature_(User *user, SharedBuffer &sig) {
 }
 
 void MegaClient::fetchKeyrings(FetchKeyringsCallback callback) {
-    if (!keysFetched) {
-        char h[12];
-        Base64::btoa((byte*) &me, sizeof me, h);
-        std::string hand(h, 11);
-        getgattribute(hand, "authRSA",
-                [this, callback, hand](ValueMap map, error e) mutable
-                {
-                    if(e != API_OK && e != API_ENOENT)
-                    {
-                        callback(e);
-                        return;
-                    }
-                    if(e == API_OK)
-                    {
-                        if(!deserilizeMap(map, 1))
-                        {
-                            callback(API_EINTERNAL);
-                            return;
-                        }
-                    }
+	if (!keysFetched) {
+		char h[12];
+		Base64::btoa((byte*)&me, sizeof me, h);
+		std::string hand(h, 11);
 
-                    getgattribute(hand, "authring",
-                            [this, callback](ValueMap map, error e) mutable
-                            {
+		auto fetchAuthRing = [this, callback](ValueMap map, error e) mutable
+		{
+			if (e != API_OK && e != API_ENOENT) {
+				callback(e);
+				return;
+			}
 
-                                if(e != API_OK && e != API_ENOENT) {
-                                    callback(e);
-                                    return;
-                                }
-                                if(e == API_OK)
-                                {
-                                    if(!deserilizeMap(map, 0))
-                                    {
-                                        callback(API_EINTERNAL);
-                                        return;
-                                    }
-                                }
-                                keysFetched = true;
-                                callback(API_OK);
-                            });
-                });
-    } else {
-        callback(API_OK);
-    }
+			if (e == API_OK)
+			{
+				if (!deserilizeMap(map, 0))
+				{
+					callback(API_EINTERNAL);
+					return;
+				}
+			}
+
+			keysFetched = true;
+			callback(API_OK);
+		};
+		getgattribute(hand, "authRSA",
+			[this, callback, hand, fetchAuthRing](ValueMap map, error e) mutable
+		{
+			if (e != API_OK && e != API_ENOENT)
+			{
+				callback(e);
+				return;
+			}
+
+			if (e == API_OK)
+			{
+				if (!deserilizeMap(map, 1))
+				{
+					callback(API_EINTERNAL);
+					return;
+				}
+			}
+
+			getgattribute(hand, "authring", fetchAuthRing);
+		});
+	}
+	else {
+		callback(API_OK);
+	}
 }
 
 void MegaClient::verifyKeyFingerPrint(const char *user, SharedBuffer &key,
-        int rsa, VerifyKeyCallback callback) {
+	int rsa, VerifyKeyCallback callback) {
 
-    if (!keysFetched) {
-        getgattribute(finduser(me)->email.c_str(), "authRSA",
-            [this, user, key, rsa, callback](ValueMap map, error e) mutable
-            {
-                if(e != API_OK && e != API_ENOENT)
-                {
-                    callback(e);
-                    return;
-                }
-                if(e == API_OK)
-                {
-                    LOG_info << "authRSA map obtained";
-                    if(!deserilizeMap(map, 1)) {
-                        LOG_err << "could not deserilize rsa map.";
-                        callback(API_EINTERNAL);
-                        return;
-                    }
-                }
-
-                getgattribute(finduser(me)->email.c_str(), "authring",
-                        [this, user, key, rsa, callback](ValueMap map, error e) mutable
-                        {
-                            if(e != API_OK && e != API_ENOENT)
-                            {
-                                callback(e);
-                                return;
-                            }
-                            if(e == API_OK)
-                            {
-                                LOG_info << "authring map obtained";
-                                if(!deserilizeMap(map, 0))
-                                {
-                                    LOG_err << "could not deserilize ed map.";
-                                    callback(API_EINTERNAL);
-                                    return;
-                                }
-                            }
-                            keysFetched = true;
-                            verifyKeyFingerPrint_(user, key, rsa, callback);
-                        });
-            });
-    } else {
-        verifyKeyFingerPrint_(user, key, rsa, callback);
-    }
+	if (!keysFetched) {
+		std::string userStr(user);
+		fetchKeyrings([userStr, key, rsa, callback, this](error e) mutable
+		{
+			if (e != API_OK) {
+				callback(e);
+				return;
+			}
+			verifyKeyFingerPrint_(userStr.c_str(), key, rsa, callback);
+		});
+	}
+	else {
+		verifyKeyFingerPrint_(user, key, rsa, callback);
+	}
 }
 
 void MegaClient::verifyKeyFingerPrint_(const char *user, SharedBuffer &key,
@@ -4175,9 +4160,9 @@ void MegaClient::verifyKeyFingerPrint_(const char *user, SharedBuffer &key,
     LOG_info << "storing fingerprint and updating keyring";
 
     if (rsa) {
-        rsaKeyRing.insert( { userObj->userhandle, FingerPrintRecord(keyFp) });
+        rsaKeyRing.insert(std::make_pair(userObj->userhandle, FingerPrintRecord(keyFp)));
     } else {
-        edKeyRing.insert( { userObj->userhandle, FingerPrintRecord(keyFp) });
+        edKeyRing.insert(std::make_pair(userObj->userhandle, FingerPrintRecord(keyFp)));
     }
 
     ValueMap sm = serilizeMap(rsa);
@@ -4189,55 +4174,61 @@ void MegaClient::verifyKeyFingerPrint_(const char *user, SharedBuffer &key,
 }
 
 void MegaClient::getPublicStaticKey(const char *user) {
-    User *u = finduser(user);
-    if (!u) {
-        restag = reqtag;
-        app->getguattr_result(ValueMap(), API_EINTERNAL);
-        return;
-    }
+	User *u = finduser(user);
+	std::string userStr(user);
+	if (!u) {
+		restag = reqtag;
+		app->getguattr_result(ValueMap(), API_EINTERNAL);
+		return;
+	}
 
-    if (u->puEd25519) {
-        LOG_info << "Using users cached ed25519 signing key";
-        ValueMap map(new std::map<std::string, SharedBuffer>());
-        map->insert( { "puEd255", u->puEd25519 });
-        restag = reqtag;
-        app->getguattr_result(map, API_OK);
-        return;
-    }
+	if (u->puEd25519) {
+		LOG_info << "Using users cached ed25519 signing key";
+		ValueMap map(new std::map<std::string, SharedBuffer>());
+		map->insert(std::make_pair("puEd255", u->puEd25519));
+		restag = reqtag;
+		app->getguattr_result(map, API_OK);
+		return;
+	}
 
-    int savedrt = reqtag;
-    LOG_info << "Retrieving users ed25519 public signing key";
-    getgattribute(user, "puEd255",
-            [this, user, u, savedrt](ValueMap map, error e)
-            {
-                if(e != API_OK)
-                {
-                    LOG_err << "Error retrieving puEd255";
-                    restag = savedrt;
-                    app->getguattr_result(map, e);
-                    return;
-                }
-                //auto k = map->find("puEd255");
-                auto k = map->find("");
-                if(k == map->end())
-                {
-                    LOG_err << "puEd255 record not found";
-                    restag = savedrt;
-                    app->getguattr_result(map, API_EINTERNAL);
-                    return;
-                }
-                u->puEd25519 = k->second;
+	int savedrt = reqtag;
+	LOG_info << "Retrieving users ed25519 public signing key";
+	ValueMap retMap(new std::map<std::string, SharedBuffer>());
+	auto verKey =
+		[this, retMap, savedrt](error e)
+	{
+		if (e != API_OK)
+		{
+			LOG_err << "Users ed25519 signing key not verified";
+		}
+		restag = savedrt;
+		app->getguattr_result(retMap, e);
+	};
 
-                verifyKeyFingerPrint(user, k->second, 0, [this, map, savedrt](error e)
-                        {
-                            if(e != API_OK)
-                            {
-                                LOG_err << "Users ed25519 signing key not verified";
-                            }
-                            restag = savedrt;
-                            app->getguattr_result(map, e);
-                        });
-            });
+	getgattribute(user, "puEd255",
+		[this, userStr, u, savedrt, verKey, retMap](ValueMap map, error e)
+	{
+		if (e != API_OK)
+		{
+			LOG_err << "Error retrieving puEd255";
+			restag = savedrt;
+			app->getguattr_result(map, e);
+			return;
+		}
+		//auto k = map->find("puEd255");
+		auto k = map->find("");
+		if (k == map->end())
+		{
+			LOG_err << "puEd255 record not found";
+			restag = savedrt;
+			app->getguattr_result(map, API_EINTERNAL);
+			return;
+		}
+		u->puEd25519 = k->second;
+
+		retMap->insert(std::make_pair("", k->second));
+		verifyKeyFingerPrint(userStr.c_str(), k->second, 0, verKey);
+	});
 }
 
 ValueMap MegaClient::serilizeMap(int rsa) {
@@ -4256,22 +4247,20 @@ ValueMap MegaClient::serilizeMap(int rsa) {
 
     SharedBuffer serBuff(fpMap->size() * (sizeof(handle) + 20 + 1));
     int count = 0;
-    for (auto &i : *fpMap) {
+    for_each(fpMap->begin(), fpMap->end(), [&](std::pair<handle, FingerPrintRecord> &i) {
         memcpy(serBuff.get() + count, &i.first, sizeof(handle));
         memcpy(serBuff.get() + (count += sizeof(handle)),
                 i.second.fingerPrint.get(), 20);
         memcpy(serBuff.get() + (count += 20), &i.second.methodConfidence, 1);
         LOG_info << "Saved record for " << i.first;
         count++;
-    }
+	});
 
-    keyFpMap->insert( { mapName, serBuff });
+    keyFpMap->insert(std::make_pair(mapName, serBuff));
     return keyFpMap;
 }
 
 bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
-//    auto i = map->find(
-//            (rsa) ? std::string("authRSA") : std::string("authring"));
     auto i = map->find("");
     if (i == map->end()) {
         return false;
@@ -4294,7 +4283,7 @@ bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
         memcpy(record.fingerPrint.get(), buff.get() + (count += sizeof(handle)),
                 20);
         memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
-        rMap->insert( { h, record });
+        rMap->insert(std::make_pair(h, record ));
         count++;
         LOG_info << "Received record for " << h;
     }

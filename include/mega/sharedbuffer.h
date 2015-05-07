@@ -21,16 +21,21 @@
 #ifndef SHARED_MEGA_BUFFER_H_
 #define SHARED_MEGA_BUFFER_H_
 
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L 
 #include <memory>
 using std::shared_ptr;
+#elif _WIN32
+#include <memory>
+using std::shared_ptr
 #else
 #include <tr1/memory>
 using std::tr1::shared_ptr;
 #endif
+
 #include <iostream>
 #include <cstring>
 #include <functional>
+#include "secureBuffer.h"
 
 namespace mega {
 
@@ -83,6 +88,19 @@ struct SharedBuffer : public std::shared_ptr<unsigned char> {
         visibility(visibility) {
         memcpy(get(), buffer, size);
     }
+
+	/**
+	* @brief Convert a SecureBuffer to a SharedBuffer
+	*/
+	SharedBuffer(SecureBuffer &buffer, Visibility visibility = M_VS_PUBLIC) :
+		std::shared_ptr<unsigned char>((unsigned char*)malloc(buffer.size())),
+		size(buffer.size()),
+		error(0),
+		format(M_PLAIN_BYTES),
+		visibility()
+	{
+		memcpy(get(), buffer.get(), buffer.size());
+	}
 
     /**
      * @brief Converts a string into a SharedBuffer.
@@ -183,6 +201,15 @@ struct SharedBuffer : public std::shared_ptr<unsigned char> {
     inline SharedBuffer clone() {
         return SharedBuffer(get(), size);
     }
+
+	/**
+	* @brief Convert this SharedBuffer to a SecureBuffer.
+	*/
+	inline SecureBuffer toSecureBuffer() {
+		SecureBuffer b(this->size);
+		memcpy(b.get(), this->get(), this->size);
+		return b;
+	}
 };
 
    /**

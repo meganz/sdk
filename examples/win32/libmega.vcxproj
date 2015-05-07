@@ -158,6 +158,7 @@
     <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
+    <ClCompile Include="..\..\src\userAttributes.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\src\gfx.cpp" />
     <ClCompile Include="..\..\src\http.cpp" />
@@ -210,7 +211,10 @@
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\include\mega\secureBuffer.h" />
+    <ClInclude Include="..\..\include\mega\sharedbuffer.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
+    <ClInclude Include="..\..\include\mega\userAttributes.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />
     <ClInclude Include="..\..\include\mega\win32\megafs.h" />

@@ -39,6 +39,9 @@
 
 #include <functional>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 namespace mega {
 
 typedef std::function<void(error)> VerifyKeyCallback;
@@ -488,14 +491,16 @@ private:
     typedef int64_t Ts;
 #ifdef _WIN32
     //We need to have these static vars extern in order to have the functions static inlined
-    extern Ts _gLastTimeValue;
-    extern Ts _gTimeBase;
+    Ts _gLastTimeValue;
+    Ts _gTimeBase;
 
-    static inline Ts timestampMs()
+    Ts timestampMs()
     {
         Ts now = timeGetTime();
-        if (now < _gLastTimeValue)
-            _gTimeBase+=0xFFFFFFFF;
+		if (now < _gLastTimeValue)
+		{
+			_gTimeBase += 0xFFFFFFFF;
+		}
         _gLastTimeValue = now;
         now += _gTimeBase;
         return now;

@@ -217,5 +217,11 @@ std::pair<SecureBuffer, SecureBuffer> EdDSA::getKeyPair()
     return std::pair<SecureBuffer, SecureBuffer>(publicKey, privateKey);
 }
 
+void EdDSA::setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair)
+{
+	publicKey = pair.first;
+	privateKey = pair.second;
+}
+
 } // namespace
 #endif

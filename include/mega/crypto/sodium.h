@@ -174,6 +174,12 @@ public:
      * @return The key pair for the contained key seed.
      */
     std::pair<SecureBuffer, SecureBuffer> getKeyPair();
+
+	/**
+	* @brief Set the key pair.
+	* @param pair The key pair to set.
+	*/
+	void setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair);
 };
 
 

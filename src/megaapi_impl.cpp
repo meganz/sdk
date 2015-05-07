@@ -1783,6 +1783,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey,
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
+	// Setup the callmap for requests.
+	setupRequestCallMap();
 #ifndef __APPLE__
     (void) fseventsfd;
     fsAccess = new MegaFileSystemAccess();
@@ -7612,54 +7614,57 @@ error MegaApiImpl::requestKillSession(MegaRequestPrivate *request)
     return API_OK;
 }
 
-std::map<int, error (MegaApiImpl::*)(MegaRequestPrivate*)> MegaApiImpl::requestCallMap =
+void MegaApiImpl::setupRequestCallMap()
 {
-        { MegaRequest::TYPE_LOGIN, &MegaApiImpl::requestLogin },
-        { MegaRequest::TYPE_CREATE_FOLDER, &MegaApiImpl::requestCreateFolder },
-        { MegaRequest::TYPE_MOVE, &MegaApiImpl::requestMove },
-        { MegaRequest::TYPE_COPY, &MegaApiImpl::requestCopy },
-        { MegaRequest::TYPE_RENAME, &MegaApiImpl::requestRename },
-        { MegaRequest::TYPE_REMOVE, &MegaApiImpl::requestRemove },
-        { MegaRequest::TYPE_SHARE, &MegaApiImpl::requestShare },
-        { MegaRequest::TYPE_IMPORT_LINK, &MegaApiImpl::requestGetPublicNode },
-        { MegaRequest::TYPE_GET_PUBLIC_NODE, &MegaApiImpl::requestGetPublicNode },
-        { MegaRequest::TYPE_EXPORT, &MegaApiImpl::requestExport },
-        { MegaRequest::TYPE_FETCH_NODES, &MegaApiImpl::requestFetchNodes },
-        { MegaRequest::TYPE_ACCOUNT_DETAILS, &MegaApiImpl::requestAccountDetails },
-        { MegaRequest::TYPE_CHANGE_PW, &MegaApiImpl::requestChangePw },
-        { MegaRequest::TYPE_LOGOUT, &MegaApiImpl::requestLogout },
-        { MegaRequest::TYPE_GET_ATTR_FILE, &MegaApiImpl::requestGetAttrFile },
-        { MegaRequest::TYPE_GET_ATTR_USER, &MegaApiImpl::requestGetAttrUser },
-        { MegaRequest::TYPE_SET_ATTR_USER, &MegaApiImpl::requestSetAttrUser },
-        { MegaRequest::TYPE_SET_ATTR_FILE, &MegaApiImpl::requestSetAttrFile },
-        { MegaRequest::TYPE_CANCEL_ATTR_FILE, &MegaApiImpl::requestCancelAttrFile },
-        { MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS, &MegaApiImpl::requestRetryPendingConn },
-        { MegaRequest::TYPE_ADD_CONTACT, &MegaApiImpl::requestAddContact },
-        { MegaRequest::TYPE_REMOVE_CONTACT, &MegaApiImpl::requestRemoveContact },
-        { MegaRequest::TYPE_CREATE_ACCOUNT, &MegaApiImpl::requestCreateAccount },
-        { MegaRequest::TYPE_QUERY_SIGNUP_LINK, &MegaApiImpl::requestConfirmAccount },
-        { MegaRequest::TYPE_CONFIRM_ACCOUNT, &MegaApiImpl::requestConfirmAccount },
-        { MegaRequest::TYPE_PAUSE_TRANSFERS, &MegaApiImpl::requestPauseTransfers },
-        { MegaRequest::TYPE_CANCEL_TRANSFER, &MegaApiImpl::requestCancelTransfer },
-        { MegaRequest::TYPE_CANCEL_TRANSFERS, &MegaApiImpl::requestCancelTransfers },
+	if (requestCallMap.empty())
+	{
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_LOGIN, &MegaApiImpl::requestLogin));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CREATE_FOLDER, &MegaApiImpl::requestCreateFolder));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_MOVE, &MegaApiImpl::requestMove));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_COPY, &MegaApiImpl::requestCopy));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_RENAME, &MegaApiImpl::requestRename));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_REMOVE, &MegaApiImpl::requestRemove));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_SHARE, &MegaApiImpl::requestShare));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_IMPORT_LINK, &MegaApiImpl::requestGetPublicNode));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_PUBLIC_NODE, &MegaApiImpl::requestGetPublicNode));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_EXPORT, &MegaApiImpl::requestExport));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_FETCH_NODES, &MegaApiImpl::requestFetchNodes));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_ACCOUNT_DETAILS, &MegaApiImpl::requestAccountDetails));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CHANGE_PW, &MegaApiImpl::requestChangePw));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_LOGOUT, &MegaApiImpl::requestLogout));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_ATTR_FILE, &MegaApiImpl::requestGetAttrFile));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_ATTR_USER, &MegaApiImpl::requestGetAttrUser));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_SET_ATTR_USER, &MegaApiImpl::requestSetAttrUser));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_SET_ATTR_FILE, &MegaApiImpl::requestSetAttrFile));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CANCEL_ATTR_FILE, &MegaApiImpl::requestCancelAttrFile));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS, &MegaApiImpl::requestRetryPendingConn));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_ADD_CONTACT, &MegaApiImpl::requestAddContact));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_REMOVE_CONTACT, &MegaApiImpl::requestRemoveContact));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CREATE_ACCOUNT, &MegaApiImpl::requestCreateAccount));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_QUERY_SIGNUP_LINK, &MegaApiImpl::requestConfirmAccount));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CONFIRM_ACCOUNT, &MegaApiImpl::requestConfirmAccount));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_PAUSE_TRANSFERS, &MegaApiImpl::requestPauseTransfers));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CANCEL_TRANSFER, &MegaApiImpl::requestCancelTransfer));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_CANCEL_TRANSFERS, &MegaApiImpl::requestCancelTransfers));
 #ifdef ENABLE_SYNC
-        { MegaRequest::TYPE_ADD_SYNC, &MegaApiImpl::requestAddSync },
-        { MegaRequest::TYPE_REMOVE_SYNCS, &MegaApiImpl::requestRemoveSyncs },
-        { MegaRequest::TYPE_REMOVE_SYNC, &MegaApiImpl::requestRemoveSync },
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_ADD_SYNC, &MegaApiImpl::requestAddSync));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_REMOVE_SYNCS, &MegaApiImpl::requestRemoveSyncs));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_REMOVE_SYNC, &MegaApiImpl::requestRemoveSync));
 #endif
-        { MegaRequest::TYPE_REPORT_EVENT, &MegaApiImpl::requestReportEvent },
-        { MegaRequest::TYPE_DELETE, &MegaApiImpl::requestDelete },
-        { MegaRequest::TYPE_GET_PRICING, &MegaApiImpl::requestGetPaymentId },
-        { MegaRequest::TYPE_GET_PAYMENT_ID, &MegaApiImpl::requestGetPaymentId },
-        { MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, &MegaApiImpl::requestSubmitPurchaseReceipt },
-        { MegaRequest::TYPE_GET_USER_DATA, &MegaApiImpl::requestGetUserData },
-        { MegaRequest::TYPE_GET_USER_ATTRIBUTE, &MegaApiImpl::requestGetUserAttribute },
-        { MegaRequest::TYPE_SET_USER_ATTRIBUTE, &MegaApiImpl::requestSetUserAttribute },
-        { MegaRequest::TYPE_GET_SIGNING_KEYS, &MegaApiImpl::requestGetSigningKeys },
-        { MegaRequest::TYPE_LOAD_BALANCING, &MegaApiImpl::requestLoadBalancing },
-        { MegaRequest::TYPE_GET_STATIC_PUB_KEY, &MegaApiImpl::requestGetStaticPublicKey },
-        { MegaRequest::TYPE_KILL_SESSION, &MegaApiImpl::requestKillSession },
-};
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_REPORT_EVENT, &MegaApiImpl::requestReportEvent));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_DELETE, &MegaApiImpl::requestDelete));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_PRICING, &MegaApiImpl::requestGetPaymentId));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_PAYMENT_ID, &MegaApiImpl::requestGetPaymentId));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, &MegaApiImpl::requestSubmitPurchaseReceipt));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_USER_DATA, &MegaApiImpl::requestGetUserData));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_USER_ATTRIBUTE, &MegaApiImpl::requestGetUserAttribute));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_SET_USER_ATTRIBUTE, &MegaApiImpl::requestSetUserAttribute));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_SIGNING_KEYS, &MegaApiImpl::requestGetSigningKeys));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_LOAD_BALANCING, &MegaApiImpl::requestLoadBalancing));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_GET_STATIC_PUB_KEY, &MegaApiImpl::requestGetStaticPublicKey));
+		requestCallMap.insert(std::make_pair(MegaRequest::TYPE_KILL_SESSION, &MegaApiImpl::requestKillSession));
+	}
+}
 
 //////////////////////////
 char* MegaApiImpl::stringToArray(string &buffer) {

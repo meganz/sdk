@@ -1309,6 +1309,7 @@ private:
         error requestPauseTransfers(MegaRequestPrivate*);
         error requestCancelTransfer(MegaRequestPrivate*);
         error requestCancelTransfers(MegaRequestPrivate*);
+		static void setupRequestCallMap();
 
 #ifdef ENABLE_SYNC
         error requestAddSync(MegaRequestPrivate*);
