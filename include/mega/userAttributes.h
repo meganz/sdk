@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <algorithm>
 
 #ifdef __TEST
 #include <gtest/gtest.h>
@@ -107,12 +108,14 @@ public:
      * @return ValueMap The map of values converted.
      */
     static ValueMap
-    mapToValueMap(std::map<std::string, std::pair<unsigned char*, unsigned int>> *map) {
+    mapToValueMap(std::map<std::string, std::pair<unsigned char*, unsigned int>> *map) 
+	{
         ValueMap vMap(new std::map<std::string, SharedBuffer>());
-        for(auto i : *map) {
-            SharedBuffer b(i.second.first, i.second.second);
-            vMap->insert({i.first, b});
-        }
+		std::for_each(map->begin(), map->end(), [&vMap](std::map<std::string, std::pair<unsigned char*, unsigned int>>::value_type &i)
+		{
+            SharedBuffer buffer(i.second.first, i.second.second);
+            vMap->insert(std::make_pair(i.first, buffer));
+		});
 
         return vMap;
     }
@@ -128,14 +131,13 @@ public:
     {
         std::map<std::string, std::pair<unsigned char*, unsigned int>> *map
             = new std::map<std::string, std::pair<unsigned char*, unsigned int>>();
-
-        for(auto i : *valueMap)
-        {
+		std::for_each(valueMap->begin(), valueMap->end(), [&map](std::map<std::string, SharedBuffer>::value_type &i)
+		{
             unsigned char *value = (unsigned char*)malloc(i.second.size);
             memcpy(value, i.second.get(), i.second.size);
             std::pair<unsigned char*, unsigned int> p(value, i.second.size);
-            map->insert({i.first, p});
-        }
+            map->insert(std::make_pair(i.first, p));
+		});
 
         return map;
     }
@@ -152,8 +154,8 @@ public:
         ValueMap vMap(new std::map<std::string, SharedBuffer>);
         for(int x = 0; x < length; x++)
         {
-            SharedBuffer b(tlvArray[x].value, tlvArray[x].length);
-            vMap->insert({std::string(tlvArray[x].type), b});
+            SharedBuffer buffer(tlvArray[x].value, tlvArray[x].length);
+            vMap->insert(std::make_pair(std::string(tlvArray[x].type), buffer));
         }
         return vMap;
     }
@@ -169,14 +171,14 @@ public:
         TLV *tlvArray = (TLV*)malloc(map->size() * sizeof(TLV));
         memset(tlvArray, 0, map->size() * sizeof(TLV));
         int x = 0;
-        for(auto i : *map)
+		std::for_each(map->begin(), map->end(), [&](std::map<std::string, SharedBuffer>::value_type &i) 
         {
-            tlvArray[x] = { i.first.c_str() };
+			strcpy(tlvArray[x].type, i.first.c_str());
             tlvArray[x].value = (unsigned char*)malloc(i.second.size);
             memcpy(tlvArray[x].value, i.second.get(), i.second.size);
             tlvArray[x].length = i.second.size;
             x++;
-        }
+		});
 
         return tlvArray;
     }

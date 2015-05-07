@@ -175,12 +175,20 @@ public:
      */
     std::pair<SecureBuffer, SecureBuffer> getKeyPair();
 
+<<<<<<< HEAD
     /**
      * @brief Set the key pair.
      *
      * @param pair The key pair to set.
      */
     void setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair);
+=======
+	/**
+	* @brief Set the key pair.
+	* @param pair The key pair to set.
+	*/
+	void setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair);
+>>>>>>> d5e86ca3dc1984ade3d22dff6488afeb8b500010
 };
 
 

@@ -1216,7 +1216,22 @@ void CommandLogin::procresult()
                     // before their addition. If there is a failure to upload the
                     // RSA keys we *must* fail early, as the signature for the key
                     // could change on retry.
-                    auto f = [c, reqtag](error e){
+					auto fetchRings = [c, reqtag](error e){
+						c->restag = reqtag;
+						c->app->login_result(e);
+					};
+
+					auto getSigKeys = [c, reqtag, fetchRings](ValueMap map, error e) {
+						if (e != API_OK) {
+							c->restag = reqtag;
+							c->app->login_result(e);
+						}
+						LOG_info << "Signing keys obtained, fetching keyrings";
+						// Fetch ed25519 and RSA keyrings.
+						c->fetchKeyrings(fetchRings);
+					};
+
+                    auto start = [c, reqtag, getSigKeys](error e){
                         if(e != API_OK) {
                             c->restag = reqtag;
                             c->app->login_result(e);
@@ -1224,33 +1239,20 @@ void CommandLogin::procresult()
                         }
                         LOG_info << "Logged in, fetching signing keys";
                         // Get own signing keys, bail on failure.
-                        c->getownsigningkeys([c, reqtag](ValueMap map, error e){
-                            if(e != API_OK) {
-                                c->restag = reqtag;
-                                c->app->login_result(e);
-                            }
-                            LOG_info << "Signing keys obtained, fetching keyrings";
-                            // Fetch ed25519 and RSA keyrings.
-                            c->fetchKeyrings([c, reqtag](error e){
-                                c->restag = reqtag;
-                                c->app->login_result(e);
-                            });
-
-                        });
-                        // set final parameter to true to reset keys.
+                        c->getownsigningkeys(getSigKeys);
                     };
 
-                    // If we need to set the keypair, then do so, and pass in f
+                    // If we need to set the keypair, then do so, and pass in start
                     // as the callback.
                     if(setKeypair)
                     {
                         LOG_info << "Generating and adding missing RSA keypair";
-                        c->setkeypair(f);
+                        c->setkeypair(start);
                     }
                     // Otherwise, just call f.
                     else
                     {
-                        f(API_OK);
+                        start(API_OK);
                     }
                 }
 
@@ -1820,7 +1822,7 @@ CommandGetUserAttr::procresult() {
         }
 
         int l = (end - ptr) / 4 * 3 + 3;
-        byte data[l];
+        byte *data = new byte[l];
         l = Base64::atob(ptr, data, l);
         char priv = data[0];
 
@@ -1830,8 +1832,9 @@ CommandGetUserAttr::procresult() {
         {
             int offset = ((priv = data[1]) == '!') ? 2 : 1;
             tlv = SharedBuffer((unsigned char*)data + offset, l - offset);
+			delete data;
             map = ValueMap(new std::map<std::string, SharedBuffer>);
-            map->insert({"", tlv});
+            map->insert(std::make_pair("", tlv));
             callBack(map, API_OK);
         }
         else if(priv == '*')
@@ -1839,6 +1842,7 @@ CommandGetUserAttr::procresult() {
             int offset = ((priv = data[1]) == '!') ? 2 : 1;
 
             std::string d((char*)(data + offset), l - offset);
+			delete data;
             if (l % client->key.BLOCKSIZE == 0)
             {
                 if (!PaddedCBC::decrypt(&d, &client->key))
@@ -1877,6 +1881,7 @@ CommandGetUserAttr::procresult() {
         }
         else
         {
+			delete data;
             callBack(map, API_EINTERNAL);
         }
 
@@ -1887,12 +1892,13 @@ CommandGetUserAttr::procresult() {
 CommandSetUserAttr::CommandSetUserAttr(MegaClient *client,
         const char *an, byte *av, unsigned int avl, SetAttrCallBack callBack) {
     int l = avl * (4 * 3 + 3);
-    char data[l];
+    char *data = new char[l];
     l = Base64::btoa(av, avl, data);
     cmd("up");
     arg(an, data, l);
     this->callBack = callBack;
     tag = client->reqtag;
+	delete data;
 }
 
 void

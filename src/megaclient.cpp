@@ -3781,8 +3781,8 @@ void MegaClient::getownsigningkeys(bool reset) {
                 keyPair.first.size());
         SharedBuffer prBuff = SharedBuffer(keyPair.second.get(),
                 keyPair.second.size());
-        map->insert( { "", puBuff });
-        map->insert( { "prEd255", prBuff });
+        map->insert(std::make_pair( "", puBuff ));
+        map->insert(std::make_pair( "prEd255", prBuff ));
         restag = reqtag;
         app->getguattr_result(map, API_OK);
 
@@ -4106,21 +4106,22 @@ void MegaClient::fetchKeyrings(FetchKeyringsCallback callback) {
 }
 
 void MegaClient::verifyKeyFingerPrint(const char *user, SharedBuffer &key,
-        int rsa, VerifyKeyCallback callback) {
+	int rsa, VerifyKeyCallback callback) {
 
-    if (!keysFetched) {
-        std::string userStr(user);
-        fetchKeyrings([userStr, key, rsa, callback, this](error e) mutable
-        {
-            if(e != API_OK) {
-                callback(e);
-                return;
-            }
-            verifyKeyFingerPrint_(userStr.c_str(), key, rsa, callback);
-        });
-    } else {
-        verifyKeyFingerPrint_(user, key, rsa, callback);
-    }
+	if (!keysFetched) {
+		std::string userStr(user);
+		fetchKeyrings([userStr, key, rsa, callback, this](error e) mutable
+		{
+			if (e != API_OK) {
+				callback(e);
+				return;
+			}
+			verifyKeyFingerPrint_(userStr.c_str(), key, rsa, callback);
+		});
+	}
+	else {
+		verifyKeyFingerPrint_(user, key, rsa, callback);
+	}
 }
 
 void MegaClient::verifyKeyFingerPrint_(const char *user, SharedBuffer &key,
@@ -4245,16 +4246,16 @@ ValueMap MegaClient::serilizeMap(int rsa) {
 
     SharedBuffer serBuff(fpMap->size() * (sizeof(handle) + 20 + 1));
     int count = 0;
-    for (auto &i : *fpMap) {
+    for_each(fpMap->begin(), fpMap->end(), [&](std::pair<handle, FingerPrintRecord> &i) {
         memcpy(serBuff.get() + count, &i.first, sizeof(handle));
         memcpy(serBuff.get() + (count += sizeof(handle)),
                 i.second.fingerPrint.get(), 20);
         memcpy(serBuff.get() + (count += 20), &i.second.methodConfidence, 1);
         LOG_info << "Saved record for " << i.first;
         count++;
-    }
+	});
 
-    keyFpMap->insert( { mapName, serBuff });
+    keyFpMap->insert(std::make_pair(mapName, serBuff));
     return keyFpMap;
 }
 
@@ -4283,7 +4284,7 @@ bool MegaClient::deserilizeMap(ValueMap map, int rsa) {
         memcpy(record.fingerPrint.get(), buff.get() + (count += sizeof(handle)),
                 20);
         memcpy(&record.methodConfidence, buff.get() + (count += 20), 1);
-        rMap->insert( { h, record });
+        rMap->insert(std::make_pair(h, record ));
         count++;
         LOG_info << "Received record for " << h;
     }

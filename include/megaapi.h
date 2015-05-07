@@ -76,7 +76,7 @@ class MegaApi;
  */
 struct TLV
 {
-    const char *type; ///< The type (or name) of the attribute.
+    char *type; ///< The type (or name) of the attribute.
     unsigned int length; ///< The length of the attribute.
     unsigned char *value; ///< The value for this attribute.
 };

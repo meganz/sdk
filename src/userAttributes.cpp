@@ -5,10 +5,11 @@
  *      Author: michael
  */
 
-#include "userAttributes.h"
+#include "mega/userAttributes.h"
 #include <stdexcept>
-#include "sharedbuffer.h"
+#include "mega/sharedbuffer.h"
 #include "megaapi.h"
+#include <algorithm>
 
 namespace mega
 {
@@ -23,7 +24,7 @@ UserAttributes::addUserAttribute(std::string &valueName, ValueMap &value,
     }
 
     SharedBuffer buffer = this->valueMapToTlv(value, visibility);
-    tlvStore.insert({ valueName, buffer });
+    tlvStore.insert(std::make_pair(valueName, buffer));
 }
 
 ValueMap
@@ -58,17 +59,17 @@ SharedBuffer
 UserAttributes::valueMapToTlv(ValueMap &valueMap, Visibility visibility)
 {
     int length = 0;
-    for(auto &i : *valueMap)
+	std::for_each(valueMap->begin(), valueMap->end(), [&](std::pair<std::string, SharedBuffer> &i) 
     {
         length += (i.first.length() + i.second.size + 1 + 2);
-    }
+	});
 
     SharedBuffer buffer(length, visibility);
     int offset = 0;
-    for(auto &i : *valueMap)
+    std::for_each(valueMap->begin(), valueMap->end(), [&](std::pair<std::string, SharedBuffer> &i)
     {
         addValue(i.first, i.second, buffer, &offset);
-    }
+	});
 
     return buffer;
 }
@@ -119,7 +120,7 @@ UserAttributes::tlvToValueMap(SharedBuffer &data)
 
         SharedBuffer value(size);
         memcpy(value.get(), data.get() + ++x, value.size);
-        map->insert({tag, value});
+        map->insert(std::make_pair(tag, value));
         x += size;
         oldVal = x;
 
