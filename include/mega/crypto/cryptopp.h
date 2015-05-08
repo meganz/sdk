@@ -159,7 +159,7 @@ public:
      * @param result Encrypted message
      * @return Void.
      */
-    void cbc_encrypt_pkcs_padding(string *data, const byte* iv, string *result);
+    void cbc_encrypt_pkcs_padding(const string *data, const byte* iv, string *result);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
@@ -171,7 +171,7 @@ public:
      * @param result Decrypted message
      * @return Void.
      */
-    void cbc_decrypt_pkcs_padding(string *data, const byte* iv, string *result);
+    void cbc_decrypt_pkcs_padding(const string *data, const byte* iv, string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in CCM mode

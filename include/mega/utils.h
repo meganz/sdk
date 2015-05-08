@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file mega/utils.h
  * @brief Mega SDK various utilities and helper classes
  *
@@ -148,7 +148,7 @@ public:
      * @param newHmacKey New HMAC key (must contain MAC_KEY_BYTES bytes)
      * @param newIv New IV for AES-CBC (must contain IV_BYTES bytes)
      */
-    void setKeys(byte *newEncKey, byte *newHmacKey, byte *newIv);
+    void setKeys(const byte *newEncKey, const byte *newHmacKey, const byte *newIv);
 
     /**
      * @brief Encrypts the cleartext and returns the payload string.
@@ -160,7 +160,7 @@ public:
      * @param result The function will fill this string with the generated payload
      * @return True if the funcion succeeds, otherwise false
      */
-    bool encryptPayload(string *cleartext, string *result);
+    bool encryptPayload(const string *cleartext, string *result);
 
     /**
      * @brief Encrypts the cleartext using RSA with random padding.
@@ -170,22 +170,24 @@ public:
      * in the third parameter, with a 2-byte header that contains the size of the result of RSA.
      *
      * @param cleartext Clear text to encrypt with RSA
-     * @param base64pubk Public key in Base64 format (result of AsymmCipher::serializekey and Base64::btoa)
-     * @param randompadding Enables padding with random bytes. Otherwise, the cleartext is 0-padded
+     * @param pubkdata Public key in binary format (result of AsymmCipher::serializekey)
+     * @param pubkdatalen Size (in bytes) of pubkdata
      * @param result RSA encrypted text, with a 2-byte header with the size of the RSA buffer in bytes
+     * @param randompadding Enables padding with random bytes. Otherwise, the cleartext is 0-padded
      * @return True if the funcion succeeds, otherwise false
      */
-    bool rsaEncryptKeys(string *cleartext, char *base64pubk, string *result, bool randompadding = true);
+    bool rsaEncryptKeys(const string *cleartext, const byte *pubkdata, int pubkdatalen, string *result, bool randompadding = true);
 
     /**
      * @brief Encrypts clear text data to an authenticated ciphertext, authenticated with an HMAC.
      * @param cleartext Clear text as byte string
-     * @param base64pubk Public key in Base64 format (result of AsymmCipher::serializekey and Base64::btoa)
-     * @param randompadding Enables padding with random bytes. Otherwise, the cleartext is 0-padded
+     * @param pubkdata Public key in binary format (result of AsymmCipher::serializekey)
+     * @param pubkdatalen Size (in bytes) of pubkdata
      * @param result Encrypted data block as byte string.
+     * @param randompadding Enables padding with random bytes. Otherwise, the cleartext is 0-padded
      * @return True if the funcion succeeds, otherwise false
      */
-    bool hybridEncrypt(string *cleartext, char *base64pubk, string *result, bool randompadding = true);
+    bool hybridEncrypt(const string *cleartext, const byte *pubkdata, int pubkdatalen, string *result, bool randompadding = true);
 };
 
 // read/write multibyte words

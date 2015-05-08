@@ -20,7 +20,6 @@
  */
 
 #include "mega/utils.h"
-#include "mega/base64.h"
 
 namespace mega {
 Cachable::Cachable()
@@ -242,14 +241,14 @@ PayCrypter::PayCrypter()
     PrnGen::genblock(iv, IV_BYTES);
 }
 
-void PayCrypter::setKeys(byte *newEncKey, byte *newHmacKey, byte *newIv)
+void PayCrypter::setKeys(const byte *newEncKey, const byte *newHmacKey, const byte *newIv)
 {
     memcpy(encKey, newEncKey, ENC_KEY_BYTES);
     memcpy(hmacKey, newHmacKey, MAC_KEY_BYTES);
     memcpy(iv, newIv, IV_BYTES);
 }
 
-bool PayCrypter::encryptPayload(string *cleartext, string *result)
+bool PayCrypter::encryptPayload(const string *cleartext, string *result)
 {
     //Check parameters
     if(!cleartext || !result)
@@ -278,22 +277,17 @@ bool PayCrypter::encryptPayload(string *cleartext, string *result)
     return true;
 }
 
-bool PayCrypter::rsaEncryptKeys(string *cleartext, char *base64pubk, string *result, bool randompadding)
+bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, int pubkdatalen, string *result, bool randompadding)
 {
     //Check parameters
-    if(!cleartext || !base64pubk || !result)
+    if(!cleartext || !pubkdata || !result)
     {
         return false;
     }
 
-    //Convert key to binary
-    string pubk;
-    pubk.resize(AsymmCipher::MAXKEYLENGTH);
-    pubk.resize(Base64::atob(base64pubk, (byte *)pubk.data(), pubk.size()));
-
-    //Create an AsymmCipher with the key
+    //Create an AsymmCipher with the public key
     AsymmCipher asym;
-    asym.setkey(AsymmCipher::PUBKEY, (byte *)pubk.data(), pubk.size());
+    asym.setkey(AsymmCipher::PUBKEY, pubkdata, pubkdatalen);
 
     //Prepare the message to encrypt (2-byte header + clear text)
     string keyString;
@@ -314,7 +308,7 @@ bool PayCrypter::rsaEncryptKeys(string *cleartext, char *base64pubk, string *res
     }
 
     //RSA encryption
-    result->resize(pubk.size());
+    result->resize(pubkdatalen);
     result->resize(asym.rawencrypt((byte *)keyString.data(), keyString.size(), (byte *)result->data(), result->size()));
 
     //Complete the result (2-byte header + RSA result)
@@ -324,9 +318,9 @@ bool PayCrypter::rsaEncryptKeys(string *cleartext, char *base64pubk, string *res
     return true;
 }
 
-bool PayCrypter::hybridEncrypt(string *cleartext, char *base64pubk, string *result, bool randompadding)
+bool PayCrypter::hybridEncrypt(const string *cleartext, const byte *pubkdata, int pubkdatalen, string *result, bool randompadding)
 {
-    if(!cleartext || !base64pubk || !result)
+    if(!cleartext || !pubkdata || !result)
     {
         return false;
     }
@@ -339,7 +333,7 @@ bool PayCrypter::hybridEncrypt(string *cleartext, char *base64pubk, string *resu
     string rsaKeyCipher;
     string keysString;
     keysString.assign((char *)keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
-    rsaEncryptKeys(&keysString, base64pubk, &rsaKeyCipher, randompadding);
+    rsaEncryptKeys(&keysString, pubkdata, pubkdatalen, &rsaKeyCipher, randompadding);
 
     //Complete the result
     *result = rsaKeyCipher + payloadString;

@@ -126,7 +126,7 @@ void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
  * @param result Encrypted message
  * @return Void.
  */
-void SymmCipher::cbc_encrypt_pkcs_padding(string *data, const byte *iv, string *result)
+void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
@@ -144,7 +144,7 @@ void SymmCipher::cbc_encrypt_pkcs_padding(string *data, const byte *iv, string *
  * @param result Decrypted message
  * @return Void.
  */
-void SymmCipher::cbc_decrypt_pkcs_padding(string *data, const byte *iv, string *result)
+void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *iv, string *result)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
