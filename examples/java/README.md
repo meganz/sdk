@@ -20,13 +20,17 @@ This example shows a simple GUI (Swing) to allow the user log into MEGA. If logi
 2. Copy the library `libmegajava.so` into the `libs` folder in your project.
     
     ```
-    cp bindings/java/.lib/libmegajava.so examples/java/JavaBindingSample/libs
+    cp bindings/java/.libs/libmegajava.so examples/java/JavaBindingSample/libs
     ```
     
-3. On Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java/JavaBindingSample`
-4. Open the "Properties" of the project and go to "Java Build Path" -> "Source"
-5. Click "Link Source..." and select the folder `sdk/bindings/java`
-6. Build and run the project in Eclipse
+3. Copy the Java classes into the `src` folder in your project.
+
+    ```
+    cp bindings/java/nz/mega/sdk/*.java examples/java/JavaBindingSample/src/nz/mega/sdk
+    ```
+    
+4. In Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java`
+5. Build and run the project in Eclipse
 
 ## How to run the project in WINDOWS
 
@@ -34,25 +38,22 @@ You have two options, using a prebuilt native library or building it by yourself
 
 ### To use a prebuilt library (the easy way), follow these steps:
 
-1. Download and extract the SDK ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Download and copy the prebuilt library `mega.dll` into `sdk/examples/java/JavaBindingSample/libs` ([link](https://mega.nz/#!jglhVaIL!XXqiSH883mDvyLAQ8f8dHBC9ivABGOUfYWDr1uX0Y8g)).
-3. On Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java/JavaBindingSample`
-4. Open the "Properties" of the project and go to "Java Build Path" -> "Source"
-5. Click "Link Source..." and select the folder `sdk/bindings/java`
-6. Build and run the project in Eclipse
+1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
+2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](INCLUDE THE MEGA LINK TO dll + bindings/java/nz/mega/sdk/*.java).
+3. Extract the content into `sdk/examples/java/JavaBindingSample`, keeping the folder structure. 
+4. In Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java`.
+5. Build and run the project in Eclipse.
 
 ### To build the library by yourself
 
 Instead of downloading the prebuilt library, you can build it directly from the sources.
 
-1. Download and extract the SDK ([link](https://github.com/meganz/sdk/archive/master.zip)).
+1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
 2. Follow the instructions in [this guide](https://github.com/meganz/sdk/bindings/java/vs2010/README.md).
-3. Copy the new file `mega.dll` into `sdk/examples/java/JavaBindingSample/libs`.
-4. On Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java/JavaBindingSample`
-5. Open the "Properties" of the project and go to "Java Build Path" -> "Source"
-6. Click "Link Source..." and select the folder `sdk/bindings/java`
-7. Build and run the project in Eclipse
-
+3. Copy the new file `mega.dll` from `sdk/bindings/java/vs2010/Debug` into `sdk/examples/java/JavaBindingSample/libs`.
+4. Copy the Java classes from `sdk/bindings/java/nz/mega/sdk` into `sdk/bindings/java/JavaBindingSample/src/nz/mega/sdk`.
+5. In Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java`.
+6. Build and run the project in Eclipse.
 
 ## Notes
 
