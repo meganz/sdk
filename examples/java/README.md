@@ -4,7 +4,7 @@ Eclipse project for developing a MEGA app in Java.
 
 This example shows a simple GUI (Swing) to allow the user log into MEGA. If login is successfull, it retrieves the MEGA filesystem and lists files/folders in the root folder.
 
-## How to run the project in LINUX:
+## How to run the project in Linux:
 
 1. Download, build and install the SDK
 
@@ -32,7 +32,7 @@ This example shows a simple GUI (Swing) to allow the user log into MEGA. If logi
 4. In Eclipse, click "Import" -> "Existing Projects into Workspace" and select the root directory: `sdk/examples/java`
 5. Build and run the project in Eclipse
 
-## How to run the project in WINDOWS
+## How to run the project in Windows
 
 You have two options, using a prebuilt native library or building it by yourself.
 
