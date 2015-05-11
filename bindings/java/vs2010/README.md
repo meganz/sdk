@@ -26,7 +26,7 @@ Such library is required to run Java applications using the MEGA SDK and must be
 
 The provided VS solution uses the files `megaapi_wrap.h` and `megaapi_wrap.cpp` located in the folder `sdk/bindings/java`. The generated DLL must be provided with the Java clases in `skd/bindings/java/nz/mega/sdk/`.
 
-Should you need an updated version of any of those files (`megaapi_wrap.cpp`, `megaapi_wrap.h` or any of the Java classes), then you need to build the SDK under Linux by following the instructions [here](https://github.com/meganz/sdk#building), adding the option `--enable-java` to your configure command.
+Should you need an updated version of any of those files (`megaapi_wrap.cpp`, `megaapi_wrap.h` or any of the Java classes), then you need to generate some build-related dependencies by following the instructions [here](https://github.com/meganz/sdk#building), adding the option `--enable-java` to your configure command. Due to build tool requirements it might be easiest to do this on a different platform (e.g. a Linux system).
 
 ``` 
 ./configure --enable-java
