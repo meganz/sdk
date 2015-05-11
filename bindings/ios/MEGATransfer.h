@@ -104,6 +104,22 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
 @property (readonly, nonatomic) uint64_t parentHandle;
 
 /**
+ * @brief The starting position of the transfer for streaming downloads
+ *
+ * The value of this fuction will be 0 if the transfer isn't a streaming
+ * download ([MEGASdk startStreamingNode:startPos:size:])
+ */
+@property (readonly, nonatomic) NSNumber *startPos;
+
+/**
+ * @brief The end position of the transfer for streaming downloads
+ *
+ * The value of this fuction will be 0 if the transfer isn't a streaming
+ * download ([MEGASdk startStreamingNode:startPos:size:])
+ */
+@property (readonly, nonatomic) NSNumber *endPos;
+
+/**
  * @brief Name of the file that is being transferred.
  *
  * It's possible to upload a file with a different name ([MEGASdk startUploadWithLocalPath:parent:]). In that case,

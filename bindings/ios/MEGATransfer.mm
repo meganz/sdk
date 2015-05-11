@@ -99,6 +99,14 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
+- (NSNumber *)startPos {
+    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getStartPos()] : nil;
+}
+
+- (NSNumber *)endPos {
+    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getEndPos()] : nil;
+}
+
 - (NSString *)fileName {
     if (!self.megaTransfer) return nil;
     
