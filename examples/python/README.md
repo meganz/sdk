@@ -22,7 +22,7 @@ To build and run the project, follow these steps:
    bindings)
 2. Build the SDK including the option `--enable-python` in the
    `./configure` step
-3. Install the required Python dependendy `cmd` (or `cmd2`).
+3. Install the required Python dependency `cmd` (or `cmd2`).
 4. Run the `megacli.py` file in this folder
 
 If you want to create your own Python app. You can use the `MegaApi`
