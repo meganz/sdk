@@ -11,7 +11,7 @@ Such library is required to run Java applications using the MEGA SDK and must be
 
 1. Download the 3rd-party libraries from this [link](https://mega.nz/#!OtEgkDLS!xxHrPgAISI6NZzsH6Q_U4l9i0dVRAYUQEa1ZoouatsY).
 
-2. Extract the content to `sdk/bindings/java/vs2010/`.
+2. Extract the content to `sdk/bindings/java/contrib/vs2010/`.
 
 3. Download the Java bindings files created by SWIG from this [link](https://mega.nz/#!KslDWBiQ!hIVRYMH44fUKVUiW_X4qQJzL1z9_seg9ITYMIJ8EyPM).
 
@@ -19,7 +19,7 @@ Such library is required to run Java applications using the MEGA SDK and must be
 
 5. Open the solution `MEGAdll.sln` and hit "Build".
 
-6. If success, you should find a `mega.dll` library in `sdk/bindings/java/vs2010/Debug/`.
+6. If success, you should find a `mega.dll` library in `sdk/bindings/java/contrib/vs2010/Debug/`.
 
 
 ## Notes
