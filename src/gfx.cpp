@@ -145,6 +145,42 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
     return numputs;
 }
 
+bool GfxProc::savefa(string *localfilepath, GfxProc::meta_t type, string *localdstpath)
+{
+    if (!isgfx(localfilepath)
+            // (this assumes that the width of the largest dimension is max)
+            || !readbitmap(NULL, localfilepath, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+    {
+        return false;
+    }
+
+    string jpeg;
+    bool success = resizebitmap(dimensions[type][0], dimensions[type][1], &jpeg);
+    freebitmap();
+
+    if (!success)
+    {
+        return false;
+    }
+
+    FileAccess *f = client->fsaccess->newfileaccess();
+    client->fsaccess->unlinklocal(localdstpath);
+    if (!f->fopen(localdstpath, false, true))
+    {
+        delete f;
+        return false;
+    }
+
+    if (!f->fwrite((const byte*)jpeg.data(), jpeg.size(), 0))
+    {
+        delete f;
+        return false;
+    }
+
+    delete f;
+    return true;
+}
+
 GfxProc::GfxProc()
 {
     client = NULL;
