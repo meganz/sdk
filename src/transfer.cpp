@@ -144,7 +144,7 @@ void Transfer::complete()
         {
             if ((*it)->hprivate && (n = client->nodebyhandle((*it)->h)))
             {
-                if (client->gfx && client->gfx->isgfx(&n->attrs.map['n']))
+                if (client->gfx && client->gfx->isgfx(&(*it)->localname))
                 {
                     // check for missing imagery
                     if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
