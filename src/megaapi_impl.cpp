@@ -3322,7 +3322,11 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     string localDstPath;
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
-    return gfxAccess->savefa(&localImagePath, GfxProc::THUMBNAIL120X120, &localDstPath);
+    sdkMutex.lock();
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::THUMBNAIL120X120, &localDstPath);
+    sdkMutex.unlock();
+
+    return result;
 }
 
 bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
@@ -3340,7 +3344,11 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     string localDstPath;
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
-    return gfxAccess->savefa(&localImagePath, GfxProc::PREVIEW1000x1000, &localDstPath);
+    sdkMutex.lock();
+    bool result = gfxAccess->savefa(&localImagePath, GfxProc::PREVIEW1000x1000, &localDstPath);
+    sdkMutex.unlock();
+
+    return result;
 }
 
 
