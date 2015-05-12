@@ -1037,7 +1037,8 @@ class MegaRequest
 			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
-			TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT
+            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
+            TYPE_STORE_CREDIT_CARD
 		};
 
 		virtual ~MegaRequest();
@@ -3865,6 +3866,13 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Store a Credit Card
+         * @param ccplain Text string containing billing and payment details
+         * @param listener MegaRequestListener to track this request
+         */
+        void storecreditcard(const char* ccplain, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account

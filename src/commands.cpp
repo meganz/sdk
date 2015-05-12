@@ -2864,4 +2864,35 @@ void CommandSubmitPurchaseReceipt::procresult()
     }
 }
 
+// Credit Card Store
+CommandStoreCreditCard::CommandStoreCreditCard(MegaClient* client, const byte *cc, unsigned int len, const char *last4, const char *expm, const char *expy, const char *hash)
+{
+    this->client = client;
+
+    cmd("css");
+
+    string temp((const char*)cc);
+
+    arg("cc", cc, len);
+    arg("last4", last4);
+    arg("expm", expm);
+    arg("expy", expy);
+    arg("hash", hash);
+
+    tag = client->reqtag;
+}
+
+void CommandStoreCreditCard::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->storecreditcard_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->storecreditcard_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

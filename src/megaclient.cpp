@@ -28,10 +28,12 @@ namespace mega {
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
 
-bool MegaClient::disablepkp = false;
+//bool MegaClient::disablepkp = false;
+bool MegaClient::disablepkp = true;
 
 // root URL for API access
-string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+//string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+string MegaClient::APIURL = "https://api-sandbox2.developers.mega.co.nz/";
 
 // root URL for the load balancer
 const char* const MegaClient::BALANCERURL = "https://karere-001.developers.mega.co.nz:4434/";
@@ -4481,6 +4483,90 @@ void MegaClient::purchase_checkout(int gateway)
 void MegaClient::submitpurchasereceipt(int type, const char *receipt)
 {
     reqs[r].add(new CommandSubmitPurchaseReceipt(this, type, receipt));
+}
+
+error MegaClient::storecreditcard(const char *ccplain)
+{
+    if(!ccplain)
+        return API_EARGS;
+
+    string cc;
+    if(!encryptCC(ccplain, &cc))
+        return API_EARGS;
+
+    string last4;
+    if(!extractLast4(ccplain, &last4))
+        return API_EARGS;
+
+    string expm;
+    if(!extractExpm(ccplain, &expm))
+        return API_EARGS;
+
+    string expy;
+    if(!extractExpy(ccplain, &expy))
+        return API_EARGS;
+
+    char *hash = new char[23];
+    strcpy(hash,"test");
+    // generate hash
+
+    reqs[r].add(new CommandStoreCreditCard(this, (const byte*)cc.data(), cc.length(), last4.c_str(), expm.c_str(), expy.c_str(), hash));
+
+    return API_OK;
+}
+
+bool MegaClient::encryptCC(string ccplain, string *cc)
+{
+    // The same as the Javascript example
+    char SDK_PUBKEY[] = "CACmWnYy7M5dqH7shqrj4jERfhhCfzoU5uDycAof1o8JyHu_F47b0aAB9KhKsIVKv90"
+        "nbuea7wGuWsc0pxlrR5kKOnqMEcIQrLysFupSleqwilIgp5MUBvkPTdsn22Qc9Qldwm"
+        "p_cbBNVfTrUVFSifv0QjDnbl7t9sLF5GgFMfYhWqMxAr3D3072cQF9eTbDLCbPD7RrC"
+        "vUiTdqI1bT79e_187YSzCdjeVq_tZb5YnhLPHlgNQffmFJj41itSwpqrEYN8e5kIvsE"
+        "INpHiLtXIIBBnld6NZu55U37sHeYkn5PB6cMi3ZEm90uIB7MT5CyHYLaEbJ9RkzJNRc"
+        "xJAC2w4CnABEBAAE";
+    byte pubkdata[sizeof(SDK_PUBKEY)];
+    int pubkdatalen = Base64::atob(SDK_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
+
+    PayCrypter payCrypter;
+    return payCrypter.hybridEncrypt(&ccplain, pubkdata, pubkdatalen, cc);
+}
+
+bool MegaClient::extractLast4(string ccplain, string *last4)
+{
+    string pattern = "card_number\": \"";
+    int pos = ccplain.find(pattern);
+    int posStart = pos+pattern.length();
+    int posEnd = ccplain.find("\"",posStart);
+    if((pos == ccplain.npos) || (posEnd == ccplain.npos))
+        return false;
+
+    *last4 = ccplain.substr((posEnd-4), 4);
+
+    return (!last4->empty());
+}
+
+bool MegaClient::extractExpy(string ccplain, string *expy)
+{
+    string pattern = "expiry_date_year\": \"";
+    int pos = ccplain.find(pattern);
+    if(pos == ccplain.npos)
+        return false;
+
+    *expy = ccplain.substr(pos+pattern.length(), 4);
+
+    return (!expy->empty());
+}
+
+bool MegaClient::extractExpm(string ccplain, string *expm)
+{
+    string pattern = "expiry_date_month\": \"";
+    int pos = ccplain.find(pattern);
+    if(pos == ccplain.npos)
+        return false;
+
+    *expm = ccplain.substr(pos+pattern.length(), 2);
+
+    return (!expm->empty());
 }
 
 // add new contact (by e-mail address)

@@ -893,6 +893,7 @@ class MegaApiImpl : public MegaApp
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void storecreditcard(const char* ccplain, MegaRequestListener *listener = NULL);
 
         const char *exportMasterKey();
 
@@ -1157,6 +1158,7 @@ protected:
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
         virtual void submitpurchasereceipt_result(error);
+        virtual void storecreditcard_result(error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);

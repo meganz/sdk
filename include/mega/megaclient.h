@@ -262,6 +262,9 @@ public:
     // submit purchase receipt for verification
     void submitpurchasereceipt(int, const char*);
 
+    // store credit card
+    error storecreditcard(const char *);
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -391,6 +394,12 @@ private:
 
     // abort queued direct read(s)
     void abortreads(handle, bool, m_off_t, m_off_t);
+
+    // prepare command data from request data for Credit Card store
+    bool encryptCC(string ccplain, string *cc);
+    bool extractLast4(string ccplain, string *last4);
+    bool extractExpy(string ccplain, string *expy);
+    bool extractExpm(string ccplain, string *expm);
 
 public:
     // application callbacks

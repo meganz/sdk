@@ -1102,6 +1102,11 @@ void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *li
     pImpl->submitPurchaseReceipt(receipt, listener);
 }
 
+void MegaApi::storecreditcard(const char *ccplain, MegaRequestListener *listener)
+{
+    pImpl->storecreditcard(ccplain, listener);
+}
+
 const char *MegaApi::exportMasterKey()
 {
     return pImpl->exportMasterKey();

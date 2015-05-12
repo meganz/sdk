@@ -1399,6 +1399,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
         case TYPE_KILL_SESSION: return "KILL_SESSION";
         case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
+        case TYPE_STORE_CREDIT_CARD: return "STORE_CREDIT_CARD";
 	}
     return "UNKNOWN";
 }
@@ -2549,6 +2550,14 @@ void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
     request->setNumber(3); //Android only for now
     request->setText(receipt);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::storecreditcard(const char *ccplain, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_STORE_CREDIT_CARD, listener);
+    request->setText(ccplain);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4699,6 +4708,15 @@ void MegaApiImpl::submitpurchasereceipt_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::storecreditcard_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_STORE_CREDIT_CARD)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -7528,6 +7546,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->submitpurchasereceipt(type, receipt);
+            break;
+        }
+        case MegaRequest::TYPE_STORE_CREDIT_CARD:
+        {
+            const char *ccplain = request->getText();
+            e = client->storecreditcard(ccplain);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

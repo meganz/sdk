@@ -503,6 +503,23 @@ public:
     CommandSubmitPurchaseReceipt(MegaClient*, int, const char*);
 };
 
+class MEGA_API CommandStoreCreditCard : public Command {
+
+    /*
+        'a':'ccs',  // credit card store
+        'cc':<encrypted CC data of the required json format>,
+        'last4':<last four digits of the credit card number, plain text>,
+        'expm':<expiry month in the form "02">,
+        'expy':<expiry year in the form "2017">,
+        'hash':<sha256 hash of the card details. Check with @chris as to the exact format he has hashed so the webclient and sdk are in-sync>
+    */
+
+public:
+    void procresult();
+
+    CommandStoreCreditCard(MegaClient* client, const byte *, unsigned int, const char *, const char *, const char *, const char *);
+};
+
 } // namespace
 
 #endif
