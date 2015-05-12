@@ -11,23 +11,26 @@
 
 //Automatic load of the native library
 %pragma(java) jniclasscode=%{
-  static 
-  {
-    try { System.loadLibrary("mega"); } 
-    catch (UnsatisfiedLinkError e1) 
-    {
-		try { System.load(System.getProperty("user.dir")+"/libmega.so"); }
-		catch(UnsatisfiedLinkError e2)
-		{
-			try { System.load(System.getProperty("user.dir")+"/libs/libmegajava.so"); }
-			catch(UnsatisfiedLinkError e3)
-			{
-				System.err.println("Native code library failed to load. \n" + e1 + "\n" + e2 + "\n" + e3);
-				System.exit(1);
-			}
-		}
+  static {
+        try {
+            System.loadLibrary("mega");
+        } catch (UnsatisfiedLinkError e1) {
+            try {
+                System.load(System.getProperty("user.dir") + "/libmega.so");
+            } catch (UnsatisfiedLinkError e2) {
+                try {
+                    System.load(System.getProperty("user.dir") + "/libs/libmegajava.so");
+                } catch (UnsatisfiedLinkError e3) {
+                    try {
+                        System.load(System.getProperty("user.dir") + "/libs/mega.dll");
+                    } catch (UnsatisfiedLinkError e4) {
+                        System.err.println("Native code library failed to load. \n" + e1 + "\n" + e2 + "\n" + e3 + "\n" + e4);
+                        System.exit(1);
+                    }
+                }
+            }
+        }
     }
-  }
 %}
 
 //Use compilation-time constants in Java
