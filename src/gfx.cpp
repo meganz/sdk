@@ -43,7 +43,7 @@ bool GfxProc::isgfx(string* localfilename)
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supportedformats(), ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
         {
             return true;
         }
