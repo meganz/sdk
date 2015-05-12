@@ -3307,6 +3307,42 @@ const char *MegaApiImpl::localToName(const char *localName)
     return MegaApi::strdup(name.c_str());
 }
 
+bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
+{
+    if (!gfxAccess)
+    {
+        return false;
+    }
+
+    string utf8ImagePath = imagePath;
+    string localImagePath;
+    fsAccess->path2local(&utf8ImagePath, &localImagePath);
+
+    string utf8DstPath = dstPath;
+    string localDstPath;
+    fsAccess->path2local(&utf8DstPath, &localDstPath);
+
+    return gfxAccess->savefa(&localImagePath, GfxProc::THUMBNAIL120X120, &localDstPath);
+}
+
+bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
+{
+    if (!gfxAccess)
+    {
+        return false;
+    }
+
+    string utf8ImagePath = imagePath;
+    string localImagePath;
+    fsAccess->path2local(&utf8ImagePath, &localImagePath);
+
+    string utf8DstPath = dstPath;
+    string localDstPath;
+    fsAccess->path2local(&utf8DstPath, &localDstPath);
+
+    return gfxAccess->savefa(&localImagePath, GfxProc::PREVIEW1000x1000, &localDstPath);
+}
+
 
 MegaUserList* MegaApiImpl::getContacts()
 {

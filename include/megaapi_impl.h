@@ -1021,6 +1021,9 @@ class MegaApiImpl : public MegaApp
         const char* nameToLocal(const char *name);
         const char* localToName(const char*localName);
 
+        bool createThumbnail(const char* imagePath, const char *dstPath);
+        bool createPreview(const char* imagePath, const char *dstPath);
+
 protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 

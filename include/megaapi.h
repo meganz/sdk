@@ -5104,6 +5104,21 @@ class MegaApi
          */
         const char* localToName(const char*localName);
 
+        /**
+         * @brief Create a thumbnail for an image
+         * @param imagePath Image path
+         * @param dstPath Destination path for the thumbnail (including the file name)
+         * @return True if the thumbnail was successfully created, otherwise false.
+         */
+        bool createThumbnail(const char *imagePath, const char *dstPath);
+
+        /**
+         * @brief Create a thumbnail for an image
+         * @param imagePath Image path
+         * @param dstPath Destination path for the preview (including the file name)
+         * @return True if the preview was successfully created, otherwise false.
+         */
+        bool createPreview(const char *imagePath, const char *dstPath);
 
         /**
          * @brief Convert a Base64 string to Base32

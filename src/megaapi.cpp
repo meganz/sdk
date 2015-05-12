@@ -1744,6 +1744,16 @@ const char *MegaApi::localToName(const char *localName)
     return pImpl->localToName(localName);
 }
 
+bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)
+{
+    return pImpl->createThumbnail(imagePath, dstPath);
+}
+
+bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
+{
+    return pImpl->createPreview(imagePath, dstPath);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
