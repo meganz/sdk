@@ -602,6 +602,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                     }
                                     else
                                     {
+                                        LOG_debug << "File move/overwrite detected";
+
                                         // delete existing LocalNode...
                                         delete l;
 
@@ -671,7 +673,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 }
                 else
                 {
-                    // node type changed: recreate
+                    LOG_debug << "node type changed: recreate";
                     delete l;
                     l = NULL;
                 }
@@ -694,6 +696,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     && ((it->second->type != FILENODE)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
+                    LOG_debug << "Move detected by fsid in checkpath. Type: " << it->second->type;
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                     // (in case of a move, this synchronously updates l->parent

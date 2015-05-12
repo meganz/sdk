@@ -3087,6 +3087,8 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     localfp = 0;
 #endif
 
+    LOG_debug << "Resume sync";
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     request->setListener(listener);
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
@@ -4142,6 +4144,7 @@ void MegaApiImpl::sessions_killed(handle, error e)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
+    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
     if(newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);

@@ -5865,21 +5865,29 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 size_t t = localpath->size();
 
                 localname = ait->second;
+
                 fsaccess->name2local(&localname);
                 localpath->append(fsaccess->localseparator);
                 localpath->append(localname);
+
+                string utf8path;
+                fsaccess->local2path(localpath, &utf8path);
+                LOG_debug << "Unsynced remote node in syncdown: " << utf8path;
 
                 // does this node already have a corresponding LocalNode under
                 // a different name or elsewhere in the filesystem?
                 if (rit->second->localnode)
                 {
+                    LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
                     if (rit->second->localnode->parent)
                     {
+                        LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
                         string curpath;
 
                         rit->second->localnode->getlocalpath(&curpath);
                         rit->second->localnode->treestate(TREESTATE_SYNCING);
 
+                        LOG_debug << "Renaming/moving from the previous location to the new one";
                         if (fsaccess->renamelocal(&curpath, localpath))
                         {
                             fsaccess->local2path(localpath, &localname);
@@ -5900,15 +5908,22 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         else if (success && fsaccess->transient_error)
                         {
                             // schedule retry
+                            LOG_debug << "Transient error moving node";
                             success = false;
                         }
+                    }
+                    else
+                    {
+                        LOG_debug << "without a previous parent. Skipping";
                     }
                 }
                 else
                 {
+                    LOG_debug << "doesn't have a previous localnode";
                     // missing node is not associated with an existing LocalNode
                     if (rit->second->type == FILENODE)
                     {
+                        LOG_debug << "Start fetching file node";
                         // start fetching this node, unless fetch is already in progress
                         // FIXME: to cover renames that occur during the
                         // download, reconstruct localname in complete()
@@ -5925,6 +5940,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     }
                     else
                     {
+                        LOG_debug << "Creating local folder";
+
                         // create local path, add to LocalNodes and recurse
                         if (fsaccess->mkdirlocal(localpath))
                         {
@@ -5932,18 +5949,26 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                             if (ll && ll != (LocalNode*)~0)
                             {
+                                LOG_debug << "Local folder created, continuing syncdown";
+
                                 ll->setnode(rit->second);
                                 ll->setnameparent(l, localpath);
                                 ll->sync->statecacheadd(ll);
 
                                 if (!syncdown(ll, localpath, rubbish) && success)
                                 {
+                                    LOG_debug << "Syncdown not finished";
                                     success = false;
                                 }
+                            }
+                            else
+                            {
+                                LOG_debug << "Checkpath() failed " << (ll == NULL);
                             }
                         }
                         else if (success && fsaccess->transient_error)
                         {
+                            LOG_debug << "Transient error creating folder";
                             success = false;
                         }
                     }
