@@ -4506,12 +4506,21 @@ error MegaClient::storecreditcard(const char *ccplain)
     if(!extractExpy(ccplain, &expy))
         return API_EARGS;
 
-    char *hash = new char[23];
-    strcpy(hash,"test");
-    // generate hash
+    char hashstring[] = "{\"card_number\":\"4532646653175959\","
+                        "\"expiry_date_month\":\"10\","
+                        "\"expiry_date_year\":\"2020\","
+                        "\"cv2\":\"123\"}";
 
-    reqs[r].add(new CommandStoreCreditCard(this, (const byte*)cc.data(), cc.length(), last4.c_str(), expm.c_str(), expy.c_str(), hash));
+    HashSHA256 hash;
+    string binaryhash;
+    hash.add((byte *)hashstring, strlen(hashstring));
+    hash.get(&binaryhash);
 
+    string base64hash;
+    base64hash.resize(binaryhash.size()*4/3+4);
+    base64hash.resize(Base64::btoa((byte *)binaryhash.data(), binaryhash.size(), (char *)base64hash.data()));
+
+    reqs[r].add(new CommandStoreCreditCard(this, (const byte*)cc.data(), cc.length(), last4.c_str(), expm.c_str(), expy.c_str(), base64hash.data()));
     return API_OK;
 }
 
@@ -4533,7 +4542,7 @@ bool MegaClient::encryptCC(string ccplain, string *cc)
 
 bool MegaClient::extractLast4(string ccplain, string *last4)
 {
-    string pattern = "card_number\": \"";
+    string pattern = "card_number\":\"";
     int pos = ccplain.find(pattern);
     int posStart = pos+pattern.length();
     int posEnd = ccplain.find("\"",posStart);
@@ -4547,7 +4556,7 @@ bool MegaClient::extractLast4(string ccplain, string *last4)
 
 bool MegaClient::extractExpy(string ccplain, string *expy)
 {
-    string pattern = "expiry_date_year\": \"";
+    string pattern = "expiry_date_year\":\"";
     int pos = ccplain.find(pattern);
     if(pos == ccplain.npos)
         return false;
@@ -4559,7 +4568,7 @@ bool MegaClient::extractExpy(string ccplain, string *expy)
 
 bool MegaClient::extractExpm(string ccplain, string *expm)
 {
-    string pattern = "expiry_date_month\": \"";
+    string pattern = "expiry_date_month\":\"";
     int pos = ccplain.find(pattern);
     if(pos == ccplain.npos)
         return false;
