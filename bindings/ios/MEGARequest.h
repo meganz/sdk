@@ -203,6 +203,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getAvatarUser:destinationFilePath:] - Returns the email of the user to get the avatar
  * - [MEGASdk addContactWithEmail:] - Returns the email of the contact
  * - [MEGASdk removeContactWithEmail:] - Returns the email of the contact
+ * - [MEGASdk getUserData] - Returns the name of the user
  *
  * This value is valid for these request in onRequestFinish when the
  * error code is MEGAErrorTypeApiOk:

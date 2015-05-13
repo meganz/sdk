@@ -5113,7 +5113,7 @@ class MegaApi
         bool createThumbnail(const char *imagePath, const char *dstPath);
 
         /**
-         * @brief Create a thumbnail for an image
+         * @brief Create a preview for an image
          * @param imagePath Image path
          * @param dstPath Destination path for the preview (including the file name)
          * @return True if the preview was successfully created, otherwise false.

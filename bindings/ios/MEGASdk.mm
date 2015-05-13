@@ -939,6 +939,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->changeApiUrl((apiURL != nil) ? [apiURL UTF8String] : NULL, disablepkp);
 }
 
+- (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
+    if (imagePath == nil || destinationPath == nil) return NO;
+    
+    return self.megaApi->createThumbnail([imagePath UTF8String], [destinationPath UTF8String]);
+}
+
+- (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
+    if (imagePath == nil || destinationPath == nil) return NO;
+    
+    return self.megaApi->createPreview([imagePath UTF8String], [destinationPath UTF8String]);
+}
+
 #pragma mark - Debug log messages
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {

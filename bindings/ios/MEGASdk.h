@@ -2502,6 +2502,22 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp;
 
+/**
+ * @brief Create a thumbnail for an image
+ * @param imagePath Image path
+ * @param destinationPath Destination path for the thumbnail (including the file name)
+ * @return YES if the thumbnail was successfully created, otherwise NO.
+ */
+- (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
+
+/**
+ * @brief Create a preview for an image
+ * @param imagePath Image path
+ * @param destinationPath Destination path for the thumbnail (including the file name)
+ * @return YES if the preview was successfully created, otherwise NO.
+ */
+- (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
+
 #pragma mark - Debug log messages
 
 /**
