@@ -378,6 +378,15 @@ public:
     void get(string*);
 };
 
+class MEGA_API HashSHA256
+{
+    CryptoPP::SHA256 hash;
+
+public:
+    void add(const byte*, unsigned int);
+    void get(string*);
+};
+
 class MEGA_API HashCRC32
 {
     CryptoPP::CRC32 hash;
