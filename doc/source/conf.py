@@ -120,7 +120,7 @@ pygments_style = 'sphinx'
 # -- Options for Doxygen input ------------------------------------------------
 
 breathe_projects = {
-    'megasdk': 'doc/sphinx_api/xml/',
+    'megasdk': '../sphinx_api/xml/',
 }
 breathe_default_project = 'megasdk'
 #breathe_domain_by_extension = {
