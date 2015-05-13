@@ -395,11 +395,15 @@ private:
     // abort queued direct read(s)
     void abortreads(handle, bool, m_off_t, m_off_t);
 
-    // prepare command data from request data for Credit Card store
-    bool encryptCC(string ccplain, string *cc);
-    bool extractLast4(string ccplain, string *last4);
-    bool extractExpy(string ccplain, string *expy);
-    bool extractExpm(string ccplain, string *expm);
+    /**
+     * @brief extractData Extract useful data from request data for CommandStoreCreditCard
+     * @param ccplain String including Payment and Billing details
+     * @param hint Field to look for.
+     * @param ret String to store the result.
+     * @param length Length in characters of the expected result.
+     * @return False if 'hint' is not part of 'ccplain' or 'length' does not match.
+     */
+    bool extractData(string ccplain, string hint, string *ret, unsigned int length);
 
 public:
     // application callbacks

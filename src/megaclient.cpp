@@ -4490,42 +4490,6 @@ error MegaClient::storecreditcard(const char *ccplain)
     if(!ccplain)
         return API_EARGS;
 
-    string cc;
-    if(!encryptCC(ccplain, &cc))
-        return API_EARGS;
-
-    string last4;
-    if(!extractLast4(ccplain, &last4))
-        return API_EARGS;
-
-    string expm;
-    if(!extractExpm(ccplain, &expm))
-        return API_EARGS;
-
-    string expy;
-    if(!extractExpy(ccplain, &expy))
-        return API_EARGS;
-
-    char hashstring[] = "{\"card_number\":\"4532646653175959\","
-                        "\"expiry_date_month\":\"10\","
-                        "\"expiry_date_year\":\"2020\","
-                        "\"cv2\":\"123\"}";
-
-    HashSHA256 hash;
-    string binaryhash;
-    hash.add((byte *)hashstring, strlen(hashstring));
-    hash.get(&binaryhash);
-
-    string base64hash;
-    base64hash.resize(binaryhash.size()*4/3+4);
-    base64hash.resize(Base64::btoa((byte *)binaryhash.data(), binaryhash.size(), (char *)base64hash.data()));
-
-    reqs[r].add(new CommandStoreCreditCard(this, (const byte*)cc.data(), cc.length(), last4.c_str(), expm.c_str(), expy.c_str(), base64hash.data()));
-    return API_OK;
-}
-
-bool MegaClient::encryptCC(string ccplain, string *cc)
-{
     // The same as the Javascript example
     char SDK_PUBKEY[] = "CACmWnYy7M5dqH7shqrj4jERfhhCfzoU5uDycAof1o8JyHu_F47b0aAB9KhKsIVKv90"
         "nbuea7wGuWsc0pxlrR5kKOnqMEcIQrLysFupSleqwilIgp5MUBvkPTdsn22Qc9Qldwm"
@@ -4536,46 +4500,50 @@ bool MegaClient::encryptCC(string ccplain, string *cc)
     byte pubkdata[sizeof(SDK_PUBKEY)];
     int pubkdatalen = Base64::atob(SDK_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
 
+    string ccenc;
+    string ccplain1 = ccplain;
     PayCrypter payCrypter;
-    return payCrypter.hybridEncrypt(&ccplain, pubkdata, pubkdatalen, cc);
+    if(!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
+        return API_EARGS;
+
+    string ccnumber, expm, expy, cv2;
+    if(!extractData(ccplain, "card_number", &ccnumber, 16)          ||
+            !extractData(ccplain, "expiry_date_month", &expm, 2)    ||
+            !extractData(ccplain, "expiry_date_year", &expy, 4)     ||
+            !extractData(ccplain, "cv2", &cv2, 3))
+        return API_EARGS;
+
+    string last4 = ccnumber.substr(12); // Leghth of card numbers is 16
+
+    char hashstring[98];   // Max. length: card number (16), expm (2), expy (4), cv2 (3)
+    sprintf(hashstring,"{\"card_number\":\"%s\","
+            "\"expiry_date_month\":\"%s\","
+            "\"expiry_date_year\":\"%s\","
+            "\"cv2\":\"%s\"}",ccnumber.c_str(),expm.c_str(),expy.c_str(),cv2.c_str());
+
+    HashSHA256 hash;
+    string binaryhash;
+    hash.add((byte *)hashstring, strlen(hashstring));
+    hash.get(&binaryhash);
+
+    string base64hash;
+    base64hash.resize(binaryhash.size()*4/3+4);
+    base64hash.resize(Base64::btoa((byte *)binaryhash.data(), binaryhash.size(), (char *)base64hash.data()));
+
+    reqs[r].add(new CommandStoreCreditCard(this, (const byte*)ccenc.data(), ccenc.length(), last4.c_str(), expm.c_str(), expy.c_str(), base64hash.data()));
+    return API_OK;
 }
 
-bool MegaClient::extractLast4(string ccplain, string *last4)
+bool MegaClient::extractData(string ccplain, string hint, string *ret, unsigned int length)
 {
-    string pattern = "card_number\":\"";
-    int pos = ccplain.find(pattern);
-    int posStart = pos+pattern.length();
-    int posEnd = ccplain.find("\"",posStart);
-    if((pos == ccplain.npos) || (posEnd == ccplain.npos))
-        return false;
-
-    *last4 = ccplain.substr((posEnd-4), 4);
-
-    return (!last4->empty());
-}
-
-bool MegaClient::extractExpy(string ccplain, string *expy)
-{
-    string pattern = "expiry_date_year\":\"";
-    int pos = ccplain.find(pattern);
+    string pattern = hint + "\":\"";
+    size_t pos = ccplain.find(pattern);
     if(pos == ccplain.npos)
         return false;
 
-    *expy = ccplain.substr(pos+pattern.length(), 4);
+    *ret = ccplain.substr(pos+pattern.length(), length);
 
-    return (!expy->empty());
-}
-
-bool MegaClient::extractExpm(string ccplain, string *expm)
-{
-    string pattern = "expiry_date_month\":\"";
-    int pos = ccplain.find(pattern);
-    if(pos == ccplain.npos)
-        return false;
-
-    *expm = ccplain.substr(pos+pattern.length(), 2);
-
-    return (!expm->empty());
+    return (ret->length() != length);// !ret->empty());
 }
 
 // add new contact (by e-mail address)

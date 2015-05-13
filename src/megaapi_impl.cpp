@@ -2554,10 +2554,26 @@ void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener
     waiter->notify();
 }
 
-void MegaApiImpl::storecreditcard(const char *ccplain, MegaRequestListener *listener)
+void MegaApiImpl::storecreditcard(const char* address1, const char* address2, const char* city,
+                                  const char* province, const char* country, const char *postalcode,
+                                  const char* firstname, const char* lastname, const char* creditcard,
+                                  const char* expire_month, const char* expire_year, const char* cv2,
+                                  MegaRequestListener *listener)
 {
+    char ccplain[191+strlen(firstname)+strlen(lastname)+strlen(creditcard)
+            +strlen(expire_month)+strlen(expire_year)+strlen(cv2)+strlen(address1)
+            +strlen(address2)+strlen(city)+strlen(province)+strlen(postalcode)+strlen(country)];
+    sprintf(ccplain,"{\"first_name\":\"%s\",\"last_name\":\"%s\","
+                "\"card_number\":\"%s\","
+                "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
+                "\"cv2\":\"%s\",\"address1\":\"%s\","
+                "\"address2\":\"%s\",\"city\":\"%s\","
+                "\"province\":\"%s\",\"postal_code\":\"%s\","
+                "\"country_code\":\"%s\"}",firstname,lastname,creditcard,expire_month,
+            expire_year,cv2,address1,address2,city,province,postalcode,country);
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_STORE_CREDIT_CARD, listener);
-    request->setText(ccplain);
+    request->setText((const char* )ccplain);
     requestQueue.push(request);
     waiter->notify();
 }
