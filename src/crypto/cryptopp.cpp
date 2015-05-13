@@ -117,6 +117,42 @@ void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
 }
 
 /**
+ * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
+ *
+ * The size of the IV is one block in AES-128 (16 bytes).
+ *
+ * @param data Data to be encrypted
+ * @param iv Initialisation vector.
+ * @param result Encrypted message
+ * @return Void.
+ */
+void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
+{
+    aescbc_e.Resynchronize(iv ? iv : zeroiv);
+    StringSource(*data, true,
+           new CryptoPP::StreamTransformationFilter( aescbc_e, new StringSink( *result ),
+                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+}
+
+/**
+ * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
+ *
+ * The size of the IV is one block in AES-128 (16 bytes).
+ *
+ * @param data Data to be decrypted
+ * @param iv Initialisation vector.
+ * @param result Decrypted message
+ * @return Void.
+ */
+void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *iv, string *result)
+{
+    aescbc_d.Resynchronize(iv ? iv : zeroiv);
+    StringSource(*data, true,
+           new CryptoPP::StreamTransformationFilter( aescbc_d, new StringSink( *result ),
+                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+}
+
+/**
  * @brief Encrypt symmetrically using AES in ECB mode.
  *
  * @param data Data to be encrypted.
@@ -607,4 +643,21 @@ void HashCRC32::get(byte* out)
 {
     hash.Final(out);
 }
+
+HMACSHA256::HMACSHA256(const byte *key, size_t length)
+    : hmac(key, length)
+{
+
+}
+
+void HMACSHA256::add(const byte *data, unsigned len)
+{
+    hmac.Update(data, len);
+}
+
+void HMACSHA256::get(byte *out)
+{
+    hmac.Final(out);
+}
+
 } // namespace
