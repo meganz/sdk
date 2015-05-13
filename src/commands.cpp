@@ -2867,12 +2867,7 @@ void CommandSubmitPurchaseReceipt::procresult()
 // Credit Card Store
 CommandStoreCreditCard::CommandStoreCreditCard(MegaClient* client, const byte *cc, unsigned int len, const char *last4, const char *expm, const char *expy, const char *hash)
 {
-    this->client = client;
-
-    cmd("css");
-
-    string temp((const char*)cc);
-
+    cmd("ccs");
     arg("cc", cc, len);
     arg("last4", last4);
     arg("expm", expm);
