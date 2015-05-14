@@ -862,6 +862,7 @@ void MegaClient::exec()
                             else if (e == API_ETOOMANY)
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
+                                reqtag = 0;
                                 fetchnodes();
                             }
                         }

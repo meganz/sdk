@@ -4511,9 +4511,19 @@ void MegaApiImpl::unlink_result(handle h, error e)
 void MegaApiImpl::fetchnodes_result(error e)
 {
 	MegaError megaError(e);
+    MegaRequestPrivate* request;
+    if(!client->restag)
+    {
+        request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
+        fireOnRequestFinish(request, megaError);
+        return;
+    }
 
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_FETCH_NODES))
     {
         return;
