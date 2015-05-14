@@ -241,6 +241,9 @@ struct MEGA_API LocalNode : public File, Cachable
 
         // an issue has been reported
         bool reported : 1;
+
+        // checked for missing attributes
+        bool checked : 1;
     };
 
     // current subtree sync state: current and displayed

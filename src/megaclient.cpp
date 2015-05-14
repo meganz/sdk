@@ -853,7 +853,6 @@ void MegaClient::exec()
                         else
                         {
                             error e = (error)atoi(pendingsc->in.c_str());
-
                             if (e == API_ESID)
                             {
                                 app->request_error(API_ESID);
@@ -6144,6 +6143,35 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         {
                             // files have the same size and the same mtime (or the
                             // same fingerprint, if available): no action needed
+                            if(!ll->checked)
+                            {
+                                if (gfx && gfx->isgfx(&ll->localname))
+                                {
+                                    int missingattr = 0;
+
+                                    // check for missing imagery
+                                    if (!ll->node->hasfileattribute(GfxProc::THUMBNAIL120X120))
+                                    {
+                                        missingattr |= 1 << GfxProc::THUMBNAIL120X120;
+                                    }
+
+                                    if (!ll->node->hasfileattribute(GfxProc::PREVIEW1000x1000))
+                                    {
+                                        missingattr |= 1 << GfxProc::PREVIEW1000x1000;
+                                    }
+
+                                    if(missingattr)
+                                    {
+                                        LOG_debug << "Restoring missing attributes: " << ll->name;
+                                        string localpath;
+                                        ll->getlocalpath(&localpath);
+                                        SymmCipher*symmcipher = ll->node->nodecipher();
+                                        gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                    }
+                                }
+
+                                ll->checked = true;
+                            }
                             ll->treestate(TREESTATE_SYNCED);
                             continue;
                         }
