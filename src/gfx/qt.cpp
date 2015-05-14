@@ -408,7 +408,7 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, QString 
 {
     QImageReader* image = new QImageReader(imagePath);
     QSize s = image->size();
-    if(!s.isValid())
+    if(!s.isValid() || !s.width() || !s.height())
     {
         delete image;
         return NULL;
