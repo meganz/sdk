@@ -1241,9 +1241,9 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp, MegaRequestListener *listener)
 {
-   pImpl->syncFolder(localFolder, megaFolder, listener);
+   pImpl->syncFolder(localFolder, megaFolder, rExp, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener)
@@ -1998,7 +1998,6 @@ int MegaSync::getState() const
 {
     return MegaSync::SYNC_FAILED;
 }
-
 
 void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, const char *, int )
 { }

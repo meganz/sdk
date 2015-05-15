@@ -34,6 +34,10 @@
 #include "mega/proxy.h"
 #include "megaapi.h"
 
+#ifdef ENABLE_SYNC
+#include <pcre.h>
+#endif
+
 #ifndef _WIN32
     #if (!defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
     #include <openssl/ssl.h>
@@ -353,8 +357,30 @@ protected:
     MegaHandle prevParent;
 };
 
+class MegaRegExpPrivate
+{
+public:
+    enum{
+      NO_ERROR = 0,
+      COMPILATION_ERROR,
+      OPTIMIZATION_ERROR
+    };
+
+    MegaRegExpPrivate(std::vector<std::string> *re);
+    ~MegaRegExpPrivate();
+    void setPattern(std::vector<string> *re);
+    bool match(std::string);
+    int compile();
+
+private:
+    std::string pattern;
+    int options;
+    pcre* reCompiled;
+    pcre_extra* reOptimization;
+};
+
 class MegaSyncPrivate : public MegaSync
-{  
+{
 public:
     MegaSyncPrivate(Sync *sync);
     MegaSyncPrivate(MegaSyncPrivate &sync);
@@ -375,16 +401,18 @@ public:
     MegaSyncListener *getListener();
     virtual int getState() const;
     void setState(int state);
+    virtual MegaRegExpPrivate* getRegExp() const;
+    void setRegExp(MegaRegExpPrivate *rExp);
 
 protected:
     MegaHandle megaHandle;
     string localFolder;
+    MegaRegExpPrivate *rExp;
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
     int state;
 };
-
 #endif
 
 
@@ -926,7 +954,7 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp = NULL, MegaRequestListener* listener = NULL);
         void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
@@ -938,7 +966,7 @@ class MegaApiImpl : public MegaApp
         void setExclusionUpperSizeLimit(long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
-        bool is_syncable(const char* name);
+        bool is_syncable(const char* name, MegaRegExpPrivate *rExp = NULL);
         bool is_syncable(long long size);
         bool isIndexing();
 #endif
@@ -1214,8 +1242,8 @@ protected:
         virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
         virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
-        virtual bool sync_syncable(Node*);
-        virtual bool sync_syncable(const char*name, string*, string*);
+        virtual bool sync_syncable(Sync *,Node*);
+        virtual bool sync_syncable(Sync *,const char*name, string*, string*);
         virtual void syncupdate_local_lockretry(bool);
 #endif
 

@@ -335,8 +335,14 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 }
 
 
-bool MegaApiImpl::is_syncable(const char *name)
+bool MegaApiImpl::is_syncable(const char *name, MegaRegExpPrivate *rExp)
 {
+
+    if(rExp)
+    {
+        string str(name);
+        rExp->match(str);
+    }
     for(unsigned int i=0; i< excludedNames.size(); i++)
     {
         if(WildcardMatch(name, excludedNames[i].c_str()))
@@ -1315,7 +1321,6 @@ void MegaRequestPrivate::setTransferTag(int transfer)
 {
     this->transfer = transfer;
 }
-
 void MegaRequestPrivate::setListener(MegaRequestListener *listener)
 {
     this->listener = listener;
@@ -3060,7 +3065,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
@@ -4422,21 +4427,24 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     fireOnFileSyncStateChanged(megaSync, path.data(), (int)l->ts);
 }
 
-bool MegaApiImpl::sync_syncable(Node *node)
+bool MegaApiImpl::sync_syncable(Sync *sync, Node *node)
 {
     if(node->type == FILENODE && !is_syncable(node->size))
     {
         return false;
     }
 
+    if(syncMap.find(sync->tag) == syncMap.end()) return false;
+    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
+
     const char *name = node->displayname();
     sdkMutex.unlock();
-    bool result = is_syncable(name);
+    bool result = is_syncable(name, megaSync->getRegExp());
     sdkMutex.lock();
     return result;
 }
 
-bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
+bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, string *)
 {
     static FileAccess* f = fsAccess->newfileaccess();
     if(f->fopen(localpath) && !is_syncable(f->size))
@@ -4444,8 +4452,11 @@ bool MegaApiImpl::sync_syncable(const char *name, string *localpath, string *)
         return false;
     }
 
+    if(syncMap.find(sync->tag) == syncMap.end()) return false;
+    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
+
     sdkMutex.unlock();
-    bool result =  is_syncable(name);
+    bool result =  is_syncable(name, megaSync->getRegExp());
     sdkMutex.lock();
     return result;
 }
@@ -8245,7 +8256,9 @@ MegaSyncPrivate::MegaSyncPrivate(Sync *sync)
     this->megaHandle = sync->localroot.node->nodehandle;
     this->fingerprint = sync->fsfp;
     this->state = sync->state;
+    this->rExp = NULL;
     this->listener = NULL;
+
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate &sync)
@@ -8256,6 +8269,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate &sync)
     this->setLocalFingerprint(sync.getLocalFingerprint());
     this->setState(sync.getState());
     this->setListener(sync.getListener());
+    this->setRegExp(sync.getRegExp());
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
@@ -8293,6 +8307,15 @@ void MegaSyncPrivate::setLocalFolder(const char *path)
 long long MegaSyncPrivate::getLocalFingerprint() const
 {
     return fingerprint;
+}
+
+MegaRegExpPrivate *MegaSyncPrivate::getRegExp() const
+{
+    return rExp;
+}
+void MegaSyncPrivate::setRegExp(MegaRegExpPrivate *rExp)
+{
+    this->rExp = rExp;
 }
 
 void MegaSyncPrivate::setLocalFingerprint(long long fingerprint)
@@ -8601,4 +8624,69 @@ double MegaAccountTransactionPrivate::getAmount() const
 MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransaction *transaction)
 {
     this->transaction = *transaction;
+}
+
+
+MegaRegExpPrivate::MegaRegExpPrivate(std::vector<string> *re)
+{
+    options = 0;
+    options |= PCRE_ANCHORED;
+    setPattern(re);
+}
+MegaRegExpPrivate::~MegaRegExpPrivate()
+{
+    pcre_free(reCompiled);
+    if(reOptimization != NULL) pcre_free(reOptimization);
+}
+void MegaRegExpPrivate::setPattern(std::vector<string> *re)
+{
+    for(int i=0;i<re->size();i++)
+    {
+        string wrapped = "(?:";
+            wrapped += re->at(i);
+            wrapped += ")\\z";
+
+        pattern += wrapped + ((i==(re->size()-1)) ? "" :"|");
+
+    }
+    compile();
+}
+bool MegaRegExpPrivate::match(std::string itemToMatch)
+{
+    int strVector[30];
+    int result;
+
+    result = pcre_exec(reCompiled,
+                            reOptimization,
+                            itemToMatch.c_str(),
+                            itemToMatch.size(),
+                            0,
+                            options,
+                            strVector,
+                            30);
+
+    if(result < 0)
+        return result;
+
+    return 0;
+
+}
+int MegaRegExpPrivate::compile()
+{
+    const char *error;
+    int eoffset;
+
+   reCompiled = pcre_compile(pattern.c_str(), options, &error, &eoffset, NULL);
+   if(reCompiled == NULL) {
+     printf("ERROR: Could not compile '%s': %s\n", pattern.c_str(), error);
+     return MegaRegExpPrivate::COMPILATION_ERROR;
+   }
+
+   reOptimization = pcre_study(reCompiled, 0, &error);
+   if(error != NULL) {
+     printf("ERROR: Could not study '%s': %s\n", pattern.c_str(), error);
+     return MegaRegExpPrivate::OPTIMIZATION_ERROR;
+   }
+
+   return MegaRegExpPrivate::NO_ERROR;
 }
