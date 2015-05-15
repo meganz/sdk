@@ -404,7 +404,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 client->fsaccess->local2name(&name);
 
                 // check if this record is to be ignored
-                if (client->app->sync_syncable(name.c_str(), localpath, &localname))
+                if (client->app->sync_syncable(this, name.c_str(), localpath, &localname))
                 {
                     if (t)
                     {
@@ -506,7 +506,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         string name = newname;
         client->fsaccess->local2name(&name);
 
-        if (!client->app->sync_syncable(name.c_str(), &tmppath, &newname))
+        if (!client->app->sync_syncable(this, name.c_str(), &tmppath, &newname))
         {
             return NULL;
         }

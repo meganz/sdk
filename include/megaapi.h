@@ -4313,7 +4313,7 @@ class MegaApi
          *
          * @see MegaApi::resumeSync
          */
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Resume a previously synced folder

@@ -5730,7 +5730,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     {
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(*it)
+        if ((app->sync_syncable(l->sync, *it)
              && (*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
@@ -5864,7 +5864,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // missing local files
     for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
-        if (app->sync_syncable(rit->second))
+        if (app->sync_syncable(l->sync, rit->second))
         {
             if ((ait = rit->second->attrs.map.find('n')) != rit->second->attrs.map.end())
             {
