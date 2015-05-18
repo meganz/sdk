@@ -872,7 +872,9 @@ void WinDirNotify::readchanges()
     }
     else
     {
-        if (GetLastError() == ERROR_NOTIFY_ENUM_DIR)
+        DWORD e = GetLastError();
+        LOG_warn << "ReadDirectoryChanges not available. Error code: " << e;
+        if (e == ERROR_NOTIFY_ENUM_DIR)
         {
             // notification buffer overflow
             error = true;

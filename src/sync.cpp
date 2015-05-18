@@ -720,6 +720,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 else
                 {
                     // this is a new node: add
+                    LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
                     l = new LocalNode;
                     l->init(this, fa->type, parent, localname ? localpath : &tmppath);
 
