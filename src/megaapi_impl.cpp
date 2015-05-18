@@ -4510,7 +4510,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
 
 void MegaApiImpl::fetchnodes_result(error e)
 {
-	MegaError megaError(e);
+    MegaError megaError(e);
     MegaRequestPrivate* request;
     if (!client->restag)
     {
