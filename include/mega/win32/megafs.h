@@ -49,6 +49,8 @@ public:
     DirAccess* newdiraccess();
     DirNotify* newdirnotify(string*, string*);
 
+    bool issyncsupported(string*);
+
     void tmpnamelocal(string*) const;
 
     void path2local(string*, string*) const;

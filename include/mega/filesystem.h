@@ -202,6 +202,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // obtain lowercased extension
     virtual bool getextension(string*, char*, int) const = 0;
 
+    // check if synchronization is supported for a specific path
+    virtual bool issyncsupported(string*) { return true; }
+
     // add notification (has to be called for all directories in tree for full crossplatform support)
     virtual void addnotify(LocalNode*, string*) { }
 

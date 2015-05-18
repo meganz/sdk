@@ -950,6 +950,31 @@ DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
     return new WinDirNotify(localpath, ignore);
 }
 
+bool WinFileSystemAccess::issyncsupported(string *localpath)
+{
+    WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
+    string path, fsname;
+    bool result = true;
+
+#ifndef WINDOWS_PHONE
+    localpath->append("", 1);
+    path.resize(MAX_PATH * sizeof(WCHAR));
+    fsname.resize(MAX_PATH * sizeof(WCHAR));
+
+    if (GetVolumePathNameW((LPCWSTR)localpath->data(), (LPWSTR)path.data(), MAX_PATH)
+        && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH)
+        && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+    {
+        LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
+        result = false;
+    }
+
+    localpath->resize(localpath->size() - 1);
+#endif
+
+    return result;
+}
+
 bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 {
     if (f)

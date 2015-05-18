@@ -5587,6 +5587,12 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
     }
     
+    if(!fsaccess->issyncsupported(rootpath))
+    {
+        LOG_warn << "Unsupported filesystem";
+        return API_EFAILED;
+    }
+
     FileAccess* fa = fsaccess->newfileaccess();
     error e;
 
