@@ -361,22 +361,25 @@ class MegaRegExpPrivate
 {
 public:
     enum{
-      NO_ERROR = 0,
-      COMPILATION_ERROR,
-      OPTIMIZATION_ERROR
+        NO_ERROR = 0,
+        COMPILATION_ERROR,
+        OPTIMIZATION_ERROR
     };
 
-    MegaRegExpPrivate(std::vector<std::string> *re);
+    MegaRegExpPrivate(const char *pattern = NULL);
     ~MegaRegExpPrivate();
-    void setPattern(std::vector<string> *re);
+    void setPattern(const char *pattern);
+    const char *getPattern();
     bool match(std::string);
     int compile();
 
 private:
     std::string pattern;
+#ifdef ENABLE_PCRE
     int options;
     pcre* reCompiled;
     pcre_extra* reOptimization;
+#endif
 };
 
 class MegaSyncPrivate : public MegaSync
@@ -402,7 +405,8 @@ public:
     virtual int getState() const;
     void setState(int state);
     virtual MegaRegExpPrivate* getRegExp() const;
-    void setRegExp(MegaRegExpPrivate *rExp);
+    void setRegExp(MegaRegExpPrivate *regExp);
+    void setPattern(const char *pattern);
 
 protected:
     MegaHandle megaHandle;
@@ -954,8 +958,8 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp = NULL, MegaRequestListener* listener = NULL);
-        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, const char *pattern = NULL, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, const char *pattern = NULL, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
@@ -964,6 +968,7 @@ class MegaApiImpl : public MegaApp
         void setExcludedNames(vector<string> *excludedNames);
         void setExclusionLowerSizeLimit(long long limit);
         void setExclusionUpperSizeLimit(long long limit);
+        void setRegularExpressions(Sync *sync, const char *pattern);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         bool is_syncable(const char* name, MegaRegExpPrivate *rExp = NULL);

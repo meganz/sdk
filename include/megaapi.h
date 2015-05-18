@@ -4244,7 +4244,7 @@ class MegaApi
          *
          * @see MegaApi::resumeSync
          */
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, const char *pattern = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Resume a previously synced folder
@@ -4270,7 +4270,7 @@ class MegaApi
          * @param localfp Fingerprint of the local file
          * @param listener MegaRequestListener to track this request
          */
-        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, const char *pattern = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Remove a synced folder
@@ -4419,6 +4419,13 @@ class MegaApi
          * @param limit Upper limit for synchronized files
          */
         void setExclusionUpperSizeLimit(long long limit);
+
+        /**
+         * @brief Set a list of rules to exclude files and folders for a given synchronized folder
+         * @param sync Synchronization whose rules want to be updated
+         * @param regExp List of regular expressions (rules)
+         */
+        void setRegularExpressions(Sync *sync, const char *pattern);
 
         /**
          * @brief Move a local file to the local "Debris" folder
