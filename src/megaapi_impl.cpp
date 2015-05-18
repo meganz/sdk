@@ -7160,38 +7160,41 @@ void MegaApiImpl::sendPendingRequests()
 			}
 			break;
 		}
-		case MegaRequest::TYPE_SET_ATTR_FILE:
-		{
+        case MegaRequest::TYPE_SET_ATTR_FILE:
+        {
             const char* srcFilePath = request->getFile();
-			int type = request->getParamType();
-			Node *node = client->nodebyhandle(request->getNodeHandle());
+            int type = request->getParamType();
+            Node *node = client->nodebyhandle(request->getNodeHandle());
 
-			if(!srcFilePath || !node) { e = API_EARGS; break; }
+            if(!srcFilePath || !node) { e = API_EARGS; break; }
 
-			string path = srcFilePath;
-			string localpath;
-			fsAccess->path2local(&path, &localpath);
+            string path = srcFilePath;
+            string localpath;
+            fsAccess->path2local(&path, &localpath);
 
-			string attributedata;
-			FileAccess *f = fsAccess->newfileaccess();
-			if (!f->fopen(&localpath, 1, 0))
-			{
-				delete f;
-				e = API_EREAD;
-				break;
-			}
+            string *attributedata = new string;
+            FileAccess *f = fsAccess->newfileaccess();
+            if (!f->fopen(&localpath, 1, 0))
+            {
+                delete f;
+                delete attributedata;
+                e = API_EREAD;
+                break;
+            }
 
-			if(!f->fread(&attributedata, f->size, 0, 0))
-			{
-				delete f;
-				e = API_EREAD;
-				break;
-			}
-			delete f;
+            if(!f->fread(attributedata, f->size, 0, 0))
+            {
+                delete f;
+                delete attributedata;
+                e = API_EREAD;
+                break;
+            }
+            delete f;
 
-            client->putfa(node->nodehandle, type, node->nodecipher(), &attributedata);
-			break;
-		}
+            client->putfa(node->nodehandle, type, node->nodecipher(), attributedata);
+            //attributedata is not deleted because putfa takes its ownership
+            break;
+        }
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:
 		{
 			int type = request->getParamType();
