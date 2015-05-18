@@ -4512,14 +4512,14 @@ void MegaApiImpl::fetchnodes_result(error e)
 {
 	MegaError megaError(e);
     MegaRequestPrivate* request;
-    if(!client->restag)
+    if (!client->restag)
     {
         request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         fireOnRequestFinish(request, megaError);
         return;
     }
 
-    if(requestMap.find(client->restag) == requestMap.end())
+    if (requestMap.find(client->restag) == requestMap.end())
     {
         return;
     }

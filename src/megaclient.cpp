@@ -6143,7 +6143,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         {
                             // files have the same size and the same mtime (or the
                             // same fingerprint, if available): no action needed
-                            if(!ll->checked)
+                            if (!ll->checked)
                             {
                                 if (gfx && gfx->isgfx(&ll->localname))
                                 {
@@ -6160,7 +6160,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                                         missingattr |= 1 << GfxProc::PREVIEW1000x1000;
                                     }
 
-                                    if(missingattr)
+                                    if (missingattr)
                                     {
                                         LOG_debug << "Restoring missing attributes: " << ll->name;
                                         string localpath;
