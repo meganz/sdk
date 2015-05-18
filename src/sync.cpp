@@ -488,6 +488,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         // in newname
         l = localnodebypath(l, localpath, &parent, &newname);
 
+        int index;
+        if((index = newname.find(client->fsaccess->localseparator)) != string::npos)
+        {
+            LOG_warn << "Parent not detected yet. Unknown reminder: " << newname;
+            string parentpath = localpath->substr(0, localpath->size() - newname.size() + index);
+            dirnotify->notify(DirNotify::DIREVENTS, NULL, parentpath.data(), parentpath.size(), true);
+            return 0;
+        }
+
         // path invalid?
         if (!l && !newname.size())
         {
