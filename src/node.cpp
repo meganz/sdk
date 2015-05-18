@@ -937,6 +937,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     deleted = false;
     created = false;
     reported = false;
+    checked = false;
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
