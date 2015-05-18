@@ -1153,6 +1153,7 @@ protected:
 
         // file attribute modification result
         virtual void putfa_result(handle, fatype, error);
+        virtual void putfa_result(handle, fatype, const char*);
 
         // purchase transactions
         virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
