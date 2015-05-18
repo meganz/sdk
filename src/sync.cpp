@@ -534,7 +534,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
             LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
 
-            if (cl && fa->fsid == cl->fsid)
+            if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
             {
                 // node found and same file
                 l = cl;
