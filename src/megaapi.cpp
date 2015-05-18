@@ -1256,14 +1256,14 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, std::vector<std::string> *rExp, MegaRequestListener *listener)
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, const char *pattern, MegaRequestListener *listener)
 {
-   pImpl->syncFolder(localFolder, megaFolder, rExp, listener);
+   pImpl->syncFolder(localFolder, megaFolder, pattern, listener);
 }
 
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener)
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, const char *pattern, MegaRequestListener* listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, listener);
+    pImpl->resumeSync(localFolder, localfp, megaFolder, pattern, listener);
 }
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
@@ -1329,6 +1329,11 @@ void MegaApi::setExclusionLowerSizeLimit(long long limit)
 void MegaApi::setExclusionUpperSizeLimit(long long limit)
 {
     pImpl->setExclusionUpperSizeLimit(limit);
+}
+
+void MegaApi::setRegularExpressions(Sync *sync, const char *pattern)
+{
+    pImpl->setRegularExpressions(sync,pattern);
 }
 
 #endif
