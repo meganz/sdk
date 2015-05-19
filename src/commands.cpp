@@ -2865,10 +2865,10 @@ void CommandSubmitPurchaseReceipt::procresult()
 }
 
 // Credit Card Store
-CommandStoreCreditCard::CommandStoreCreditCard(MegaClient* client, const byte *cc, unsigned int len, const char *last4, const char *expm, const char *expy, const char *hash)
+CommandStoreCreditCard::CommandStoreCreditCard(MegaClient* client, const char *cc, const char *last4, const char *expm, const char *expy, const char *hash)
 {
     cmd("ccs");
-    arg("cc", cc, len);
+    arg("cc", cc);
     arg("last4", last4);
     arg("expm", expm);
     arg("expy", expy);

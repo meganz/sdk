@@ -893,7 +893,7 @@ class MegaApiImpl : public MegaApp
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
-        void storecreditcard(const char* address1, const char* address2, const char* city,
+        void storeCreditCard(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
                              const char* expire_month, const char* expire_year, const char* cv2,

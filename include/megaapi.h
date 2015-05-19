@@ -3872,12 +3872,11 @@ class MegaApi
          * @param ccplain Text string containing billing and payment details
          * @param listener MegaRequestListener to track this request
          */
-        void storecreditcard(const char* address1, const char* address2, const char* city,
+        void storeCreditCard(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
                              const char* expire_month, const char* expire_year, const char* cv2,
                              MegaRequestListener *listener = NULL);
-//        void storecreditcard(const char* ccplain, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account

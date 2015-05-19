@@ -517,7 +517,7 @@ class MEGA_API CommandStoreCreditCard : public Command {
 public:
     void procresult();
 
-    CommandStoreCreditCard(MegaClient* client, const byte *, unsigned int, const char *, const char *, const char *, const char *);
+    CommandStoreCreditCard(MegaClient* client, const char *, const char *, const char *, const char *, const char *);
 };
 
 } // namespace

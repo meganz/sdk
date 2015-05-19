@@ -4487,8 +4487,10 @@ void MegaClient::submitpurchasereceipt(int type, const char *receipt)
 
 error MegaClient::storecreditcard(const char *ccplain)
 {
-    if(!ccplain)
+    if (!ccplain)
+    {
         return API_EARGS;
+    }
 
     // The same as the Javascript example
     char SDK_PUBKEY[] = "CACmWnYy7M5dqH7shqrj4jERfhhCfzoU5uDycAof1o8JyHu_F47b0aAB9KhKsIVKv90"
@@ -4503,47 +4505,69 @@ error MegaClient::storecreditcard(const char *ccplain)
     string ccenc;
     string ccplain1 = ccplain;
     PayCrypter payCrypter;
-    if(!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
+    if (!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
+    {
         return API_EARGS;
+    }
 
     string ccnumber, expm, expy, cv2;
-    if(!extractData(ccplain, "card_number", &ccnumber, 16)          ||
-            !extractData(ccplain, "expiry_date_month", &expm, 2)    ||
-            !extractData(ccplain, "expiry_date_year", &expy, 4)     ||
-            !extractData(ccplain, "cv2", &cv2, 3))
+    if (!extractData(ccplain, "card_number", &ccnumber)
+        || !extractData(ccplain, "expiry_date_month", &expm)
+        || !extractData(ccplain, "expiry_date_year", &expy)
+        || !extractData(ccplain, "cv2", &cv2))
+    {
         return API_EARGS;
+    }
 
-    string last4 = ccnumber.substr(12); // Leghth of card numbers is 16
+    string last4 = ccnumber.substr(ccnumber.size() - 4);
 
-    char hashstring[98];   // Max. length: card number (16), expm (2), expy (4), cv2 (3)
-    sprintf(hashstring,"{\"card_number\":\"%s\","
+    char hashstring[256];
+    int ret = snprintf(hashstring, sizeof(hashstring), "{\"card_number\":\"%s\","
             "\"expiry_date_month\":\"%s\","
             "\"expiry_date_year\":\"%s\","
-            "\"cv2\":\"%s\"}",ccnumber.c_str(),expm.c_str(),expy.c_str(),cv2.c_str());
+            "\"cv2\":\"%s\"}", ccnumber.c_str(), expm.c_str(), expy.c_str(), cv2.c_str());
+
+    if (ret < 0 || ret >= (int)sizeof(hashstring))
+        return API_EARGS;
 
     HashSHA256 hash;
     string binaryhash;
     hash.add((byte *)hashstring, strlen(hashstring));
     hash.get(&binaryhash);
 
-    string base64hash;
-    base64hash.resize(binaryhash.size()*4/3+4);
-    base64hash.resize(Base64::btoa((byte *)binaryhash.data(), binaryhash.size(), (char *)base64hash.data()));
+    static const char hexchars[] = "0123456789abcdef";
+    ostringstream oss;
+    string hexHash;
+    for (size_t i=0;i<binaryhash.size();++i)
+    {
+        oss.put(hexchars[(binaryhash[i] >> 4) & 0x0F]);
+        oss.put(hexchars[binaryhash[i] & 0x0F]);
+    }
+    hexHash = oss.str();
 
-    reqs[r].add(new CommandStoreCreditCard(this, (const byte*)ccenc.data(), ccenc.length(), last4.c_str(), expm.c_str(), expy.c_str(), base64hash.data()));
+    string base64cc;
+    base64cc.resize(ccenc.size()*4/3+4);
+    base64cc.resize(Base64::btoa((byte *)ccenc.data(), ccenc.size(), (char *)base64cc.data()));
+    std::replace( base64cc.begin(), base64cc.end(), '-', '+');
+    std::replace( base64cc.begin(), base64cc.end(), '_', '/');
+
+    reqs[r].add(new CommandStoreCreditCard(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
     return API_OK;
 }
 
-bool MegaClient::extractData(string ccplain, string hint, string *ret, unsigned int length)
+bool MegaClient::extractData(string ccplain, string hint, string *ret)
 {
     string pattern = hint + "\":\"";
     size_t pos = ccplain.find(pattern);
-    if(pos == ccplain.npos)
+    if (pos == ccplain.npos)
         return false;
 
-    *ret = ccplain.substr(pos+pattern.length(), length);
+    size_t end = ccplain.find("\"", pos+pattern.length());
+    if (end == ccplain.npos)
+        return false;
 
-    return (ret->length() != length);// !ret->empty());
+    *ret = ccplain.substr(pos + pattern.size(), end - pos - pattern.size());
+    return true;
 }
 
 // add new contact (by e-mail address)

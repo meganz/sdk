@@ -403,7 +403,7 @@ private:
      * @param length Length in characters of the expected result.
      * @return False if 'hint' is not part of 'ccplain' or 'length' does not match.
      */
-    bool extractData(string ccplain, string hint, string *ret, unsigned int length);
+    bool extractData(string ccplain, string hint, string *ret);
 
 public:
     // application callbacks
