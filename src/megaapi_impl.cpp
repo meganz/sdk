@@ -461,11 +461,11 @@ MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
 
 MegaUser *MegaUserPrivate::fromUser(User *user)
 {
-	if(!user)
-	{
-		return NULL;
-	}
-	return new MegaUserPrivate(user);
+    if(!user)
+    {
+        return NULL;
+    }
+    return new MegaUserPrivate(user);
 }
 
 MegaUser *MegaUserPrivate::copy()
@@ -2491,12 +2491,17 @@ void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaReques
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
 {
-	getUserAttribute(user, 0, dstFilePath, listener);
+    getUserAttr(user, 0, dstFilePath, listener);
 }
 
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
 	setUserAttr(0, dstFilePath, listener);
+}
+
+void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
+{
+    getUserAttr(user, type ? type : -1, NULL, listener);
 }
 
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
@@ -2681,10 +2686,10 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFile
     waiter->notify();
 }
 
-void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFilePath, MegaRequestListener *listener)
+void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    if(dstFilePath)
+    if(!type && dstFilePath)
     {
         string path(dstFilePath);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -2713,10 +2718,18 @@ void MegaApiImpl::getUserAttribute(MegaUser *user, int type, const char *dstFile
 
 void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
 {
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
-	request->setFile(srcFilePath);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    if(!type)
+    {
+        request->setFile(srcFilePath);
+    }
+    else
+    {
+        request->setText(srcFilePath);
+    }
+
     request->setParamType(type);
-	requestQueue.push(request);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -5157,7 +5170,12 @@ void MegaApiImpl::invite_result(error e)
 
 void MegaApiImpl::putua_result(error e)
 {
-    //TODO: Support user attribute changes
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
+
+    fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::getua_result(error e)
@@ -5176,29 +5194,36 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
-	FileAccess *f = client->fsaccess->newfileaccess();
-	string filePath(request->getFile());
-	string localPath;
-	fsAccess->path2local(&filePath, &localPath);
-
-    totalDownloadedBytes += len;
-
-	fsAccess->unlinklocal(&localPath);
-    if(!f->fopen(&localPath, false, true))
+    if(request->getParamType() == 0)
     {
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_EWRITE));
-        return;
-    }
+        FileAccess *f = client->fsaccess->newfileaccess();
+        string filePath(request->getFile());
+        string localPath;
+        fsAccess->path2local(&filePath, &localPath);
 
-    if(!f->fwrite((const byte*)data, len, 0))
+        totalDownloadedBytes += len;
+
+        fsAccess->unlinklocal(&localPath);
+        if(!f->fopen(&localPath, false, true))
+        {
+            delete f;
+            fireOnRequestFinish(request, MegaError(API_EWRITE));
+            return;
+        }
+
+        if(!f->fwrite((const byte*)data, len, 0))
+        {
+            delete f;
+            fireOnRequestFinish(request, MegaError(API_EWRITE));
+            return;
+        }
+
+        delete f;
+    }
+    else
     {
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_EWRITE));
-        return;
+        request->setText((const char*)data);
     }
-
-    delete f;
     fireOnRequestFinish(request, MegaError(API_OK));
 }
 
@@ -7096,80 +7121,114 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_GET_ATTR_USER:
 		{
-			const char* dstFilePath = request->getFile();
+            const char* value = request->getFile();
             int type = request->getParamType();
             User *user = client->finduser(request->getEmail(), 0);
 
-			if(!dstFilePath || !user || (type != 0)) { e = API_EARGS; break; }
+            if((!type && !value) || !user || (type < 0)) { e = API_EARGS; break; }
 
-			client->getua(user, "a", false);
-			break;
+            if(!type)
+            {
+                client->getua(user, "a", 0);
+            }
+            else
+            {
+                string attrname;
+                switch(type)
+                {
+                    case MegaApi::USER_ATTR_FIRSTNAME:
+                    {
+                        attrname = "firstname";
+                        break;
+                    }
+
+                    case MegaApi::USER_ATTR_LASTNAME:
+                    {
+                        attrname = "lastname";
+                        break;
+                    }
+
+                    default:
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                }
+
+                if(!e)
+                {
+                    client->getua(user, attrname.c_str(), 2);
+                }
+            }
+            break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:
 		{
-			const char* value = request->getFile();
+            const char* file = request->getFile();
+            const char* value = request->getText();
             int type = request->getParamType();
 
-			if (!value || type < 0)
-			{
-				e = API_EARGS;
-				break;
-			}
+            if ((!type && !file) || (type < 0) || (type && !value))
+            {
+                e = API_EARGS;
+                break;
+            }
 
-			if(!type)
-			{
-				string path = value;
-				string localpath;
-				fsAccess->path2local(&path, &localpath);
+            if(!type)
+            {
+                string path = file;
+                string localpath;
+                fsAccess->path2local(&path, &localpath);
 
-				string attributedata;
-				FileAccess *f = fsAccess->newfileaccess();
-				if (!f->fopen(&localpath, 1, 0))
-				{
-					delete f;
-					e = API_EREAD;
-					break;
-				}
+                string attributedata;
+                FileAccess *f = fsAccess->newfileaccess();
+                if (!f->fopen(&localpath, 1, 0))
+                {
+                    delete f;
+                    e = API_EREAD;
+                    break;
+                }
 
-				if (!f->fread(&attributedata, f->size, 0, 0))
-				{
-					delete f;
-					e = API_EREAD;
-					break;
-				}
-				delete f;
+                if (!f->fread(&attributedata, f->size, 0, 0))
+                {
+                    delete f;
+                    e = API_EREAD;
+                    break;
+                }
+                delete f;
 
-				client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
-			}
-			else
-			{
-				string attrname;
-				switch(type)
-				{
-					case MegaApi::USER_ATTR_FIRSTNAME:
-					{
-						attrname = "firstname";
-						break;
-					}
+                client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
+            }
+            else
+            {
+                string attrname;
+                string attrvalue = value;
+                switch(type)
+                {
+                    case MegaApi::USER_ATTR_FIRSTNAME:
+                    {
+                        attrname = "firstname";
+                        break;
+                    }
 
-					case MegaApi::USER_ATTR_LASTNAME:
-					{
-						attrname = "lastname";
-						break;
-					}
+                    case MegaApi::USER_ATTR_LASTNAME:
+                    {
+                        attrname = "lastname";
+                        break;
+                    }
 
-					default:
-					{
-						e = API_EARGS;
-						break;
-					}
-				}
-				if(!e)
-				{
-					client->putua(attrname.c_str(), (byte *)value, strlen(value), 2);
-				}
-			}
-			break;
+                    default:
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                }
+                if(!e)
+                {
+                    client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size(), 2);
+                }
+            }
+            break;
 		}
         case MegaRequest::TYPE_SET_ATTR_FILE:
         {

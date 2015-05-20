@@ -1320,7 +1320,6 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
-         * - MegaApi::setUserAttribute - Returns the new value for the attribute
          *
          * @return Path of a file related to the request
          */
@@ -1379,6 +1378,7 @@ class MegaRequest
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
+         * - MegaApi::getUserAttribute - Returns the attribute type
          *
          * @return Type of parameter related to the request
          */
@@ -1390,11 +1390,13 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::submitFeedback - Returns the comment about the app
          * - MegaApi::reportDebugEvent - Returns the debug message
+         * - MegaApi::setUserAttribute - Returns the new value for the attribute
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the XMPP ID of the contact
          * - MegaApi::loadBalancing . Returns the response of the server
+         * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
          */
@@ -3655,6 +3657,30 @@ class MegaApi
          */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get an attribute of a MegaUser.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value of the attribute
+         *
+         * @param user MegaUser to get the attribute
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the retrieval of a thumbnail
@@ -3734,7 +3760,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
-         * - MegaRequest::getFile - Returns the new value for the attribute
+         * - MegaRequest::getText - Returns the new value for the attribute
          *
          * @param type Attribute type
          *
