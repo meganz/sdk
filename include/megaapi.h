@@ -1038,7 +1038,7 @@ class MegaRequest
 			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
 			TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
-            TYPE_STORE_CREDIT_CARD
+            TYPE_STORE_CREDIT_CARD, TYPE_UPGRADE_ACCOUNT
 		};
 
 		virtual ~MegaRequest();
@@ -1124,6 +1124,7 @@ class MegaRequest
          * - MegaApi::syncFolder - Returns the handle of the folder in MEGA
          * - MegaApi::resumeSync - Returns the handle of the folder in MEGA
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
+         * - MegaApi::upgradeAccount - Returns that handle of the product
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1408,6 +1409,7 @@ class MegaRequest
          * - MegaApi::retryPendingConnections - Returns if transfers are retried
          * - MegaApi::submitFeedback - Returns the rating for the app
          * - MegaApi::pauseTransfers - Returns the direction of the transfers to pause/resume
+         * - MegaApi::upgradeAccount - Returns the payment method
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2702,6 +2704,12 @@ class MegaApi
             USER_ATTR_LASTNAME = 2
         };
 
+        enum {
+            PAYMENT_METHOD_BALANCE = 0,
+            PAYMENT_METHOD_BITCOIN = 4,
+            PAYMENT_METHOD_CREDIT_CARD = 8
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -3859,6 +3867,34 @@ class MegaApi
          * @see MegaApi::getPricing
          */
         void getPaymentId(MegaHandle productHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Upgrade an account
+         * @param productHandle Product handle to purchase
+         *
+         * It's possible to get all pricing plans with their product handles using
+         * MegaApi::getPricing
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         * - MegaRequest::getNumber - Returns the payment method
+         *
+         * @param paymentMethod Payment method
+         * Valid values are:
+         * - MegaApi::PAYMENT_METHOD_BALANCE = 0
+         * Use the account balance for the payment
+         *
+         * - MegaApi::PAYMENT_METHOD_BITCOIN = 4
+         * Complete the payment with Bitcoins
+         *
+         * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
+         * Complete the payment with your credit card. Use MegaApi::storeCreditCard to add
+         * a credit card to your account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Submit a purchase receipt for verification

@@ -28,12 +28,10 @@ namespace mega {
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
 
-//bool MegaClient::disablepkp = false;
-bool MegaClient::disablepkp = true;
+bool MegaClient::disablepkp = false;
 
 // root URL for API access
-//string MegaClient::APIURL = "https://g.api.mega.co.nz/";
-string MegaClient::APIURL = "https://api-sandbox2.developers.mega.co.nz/";
+string MegaClient::APIURL = "https://staging.api.mega.co.nz/";
 
 // root URL for the load balancer
 const char* const MegaClient::BALANCERURL = "https://karere-001.developers.mega.co.nz:4434/";
@@ -4492,13 +4490,23 @@ error MegaClient::storecreditcard(const char *ccplain)
         return API_EARGS;
     }
 
-    // The same as the Javascript example
-    char SDK_PUBKEY[] = "CACmWnYy7M5dqH7shqrj4jERfhhCfzoU5uDycAof1o8JyHu_F47b0aAB9KhKsIVKv90"
+    // Testing key
+    /*char SDK_PUBKEY[] = "CACmWnYy7M5dqH7shqrj4jERfhhCfzoU5uDycAof1o8JyHu_F47b0aAB9KhKsIVKv90"
         "nbuea7wGuWsc0pxlrR5kKOnqMEcIQrLysFupSleqwilIgp5MUBvkPTdsn22Qc9Qldwm"
         "p_cbBNVfTrUVFSifv0QjDnbl7t9sLF5GgFMfYhWqMxAr3D3072cQF9eTbDLCbPD7RrC"
         "vUiTdqI1bT79e_187YSzCdjeVq_tZb5YnhLPHlgNQffmFJj41itSwpqrEYN8e5kIvsE"
         "INpHiLtXIIBBnld6NZu55U37sHeYkn5PB6cMi3ZEm90uIB7MT5CyHYLaEbJ9RkzJNRc"
-        "xJAC2w4CnABEBAAE";
+        "xJAC2w4CnABEBAAE";*/
+
+
+    //Production key
+    char SDK_PUBKEY[] = "CADB-9t4WSMCs6we8CNcAmq97_bP-eXa9pn7SwGPxXpTuScijDrLf_ooneCQnnRBDvE"
+        "MNqTK3ULj1Q3bt757SQKDZ0snjbwlU2_D-rkBBbjWCs-S61R0Vlg8AI5q6oizH0pjpD"
+        "eOhpsv2DUlvCa4Hjgy_bRpX8v9fJvbKI2bT3GXJWE7tu8nlKHgz8Q7NE3Ycj5XuUfCW"
+        "GgOvPGBC-8qPOyg98Vloy53vja2mBjw4ycodx-ZFCt8i8b9Z8KongRMROmvoB4jY8ge"
+        "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
+        "TpPvuz-oZABEBAAE";
+
     byte pubkdata[sizeof(SDK_PUBKEY)];
     int pubkdatalen = Base64::atob(SDK_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
 

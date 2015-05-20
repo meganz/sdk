@@ -892,6 +892,7 @@ class MegaApiImpl : public MegaApp
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
+        void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
         void storeCreditCard(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
@@ -1161,6 +1162,8 @@ protected:
                                                 unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
+        virtual void checkout_result(error);
+        virtual void checkout_result(const char*);
         virtual void submitpurchasereceipt_result(error);
         virtual void storecreditcard_result(error);
 

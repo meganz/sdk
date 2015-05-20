@@ -1097,6 +1097,11 @@ void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listen
     pImpl->getPaymentId(productHandle, listener);
 }
 
+void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
+{
+    pImpl->upgradeAccount(productHandle, paymentMethod, listener);
+}
+
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
     pImpl->submitPurchaseReceipt(receipt, listener);
