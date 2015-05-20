@@ -42,6 +42,7 @@ struct MEGA_API FileAttributeFetchChannel
     size_t inbytes;
     
     faf_map fafs[2];
+    error e;
 
     // dispatch new and retrying attributes by POSTing to existing URL
     void dispatch(MegaClient*);

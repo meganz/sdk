@@ -552,9 +552,9 @@ void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
     cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
 }
 
-int DemoApp::fa_failed(handle, fatype type, int retries)
+int DemoApp::fa_failed(handle, fatype type, int retries, error e)
 {
-    cout << "File attribute retrieval of type " << type << " failed (retries: " << retries << ")" << endl;
+    cout << "File attribute retrieval of type " << type << " failed (retries: " << retries << ") error: " << e << endl;
 
     return retries > 2;
 }

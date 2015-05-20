@@ -1150,7 +1150,7 @@ protected:
 
         // file attribute fetch result
         virtual void fa_complete(Node*, fatype, const char*, uint32_t);
-        virtual int fa_failed(handle, fatype, int);
+        virtual int fa_failed(handle, fatype, int, error);
 
         // file attribute modification result
         virtual void putfa_result(handle, fatype, error);

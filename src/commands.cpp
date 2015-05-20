@@ -113,7 +113,16 @@ void CommandGetFA::procresult()
     if (client->json.isnumeric())
     {
         if (it != client->fafcs.end())
-        {
+        {            
+            faf_map::iterator fafsit;
+            for (fafsit = it->second->fafs[0].begin(); fafsit != it->second->fafs[0].end(); )
+            {
+                // move from fresh to pending
+                it->second->fafs[1][fafsit->first] = fafsit->second;
+                it->second->fafs[0].erase(fafsit++);
+            }
+
+            it->second->e = (error)client->json.getint();
             it->second->req.status = REQ_FAILURE;
         }
 
