@@ -31,7 +31,7 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://staging.api.mega.co.nz/";
+string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
 // root URL for the load balancer
 const char* const MegaClient::BALANCERURL = "https://karere-001.developers.mega.co.nz:4434/";
@@ -43,6 +43,15 @@ const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 
 // exported link marker
 const char* const MegaClient::EXPORTEDLINK = "EXP";
+
+// public key to send payment details
+const char MegaClient::PAYMENT_PUBKEY[] =
+        "CADB-9t4WSMCs6we8CNcAmq97_bP-eXa9pn7SwGPxXpTuScijDrLf_ooneCQnnRBDvE"
+        "MNqTK3ULj1Q3bt757SQKDZ0snjbwlU2_D-rkBBbjWCs-S61R0Vlg8AI5q6oizH0pjpD"
+        "eOhpsv2DUlvCa4Hjgy_bRpX8v9fJvbKI2bT3GXJWE7tu8nlKHgz8Q7NE3Ycj5XuUfCW"
+        "GgOvPGBC-8qPOyg98Vloy53vja2mBjw4ycodx-ZFCt8i8b9Z8KongRMROmvoB4jY8ge"
+        "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
+        "TpPvuz-oZABEBAAE";
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -4490,25 +4499,8 @@ error MegaClient::storecreditcard(const char *ccplain)
         return API_EARGS;
     }
 
-    // Testing key
-    /*char SDK_PUBKEY[] = "CACmWnYy7M5dqH7shqrj4jERfhhCfzoU5uDycAof1o8JyHu_F47b0aAB9KhKsIVKv90"
-        "nbuea7wGuWsc0pxlrR5kKOnqMEcIQrLysFupSleqwilIgp5MUBvkPTdsn22Qc9Qldwm"
-        "p_cbBNVfTrUVFSifv0QjDnbl7t9sLF5GgFMfYhWqMxAr3D3072cQF9eTbDLCbPD7RrC"
-        "vUiTdqI1bT79e_187YSzCdjeVq_tZb5YnhLPHlgNQffmFJj41itSwpqrEYN8e5kIvsE"
-        "INpHiLtXIIBBnld6NZu55U37sHeYkn5PB6cMi3ZEm90uIB7MT5CyHYLaEbJ9RkzJNRc"
-        "xJAC2w4CnABEBAAE";*/
-
-
-    //Production key
-    char SDK_PUBKEY[] = "CADB-9t4WSMCs6we8CNcAmq97_bP-eXa9pn7SwGPxXpTuScijDrLf_ooneCQnnRBDvE"
-        "MNqTK3ULj1Q3bt757SQKDZ0snjbwlU2_D-rkBBbjWCs-S61R0Vlg8AI5q6oizH0pjpD"
-        "eOhpsv2DUlvCa4Hjgy_bRpX8v9fJvbKI2bT3GXJWE7tu8nlKHgz8Q7NE3Ycj5XuUfCW"
-        "GgOvPGBC-8qPOyg98Vloy53vja2mBjw4ycodx-ZFCt8i8b9Z8KongRMROmvoB4jY8ge"
-        "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
-        "TpPvuz-oZABEBAAE";
-
-    byte pubkdata[sizeof(SDK_PUBKEY)];
-    int pubkdatalen = Base64::atob(SDK_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
+    byte pubkdata[sizeof(PAYMENT_PUBKEY) * 3 / 4 + 3];
+    int pubkdatalen = Base64::atob(PAYMENT_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
 
     string ccenc;
     string ccplain1 = ccplain;
@@ -4519,10 +4511,10 @@ error MegaClient::storecreditcard(const char *ccplain)
     }
 
     string ccnumber, expm, expy, cv2;
-    if (!extractData(ccplain, "card_number", &ccnumber)
-        || !extractData(ccplain, "expiry_date_month", &expm)
-        || !extractData(ccplain, "expiry_date_year", &expy)
-        || !extractData(ccplain, "cv2", &cv2))
+    if (!JSON::extractstringvalue(ccplain, "card_number", &ccnumber)
+        || !JSON::extractstringvalue(ccplain, "expiry_date_month", &expm)
+        || !JSON::extractstringvalue(ccplain, "expiry_date_year", &expy)
+        || !JSON::extractstringvalue(ccplain, "cv2", &cv2))
     {
         return API_EARGS;
     }
@@ -4536,7 +4528,9 @@ error MegaClient::storecreditcard(const char *ccplain)
             "\"cv2\":\"%s\"}", ccnumber.c_str(), expm.c_str(), expy.c_str(), cv2.c_str());
 
     if (ret < 0 || ret >= (int)sizeof(hashstring))
+    {
         return API_EARGS;
+    }
 
     HashSHA256 hash;
     string binaryhash;
@@ -4561,21 +4555,6 @@ error MegaClient::storecreditcard(const char *ccplain)
 
     reqs[r].add(new CommandStoreCreditCard(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
     return API_OK;
-}
-
-bool MegaClient::extractData(string ccplain, string hint, string *ret)
-{
-    string pattern = hint + "\":\"";
-    size_t pos = ccplain.find(pattern);
-    if (pos == ccplain.npos)
-        return false;
-
-    size_t end = ccplain.find("\"", pos+pattern.length());
-    if (end == ccplain.npos)
-        return false;
-
-    *ret = ccplain.substr(pos + pattern.size(), end - pos - pattern.size());
-    return true;
 }
 
 // add new contact (by e-mail address)

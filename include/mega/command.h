@@ -511,13 +511,13 @@ class MEGA_API CommandStoreCreditCard : public Command {
         'last4':<last four digits of the credit card number, plain text>,
         'expm':<expiry month in the form "02">,
         'expy':<expiry year in the form "2017">,
-        'hash':<sha256 hash of the card details. Check with @chris as to the exact format he has hashed so the webclient and sdk are in-sync>
+        'hash':<sha256 hash of the card details in hex format>
     */
 
 public:
     void procresult();
 
-    CommandStoreCreditCard(MegaClient* client, const char *, const char *, const char *, const char *, const char *);
+    CommandStoreCreditCard(MegaClient*, const char *, const char *, const char *, const char *, const char *);
 };
 
 } // namespace

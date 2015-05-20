@@ -61,6 +61,15 @@ struct MEGA_API JSON
     bool storeobject(string* = NULL);
 
     static void unescape(string*);
+
+    /**
+     * @brief Extract a string value for a name in a JSON string
+     * @param json JSON string to check
+     * @param name Attribute name.
+     * @param value Atribute value.
+     * @return False if the JSON string doesn't contains the string attribute
+     */
+    static bool extractstringvalue(const string & json, const string & name, string* value);
 };
 
 } // namespace

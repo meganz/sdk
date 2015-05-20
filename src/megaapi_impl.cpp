@@ -2575,12 +2575,12 @@ void MegaApiImpl::storeCreditCard(const char* address1, const char* address2, co
             + strlen(address2) + strlen(city) + strlen(province) + strlen(postalcode) + strlen(country)];
 
     snprintf(ccplain, sizeof(ccplain), "{\"first_name\":\"%s\",\"last_name\":\"%s\","
-                "\"card_number\":\"%s\","
-                "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
-                "\"cv2\":\"%s\",\"address1\":\"%s\","
-                "\"address2\":\"%s\",\"city\":\"%s\","
-                "\"province\":\"%s\",\"postal_code\":\"%s\","
-                "\"country_code\":\"%s\"}", firstname, lastname, creditcard, expire_month,
+            "\"card_number\":\"%s\","
+            "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
+            "\"cv2\":\"%s\",\"address1\":\"%s\","
+            "\"address2\":\"%s\",\"city\":\"%s\","
+            "\"province\":\"%s\",\"postal_code\":\"%s\","
+            "\"country_code\":\"%s\"}", firstname, lastname, creditcard, expire_month,
             expire_year, cv2,address1, address2, city, province, postalcode, country);
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_STORE_CREDIT_CARD, listener);
