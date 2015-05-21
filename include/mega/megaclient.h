@@ -265,6 +265,9 @@ public:
     // store credit card
     error creditcardstore(const char *);
 
+    // get credit card subscriptions
+    void creditcardquerysubscriptions();
+
     // toggle global debug flag
     bool toggledebug();
 

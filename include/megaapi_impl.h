@@ -900,6 +900,8 @@ class MegaApiImpl : public MegaApp
                              const char* expire_month, const char* expire_year, const char* cv2,
                              MegaRequestListener *listener = NULL);
 
+        void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
+
         const char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
@@ -1166,6 +1168,7 @@ protected:
         virtual void checkout_result(const char*);
         virtual void submitpurchasereceipt_result(error);
         virtual void creditcardstore_result(error);
+        virtual void creditcardquerysubscriptions_result(int, error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);

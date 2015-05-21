@@ -2889,6 +2889,35 @@ void CommandCreditCardStore::procresult()
         client->app->creditcardstore_result(API_EINTERNAL);
     }
 }
+
+CommandCreditCardQuerySubscriptions::CommandCreditCardQuerySubscriptions(MegaClient* client)
+{
+    cmd("ccqns");
+
+    tag = client->reqtag;
+}
+
+void CommandCreditCardQuerySubscriptions::procresult()
+{
+    int number = 0;
+    if (client->json.isnumeric())
+    {
+        number = client->json.getint();
+        if(number >= 0)
+        {
+            client->app->creditcardquerysubscriptions_result(number, API_OK);
+        }
+        else
+        {
+            client->app->creditcardquerysubscriptions_result(0, (error)number);
+        }
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->creditcardquerysubscriptions_result(0, API_EINTERNAL);
+    }
+}
     }
 }
 

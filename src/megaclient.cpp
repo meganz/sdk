@@ -4557,6 +4557,11 @@ error MegaClient::creditcardstore(const char *ccplain)
     return API_OK;
 }
 
+void MegaClient::creditcardquerysubscriptions()
+{
+    reqs[r].add(new CommandCreditCardQuerySubscriptions(this));
+}
+
 // add new contact (by e-mail address)
 error MegaClient::invite(const char* email, visibility_t show)
 {

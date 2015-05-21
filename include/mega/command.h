@@ -520,6 +520,14 @@ public:
 
     CommandCreditCardStore(MegaClient*, const char *, const char *, const char *, const char *, const char *);
 };
+
+class MEGA_API CommandCreditCardQuerySubscriptions : public Command
+{
+public:
+    void procresult();
+
+    CommandCreditCardQuerySubscriptions(MegaClient*);
+};
 };
 
 } // namespace

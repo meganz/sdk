@@ -1117,6 +1117,11 @@ void MegaApi::creditCardStore(const char* address1, const char* address2, const 
                            lastname, creditcard, expire_month, expire_year, cv2, listener);
 }
 
+void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
+{
+    pImpl->creditCardQuerySubscriptions(listener);
+}
+
 const char *MegaApi::exportMasterKey()
 {
     return pImpl->exportMasterKey();

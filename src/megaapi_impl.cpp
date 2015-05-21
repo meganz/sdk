@@ -1401,6 +1401,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_KILL_SESSION: return "KILL_SESSION";
         case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
         case TYPE_CREDIT_CARD_STORE: return "CREDIT_CARD_STORE";
+        case TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS: return "TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS";
 	}
     return "UNKNOWN";
 }
@@ -2600,6 +2601,13 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
         request->setText((const char* )ccplain);
     }
 
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4780,6 +4788,16 @@ void MegaApiImpl::submitpurchasereceipt_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT)) return;
 
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::creditcardquerysubscriptions_result(int number, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS)) return;
+
+    request->setNumber(number);
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -7626,6 +7644,9 @@ void MegaApiImpl::sendPendingRequests()
             e = client->creditcardstore(ccplain);
             break;
         }
+        case MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS:
+        {
+            client->creditcardquerysubscriptions();
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

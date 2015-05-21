@@ -1038,7 +1038,7 @@ class MegaRequest
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
             TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
-            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT
+            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS
 		};
 
         virtual ~MegaRequest();
@@ -1414,6 +1414,7 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::resumeSync - Returns the fingerprint of the local file
+         * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
          *
          * @return Number related to this request
          */
@@ -3927,6 +3928,19 @@ class MegaApi
                              const char* firstname, const char* lastname, const char* creditcard,
                              const char* expire_month, const char* expire_year, const char* cv2,
                              MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the credit card subscriptions of the account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Number of credit card subscriptions
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account
