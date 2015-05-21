@@ -467,7 +467,6 @@ int MegaRequest::getNumDetails() const
 	return 0;
 }
 
-
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1256,14 +1255,14 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, const char *pattern, MegaRequestListener *listener)
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-   pImpl->syncFolder(localFolder, megaFolder, pattern, listener);
+   pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
 }
 
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, const char *pattern, MegaRequestListener* listener)
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener* listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, pattern, listener);
+    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
 }
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
@@ -1331,12 +1330,12 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
     pImpl->setExclusionUpperSizeLimit(limit);
 }
 
-void MegaApi::setRegularExpressions(Sync *sync, const char *pattern)
-{
-    pImpl->setRegularExpressions(sync,pattern);
-}
-
 #endif
+
+void MegaApi::setRegularExpressions(MegaNode *n, MegaRegExp *regExp)
+{
+    pImpl->setRegularExpressions(n,regExp);
+}
 
 int MegaApi::getNumPendingUploads()
 {
@@ -2186,3 +2185,41 @@ double MegaAccountTransaction::getAmount() const
 {
     return 0;
 }
+
+mega::MegaRegExp::MegaRegExp()
+{
+    pImpl = new MegaRegExpPrivate();
+}
+
+MegaRegExp::~MegaRegExp() { }
+
+MegaRegExp *MegaRegExp::copy()
+{
+    return NULL;
+}
+
+bool MegaRegExp::addRegExp(const char *regExp)
+{
+    return pImpl->addRegExp(regExp);
+}
+
+int MegaRegExp::getNumRegExp()
+{
+    return pImpl->getNumRegExp();
+}
+
+const char *MegaRegExp::getRegExp(int index)
+{
+    return pImpl->getRegExp(index);
+}
+
+bool MegaRegExp::match(const char *s)
+{
+    return pImpl->match(s);
+}
+
+const char *MegaRegExp::getFullPattern()
+{
+    return pImpl->getFullPattern();
+}
+
