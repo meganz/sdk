@@ -3647,7 +3647,8 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getEmail - Returns the email of the user
          *
-         * @param user MegaUser to get the avatar
+         * @param user MegaUser to get the avatar. If this parameter is set to NULL, the avatar is obtained
+         * for the active account
          * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
          * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
          * will be used as the file name inside that folder. If the path doesn't finish with
@@ -3656,6 +3657,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the avatar of the active account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getEmail - Returns the email of the user
+         *
+         * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+         * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+         * will be used as the file name inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get an attribute of a MegaUser.
@@ -3668,7 +3686,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value of the attribute
          *
-         * @param user MegaUser to get the attribute
+         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
+         * is obtained for the active account
          * @param type Attribute type
          *
          * Valid values are:
@@ -3681,6 +3700,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get an attribute of the current account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value of the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(int type, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the retrieval of a thumbnail

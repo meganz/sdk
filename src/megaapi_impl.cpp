@@ -2711,7 +2711,10 @@ void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath,
     }
 
     request->setParamType(type);
-    if(user) request->setEmail(user->getEmail());
+    if(user)
+    {
+        request->setEmail(user->getEmail());
+    }
 	requestQueue.push(request);
     waiter->notify();
 }
@@ -7123,7 +7126,17 @@ void MegaApiImpl::sendPendingRequests()
 		{
             const char* value = request->getFile();
             int type = request->getParamType();
-            User *user = client->finduser(request->getEmail(), 0);
+            const char *email = request->getEmail();
+
+            User *user;
+            if(email)
+            {
+                user = client->finduser(email, 0);
+            }
+            else
+            {
+                user = client->finduser(client->me, 0);
+            }
 
             if((!type && !value) || !user || (type < 0)) { e = API_EARGS; break; }
 
