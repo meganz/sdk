@@ -1725,7 +1725,6 @@ void CommandGetUA::procresult()
         if (priv == 1)
         {
             d.assign((char*)data, l);
-            delete[] data;
 
             // Is the data a multiple of the cipher blocksize, then we're using
             // a zero IV.
@@ -1733,7 +1732,9 @@ void CommandGetUA::procresult()
             {
                 if (!PaddedCBC::decrypt(&d, &client->key))
                 {
-                    return(client->app->getua_result(API_EINTERNAL));
+                    delete[] data;
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
                 }
             }
             else
@@ -1746,21 +1747,21 @@ void CommandGetUA::procresult()
                 d = payload;
                 if (!PaddedCBC::decrypt(&d, &client->key, &iv))
                 {
-                    return(client->app->getua_result(API_EINTERNAL));
+                    delete[] data;
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
                 }
             }
-            return(client->app->getua_result((byte*)d.data(), d.size()));
+            client->app->getua_result((byte*)d.data(), d.size());
         }
-        else if (priv == 2)
+        else if (!priv || priv == 2)
         {
-            return(client->app->getua_result(data,l));
+            client->app->getua_result(data, l);
         }
         else
         {
-            return(client->app->getua_result(API_EARGS));
+            client->app->getua_result(API_EARGS);
         }
-
-        client->app->getua_result(data, l);
 
         delete[] data;
     }
