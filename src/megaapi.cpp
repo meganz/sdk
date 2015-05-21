@@ -1107,13 +1107,13 @@ void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *li
     pImpl->submitPurchaseReceipt(receipt, listener);
 }
 
-void MegaApi::storeCreditCard(const char* address1, const char* address2, const char* city,
+void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
                      const char* province, const char* country, const char *postalcode,
                      const char* firstname, const char* lastname, const char* creditcard,
                      const char* expire_month, const char* expire_year, const char* cv2,
                      MegaRequestListener *listener)
 {
-    pImpl->storeCreditCard(address1, address2, city, province, country, postalcode, firstname,
+    pImpl->creditCardStore(address1, address2, city, province, country, postalcode, firstname,
                            lastname, creditcard, expire_month, expire_year, cv2, listener);
 }
 

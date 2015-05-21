@@ -263,7 +263,7 @@ public:
     void submitpurchasereceipt(int, const char*);
 
     // store credit card
-    error storecreditcard(const char *);
+    error creditcardstore(const char *);
 
     // toggle global debug flag
     bool toggledebug();

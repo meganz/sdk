@@ -4492,7 +4492,7 @@ void MegaClient::submitpurchasereceipt(int type, const char *receipt)
     reqs[r].add(new CommandSubmitPurchaseReceipt(this, type, receipt));
 }
 
-error MegaClient::storecreditcard(const char *ccplain)
+error MegaClient::creditcardstore(const char *ccplain)
 {
     if (!ccplain)
     {
@@ -4553,7 +4553,7 @@ error MegaClient::storecreditcard(const char *ccplain)
     std::replace( base64cc.begin(), base64cc.end(), '-', '+');
     std::replace( base64cc.begin(), base64cc.end(), '_', '/');
 
-    reqs[r].add(new CommandStoreCreditCard(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
+    reqs[r].add(new CommandCreditCardStore(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
     return API_OK;
 }
 

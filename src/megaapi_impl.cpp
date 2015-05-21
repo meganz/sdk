@@ -1400,7 +1400,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
         case TYPE_KILL_SESSION: return "KILL_SESSION";
         case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
-        case TYPE_STORE_CREDIT_CARD: return "STORE_CREDIT_CARD";
+        case TYPE_CREDIT_CARD_STORE: return "CREDIT_CARD_STORE";
 	}
     return "UNKNOWN";
 }
@@ -2564,13 +2564,13 @@ void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener
     waiter->notify();
 }
 
-void MegaApiImpl::storeCreditCard(const char* address1, const char* address2, const char* city,
+void MegaApiImpl::creditCardStore(const char* address1, const char* address2, const char* city,
                                   const char* province, const char* country, const char *postalcode,
                                   const char* firstname, const char* lastname, const char* creditcard,
                                   const char* expire_month, const char* expire_year, const char* cv2,
                                   MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_STORE_CREDIT_CARD, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_STORE, listener);
     string email;
 
     sdkMutex.lock();
@@ -4783,11 +4783,11 @@ void MegaApiImpl::submitpurchasereceipt_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::storecreditcard_result(error e)
+void MegaApiImpl::creditcardstore_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_STORE_CREDIT_CARD)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_STORE)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -7620,10 +7620,12 @@ void MegaApiImpl::sendPendingRequests()
             client->submitpurchasereceipt(type, receipt);
             break;
         }
-        case MegaRequest::TYPE_STORE_CREDIT_CARD:
+        case MegaRequest::TYPE_CREDIT_CARD_STORE:
         {
             const char *ccplain = request->getText();
-            e = client->storecreditcard(ccplain);
+            e = client->creditcardstore(ccplain);
+            break;
+        }
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

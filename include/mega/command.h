@@ -503,7 +503,8 @@ public:
     CommandSubmitPurchaseReceipt(MegaClient*, int, const char*);
 };
 
-class MEGA_API CommandStoreCreditCard : public Command {
+class MEGA_API CommandCreditCardStore : public Command
+{
 
     /*
         'a':'ccs',  // credit card store
@@ -517,7 +518,8 @@ class MEGA_API CommandStoreCreditCard : public Command {
 public:
     void procresult();
 
-    CommandStoreCreditCard(MegaClient*, const char *, const char *, const char *, const char *, const char *);
+    CommandCreditCardStore(MegaClient*, const char *, const char *, const char *, const char *, const char *);
+};
 };
 
 } // namespace

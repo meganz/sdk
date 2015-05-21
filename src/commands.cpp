@@ -2865,7 +2865,7 @@ void CommandSubmitPurchaseReceipt::procresult()
 }
 
 // Credit Card Store
-CommandStoreCreditCard::CommandStoreCreditCard(MegaClient* client, const char *cc, const char *last4, const char *expm, const char *expy, const char *hash)
+CommandCreditCardStore::CommandCreditCardStore(MegaClient* client, const char *cc, const char *last4, const char *expm, const char *expy, const char *hash)
 {
     cmd("ccs");
     arg("cc", cc);
@@ -2877,16 +2877,18 @@ CommandStoreCreditCard::CommandStoreCreditCard(MegaClient* client, const char *c
     tag = client->reqtag;
 }
 
-void CommandStoreCreditCard::procresult()
+void CommandCreditCardStore::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->storecreditcard_result((error)client->json.getint());
+        client->app->creditcardstore_result((error)client->json.getint());
     }
     else
     {
         client->json.storeobject();
-        client->app->storecreditcard_result(API_EINTERNAL);
+        client->app->creditcardstore_result(API_EINTERNAL);
+    }
+}
     }
 }
 

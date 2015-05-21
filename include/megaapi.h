@@ -1038,7 +1038,7 @@ class MegaRequest
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
             TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
-            TYPE_STORE_CREDIT_CARD, TYPE_UPGRADE_ACCOUNT
+            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT
 		};
 
         virtual ~MegaRequest();
@@ -3889,7 +3889,7 @@ class MegaApi
          * Complete the payment with Bitcoins
          *
          * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
-         * Complete the payment with your credit card. Use MegaApi::storeCreditCard to add
+         * Complete the payment with your credit card. Use MegaApi::creditCardStore to add
          * a credit card to your account
          *
          * @param listener MegaRequestListener to track this request
@@ -3904,11 +3904,25 @@ class MegaApi
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Store a Credit Card
-         * @param ccplain Text string containing billing and payment details
+         * @brief Store a credit card
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_STORE
+         *
+         * @param address1 Billing address
+         * @param address2 Second line of the billing address (optional)
+         * @param city City of the billing address
+         * @param province Province of the billing address
+         * @param country Contry of the billing address
+         * @param postalcode Postal code of the billing address
+         * @param firstname Firstname of the owner of the credit card
+         * @param lastname Lastname of the owner of the credit card
+         * @param creditcard Credit card number. Only digits, no spaces nor dashes
+         * @param expire_month Expire month of the credit card. Must have two digits ("03" for example)
+         * @param expire_year Expire year of the credit card. Must have four digits ("2010" for example)
+         * @param cv2 Security code of the credit card (3 digits)
          * @param listener MegaRequestListener to track this request
          */
-        void storeCreditCard(const char* address1, const char* address2, const char* city,
+        void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
                              const char* expire_month, const char* expire_year, const char* cv2,

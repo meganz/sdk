@@ -894,7 +894,7 @@ class MegaApiImpl : public MegaApp
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
-        void storeCreditCard(const char* address1, const char* address2, const char* city,
+        void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
                              const char* expire_month, const char* expire_year, const char* cv2,
@@ -1165,7 +1165,7 @@ protected:
         virtual void checkout_result(error);
         virtual void checkout_result(const char*);
         virtual void submitpurchasereceipt_result(error);
-        virtual void storecreditcard_result(error);
+        virtual void creditcardstore_result(error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
