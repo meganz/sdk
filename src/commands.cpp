@@ -2149,6 +2149,15 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
+            case MAKENAMEID6('s', 'c', 'y', 'c', 'l', 'e'):
+                const char* scycle;
+                if ((scycle = client->json.getvalue()))
+                {
+                    memcpy(details->subscription_cycle, scycle, 3);
+                    details->subscription_cycle[3] = 0;
+                }
+                break;
+
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
                 // expiry of last active Pro plan (may be different from current one)
                 details->pro_until = client->json.getint();
