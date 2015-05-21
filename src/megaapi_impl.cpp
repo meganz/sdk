@@ -1401,7 +1401,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_KILL_SESSION: return "KILL_SESSION";
         case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
         case TYPE_CREDIT_CARD_STORE: return "CREDIT_CARD_STORE";
-        case TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS: return "TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS";
+        case TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS: return "CREDIT_CARD_QUERY_SUBSCRIPTIONS";
+        case TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS: return "CREDIT_CARD_CANCEL_SUBSCRIPTIONS";
 	}
     return "UNKNOWN";
 }
@@ -2608,6 +2609,13 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
 void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardCancelSubscriptions(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4798,6 +4806,15 @@ void MegaApiImpl::creditcardquerysubscriptions_result(int number, error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS)) return;
 
     request->setNumber(number);
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS)) return;
+
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -7647,6 +7664,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS:
         {
             client->creditcardquerysubscriptions();
+            break;
+        }
+        case MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS:
+        {
+            client->creditcardcancelsubscriptions();
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

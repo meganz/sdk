@@ -528,6 +528,13 @@ public:
 
     CommandCreditCardQuerySubscriptions(MegaClient*);
 };
+
+class MEGA_API CommandCreditCardCancelSubscriptions : public Command
+{
+public:
+    void procresult();
+
+    CommandCreditCardCancelSubscriptions(MegaClient*);
 };
 
 } // namespace

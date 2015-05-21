@@ -4562,6 +4562,11 @@ void MegaClient::creditcardquerysubscriptions()
     reqs[r].add(new CommandCreditCardQuerySubscriptions(this));
 }
 
+void MegaClient::creditcardcancelsubscriptions()
+{
+    reqs[r].add(new CommandCreditCardCancelSubscriptions(this));
+}
+
 // add new contact (by e-mail address)
 error MegaClient::invite(const char* email, visibility_t show)
 {

@@ -268,6 +268,9 @@ public:
     // get credit card subscriptions
     void creditcardquerysubscriptions();
 
+    // cancel credit card subscriptions
+    void creditcardcancelsubscriptions();
+
     // toggle global debug flag
     bool toggledebug();
 

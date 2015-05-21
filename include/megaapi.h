@@ -1038,7 +1038,8 @@ class MegaRequest
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
             TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
-            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS
+            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
+            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
 		};
 
         virtual ~MegaRequest();
@@ -3941,6 +3942,15 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel credit card subscriptions if the account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account

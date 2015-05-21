@@ -2918,6 +2918,24 @@ void CommandCreditCardQuerySubscriptions::procresult()
         client->app->creditcardquerysubscriptions_result(0, API_EINTERNAL);
     }
 }
+
+CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client)
+{
+    cmd("cccs");
+
+    tag = client->reqtag;
+}
+
+void CommandCreditCardCancelSubscriptions::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->creditcardcancelsubscriptions_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->creditcardcancelsubscriptions_result(API_EINTERNAL);
     }
 }
 

@@ -901,6 +901,7 @@ class MegaApiImpl : public MegaApp
                              MegaRequestListener *listener = NULL);
 
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
 
         const char *exportMasterKey();
 
@@ -1169,6 +1170,7 @@ protected:
         virtual void submitpurchasereceipt_result(error);
         virtual void creditcardstore_result(error);
         virtual void creditcardquerysubscriptions_result(int, error);
+        virtual void creditcardcancelsubscriptions_result(error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
