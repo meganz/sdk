@@ -447,12 +447,14 @@ class MegaShell(cmd.Cmd, MegaListener):
 
     def do_quit(self, arg):
         """Usage: quit"""
+        del self._api
         print('Bye!')
         exit()
 
 
     def do_exit(self, arg):
         """Usage: exit"""
+        del self._api
         print('Bye!')
         exit()
 
@@ -462,4 +464,5 @@ if __name__ == '__main__':
     shell = MegaShell(api)
     listener = AppListener(shell)
     api.addListener(listener)
+    api = None
     shell.cmdloop()
