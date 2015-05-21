@@ -2570,21 +2570,36 @@ void MegaApiImpl::storeCreditCard(const char* address1, const char* address2, co
                                   const char* expire_month, const char* expire_year, const char* cv2,
                                   MegaRequestListener *listener)
 {
-    char ccplain[256 + strlen(firstname) + strlen(lastname) + strlen(creditcard)
-            + strlen(expire_month) + strlen(expire_year) + strlen(cv2) + strlen(address1)
-            + strlen(address2) + strlen(city) + strlen(province) + strlen(postalcode) + strlen(country)];
-
-    snprintf(ccplain, sizeof(ccplain), "{\"first_name\":\"%s\",\"last_name\":\"%s\","
-            "\"card_number\":\"%s\","
-            "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
-            "\"cv2\":\"%s\",\"address1\":\"%s\","
-            "\"address2\":\"%s\",\"city\":\"%s\","
-            "\"province\":\"%s\",\"postal_code\":\"%s\","
-            "\"country_code\":\"%s\"}", firstname, lastname, creditcard, expire_month,
-            expire_year, cv2,address1, address2, city, province, postalcode, country);
-
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_STORE_CREDIT_CARD, listener);
-    request->setText((const char* )ccplain);
+    string email;
+
+    sdkMutex.lock();
+    User *u = client->finduser(client->me);
+    if(u)
+    {
+        email = u->email;
+    }
+    sdkMutex.unlock();
+
+    if(email.size())
+    {
+        char ccplain[256 + strlen(firstname) + strlen(lastname) + strlen(creditcard)
+                + strlen(expire_month) + strlen(expire_year) + strlen(cv2) + strlen(address1)
+                + strlen(address2) + strlen(city) + strlen(province) + strlen(postalcode)
+                + strlen(country) + email.size()];
+
+        snprintf(ccplain, sizeof(ccplain), "{\"first_name\":\"%s\",\"last_name\":\"%s\","
+                "\"card_number\":\"%s\","
+                "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
+                "\"cv2\":\"%s\",\"address1\":\"%s\","
+                "\"address2\":\"%s\",\"city\":\"%s\","
+                "\"province\":\"%s\",\"postal_code\":\"%s\","
+                "\"country_code\":\"%s\",\"email_address\":\"%s\"}", firstname, lastname, creditcard, expire_month,
+                expire_year, cv2,address1, address2, city, province, postalcode, country, email.c_str());
+
+        request->setText((const char* )ccplain);
+    }
+
     requestQueue.push(request);
     waiter->notify();
 }
