@@ -1285,6 +1285,21 @@ string MegaApi::getLocalPath(MegaNode *n)
     return pImpl->getLocalPath(n);
 }
 
+MegaSync *MegaApi::getSyncByTag(int tag)
+{
+    return pImpl->getSyncByTag(tag);
+}
+
+MegaSync *MegaApi::getSyncByNode(mega::MegaNode *node)
+{
+    return pImpl->getSyncByNode(node);
+}
+
+MegaSync *MegaApi::getSyncByPath(const char *localPath)
+{
+    return pImpl->getSyncByPath(localPath);
+}
+
 bool MegaApi::isScanning()
 {
     return pImpl->isIndexing();
@@ -1317,9 +1332,9 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 
 #endif
 
-void MegaApi::setRegularExpressions(MegaNode *n, MegaRegExp *regExp)
+void MegaApi::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
-    pImpl->setRegularExpressions(n,regExp);
+    pImpl->setRegularExpressions(sync,regExp);
 }
 
 int MegaApi::getNumPendingUploads()
@@ -2171,16 +2186,21 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
-mega::MegaRegExp::MegaRegExp()
+MegaRegExp::MegaRegExp()
 {
     pImpl = new MegaRegExpPrivate();
+}
+
+MegaRegExp::MegaRegExp(MegaRegExpPrivate *pImpl)
+{
+    this->pImpl = pImpl;
 }
 
 MegaRegExp::~MegaRegExp() { }
 
 MegaRegExp *MegaRegExp::copy()
 {
-    return NULL;
+    return new MegaRegExp(pImpl->copy());
 }
 
 bool MegaRegExp::addRegExp(const char *regExp)

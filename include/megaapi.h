@@ -2026,6 +2026,7 @@ public:
 
 private:
     MegaRegExpPrivate *pImpl;
+    MegaRegExp(MegaRegExpPrivate *pImpl);
 };
 
 /**
@@ -4456,13 +4457,6 @@ class MegaApi
         void setExclusionUpperSizeLimit(long long limit);
 
         /**
-         * @brief Set a list of rules to exclude files and folders for a given synchronized folder
-         * @param sync Synchronization whose rules want to be updated
-         * @param regExp List of regular expressions (rules)
-         */
-        void setRegularExpressions(MegaNode *n, MegaRegExp *regExp);
-
-        /**
          * @brief Move a local file to the local "Debris" folder
          *
          * The file have to be inside a local synced folder
@@ -4491,7 +4485,19 @@ class MegaApi
          * be removed in future updates.
          */
         std::string getLocalPath(MegaNode *node);
+
+        MegaSync *getSyncByTag(int tag);
+        MegaSync *getSyncByNode(MegaNode *node);
+        MegaSync *getSyncByPath(const char *localPath);
+
 #endif
+
+        /**
+         * @brief Set a list of rules to exclude files and folders for a given synchronized folder
+         * @param sync Synchronization whose rules want to be updated
+         * @param regExp List of regular expressions (rules)
+         */
+        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 
         /**
          * @brief Force a loop of the SDK thread

@@ -340,7 +340,11 @@ bool MegaApiImpl::is_syncable(const char *name, MegaRegExp *rExp)
     if(rExp)
     {
         if(rExp->match(name))
+        {
             return false;
+            // TODO: check if excluded by Blacklist, but included
+            // in the exceptions (Whitelist)
+        }
     }
 
     for(unsigned int i=0; i< excludedNames.size(); i++)
@@ -427,6 +431,45 @@ bool MegaApiImpl::isIndexing()
     }
     sdkMutex.unlock();
     return indexing;
+}
+
+MegaSync *MegaApiImpl::getSyncByTag(int tag)
+{
+    return syncMap.at(tag);
+}
+
+MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
+{
+    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
+    while(it != syncMap.end())
+    {
+        MegaSyncPrivate* sync = it->second;
+        if(sync->getMegaHandle() == node->getHandle())
+            return sync;
+
+        it++;
+    }
+
+    return NULL;
+}
+
+MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
+{
+    std::string path(localPath);
+
+    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
+    while(it != syncMap.end())
+    {
+        MegaSyncPrivate* sync = it->second;
+
+        std::string syncPath(sync->getLocalFolder());
+        if(path.find(syncPath) != std::string::npos)
+            return sync;
+
+        it++;
+    }
+
+    return NULL;
 }
 #endif
 
@@ -3250,37 +3293,41 @@ void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
     syncUpperSizeLimit = limit;
 }
 
-void MegaApiImpl::setRegularExpressions(MegaNode *n, MegaRegExp *regExp)
+void MegaApiImpl::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
+    if(!sync)
+        return;
+
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
-    if(!node || !node->localnode)
-    {
-        sdkMutex.unlock();
-        return;
-    }
 
-//    Sync *sync = NULL;
-//    sync_list::iterator it = client->syncs.begin();
-//    while(it != client->syncs.end())
+//    Node *node = client->nodebyhandle(n->getHandle());
+//    if(!node || !node->localnode)
 //    {
-//        Sync *s = (*it);
-//        if((s->localroot.node == node) || (node->isbelow(s->localroot.node))
-//        {
-//            sync = s;
-//            break;
-//        }
-//        it++;
+//        sdkMutex.unlock();
+//        return;
 //    }
-//    if(!sync || syncMap.find(sync->tag) == syncMap.end())
 
-    if(syncMap.find(node->localnode->sync->tag) == syncMap.end())
-    {
-        sdkMutex.unlock();
-        return;
-    }
+////    Sync *sync = NULL;
+////    sync_list::iterator it = client->syncs.begin();
+////    while(it != client->syncs.end())
+////    {
+////        Sync *s = (*it);
+////        if((s->localroot.node == node) || (node->isbelow(s->localroot.node))
+////        {
+////            sync = s;
+////            break;
+////        }
+////        it++;
+////    }
+////    if(!sync || syncMap.find(sync->tag) == syncMap.end())
 
-    MegaSyncPrivate* megaSync = syncMap.at(node->localnode->sync->tag);
+//    if(syncMap.find(node->localnode->sync->tag) == syncMap.end())
+//    {
+//        sdkMutex.unlock();
+//        return;
+//    }
+
+    MegaSyncPrivate* megaSync = syncMap.at(sync->getTag());
     megaSync->setRegExp(regExp);
     sdkMutex.unlock();
 }
@@ -4511,7 +4558,7 @@ bool MegaApiImpl::sync_syncable(Sync *sync, Node *node)
     return result;
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, string *)
+bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, string *localname)
 {
     static FileAccess* f = fsAccess->newfileaccess();
     if(f->fopen(localpath) && !is_syncable(f->size))
@@ -4522,8 +4569,13 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath,
     if(syncMap.find(sync->tag) == syncMap.end()) return false;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
+    const char *syncPath = megaSync->getLocalFolder();
+    int len = strlen(syncPath)+1;   // +1 --> folder separator "/"
+    const char *relName = &(localpath->c_str()[len]);
+
     sdkMutex.unlock();
-    bool result =  is_syncable(name, megaSync->getRegExp());
+    bool result =  is_syncable(relName, megaSync->getRegExp());
+//    bool result =  is_syncable(name, megaSync->getRegExp());
     sdkMutex.lock();
     return result;
 }
@@ -8545,8 +8597,24 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
                        strVector,
                        30);
 
-    if(result < 0)
-        return result;
+    if(result >= 0) // We have a match
+        return true;
+    else            // Something bad happened..
+    {
+          switch(result)
+          {
+          case PCRE_ERROR_NOMATCH      : /*LOG_debug << "PCRE: String did not match the pattern";  */break;
+          case PCRE_ERROR_NULL         : LOG_debug << "PCRE: Something was null";                      break;
+          case PCRE_ERROR_BADOPTION    : LOG_debug << "PCRE: A bad option was passed";                 break;
+          case PCRE_ERROR_BADMAGIC     : LOG_debug << "PCRE: Magic number bad (compiled re corrupt?)"; break;
+          case PCRE_ERROR_UNKNOWN_NODE : LOG_debug << "PCRE: Something kooky in the compiled re";      break;
+          case PCRE_ERROR_NOMEMORY     : LOG_debug << "PCRE: Ran out of memory";                       break;
+          default                      : LOG_debug << "PCRE: Unknown error";                           break;
+          }
+
+          return false;
+    }
+
 #endif
 
     return 0;
