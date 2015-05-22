@@ -991,10 +991,13 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(const char* name, MegaRegExp *rExp = NULL);
         bool is_syncable(long long size);
         bool isIndexing();
+        MegaSync *getSyncByTag(int tag);
+        MegaSync *getSyncByNode(MegaNode *node);
+        MegaSync *getSyncByPath(const char * localPath);
 #endif
         void update();
         bool isWaiting();
-        void setRegularExpressions(MegaNode *n, MegaRegExp *regExp);
+        void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 
         //Statistics
         int getNumPendingUploads();
