@@ -7994,6 +7994,21 @@ int64_t MegaAccountDetailsPrivate::getProExpiration()
     return details.pro_until;
 }
 
+bool MegaAccountDetailsPrivate::isSubscriptionEnabled()
+{
+    return details.subscription_type != 'O';
+}
+
+int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
+{
+    return details.subscription_renew;
+}
+
+const char *MegaAccountDetailsPrivate::getSubscriptionMethod()
+{
+    return MegaApi::strdup(details.subscription_method.c_str());
+}
+
 long long MegaAccountDetailsPrivate::getStorageMax()
 {
     return details.storage_max;

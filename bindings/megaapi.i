@@ -174,6 +174,7 @@
 %newobject mega::MegaApi::getNodeByCRC;
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
+%newobject mega::MegaAccountDetails::getSubscriptionMethod;
 
 typedef long long time_t;
 typedef long long uint64_t;

@@ -1806,6 +1806,21 @@ int64_t MegaAccountDetails::getProExpiration()
     return 0;
 }
 
+bool MegaAccountDetails::isSubscriptionEnabled()
+{
+    return false;
+}
+
+int64_t MegaAccountDetails::getSubscriptionRenewTime()
+{
+    return 0;
+}
+
+const char *MegaAccountDetails::getSubscriptionMethod()
+{
+    return NULL;
+}
+
 long long MegaAccountDetails::getStorageMax()
 {
     return 0;

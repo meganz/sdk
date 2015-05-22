@@ -5522,6 +5522,31 @@ public:
     virtual int64_t getProExpiration();
 
     /**
+     * @brief Check if there is a subscription enabled
+     *
+     * If this function returns true, the PRO account will be automatically
+     * renewed. See MegaAccountDetails::getSubscriptionRenewTime
+     *
+     * @return True if the PRO account will be automatically renewed
+     */
+    virtual bool isSubscriptionEnabled();
+
+    /**
+     * @brief Get the time when the the PRO account will be renewed
+     * @return Renewal time (in seconds since the Epoch)
+     */
+    virtual int64_t getSubscriptionRenewTime();
+
+    /**
+     * @brief Get the subscryption method
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription method. For example "Credit Card".
+     */
+    virtual const char* getSubscriptionMethod();
+
+    /**
      * @brief Get the maximum storage for the account (in bytes)
      * @return Maximum storage for the account (in bytes)
      */

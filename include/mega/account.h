@@ -76,6 +76,8 @@ struct MEGA_API AccountDetails
     int pro_level;
     char subscription_type;
     char subscription_cycle[4];
+    m_time_t subscription_renew;
+    string subscription_method;
 
     m_time_t pro_until;
 

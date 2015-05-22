@@ -2004,7 +2004,8 @@ void CommandGetUserQuota::procresult()
     }
 
     details->pro_level = 0;
-    details->subscription_type = 0;
+    details->subscription_type = 'O';
+    details->subscription_renew = 0;
 
     details->pro_until = 0;
 
@@ -2157,6 +2158,28 @@ void CommandGetUserQuota::procresult()
                     details->subscription_cycle[3] = 0;
                 }
                 break;
+
+            case MAKENAMEID6('s', 'r', 'e', 'n', 'e', 'w'):
+                if (client->json.enterarray())
+                {
+                    details->subscription_renew = client->json.getint();
+                    while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+            break;
+
+            case MAKENAMEID3('s', 'g', 'w'):
+                if (client->json.enterarray())
+                {
+                    client->json.storeobject(&details->subscription_method);
+                    while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+            break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
                 // expiry of last active Pro plan (may be different from current one)
