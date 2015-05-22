@@ -575,6 +575,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual bool isSubscriptionEnabled();
         virtual int64_t getSubscriptionRenewTime();
         virtual const char* getSubscriptionMethod();
+        virtual const char* getSubscriptionCycle();
 
         virtual long long getStorageMax();
         virtual long long getStorageUsed();

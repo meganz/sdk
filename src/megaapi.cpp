@@ -1821,6 +1821,11 @@ const char *MegaAccountDetails::getSubscriptionMethod()
     return NULL;
 }
 
+const char *MegaAccountDetails::getSubscriptionCycle()
+{
+    return NULL;
+}
+
 long long MegaAccountDetails::getStorageMax()
 {
     return 0;

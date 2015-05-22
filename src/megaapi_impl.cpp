@@ -8009,6 +8009,11 @@ const char *MegaAccountDetailsPrivate::getSubscriptionMethod()
     return MegaApi::strdup(details.subscription_method.c_str());
 }
 
+const char *MegaAccountDetailsPrivate::getSubscriptionCycle()
+{
+    return MegaApi::strdup(details.subscription_cycle);
+}
+
 long long MegaAccountDetailsPrivate::getStorageMax()
 {
     return details.storage_max;

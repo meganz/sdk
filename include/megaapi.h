@@ -5547,6 +5547,16 @@ public:
     virtual const char* getSubscriptionMethod();
 
     /**
+     * @brief Get the subscription cycle
+     *
+     * The return value will show if the subscription will be montly or yearly renewed.
+     * Example return values: "1 M", "1 Y".
+     *
+     * @return Subscription cycle
+     */
+    virtual const char* getSubscriptionCycle();
+
+    /**
      * @brief Get the maximum storage for the account (in bytes)
      * @return Maximum storage for the account (in bytes)
      */
