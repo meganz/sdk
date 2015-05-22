@@ -1801,6 +1801,11 @@ int MegaAccountDetails::getProLevel()
     return 0;
 }
 
+int64_t MegaAccountDetails::getProExpiration()
+{
+    return 0;
+}
+
 long long MegaAccountDetails::getStorageMax()
 {
     return 0;

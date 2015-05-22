@@ -5516,6 +5516,12 @@ public:
     virtual int getProLevel();
 
     /**
+     * @brief Get the expiration time for the current PRO status
+     * @return Expiration time for the current PRO status (in seconds since the Epoch)
+     */
+    virtual int64_t getProExpiration();
+
+    /**
      * @brief Get the maximum storage for the account (in bytes)
      * @return Maximum storage for the account (in bytes)
      */

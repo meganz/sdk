@@ -7989,6 +7989,11 @@ int MegaAccountDetailsPrivate::getProLevel()
     return details.pro_level;
 }
 
+int64_t MegaAccountDetailsPrivate::getProExpiration()
+{
+    return details.pro_until;
+}
+
 long long MegaAccountDetailsPrivate::getStorageMax()
 {
     return details.storage_max;

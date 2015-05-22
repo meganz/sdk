@@ -566,22 +566,23 @@ private:
 
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
-	public:
-		static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
-		virtual ~MegaAccountDetailsPrivate() ;
+    public:
+        static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
+        virtual ~MegaAccountDetailsPrivate() ;
 
-		virtual int getProLevel();
-		virtual long long getStorageMax();
-		virtual long long getStorageUsed();
-		virtual long long getTransferMax();
-		virtual long long getTransferOwnUsed();
+        virtual int getProLevel();
+        virtual int64_t getProExpiration();
+        virtual long long getStorageMax();
+        virtual long long getStorageUsed();
+        virtual long long getTransferMax();
+        virtual long long getTransferOwnUsed();
 
         virtual int getNumUsageItems();
-		virtual long long getStorageUsed(MegaHandle handle);
-		virtual long long getNumFiles(MegaHandle handle);
-		virtual long long getNumFolders(MegaHandle handle);
-	
-		virtual MegaAccountDetails* copy();
+        virtual long long getStorageUsed(MegaHandle handle);
+        virtual long long getNumFiles(MegaHandle handle);
+        virtual long long getNumFolders(MegaHandle handle);
+
+        virtual MegaAccountDetails* copy();
 
         virtual int getNumBalances() const;
         virtual MegaAccountBalance* getBalance(int i) const;
@@ -595,8 +596,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual int getNumTransactions() const;
         virtual MegaAccountTransaction* getTransaction(int i) const;
 
-	private:
-		MegaAccountDetailsPrivate(AccountDetails *details);
+    private:
+        MegaAccountDetailsPrivate(AccountDetails *details);
         AccountDetails details;
 };
 
