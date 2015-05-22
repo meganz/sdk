@@ -5225,7 +5225,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
     }
     else
     {
-        request->setText((const char*)data);
+        string str((const char*)data,len);
+        request->setText(str.c_str());
     }
     fireOnRequestFinish(request, MegaError(API_OK));
 }
