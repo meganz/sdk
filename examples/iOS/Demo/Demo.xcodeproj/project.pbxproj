@@ -13,13 +13,13 @@
 		4135AEA919F5922300A8A56A /* MessageUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFEC19F57FDC0081D102 /* MessageUI.framework */; };
 		4135AEAB19F5923700A8A56A /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFEE19F57FE60081D102 /* QuartzCore.framework */; };
 		4135AEAC19F5924700A8A56A /* AssetsLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 417BBFF019F57FF10081D102 /* AssetsLibrary.framework */; };
+		414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 414295FA1B13399800639A20 /* libMEGASDK.a */; };
 		41663FAB1A01571E0035F7D6 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41663FAA1A01571E0035F7D6 /* SettingsViewController.m */; };
 		4168127719EE6E5700C72800 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127619EE6E5700C72800 /* main.m */; };
 		4168127A19EE6E5700C72800 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127919EE6E5700C72800 /* AppDelegate.m */; };
 		4168127D19EE6E5700C72800 /* LoginViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4168127C19EE6E5700C72800 /* LoginViewController.m */; };
 		4168128019EE6E5700C72800 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4168127E19EE6E5700C72800 /* Main.storyboard */; };
 		4168128519EE6E5700C72800 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4168128319EE6E5700C72800 /* LaunchScreen.xib */; };
-		4168129B19EE6E6300C72800 /* libmega.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4168129A19EE6E6300C72800 /* libmega.a */; };
 		4168129F19EE72EE00C72800 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4168129E19EE72EE00C72800 /* libz.dylib */; };
 		416812A119EE72F400C72800 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A019EE72F400C72800 /* libsqlite3.dylib */; };
 		416812A319EE73A000C72800 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A219EE73A000C72800 /* libc++.dylib */; };
@@ -63,6 +63,7 @@
 		4114CBC71A07E9C100B7D475 /* OfflineTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = OfflineTableViewController.m; path = Offline/OfflineTableViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
 		4135AE9B19F5882E00A8A56A /* MWPhotoBrowser.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = MWPhotoBrowser.bundle; sourceTree = "<group>"; };
 		4135AEA119F58A2500A8A56A /* MWPhotoBrowser.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MWPhotoBrowser.xcodeproj; sourceTree = "<group>"; };
+		414295FA1B13399800639A20 /* libMEGASDK.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libMEGASDK.a; path = "../../../bindings/ios/build/Debug-iphoneos/libMEGASDK.a"; sourceTree = "<group>"; };
 		41663FA91A01571E0035F7D6 /* SettingsViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SettingsViewController.h; path = Settings/SettingsViewController.h; sourceTree = "<group>"; };
 		41663FAA1A01571E0035F7D6 /* SettingsViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = SettingsViewController.m; path = Settings/SettingsViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
 		4168127119EE6E5700C72800 /* Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -74,7 +75,6 @@
 		4168127C19EE6E5700C72800 /* LoginViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; name = LoginViewController.m; path = Login/LoginViewController.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
 		4168127F19EE6E5700C72800 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		4168128419EE6E5700C72800 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/LaunchScreen.xib; sourceTree = "<group>"; };
-		4168129A19EE6E6300C72800 /* libmega.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmega.a; path = "../../../bindings/ios/build/Debug-iphoneos/libmega.a"; sourceTree = "<group>"; };
 		4168129E19EE72EE00C72800 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
 		416812A019EE72F400C72800 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
 		416812A219EE73A000C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
@@ -128,6 +128,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */,
 				41ACFBC71A1155AC00905ACF /* MapKit.framework in Frameworks */,
 				41AB68FE1A094459003FE608 /* ImageIO.framework in Frameworks */,
 				41AB68FA1A0943FE003FE608 /* MobileCoreServices.framework in Frameworks */,
@@ -139,7 +140,6 @@
 				416812A319EE73A000C72800 /* libc++.dylib in Frameworks */,
 				416812A119EE72F400C72800 /* libsqlite3.dylib in Frameworks */,
 				4168129F19EE72EE00C72800 /* libz.dylib in Frameworks */,
-				4168129B19EE6E6300C72800 /* libmega.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -212,6 +212,7 @@
 		4168129C19EE6E6D00C72800 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				414295FA1B13399800639A20 /* libMEGASDK.a */,
 				41ACFBC61A1155AC00905ACF /* MapKit.framework */,
 				41AB68FD1A094459003FE608 /* ImageIO.framework */,
 				41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */,
@@ -222,7 +223,6 @@
 				416812A219EE73A000C72800 /* libc++.dylib */,
 				416812A019EE72F400C72800 /* libsqlite3.dylib */,
 				4168129E19EE72EE00C72800 /* libz.dylib */,
-				4168129A19EE6E6300C72800 /* libmega.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -600,6 +600,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"/Users/javiernavarro/Documents/Source/MEGA/jnavarrom/sdk/bindings/ios/build/Debug-iphoneos",
+					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
 				);
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -620,6 +621,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"/Users/javiernavarro/Documents/Source/MEGA/jnavarrom/sdk/bindings/ios/build/Debug-iphoneos",
+					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
 				);
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
