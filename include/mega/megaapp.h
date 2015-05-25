@@ -175,12 +175,11 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Sync *, Node*)
+    virtual bool sync_syncable(Sync *, string*, Node*)
     {
         return true;
     }
-
-    virtual bool sync_syncable(Sync *, const char*, string*, string*)
+    virtual bool sync_syncable(Sync *, string*)
     {
         return true;
     }

@@ -5728,9 +5728,15 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // build child hash - nameclash resolution: use newest/largest version
     for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
     {
+        string localname((*it)->displayname());
+        fsaccess->name2local(&localname);
+        string path = *localpath;
+        path.append(fsaccess->localseparator);
+        path.append(localname);
+
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(l->sync, *it)
+        if ((app->sync_syncable(l->sync, &path, *it)
              && (*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
@@ -5864,17 +5870,18 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // missing local files
     for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
-        if (app->sync_syncable(l->sync, rit->second))
+        if ((ait = rit->second->attrs.map.find('n')) != rit->second->attrs.map.end())
         {
-            if ((ait = rit->second->attrs.map.find('n')) != rit->second->attrs.map.end())
+            size_t t = localpath->size();
+
+            localname = ait->second;
+
+            fsaccess->name2local(&localname);
+            localpath->append(fsaccess->localseparator);
+            localpath->append(localname);
+
+            if (app->sync_syncable(l->sync, localpath, rit->second))
             {
-                size_t t = localpath->size();
-
-                localname = ait->second;
-
-                fsaccess->name2local(&localname);
-                localpath->append(fsaccess->localseparator);
-                localpath->append(localname);
 
                 string utf8path;
                 fsaccess->local2path(localpath, &utf8path);
@@ -5979,9 +5986,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         }
                     }
                 }
-
-                localpath->resize(t);
             }
+
+            localpath->resize(t);
         }
     }
 
