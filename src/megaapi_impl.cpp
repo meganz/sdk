@@ -1991,6 +1991,17 @@ char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
     return buf;
 }
 
+const char *MegaApiImpl::getSessionTransferURL(const char *path)
+{
+    sdkMutex.lock();
+    string *data = client->sessiontransferdata(path);
+    sdkMutex.unlock();
+    data->insert(0, "https://mega.nz/#sitetransfer!");
+    const char *url = MegaApi::strdup(data->c_str());
+    delete data;
+    return url;
+}
+
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
 {
 	if(!base32Handle) return INVALID_HANDLE;

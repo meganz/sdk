@@ -106,6 +106,10 @@ public:
     // dump current session
     int dumpsession(byte*, int);
 
+    // get the data for a session transfer
+    // the caller takes the ownership of the returned value
+    string *sessiontransferdata(const char*);
+
     // Kill session id
     void killsession(handle session);
     void killallsessions();

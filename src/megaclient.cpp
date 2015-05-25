@@ -4188,6 +4188,42 @@ int MegaClient::dumpsession(byte* session, int size)
     return sizeof key.key + sid.size();
 }
 
+string *MegaClient::sessiontransferdata(const char *url)
+{
+    std::stringstream ss;
+
+    // open array
+    ss << "[";
+
+    // add AES key
+    string aeskey;
+    key.serializekeyforjs(&aeskey);
+    ss << aeskey << ",\"";
+
+    // add session ID
+    string sids;
+    sids.resize(sid.size() * 4 / 3 + 4);
+    sids.resize(Base64::btoa((byte *)sid.data(), sid.size(), (char *)sids.data()));
+    ss << sids << "\",\"";
+
+    // add URL
+    ss << url << "\",";
+
+    // add RSA privk
+    string privk;
+    asymkey.serializeprivkforjs(&privk);
+    ss << privk << "]";
+
+    // standard Base64 encoding
+    string json = ss.str();
+    string *base64 = new string;
+    base64->resize(json.size() * 4 / 3 + 4);
+    base64->resize(Base64::btoa((byte *)json.data(), json.size(), (char *)base64->data()));
+    std::replace(base64->begin(), base64->end(), '-', '+');
+    std::replace(base64->begin(), base64->end(), '_', '/');
+    return base64;
+}
+
 void MegaClient::killsession(handle session)
 {
     reqs[r].add(new CommandKillSessions(this, session));

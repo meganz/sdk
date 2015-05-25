@@ -3014,6 +3014,20 @@ class MegaApi
         char* getStringHash(const char* base64pwkey, const char* email);
 
         /**
+         * @brief Get an URL to transfer the current session to the webclient
+         *
+         * This MegaApi object must be logged in before calling this function
+         * You take the ownership of the returned value.
+         *
+         * @param path Path inside https://mega.nz/# that we want to open with the current session
+         *
+         * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+         *
+         * @return URL to open the desired page with the current session
+         */
+        const char* getSessionTransferURL(const char *path);
+
+        /**
          * @brief Converts a Base32-encoded user handle (JID) to a MegaHandle
          *
          * @param base32Handle Base32-encoded handle (JID)
