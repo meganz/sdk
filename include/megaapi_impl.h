@@ -1267,8 +1267,8 @@ protected:
         virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
         virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
-        virtual bool sync_syncable(Sync *,Node*);
-        virtual bool sync_syncable(Sync *,const char*name, string*, string*);
+        virtual bool sync_syncable(Sync *, string*, Node*);
+        virtual bool sync_syncable(Sync *, string*);
         virtual void syncupdate_local_lockretry(bool);
 #endif
 

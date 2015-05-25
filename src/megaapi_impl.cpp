@@ -4541,7 +4541,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     fireOnFileSyncStateChanged(megaSync, path.data(), (int)l->ts);
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, Node *node)
+bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, Node *node)
 {
     if(node->type == FILENODE && !is_syncable(node->size))
     {
@@ -4551,31 +4551,34 @@ bool MegaApiImpl::sync_syncable(Sync *sync, Node *node)
     if(syncMap.find(sync->tag) == syncMap.end()) return false;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
-    const char *name = node->displayname();
+    const char *syncPath = megaSync->getLocalFolder();
+    const char *relName = &(localpath->c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
+
     sdkMutex.unlock();
-    bool result = is_syncable(name, megaSync->getRegExp());
+    bool result = is_syncable(relName, megaSync->getRegExp());
     sdkMutex.lock();
     return result;
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, string *localname)
+bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath)
 {
     static FileAccess* f = fsAccess->newfileaccess();
     if(f->fopen(localpath) && !is_syncable(f->size))
     {
+        f->closef();
         return false;
     }
+
+    f->closef();
 
     if(syncMap.find(sync->tag) == syncMap.end()) return false;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
     const char *syncPath = megaSync->getLocalFolder();
-    int len = strlen(syncPath)+1;   // +1 --> folder separator "/"
-    const char *relName = &(localpath->c_str()[len]);
+    const char *relName = &(localpath->c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
 
     sdkMutex.unlock();
     bool result =  is_syncable(relName, megaSync->getRegExp());
-//    bool result =  is_syncable(name, megaSync->getRegExp());
     sdkMutex.lock();
     return result;
 }
