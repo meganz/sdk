@@ -247,7 +247,7 @@
 		940BF0AA19EDBD62007E7FA2 /* MEGATransferList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGATransferList+init.h"; sourceTree = "<group>"; };
 		940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUser+init.h"; sourceTree = "<group>"; };
 		940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserList+init.h"; sourceTree = "<group>"; };
-		9472044319ED916F00F6805F /* libmega.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libmega.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		9472044319ED916F00F6805F /* libMEGASDK.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMEGASDK.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -561,7 +561,7 @@
 		9472044419ED916F00F6805F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9472044319ED916F00F6805F /* libmega.a */,
+				9472044319ED916F00F6805F /* libMEGASDK.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -569,9 +569,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9472044219ED916F00F6805F /* mega */ = {
+		9472044219ED916F00F6805F /* MEGASDK */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9472045419ED916F00F6805F /* Build configuration list for PBXNativeTarget "mega" */;
+			buildConfigurationList = 9472045419ED916F00F6805F /* Build configuration list for PBXNativeTarget "MEGASDK" */;
 			buildPhases = (
 				9472043F19ED916F00F6805F /* Sources */,
 				9472044019ED916F00F6805F /* Frameworks */,
@@ -581,9 +581,9 @@
 			);
 			dependencies = (
 			);
-			name = mega;
+			name = MEGASDK;
 			productName = mega;
-			productReference = 9472044319ED916F00F6805F /* libmega.a */;
+			productReference = 9472044319ED916F00F6805F /* libMEGASDK.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 /* End PBXNativeTarget section */
@@ -600,7 +600,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 9472043E19ED916F00F6805F /* Build configuration list for PBXProject "mega" */;
+			buildConfigurationList = 9472043E19ED916F00F6805F /* Build configuration list for PBXProject "MEGASDK" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
@@ -612,7 +612,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9472044219ED916F00F6805F /* mega */,
+				9472044219ED916F00F6805F /* MEGASDK */,
 			);
 		};
 /* End PBXProject section */
@@ -781,7 +781,7 @@
 					"$(PROJECT_DIR)/3rdparty/lib",
 				);
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = MEGASDK;
 				SKIP_INSTALL = YES;
 				USER_HEADER_SEARCH_PATHS = ". ../../include/** Private";
 			};
@@ -802,7 +802,7 @@
 					"$(PROJECT_DIR)/3rdparty/lib",
 				);
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = MEGASDK;
 				SKIP_INSTALL = YES;
 				USER_HEADER_SEARCH_PATHS = ". ../../include/** Private";
 			};
@@ -811,7 +811,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9472043E19ED916F00F6805F /* Build configuration list for PBXProject "mega" */ = {
+		9472043E19ED916F00F6805F /* Build configuration list for PBXProject "MEGASDK" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9472045219ED916F00F6805F /* Debug */,
@@ -820,7 +820,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9472045419ED916F00F6805F /* Build configuration list for PBXNativeTarget "mega" */ = {
+		9472045419ED916F00F6805F /* Build configuration list for PBXNativeTarget "MEGASDK" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9472045519ED916F00F6805F /* Debug */,
