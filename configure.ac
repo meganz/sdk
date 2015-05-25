@@ -1069,6 +1069,7 @@ if test "x$enable_examples" = "xyes" ; then
       [AC_MSG_RESULT($with_readline)
        case $with_readline in
        no)
+        AC_MSG_ERROR([readline library is required for the sample client.])
          ;;
        yes)
         AC_CHECK_HEADERS([readline/readline.h],, [
