@@ -5879,7 +5879,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             fsaccess->name2local(&localname);
             localpath->append(fsaccess->localseparator);
             localpath->append(localname);
-
             if (app->sync_syncable(l->sync, localpath, rit->second))
             {
 
