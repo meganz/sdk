@@ -1270,7 +1270,7 @@ protected:
         virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
         virtual bool sync_syncable(Sync *, string*, Node*);
-        virtual bool sync_syncable(Sync *, string*);
+        virtual bool sync_syncable(Sync *, string*, LocalNode * = NULL);
         virtual void syncupdate_local_lockretry(bool);
 #endif
 
