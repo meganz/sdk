@@ -4560,18 +4560,27 @@ bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, Node *node)
     return result;
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath)
+bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, LocalNode *localnode)
 {
     static FileAccess* f = fsAccess->newfileaccess();
-    if(f->fopen(localpath) && !is_syncable(f->size))
+
+    if(localnode)
     {
+        if(localnode->type == FILENODE && !is_syncable(localnode->size))
+            return false;
+    }
+    else
+    {
+        if(f->fopen(localpath) && !is_syncable(f->size))
+        {
+            f->closef();
+            return false;
+        }
+
         f->closef();
-        return false;
     }
 
-    f->closef();
-
-    if(syncMap.find(sync->tag) == syncMap.end()) return false;
+    if(syncMap.find(sync->tag) == syncMap.end()) return true;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
     const char *syncPath = megaSync->getLocalFolder();

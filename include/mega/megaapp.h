@@ -179,7 +179,7 @@ struct MEGA_API MegaApp
     {
         return true;
     }
-    virtual bool sync_syncable(Sync *, string*)
+    virtual bool sync_syncable(Sync *, string*, LocalNode * = NULL)
     {
         return true;
     }
