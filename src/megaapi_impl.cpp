@@ -1996,7 +1996,20 @@ const char *MegaApiImpl::getSessionTransferURL(const char *path)
     sdkMutex.lock();
     string *data = client->sessiontransferdata(path);
     sdkMutex.unlock();
-    data->insert(0, "https://mega.nz/#sitetransfer!");
+
+    if(data)
+    {
+        data->insert(0, "https://mega.nz/#sitetransfer!");
+    }
+    else
+    {
+        data = new string("https://mega.nz/#");
+        if(path)
+        {
+            data->append(path);
+        }
+    }
+
     const char *url = MegaApi::strdup(data->c_str());
     delete data;
     return url;
