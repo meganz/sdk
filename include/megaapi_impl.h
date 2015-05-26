@@ -1171,8 +1171,7 @@ protected:
                                                 unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
-        virtual void checkout_result(error);
-        virtual void checkout_result(const char*);
+        virtual void checkout_result(const char*, error);
         virtual void submitpurchasereceipt_result(error);
         virtual void creditcardstore_result(error);
         virtual void creditcardquerysubscriptions_result(int, error);

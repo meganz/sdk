@@ -2031,7 +2031,14 @@ public:
         API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
         API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
         API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
-        API_EAPPKEY = -22       ///< Invalid or missing application key.
+        API_EAPPKEY = -22,       ///< Invalid or missing application key.
+
+        PAYMENT_ECARD = -101,
+        PAYMENT_EBILLING = -102,
+        PAYMENT_EFRAUD = -103,
+        PAYMENT_ETOOMANY = -104,
+        PAYMENT_EBALANCE = -105,
+        PAYMENT_EGENERIC = -106
     };
 
     /**
@@ -3876,7 +3883,7 @@ class MegaApi
          * It's possible to get all pricing plans with their product handles using
          * MegaApi::getPricing
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+         * The associated request type with this request is MegaRequest::TYPE_UPGRADE_ACCOUNT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the product
          * - MegaRequest::getNumber - Returns the payment method

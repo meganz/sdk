@@ -1591,14 +1591,63 @@ void CommandPurchaseCheckout::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->checkout_result((error)client->json.getint());
+        return client->app->checkout_result(NULL, (error)client->json.getint());
     }
 
-    string response;
+    //Expected response: "EUR":{"res":X,"code":Y}}
+    client->json.getnameid();
+    if(!client->json.enterobject())
+    {
+        LOG_err << "Parse error (CommandPurchaseCheckout)";
+        client->app->checkout_result(NULL, API_EINTERNAL);
+        return;
+    }
 
-    client->json.storeobject(&response);
+    error e = API_EINTERNAL;
+    string errortype;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID3('r', 'e', 's'):
+                if(client->json.isnumeric())
+                {
+                    e = (error)client->json.getint();
+                }
+                else
+                {
+                    client->json.storeobject(&errortype);
+                    if(errortype == "S")
+                    {
+                        errortype.clear();
+                        e = API_OK;
+                    }
+                }
+                break;
 
-    client->app->checkout_result(response.c_str());
+            case MAKENAMEID4('c', 'o', 'd', 'e'):
+                if(client->json.isnumeric())
+                {
+                    e = (error)client->json.getint();
+                }
+                else
+                {
+                    LOG_err << "Parse error in CommandPurchaseCheckout (code)";
+                }
+                break;
+            case EOO:
+                client->json.leaveobject();
+                if (!errortype.size() || errortype == "FI" || e == API_OK)
+                {
+                    client->app->checkout_result(NULL, e);
+                }
+                else
+                {
+                    client->app->checkout_result(errortype.c_str(), e);
+                }
+                return;
+        }
+    }
 }
 
 CommandUserRequest::CommandUserRequest(MegaClient* client, const char* m, visibility_t show)

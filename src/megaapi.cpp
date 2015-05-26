@@ -628,7 +628,7 @@ MegaError* MegaError::copy()
 
 int MegaError::getErrorCode() const 
 { 
-	return errorCode; 
+    return errorCode;
 }
 
 const char* MegaError::getErrorString() const
@@ -638,60 +638,71 @@ const char* MegaError::getErrorString() const
 
 const char* MegaError::getErrorString(int errorCode)
 {
-	if(errorCode <= 0)
-	{
-		switch(errorCode)
-		{
-		case API_OK:
+    if(errorCode <= 0)
+    {
+        switch(errorCode)
+        {
+        case API_OK:
             return "No error";
-		case API_EINTERNAL:
+        case API_EINTERNAL:
             return "Internal error";
-		case API_EARGS:
+        case API_EARGS:
             return "Invalid argument";
-		case API_EAGAIN:
+        case API_EAGAIN:
             return "Request failed, retrying";
-		case API_ERATELIMIT:
+        case API_ERATELIMIT:
             return "Rate limit exceeded";
-		case API_EFAILED:
+        case API_EFAILED:
             return "Failed permanently";
-		case API_ETOOMANY:
+        case API_ETOOMANY:
             return "Too many concurrent connections or transfers";
-		case API_ERANGE:
+        case API_ERANGE:
             return "Out of range";
-		case API_EEXPIRED:
+        case API_EEXPIRED:
             return "Expired";
-		case API_ENOENT:
+        case API_ENOENT:
             return "Not found";
-		case API_ECIRCULAR:
+        case API_ECIRCULAR:
             return "Circular linkage detected";
-		case API_EACCESS:
+        case API_EACCESS:
             return "Access denied";
-		case API_EEXIST:
+        case API_EEXIST:
             return "Already exists";
-		case API_EINCOMPLETE:
+        case API_EINCOMPLETE:
             return "Incomplete";
-		case API_EKEY:
+        case API_EKEY:
             return "Invalid key/Decryption error";
-		case API_ESID:
+        case API_ESID:
             return "Bad session ID";
-		case API_EBLOCKED:
+        case API_EBLOCKED:
             return "Blocked";
-		case API_EOVERQUOTA:
+        case API_EOVERQUOTA:
             return "Over quota";
-		case API_ETEMPUNAVAIL:
+        case API_ETEMPUNAVAIL:
             return "Temporarily not available";
-		case API_ETOOMANYCONNECTIONS:
+        case API_ETOOMANYCONNECTIONS:
             return "Connection overflow";
-		case API_EWRITE:
+        case API_EWRITE:
             return "Write error";
-		case API_EREAD:
+        case API_EREAD:
             return "Read error";
-		case API_EAPPKEY:
+        case API_EAPPKEY:
             return "Invalid application key";
-		default:
+        case PAYMENT_ECARD:
+            return "Credit card rejected";
+        case PAYMENT_EBILLING:
+            return "Billing failed";
+        case PAYMENT_EFRAUD:
+            return "Rejected by fraud protection";
+        case PAYMENT_ETOOMANY:
+            return "Too many requests";
+        case PAYMENT_EBALANCE:
+            return "Balance error";
+        case PAYMENT_EGENERIC:
+        default:
             return "Unknown error";
-		}
-	}
+        }
+    }
     return "HTTP Error";
 }
 

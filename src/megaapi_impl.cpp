@@ -4771,23 +4771,26 @@ void MegaApiImpl::additem_result(error e)
     client->purchase_checkout(method);
 }
 
-void MegaApiImpl::checkout_result(error e)
+void MegaApiImpl::checkout_result(const char *errortype, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
-}
+    if(!errortype)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+        return;
+    }
 
-void MegaApiImpl::checkout_result(const char *response)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)) return;
+    if(!strcmp(errortype, "FP"))
+    {
+        fireOnRequestFinish(request, MegaError(e - 100));
+        return;
+    }
 
-    request->setText(response);
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, MegaError(MegaError::PAYMENT_EGENERIC));
+    return;
 }
 
 void MegaApiImpl::submitpurchasereceipt_result(error e)
