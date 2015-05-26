@@ -1596,7 +1596,7 @@ void CommandPurchaseCheckout::procresult()
 
     //Expected response: "EUR":{"res":X,"code":Y}}
     client->json.getnameid();
-    if(!client->json.enterobject())
+    if (!client->json.enterobject())
     {
         LOG_err << "Parse error (CommandPurchaseCheckout)";
         client->app->checkout_result(NULL, API_EINTERNAL);
@@ -1610,14 +1610,14 @@ void CommandPurchaseCheckout::procresult()
         switch (client->json.getnameid())
         {
             case MAKENAMEID3('r', 'e', 's'):
-                if(client->json.isnumeric())
+                if (client->json.isnumeric())
                 {
                     e = (error)client->json.getint();
                 }
                 else
                 {
                     client->json.storeobject(&errortype);
-                    if(errortype == "S")
+                    if (errortype == "S")
                     {
                         errortype.clear();
                         e = API_OK;
@@ -1626,7 +1626,7 @@ void CommandPurchaseCheckout::procresult()
                 break;
 
             case MAKENAMEID4('c', 'o', 'd', 'e'):
-                if(client->json.isnumeric())
+                if (client->json.isnumeric())
                 {
                     e = (error)client->json.getint();
                 }
@@ -1646,6 +1646,12 @@ void CommandPurchaseCheckout::procresult()
                     client->app->checkout_result(errortype.c_str(), e);
                 }
                 return;
+            default:
+                if (!client->json.storeobject())
+                {
+                    client->app->checkout_result(NULL, API_EINTERNAL);
+                    return;
+                }
         }
     }
 }
