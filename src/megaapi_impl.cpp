@@ -7638,6 +7638,13 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_ID:
         case MegaRequest::TYPE_UPGRADE_ACCOUNT:
         {
+            int method = request->getNumber();
+            if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             client->purchase_enumeratequotaitems();
             break;
         }

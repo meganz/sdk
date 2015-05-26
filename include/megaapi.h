@@ -2708,7 +2708,6 @@ class MegaApi
 
         enum {
             PAYMENT_METHOD_BALANCE = 0,
-            PAYMENT_METHOD_BITCOIN = 4,
             PAYMENT_METHOD_CREDIT_CARD = 8
         };
 
@@ -3886,9 +3885,6 @@ class MegaApi
          * Valid values are:
          * - MegaApi::PAYMENT_METHOD_BALANCE = 0
          * Use the account balance for the payment
-         *
-         * - MegaApi::PAYMENT_METHOD_BITCOIN = 4
-         * Complete the payment with Bitcoins
          *
          * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
          * Complete the payment with your credit card. Use MegaApi::creditCardStore to add
