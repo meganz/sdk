@@ -373,9 +373,9 @@ public:
 
 private:
     enum{
-        NO_ERROR = 0,
-        COMPILATION_ERROR,
-        OPTIMIZATION_ERROR
+        PCRE_NO_ERROR = 0,
+        PCRE_COMPILATION_ERROR,
+        PCRE_OPTIMIZATION_ERROR
     };
     int compile();
     bool updatePattern();

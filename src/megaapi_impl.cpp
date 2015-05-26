@@ -4567,8 +4567,10 @@ bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, Node *node)
     if(syncMap.find(sync->tag) == syncMap.end()) return false;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
+    string path;
     const char *syncPath = megaSync->getLocalFolder();
-    const char *relName = &(localpath->c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
+    fsAccess->local2path(localpath, &path);
+    const char *relName = &(path.c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
 
     sdkMutex.unlock();
     bool result = is_syncable(relName, megaSync->getRegExp());
@@ -4599,8 +4601,10 @@ bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, LocalNode *localn
     if(syncMap.find(sync->tag) == syncMap.end()) return true;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
+    string path;
     const char *syncPath = megaSync->getLocalFolder();
-    const char *relName = &(localpath->c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
+    fsAccess->local2path(localpath, &path);
+    const char *relName = &(path.c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
 
     sdkMutex.unlock();
     bool result =  is_syncable(relName, megaSync->getRegExp());
@@ -8680,7 +8684,7 @@ bool MegaRegExpPrivate::updatePattern()
     }
 
     patternUpdated = true;
-    return !(compile() == COMPILATION_ERROR);
+    return !(compile() == PCRE_COMPILATION_ERROR);
 }
 
 bool MegaRegExpPrivate::isPatternUpdated()
@@ -8738,17 +8742,17 @@ int MegaRegExpPrivate::compile()
     reCompiled = pcre_compile(pattern.c_str(), options, &error, &eoffset, NULL);
     if(reCompiled == NULL) {
         LOG_debug << "PCRE error: Could not compile " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::COMPILATION_ERROR;
+        return MegaRegExpPrivate::PCRE_COMPILATION_ERROR;
     }
 
     reOptimization = pcre_study(reCompiled, 0, &error);
     if(error != NULL) {
         LOG_debug << "PCRE info: Could not study " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::OPTIMIZATION_ERROR;
+        return MegaRegExpPrivate::PCRE_OPTIMIZATION_ERROR;
     }
 
 #endif
-    return MegaRegExpPrivate::NO_ERROR;
+    return MegaRegExpPrivate::PCRE_NO_ERROR;
 }
 
 MegaRegExp *MegaSyncPrivate::getRegExp() const
