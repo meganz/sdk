@@ -2590,12 +2590,13 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
 
     if(email.size())
     {
-        char ccplain[256 + strlen(firstname) + strlen(lastname) + strlen(creditcard)
+        int tam = 256 + strlen(firstname) + strlen(lastname) + strlen(creditcard)
                 + strlen(expire_month) + strlen(expire_year) + strlen(cv2) + strlen(address1)
                 + strlen(address2) + strlen(city) + strlen(province) + strlen(postalcode)
-                + strlen(country) + email.size()];
+                + strlen(country) + email.size();
 
-        snprintf(ccplain, sizeof(ccplain), "{\"first_name\":\"%s\",\"last_name\":\"%s\","
+        char *ccplain = new char[tam];
+        snprintf(ccplain, tam, "{\"first_name\":\"%s\",\"last_name\":\"%s\","
                 "\"card_number\":\"%s\","
                 "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
                 "\"cv2\":\"%s\",\"address1\":\"%s\","
@@ -2605,6 +2606,7 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
                 expire_year, cv2,address1, address2, city, province, postalcode, country, email.c_str());
 
         request->setText((const char* )ccplain);
+        delete ccplain;
     }
 
     requestQueue.push(request);
