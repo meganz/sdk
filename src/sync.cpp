@@ -409,7 +409,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 localpath->append(localname);
 
                 // check if this record is to be ignored
-                if (client->app->sync_syncable(this, localpath))
+                if (client->app->sync_syncable(this, &name, localpath))
                 {
                     // skip the sync's debris folder
                     if (localpath->size() < localdebris.size()
@@ -504,7 +504,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         string name = newname;
         client->fsaccess->local2name(&name);
 
-        if (!client->app->sync_syncable(this, &tmppath, l))
+        if (!client->app->sync_syncable(this, &name, &tmppath, l))
         {
             return NULL;
         }

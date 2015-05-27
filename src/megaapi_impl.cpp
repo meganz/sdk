@@ -335,17 +335,23 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 }
 
 
-bool MegaApiImpl::is_syncable(const char *name, MegaRegExp *rExp)
+#ifdef ENABLE_REGEXP
+bool MegaApiImpl::is_syncable(const char *name, const char *path, MegaRegExp *rExp)
+#else
+bool MegaApiImpl::is_syncable(const char *name)
+#endif
 {
+#ifdef ENABLE_REGEXP
     if(rExp)
     {
-        if(rExp->match(name))
+        if(rExp->match(path))
         {
             return false;
             // TODO: check if excluded by Blacklist, but included
             // in the exceptions (Whitelist)
         }
     }
+#endif
 
     for(unsigned int i=0; i< excludedNames.size(); i++)
     {
@@ -1019,7 +1025,9 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->totalBytes = -1;
     this->transferredBytes = 0;
     this->number = 0;
+#ifdef ENABLE_REGEXP
     this->regExp = NULL;
+#endif
 
     if(type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
@@ -1054,7 +1062,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->publicNode = NULL;
     this->file = NULL;
     this->publicNode = NULL;
+#ifdef ENABLE_REGEXP
     this->regExp = NULL;
+#endif
 
     this->type = request.getType();
     this->setTag(request.getTag());
@@ -1080,7 +1090,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->setTotalBytes(request.getTotalBytes());
     this->setTransferredBytes(request.getTransferredBytes());
 	this->listener = request.getListener();
+#ifdef ENABLE_REGEXP
     this->setRegExp(request.getRegExp());
+#endif
 #ifdef ENABLE_SYNC
     this->syncListener = request.getSyncListener();
 #endif
@@ -1099,19 +1111,12 @@ AccountDetails *MegaRequestPrivate::getAccountDetails() const
     return accountDetails;
 }
 
-/**
- * @brief Returns the object for regular expressions related to the request
- *
- * This value is valid for these requests:
- * - MegaApi::syncFolder - Returns the regular expressions of the synchronization (MegaSyncPrivate::getRegExp)
- * - MegaApi::resumesync - Returns the regular expressions of the synchronization (MegaSyncPrivate::getRegExp)
- *
- * @return Regular expressions related to this request
- */
+#ifdef ENABLE_REGEXP
 MegaRegExp *MegaRequestPrivate::getRegExp() const
 {
     return regExp;
 }
+#endif
 
 #ifdef ENABLE_SYNC
 void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
@@ -1148,7 +1153,9 @@ MegaRequestPrivate::~MegaRequestPrivate()
 	delete accountDetails;
     delete megaPricing;
     delete [] text;
+#ifdef ENABLE_REGEXP
     delete regExp;
+#endif
 }
 
 int MegaRequestPrivate::getType() const
@@ -1410,6 +1417,7 @@ void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage,
     }
 }
 
+#ifdef ENABLE_REGEXP
 void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
 {
     if(this->regExp)
@@ -1420,6 +1428,7 @@ void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
     else
         this->regExp = regExp->copy();
 }
+#endif
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
 {
@@ -3153,7 +3162,11 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     return node;
 }
 
+#ifdef ENABLE_REGEXP
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+#else
+void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+#endif
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
@@ -3168,12 +3181,18 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     }
 
     request->setListener(listener);
+#ifdef ENABLE_REGEXP
     request->setRegExp(regExp);
+#endif
     requestQueue.push(request);
     waiter->notify();
 }
 
+#ifdef ENABLE_REGEXP
 void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener* listener)
+#else
+void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRequestListener* listener)
+#endif
 {
     sdkMutex.lock();
 
@@ -3185,7 +3204,9 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     request->setListener(listener);
+#ifdef ENABLE_REGEXP
     request->setRegExp(regExp);
+#endif
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
     if(localFolder)
     {
@@ -3220,7 +3241,9 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         {
             MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
             sync->setListener(request->getSyncListener());
+#ifdef ENABLE_REGEXP
             sync->setRegExp(regExp);
+#endif
             syncMap[-nextTag] = sync;
 
             request->setNumber(client->syncs.back()->fsfp);
@@ -3309,44 +3332,18 @@ void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
     syncUpperSizeLimit = limit;
 }
 
+#ifdef ENABLE_REGEXP
 void MegaApiImpl::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
     if(!sync)
         return;
 
     sdkMutex.lock();
-
-//    Node *node = client->nodebyhandle(n->getHandle());
-//    if(!node || !node->localnode)
-//    {
-//        sdkMutex.unlock();
-//        return;
-//    }
-
-////    Sync *sync = NULL;
-////    sync_list::iterator it = client->syncs.begin();
-////    while(it != client->syncs.end())
-////    {
-////        Sync *s = (*it);
-////        if((s->localroot.node == node) || (node->isbelow(s->localroot.node))
-////        {
-////            sync = s;
-////            break;
-////        }
-////        it++;
-////    }
-////    if(!sync || syncMap.find(sync->tag) == syncMap.end())
-
-//    if(syncMap.find(node->localnode->sync->tag) == syncMap.end())
-//    {
-//        sdkMutex.unlock();
-//        return;
-//    }
-
     MegaSyncPrivate* megaSync = syncMap.at(sync->getTag());
     megaSync->setRegExp(regExp);
     sdkMutex.unlock();
 }
+#endif // ENABLE_REGEXP
 
 string MegaApiImpl::getLocalPath(MegaNode *n)
 {
@@ -3366,7 +3363,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     return result;
 }
 
-#endif
+#endif  // ENABLE_SYNC
 
 int MegaApiImpl::getNumPendingUploads()
 {
@@ -4557,28 +4554,17 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     fireOnFileSyncStateChanged(megaSync, path.data(), (int)l->ts);
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, Node *node)
+bool MegaApiImpl::sync_syncable(Sync *sync, string *name, string *localpath, Node *node)
 {
     if(node->type == FILENODE && !is_syncable(node->size))
     {
         return false;
     }
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return false;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    string path;
-    const char *syncPath = megaSync->getLocalFolder();
-    fsAccess->local2path(localpath, &path);
-    const char *relName = &(path.c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
-
-    sdkMutex.unlock();
-    bool result = is_syncable(relName, megaSync->getRegExp());
-    sdkMutex.lock();
-    return result;
+    return sync_syncable(name, localpath, sync);
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, LocalNode *localnode)
+bool MegaApiImpl::sync_syncable(Sync *sync, string *name, string *localpath, LocalNode *localnode)
 {
     static FileAccess* f = fsAccess->newfileaccess();
 
@@ -4598,6 +4584,12 @@ bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, LocalNode *localn
         f->closef();
     }
 
+    return sync_syncable(name, localpath, sync);
+}
+
+bool MegaApiImpl::sync_syncable(string *name, string *localpath, Sync *sync)
+{
+#ifdef ENABLE_REGEXP
     if(syncMap.find(sync->tag) == syncMap.end()) return true;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
@@ -4605,9 +4597,14 @@ bool MegaApiImpl::sync_syncable(Sync *sync, string *localpath, LocalNode *localn
     const char *syncPath = megaSync->getLocalFolder();
     fsAccess->local2path(localpath, &path);
     const char *relName = &(path.c_str()[strlen(syncPath)+1]);    // +1 --> folder separator "/"
+#endif
 
     sdkMutex.unlock();
-    bool result =  is_syncable(relName, megaSync->getRegExp());
+#ifdef ENABLE_REGEXP
+    bool result =  is_syncable(name->c_str(), relName, megaSync->getRegExp());
+#else
+    bool result =  is_syncable(name->c_str());
+#endif
     sdkMutex.lock();
     return result;
 }
@@ -7700,7 +7697,9 @@ void MegaApiImpl::sendPendingRequests()
             {
                 MegaSyncPrivate *sync = new MegaSyncPrivate(client->syncs.back());
                 sync->setListener(request->getSyncListener());
+#ifdef ENABLE_REGEXP
                 sync->setRegExp(request->getRegExp());
+#endif
                 syncMap[-nextTag] = sync;
 
                 request->setNumber(client->syncs.back()->fsfp);
@@ -8489,7 +8488,9 @@ MegaSyncPrivate::MegaSyncPrivate(Sync *sync)
     this->megaHandle = sync->localroot.node->nodehandle;
     this->fingerprint = sync->fsfp;
     this->state = sync->state;
+#ifdef ENABLE_REGEXP
     this->regExp = NULL;
+#endif
     this->listener = NULL;
 
 }
@@ -8502,13 +8503,17 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate &sync)
     this->setLocalFingerprint(sync.getLocalFingerprint());
     this->setState(sync.getState());
     this->setListener(sync.getListener());
+#ifdef ENABLE_REGEXP
     this->regExp = NULL;
     this->setRegExp(sync.getRegExp());
+#endif
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
 {
+#ifdef ENABLE_REGEXP
     delete regExp;
+#endif
 }
 
 MegaSync *MegaSyncPrivate::copy()
@@ -8579,11 +8584,12 @@ void MegaSyncPrivate::setState(int state)
     this->state = state;
 }
 
+#ifdef ENABLE_REGEXP
 MegaRegExpPrivate::MegaRegExpPrivate()
 {
     patternUpdated = false;
 
-#ifdef ENABLE_PCRE
+#ifdef USE_PCRE
     options = 0;
     options |= PCRE_ANCHORED;
     reCompiled = NULL;
@@ -8593,7 +8599,7 @@ MegaRegExpPrivate::MegaRegExpPrivate()
 
 MegaRegExpPrivate::~MegaRegExpPrivate()
 {
-#ifdef ENABLE_PCRE
+#ifdef USE_PCRE
     if(reCompiled != NULL) pcre_free(reCompiled);
     if(reOptimization != NULL) pcre_free(reOptimization);
 #endif
@@ -8652,7 +8658,7 @@ bool MegaRegExpPrivate::checkRegExp(const char *regExp)
     if(!regExp)
         return false;
 
-#ifdef ENABLE_PCRE
+#ifdef USE_PCRE
     const char *error;
     int eoffset;
 
@@ -8684,7 +8690,7 @@ bool MegaRegExpPrivate::updatePattern()
     }
 
     patternUpdated = true;
-    return !(compile() == PCRE_COMPILATION_ERROR);
+    return !(compile() == REGEXP_COMPILATION_ERROR);
 }
 
 bool MegaRegExpPrivate::isPatternUpdated()
@@ -8697,7 +8703,7 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
     if(!patternUpdated)
         updatePattern();
 
-#ifdef ENABLE_PCRE
+#ifdef USE_PCRE
     int strVector[30];
     int result;
 
@@ -8735,24 +8741,24 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
 
 int MegaRegExpPrivate::compile()
 {
-#ifdef ENABLE_PCRE
+#ifdef USE_PCRE
     const char *error;
     int eoffset;
 
     reCompiled = pcre_compile(pattern.c_str(), options, &error, &eoffset, NULL);
     if(reCompiled == NULL) {
         LOG_debug << "PCRE error: Could not compile " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::PCRE_COMPILATION_ERROR;
+        return MegaRegExpPrivate::REGEXP_COMPILATION_ERROR;
     }
 
     reOptimization = pcre_study(reCompiled, 0, &error);
     if(error != NULL) {
         LOG_debug << "PCRE info: Could not study " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::PCRE_OPTIMIZATION_ERROR;
+        return MegaRegExpPrivate::REGEXP_OPTIMIZATION_ERROR;
     }
 
 #endif
-    return MegaRegExpPrivate::PCRE_NO_ERROR;
+    return MegaRegExpPrivate::REGEXP_NO_ERROR;
 }
 
 MegaRegExp *MegaSyncPrivate::getRegExp() const
@@ -8770,6 +8776,7 @@ void MegaSyncPrivate::setRegExp(MegaRegExp *regExp)
     else
         this->regExp = regExp->copy();
 }
+#endif  // ENABLE_REGEXP
 
 MegaSyncEventPrivate::MegaSyncEventPrivate(int type)
 {

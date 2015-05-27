@@ -1255,15 +1255,29 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(path);
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+#ifdef ENABLE_REGEXP
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener* listener)
 {
-   pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
 }
+#else
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+{
+   pImpl->syncFolder(localFolder, megaFolder, listener);
+}
+#endif
 
+#ifdef ENABLE_REGEXP
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener* listener)
 {
     pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
 }
+#else
+void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener)
+{
+    pImpl->resumeSync(localFolder, localfp, megaFolder, listener);
+}
+#endif
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 {
@@ -1347,10 +1361,12 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 
 #endif
 
+#ifdef ENABLE_REGEXP
 void MegaApi::setRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 {
     pImpl->setRegularExpressions(sync,regExp);
 }
+#endif
 
 int MegaApi::getNumPendingUploads()
 {
@@ -2201,6 +2217,7 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+#ifdef ENABLE_REGEXP
 MegaRegExp::MegaRegExp()
 {
     pImpl = new MegaRegExpPrivate();
@@ -2242,4 +2259,4 @@ const char *MegaRegExp::getFullPattern()
 {
     return pImpl->getFullPattern();
 }
-
+#endif

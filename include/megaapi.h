@@ -1995,6 +1995,7 @@ public:
 
 #endif
 
+#ifdef ENABLE_REGEXP
 class MegaRegExpPrivate;
 
 /**
@@ -2030,6 +2031,7 @@ private:
     MegaRegExpPrivate *pImpl;
     MegaRegExp(MegaRegExpPrivate *pImpl);
 };
+#endif // ENABLE_REGEXP
 
 /**
  * @brief Provides information about an error
@@ -4349,7 +4351,11 @@ class MegaApi
          *
          * @see MegaApi::resumeSync
          */
+#ifdef ENABLE_REGEXP
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+#else
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+#endif
 
         /**
          * @brief Resume a previously synced folder
@@ -4375,7 +4381,11 @@ class MegaApi
          * @param localfp Fingerprint of the local file
          * @param listener MegaRequestListener to track this request
          */
+#ifdef ENABLE_REGEXP
         void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+#else
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+#endif
 
         /**
          * @brief Remove a synced folder
@@ -4561,12 +4571,14 @@ class MegaApi
 
 #endif
 
+#ifdef ENABLE_REGEXP
         /**
          * @brief Set a list of rules to exclude files and folders for a given synchronized folder
          * @param sync Synchronization whose rules want to be updated
          * @param regExp List of regular expressions (rules)
          */
         void setRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+#endif
 
         /**
          * @brief Force a loop of the SDK thread

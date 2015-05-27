@@ -5736,7 +5736,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
-        if ((app->sync_syncable(l->sync, &path, *it)
+        if ((app->sync_syncable(l->sync, &localname, &path, *it)
              && (*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
@@ -5879,7 +5879,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             fsaccess->name2local(&localname);
             localpath->append(fsaccess->localseparator);
             localpath->append(localname);
-            if (app->sync_syncable(l->sync, localpath, rit->second))
+            if (app->sync_syncable(l->sync, &localname, localpath, rit->second))
             {
 
                 string utf8path;
