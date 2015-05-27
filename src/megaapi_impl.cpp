@@ -3378,6 +3378,11 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
 
 const char *MegaApiImpl::nameToLocal(const char *name)
 {
+    if(!name)
+    {
+        return NULL;
+    }
+
     string local = name;
     client->fsaccess->name2local(&local);
     return MegaApi::strdup(local.c_str());
@@ -3385,6 +3390,11 @@ const char *MegaApiImpl::nameToLocal(const char *name)
 
 const char *MegaApiImpl::localToName(const char *localName)
 {
+    if(!localName)
+    {
+        return NULL;
+    }
+
     string name = localName;
     client->fsaccess->local2name(&name);
     return MegaApi::strdup(name.c_str());
