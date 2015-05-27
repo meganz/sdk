@@ -4658,7 +4658,7 @@ void MegaApiImpl::fa_complete(Node* n, fatype type, const char* data, uint32_t l
     }
 }
 
-int MegaApiImpl::fa_failed(handle, fatype, int retries)
+int MegaApiImpl::fa_failed(handle, fatype, int retries, error e)
 {
     int tag = client->restag;
     while(tag)
@@ -4669,17 +4669,17 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries)
             return 1;
 
         tag = request->getNumber();
-        if(retries > 3)
+        if(retries >= 2)
         {
-            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            fireOnRequestFinish(request, MegaError(e));
         }
         else
         {
-            fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
+            fireOnRequestTemporaryError(request, MegaError(e));
         }
     }
 
-    return (retries > 3);
+    return (retries >= 2);
 }
 
 void MegaApiImpl::putfa_result(handle, fatype, error e)

@@ -113,7 +113,7 @@ struct DemoApp : public MegaApp
     void share_result(int, error);
 
     void fa_complete(Node*, fatype, const char*, uint32_t);
-    int fa_failed(handle, fatype, int);
+    int fa_failed(handle, fatype, int, error);
 
     void putfa_result(handle, fatype, error);
 

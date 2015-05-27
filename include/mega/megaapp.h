@@ -102,7 +102,7 @@ struct MEGA_API MegaApp
 
     // file attribute fetch result
     virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
-    virtual int fa_failed(handle, fatype, int)
+    virtual int fa_failed(handle, fatype, int, error)
     {
         return 0;
     }
