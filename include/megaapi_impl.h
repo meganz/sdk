@@ -1297,10 +1297,13 @@ protected:
         virtual void syncupdate_treestate(LocalNode*);
         virtual bool sync_syncable(Sync *, string *, string*, Node*);
         virtual bool sync_syncable(Sync *, string *, string*, LocalNode * = NULL);
-        bool sync_syncable(string *, string*, Sync *);
         virtual void syncupdate_local_lockretry(bool);
+
+private:
+        bool sync_syncable(string *, string*, Sync *);
 #endif
 
+protected:
         // suggest reload due to possible race condition with other clients
         virtual void reload(const char*);
 
