@@ -4510,7 +4510,7 @@ error MegaClient::creditcardstore(const char *ccplain)
         return API_EARGS;
     }
 
-    string ccnumber, expm, expy, cv2;
+    string ccnumber, expm, expy, cv2, ccode;
     if (!JSON::extractstringvalue(ccplain, "card_number", &ccnumber)
         || (ccnumber.size() < 10)
         || !JSON::extractstringvalue(ccplain, "expiry_date_month", &expm)
@@ -4518,7 +4518,9 @@ error MegaClient::creditcardstore(const char *ccplain)
         || !JSON::extractstringvalue(ccplain, "expiry_date_year", &expy)
         || (expy.size() != 4)
         || !JSON::extractstringvalue(ccplain, "cv2", &cv2)
-        || (cv2.size() != 3))
+        || (cv2.size() != 3)
+        || !JSON::extractstringvalue(ccplain, "country_code", &ccode)
+        || (ccode.size() != 2))
     {
         return API_EARGS;
     }
