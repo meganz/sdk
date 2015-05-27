@@ -4568,6 +4568,11 @@ void MegaApiImpl::users_updated(User** u, int count)
     delete userList;
 }
 
+void MegaApiImpl::account_updated()
+{
+    fireOnAccountUpdate();
+}
+
 void MegaApiImpl::setattr_result(handle h, error e)
 {
 	MegaError megaError(e);
@@ -5891,6 +5896,18 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
     }
 
     activeNodes = NULL;
+}
+
+void MegaApiImpl::fireOnAccountUpdate()
+{
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    {
+        (*it)->onAccountUpdate(api);
+    }
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    {
+        (*it)->onAccountUpdate(api);
+    }
 }
 
 void MegaApiImpl::fireOnReloadNeeded()
