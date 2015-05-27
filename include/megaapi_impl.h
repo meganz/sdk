@@ -34,7 +34,7 @@
 #include "mega/proxy.h"
 #include "megaapi.h"
 
-#ifdef ENABLE_SYNC
+#ifdef USE_PCRE
 #include <pcre.h>
 #endif
 

@@ -1260,24 +1260,32 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegE
 {
     pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
 }
-#else
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
-{
-   pImpl->syncFolder(localFolder, megaFolder, listener);
-}
 #endif
+
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+{    
+#ifdef ENABLE_REGEXP
+    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+#else
+    pImpl->syncFolder(localFolder, megaFolder, listener);
+#endif
+}
 
 #ifdef ENABLE_REGEXP
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener* listener)
 {
     pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
 }
-#else
+#endif
+
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener)
 {
+#ifdef ENABLE_REGEXP
+    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+#else
     pImpl->resumeSync(localFolder, localfp, megaFolder, listener);
-}
 #endif
+}
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 {

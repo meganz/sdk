@@ -4352,10 +4352,9 @@ class MegaApi
          * @see MegaApi::resumeSync
          */
 #ifdef ENABLE_REGEXP
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
-#else
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener* listener = NULL);
 #endif
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Resume a previously synced folder
@@ -4382,10 +4381,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
 #ifdef ENABLE_REGEXP
-        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
-#else
-        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener* listener = NULL);
 #endif
+        void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Remove a synced folder
