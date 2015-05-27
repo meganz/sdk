@@ -4512,9 +4512,13 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     string ccnumber, expm, expy, cv2;
     if (!JSON::extractstringvalue(ccplain, "card_number", &ccnumber)
+        || (ccnumber.size() < 10)
         || !JSON::extractstringvalue(ccplain, "expiry_date_month", &expm)
+        || (expm.size() != 2)
         || !JSON::extractstringvalue(ccplain, "expiry_date_year", &expy)
-        || !JSON::extractstringvalue(ccplain, "cv2", &cv2))
+        || (expy.size() != 4)
+        || !JSON::extractstringvalue(ccplain, "cv2", &cv2)
+        || (cv2.size() != 3))
     {
         return API_EARGS;
     }
