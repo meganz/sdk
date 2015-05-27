@@ -81,6 +81,9 @@ struct MEGA_API MegaApp
     // users have been added or updated
     virtual void users_updated(User**, int) { }
 
+    // the account has been modified (upgraded/downgraded)
+    virtual void account_updated() { }
+
     // password change result
     virtual void changepw_result(error) { }
 
