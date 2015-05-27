@@ -3044,4 +3044,55 @@ void CommandCreditCardCancelSubscriptions::procresult()
     }
 }
 
+CommandCopySession::CommandCopySession(MegaClient *client)
+{
+    cmd("us");
+    arg("c", 1);
+    tag = client->reqtag;
+}
+
+void CommandCopySession::procresult()
+{
+    string session;
+    byte sidbuf[AsymmCipher::MAXKEYLENGTH];
+    int len_csid = 0;
+
+    if (client->json.isnumeric())
+    {
+        client->app->copysession_result(NULL, (error)client->json.getint());
+        return;
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID4('c', 's', 'i', 'd'):
+                len_csid = client->json.storebinary(sidbuf, sizeof sidbuf);
+                break;
+
+            case EOO:
+                if (len_csid < 32)
+                {
+                    return client->app->copysession_result(NULL, API_EINTERNAL);
+                }
+
+                if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN))
+                {
+                    return client->app->copysession_result(NULL, API_EINTERNAL);
+                }
+
+                session.resize(MegaClient::SIDLEN * 4 / 3 + 4);
+                session.resize(Base64::btoa(sidbuf, MegaClient::SIDLEN, (char *)session.data()));
+                return client->app->copysession_result(&session, API_OK);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->copysession_result(NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
+
 } // namespace

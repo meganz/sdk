@@ -106,6 +106,9 @@ public:
     // dump current session
     int dumpsession(byte*, int);
 
+    // create a copy of the current session
+    void copysession();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     string *sessiontransferdata(const char*);

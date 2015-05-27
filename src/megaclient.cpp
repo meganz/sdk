@@ -4188,6 +4188,11 @@ int MegaClient::dumpsession(byte* session, int size)
     return sizeof key.key + sid.size();
 }
 
+void MegaClient::copysession()
+{
+    reqs[r].add(new CommandCopySession(this));
+}
+
 string *MegaClient::sessiontransferdata(const char *url)
 {
     if (loggedin() != FULLACCOUNT)
