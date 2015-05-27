@@ -44,6 +44,15 @@ const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 // exported link marker
 const char* const MegaClient::EXPORTEDLINK = "EXP";
 
+// public key to send payment details
+const char MegaClient::PAYMENT_PUBKEY[] =
+        "CADB-9t4WSMCs6we8CNcAmq97_bP-eXa9pn7SwGPxXpTuScijDrLf_ooneCQnnRBDvE"
+        "MNqTK3ULj1Q3bt757SQKDZ0snjbwlU2_D-rkBBbjWCs-S61R0Vlg8AI5q6oizH0pjpD"
+        "eOhpsv2DUlvCa4Hjgy_bRpX8v9fJvbKI2bT3GXJWE7tu8nlKHgz8Q7NE3Ycj5XuUfCW"
+        "GgOvPGBC-8qPOyg98Vloy53vja2mBjw4ycodx-ZFCt8i8b9Z8KongRMROmvoB4jY8ge"
+        "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
+        "TpPvuz-oZABEBAAE";
+
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
@@ -4481,6 +4490,81 @@ void MegaClient::purchase_checkout(int gateway)
 void MegaClient::submitpurchasereceipt(int type, const char *receipt)
 {
     reqs[r].add(new CommandSubmitPurchaseReceipt(this, type, receipt));
+}
+
+error MegaClient::creditcardstore(const char *ccplain)
+{
+    if (!ccplain)
+    {
+        return API_EARGS;
+    }
+
+    byte pubkdata[sizeof(PAYMENT_PUBKEY) * 3 / 4 + 3];
+    int pubkdatalen = Base64::atob(PAYMENT_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
+
+    string ccenc;
+    string ccplain1 = ccplain;
+    PayCrypter payCrypter;
+    if (!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
+    {
+        return API_EARGS;
+    }
+
+    string ccnumber, expm, expy, cv2;
+    if (!JSON::extractstringvalue(ccplain, "card_number", &ccnumber)
+        || !JSON::extractstringvalue(ccplain, "expiry_date_month", &expm)
+        || !JSON::extractstringvalue(ccplain, "expiry_date_year", &expy)
+        || !JSON::extractstringvalue(ccplain, "cv2", &cv2))
+    {
+        return API_EARGS;
+    }
+
+    string last4 = ccnumber.substr(ccnumber.size() - 4);
+
+    char hashstring[256];
+    int ret = snprintf(hashstring, sizeof(hashstring), "{\"card_number\":\"%s\","
+            "\"expiry_date_month\":\"%s\","
+            "\"expiry_date_year\":\"%s\","
+            "\"cv2\":\"%s\"}", ccnumber.c_str(), expm.c_str(), expy.c_str(), cv2.c_str());
+
+    if (ret < 0 || ret >= (int)sizeof(hashstring))
+    {
+        return API_EARGS;
+    }
+
+    HashSHA256 hash;
+    string binaryhash;
+    hash.add((byte *)hashstring, strlen(hashstring));
+    hash.get(&binaryhash);
+
+    static const char hexchars[] = "0123456789abcdef";
+    ostringstream oss;
+    string hexHash;
+    for (size_t i=0;i<binaryhash.size();++i)
+    {
+        oss.put(hexchars[(binaryhash[i] >> 4) & 0x0F]);
+        oss.put(hexchars[binaryhash[i] & 0x0F]);
+    }
+    hexHash = oss.str();
+
+    string base64cc;
+    base64cc.resize(ccenc.size()*4/3+4);
+    base64cc.resize(Base64::btoa((byte *)ccenc.data(), ccenc.size(), (char *)base64cc.data()));
+    std::replace( base64cc.begin(), base64cc.end(), '-', '+');
+    std::replace( base64cc.begin(), base64cc.end(), '_', '/');
+
+    reqs[r].add(new CommandCreditCardStore(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
+    return API_OK;
+}
+
+void MegaClient::creditcardquerysubscriptions()
+{
+    reqs[r].add(new CommandCreditCardQuerySubscriptions(this));
+}
+
+void MegaClient::creditcardcancelsubscriptions()
+{
+    reqs[r].add(new CommandCreditCardCancelSubscriptions(this));
 }
 
 // add new contact (by e-mail address)

@@ -115,9 +115,11 @@ struct MEGA_API MegaApp
     virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
-    virtual void checkout_result(error) { }
-    virtual void checkout_result(const char*) { }
+    virtual void checkout_result(const char*, error) { }
     virtual void submitpurchasereceipt_result(error) { }
+    virtual void creditcardstore_result(error) { }
+    virtual void creditcardquerysubscriptions_result(int, error) {}
+    virtual void creditcardcancelsubscriptions_result(error) {}
 
     // user invites/attributes
     virtual void invite_result(error) { }

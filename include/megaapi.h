@@ -1021,26 +1021,28 @@ class MegaTransferList
  */
 class MegaRequest
 {
-	public:
-		enum {
-			TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
-			TYPE_RENAME, TYPE_REMOVE, TYPE_SHARE,
-			TYPE_IMPORT_LINK, TYPE_EXPORT, TYPE_FETCH_NODES, TYPE_ACCOUNT_DETAILS,
-			TYPE_CHANGE_PW, TYPE_UPLOAD, TYPE_LOGOUT,
-			TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
-			TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
-			TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-			TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
-			TYPE_CONFIRM_ACCOUNT,
-			TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
-			TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
-			TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-			TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-			TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
-			TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT
+    public:
+        enum {
+            TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
+            TYPE_RENAME, TYPE_REMOVE, TYPE_SHARE,
+            TYPE_IMPORT_LINK, TYPE_EXPORT, TYPE_FETCH_NODES, TYPE_ACCOUNT_DETAILS,
+            TYPE_CHANGE_PW, TYPE_UPLOAD, TYPE_LOGOUT,
+            TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
+            TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
+            TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
+            TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+            TYPE_CONFIRM_ACCOUNT,
+            TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
+            TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
+            TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
+            TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
+            TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
+            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
+            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
+            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
 		};
 
-		virtual ~MegaRequest();
+        virtual ~MegaRequest();
 
         /**
          * @brief Creates a copy of this MegaRequest object
@@ -1123,6 +1125,7 @@ class MegaRequest
          * - MegaApi::syncFolder - Returns the handle of the folder in MEGA
          * - MegaApi::resumeSync - Returns the handle of the folder in MEGA
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
+         * - MegaApi::upgradeAccount - Returns that handle of the product
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1409,10 +1412,12 @@ class MegaRequest
          * - MegaApi::retryPendingConnections - Returns if transfers are retried
          * - MegaApi::submitFeedback - Returns the rating for the app
          * - MegaApi::pauseTransfers - Returns the direction of the transfers to pause/resume
+         * - MegaApi::upgradeAccount - Returns the payment method
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::resumeSync - Returns the fingerprint of the local file
+         * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
          *
          * @return Number related to this request
          */
@@ -2028,7 +2033,14 @@ public:
         API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
         API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
         API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
-        API_EAPPKEY = -22       ///< Invalid or missing application key.
+        API_EAPPKEY = -22,       ///< Invalid or missing application key.
+
+        PAYMENT_ECARD = -101,
+        PAYMENT_EBILLING = -102,
+        PAYMENT_EFRAUD = -103,
+        PAYMENT_ETOOMANY = -104,
+        PAYMENT_EBALANCE = -105,
+        PAYMENT_EGENERIC = -106
     };
 
     /**
@@ -2701,6 +2713,11 @@ class MegaApi
         enum {
             USER_ATTR_FIRSTNAME = 1,
             USER_ATTR_LASTNAME = 2
+        };
+
+        enum {
+            PAYMENT_METHOD_BALANCE = 0,
+            PAYMENT_METHOD_CREDIT_CARD = 8
         };
 
         /**
@@ -3929,11 +3946,83 @@ class MegaApi
         void getPaymentId(MegaHandle productHandle, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Upgrade an account
+         * @param productHandle Product handle to purchase
+         *
+         * It's possible to get all pricing plans with their product handles using
+         * MegaApi::getPricing
+         *
+         * The associated request type with this request is MegaRequest::TYPE_UPGRADE_ACCOUNT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         * - MegaRequest::getNumber - Returns the payment method
+         *
+         * @param paymentMethod Payment method
+         * Valid values are:
+         * - MegaApi::PAYMENT_METHOD_BALANCE = 0
+         * Use the account balance for the payment
+         *
+         * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
+         * Complete the payment with your credit card. Use MegaApi::creditCardStore to add
+         * a credit card to your account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Submit a purchase receipt for verification
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Store a credit card
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_STORE
+         *
+         * @param address1 Billing address
+         * @param address2 Second line of the billing address (optional)
+         * @param city City of the billing address
+         * @param province Province of the billing address
+         * @param country Contry of the billing address
+         * @param postalcode Postal code of the billing address
+         * @param firstname Firstname of the owner of the credit card
+         * @param lastname Lastname of the owner of the credit card
+         * @param creditcard Credit card number. Only digits, no spaces nor dashes
+         * @param expire_month Expire month of the credit card. Must have two digits ("03" for example)
+         * @param expire_year Expire year of the credit card. Must have four digits ("2010" for example)
+         * @param cv2 Security code of the credit card (3 digits)
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardStore(const char* address1, const char* address2, const char* city,
+                             const char* province, const char* country, const char *postalcode,
+                             const char* firstname, const char* lastname, const char* creditcard,
+                             const char* expire_month, const char* expire_year, const char* cv2,
+                             MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the credit card subscriptions of the account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Number of credit card subscriptions
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel credit card subscriptions if the account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account
@@ -5512,6 +5601,47 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      */
     virtual int getProLevel();
+
+    /**
+     * @brief Get the expiration time for the current PRO status
+     * @return Expiration time for the current PRO status (in seconds since the Epoch)
+     */
+    virtual int64_t getProExpiration();
+
+    /**
+     * @brief Check if there is a subscription enabled
+     *
+     * If this function returns true, the PRO account will be automatically
+     * renewed. See MegaAccountDetails::getSubscriptionRenewTime
+     *
+     * @return True if the PRO account will be automatically renewed
+     */
+    virtual bool isSubscriptionEnabled();
+
+    /**
+     * @brief Get the time when the the PRO account will be renewed
+     * @return Renewal time (in seconds since the Epoch)
+     */
+    virtual int64_t getSubscriptionRenewTime();
+
+    /**
+     * @brief Get the subscryption method
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription method. For example "Credit Card".
+     */
+    virtual const char* getSubscriptionMethod();
+
+    /**
+     * @brief Get the subscription cycle
+     *
+     * The return value will show if the subscription will be montly or yearly renewed.
+     * Example return values: "1 M", "1 Y".
+     *
+     * @return Subscription cycle
+     */
+    virtual const char* getSubscriptionCycle();
 
     /**
      * @brief Get the maximum storage for the account (in bytes)

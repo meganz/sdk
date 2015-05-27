@@ -980,7 +980,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->accountDetails = NULL;
     }
 
-    if((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID))
+    if((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
     {
         this->megaPricing = new MegaPricingPrivate();
     }
@@ -1395,10 +1395,14 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CANCEL_ATTR_FILE: return "CANCEL_ATTR_FILE";
         case TYPE_GET_PRICING: return "GET_PRICING";
         case TYPE_GET_PAYMENT_ID: return "GET_PAYMENT_ID";
+        case TYPE_UPGRADE_ACCOUNT: return "UPGRADE_ACCOUNT";
         case TYPE_GET_USER_DATA: return "GET_USER_DATA";
         case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
         case TYPE_KILL_SESSION: return "KILL_SESSION";
         case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
+        case TYPE_CREDIT_CARD_STORE: return "CREDIT_CARD_STORE";
+        case TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS: return "CREDIT_CARD_QUERY_SUBSCRIPTIONS";
+        case TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS: return "CREDIT_CARD_CANCEL_SUBSCRIPTIONS";
 	}
     return "UNKNOWN";
 }
@@ -2549,11 +2553,74 @@ void MegaApiImpl::getPaymentId(handle productHandle, MegaRequestListener *listen
     waiter->notify();
 }
 
+void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_UPGRADE_ACCOUNT, listener);
+    request->setNodeHandle(productHandle);
+    request->setNumber(paymentMethod);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
     request->setNumber(3); //Android only for now
     request->setText(receipt);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardStore(const char* address1, const char* address2, const char* city,
+                                  const char* province, const char* country, const char *postalcode,
+                                  const char* firstname, const char* lastname, const char* creditcard,
+                                  const char* expire_month, const char* expire_year, const char* cv2,
+                                  MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_STORE, listener);
+    string email;
+
+    sdkMutex.lock();
+    User *u = client->finduser(client->me);
+    if(u)
+    {
+        email = u->email;
+    }
+    sdkMutex.unlock();
+
+    if(email.size())
+    {
+        char ccplain[256 + strlen(firstname) + strlen(lastname) + strlen(creditcard)
+                + strlen(expire_month) + strlen(expire_year) + strlen(cv2) + strlen(address1)
+                + strlen(address2) + strlen(city) + strlen(province) + strlen(postalcode)
+                + strlen(country) + email.size()];
+
+        snprintf(ccplain, sizeof(ccplain), "{\"first_name\":\"%s\",\"last_name\":\"%s\","
+                "\"card_number\":\"%s\","
+                "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
+                "\"cv2\":\"%s\",\"address1\":\"%s\","
+                "\"address2\":\"%s\",\"city\":\"%s\","
+                "\"province\":\"%s\",\"postal_code\":\"%s\","
+                "\"country_code\":\"%s\",\"email_address\":\"%s\"}", firstname, lastname, creditcard, expire_month,
+                expire_year, cv2,address1, address2, city, province, postalcode, country, email.c_str());
+
+        request->setText((const char* )ccplain);
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardCancelSubscriptions(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -4709,7 +4776,8 @@ void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, 
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID)))
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
     {
         return;
     }
@@ -4722,7 +4790,8 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID)))
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
     {
         return;
     }
@@ -4739,7 +4808,6 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         {
             if(pricing->getHandle(i) == request->getNodeHandle())
             {
-                request->setNumber(i);
                 requestMap.erase(request->getTag());
                 int nextTag = client->nextreqtag();
                 request->setTag(nextTag);
@@ -4762,7 +4830,8 @@ void MegaApiImpl::additem_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT))) return;
 
     if(e != API_OK)
     {
@@ -4771,11 +4840,41 @@ void MegaApiImpl::additem_result(error e)
         return;
     }
 
-    char saleid[16];
-    Base64::btoa((byte *)&client->purchase_basket.back(), 8, saleid);
-    request->setLink(saleid);
-    client->purchase_begin();
-    fireOnRequestFinish(request, MegaError(API_OK));
+    if(request->getType() == MegaRequest::TYPE_GET_PAYMENT_ID)
+    {
+        char saleid[16];
+        Base64::btoa((byte *)&client->purchase_basket.back(), 8, saleid);
+        request->setLink(saleid);
+        client->purchase_begin();
+        fireOnRequestFinish(request, MegaError(API_OK));
+        return;
+    }
+
+    //MegaRequest::TYPE_UPGRADE_ACCOUNT
+    int method = request->getNumber();
+    client->purchase_checkout(method);
+}
+
+void MegaApiImpl::checkout_result(const char *errortype, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)) return;
+
+    if(!errortype)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+        return;
+    }
+
+    if(!strcmp(errortype, "FP"))
+    {
+        fireOnRequestFinish(request, MegaError(e - 100));
+        return;
+    }
+
+    fireOnRequestFinish(request, MegaError(MegaError::PAYMENT_EGENERIC));
+    return;
 }
 
 void MegaApiImpl::submitpurchasereceipt_result(error e)
@@ -4783,6 +4882,34 @@ void MegaApiImpl::submitpurchasereceipt_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::creditcardquerysubscriptions_result(int number, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS)) return;
+
+    request->setNumber(number);
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::creditcardstore_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_STORE)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -7656,7 +7783,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_PRICING:
         case MegaRequest::TYPE_GET_PAYMENT_ID:
+        case MegaRequest::TYPE_UPGRADE_ACCOUNT:
         {
+            int method = request->getNumber();
+            if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             client->purchase_enumeratequotaitems();
             break;
         }
@@ -7672,6 +7807,22 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->submitpurchasereceipt(type, receipt);
+            break;
+        }
+        case MegaRequest::TYPE_CREDIT_CARD_STORE:
+        {
+            const char *ccplain = request->getText();
+            e = client->creditcardstore(ccplain);
+            break;
+        }
+        case MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS:
+        {
+            client->creditcardquerysubscriptions();
+            break;
+        }
+        case MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS:
+        {
+            client->creditcardcancelsubscriptions();
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:
@@ -7990,6 +8141,31 @@ bool MegaHashSignatureImpl::checkSignature(const char *base64Signature)
 int MegaAccountDetailsPrivate::getProLevel()
 {
     return details.pro_level;
+}
+
+int64_t MegaAccountDetailsPrivate::getProExpiration()
+{
+    return details.pro_until;
+}
+
+bool MegaAccountDetailsPrivate::isSubscriptionEnabled()
+{
+    return details.subscription_type != 'O';
+}
+
+int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
+{
+    return details.subscription_renew;
+}
+
+const char *MegaAccountDetailsPrivate::getSubscriptionMethod()
+{
+    return MegaApi::strdup(details.subscription_method.c_str());
+}
+
+const char *MegaAccountDetailsPrivate::getSubscriptionCycle()
+{
+    return MegaApi::strdup(details.subscription_cycle);
 }
 
 long long MegaAccountDetailsPrivate::getStorageMax()

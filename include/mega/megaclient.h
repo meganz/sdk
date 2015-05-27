@@ -262,6 +262,15 @@ public:
     // submit purchase receipt for verification
     void submitpurchasereceipt(int, const char*);
 
+    // store credit card
+    error creditcardstore(const char *);
+
+    // get credit card subscriptions
+    void creditcardquerysubscriptions();
+
+    // cancel credit card subscriptions
+    void creditcardcancelsubscriptions();
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -391,6 +400,8 @@ private:
 
     // abort queued direct read(s)
     void abortreads(handle, bool, m_off_t, m_off_t);
+
+    static const char PAYMENT_PUBKEY[];
 
 public:
     // application callbacks

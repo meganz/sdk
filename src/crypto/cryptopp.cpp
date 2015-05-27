@@ -634,6 +634,17 @@ void Hash::get(string* out)
     hash.Final((byte*)out->data());
 }
 
+void HashSHA256::add(const byte *data, unsigned int len)
+{
+    hash.Update(data, len);
+}
+
+void HashSHA256::get(std::string *retStr)
+{
+    retStr->resize(hash.DigestSize());
+    hash.Final((byte*)retStr->data());
+}
+
 void HashCRC32::add(const byte* data, unsigned len)
 {
     hash.Update(data, len);

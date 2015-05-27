@@ -503,6 +503,40 @@ public:
     CommandSubmitPurchaseReceipt(MegaClient*, int, const char*);
 };
 
+class MEGA_API CommandCreditCardStore : public Command
+{
+
+    /*
+        'a':'ccs',  // credit card store
+        'cc':<encrypted CC data of the required json format>,
+        'last4':<last four digits of the credit card number, plain text>,
+        'expm':<expiry month in the form "02">,
+        'expy':<expiry year in the form "2017">,
+        'hash':<sha256 hash of the card details in hex format>
+    */
+
+public:
+    void procresult();
+
+    CommandCreditCardStore(MegaClient*, const char *, const char *, const char *, const char *, const char *);
+};
+
+class MEGA_API CommandCreditCardQuerySubscriptions : public Command
+{
+public:
+    void procresult();
+
+    CommandCreditCardQuerySubscriptions(MegaClient*);
+};
+
+class MEGA_API CommandCreditCardCancelSubscriptions : public Command
+{
+public:
+    void procresult();
+
+    CommandCreditCardCancelSubscriptions(MegaClient*);
+};
+
 } // namespace
 
 #endif

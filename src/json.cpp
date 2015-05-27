@@ -512,6 +512,25 @@ void JSON::unescape(string* s)
     }
 }
 
+bool JSON::extractstringvalue(const string &json, const string &name, string *value)
+{
+    string pattern = name + "\":\"";
+    size_t pos = json.find(pattern);
+    if (pos == string::npos)
+    {
+        return false;
+    }
+
+    size_t end = json.find("\"", pos + pattern.length());
+    if (end == string::npos)
+    {
+        return false;
+    }
+
+    *value = json.substr(pos + pattern.size(), end - pos - pattern.size());
+    return true;
+}
+
 // position at start of object
 void JSON::begin(const char* json)
 {

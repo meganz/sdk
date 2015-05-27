@@ -1600,14 +1600,69 @@ void CommandPurchaseCheckout::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->checkout_result((error)client->json.getint());
+        return client->app->checkout_result(NULL, (error)client->json.getint());
     }
 
-    string response;
+    //Expected response: "EUR":{"res":X,"code":Y}}
+    client->json.getnameid();
+    if (!client->json.enterobject())
+    {
+        LOG_err << "Parse error (CommandPurchaseCheckout)";
+        client->app->checkout_result(NULL, API_EINTERNAL);
+        return;
+    }
 
-    client->json.storeobject(&response);
+    error e = API_EINTERNAL;
+    string errortype;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID3('r', 'e', 's'):
+                if (client->json.isnumeric())
+                {
+                    e = (error)client->json.getint();
+                }
+                else
+                {
+                    client->json.storeobject(&errortype);
+                    if (errortype == "S")
+                    {
+                        errortype.clear();
+                        e = API_OK;
+                    }
+                }
+                break;
 
-    client->app->checkout_result(response.c_str());
+            case MAKENAMEID4('c', 'o', 'd', 'e'):
+                if (client->json.isnumeric())
+                {
+                    e = (error)client->json.getint();
+                }
+                else
+                {
+                    LOG_err << "Parse error in CommandPurchaseCheckout (code)";
+                }
+                break;
+            case EOO:
+                client->json.leaveobject();
+                if (!errortype.size() || errortype == "FI" || e == API_OK)
+                {
+                    client->app->checkout_result(NULL, e);
+                }
+                else
+                {
+                    client->app->checkout_result(errortype.c_str(), e);
+                }
+                return;
+            default:
+                if (!client->json.storeobject())
+                {
+                    client->app->checkout_result(NULL, API_EINTERNAL);
+                    return;
+                }
+        }
+    }
 }
 
 CommandUserRequest::CommandUserRequest(MegaClient* client, const char* m, visibility_t show)
@@ -2022,7 +2077,8 @@ void CommandGetUserQuota::procresult()
     }
 
     details->pro_level = 0;
-    details->subscription_type = 0;
+    details->subscription_type = 'O';
+    details->subscription_renew = 0;
 
     details->pro_until = 0;
 
@@ -2166,6 +2222,37 @@ void CommandGetUserQuota::procresult()
                     details->subscription_type = *ptr;
                 }
                 break;
+
+            case MAKENAMEID6('s', 'c', 'y', 'c', 'l', 'e'):
+                const char* scycle;
+                if ((scycle = client->json.getvalue()))
+                {
+                    memcpy(details->subscription_cycle, scycle, 3);
+                    details->subscription_cycle[3] = 0;
+                }
+                break;
+
+            case MAKENAMEID6('s', 'r', 'e', 'n', 'e', 'w'):
+                if (client->json.enterarray())
+                {
+                    details->subscription_renew = client->json.getint();
+                    while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+            break;
+
+            case MAKENAMEID3('s', 'g', 'w'):
+                if (client->json.enterarray())
+                {
+                    client->json.storeobject(&details->subscription_method);
+                    while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+            break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
                 // expiry of last active Pro plan (may be different from current one)
@@ -2879,6 +2966,81 @@ void CommandSubmitPurchaseReceipt::procresult()
     {
         client->json.storeobject();
         client->app->submitpurchasereceipt_result(API_EINTERNAL);
+    }
+}
+
+// Credit Card Store
+CommandCreditCardStore::CommandCreditCardStore(MegaClient* client, const char *cc, const char *last4, const char *expm, const char *expy, const char *hash)
+{
+    cmd("ccs");
+    arg("cc", cc);
+    arg("last4", last4);
+    arg("expm", expm);
+    arg("expy", expy);
+    arg("hash", hash);
+
+    tag = client->reqtag;
+}
+
+void CommandCreditCardStore::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->creditcardstore_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->creditcardstore_result(API_EINTERNAL);
+    }
+}
+
+CommandCreditCardQuerySubscriptions::CommandCreditCardQuerySubscriptions(MegaClient* client)
+{
+    cmd("ccqns");
+
+    tag = client->reqtag;
+}
+
+void CommandCreditCardQuerySubscriptions::procresult()
+{
+    int number = 0;
+    if (client->json.isnumeric())
+    {
+        number = client->json.getint();
+        if(number >= 0)
+        {
+            client->app->creditcardquerysubscriptions_result(number, API_OK);
+        }
+        else
+        {
+            client->app->creditcardquerysubscriptions_result(0, (error)number);
+        }
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->creditcardquerysubscriptions_result(0, API_EINTERNAL);
+    }
+}
+
+CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client)
+{
+    cmd("cccs");
+
+    tag = client->reqtag;
+}
+
+void CommandCreditCardCancelSubscriptions::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->creditcardcancelsubscriptions_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->creditcardcancelsubscriptions_result(API_EINTERNAL);
     }
 }
 

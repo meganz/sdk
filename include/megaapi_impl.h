@@ -566,22 +566,28 @@ private:
 
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
-	public:
-		static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
-		virtual ~MegaAccountDetailsPrivate() ;
+    public:
+        static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
+        virtual ~MegaAccountDetailsPrivate() ;
 
-		virtual int getProLevel();
-		virtual long long getStorageMax();
-		virtual long long getStorageUsed();
-		virtual long long getTransferMax();
-		virtual long long getTransferOwnUsed();
+        virtual int getProLevel();
+        virtual int64_t getProExpiration();
+        virtual bool isSubscriptionEnabled();
+        virtual int64_t getSubscriptionRenewTime();
+        virtual const char* getSubscriptionMethod();
+        virtual const char* getSubscriptionCycle();
+
+        virtual long long getStorageMax();
+        virtual long long getStorageUsed();
+        virtual long long getTransferMax();
+        virtual long long getTransferOwnUsed();
 
         virtual int getNumUsageItems();
-		virtual long long getStorageUsed(MegaHandle handle);
-		virtual long long getNumFiles(MegaHandle handle);
-		virtual long long getNumFolders(MegaHandle handle);
-	
-		virtual MegaAccountDetails* copy();
+        virtual long long getStorageUsed(MegaHandle handle);
+        virtual long long getNumFiles(MegaHandle handle);
+        virtual long long getNumFolders(MegaHandle handle);
+
+        virtual MegaAccountDetails* copy();
 
         virtual int getNumBalances() const;
         virtual MegaAccountBalance* getBalance(int i) const;
@@ -595,8 +601,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual int getNumTransactions() const;
         virtual MegaAccountTransaction* getTransaction(int i) const;
 
-	private:
-		MegaAccountDetailsPrivate(AccountDetails *details);
+    private:
+        MegaAccountDetailsPrivate(AccountDetails *details);
         AccountDetails details;
 };
 
@@ -893,7 +899,16 @@ class MegaApiImpl : public MegaApp
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
+        void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void creditCardStore(const char* address1, const char* address2, const char* city,
+                             const char* province, const char* country, const char *postalcode,
+                             const char* firstname, const char* lastname, const char* creditcard,
+                             const char* expire_month, const char* expire_year, const char* cv2,
+                             MegaRequestListener *listener = NULL);
+
+        void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
 
         const char *exportMasterKey();
 
@@ -1161,7 +1176,11 @@ protected:
                                                 unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
         virtual void enumeratequotaitems_result(error e);
         virtual void additem_result(error);
+        virtual void checkout_result(const char*, error);
         virtual void submitpurchasereceipt_result(error);
+        virtual void creditcardstore_result(error);
+        virtual void creditcardquerysubscriptions_result(int, error);
+        virtual void creditcardcancelsubscriptions_result(error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
