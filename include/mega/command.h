@@ -575,6 +575,21 @@ public:
     CommandGetPaymentMethods(MegaClient*);
 };
 
+class MEGA_API CommandUserFeedbackStore : public Command
+{
+    /*
+        'a':'clog'
+        't': type identifier, a string. For example, Lyubo has 'feedbackDialog.top-button' so he could fetch specifically his logs if he wants. For feedback specifically, include the word feedback so we can fetch all feedbacks easily
+        'd': a json blob containing whatever you want. When we are actually making the feedback calls we should try to standardise what gets sent here.
+        'id': a unique id per type (string), that could be used to fetch this specific row if you ever needed to. For example Lyubo is using the karere call id for his karere feedback so if they view a call in their stats machine, it could fetch the log entry specific to that call.
+    */
+
+public:
+    void procresult();
+
+    CommandUserFeedbackStore(MegaClient*, const char *, const char *, const char *);
+};
+
 } // namespace
 
 #endif

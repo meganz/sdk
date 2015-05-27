@@ -1554,6 +1554,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PAYMENT_METHODS: return "GET_PAYMENT_METHODS";
         case TYPE_INVITE_CONTACT: return "INVITE_CONTACT";
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
+        case TYPE_USER_FEEDBACK_STORE: return "USER_FEEDBACK_STORE";
 	}
     return "UNKNOWN";
 }
@@ -5596,7 +5597,6 @@ void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
 
     fireOnRequestFinish(request, MegaError(e));
 }
-
 void MegaApiImpl::getpaymentmethods_result(int methods, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -5604,6 +5604,15 @@ void MegaApiImpl::getpaymentmethods_result(int methods, error e)
     if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_METHODS)) return;
 
     request->setNumber(methods);
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::userfeedbackstore_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_USER_FEEDBACK_STORE)) return;
+
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -8630,6 +8639,12 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_METHODS:
         {
             client->getpaymentmethods();
+            break;
+        }
+        case MegaRequest::TYPE_USER_FEEDBACK_STORE:
+        {
+            const char *message = request->getText();
+            client->userfeedbackstore(message);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

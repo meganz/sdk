@@ -287,6 +287,9 @@ public:
     // get payment methods
     void getpaymentmethods();
 
+    // store user feedback
+    void userfeedbackstore(const char *);
+
     // toggle global debug flag
     bool toggledebug();
 
