@@ -40,6 +40,7 @@ SOURCES += src/attrmap.cpp \
     src/megaapi_impl.cpp \
     bindings/qt/QTMegaRequestListener.cpp \
     bindings/qt/QTMegaTransferListener.cpp \
+    bindings/qt//QTMegaGlobalListener.cpp \
     bindings/qt/QTMegaSyncListener.cpp \
     bindings/qt/QTMegaListener.cpp \
     bindings/qt/QTMegaEvent.cpp \
@@ -100,6 +101,7 @@ HEADERS  += include/mega.h \
             include/megaapi_impl.h \
             bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
+            bindings/qt//QTMegaGlobalListener.h \
             bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
             bindings/qt/QTMegaEvent.h \
