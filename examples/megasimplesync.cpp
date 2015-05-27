@@ -527,6 +527,9 @@ int main(int argc, char *argv[])
         }
     }
 
+    // uncomment this line if you want to follow symbolic links
+    //client->followsymlinks = true;
+
     // get values from env
     client->pw_key(getenv("MEGA_PWD"), pwkey);
     client->login(getenv("MEGA_EMAIL"), pwkey);
