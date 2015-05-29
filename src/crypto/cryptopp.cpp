@@ -553,45 +553,6 @@ void AsymmCipher::serializekey(string* d, int keytype)
     serializeintarray(key, keytype, d);
 }
 
-void AsymmCipher::serializeprivkforjs(string *d)
-{
-    string n;
-    d->clear();
-    d->append("[\"\",\"\",\"");
-    serializeintforjs(&key[AsymmCipher::PRIV_D], &n);
-    d->append(n);
-    d->append("\",\"");
-
-    AsymmCipher::serializeintforjs(&key[AsymmCipher::PRIV_Q], &n);
-    d->append(n);
-    d->append("\",\"");
-
-    AsymmCipher::serializeintforjs(&key[AsymmCipher::PRIV_P], &n);
-    d->append(n);
-    d->append("\",\"\",\"\",\"");
-
-    AsymmCipher::serializeintforjs(&key[AsymmCipher::PRIV_U], &n);
-    d->append(n);
-    d->append("\"]");
-}
-
-void AsymmCipher::serializeintforjs(Integer *t, string *d)
-{
-    static const char hexchars[] = "0123456789abcdef";
-    int size = t->ByteCount();
-    char c;
-    d->clear();
-    d->reserve(size * 6);
-    for (int j = size; j--;)
-    {
-        c = t->GetByte(j);
-
-        d->append("\\u00");
-        d->push_back(hexchars[(c >> 4) & 0x0F]);
-        d->push_back(hexchars[c & 0x0F]);
-    }
-}
-
 void AsymmCipher::serializeintarray(Integer* t, int numints, string* d)
 {
     unsigned size = 0;

@@ -4221,12 +4221,7 @@ string *MegaClient::sessiontransferdata(const char *url)
     {
         ss << url;
     }
-    ss << "\",";
-
-    // add RSA privk
-    string privk;
-    asymkey.serializeprivkforjs(&privk);
-    ss << privk << "]";
+    ss << "\",false]";
 
     // standard Base64 encoding
     string json = ss.str();

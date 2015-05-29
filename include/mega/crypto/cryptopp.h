@@ -282,12 +282,6 @@ class MEGA_API AsymmCipher
 {
     int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
 
-    /**
-     * @brief Serialize a CryptoPP::Integer for compatibility with the webclient
-     * @param d string that receives the serialized value
-     */
-    static void serializeintforjs(CryptoPP::Integer*, string*);
-
 public:
     enum { PRIV_P, PRIV_Q, PRIV_D, PRIV_U };
     enum { PUB_PQ, PUB_E };
@@ -373,12 +367,6 @@ public:
      * @return Void.
      */
     void serializekey(string* d, int keytype);
-
-    /**
-     * @brief Serialize the private key for compatibility with the webclient
-     * @param d string that receives the serialized key
-     */
-    void serializeprivkforjs(string *);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
