@@ -37,7 +37,7 @@ GfxProcCG::~GfxProcCG() {
     CFRelease(imageParams);
 }
 
-const char* GfxProcFreeImage::supportedformats() {
+const char* GfxProcCG::supportedformats() {
     return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.";
 }
 
