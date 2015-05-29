@@ -37,24 +37,11 @@ GfxProcCG::~GfxProcCG() {
     CFRelease(imageParams);
 }
 
-bool GfxProcCG::isgfx(string* name) {
-    size_t p = name->find_last_of('.');
-
-    if (!(p + 1)) {
-        return false;
-    }
-
-    string ext(*name,p);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    return ext == ".png" || ext == ".jpg" || ext == ".tif" || ext == ".tiff"
-           || ext == ".gif" || ext == ".bmp" || ext == ".pdf";
+const char* GfxProcFreeImage::supportedformats() {
+    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.";
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
-    if (!isgfx(name)) {
-        return false;
-    }
-
     CGDataProviderRef dataProvider = CGDataProviderCreateWithFilename(name->c_str());
     if (!dataProvider) {
         return false;

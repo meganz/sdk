@@ -106,43 +106,40 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
 {
     int numputs = 0;
 
-    if (isgfx(localfilename))
+    // (this assumes that the width of the largest dimension is max)
+    if (readbitmap(fa, localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
     {
-        // (this assumes that the width of the largest dimension is max)
-        if (readbitmap(fa, localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+        string* jpeg = NULL;
+
+        // successively downscale the original image
+        for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
         {
-            string* jpeg = NULL;
-
-            // successively downscale the original image
-            for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
+            if (!jpeg)
             {
-                if (!jpeg)
-                {
-                    jpeg = new string;
-                }
-
-                if (missing & (1 << i) && resizebitmap(dimensions[i][0], dimensions[i][1], jpeg))
-                {
-                    // store the file attribute data - it will be attached to the file
-                    // immediately if the upload has already completed; otherwise, once
-                    // the upload completes
-                    client->reqtag = 0;
-                    client->putfa(th, (meta_t)i, key, jpeg);
-                    numputs++;
-
-                    jpeg = NULL;
-                }
+                jpeg = new string;
             }
 
-            if (jpeg)
+            if (missing & (1 << i) && resizebitmap(dimensions[i][0], dimensions[i][1], jpeg))
             {
-                delete jpeg;
-            }
+                // store the file attribute data - it will be attached to the file
+                // immediately if the upload has already completed; otherwise, once
+                // the upload completes
+                client->reqtag = 0;
+                client->putfa(th, (meta_t)i, key, jpeg);
+                numputs++;
 
-            freebitmap();
+                jpeg = NULL;
+            }
         }
+
+        if (jpeg)
+        {
+            delete jpeg;
+        }
+
+        freebitmap();
     }
-    
+
     return numputs;
 }
 
