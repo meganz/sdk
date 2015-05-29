@@ -1772,8 +1772,11 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         nextit->second->uploadhandle = getuploadhandle();
 
-                        // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                        nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key);
+                        if (gfx->isgfx(&nextit->second->localfilename))
+                        {
+                            // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
+                            nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key);
+                        }
                     }
                 }
                 else
