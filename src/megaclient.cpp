@@ -563,6 +563,7 @@ void MegaClient::exec()
             {
                 (*it)->errorcount++;
                 (*it)->failure = false;
+                (*it)->lastdata = Waiter::ds;
             }
         }
     }
