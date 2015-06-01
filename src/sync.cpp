@@ -494,12 +494,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             LOG_warn << "Parent not detected yet. Unknown reminder: " << newname;
             string parentpath = localpath->substr(0, localpath->size() - newname.size() + index);
             dirnotify->notify(DirNotify::DIREVENTS, NULL, parentpath.data(), parentpath.size(), true);
-            return 0;
+            return NULL;
         }
+
+        client->fsaccess->local2path(&tmppath, &path);
 
         // path invalid?
         if (!l && !newname.size())
         {
+            LOG_warn << "Invalid path: " << path;
             return NULL;
         }
 
@@ -508,12 +511,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
         if (!client->app->sync_syncable(name.c_str(), &tmppath, &newname))
         {
+            LOG_debug << "Excluded path: " << path;
             return NULL;
         }
 
         isroot = l == &localroot && !newname.size();
-
-        client->fsaccess->local2path(&tmppath, &path);
     }
 
     LOG_verbose << "Scanning: " << path;
@@ -877,6 +879,12 @@ dstime Sync::procscanq(int q)
                 LOG_verbose << "Scanning deferred";
                 return 0;
             }
+        }
+        else
+        {
+            string utf8path;
+            client->fsaccess->local2path(&dirnotify->notifyq[q].front().path, &utf8path);
+            LOG_debug << "Notification skipped: " << utf8path;
         }
 
         dirnotify->notifyq[q].pop_front();

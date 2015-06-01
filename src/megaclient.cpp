@@ -520,6 +520,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
                      "." TOSTRING(MEGA_MINOR_VERSION)
                      "." TOSTRING(MEGA_MICRO_VERSION));
 
+    LOG_debug << "User-Agent: " << useragent;
     h->setuseragent(&useragent);
 }
 
@@ -6173,6 +6174,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
         if (ll->deleted)
         {
+            LOG_debug << "LocalNode deleted " << ll->name;
             continue;
         }
 
@@ -6218,12 +6220,14 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     // skip if this node is being fetched
                     if (rit->second->syncget)
                     {
+                        LOG_debug << "LocalNode being fetched: " << ll->name;
                         continue;
                     }
 
                     // skip if remote file is newer
                     if (ll->mtime < rit->second->mtime)
                     {
+                        LOG_debug << "LocalNode is older: " << ll->name;
                         continue;
                     }
 
@@ -6275,6 +6279,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                             ll->treestate(TREESTATE_SYNCED);
                             continue;
                         }
+                        else
+                        {
+                            LOG_debug << "LocalNode change detected on syncupload: " << ll->name;
+                        }
                     }
                 }
                 else
@@ -6294,6 +6302,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             }
         }
 
+        LOG_verbose << "Unsynced LocalNode: " << ll->name << " " << ll->type;
+
         if (ll->type == FILENODE)
         {
             // do not begin transfer until the file size / mtime has stabilized
@@ -6301,11 +6311,13 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
             if (ll->transfer)
             {
+                LOG_debug << "Localnode is already being uploaded: " << ll->name;
                 continue;
             }
 
             if (Waiter::ds < ll->nagleds)
             {
+                LOG_debug << "Waiting for the upload delay: " << ll->name << " " << ll->nagleds;
                 if (ll->nagleds < *nds)
                 {
                     *nds = ll->nagleds;
@@ -6334,9 +6346,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         ll->sync->statecacheadd(ll);
                     }
 
-                    delete fa;
-
                     ll->bumpnagleds();
+
+                    LOG_debug << "Localnode not stable yet: " << ll->name << " " << t << " " << fa->size << " " << ll->size
+                              << " " << fa->mtime << " " << ll->mtime << " " << ll->nagleds;
+
+                    delete fa;
 
                     if (ll->nagleds < *nds)
                     {
@@ -6390,6 +6405,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 // report a "dupe" event
                 reportevent("D", report);
+            }
+            else
+            {
+                LOG_err << "LocalNode created and reported " << ll->name;
             }
         }
         else
@@ -6980,6 +6999,7 @@ bool MegaClient::debugstate()
 
 void MegaClient::reportevent(const char* event, const char* details)
 {
+    LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
     reqs[r].add(new CommandReportEvent(this, event, details));
 }
 } // namespace

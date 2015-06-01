@@ -540,10 +540,6 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 CertFreeCertificateContext(cert);
             }
-            else
-            {
-                LOG_verbose << "Unable to get server certificate. Code: " << GetLastError();
-            }
 
             break;
         }

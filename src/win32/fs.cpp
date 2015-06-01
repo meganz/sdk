@@ -974,6 +974,10 @@ bool WinFileSystemAccess::issyncsupported(string *localpath)
         result = false;
     }
 
+    string utf8fsname;
+    local2path(&fsname, &utf8fsname);
+    LOG_debug << "Filesystem type: " << utf8fsname;
+
     localpath->resize(localpath->size() - 1);
 #endif
 
