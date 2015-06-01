@@ -2659,7 +2659,7 @@ class MegaApiImpl;
  * @brief Allows to control a MEGA account or a shared folder
  *
  * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
- * - https://mega.co.nz/#sdk
+ * - https://mega.nz/#sdk
  *
  * You can enable local node caching by passing a local path in the constructor of this class. That saves many data usage
  * and many time starting your app because the entire filesystem won't have to be downloaded each time. The persistent
@@ -2724,7 +2724,7 @@ class MegaApi
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
          * You can generate your AppKey for free here:
-         * - https://mega.co.nz/#sdk
+         * - https://mega.nz/#sdk
          *
          * @param basePath Base path to store the local cache
          * If you pass NULL to this parameter, the SDK won't use any local cache.
@@ -2745,7 +2745,7 @@ class MegaApi
          *
          * @param appKey AppKey of your application
          * You can generate your AppKey for free here:
-         * - https://mega.co.nz/#sdk
+         * - https://mega.nz/#sdk
          *
          * @param processor Image processor. The SDK will use it to generate previews and thumbnails
          * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
@@ -2785,7 +2785,7 @@ class MegaApi
          *
          * @param appKey AppKey of your application
          * You can generate your AppKey for free here:
-         * - https://mega.co.nz/#sdk
+         * - https://mega.nz/#sdk
          *
          * @param basePath Base path to store the local cache
          * If you pass NULL to this parameter, the SDK won't use any local cache.
@@ -4031,7 +4031,7 @@ class MegaApi
          *
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
-         * - https://mega.co.nz/#recovery
+         * - https://mega.nz/#recovery
          *
          * You take the ownership of the returned value.
          *

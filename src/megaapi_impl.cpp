@@ -5109,19 +5109,19 @@ void MegaApiImpl::exportnode_result(error result)
 
 void MegaApiImpl::exportnode_result(handle h, handle ph)
 {
-	Node* n;
+    Node* n;
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
 
-	if ((n = client->nodebyhandle(h)))
-	{
-		char node[9];
-		char key[FILENODEKEYLENGTH*4/3+3];
+    if ((n = client->nodebyhandle(h)))
+    {
+        char node[9];
+        char key[FILENODEKEYLENGTH*4/3+3];
 
-		Base64::btoa((byte*)&ph,MegaClient::NODEHANDLE,node);
+        Base64::btoa((byte*)&ph,MegaClient::NODEHANDLE,node);
 
-		// the key
+        // the key
         if (n->type == FILENODE)
         {
             if(n->nodekey.size()>=FILENODEKEYLENGTH)
@@ -5129,27 +5129,27 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
             else
                 key[0]=0;
         }
-		else if (n->sharekey) Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
-		else
-		{
+        else if (n->sharekey) Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+        else
+        {
             fireOnRequestFinish(request, MegaError(MegaError::API_EKEY));
-			return;
-		}
+            return;
+        }
 
-		string link = "https://mega.co.nz/#";
-		link += (n->type ? "F" : "");
-		link += "!";
-		link += node;
-		link += "!";
-		link += key;
-		request->setLink(link.c_str());
+        string link = "https://mega.nz/#";
+        link += (n->type ? "F" : "");
+        link += "!";
+        link += node;
+        link += "!";
+        link += key;
+        request->setLink(link.c_str());
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
-	}
-	else
-	{
-		request->setNodeHandle(UNDEF);
+    }
+    else
+    {
+        request->setNodeHandle(UNDEF);
         fireOnRequestFinish(request, MegaError(MegaError::API_ENOENT));
-	}
+    }
 }
 
 // the requested link could not be opened
