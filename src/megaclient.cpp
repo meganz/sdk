@@ -4689,8 +4689,6 @@ void MegaClient::notifynode(Node* n)
         // is this a synced node that is not a sync root, or a new node in a
         // synced folder?
         // FIXME: aggregate subtrees!
-
-
         if (n->localnode && n->localnode->parent)
         {
             n->localnode->deleted = n->changed.removed;
@@ -4698,14 +4696,14 @@ void MegaClient::notifynode(Node* n)
 
         if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
         {
-            if(n->localnode)
+            if (n->localnode)
             {
                 n->localnode->deleted = n->changed.removed;
             }
 
             if (!n->changed.removed && n->changed.parent)
             {
-                if(!n->localnode)
+                if (!n->localnode)
                 {
                     if (n->type == FOLDERNODE)
                     {
