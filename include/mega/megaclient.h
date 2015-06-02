@@ -111,7 +111,8 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    string *sessiontransferdata(const char*);
+    // if the second parameter isn't NULL, it's used as session id instead of the current one
+    string *sessiontransferdata(const char*, string* = NULL);
 
     // Kill session id
     void killsession(handle session);

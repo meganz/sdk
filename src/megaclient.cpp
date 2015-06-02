@@ -4193,7 +4193,7 @@ void MegaClient::copysession()
     reqs[r].add(new CommandCopySession(this));
 }
 
-string *MegaClient::sessiontransferdata(const char *url)
+string *MegaClient::sessiontransferdata(const char *url, string *session)
 {
     if (loggedin() != FULLACCOUNT)
     {
@@ -4211,10 +4211,18 @@ string *MegaClient::sessiontransferdata(const char *url)
     ss << aeskey << ",\"";
 
     // add session ID
-    string sids;
-    sids.resize(sid.size() * 4 / 3 + 4);
-    sids.resize(Base64::btoa((byte *)sid.data(), sid.size(), (char *)sids.data()));
-    ss << sids << "\",\"";
+    if(session)
+    {
+        ss << *session;
+    }
+    else
+    {
+        string sids;
+        sids.resize(sid.size() * 4 / 3 + 4);
+        sids.resize(Base64::btoa((byte *)sid.data(), sid.size(), (char *)sids.data()));
+        ss << sids;
+    }
+    ss << "\",\"";
 
     // add URL
     if (url)

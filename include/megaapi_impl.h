@@ -839,7 +839,7 @@ class MegaApiImpl : public MegaApp
         //Utils
         char *getBase64PwKey(const char *password);
         char *getStringHash(const char* base64pwkey, const char* inBuf);
-        const char* getSessionTransferURL(const char *path);
+        void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static char *handleToBase64(MegaHandle handle);

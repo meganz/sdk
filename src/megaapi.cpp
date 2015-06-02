@@ -858,9 +858,9 @@ char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
     return pImpl->getStringHash(base64pwkey, inBuf);
 }
 
-const char *MegaApi::getSessionTransferURL(const char *path)
+void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
 {
-    return pImpl->getSessionTransferURL(path);
+    pImpl->getSessionTransferURL(path, listener);
 }
 
 MegaHandle MegaApi::base32ToHandle(const char *base32Handle)
