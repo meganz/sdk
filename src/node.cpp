@@ -1267,7 +1267,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         if (node)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
-            sync->client->execmovetosyncdebris();
+            sync->client->execsyncdeletions();
         }
 
         h = parent->node->nodehandle;
