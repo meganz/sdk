@@ -187,7 +187,7 @@ MegaNode *MegaNodePrivate::copy()
 	return new MegaNodePrivate(this);
 }
 
-const char *MegaNodePrivate::getBase64Handle()
+char *MegaNodePrivate::getBase64Handle()
 {
     char *base64Handle = new char[12];
     Base64::btoa((byte*)&(nodehandle),MegaClient::NODEHANDLE,base64Handle);
@@ -229,7 +229,7 @@ string *MegaNodePrivate::getNodeKey()
     return &nodekey;
 }
 
-const char *MegaNodePrivate::getBase64Key()
+char *MegaNodePrivate::getBase64Key()
 {
     char *key = NULL;
 
@@ -1914,7 +1914,7 @@ int MegaApiImpl::isLoggedIn()
 	return result;
 }
 
-const char* MegaApiImpl::getMyEmail()
+char* MegaApiImpl::getMyEmail()
 {
 	User* u;
     sdkMutex.lock();
@@ -1924,7 +1924,7 @@ const char* MegaApiImpl::getMyEmail()
 		return NULL;
 	}
 
-    const char *result = MegaApi::strdup(u->email.c_str());
+    char *result = MegaApi::strdup(u->email.c_str());
     sdkMutex.unlock();
     return result;
 }
@@ -1957,7 +1957,7 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     externalLogger->postLog(logLevel, message, filename, line);
 }
 
-const char* MegaApiImpl::getBase64PwKey(const char *password)
+char* MegaApiImpl::getBase64PwKey(const char *password)
 {
 	if(!password) return NULL;
 
@@ -1971,7 +1971,7 @@ const char* MegaApiImpl::getBase64PwKey(const char *password)
 	return buf;
 }
 
-const char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
+char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
 {
 	if(!base64pwkey || !inBuf) return NULL;
 
@@ -2028,14 +2028,14 @@ handle MegaApiImpl::base64ToHandle(const char* base64Handle)
     return h;
 }
 
-const char *MegaApiImpl::handleToBase64(MegaHandle handle)
+char *MegaApiImpl::handleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[12];
     Base64::btoa((byte*)&(handle),MegaClient::NODEHANDLE,base64Handle);
     return base64Handle;
 }
 
-const char *MegaApiImpl::userHandleToBase64(MegaHandle handle)
+char *MegaApiImpl::userHandleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[14];
     Base64::btoa((byte*)&(handle),MegaClient::USERHANDLE,base64Handle);
@@ -2131,7 +2131,7 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
     waiter->notify();
 }
 
-const char *MegaApiImpl::dumpSession()
+char *MegaApiImpl::dumpSession()
 {
     sdkMutex.lock();
     byte session[64];
@@ -2148,7 +2148,7 @@ const char *MegaApiImpl::dumpSession()
     return buf;
 }
 
-const char *MegaApiImpl::dumpXMPPSession()
+char *MegaApiImpl::dumpXMPPSession()
 {
     sdkMutex.lock();
     byte session[64];
@@ -2627,7 +2627,7 @@ void MegaApiImpl::creditCardCancelSubscriptions(MegaRequestListener *listener)
     waiter->notify();
 }
 
-const char *MegaApiImpl::exportMasterKey()
+char *MegaApiImpl::exportMasterKey()
 {
     sdkMutex.lock();
     byte session[64];
@@ -3378,7 +3378,7 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
-const char *MegaApiImpl::nameToLocal(const char *name)
+char *MegaApiImpl::nameToLocal(const char *name)
 {
     if(!name)
     {
@@ -3390,7 +3390,7 @@ const char *MegaApiImpl::nameToLocal(const char *name)
     return MegaApi::strdup(local.c_str());
 }
 
-const char *MegaApiImpl::localToName(const char *localName)
+char *MegaApiImpl::localToName(const char *localName)
 {
     if(!localName)
     {
@@ -3788,7 +3788,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
     return result;
 }
 
-const char *MegaApiImpl::getFingerprint(const char *filePath)
+char *MegaApiImpl::getFingerprint(const char *filePath)
 {
     if(!filePath) return NULL;
 
@@ -3823,7 +3823,7 @@ const char *MegaApiImpl::getFingerprint(const char *filePath)
     return MegaApi::strdup(result.c_str());
 }
 
-const char *MegaApiImpl::getFingerprint(MegaNode *n)
+char *MegaApiImpl::getFingerprint(MegaNode *n)
 {
     if(!n) return NULL;
 
@@ -3885,7 +3885,7 @@ bool MegaApiImpl::hasFingerprint(const char *fingerprint)
     return (getNodeByFingerprintInternal(fingerprint) != NULL);
 }
 
-const char *MegaApiImpl::getCRC(const char *filePath)
+char *MegaApiImpl::getCRC(const char *filePath)
 {
     if(!filePath) return NULL;
 
@@ -3909,7 +3909,7 @@ const char *MegaApiImpl::getCRC(const char *filePath)
     return MegaApi::strdup(result.c_str());
 }
 
-const char *MegaApiImpl::getCRC(MegaNode *n)
+char *MegaApiImpl::getCRC(MegaNode *n)
 {
     if(!n) return NULL;
 
@@ -6350,7 +6350,7 @@ MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 	return result;
 }
 
-const char* MegaApiImpl::getNodePath(MegaNode *node)
+char* MegaApiImpl::getNodePath(MegaNode *node)
 {
     if(!node) return NULL;
 
@@ -8170,12 +8170,12 @@ int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
     return details.subscription_renew;
 }
 
-const char *MegaAccountDetailsPrivate::getSubscriptionMethod()
+char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 {
     return MegaApi::strdup(details.subscription_method.c_str());
 }
 
-const char *MegaAccountDetailsPrivate::getSubscriptionCycle()
+char *MegaAccountDetailsPrivate::getSubscriptionCycle()
 {
     return MegaApi::strdup(details.subscription_cycle);
 }
@@ -8731,7 +8731,7 @@ double MegaAccountBalancePrivate::getAmount() const
     return balance.amount;
 }
 
-const char *MegaAccountBalancePrivate::getCurrency() const
+char *MegaAccountBalancePrivate::getCurrency() const
 {
     return MegaApi::strdup(balance.currency);
 }
@@ -8766,17 +8766,17 @@ int64_t MegaAccountSessionPrivate::getMostRecentUsage() const
     return session.mru;
 }
 
-const char *MegaAccountSessionPrivate::getUserAgent() const
+char *MegaAccountSessionPrivate::getUserAgent() const
 {
     return MegaApi::strdup(session.useragent.c_str());
 }
 
-const char *MegaAccountSessionPrivate::getIP() const
+char *MegaAccountSessionPrivate::getIP() const
 {
     return MegaApi::strdup(session.ip.c_str());
 }
 
-const char *MegaAccountSessionPrivate::getCountry() const
+char *MegaAccountSessionPrivate::getCountry() const
 {
     return MegaApi::strdup(session.country);
 }
@@ -8822,12 +8822,12 @@ int64_t MegaAccountPurchasePrivate::getTimestamp() const
     return purchase.timestamp;
 }
 
-const char *MegaAccountPurchasePrivate::getHandle() const
+char *MegaAccountPurchasePrivate::getHandle() const
 {
     return MegaApi::strdup(purchase.handle);
 }
 
-const char *MegaAccountPurchasePrivate::getCurrency() const
+char *MegaAccountPurchasePrivate::getCurrency() const
 {
     return MegaApi::strdup(purchase.currency);
 }
@@ -8868,12 +8868,12 @@ int64_t MegaAccountTransactionPrivate::getTimestamp() const
     return transaction.timestamp;
 }
 
-const char *MegaAccountTransactionPrivate::getHandle() const
+char *MegaAccountTransactionPrivate::getHandle() const
 {
     return MegaApi::strdup(transaction.handle);
 }
 
-const char *MegaAccountTransactionPrivate::getCurrency() const
+char *MegaAccountTransactionPrivate::getCurrency() const
 {
     return MegaApi::strdup(transaction.currency);
 }

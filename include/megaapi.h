@@ -452,7 +452,7 @@ class MegaNode
          *
          * @return Base64-encoded handle of the node
          */
-        virtual const char* getBase64Handle();
+        virtual char* getBase64Handle();
 
         /**
          * @brief Returns the size of the node
@@ -500,7 +500,7 @@ class MegaNode
          *
          * @return Returns the key of the node.
          */
-        virtual const char* getBase64Key();
+        virtual char* getBase64Key();
 
         /**
          * @brief Returns the tag of the operation that created/modified this node in MEGA
@@ -814,7 +814,10 @@ class MegaShare
         /**
          * @brief Returns the email of the user with whom we are sharing the folder
          *
-         * For public shared folders, this function return NULL
+         * For public shared folders, this function returns NULL
+         *
+         * The MegaShare object retains the ownership of the returned string, it will be valid until
+         * the MegaShare object is deleted.
          *
          * @return The email of the user with whom we share the folder, or NULL if it's a public folder
          */
@@ -1392,6 +1395,9 @@ class MegaRequest
         /**
          * @brief Returns a text relative to this request
          *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * This value is valid for these requests:
          * - MegaApi::submitFeedback - Returns the comment about the app
          * - MegaApi::reportDebugEvent - Returns the debug message
@@ -1538,6 +1544,10 @@ class MegaTransfer
 
         /**
          * @brief Returns a readable string showing the type of transfer (UPLOAD, DOWNLOAD)
+         *
+         * This function returns a pointer to a statically allocated buffer.
+         * You don't have to free the returned pointer
+         *
          * @return Readable string showing the type of transfer (UPLOAD, DOWNLOAD)
          */
         virtual const char *getTransferString() const;
@@ -1600,6 +1610,9 @@ class MegaTransfer
          * For uploads, this function returns the path to the source file. For downloads, it
          * returns the path of the destination file.
          *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaTransfer object is deleted.
+         *
          * @return Local path related to this transfer
          */
         virtual const char* getPath() const;
@@ -1609,6 +1622,9 @@ class MegaTransfer
          *
          * For uploads, this function returns the path to the folder containing the source file.
          * For downloads, it returns that path to the folder containing the destination file.
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaTransfer object is deleted.
          *
          * @return Parent path related to this transfer
          */
@@ -1663,6 +1679,9 @@ class MegaTransfer
 		 * It's possible to upload a file with a different name (MegaApi::startUpload). In that case,
 		 * this function returns the destination name.
 		 *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaTransfer object is deleted.
+         *
 		 * @return Name of the file that is being transferred
 		 */
 		virtual const char* getFileName() const;
@@ -2977,7 +2996,7 @@ class MegaApi
          * @param password Access password
          * @return Base64-encoded private key
          */
-        const char* getBase64PwKey(const char *password);
+        char* getBase64PwKey(const char *password);
 
         /**
          * @brief Generates a hash based in the provided private key and email
@@ -2992,7 +3011,7 @@ class MegaApi
          * @param email Email to create the hash
          * @return Base64-encoded hash
          */
-        const char* getStringHash(const char* base64pwkey, const char* email);
+        char* getStringHash(const char* base64pwkey, const char* email);
 
         /**
          * @brief Converts a Base32-encoded user handle (JID) to a MegaHandle
@@ -3022,7 +3041,7 @@ class MegaApi
          * @param handle Node handle to be converted
          * @return Base64-encoded node handle
          */
-        static const char* handleToBase64(MegaHandle handle);
+        static char* handleToBase64(MegaHandle handle);
 
         /**
          * @brief Converts a MegaHandle to a Base64-encoded string
@@ -3033,7 +3052,7 @@ class MegaApi
          * @param User handle to be converted
          * @return Base64-encoded user handle
          */
-        static const char* userHandleToBase64(MegaHandle handle);
+        static char* userHandleToBase64(MegaHandle handle);
 
         /**
          * @brief Add entropy to internal random number generators
@@ -3214,7 +3233,7 @@ class MegaApi
          *
          * @return Current session key
          */
-        const char *dumpSession();
+        char *dumpSession();
 
         /**
          * @brief Returns the current XMPP session key
@@ -3226,7 +3245,7 @@ class MegaApi
          *
          * @return Current XMPP session key
          */
-        const char *dumpXMPPSession();
+        char *dumpXMPPSession();
 
         /**
          * @brief Initialize the creation of a new MEGA account
@@ -3362,7 +3381,7 @@ class MegaApi
          *
          * @return Email of the account
          */
-        const char* getMyEmail();
+        char* getMyEmail();
 
         /**
          * @brief Set the active log level
@@ -4049,7 +4068,7 @@ class MegaApi
          *
          * @return Base64-encoded master key
          */
-        const char *exportMasterKey();
+        char *exportMasterKey();
 
         /**
          * @brief Change the password of the MEGA account
@@ -4865,7 +4884,7 @@ class MegaApi
          * @param node MegaNode for which the path will be returned
          * @return The path of the node
          */
-        const char* getNodePath(MegaNode *node);
+        char* getNodePath(MegaNode *node);
 
         /**
          * @brief Get the MegaNode in a specific path in the MEGA account
@@ -5017,7 +5036,7 @@ class MegaApi
          * @param filePath Local file path
          * @return Base64-encoded fingerprint for the file
          */
-        const char* getFingerprint(const char *filePath);
+        char* getFingerprint(const char *filePath);
 
         /**
          * @brief Get a Base64-encoded fingerprint for a node
@@ -5029,7 +5048,7 @@ class MegaApi
          * @param node Node for which we want to get the fingerprint
          * @return Base64-encoded fingerprint for the file
          */
-        const char *getFingerprint(MegaNode *node);
+        char *getFingerprint(MegaNode *node);
 
         /**
          * @brief Returns a node with the provided fingerprint
@@ -5081,7 +5100,7 @@ class MegaApi
          * @param filePath Local file path
          * @return Base64-encoded CRC of the file
          */
-        const char* getCRC(const char *filePath);
+        char* getCRC(const char *filePath);
 
         /**
          * @brief getCRC Get the CRC of a node
@@ -5096,7 +5115,7 @@ class MegaApi
          * @param node Node for which we want to get the CRC
          * @return Base64-encoded CRC of the node
          */
-        const char* getCRC(MegaNode *node);
+        char* getCRC(MegaNode *node);
 
         /**
          * @brief getNodeByCRC Returns a node with the provided CRC
@@ -5223,7 +5242,7 @@ class MegaApi
          * @brief Get the User-Agent header used by the SDK
          *
          * The SDK retains the ownership of the returned value. It will be valid until
-         * the MegaApi object is destructed.
+         * the MegaApi object is deleted.
          *
          * @return User-Agent used by the SDK
          */
@@ -5262,7 +5281,7 @@ class MegaApi
          * @param name Name to convert
          * @return Converted name
          */
-        const char* nameToLocal(const char *name);
+        char* nameToLocal(const char *name);
 
         /**
          * @brief Unescape a file name escaped with MegaApi::nameToLocal
@@ -5272,7 +5291,7 @@ class MegaApi
          * @param name Escaped name to convert
          * @return Converted name
          */
-        const char* localToName(const char*localName);
+        char* localToName(const char*localName);
 
         /**
          * @brief Create a thumbnail for an image
@@ -5302,7 +5321,7 @@ class MegaApi
          * @param base64 NULL-terminated Base64 character array
          * @return NULL-terminated Base32 character array
          */
-        static const char *base64ToBase32(const char *base64);
+        static char *base64ToBase32(const char *base64);
 
         /**
          * @brief Convert a Base32 string to Base64
@@ -5316,7 +5335,7 @@ class MegaApi
          * @param base32 NULL-terminated Base32 character array
          * @return NULL-terminated Base64 character array
          */
-        static const char *base32ToBase64(const char *base32);
+        static char *base32ToBase64(const char *base32);
 
         /**
          * @brief loadBalancing Load balancing request
@@ -5419,7 +5438,7 @@ public:
      *
      * @return Currency of the amount
      */
-    virtual const char *getCurrency() const;
+    virtual char *getCurrency() const;
 };
 
 /**
@@ -5452,7 +5471,7 @@ public:
      *
      * @return User-Agent of the creator of the session
      */
-    virtual const char *getUserAgent() const;
+    virtual char *getUserAgent() const;
 
     /**
      * @brief Get the IP address of the client that created the session
@@ -5461,7 +5480,7 @@ public:
      *
      * @return IP address of the creator of the session
      */
-    virtual const char *getIP() const;
+    virtual char *getIP() const;
 
     /**
      * @brief Get the country of the client that created the session
@@ -5470,7 +5489,7 @@ public:
      *
      * @return Country of the creator of the session
      */
-    virtual const char *getCountry() const;
+    virtual char *getCountry() const;
 
     /**
      * @brief Retuns true if the session is the current one
@@ -5519,7 +5538,7 @@ public:
      *
      * @return Handle of the purchase
      */
-    virtual const char *getHandle() const;
+    virtual char *getHandle() const;
 
     /**
      * @brief Get the currency of the purchase
@@ -5528,7 +5547,7 @@ public:
      *
      * @return Currency of the purchase
      */
-    virtual const char* getCurrency() const;
+    virtual char* getCurrency() const;
 
     /**
      * @brief Get the amount of the purchase
@@ -5570,7 +5589,7 @@ public:
      *
      * @return Handle of the transaction
      */
-    virtual const char *getHandle() const;
+    virtual char *getHandle() const;
 
     /**
      * @brief Get the currency of the transaction
@@ -5579,7 +5598,7 @@ public:
      *
      * @return Currency of the transaction
      */
-    virtual const char* getCurrency() const;
+    virtual char* getCurrency() const;
 
     /**
      * @brief Get the amount of the transaction
@@ -5643,7 +5662,7 @@ public:
      *
      * @return Subscription method. For example "Credit Card".
      */
-    virtual const char* getSubscriptionMethod();
+    virtual char* getSubscriptionMethod();
 
     /**
      * @brief Get the subscription cycle
@@ -5653,7 +5672,7 @@ public:
      *
      * @return Subscription cycle
      */
-    virtual const char* getSubscriptionCycle();
+    virtual char* getSubscriptionCycle();
 
     /**
      * @brief Get the maximum storage for the account (in bytes)
@@ -5887,7 +5906,8 @@ public:
     /**
      * @brief Get the currency associated with MegaPricing::getAmount
      *
-     * The SDK retains the ownership of the returned value.
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Currency associated with MegaPricing::getAmount
@@ -5896,6 +5916,10 @@ public:
 
     /**
      * @brief Get a description of the product
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Description of the product
      */
@@ -5903,6 +5927,10 @@ public:
 
     /**
      * @brief getIosID Get the iOS ID of the product
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return iOS ID of the product
      */
@@ -5910,6 +5938,10 @@ public:
 
     /**
      * @brief Get the Android ID of the product
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Android ID of the product
      */

@@ -140,13 +140,13 @@ class MegaNodePrivate : public MegaNode
 		virtual ~MegaNodePrivate();
 		virtual int getType();
 		virtual const char* getName();
-		virtual const char *getBase64Handle();
+        virtual char *getBase64Handle();
 		virtual int64_t getSize();
 		virtual int64_t getCreationTime();
 		virtual int64_t getModificationTime();
 		virtual MegaHandle getHandle();
 		virtual std::string* getNodeKey();
-        virtual const char *getBase64Key();
+        virtual char *getBase64Key();
 		virtual std::string* getAttrString();
 		virtual int getTag();
 		virtual bool isFile();
@@ -501,7 +501,7 @@ public:
     virtual MegaAccountBalance* copy();
 
     virtual double getAmount() const;
-    virtual const char* getCurrency() const;
+    virtual char* getCurrency() const;
 
 protected:
     MegaAccountBalancePrivate(const AccountBalance *balance);
@@ -517,9 +517,9 @@ public:
 
     virtual int64_t getCreationTimestamp() const;
     virtual int64_t getMostRecentUsage() const;
-    virtual const char *getUserAgent() const;
-    virtual const char *getIP() const;
-    virtual const char *getCountry() const;
+    virtual char *getUserAgent() const;
+    virtual char *getIP() const;
+    virtual char *getCountry() const;
     virtual bool isCurrent() const;
     virtual bool isAlive() const;
     virtual MegaHandle getHandle() const;
@@ -537,8 +537,8 @@ public:
     virtual MegaAccountPurchase* copy();
 
     virtual int64_t getTimestamp() const;
-    virtual const char *getHandle() const;
-    virtual const char *getCurrency() const;
+    virtual char *getHandle() const;
+    virtual char *getCurrency() const;
     virtual double getAmount() const;
     virtual int getMethod() const;
 
@@ -555,8 +555,8 @@ public:
     virtual MegaAccountTransaction* copy();
 
     virtual int64_t getTimestamp() const;
-    virtual const char *getHandle() const;
-    virtual const char *getCurrency() const;
+    virtual char *getHandle() const;
+    virtual char *getCurrency() const;
     virtual double getAmount() const;
 
 private:
@@ -574,8 +574,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual int64_t getProExpiration();
         virtual bool isSubscriptionEnabled();
         virtual int64_t getSubscriptionRenewTime();
-        virtual const char* getSubscriptionMethod();
-        virtual const char* getSubscriptionCycle();
+        virtual char* getSubscriptionMethod();
+        virtual char* getSubscriptionCycle();
 
         virtual long long getStorageMax();
         virtual long long getStorageUsed();
@@ -837,20 +837,20 @@ class MegaApiImpl : public MegaApp
         MegaUserList *getCurrentUsers();
 
         //Utils
-        const char* getBase64PwKey(const char *password);
-        const char* getStringHash(const char* base64pwkey, const char* inBuf);
+        char *getBase64PwKey(const char *password);
+        char *getStringHash(const char* base64pwkey, const char* inBuf);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
-        static const char* handleToBase64(MegaHandle handle);
-        static const char* userHandleToBase64(MegaHandle handle);
+        static char *handleToBase64(MegaHandle handle);
+        static char *userHandleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
-        const char *dumpSession();
-        const char *dumpXMPPSession();
+        char *dumpSession();
+        char *dumpXMPPSession();
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
@@ -866,7 +866,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
-        const char* getMyEmail();
+        char* getMyEmail();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
@@ -910,7 +910,7 @@ class MegaApiImpl : public MegaApp
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
         void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
 
-        const char *exportMasterKey();
+        char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void addContact(const char* email, MegaRequestListener* listener=NULL);
@@ -980,7 +980,7 @@ class MegaApiImpl : public MegaApp
         int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
-        const char* getNodePath(MegaNode *node);
+        char *getNodePath(MegaNode *node);
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
         MegaNode *getNodeByHandle(handle handler);
         MegaUserList* getContacts();
@@ -995,15 +995,15 @@ class MegaApiImpl : public MegaApp
         static void removeRecursively(const char *path);
 
         //Fingerprint
-        const char* getFingerprint(const char *filePath);
-        const char *getFingerprint(MegaNode *node);
+        char *getFingerprint(const char *filePath);
+        char *getFingerprint(MegaNode *node);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
 
         //CRC
-        const char* getCRC(const char *filePath);
-        const char* getCRC(MegaNode *node);
+        char *getCRC(const char *filePath);
+        char *getCRC(MegaNode *node);
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 
         //Permissions
@@ -1034,8 +1034,8 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
-        const char* nameToLocal(const char *name);
-        const char* localToName(const char*localName);
+        char *nameToLocal(const char *name);
+        char *localToName(const char*localName);
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
