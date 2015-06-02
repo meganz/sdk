@@ -75,6 +75,8 @@ class MegaApi;
  * in the MegaApi::MegaApi constructor. That way, SDK will use your implementation to generate
  * thumbnails/previews when needed.
  *
+ * The implementation will receive callbacks from an internal worker thread.
+ *
  * Images will be sequentially processed. At first, the SDK will call MegaGfxProcessor::readBitmap
  * with the path of the file. Then, it will call MegaGfxProcessor::getWidth and MegaGfxProcessor::getHeight
  * to get the dimensions of the file (in pixels). After that, the SDK will call
@@ -1861,8 +1863,7 @@ public:
  * to these listeners and allow developers to know the state of the synchronizations and their parameters
  * and
  *
- * Objects of this class aren't live, they are snapshots of the state of the synchronization
- * when the object is created, they are immutable.
+ * The implementation will receive callbacks from an internal worker thread.
  *
  **/
 class MegaSyncListener
@@ -2145,6 +2146,9 @@ public:
  *
  * An implementation of this class can be used to process a node tree passing a pointer to
  * MegaApi::processMegaTree
+ *
+ * The implementation will receive callbacks from an internal worker thread.
+ *
  */
 class MegaTreeProcessor
 {
@@ -2169,6 +2173,8 @@ class MegaTreeProcessor
  * This interface uses MegaRequest objects to provide information of requests. Take into account that not all
  * fields of MegaRequest objects are valid for all requests. See the documentation about each request to know
  * which fields contain useful information for each one.
+ *
+ * The implementation will receive callbacks from an internal worker thread.
  *
  */
 class MegaRequestListener
@@ -2252,6 +2258,8 @@ class MegaRequestListener
  * You can also get information about all transfers using MegaApi::addTransferListener
  *
  * MegaListener objects can also receive information about transfers
+ *
+ * The implementation will receive callbacks from an internal worker thread.
  *
  */
 class MegaTransferListener
@@ -2352,6 +2360,8 @@ class MegaTransferListener
  * You can implement this interface and start receiving events calling MegaApi::addGlobalListener
  *
  * MegaListener objects can also receive global events
+ *
+ * The implementation will receive callbacks from an internal worker thread.
  */
 class MegaGlobalListener
 {
@@ -2417,6 +2427,8 @@ class MegaGlobalListener
  * to get synchronization events separately in future updates-
  *
  * Multiple inheritance isn't used for compatibility with other programming languages
+ *
+ * The implementation will receive callbacks from an internal worker thread.
  *
  */
 class MegaListener
