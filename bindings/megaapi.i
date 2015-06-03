@@ -175,6 +175,7 @@
 %newobject mega::MegaApi::getTransferByTag;
 %newobject mega::MegaApi::getCRC;
 %newobject mega::MegaApi::getNodeByCRC;
+%newobject mega::MegaApi::getSessionTransferURL;
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;

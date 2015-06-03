@@ -839,6 +839,7 @@ class MegaApiImpl : public MegaApp
         //Utils
         char *getBase64PwKey(const char *password);
         char *getStringHash(const char* base64pwkey, const char* inBuf);
+        void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static char *handleToBase64(MegaHandle handle);
@@ -1181,6 +1182,7 @@ protected:
         virtual void creditcardstore_result(error);
         virtual void creditcardquerysubscriptions_result(int, error);
         virtual void creditcardcancelsubscriptions_result(error);
+        virtual void copysession_result(string*, error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);

@@ -1044,8 +1044,8 @@ class MegaRequest
             TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
-            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
-		};
+            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL
+        };
 
         virtual ~MegaRequest();
 
@@ -3012,6 +3012,25 @@ class MegaApi
          * @return Base64-encoded hash
          */
         char* getStringHash(const char* base64pwkey, const char* email);
+
+        /**
+         * @brief Get an URL to transfer the current session to the webclient
+         *
+         * This function creates a new session for the link so logging out in the web client won't log out
+         * the current session.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - URL to open the desired page with the same account
+         *
+         * @param path Path inside https://mega.nz/# that we want to open with the current session
+         *
+         * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getSessionTransferURL(const char *path, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Converts a Base32-encoded user handle (JID) to a MegaHandle

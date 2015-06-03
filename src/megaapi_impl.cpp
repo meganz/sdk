@@ -1403,6 +1403,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREDIT_CARD_STORE: return "CREDIT_CARD_STORE";
         case TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS: return "CREDIT_CARD_QUERY_SUBSCRIPTIONS";
         case TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS: return "CREDIT_CARD_CANCEL_SUBSCRIPTIONS";
+        case TYPE_GET_SESSION_TRANSFER_URL: return "GET_SESSION_TRANSFER_URL";
 	}
     return "UNKNOWN";
 }
@@ -1989,6 +1990,15 @@ char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
 	char* buf = new char[8*4/3+4];
     Base64::btoa((byte*)&strhash, 8, buf);
     return buf;
+}
+
+void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SESSION_TRANSFER_URL);
+    request->setText(path);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
@@ -4922,6 +4932,38 @@ void MegaApiImpl::creditcardstore_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_STORE)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::copysession_result(string *session, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_SESSION_TRANSFER_URL)) return;
+
+    const char *path = request->getText();
+    string *data = NULL;
+    if(e == API_OK)
+    {
+        data = client->sessiontransferdata(path, session);
+    }
+
+    if(data)
+    {
+        data->insert(0, "https://mega.nz/#sitetransfer!");
+    }
+    else
+    {
+        data = new string("https://mega.nz/#");
+        if(path)
+        {
+            data->append(path);
+        }
+    }
+
+    request->setLink(data->c_str());
+    delete data;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -7880,6 +7922,11 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->killsession(handle);
             }
+            break;
+        }
+        case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
+        {
+            client->copysession();
             break;
         }
         default:

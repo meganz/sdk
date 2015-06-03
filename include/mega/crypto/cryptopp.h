@@ -250,6 +250,16 @@ public:
      */
     void gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
 
+    /**
+     * @brief Serialize key for compatibility with the webclient
+     *
+     * The key is serialized to a JSON array like this one:
+     * "[669070598,-250738112,2059051645,-1942187558]"
+     *
+     * @param d string that receives the serialized key
+     */
+    void serializekeyforjs(string *);
+
     void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool);
 
     static void setint64(int64_t, byte*);

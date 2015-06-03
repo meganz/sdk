@@ -276,6 +276,30 @@ void SymmCipher::gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLen
     aesgcm_d.ProcessData(data, data, len);
 }
 
+void SymmCipher::serializekeyforjs(string *d)
+{
+    char invertedkey[BLOCKSIZE];
+    std::stringstream ss;
+
+    ss << "[";
+    for (int i=0; i<BLOCKSIZE; i++)
+    {
+        invertedkey[i] = key[BLOCKSIZE - i - 1];
+    }
+
+    int32_t *k = (int32_t *)invertedkey;
+    for (int i = 3; i >= 0; i--)
+    {
+        ss << k[i];
+        if (i)
+        {
+            ss << ",";
+        }
+    }
+    ss << "]";
+    *d = ss.str();
+}
+
 void SymmCipher::setint64(int64_t value, byte* data)
 {
 #if __BYTE_ORDER == __LITTLE_ENDIAN

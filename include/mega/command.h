@@ -537,6 +537,14 @@ public:
     CommandCreditCardCancelSubscriptions(MegaClient*);
 };
 
+class MEGA_API CommandCopySession : public Command
+{
+public:
+    void procresult();
+
+    CommandCopySession(MegaClient*);
+};
+
 } // namespace
 
 #endif
