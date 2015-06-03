@@ -366,6 +366,7 @@ private:
     void sc_fileattr();
     void sc_userattr();
     bool sc_shares();
+    bool sc_upgrade();
 
     void init();
 

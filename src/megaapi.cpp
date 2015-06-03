@@ -751,6 +751,8 @@ void MegaGlobalListener::onUsersUpdate(MegaApi *, MegaUserList *)
 { }
 void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
+void MegaGlobalListener::onAccountUpdate(MegaApi *)
+{ }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 MegaGlobalListener::~MegaGlobalListener()
@@ -777,7 +779,8 @@ void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
 { }
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
-
+void MegaListener::onAccountUpdate(MegaApi *)
+{ }
 void MegaListener::onReloadNeeded(MegaApi *)
 { }
 

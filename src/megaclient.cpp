@@ -2220,6 +2220,14 @@ bool MegaClient::procsc()
                             case MAKENAMEID2('u', 'a'):
                                 // user attribtue update
                                 sc_userattr();
+                                break;
+
+                            case MAKENAMEID4('p', 's', 't', 's'):
+                                if (sc_upgrade())
+                                {
+                                    app->account_updated();
+                                }
+                                break;
                         }
                     }
                 }
@@ -2828,6 +2836,43 @@ bool MegaClient::sc_shares()
                 }
 
                 return false;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return false;
+                }
+        }
+    }
+}
+
+bool MegaClient::sc_upgrade()
+{
+    string result;
+    bool success = false;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('i', 't'):
+                jsonsc.getint(); // itemclass. For now, it's always 0.
+                break;
+
+            case 'p':
+                jsonsc.getint(); //pro type
+                break;
+
+            case 'r':
+                jsonsc.storeobject(&result);
+                if (result == "s")
+                {
+                   success = true;
+                }
+                break;
+
+            case EOO:
+                return success;
 
             default:
                 if (!jsonsc.storeobject())

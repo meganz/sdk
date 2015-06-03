@@ -1058,6 +1058,7 @@ protected:
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         void fireOnUsersUpdate(MegaUserList *users);
         void fireOnNodesUpdate(MegaNodeList *nodes);
+        void fireOnAccountUpdate();
         void fireOnReloadNeeded();
 
 #ifdef ENABLE_SYNC
@@ -1149,6 +1150,7 @@ protected:
         virtual void unlink_result(handle, error);
         virtual void nodes_updated(Node**, int);
         virtual void users_updated(User**, int);
+        virtual void account_updated();
 
         // password change result
         virtual void changepw_result(error);

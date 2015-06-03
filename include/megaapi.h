@@ -2415,6 +2415,12 @@ class MegaGlobalListener
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
 
         /**
+         * @brief This function is called when the account has been updated (upgraded/downgraded)
+         * @param api MegaApi object connected to the account
+         */
+        virtual void onAccountUpdate(MegaApi *api);
+
+        /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
          * You should call MegaApi::fetchNodes when this callback is received
@@ -2614,6 +2620,12 @@ class MegaListener
          * @param nodes List that contains the new or updated nodes
          */
         virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+
+        /**
+         * @brief This function is called when the account has been updated (upgraded/downgraded)
+         * @param api MegaApi object connected to the account
+         */
+        virtual void onAccountUpdate(MegaApi *api);
 
         /**
          * @brief This function is called when an inconsistency is detected in the local cache

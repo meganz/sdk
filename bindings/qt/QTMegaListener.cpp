@@ -91,6 +91,12 @@ void QTMegaListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaListener::onAccountUpdate(MegaApi *api)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnAccountUpdate);
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaListener::onReloadNeeded(MegaApi *api)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnReloadNeeded);
@@ -155,6 +161,9 @@ void QTMegaListener::customEvent(QEvent *e)
             break;
         case QTMegaEvent::OnNodesUpdate:
             if(listener) listener->onNodesUpdate(event->getMegaApi(), event->getNodes());
+            break;
+        case QTMegaEvent::OnAccountUpdate:
+            if(listener) listener->onAccountUpdate(event->getMegaApi());
             break;
         case QTMegaEvent::OnReloadNeeded:
             if(listener) listener->onReloadNeeded(event->getMegaApi());

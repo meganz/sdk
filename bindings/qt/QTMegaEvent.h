@@ -22,6 +22,7 @@ public:
         OnTransferFinish,
         OnUsersUpdate,
         OnNodesUpdate,
+        OnAccountUpdate,
         OnReloadNeeded
 #if ENABLE_SYNC
         ,
