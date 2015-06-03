@@ -81,3 +81,19 @@ String^ MPricing::getCurrency(int productIndex)
 
 	return utf8currency ? ref new String((wchar_t *)utf16currency.data()) : nullptr;
 }
+
+String^ MPricing::getDescription(int productIndex)
+{
+	if (!pricing) return nullptr;
+
+	std::string utf16description;
+	const char *utf8description = pricing->getDescription(productIndex);
+	MegaApi::utf8ToUtf16(utf8description, &utf16description);
+
+	return utf8description ? ref new String((wchar_t *)utf16description.data()) : nullptr;
+}
+
+MPricing^ MPricing::copy()
+{
+	return pricing ? ref new MPricing(pricing->copy(), true) : nullptr;
+}

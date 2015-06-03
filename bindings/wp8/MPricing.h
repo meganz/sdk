@@ -43,6 +43,8 @@ namespace mega
 		int getMonths(int productIndex);
 		int getAmount(int productIndex);
 		String^ getCurrency(int productIndex);
+		String^ getDescription(int productIndex);
+		MPricing^ copy();
 
 	private:
 		MPricing(MegaPricing *accountDetails, bool cMemoryOwn);

@@ -41,19 +41,34 @@ MegaAccountDetails* MAccountDetails::getCPtr()
 	return accountDetails;
 }
 
-uint64 MAccountDetails::getStorageUsed() 
+MAccountType MAccountDetails::getProLevel()
 {
-	return accountDetails ? accountDetails->getStorageUsed() : 0;
+	return (MAccountType)(accountDetails ? accountDetails->getProLevel() : 0);
 }
 
-uint64 MAccountDetails::getStorageMax() 
+int64 MAccountDetails::getProExpiration()
+{
+	return accountDetails ? accountDetails->getProExpiration() : 0;
+}
+
+MSubscriptionStatus MAccountDetails::getSubscriptionStatus()
+{
+	return (MSubscriptionStatus)(accountDetails ? accountDetails->getSubscriptionStatus() : 0);
+}
+
+int64 MAccountDetails::getSubscriptionRenewTime()
+{
+	return accountDetails ? accountDetails->getSubscriptionRenewTime() : 0;
+}
+
+uint64 MAccountDetails::getStorageMax()
 {
 	return accountDetails ? accountDetails->getStorageMax() : 0;
 }
 
-uint64 MAccountDetails::getTransferOwnUsed()
+uint64 MAccountDetails::getStorageUsed() 
 {
-	return accountDetails ? accountDetails->getTransferOwnUsed() : 0;
+	return accountDetails ? accountDetails->getStorageUsed() : 0;
 }
 
 uint64 MAccountDetails::getTransferMax()
@@ -61,9 +76,14 @@ uint64 MAccountDetails::getTransferMax()
 	return accountDetails ? accountDetails->getTransferMax() : 0;
 }
 
-MAccountType MAccountDetails::getProLevel()
+uint64 MAccountDetails::getTransferOwnUsed()
 {
-	return (MAccountType) (accountDetails ? accountDetails->getProLevel() : 0);
+	return accountDetails ? accountDetails->getTransferOwnUsed() : 0;
+}
+
+int MAccountDetails::getNumUsageItems()
+{
+	return accountDetails ? accountDetails->getNumUsageItems() : 0;
 }
 
 uint64 MAccountDetails::getStorageUsed(uint64 handle)
