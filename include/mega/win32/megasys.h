@@ -70,7 +70,7 @@
 #include <shellapi.h>
 
 #define atoll _atoi64
-#define snprintf _snprintf
+#define snprintf mega_snprintf
 #define _CRT_SECURE_NO_WARNINGS
 
 // FIXME: move to auto-generated file

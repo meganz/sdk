@@ -217,6 +217,11 @@ struct MEGA_API MemAccess
     }
 #endif
 };
+
+#ifdef _WIN32
+int mega_snprintf(char *s, size_t n, const char *format, ...);
+#endif
+
 } // namespace
 
 #endif

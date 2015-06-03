@@ -340,4 +340,24 @@ bool PayCrypter::hybridEncrypt(const string *cleartext, const byte *pubkdata, in
     return true;
 }
 
+#ifdef _WIN32
+int mega_snprintf(char *s, size_t n, const char *format, ...)
+{
+    va_list args;
+    int ret;
+
+    if (!s || n <= 0)
+    {
+        return -1;
+    }
+
+    va_start(args, format);
+    ret = vsnprintf_s(s, n, _TRUNCATE, format, args);
+    va_end(args);
+
+    s[n - 1] = '\0';
+    return ret;
+}
+#endif
+
 } // namespace
