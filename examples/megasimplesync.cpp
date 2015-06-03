@@ -488,7 +488,7 @@ int main(int argc, char *argv[])
 {
 #ifndef ENABLE_SYNC
     cerr << "Synchronization features are disabled" << endl;
-    return 0;
+    return 1;
 #endif
 
     static byte pwkey[SymmCipher::KEYLENGTH];
