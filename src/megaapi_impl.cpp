@@ -6712,7 +6712,7 @@ void MegaApiImpl::sendPendingTransfers()
                 int64_t mtime = transfer->getTime();
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
 
-                if(!localPath || !parent)
+                if(!localPath || !parent || !fileName || !(*fileName))
                 {
                     e = API_EARGS;
                     break;
@@ -7077,7 +7077,7 @@ void MegaApiImpl::sendPendingRequests()
             MegaNode *publicNode = request->getPublicNode();
             const char *newName = request->getName();
 
-            if((!node && !publicNode) || (!target && !email)) { e = API_EARGS; break; }
+            if((!node && !publicNode) || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
 
             if(publicNode)
             {
@@ -7092,7 +7092,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if(target)
                 {
-                    client->putnodes(target->nodehandle,newnode, 1);
+                    client->putnodes(target->nodehandle, newnode, 1);
                 }
                 else
                 {
@@ -7147,20 +7147,20 @@ void MegaApiImpl::sendPendingRequests()
             }
 			break;
 		}
-		case MegaRequest::TYPE_RENAME:
-		{
-			Node* node = client->nodebyhandle(request->getNodeHandle());
-			const char* newName = request->getName();
-			if(!node || !newName) { e = API_EARGS; break; }
+        case MegaRequest::TYPE_RENAME:
+        {
+            Node* node = client->nodebyhandle(request->getNodeHandle());
+            const char* newName = request->getName();
+            if(!node || !newName || !(*newName)) { e = API_EARGS; break; }
 
-			if (!client->checkaccess(node,FULL)) { e = API_EACCESS; break; }
+            if (!client->checkaccess(node,FULL)) { e = API_EACCESS; break; }
 
             string sname = newName;
             fsAccess->normalize(&sname);
             node->attrs.map['n'] = sname;
-			e = client->setattr(node);
-			break;
-		}
+            e = client->setattr(node);
+            break;
+        }
 		case MegaRequest::TYPE_REMOVE:
 		{
 			Node* node = client->nodebyhandle(request->getNodeHandle());
