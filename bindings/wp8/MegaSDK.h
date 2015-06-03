@@ -84,6 +84,11 @@ namespace mega
 		ATTR_TYPE_PREVIEW = 1
 	};
 
+	public enum class MPaymentMethod {
+		PAYMENT_METHOD_BALANCE = 0,
+		PAYMENT_METHOD_CREDIT_CARD = 8
+	};
+
 	public ref class MegaSDK sealed
 	{
 		friend class DelegateMRequestListener;
@@ -180,7 +185,27 @@ namespace mega
 		void getPricing();
 		void getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener);
 		void getPaymentId(uint64 productHandle);
+		void upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener);
+		void upgradeAccount(uint64 productHandle, int paymentMethod);
+		void submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener);
+		void submitPurchaseReceipt(String^ receipt);
+		void creditCardStore(String^ address1, String^ address2, String^ city,
+			String^ province, String^ country, String^ postalcode,
+			String^ firstname, String^ lastname, String^ creditcard,
+			String^ expire_month, String^ expire_year, String^ cv2,
+			MRequestListenerInterface^ listener);
+		void creditCardStore(String^ address1, String^ address2, String^ city,
+			String^ province, String^ country, String^ postalcode,
+			String^ firstname, String^ lastname, String^ creditcard,
+			String^ expire_month, String^ expire_year, String^ cv2);
+
+		void creditCardQuerySubscriptions(MRequestListenerInterface^ listener);
+		void creditCardQuerySubscriptions();
+		void creditCardCancelSubscriptions(MRequestListenerInterface^ listener);
+		void creditCardCancelSubscriptions();
+
 		String^ exportMasterKey();
+		
 		void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
 		void changePassword(String^ oldPassword, String^ newPassword);
 		void addContact(String^ email, MRequestListenerInterface^ listener);

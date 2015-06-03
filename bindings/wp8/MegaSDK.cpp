@@ -954,6 +954,191 @@ void MegaSDK::getPaymentId(uint64 productHandle)
 	megaApi->getPaymentId(productHandle);
 }
 
+void MegaSDK::upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener)
+{
+	megaApi->upgradeAccount(productHandle, paymentMethod, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::upgradeAccount(uint64 productHandle, int paymentMethod)
+{
+	megaApi->upgradeAccount(productHandle, paymentMethod);
+}
+
+void MegaSDK::submitPurchaseReceipt(String^ receipt, MRequestListenerInterface^ listener)
+{
+	std::string utf8receipt;
+	if (receipt != nullptr)
+		MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
+
+	megaApi->submitPurchaseReceipt((receipt != nullptr) ? utf8receipt.c_str() : NULL,
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::submitPurchaseReceipt(String^ receipt)
+{
+	std::string utf8receipt;
+	if (receipt != nullptr)
+		MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
+
+	megaApi->submitPurchaseReceipt((receipt != nullptr) ? utf8receipt.c_str() : NULL);
+}
+
+void MegaSDK::creditCardStore(String^ address1, String^ address2, String^ city,
+	String^ province, String^ country, String^ postalcode,
+	String^ firstname, String^ lastname, String^ creditcard,
+	String^ expire_month, String^ expire_year, String^ cv2,
+	MRequestListenerInterface^ listener)
+{
+	std::string utf8address1;
+	if (address1 != nullptr)
+		MegaApi::utf16ToUtf8(address1->Data(), address1->Length(), &utf8address1);
+
+	std::string utf8address2;
+	if (address2 != nullptr)
+		MegaApi::utf16ToUtf8(address2->Data(), address2->Length(), &utf8address2);
+
+	std::string utf8city;
+	if (city != nullptr)
+		MegaApi::utf16ToUtf8(city->Data(), city->Length(), &utf8city);
+
+	std::string utf8province;
+	if (province != nullptr)
+		MegaApi::utf16ToUtf8(province->Data(), province->Length(), &utf8province);
+
+	std::string utf8country;
+	if (country != nullptr)
+		MegaApi::utf16ToUtf8(country->Data(), country->Length(), &utf8country);
+
+	std::string utf8postalcode;
+	if (postalcode != nullptr)
+		MegaApi::utf16ToUtf8(postalcode->Data(), postalcode->Length(), &utf8postalcode);
+
+	std::string utf8firstname;
+	if (firstname != nullptr)
+		MegaApi::utf16ToUtf8(firstname->Data(), firstname->Length(), &utf8firstname);
+
+	std::string utf8lastname;
+	if (lastname != nullptr)
+		MegaApi::utf16ToUtf8(lastname->Data(), lastname->Length(), &utf8lastname);
+
+	std::string utf8creditcard;
+	if (creditcard != nullptr)
+		MegaApi::utf16ToUtf8(creditcard->Data(), creditcard->Length(), &utf8creditcard);
+
+	std::string utf8expire_month;
+	if (expire_month != nullptr)
+		MegaApi::utf16ToUtf8(expire_month->Data(), expire_month->Length(), &utf8expire_month);
+
+	std::string utf8expire_year;
+	if (expire_year != nullptr)
+		MegaApi::utf16ToUtf8(expire_year->Data(), expire_year->Length(), &utf8expire_year);
+
+	std::string utf8cv2;
+	if (cv2 != nullptr)
+		MegaApi::utf16ToUtf8(cv2->Data(), cv2->Length(), &utf8cv2);
+
+	megaApi->creditCardStore((address1 != nullptr) ? utf8address1.c_str() : NULL,
+		(address2 != nullptr) ? utf8address2.c_str() : NULL,
+		(city != nullptr) ? utf8city.c_str() : NULL,
+		(province != nullptr) ? utf8province.c_str() : NULL,
+		(country != nullptr) ? utf8country.c_str() : NULL,
+		(postalcode != nullptr) ? utf8postalcode.c_str() : NULL,
+		(firstname != nullptr) ? utf8firstname.c_str() : NULL,
+		(lastname != nullptr) ? utf8lastname.c_str() : NULL,
+		(creditcard != nullptr) ? utf8creditcard.c_str() : NULL,
+		(expire_month != nullptr) ? utf8expire_month.c_str() : NULL,
+		(expire_year != nullptr) ? utf8expire_year.c_str() : NULL,
+		(cv2 != nullptr) ? utf8cv2.c_str() : NULL, 
+		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::creditCardStore(String^ address1, String^ address2, String^ city,
+	String^ province, String^ country, String^ postalcode,
+	String^ firstname, String^ lastname, String^ creditcard,
+	String^ expire_month, String^ expire_year, String^ cv2)
+{
+	std::string utf8address1;
+	if (address1 != nullptr)
+		MegaApi::utf16ToUtf8(address1->Data(), address1->Length(), &utf8address1);
+
+	std::string utf8address2;
+	if (address2 != nullptr)
+		MegaApi::utf16ToUtf8(address2->Data(), address2->Length(), &utf8address2);
+
+	std::string utf8city;
+	if (city != nullptr)
+		MegaApi::utf16ToUtf8(city->Data(), city->Length(), &utf8city);
+
+	std::string utf8province;
+	if (province != nullptr)
+		MegaApi::utf16ToUtf8(province->Data(), province->Length(), &utf8province);
+
+	std::string utf8country;
+	if (country != nullptr)
+		MegaApi::utf16ToUtf8(country->Data(), country->Length(), &utf8country);
+
+	std::string utf8postalcode;
+	if (postalcode != nullptr)
+		MegaApi::utf16ToUtf8(postalcode->Data(), postalcode->Length(), &utf8postalcode);
+
+	std::string utf8firstname;
+	if (firstname != nullptr)
+		MegaApi::utf16ToUtf8(firstname->Data(), firstname->Length(), &utf8firstname);
+
+	std::string utf8lastname;
+	if (lastname != nullptr)
+		MegaApi::utf16ToUtf8(lastname->Data(), lastname->Length(), &utf8lastname);
+
+	std::string utf8creditcard;
+	if (creditcard != nullptr)
+		MegaApi::utf16ToUtf8(creditcard->Data(), creditcard->Length(), &utf8creditcard);
+
+	std::string utf8expire_month;
+	if (expire_month != nullptr)
+		MegaApi::utf16ToUtf8(expire_month->Data(), expire_month->Length(), &utf8expire_month);
+
+	std::string utf8expire_year;
+	if (expire_year != nullptr)
+		MegaApi::utf16ToUtf8(expire_year->Data(), expire_year->Length(), &utf8expire_year);
+
+	std::string utf8cv2;
+	if (cv2 != nullptr)
+		MegaApi::utf16ToUtf8(cv2->Data(), cv2->Length(), &utf8cv2);
+
+	megaApi->creditCardStore((address1 != nullptr) ? utf8address1.c_str() : NULL,
+		(address2 != nullptr) ? utf8address2.c_str() : NULL,
+		(city != nullptr) ? utf8city.c_str() : NULL,
+		(province != nullptr) ? utf8province.c_str() : NULL,
+		(country != nullptr) ? utf8country.c_str() : NULL,
+		(postalcode != nullptr) ? utf8postalcode.c_str() : NULL,
+		(firstname != nullptr) ? utf8firstname.c_str() : NULL,
+		(lastname != nullptr) ? utf8lastname.c_str() : NULL,
+		(creditcard != nullptr) ? utf8creditcard.c_str() : NULL,
+		(expire_month != nullptr) ? utf8expire_month.c_str() : NULL,
+		(expire_year != nullptr) ? utf8expire_year.c_str() : NULL,
+		(cv2 != nullptr) ? utf8cv2.c_str() : NULL);
+}
+
+void MegaSDK::creditCardQuerySubscriptions(MRequestListenerInterface^ listener)
+{
+	megaApi->creditCardQuerySubscriptions(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::creditCardQuerySubscriptions()
+{
+	megaApi->creditCardQuerySubscriptions();
+}
+
+void MegaSDK::creditCardCancelSubscriptions(MRequestListenerInterface^ listener)
+{
+	megaApi->creditCardCancelSubscriptions(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::creditCardCancelSubscriptions()
+{
+	megaApi->creditCardCancelSubscriptions();
+}
+
 String^ MegaSDK::exportMasterKey()
 {
 	std::string utf16key;

@@ -30,7 +30,15 @@ namespace mega
 		ACCOUNT_TYPE_FREE = 0,
 		ACCOUNT_TYPE_PROI = 1,
 		ACCOUNT_TYPE_PROII = 2,
-		ACCOUNT_TYPE_PROIII = 3
+		ACCOUNT_TYPE_PROIII = 3,
+		ACCOUNT_TYPE_LITE = 4
+	};
+
+	public enum class MSubscriptionStatus
+	{
+		SUBSCRIPTION_STATUS_NONE = 0,
+		SUBSCRIPTION_STATUS_VALID = 1,
+		SUBSCRIPTION_STATUS_INVALID = 2
 	};
 
 	public ref class MAccountDetails sealed
@@ -39,15 +47,23 @@ namespace mega
 
 	public:
 		virtual ~MAccountDetails();
-		uint64 getStorageUsed();
-		uint64 getStorageMax();
-		uint64 getTransferOwnUsed();
-		uint64 getTransferMax();
 		MAccountType getProLevel();
+		int64 getProExpiration();
+		MSubscriptionStatus getSubscriptionStatus();
+		int64 getSubscriptionRenewTime();
+		//String^ getSubscriptionMethod();
+		//String^ getSubscriptionCycle();
+
+		uint64 getStorageMax();
+		uint64 getStorageUsed();		
+		uint64 getTransferMax();
+		uint64 getTransferOwnUsed();
+		
+		int getNumUsageItems();
 		uint64 getStorageUsed(uint64 handle);
 		uint64 getNumFiles(uint64 handle);
 		uint64 getNumFolders(uint64 handle);
-
+		
 	private:
 		MAccountDetails(MegaAccountDetails *accountDetails, bool cMemoryOwn);
 		MegaAccountDetails *accountDetails;
