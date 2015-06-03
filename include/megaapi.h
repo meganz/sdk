@@ -5650,7 +5650,7 @@ public:
         ACCOUNT_TYPE_PROI = 1,
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
-		ACCOUNT_TYPE_LITE = 4
+        ACCOUNT_TYPE_LITE = 4
     };
 
     enum
@@ -5669,7 +5669,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
-	 * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      */
     virtual int getProLevel();
 
@@ -5924,7 +5924,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
-	 * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      */
     virtual int getProLevel(int productIndex);
 

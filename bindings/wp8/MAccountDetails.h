@@ -51,11 +51,9 @@ namespace mega
 		int64 getProExpiration();
 		MSubscriptionStatus getSubscriptionStatus();
 		int64 getSubscriptionRenewTime();
-		//String^ getSubscriptionMethod();
-		//String^ getSubscriptionCycle();
 
 		uint64 getStorageMax();
-		uint64 getStorageUsed();		
+		uint64 getStorageUsed();
 		uint64 getTransferMax();
 		uint64 getTransferOwnUsed();
 		
@@ -63,7 +61,7 @@ namespace mega
 		uint64 getStorageUsed(uint64 handle);
 		uint64 getNumFiles(uint64 handle);
 		uint64 getNumFolders(uint64 handle);
-		
+
 	private:
 		MAccountDetails(MegaAccountDetails *accountDetails, bool cMemoryOwn);
 		MegaAccountDetails *accountDetails;
