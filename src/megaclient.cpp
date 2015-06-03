@@ -2218,7 +2218,7 @@ bool MegaClient::procsc()
                                 break;
 
                             case MAKENAMEID4('p', 's', 't', 's'):
-                                if(sc_upgrade())
+                                if (sc_upgrade())
                                 {
                                     app->account_updated();
                                 }
@@ -2865,7 +2865,6 @@ bool MegaClient::sc_upgrade()
                    success = true;
                 }
                 break;
-
 
             case EOO:
                 return success;
