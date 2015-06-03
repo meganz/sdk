@@ -5930,7 +5930,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         if ((app->sync_syncable(*it)
              && (*it)->syncdeleted == SYNCDEL_NONE
              && !(*it)->attrstring
-             && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end())
+             && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()
+             && ait->second.size())
          && (l->parent || l->sync->debris != ait->second))
         {
             addchild(&nchildren, &ait->second, *it, &strings);
