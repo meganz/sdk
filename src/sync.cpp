@@ -619,7 +619,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                                         delete l;
 
                                         // ...move remote node out of the way...
-                                        client->execmovetosyncdebris();
+                                        client->execsyncdeletions();
 
                                         // ...and atomically replace with moved one
                                         client->app->syncupdate_local_move(this, it->second, path.c_str());
