@@ -5652,6 +5652,13 @@ public:
         ACCOUNT_TYPE_PROIII = 3
     };
 
+    enum
+    {
+        SUBSCRIPTION_STATUS_NONE = 0,
+        SUBSCRIPTION_STATUS_VALID = 1,
+        SUBSCRIPTION_STATUS_INVALID = 2
+    };
+
     virtual ~MegaAccountDetails();
     /**
      * @brief Get the PRO level of the MEGA account
@@ -5671,14 +5678,26 @@ public:
     virtual int64_t getProExpiration();
 
     /**
-     * @brief Check if there is a subscription enabled
+     * @brief Check if there is a valid subscription
      *
-     * If this function returns true, the PRO account will be automatically
-     * renewed. See MegaAccountDetails::getSubscriptionRenewTime
+     * If this function returns MegaAccountDetails::SUBSCRIPTION_STATUS_VALID,
+     * the PRO account will be automatically renewed.
+     * See MegaAccountDetails::getSubscriptionRenewTime
      *
-     * @return True if the PRO account will be automatically renewed
+     * @return Information about about the subscription status
+     *
+     * Valid return values are:
+     * - MegaAccountDetails::SUBSCRIPTION_STATUS_NONE = 0
+     * There isn't any active subscription
+     *
+     * - MegaAccountDetails::SUBSCRIPTION_STATUS_VALID = 1
+     * There is an active subscription
+     *
+     * - MegaAccountDetails::SUBSCRIPTION_STATUS_INVALID = 2
+     * A subscription exists, but it uses a payment gateway that is no longer valid
+     *
      */
-    virtual bool isSubscriptionEnabled();
+    virtual int getSubscriptionStatus();
 
     /**
      * @brief Get the time when the the PRO account will be renewed

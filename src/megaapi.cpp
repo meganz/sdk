@@ -1850,9 +1850,9 @@ int64_t MegaAccountDetails::getProExpiration()
     return 0;
 }
 
-bool MegaAccountDetails::isSubscriptionEnabled()
+int MegaAccountDetails::getSubscriptionStatus()
 {
-    return false;
+    return 0;
 }
 
 int64_t MegaAccountDetails::getSubscriptionRenewTime()

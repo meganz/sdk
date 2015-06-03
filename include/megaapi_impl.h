@@ -572,7 +572,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 
         virtual int getProLevel();
         virtual int64_t getProExpiration();
-        virtual bool isSubscriptionEnabled();
+        virtual int getSubscriptionStatus();
         virtual int64_t getSubscriptionRenewTime();
         virtual char* getSubscriptionMethod();
         virtual char* getSubscriptionCycle();

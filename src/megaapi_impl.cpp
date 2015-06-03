@@ -8224,9 +8224,19 @@ int64_t MegaAccountDetailsPrivate::getProExpiration()
     return details.pro_until;
 }
 
-bool MegaAccountDetailsPrivate::isSubscriptionEnabled()
+int MegaAccountDetailsPrivate::getSubscriptionStatus()
 {
-    return details.subscription_type != 'O';
+    if(details.subscription_type == 'S')
+    {
+        return MegaAccountDetails::SUBSCRIPTION_STATUS_VALID;
+    }
+
+    if(details.subscription_type == 'R')
+    {
+        return MegaAccountDetails::SUBSCRIPTION_STATUS_INVALID;
+    }
+
+    return MegaAccountDetails::SUBSCRIPTION_STATUS_NONE;
 }
 
 int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
