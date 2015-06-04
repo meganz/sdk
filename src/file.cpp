@@ -152,7 +152,7 @@ void File::displayname(string* dname)
     }
     else
     {
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = transfer->client->nodebyhandle(h)))
         {
@@ -166,7 +166,7 @@ void File::displayname(string* dname)
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
+SyncFileGet::SyncFileGet(Sync* csync, shared_ptr<Node> cn, string* clocalname)
 {
     sync = csync;
 
@@ -245,17 +245,17 @@ void SyncFileGet::prepare()
         transfer->localfilename.append(tmpname);
     }
 
-    if (n->parent && n->parent->localnode)
+    if (n->parenthandle != UNDEF && sync->client->nodebyhandle(n->parenthandle)->localnode)
     {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
+        sync->client->nodebyhandle(n->parenthandle)->localnode->treestate(TREESTATE_SYNCING);
     }
 }
 
 bool SyncFileGet::failed(error e)
 {
-    if (n->parent && n->parent->localnode)
+    if (n->parenthandle != UNDEF && sync->client->nodebyhandle(n->parenthandle)->localnode)
     {
-        n->parent->localnode->treestate(TREESTATE_PENDING);
+        sync->client->nodebyhandle(n->parenthandle)->localnode->treestate(TREESTATE_PENDING);
     }
 
     return File::failed(e);
@@ -268,12 +268,12 @@ void SyncFileGet::updatelocalname()
 
     if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
     {
-        if (n->parent && n->parent->localnode)
+        if (n->parenthandle != UNDEF && n->client->nodebyhandle(n->parenthandle)->localnode)
         {
             string tmpname = ait->second;
 
             sync->client->fsaccess->name2local(&tmpname);
-            n->parent->localnode->getlocalpath(&localname);
+            n->client->nodebyhandle(n->parenthandle)->localnode->getlocalpath(&localname);
 
             localname.append(sync->client->fsaccess->localseparator);
             localname.append(tmpname);

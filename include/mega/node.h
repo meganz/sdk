@@ -81,7 +81,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     MegaClient* client;
 
     // change parent node association
-    bool setparent(Node*);
+    bool setparent(shared_ptr<Node>);
 
     // copy JSON-delimited string
     static void copystring(string*, const char*);
@@ -149,13 +149,13 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     void faspec(string*);
 
     // parent
-    Node* parent;
+//    Node* parent;
 
-    // children
-    node_list children;
+//    // children
+//    node_list children;
 
-    // own position in parent's children
-    node_list::iterator child_it;
+//    // own position in parent's children
+//    node_list::iterator child_it;
 
     // own position in fingerprint set (only valid for file nodes)
     fingerprint_set::iterator fingerprint_it;
@@ -182,12 +182,12 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     int tag;
 
     // check if node is below this node
-    bool isbelow(Node*) const;
+    bool isbelow(shared_ptr<Node>) const;
 
     bool serialize(string*);
-    static Node* unserialize(MegaClient*, string*, node_vector*);
+    static shared_ptr<Node> unserialize(MegaClient*, string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    Node(MegaClient*, vector<shared_ptr<Node>>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 };
 
@@ -214,7 +214,7 @@ struct MEGA_API LocalNode : public File, Cachable
     handlelocalnode_map::iterator fsid_it;
 
     // related cloud node, if any
-    Node* node;
+    shared_ptr<Node> node;
 
     // related pending node creation or NULL
     NewNode* newnode;
@@ -272,7 +272,7 @@ struct MEGA_API LocalNode : public File, Cachable
     void prepare();
     void completed(Transfer*, LocalNode*);
 
-    void setnode(Node*);
+    void setnode(shared_ptr<Node>);
 
     void setnotseen(int);
 

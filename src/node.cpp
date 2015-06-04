@@ -42,8 +42,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     nodehandle = h;
     parenthandle = ph;
 
-    parent = NULL;
-
 #ifdef ENABLE_SYNC
     localnode = NULL;
     syncget = NULL;
@@ -71,9 +69,26 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (client)
     {
-        Node* p;
+        if(parenthandle != UNDEF)
+        {
+            std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
+                    client->nodechildren.equal_range(parenthandle);
+            multimap<handle, handle>::iterator it = range.first;
+            for (; it != range.second; ++it)
+            {
+                if (it->second == nodehandle)
+                {
+                    break;
+                }
+            }
 
-        client->nodes[h] = this;
+            if(it == range.second)
+            {
+                client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
+            }
+        }
+
+        shared_ptr<Node> p;
 
         // folder link access: first returned record defines root node and
         // identity
@@ -93,27 +108,35 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
         {
             setparent(p);
         }
-        else
-        {
-            dp->push_back(this);
-        }
-
-        if (type == FILENODE)
-        {
-            fingerprint_it = client->fingerprints.end();
-        }
     }
 }
 
 Node::~Node()
 {
+    if(!changed.removed)
+    {
+        delete inshare;
+        delete sharekey;
+        return;
+    }
+
     // abort pending direct reads
-    client->preadabort(this);
+    // TODO: Fix this
+    //client->preadabort(shared_ptr<Node>(this));
 
     // remove node's fingerprint from hash
-    if (type == FILENODE && fingerprint_it != client->fingerprints.end())
+    if (type == FILENODE)
     {
-        client->fingerprints.erase(fingerprint_it);
+        string fpstring;
+        serializefingerprint(&fpstring);
+        std::pair<multimap<string, int32_t>::iterator, multimap<string, int32_t>::iterator> range = client->fingerprinttodbid.equal_range(fpstring);
+        multimap<string, int32_t>::iterator it = range.first;
+        for (; it != range.second; ++it) {
+            if (it->second == dbid) {
+                client->fingerprinttodbid.erase(it);
+                break;
+            }
+        }
     }
 
 #ifdef ENABLE_SYNC
@@ -141,16 +164,14 @@ Node::~Node()
     }
 
     // remove from parent's children
-    if (parent)
-    {
-        parent->children.erase(child_it);
-    }
-
-    // delete child-parent associations (normally not used, as nodes are
-    // deleted bottom-up)
-    for (node_list::iterator it = children.begin(); it != children.end(); it++)
-    {
-        (*it)->parent = NULL;
+    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
+            client->nodechildren.equal_range(parenthandle);
+    multimap<handle, handle>::iterator it = range.first;
+    for (; it != range.second; ++it) {
+        if (it->second == nodehandle) {
+            client->nodechildren.erase(it);
+            break;
+        }
     }
 
     delete inshare;
@@ -180,9 +201,9 @@ void Node::setkey(const byte* newkey)
     setattr();
 }
 
-// parse serialized node and return Node object - updates nodes hash and parent
+// parse serialized node and return shared_ptr<Node> object - updates nodes hash and parent
 // mismatch vector
-Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
+shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 {
     handle h, ph;
     nodetype_t t;
@@ -195,7 +216,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    Node* n;
+    shared_ptr<Node> n;
     int i;
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
@@ -294,7 +315,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = shared_ptr<Node>(new Node(client, dp, h, ph, t, s, u, fa, ts));
 
     if (k)
     {
@@ -378,9 +399,9 @@ bool Node::serialize(string* d)
 
     d->append((char*)&nodehandle, MegaClient::NODEHANDLE);
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        d->append((char*)&parent->nodehandle, MegaClient::NODEHANDLE);
+        d->append((char*)&parenthandle, MegaClient::NODEHANDLE);
     }
     else
     {
@@ -548,9 +569,15 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekey.size() >= sizeof crc)
     {
-        if (fingerprint_it != client->fingerprints.end())
-        {
-            client->fingerprints.erase(fingerprint_it);
+        string fpstring;
+        serializefingerprint(&fpstring);
+        std::pair<multimap<string, int32_t>::iterator, multimap<string, int32_t>::iterator> range = client->fingerprinttodbid.equal_range(fpstring);
+        multimap<string, int32_t>::iterator itfp = range.first;
+        for (; itfp != range.second; ++itfp) {
+            if (itfp->second == dbid) {
+                client->fingerprinttodbid.erase(itfp);
+                break;
+            }
         }
 
         attr_map::iterator it = attrs.map.find('c');
@@ -571,7 +598,9 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        fingerprint_it = client->fingerprints.insert((FileFingerprint*)this);
+        string newfpstring;
+        serializefingerprint(&newfpstring);
+        client->fingerprinttodbid.insert(std::pair<string, int32_t>(newfpstring, dbid));
     }
 }
 
@@ -656,7 +685,7 @@ bool Node::applykey()
             // look for share key if not folder access with folder master key
             if (h != me)
             {
-                Node* n;
+                shared_ptr<Node> n;
 
                 // this is a share node handle - check if we have node and the
                 // share key
@@ -702,23 +731,31 @@ bool Node::applykey()
 }
 
 // returns whether node was moved
-bool Node::setparent(Node* p)
+bool Node::setparent(shared_ptr<Node> p)
 {
-    if (p == parent)
+    if (p->nodehandle == parenthandle)
     {
         return false;
     }
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        parent->children.erase(child_it);
+        std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
+                client->nodechildren.equal_range(parenthandle);
+        multimap<handle, handle>::iterator it = range.first;
+        for (; it != range.second; ++it) {
+            if (it->second == nodehandle) {
+                client->nodechildren.erase(it);
+                break;
+            }
+        }
     }
 
-    parent = p;
+    parenthandle = p->nodehandle;
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        child_it = parent->children.insert(parent->children.end(), this);
+        client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
     }
 
 #ifdef ENABLE_SYNC
@@ -733,13 +770,13 @@ bool Node::setparent(Node* p)
                 break;
             }
 
-            p = p->parent;
+            p = client->nodebyhandle(p->parenthandle);
         }
 
         if (!p)
         {
             TreeProcDelSyncGet tdsg;
-            client->proctree(this, &tdsg);
+            client->proctree(shared_ptr<Node>(this), &tdsg);
         }
     }
 #endif
@@ -748,23 +785,28 @@ bool Node::setparent(Node* p)
 }
 
 // returns 1 if n is under p, 0 otherwise
-bool Node::isbelow(Node* p) const
+bool Node::isbelow(shared_ptr<Node> p) const
 {
-    const Node* n = this;
+    shared_ptr<Node> n;
+    if (nodehandle == p->nodehandle)
+    {
+        return true;
+    }
+    n = client->nodebyhandle(parenthandle);
 
     for (;;)
     {
-        if (!n)
+        if (!n.get())
         {
             return false;
         }
 
-        if (n == p)
+        if (n->nodehandle == p->nodehandle)
         {
             return true;
         }
 
-        n = n->parent;
+        n = client->nodebyhandle(n->parenthandle);
     }
 }
 
@@ -1019,7 +1061,7 @@ void LocalNode::treestate(treestate_t newts)
     dts = ts;
 }
 
-void LocalNode::setnode(Node* cnode)
+void LocalNode::setnode(shared_ptr<Node> cnode)
 {
     if (node && (node != cnode) && node->localnode)
     {
@@ -1280,7 +1322,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - type/size
 // - fsid
 // - parent LocalNode's dbid
-// - corresponding Node handle
+// - corresponding shared_ptr<Node> handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)

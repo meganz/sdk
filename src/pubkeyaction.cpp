@@ -65,7 +65,7 @@ PubKeyActionSendShareKey::PubKeyActionSendShareKey(handle h)
 
 void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 {
-    Node* n;
+    shared_ptr<Node> n;
 
     // only the share owner distributes share keys
     if (u && u->pubk.isvalid() && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n, OWNER))
@@ -82,7 +82,7 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 
 void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 {
-    Node* n;
+    shared_ptr<Node> n;
     int newshare;
 
     // node vanished: bail

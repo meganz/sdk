@@ -53,7 +53,12 @@ bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
         record->dbid = (nextid += IDSPACING) | type;
     }
 
-    return put(record->dbid, &data);
+    bool result = put(record->dbid, &data);
+    if(result)
+    {
+        //Add to cache?
+    }
+    return result;
 }
 
 // get next record, decrypt and unpad

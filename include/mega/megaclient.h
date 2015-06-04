@@ -48,6 +48,11 @@ public:
     // all nodes
     node_map nodes;
 
+
+    map<handle, int32_t> nodehandletodbid;
+    multimap<string, int32_t> fingerprinttodbid;
+    multimap<handle, handle> nodechildren;
+
     // all users
     user_map users;
 
@@ -134,22 +139,23 @@ public:
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
     // update node attributes
-    error setattr(Node*, const char** = NULL, const char* prevattr = NULL);
+    error setattr(shared_ptr<Node>, const char** = NULL, const char* prevattr = NULL);
+    error setattr(shared_ptr<Node>, const char** = NULL);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
     // check node access level
-    int checkaccess(Node*, accesslevel_t);
+    int checkaccess(shared_ptr<Node>, accesslevel_t);
 
     // check if a move operation would succeed
-    error checkmove(Node*, Node*);
+    error checkmove(shared_ptr<Node>, shared_ptr<Node>);
 
     // delete node
-    error unlink(Node*);
+    error unlink(shared_ptr<Node>);
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
+    error rename(shared_ptr<Node>, shared_ptr<Node>, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*);
@@ -157,9 +163,9 @@ public:
     void pausexfers(direction_t, bool, bool = false);
 
     // enqueue/abort direct read
-    void pread(Node*, m_off_t, m_off_t, void*);
+    void pread(shared_ptr<Node>, m_off_t, m_off_t, void*);
     void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
-    void preadabort(Node*, m_off_t = -1, m_off_t = -1);
+    void preadabort(shared_ptr<Node>, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
     // pause flags
@@ -195,7 +201,7 @@ public:
     void putfa(handle, fatype, SymmCipher*, string*);
 
     // queue file attribute retrieval
-    error getfa(Node*, fatype, int = 0);
+    error getfa(shared_ptr<Node>, fatype, int = 0);
     
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
@@ -225,13 +231,13 @@ public:
     error invite(const char*, visibility_t = VISIBLE);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t);
+    void setshare(shared_ptr<Node>, const char*, accesslevel_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int);
+    error exportnode(shared_ptr<Node>, int);
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error addsync(string*, const char*, string*, shared_ptr<Node>, fsfp_t = 0, int = 0);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
@@ -359,7 +365,7 @@ private:
 
     // server-client command processing
     void sc_updatenode();
-    Node* sc_deltree();
+    shared_ptr<Node> sc_deltree();
     void sc_newnodes();
     void sc_contacts();
     void sc_keys();
@@ -371,10 +377,10 @@ private:
     void init();
 
     // add node to vector and return index
-    unsigned addnode(node_vector*, Node*) const;
+    unsigned addnode(node_vector*, shared_ptr<Node>) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+    void addchild(remotenode_map*, string*, shared_ptr<Node>, list<string>*) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -501,9 +507,6 @@ public:
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
 
-    // FileFingerprint to node mapping
-    fingerprint_set fingerprints;
-
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
     handle_vector sharekeyrewrite;
@@ -529,7 +532,7 @@ public:
     void notifyuser(User*);
 
     node_vector nodenotify;
-    void notifynode(Node*);
+    void notifynode(shared_ptr<Node>);
 
     // write changed/added/deleted users to the DB cache and notify the
     // application
@@ -538,8 +541,10 @@ public:
     // remove node subtree
     void deltree(handle);
 
-    Node* nodebyhandle(handle);
-    Node* nodebyfingerprint(FileFingerprint*);
+    shared_ptr<Node> nodebyhandle(handle);
+    shared_ptr<Node> nodebyfingerprint(string *);
+    shared_ptr<Node> nodebydbid(int32_t dbid);
+    shared_ptr<vector<shared_ptr<Node>>> getchildren(shared_ptr<Node> node);
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -612,7 +617,7 @@ public:
     bool syncdown(LocalNode*, string*, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(shared_ptr<Node>, bool);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
@@ -690,7 +695,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    shared_ptr<Node> childnodebyname(shared_ptr<Node>, const char*);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -734,7 +739,7 @@ public:
     void queuepubkeyreq(User*, PubKeyAction*);
 
     // rewrite foreign keys of the node (tree)
-    void rewriteforeignkeys(Node* n);
+    void rewriteforeignkeys(shared_ptr<Node> n);
 
     // simple string hash
     static void stringhash(const char*, byte*, SymmCipher*);
@@ -745,7 +750,7 @@ public:
     void setrootnode(handle);
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false);
+    void proctree(shared_ptr<Node>, TreeProc*, bool skipinshares = false);
 
     // hash password
     error pw_key(const char*, byte*) const;

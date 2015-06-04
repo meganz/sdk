@@ -49,6 +49,7 @@
 #include <iterator>
 #include <queue>
 #include <list>
+#include <memory>
 
 #include <stdio.h>
 #include <stdlib.h>

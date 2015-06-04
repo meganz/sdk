@@ -98,7 +98,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
 
     const char* ptr = req.data();
     const char* endptr = ptr + req.size();
-    Node* n;
+    shared_ptr<Node> n;
     SymmCipher* cipher;
     faf_map::iterator it;
     uint32_t falen = 0;

@@ -163,11 +163,11 @@ class MegaNodePrivate : public MegaNode
         virtual std::string getLocalPath();
 #endif
 
-		static MegaNode *fromNode(Node *node);
+        static MegaNode *fromNode(shared_ptr<Node> node);
 		virtual MegaNode *copy();
 
 	protected:
-		MegaNodePrivate(Node *node);
+        MegaNodePrivate(shared_ptr<Node> node);
 		int type;
 		const char *name;
 		int64_t size;
@@ -642,7 +642,7 @@ class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
         MegaNodeListPrivate();
-        MegaNodeListPrivate(Node** newlist, int size);
+        MegaNodeListPrivate(shared_ptr<Node> *newlist, int size);
         virtual ~MegaNodeListPrivate();
 		virtual MegaNodeList *copy();
 		virtual MegaNode* get(int i);
@@ -714,7 +714,7 @@ struct MegaFileGet : public MegaFile
     void progress();
     void completed(Transfer*, LocalNode*);
     void terminated();
-	MegaFileGet(MegaClient *client, Node* n, string dstPath);
+    MegaFileGet(MegaClient *client, shared_ptr<Node> n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
 	~MegaFileGet() {}
 };
@@ -733,7 +733,7 @@ protected:
 class TreeProcessor
 {
     public:
-        virtual bool processNode(Node* node);
+        virtual bool processNode(shared_ptr<Node> node);
         virtual ~TreeProcessor();
 };
 
@@ -741,20 +741,20 @@ class SearchTreeProcessor : public TreeProcessor
 {
     public:
         SearchTreeProcessor(const char *search);
-        virtual bool processNode(Node* node);
+        virtual bool processNode(shared_ptr<Node> node);
         virtual ~SearchTreeProcessor() {}
-        vector<Node *> &getResults();
+        vector<shared_ptr<Node> > &getResults();
 
     protected:
         const char *search;
-        vector<Node *> results;
+        vector<shared_ptr<Node> > results;
 };
 
 class OutShareProcessor : public TreeProcessor
 {
     public:
         OutShareProcessor();
-        virtual bool processNode(Node* node);
+        virtual bool processNode(shared_ptr<Node> node);
         virtual ~OutShareProcessor() {}
         vector<Share *> &getShares();
         vector<handle> &getHandles();
@@ -771,7 +771,7 @@ class SizeProcessor : public TreeProcessor
 
     public:
         SizeProcessor();
-        virtual bool processNode(Node* node);
+        virtual bool processNode(shared_ptr<Node> node);
         long long getTotalBytes();
 };
 
@@ -1023,16 +1023,16 @@ class MegaApiImpl : public MegaApp
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
-        static bool nodeComparatorDefaultASC  (Node *i, Node *j);
-        static bool nodeComparatorDefaultDESC (Node *i, Node *j);
-        static bool nodeComparatorSizeASC  (Node *i, Node *j);
-        static bool nodeComparatorSizeDESC (Node *i, Node *j);
-        static bool nodeComparatorCreationASC  (Node *i, Node *j);
-        static bool nodeComparatorCreationDESC  (Node *i, Node *j);
-        static bool nodeComparatorModificationASC  (Node *i, Node *j);
-        static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalASC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
+        static bool nodeComparatorDefaultASC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorDefaultDESC (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorSizeASC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorSizeDESC (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorCreationASC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorCreationDESC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorModificationASC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorModificationDESC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorAlphabeticalASC  (shared_ptr<Node> i, shared_ptr<Node> j);
+        static bool nodeComparatorAlphabeticalDESC  (shared_ptr<Node> i, shared_ptr<Node> j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
         char *nameToLocal(const char *name);
@@ -1148,7 +1148,7 @@ protected:
         virtual void setattr_result(handle, error);
         virtual void rename_result(handle, error);
         virtual void unlink_result(handle, error);
-        virtual void nodes_updated(Node**, int);
+        virtual void nodes_updated(shared_ptr<Node> *, int);
         virtual void users_updated(User**, int);
         virtual void account_updated();
 
@@ -1167,7 +1167,7 @@ protected:
         virtual void share_result(int, error);
 
         // file attribute fetch result
-        virtual void fa_complete(Node*, fatype, const char*, uint32_t);
+        virtual void fa_complete(shared_ptr<Node>, fatype, const char*, uint32_t);
         virtual int fa_failed(handle, fatype, int, error);
 
         // file attribute modification result
@@ -1229,17 +1229,17 @@ protected:
         virtual void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode);
         virtual void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path);
         virtual void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path);
-        virtual void syncupdate_get(Sync* sync, Node *node, const char* path);
+        virtual void syncupdate_get(Sync* sync, shared_ptr<Node>, const char* path);
         virtual void syncupdate_put(Sync* sync, LocalNode *localNode, const char*);
-        virtual void syncupdate_remote_file_addition(Sync *sync, Node* n);
-        virtual void syncupdate_remote_file_deletion(Sync *sync, Node* n);
-        virtual void syncupdate_remote_folder_addition(Sync *sync, Node* n);
-        virtual void syncupdate_remote_folder_deletion(Sync* sync, Node* n);
+        virtual void syncupdate_remote_file_addition(Sync *sync, shared_ptr<Node> n);
+        virtual void syncupdate_remote_file_deletion(Sync *sync, shared_ptr<Node> n);
+        virtual void syncupdate_remote_folder_addition(Sync *sync, shared_ptr<Node> n);
+        virtual void syncupdate_remote_folder_deletion(Sync* sync, shared_ptr<Node> n);
         virtual void syncupdate_remote_copy(Sync*, const char*);
         virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
         virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
-        virtual bool sync_syncable(Node*);
+        virtual bool sync_syncable(shared_ptr<Node>);
         virtual bool sync_syncable(const char*name, string*, string*);
         virtual void syncupdate_local_lockretry(bool);
 #endif
@@ -1258,11 +1258,14 @@ protected:
         char *stringToArray(string &buffer);
 
         //Internal
-        Node* getNodeByFingerprintInternal(const char *fingerprint);
-        Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
+        shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
+        shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint, shared_ptr<Node> parent);
 
-        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
+        bool processTree(shared_ptr<Node> node, TreeProcessor* processor, bool recursive = 1);
+        MegaNodeList* search(shared_ptr<Node> node, const char* searchString, bool recursive = 1);
+        shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
+        bool processTree(shared_ptr<Node> node, TreeProcessor* processor, bool recursive = 1);
+        MegaNodeList* search(shared_ptr<Node> node, const char* searchString, bool recursive = 1);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);

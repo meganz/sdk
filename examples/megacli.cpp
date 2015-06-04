@@ -328,27 +328,43 @@ void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
             " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
 }
 
+<<<<<<< HEAD
 void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
 {
     cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
 }
 
 void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
+=======
+void DemoApp::syncupdate_remote_folder_addition(shared_ptr<Node> n)
+>>>>>>> javisdk/nodes_ondemand
 {
     cout << "Sync - remote folder addition detected " << n->displayname() << endl;
 }
 
+<<<<<<< HEAD
 void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
+=======
+void DemoApp::syncupdate_remote_file_addition(shared_ptr<Node> n)
+>>>>>>> javisdk/nodes_ondemand
 {
     cout << "Sync - remote file addition detected " << n->displayname() << endl;
 }
 
+<<<<<<< HEAD
 void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
+=======
+void DemoApp::syncupdate_remote_folder_deletion(shared_ptr<Node> n)
+>>>>>>> javisdk/nodes_ondemand
 {
     cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
 }
 
+<<<<<<< HEAD
 void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
+=======
+void DemoApp::syncupdate_remote_file_deletion(shared_ptr<Node> n)
+>>>>>>> javisdk/nodes_ondemand
 {
     cout << "Sync - remote file deletion detected " << n->displayname() << endl;
 }
@@ -398,7 +414,7 @@ static bool is_syncable(const char* name)
 }
 
 // determines whether remote node should be synced
-bool DemoApp::sync_syncable(Node* n)
+bool DemoApp::sync_syncable(shared_ptr<Node> n)
 {
     return is_syncable(n->displayname());
 }
@@ -410,7 +426,7 @@ bool DemoApp::sync_syncable(const char* name, string* localpath, string* localna
 }
 #endif
 
-AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
+AppFileGet::AppFileGet(shared_ptr<Node> n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint)
 {
     if (n)
@@ -547,7 +563,7 @@ void DemoApp::share_result(int, error e)
     }
 }
 
-void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
+void DemoApp::fa_complete(shared_ptr<Node> n, fatype type, const char* data, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
 }
@@ -664,7 +680,7 @@ static void listtrees()
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
     {
         User* u = &uit->second;
-        Node* n;
+        shared_ptr<Node> n;
 
         if (u->show == VISIBLE || u->sharing.size())
         {
@@ -691,15 +707,15 @@ static void listtrees()
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
-static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+static shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
     vector<string> c;
     string s;
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    Node* n;
-    Node* nn;
+    shared_ptr<Node> n;
+    shared_ptr<Node> nn;
 
     // split path by / or :
     do {
@@ -865,9 +881,9 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
         {
             if (c[l] == "..")
             {
-                if (n->parent)
+				if (client->nodebyhandle(n->parenthandle))
                 {
-                    n = n->parent;
+                    n = client->nodebyhandle(n->parenthandle);
                 }
             }
             else
@@ -900,7 +916,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     return n;
 }
 
-static void listnodeshares(Node* n)
+static void listnodeshares(shared_ptr<Node> n)
 {
     if(n->outshares)
     {
@@ -921,12 +937,12 @@ static void listnodeshares(Node* n)
     }
 }
 
-void TreeProcListOutShares::proc(MegaClient*, Node* n)
+void TreeProcListOutShares::proc(MegaClient*, shared_ptr<Node> n)
 {
     listnodeshares(n);
 }
 
-static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NULL)
+static void dumptree(shared_ptr<Node> n, int recurse, int depth = 0, const char* title = NULL)
 {
     if (depth)
     {
@@ -993,7 +1009,8 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 
     if (n->type != FILENODE)
     {
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+		shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(n);
+        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
         {
             dumptree(*it, recurse, depth + 1);
         }
@@ -1010,7 +1027,7 @@ static void nodepath(handle h, string* path)
         return;
     }
 
-    Node* n = client->nodebyhandle(h);
+    shared_ptr<Node> n = client->nodebyhandle(h);
 
     while (n)
     {
@@ -1052,7 +1069,7 @@ static void nodepath(handle h, string* path)
 
         path->insert(0, "/");
 
-        n = n->parent;
+        n = client->nodebyhandle(n->parenthandle);
     }
 }
 
@@ -1108,7 +1125,7 @@ TreeProcCopy::~TreeProcCopy()
 }
 
 // determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, Node* n)
+void TreeProcCopy::proc(MegaClient* client, shared_ptr<Node> n)
 {
     if (nn)
     {
@@ -1120,7 +1137,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         t->source = NEW_NODE;
         t->type = n->type;
         t->nodehandle = n->nodehandle;
-        t->parenthandle = n->parent->nodehandle;
+        t->parenthandle = n->parenthandle;
 
         // copy key (if file) or generate new key (if folder)
         if (n->type == FILENODE)
@@ -1407,7 +1424,7 @@ static void process_line(char* l)
                 return;
             }
 
-            Node* n;
+            shared_ptr<Node> n;
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
@@ -1544,7 +1561,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "mv")
                     {
-                        Node* tn;
+                        shared_ptr<Node> tn;
                         string newname;
 
                         if (words.size() > 2)
@@ -1596,12 +1613,12 @@ static void process_line(char* l)
                                         if (tn->type == FILENODE)
                                         {
                                             // (there should never be any orphaned filenodes)
-                                            if (!tn->parent)
+                                            if (tn->parenthandle == UNDEF)
                                             {
                                                 return;
                                             }
 
-                                            if ((e = client->checkmove(n, tn->parent)) == API_OK)
+                                            if ((e = client->checkmove(n, client->nodebyhandle(tn->parenthandle))) == API_OK)
                                             {
                                                 if (!client->checkaccess(n, RDWR))
                                                 {
@@ -1632,7 +1649,7 @@ static void process_line(char* l)
                                             }
 
                                             // ...and set target to original target's parent
-                                            tn = tn->parent;
+                                            tn = client->nodebyhandle(tn->parenthandle);
                                         }
                                         else
                                         {
@@ -1640,7 +1657,7 @@ static void process_line(char* l)
                                         }
                                     }
 
-                                    if (n->parent != tn)
+                                    if (n->parenthandle != tn->nodehandle)
                                     {
                                         if (e == API_OK)
                                         {
@@ -1676,7 +1693,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "cp")
                     {
-                        Node* tn;
+                        shared_ptr<Node> tn;
                         string targetuser;
                         string newname;
                         error e;
@@ -1701,7 +1718,7 @@ static void process_line(char* l)
                                             // overwrite target if source and taret are files
 
                                             // (there should never be any orphaned filenodes)
-                                            if (!tn->parent)
+                                            if (tn->parenthandle == UNDEF)
                                             {
                                                 return;
                                             }
@@ -1716,7 +1733,7 @@ static void process_line(char* l)
                                             }
 
                                             // ...and set target to original target's parent
-                                            tn = tn->parent;
+                                            tn = client->nodebyhandle(tn->parenthandle);
                                         }
                                         else
                                         {
@@ -1865,7 +1882,8 @@ static void process_line(char* l)
                                     else
                                     {
                                         // ...or all files in the specified folder (non-recursive)
-                                        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+                                        shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(n);
+										for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
                                         {
                                             if ((*it)->type == FILENODE)
                                             {
@@ -1904,7 +1922,7 @@ static void process_line(char* l)
 
                             if (words.size() > 2)
                             {
-                                Node* n;
+                                shared_ptr<Node> n;
 
                                 if ((n = nodebypath(words[2].c_str(), &targetuser, &newname)))
                                 {
@@ -2000,7 +2018,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 3)
                         {
-                            Node* n = nodebypath(words[2].c_str());
+                            shared_ptr<Node> n = nodebypath(words[2].c_str());
 
                             if (client->checkaccess(n, FULL))
                             {
@@ -2197,7 +2215,7 @@ static void process_line(char* l)
                             case 1:		// list all shares (incoming and outgoing)
                                 {
                                     TreeProcListOutShares listoutshares;
-                                    Node* n;
+                                    shared_ptr<Node> n;
 
                                     cout << "Shared folders:" << endl;
 
@@ -2213,7 +2231,7 @@ static void process_line(char* l)
                                          uit != client->users.end(); uit++)
                                     {
                                         User* u = &uit->second;
-                                        Node* n;
+                                        shared_ptr<Node> n;
 
                                         if (u->show == VISIBLE && u->sharing.size())
                                         {
@@ -2393,7 +2411,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            Node* n;
+                            shared_ptr<Node> n;
                             int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
 
                             if (words.size() < 3)
@@ -2422,7 +2440,8 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-                                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+									shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(n);
+									for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
@@ -2809,7 +2828,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            Node* n;
+                            shared_ptr<Node> n;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
@@ -3163,7 +3182,7 @@ void DemoApp::exportnode_result(error e)
 
 void DemoApp::exportnode_result(handle h, handle ph)
 {
-    Node* n;
+    shared_ptr<Node> n;
 
     if ((n = client->nodebyhandle(h)))
     {
@@ -3213,7 +3232,7 @@ void DemoApp::openfilelink_result(error e)
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                                   string* a, string* fa, int)
 {
-    Node* n;
+    shared_ptr<Node> n;
 
     if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
@@ -3311,7 +3330,7 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(Node** n, int count)
+void DemoApp::nodes_updated(shared_ptr<Node>* n, int count)
 {
     int c[2][6] = { { 0 } };
 

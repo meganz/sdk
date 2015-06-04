@@ -120,7 +120,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n;
+        shared_ptr<Node> n;
 
         if (fa->fopen(&localfilename, true, false))
         {
@@ -155,7 +155,7 @@ void Transfer::complete()
 
                 if (!n->isvalid)
                 {
-                    *(FileFingerprint*)n = fingerprint;
+                    *(FileFingerprint*)n.get() = fingerprint;
 
                     n->serializefingerprint(&n->attrs.map['c']);
                     client->setattr(n);
