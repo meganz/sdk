@@ -58,10 +58,6 @@
 #include <shlwapi.h>
 #endif
 
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
 #endif
 
 #if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
@@ -2592,18 +2588,83 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
 
     sdkMutex.lock();
     User *u = client->finduser(client->me);
-    if(u)
+    if (u)
     {
         email = u->email;
     }
     sdkMutex.unlock();
 
-    if(email.size())
+    if (email.size())
     {
-        int tam = 256 + strlen(firstname) + strlen(lastname) + strlen(creditcard)
-                + strlen(expire_month) + strlen(expire_year) + strlen(cv2) + strlen(address1)
-                + strlen(address2) + strlen(city) + strlen(province) + strlen(postalcode)
-                + strlen(country) + email.size();
+        string saddress1, saddress2, scity, sprovince, scountry, spostalcode;
+        string sfirstname, slastname, screditcard, sexpire_month, sexpire_year, scv2;
+
+        if (address1)
+        {
+           saddress1 = address1;
+        }
+
+        if (address2)
+        {
+            saddress2 = address2;
+        }
+
+        if (city)
+        {
+            scity = city;
+        }
+
+        if (province)
+        {
+            sprovince = province;
+        }
+
+        if (country)
+        {
+            scountry = country;
+        }
+
+        if (postalcode)
+        {
+            spostalcode = postalcode;
+        }
+
+        if (firstname)
+        {
+            sfirstname = firstname;
+        }
+
+        if (lastname)
+        {
+            slastname = lastname;
+        }
+
+        if (creditcard)
+        {
+            screditcard = creditcard;
+            screditcard.erase(remove_if(screditcard.begin(), screditcard.end(),
+                                     not1(ptr_fun(static_cast<int(*)(int)>(isdigit)))), screditcard.end());
+        }
+
+        if (expire_month)
+        {
+            sexpire_month = expire_month;
+        }
+
+        if (expire_year)
+        {
+            sexpire_year = expire_year;
+        }
+
+        if (cv2)
+        {
+            scv2 = cv2;
+        }
+
+        int tam = 256 + sfirstname.size() + slastname.size() + screditcard.size()
+                + sexpire_month.size() + sexpire_year.size() + scv2.size() + saddress1.size()
+                + saddress2.size() + scity.size() + sprovince.size() + spostalcode.size()
+                + scountry.size() + email.size();
 
         char *ccplain = new char[tam];
         snprintf(ccplain, tam, "{\"first_name\":\"%s\",\"last_name\":\"%s\","
@@ -2612,8 +2673,9 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
                 "\"cv2\":\"%s\",\"address1\":\"%s\","
                 "\"address2\":\"%s\",\"city\":\"%s\","
                 "\"province\":\"%s\",\"postal_code\":\"%s\","
-                "\"country_code\":\"%s\",\"email_address\":\"%s\"}", firstname, lastname, creditcard, expire_month,
-                expire_year, cv2,address1, address2, city, province, postalcode, country, email.c_str());
+                "\"country_code\":\"%s\",\"email_address\":\"%s\"}", sfirstname.c_str(), slastname.c_str(),
+                 screditcard.c_str(), sexpire_month.c_str(), sexpire_year.c_str(), scv2.c_str(), saddress1.c_str(),
+                 saddress2.c_str(), scity.c_str(), sprovince.c_str(), spostalcode.c_str(), scountry.c_str(), email.c_str());
 
         request->setText((const char* )ccplain);
         delete ccplain;

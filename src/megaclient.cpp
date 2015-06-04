@@ -4602,17 +4602,6 @@ error MegaClient::creditcardstore(const char *ccplain)
         return API_EARGS;
     }
 
-    byte pubkdata[sizeof(PAYMENT_PUBKEY) * 3 / 4 + 3];
-    int pubkdatalen = Base64::atob(PAYMENT_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
-
-    string ccenc;
-    string ccplain1 = ccplain;
-    PayCrypter payCrypter;
-    if (!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
-    {
-        return API_EARGS;
-    }
-
     string ccnumber, expm, expy, cv2, ccode;
     if (!JSON::extractstringvalue(ccplain, "card_number", &ccnumber)
         || (ccnumber.size() < 10)
@@ -4624,6 +4613,55 @@ error MegaClient::creditcardstore(const char *ccplain)
         || (cv2.size() != 3)
         || !JSON::extractstringvalue(ccplain, "country_code", &ccode)
         || (ccode.size() != 2))
+    {
+        return API_EARGS;
+    }
+
+    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    if (it != ccnumber.end())
+    {
+        return API_EARGS;
+    }
+
+    it = find_if(expm.begin(), expm.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    if (it != expm.end() || atol(expm.c_str()) > 12)
+    {
+        return API_EARGS;
+    }
+
+    it = find_if(expy.begin(), expy.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    if (it != expy.end() || atol(expy.c_str()) < 2015)
+    {
+        return API_EARGS;
+    }
+
+    it = find_if(cv2.begin(), cv2.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    if (it != cv2.end())
+    {
+        return API_EARGS;
+    }
+
+
+    //Luhn algorithm
+    int odd = 1, sum = 0;
+    for (int i = ccnumber.size(); i--; odd = !odd)
+    {
+        int digit = ccnumber[i] - '0';
+        sum += odd ? digit : ((digit < 5) ? 2 * digit : 2 * (digit - 5) + 1);
+    }
+
+    if (sum % 10)
+    {
+        return API_EARGS;
+    }
+
+    byte pubkdata[sizeof(PAYMENT_PUBKEY) * 3 / 4 + 3];
+    int pubkdatalen = Base64::atob(PAYMENT_PUBKEY, (byte *)pubkdata, sizeof(pubkdata));
+
+    string ccenc;
+    string ccplain1 = ccplain;
+    PayCrypter payCrypter;
+    if (!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
     {
         return API_EARGS;
     }
