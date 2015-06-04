@@ -22,9 +22,16 @@
 
 typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeFree = 0,
-    MEGAAccountTypeProI,
-    MEGAAccountTypeProII,
-    MEGAAccountTypeProIII
+    MEGAAccountTypeProI = 1,
+    MEGAAccountTypeProII = 2,
+    MEGAAccountTypeProIII = 3,
+    MEGAAccountTypeLite = 4
+};
+
+typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
+    MEGASubscriptionStatusNone = 0,
+    MEGASubscriptionStatusValid = 1,
+    MEGASubscriptionStatusInvalid = 2
 };
 
 /**
@@ -60,8 +67,73 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
  * - MEGAAccountTypeProI = 1
  * - MEGAAccountTypeProII = 2
  * - MEGAAccountTypeProIII = 3
+ * - MEGAAccountTypeLite = 4
  */
 @property (readonly, nonatomic) MEGAAccountType type;
+
+/**
+ * @brief The expiration time for the current PRO status (in seconds since the Epoch)
+ */
+@property (readonly, nonatomic) NSInteger proExpiration;
+
+/**
+ * @brief Check if there is a valid subscription
+ *
+ * If this value is MEGASubscriptionStatusValid, the PRO account will be 
+ * automatically renewed.
+ * See [MEGAAccountDetails subscriptionRenewTime]
+ *
+ * Information about about the subscription status
+ *
+ * Valid values are:
+ * - MEGASubscriptionStatusNone = 0
+ * There isn't any active subscription
+ *
+ * - MEGASubscriptionStatusNoneValid = 1
+ * There is an active subscription
+ *
+ * - MEGASubscriptionStatusInvalid = 2
+ * A subscription exists, but it uses a payment gateway that is no longer valid
+ *
+ */
+@property (readonly, nonatomic) MEGASubscriptionStatus subscriptionStatus;
+
+/**
+ * @brief The time when the the PRO account will be renewed (in seconds since the Epoch)
+ */
+@property (readonly, nonatomic) NSInteger subscriptionRenewTime;
+
+/**
+ * @brief The subscryption method. For example "Credit Card".
+ *
+ */
+@property (readonly, nonatomic) NSString *subscriptionMethod;
+
+/**
+ * @brief The subscription cycle
+ *
+ * This value will show if the subscription will be montly or yearly renewed.
+ * Example return values: "1 M", "1 Y".
+ *
+ */
+@property (readonly, nonatomic) NSString *subscriptionCycle;
+
+/**
+ * @brief The number of nodes with account usage info
+ *
+ * You can get information about each node using [MEGAAccountDetails storageUsedForHandle:],
+ * [MEGAAccountDetailsn numberFilesForHandle:], [MEGAAccountDetails numberFoldersForHandle:]
+ *
+ * This function can return:
+ * - 0 (no info about any node)
+ * - 3 (info about the root node, the inbox node and the rubbish node)
+ * Use [MEGASdk rootNode], [MEGASdk inboxNode] and [MEGASdk rubbishNode] to get those nodes.
+ *
+ * - >3 (info about root, inbox, rubbish and incoming shares)
+ * Use [MEGASdk inShares] to get the incoming shares
+ *
+ */
+@property (readonly, nonatomic) NSInteger numberUsageItems;
 
 /**
  * @brief Creates a copy of this MEGAAccountDetails object.
@@ -108,5 +180,7 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
 - (NSNumber *)numberFoldersForHandle:(uint64_t)handle;
+
+
 
 @end
