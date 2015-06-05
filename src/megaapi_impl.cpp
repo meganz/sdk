@@ -1842,6 +1842,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeUsers = NULL;
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
+    downloadSpeed = 0;
+    uploadSpeed = 0;
+    uploadPartialBytes = 0;
+    downloadPartialBytes = 0;
 
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
@@ -4173,29 +4177,71 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 
     if(tr->slot)
     {
-        if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported ||
-           (tr->slot->progressreported == tr->size))
+        if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported || (tr->slot->progressreported == tr->size))
         {
-            if(!transfer->getStartTime()) transfer->setStartTime(Waiter::ds);
-            transfer->setDeltaSize(tr->slot->progressreported - transfer->getTransferredBytes());
+            if(!transfer->getStartTime())
+            {
+                transfer->setStartTime(Waiter::ds);
+            }
 
+            m_off_t deltaSize = tr->slot->progressreported - transfer->getTransferredBytes();
+            transfer->setDeltaSize(deltaSize);
+
+            dstime currentTime = Waiter::ds;
+            long long speed = 0;
             if(tr->type == GET)
-                totalDownloadedBytes += transfer->getDeltaSize();
+            {
+                totalDownloadedBytes += deltaSize;
+
+                while(downloadBytes.size())
+                {
+                    dstime deltaTime = currentTime - downloadTimes[0];
+                    if(deltaTime <= 50)
+                    {
+                        break;
+                    }
+
+                    downloadPartialBytes -= downloadBytes[0];
+                    downloadBytes.erase(downloadBytes.begin());
+                    downloadTimes.erase(downloadTimes.begin());
+                }
+
+                downloadBytes.push_back(deltaSize);
+                downloadTimes.push_back(currentTime);
+                downloadPartialBytes += deltaSize;
+
+                downloadSpeed = (downloadPartialBytes * 10) / 50;
+                speed = downloadSpeed;
+            }
             else
-                totalUploadedBytes += transfer->getDeltaSize();
+            {
+                totalUploadedBytes += deltaSize;
+
+                while(uploadBytes.size())
+                {
+                    dstime deltaTime = currentTime - uploadTimes[0];
+                    if(deltaTime <= 50)
+                    {
+                        break;
+                    }
+
+                    uploadPartialBytes -= uploadBytes[0];
+                    uploadBytes.erase(uploadBytes.begin());
+                    uploadTimes.erase(uploadTimes.begin());
+                }
+
+                uploadBytes.push_back(deltaSize);
+                uploadTimes.push_back(currentTime);
+                uploadPartialBytes += deltaSize;
+
+                uploadSpeed = (uploadPartialBytes * 10) / 50;
+                speed = uploadSpeed;
+            }
 
             transfer->setTransferredBytes(tr->slot->progressreported);
 
-            dstime currentTime = Waiter::ds;
-            if(currentTime<transfer->getStartTime())
+            if(currentTime < transfer->getStartTime())
                 transfer->setStartTime(currentTime);
-
-            long long speed = 0;
-            long long deltaTime = currentTime-transfer->getStartTime();
-            if(deltaTime<=0)
-                deltaTime = 1;
-            if(transfer->getTransferredBytes()>0)
-                speed = (10*transfer->getTransferredBytes())/deltaTime;
 
             transfer->setSpeed(speed);
             transfer->setUpdateTime(currentTime);
@@ -5131,6 +5177,14 @@ void MegaApiImpl::logout_result(error e)
         excludedNames.clear();
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
+        uploadSpeed = 0;
+        downloadSpeed = 0;
+        downloadTimes.clear();
+        downloadBytes.clear();
+        uploadTimes.clear();
+        uploadBytes.clear();
+        uploadPartialBytes = 0;
+        downloadPartialBytes = 0;
 
         fireOnRequestFinish(request, MegaError(request->getParamType()));
         return;

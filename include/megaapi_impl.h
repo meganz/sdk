@@ -1082,6 +1082,16 @@ protected:
         map<int, MegaRequestPrivate *> requestMap;
         map<int, MegaTransferPrivate *> transferMap;
 
+        vector<m_time_t> downloadTimes;
+        vector<int64_t> downloadBytes;
+        int64_t downloadPartialBytes;
+        int64_t downloadSpeed;
+
+        vector<m_time_t> uploadTimes;
+        vector<int64_t> uploadBytes;
+        int64_t uploadPartialBytes;
+        int64_t uploadSpeed;
+
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
 #endif
