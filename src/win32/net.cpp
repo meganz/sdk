@@ -315,8 +315,15 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 }
 
                 LOG_debug << "Request finished with HTTP status: " << req->httpstatus;
+                req->status = (req->httpstatus == 200
+                            && (req->contentlength < 0
+                             || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
+                             ? REQ_SUCCESS : REQ_FAILURE;
 
-                req->status = req->httpstatus == 200 ? REQ_SUCCESS : REQ_FAILURE;
+                if (req->status == REQ_SUCCESS)
+                {
+                    httpio->lastdata = Waiter::ds;
+                }
                 httpio->success = true;
             }
             else
