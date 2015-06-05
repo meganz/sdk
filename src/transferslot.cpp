@@ -324,7 +324,7 @@ void TransferSlot::doio(MegaClient* client)
 
         for (int i = connections; i--; )
         {
-            if (reqs[i])
+            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
                 client->setchunkfailed(&reqs[i]->posturl);
                 reqs[i]->disconnect();
