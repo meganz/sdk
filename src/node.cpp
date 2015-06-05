@@ -830,7 +830,7 @@ NodeCore::~NodeCore()
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
     bool newnode = !localname.size();
-    Node* todelete = NULL;
+    shared_ptr<Node> todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
 
@@ -903,7 +903,9 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 assert(parent->node);
                 
                 sync->client->reqtag = sync->tag;
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parenthandle) != API_OK)
+//              I assume that 'node->parenthandle' is correctly set to its value or UNDEF
+//                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
 

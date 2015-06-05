@@ -1236,8 +1236,8 @@ protected:
         virtual void syncupdate_remote_folder_addition(Sync *sync, shared_ptr<Node> n);
         virtual void syncupdate_remote_folder_deletion(Sync* sync, shared_ptr<Node> n);
         virtual void syncupdate_remote_copy(Sync*, const char*);
-        virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
-        virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
+        virtual void syncupdate_remote_move(Sync *sync, shared_ptr<Node> n, shared_ptr<Node> prevparent);
+        virtual void syncupdate_remote_rename(Sync*sync, shared_ptr<Node>  n, const char* prevname);
         virtual void syncupdate_treestate(LocalNode*);
         virtual bool sync_syncable(shared_ptr<Node>);
         virtual bool sync_syncable(const char*name, string*, string*);
@@ -1261,9 +1261,6 @@ protected:
         shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
         shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint, shared_ptr<Node> parent);
 
-        bool processTree(shared_ptr<Node> node, TreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(shared_ptr<Node> node, const char* searchString, bool recursive = 1);
-        shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
         bool processTree(shared_ptr<Node> node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(shared_ptr<Node> node, const char* searchString, bool recursive = 1);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);

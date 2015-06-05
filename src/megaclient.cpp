@@ -2061,7 +2061,7 @@ bool MegaClient::procsc()
     char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
     bool stop = false;
 #endif
-    Node* dn = NULL;
+    shared_ptr<Node> dn = NULL;
 
     for (;;)
     {
@@ -4848,7 +4848,6 @@ void MegaClient::notifynode(shared_ptr<Node> n)
 
         if (n->parenthandle != UNDEF && nodebyhandle(n->parenthandle)->localnode && (!n->localnode || (n->localnode->parent != nodebyhandle(n->parenthandle)->localnode)))
         {
-<<<<<<< HEAD
             if (n->localnode)
             {
                 n->localnode->deleted = n->changed.removed;
@@ -4860,11 +4859,11 @@ void MegaClient::notifynode(shared_ptr<Node> n)
                 {
                     if (n->type == FOLDERNODE)
                     {
-                        app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
+                        app->syncupdate_remote_folder_addition(nodebyhandle(n->parenthandle)->localnode->sync, n);
                     }
                     else
                     {
-                        app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
+                        app->syncupdate_remote_file_addition(nodebyhandle(n->parenthandle)->localnode->sync, n);
                     }
                 }
                 else
@@ -4877,9 +4876,6 @@ void MegaClient::notifynode(shared_ptr<Node> n)
         else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
         {
             app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
-=======
-            n->client->nodebyhandle(n->parenthandle)->localnode->deleted = n->changed.removed;
->>>>>>> javisdk/nodes_ondemand
         }
     }
 #endif
@@ -6910,7 +6906,8 @@ void MegaClient::execmovetosyncdebris()
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
                     reqtag = n->tag;
-                    rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
+                    rename(n, tn, target, n->parenthandle);
+                    // I assume that parenthandle is properly set to its value or UNDEF
                     it++;
                 }
                 else

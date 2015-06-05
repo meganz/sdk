@@ -3586,7 +3586,7 @@ MegaNodeList* MegaApiImpl::getInShares()
 
 		for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
 		{
-            if ((n = client->nodebyhandle(*sit)) && !n->parent)
+            if ((n = client->nodebyhandle(*sit)) && !client->nodebyhandle(n->parenthandle))
 				vNodes.push_back(n);
 		}
 	}
@@ -3943,7 +3943,7 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint, MegaNode* p
 
     MegaNode *result;
     sdkMutex.lock();
-    Node *p = NULL;
+    shared_ptr<Node> p = NULL;
     if(parent)
     {
         p = client->nodebyhandle(parent->getHandle());
@@ -3988,7 +3988,7 @@ char *MegaApiImpl::getCRC(MegaNode *n)
     if(!n) return NULL;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(n->getHandle());
     if(!node || node->type != FILENODE || node->size < 0 || !node->isvalid)
     {
         sdkMutex.unlock();
@@ -4008,7 +4008,7 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     if(!parent) return NULL;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(parent->getHandle());
+    shared_ptr<Node> node = client->nodebyhandle(parent->getHandle());
     if(!node || node->type == FILENODE)
     {
         sdkMutex.unlock();
@@ -4018,9 +4018,10 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     byte binarycrc[sizeof(node->crc)];
     Base64::atob(crc, binarycrc, sizeof(binarycrc));
 
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); it++)
+    shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(node);
+    for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
     {
-        Node *child = (*it);
+        shared_ptr<Node> child = (*it);
         if(!memcmp(child->crc, binarycrc, sizeof(node->crc)))
         {
             MegaNode *result = MegaNodePrivate::fromNode(child);
@@ -4472,7 +4473,7 @@ void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const 
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
+void MegaApiImpl::syncupdate_get(Sync *sync, shared_ptr<Node> node, const char *path)
 {
     LOG_debug << "Sync - requesting file " << path;
 
@@ -4550,11 +4551,11 @@ void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *name)
     LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
 }
 
-void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
+void MegaApiImpl::syncupdate_remote_move(Sync *sync, shared_ptr<Node> n, shared_ptr<Node> prevparent)
 {
     LOG_debug << "Sync - remote move " << n->displayname() <<
                  " from " << (prevparent ? prevparent->displayname() : "?") <<
-                 " to " << (n->parent ? n->parent->displayname() : "?");
+                 " to " << (client->nodebyhandle(n->parenthandle) ? client->nodebyhandle(n->parenthandle)->displayname() : "?");
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4565,7 +4566,7 @@ void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prevname)
+void MegaApiImpl::syncupdate_remote_rename(Sync *sync, shared_ptr<Node> n, const char *prevname)
 {
     LOG_debug << "Sync - remote rename from " << prevname << " to " << n->displayname();
 
@@ -6445,14 +6446,19 @@ shared_ptr<Node> MegaApiImpl::getNodeByFingerprintInternal(const char *fingerpri
 
     fp.size = size;
 
+    string fpstring;
+    fp.serializefingerprint(&fpstring);
+
     sdkMutex.lock();
-    Node *n  = client->nodebyfingerprint(&fp);
-    if(n && parent && n->parent != parent)
+    shared_ptr<Node> n  = client->nodebyfingerprint(&fpstring);
+    if(n && parent && client->nodebyhandle(n->parenthandle) != parent)
     {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+
+        shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(parent);
+        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
         {
-            Node* node = (*it);
-            if(*((FileFingerprint *)node) == *((FileFingerprint *)n))
+            shared_ptr<Node> node = (*it);
+            if(*((FileFingerprint *)node.get()) == *((FileFingerprint *)n.get()))
             {
                 n = node;
                 break;

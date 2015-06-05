@@ -140,7 +140,6 @@ public:
 
     // update node attributes
     error setattr(shared_ptr<Node>, const char** = NULL, const char* prevattr = NULL);
-    error setattr(shared_ptr<Node>, const char** = NULL);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;

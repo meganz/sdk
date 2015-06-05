@@ -635,7 +635,7 @@ void CommandSetAttr::procresult()
 #ifdef ENABLE_SYNC
         if(!e && syncop)
         {
-            Node* node = client->nodebyhandle(h);
+            shared_ptr<Node> node = client->nodebyhandle(h);
             if(node)
             {
                 Sync* sync = NULL;
@@ -936,7 +936,7 @@ void CommandMoveNode::procresult()
         }
         else if(syncop)
         {
-            Node *n = client->nodebyhandle(h);
+            shared_ptr<Node> n = client->nodebyhandle(h);
             if(n)
             {
                 Sync *sync = NULL;
