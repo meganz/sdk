@@ -194,6 +194,8 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                             }
 
+                            progresscompleted -= reqs[i]->size;
+
                             // fail with returned error
                             return transfer->failed((error)atoi(reqs[i]->in.c_str()));
                         }
@@ -215,12 +217,14 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                                 else
                                 {
+                                    progresscompleted -= reqs[i]->size;
                                     return transfer->failed(API_EKEY);
                                 }
                             }
                         }
                         else
                         {
+                            progresscompleted -= reqs[i]->size;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
                             break;
