@@ -59,12 +59,6 @@ def get_versions():
                       configure_ac)
     micro = re.search('m4_define\(\[mega_micro_version\], \[(.+?)\]',
                       configure_ac)
-    # minor = re.search('#define +MEGA_MINOR_VERSION +([0-9]+)',
-    #                   header_content)
-    # patch = re.search('#define +MEGA_MICRO_VERSION +([\S]+)',
-    #                   header_content)
-    # release = re.search('#define +PACKAGE_VERSION +"(.+?)"',
-    #                     header_content)
     if major:
         major, minor, micro = major.group(1), minor.group(1), micro.group(1)
         version = '.'.join([major, minor])

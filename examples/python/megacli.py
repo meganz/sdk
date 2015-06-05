@@ -22,6 +22,8 @@ __author__ = 'Javier Serrano <js@mega.co.nz>'
 import sys
 import os
 import cmd
+import logging
+import time
 
 _wrapper_dir = os.path.join(os.getcwd(), '..', '..', 'bindings', 'python')
 _libs_dir = os.path.join(_wrapper_dir, '.libs')
@@ -34,13 +36,6 @@ from mega import (MegaApi, MegaListener, MegaError, MegaRequest,
                   MegaUser, MegaNode)
 
 
-def println(message):
-    """Unbuffered output to stdout (e. g. console)."""
-    print(message)
-    sys.stdout.write('(MEGA) ')
-    sys.stdout.flush()
-
-
 class AppListener(MegaListener):
     def __init__(self, shell):
         self._shell = shell
@@ -48,12 +43,12 @@ class AppListener(MegaListener):
 
 
     def onRequestStart(self, api, request):
-        println('INFO: Request start ({})'.format(request))
+        logging.info('Request start ({})'.format(request))
 
 
     def onRequestFinish(self, api, request, error):
-        println('INFO: Request finished ({}); Result: {}'
-                .format(request, error))
+        logging.info('Request finished ({}); Result: {}'
+                     .format(request, error))
         if error.getErrorCode() != MegaError.API_OK:
             return
 
@@ -61,51 +56,51 @@ class AppListener(MegaListener):
         if request_type == MegaRequest.TYPE_LOGIN:
             api.fetchNodes()
         elif request_type == MegaRequest.TYPE_EXPORT:
-            println('INFO: Exported link: {}'.format(request.getLink()))
+            logging.info('Exported link: {}'.format(request.getLink()))
         elif request_type == MegaRequest.TYPE_ACCOUNT_DETAILS:
             account_details = request.getMegaAccountDetails()
-            println('INFO: Account details received')
-            println('Account e-mail: {}'.format(api.getMyEmail()))
-            println('Storage: {} of {} ({} \%)'
-                    .format(account_details.getStorageUsed(),
-                            account_details.getStorageMax(),
-                            100 * account_details.getStorageUsed()
-                            / account_details.getStorageMax()))
-            println('Pro level: {}'.format(account_details.getProLevel()))
+            logging.info('Account details received')
+            logging.info('Account e-mail: {}'.format(api.getMyEmail()))
+            logging.info('Storage: {} of {} ({} %)'
+                         .format(account_details.getStorageUsed(),
+                                 account_details.getStorageMax(),
+                                 100 * account_details.getStorageUsed()
+                                 / account_details.getStorageMax()))
+            logging.info('Pro level: {}'.format(account_details.getProLevel()))
 
 
     def onRequestTemporaryError(self, api, request, error):
-        println('INFO: Request temporary error ({}); Error: {}'
+        logging.info('Request temporary error ({}); Error: {}'
                 .format(request, error))
 
 
-
     def onTransferFinish(self, api, transfer, error):
-        println('INFO: Transfer finished ({}); Result: {}'
+        logging.info('Transfer finished ({}); Result: {}'
                 .format(transfer, transfer.getFileName(), error))
 
 
     def onTransferUpdate(self, api, transfer):
-        println('INFO: Transfer update ({} {}); Progress: {} KB of {} KB, {} KB/s'
-                .format(transfer,
-                        transfer.getFileName(),
-                        transfer.getTransferredBytes() / 1024,
-                        transfer.getTotalBytes() / 1024,
-                        transfer.getSpeed() / 1024))
+        logging.info('Transfer update ({} {});'
+                     ' Progress: {} KB of {} KB, {} KB/s'
+                     .format(transfer,
+                             transfer.getFileName(),
+                             transfer.getTransferredBytes() / 1024,
+                             transfer.getTotalBytes() / 1024,
+                             transfer.getSpeed() / 1024))
 
 
     def onTransferTemporaryError(self, api, transfer, error):
-        println('INFO: Transfer temporary error ({} {}); Error: {}'
-                .format(transfer, transfer.getFileName(), error))
+        logging.info('Transfer temporary error ({} {}); Error: {}'
+                     .format(transfer, transfer.getFileName(), error))
 
 
     def onUsersUpdate(self, api, users):
-        println('INFO: Users updated ({})'.format(users.size()))
+        logging.info('Users updated ({})'.format(users.size()))
 
 
     def onNodesUpdate(self, api, nodes):
         if nodes != None:
-            println('INFO: Nodes updated ({})'.format(nodes.size()))
+            logging.info('Nodes updated ({})'.format(nodes.size()))
         else:
             self._shell.cwd = api.getRootNode()
 
@@ -449,20 +444,26 @@ class MegaShell(cmd.Cmd, MegaListener):
         """Usage: quit"""
         del self._api
         print('Bye!')
-        exit()
+        return True
 
 
     def do_exit(self, arg):
         """Usage: exit"""
         del self._api
         print('Bye!')
-        exit()
+        return True
 
 
 if __name__ == '__main__':
+    # Set up logging.
+    logging.basicConfig(level=logging.INFO,
+                        #filename='runner.log',
+                        format='%(levelname)s\t%(asctime)s %(message)s')
+    # Do the work.
     api = MegaApi('ox8xnQZL', None, None, 'Python megacli')
     shell = MegaShell(api)
     listener = AppListener(shell)
     api.addListener(listener)
     api = None
     shell.cmdloop()
+    
