@@ -30,7 +30,11 @@ Output HTML files will be placed in "sdk_check" folder.
 N'SIQ CppCheck is a static code and code style checker. It is
 available as open source from here:
 
-https://code.google.com/p/nsiqcppstyle/
+* Original project location: https://code.google.com/p/nsiqcppstyle/
+
+* For convenience, a version that is updated and reduced in unnecessary
+  stuff is available in an archive on our wiki:
+  https://wiki.developers.mega.co.nz/SoftwareEngineering/CppCodingStyle
 
 Checks can simply be run using the given list of checks as following:
 
@@ -57,6 +61,32 @@ For integration into `vim` use the file `vimcppcheck.vim` included.
 For manual checks just run the make target `cppcheck`:
 
     make cppcheck
+
+
+### Reduced Output Checker
+
+The amount of output can be quite overwhelming. To ease the pain for
+this, the `contrib/` directory contains a `diffcheck.py` tool, which
+extracts the changed lines in code between two branches or two
+commits, and reduces the amount of output produced to only relevant
+entries from all checkers configured.
+
+    contrib/diffcheck.py 97ab5f8e a2f40975  # Between two commits.
+    contrib/diffcheck.py 97ab5f8e           # Against current branch tip.
+    contrib/diffcheck.py master my-feature  # From master tip to feature tip.
+    contrib/diffcheck.py master             # From master to current tip.
+
+This is to ease the enforcement of agreed general style for code
+reviews on merge requests as well as enable developers to check their
+work against a target branch before issuing a merge request to make
+sure things are done correctly. Therefore the number of "round trips"
+for the review process can be significantly reduced.
+
+`diffcheck.py` is configured through `contrib/config.py`, which is
+part of the repository.  If you want to make local adaptations, please
+use `contrib/local_config.py` with local options, which will override
+those from `config.py`.  `local_config.py` will not be committed to
+the repository.
 
 
 ### Code Formatter

@@ -29,23 +29,13 @@ import argparse
 import os
 import re
 import logging
+import tempfile
 import subprocess
 import collections
 import config
 
-JSHINT_BIN = 'node_modules/.bin/jshint'
 JSHINT_RULES = '--verbose'
-JSCS_BIN = 'node_modules/.bin/jscs'
 JSCS_RULES = '--verbose'
-CPPCHECK_BIN = 'cppcheck'
-CPPCHECK_COMMAND = ("{command}"
-                    " --template={{file}};{{line}};{{severity}};{{id}};{{message}}"
-                    " --enable=warning,portability,information,missingInclude"
-                    " --std=c++03 --force"
-                    " --quiet"
-                    " -I include"
-                    " -I include/mega/{platform}"
-                    " src/ examples/")
 PLATFORMS = {'posix': 'posix',
              'nt': 'win32'}
 PROJECT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -106,7 +96,9 @@ def reduce_jshint(file_line_mapping, **extra):
     # Get the JSHint output.
     logging.info('Obtaining JSHint output ...')
     os.chdir(PROJECT_PATH)
-    command = 'node {} {} .'.format(JSHINT_BIN, JSHINT_RULES if not norules else '')
+    rules = config.JSHINT_RULES if not norules else ''
+    command = config.JSHINT_COMMAND.format(binary=config.JSHINT_BIN,
+                                           rules=rules)
     output = None
     try:
         output = subprocess.check_output(command.split())
@@ -149,7 +141,9 @@ def reduce_jscs(file_line_mapping, **extra):
     # Get the JSCS output.
     logging.info('Obtaining JSCS output ...')
     os.chdir(PROJECT_PATH)
-    command = 'node {} {} .'.format(JSCS_BIN, JSCS_RULES if not norules else '')
+    rules = config.JSHINT_RULES if not norules else ''
+    command = config.JSCS_COMMAND.format(binary=config.JSCS_BIN,
+                                         rules=rules)
     output = None
     try:
         output = subprocess.check_output(command.split())
@@ -199,8 +193,8 @@ def reduce_cppcheck(file_line_mapping, **extra):
         
     # Get the CppCheck output.
     os.chdir(PROJECT_PATH)
-    command = CPPCHECK_COMMAND.format(command=CPPCHECK_BIN,
-                                      platform=platform)
+    command = config.CPPCHECK_COMMAND.format(command=config.CPPCHECK_BIN,
+                                             platform=platform)
     output = None
     try:
         output = subprocess.check_output(command.split(),
@@ -230,13 +224,69 @@ def reduce_cppcheck(file_line_mapping, **extra):
     return '\n'.join(result)
 
 
+def reduce_nsiqcppstyle(file_line_mapping, **extra):
+    """
+    Runs N'SIQ CppStyle on the project with the project configured rules.
+    Thet outpu is reduced to only contain entries from the Git change set.
+
+    :param file_line_mapping: Mapping of files with changed lines (obtained
+        `get_git_line_sets()`).
+    :param extra: Optional keyword arguments.
+    :return: A formatted string suitable for output.
+    """
+    logging.info("Obtaining N'SIQ CppStyle output ...")
+    
+    # Get the output.
+    outfile = tempfile.mktemp()
+    os.chdir(PROJECT_PATH)
+    command = config.NSIQCPPSTYLE_COMMAND.format(binary=config.NSIQCPPSTYLE_BIN,
+                                                 outfile=outfile)
+
+    # Just capturing the console output to keep things quiet.
+    consoleoutput = None
+    try:
+        consoleoutput = subprocess.check_output(command.split(),
+                                                stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as ex:
+        # CppCheck found something, so it has returned an error code.
+        # But we still want the output in the same fashion.
+        consoleoutput = ex.output
+
+    # Get the output and delete the outfile.
+    output = open(outfile, 'rt').read().split('\n')
+    os.remove(outfile)
+    
+    # Go through output and collect only relevant lines to the result.
+    logging.debug("Reducing N'SIQ CppStyle output ...")
+    result = ["\nN'SIQ CppStyle output:\n======================\n"]
+    nsiqcppstyle_expression = os.path.join(r'^{}'.format(PROJECT_PATH),
+                                           r'(.+?),(\d+),(.+),')
+    nsiqcppstyle_expression = re.compile(nsiqcppstyle_expression)
+    for line in output:
+        parse_result = nsiqcppstyle_expression.findall(line)
+        # Check if we've got a relevant line.
+        if parse_result:
+            file_name, line_no = parse_result[0][0], int(parse_result[0][1])
+            rest = parse_result[0][2]
+            # Check if the line is part of our selection list.
+            if line_no in file_line_mapping[file_name]:
+                formatted = ', '.join([file_name, str(line_no)]
+                                      + rest.split(','))
+                result.append(formatted)
+
+    # Add the number of errors and return in a nicely formatted way.
+    result.append('\n{} errors'.format(len(result) - 1))
+    return '\n'.join(result)
+
+
 def main(base, target, norules):
     """
     Run the JSHint and JSCS tests and present output ont eh console via print.
     """
     CHECKER_MAPPING = {'jshint': reduce_jshint,
                        'jscs': reduce_jscs,
-                       'cppcheck': reduce_cppcheck}
+                       'cppcheck': reduce_cppcheck,
+                       'nsiqcppstyle': reduce_nsiqcppstyle}
     
     file_line_mapping = get_git_line_sets(base, target)
     results = []

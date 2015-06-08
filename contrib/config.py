@@ -10,8 +10,8 @@ here.
 """
 
 # Checkers to run. Available options for checkers are:
-# "jshint", "jscs", "cppcheck"
-checkers = ['cppcheck']
+# "jshint", "jscs", "cppcheck", "nsiqcppstyle"
+checkers = ['cppcheck', 'nsiqcppstyle']
 
 # Extra options for designated checkers.
 # This configuration needs an entry for every encountered checker if the
@@ -19,8 +19,30 @@ checkers = ['cppcheck']
 extra_options = {
     'jshint': {'norules': False},
     'jscs': {'norules': False},
-    'cppcheck': {}
+    'cppcheck': {},
+    'nsiqcppstyle': {}
 }
+
+# Paths for the executables to use.
+JSHINT_BIN = 'node_modules/.bin/jshint'
+JSCS_BIN = 'node_modules/.bin/jscs'
+CPPCHECK_BIN = 'cppcheck'
+NSIQCPPSTYLE_BIN = '/usr/local/nsiqcppstyle/nsiqcppstyle.py'
+
+# Command line configuration.
+JSHINT_COMMAND = 'node {binary} {rules}'
+JSCS_COMMAND = 'node {binary} {rules}'
+
+CPPCHECK_COMMAND = ("{command}"
+                    " --template={{file}};{{line}};{{severity}};{{id}};{{message}}"
+                    " --enable=warning,portability,information,missingInclude"
+                    " --std=c++03 --force"
+                    " --quiet"
+                    " -I include"
+                    " -I include/mega/{platform}"
+                    " src/ examples/")
+NSIQCPPSTYLE_COMMAND = ('python {binary} --output=csv --ci -o {outfile}'
+                        ' -f contrib/nsiq_filefilter.txt .')
 
 
 # Overlay project-config with a potentially available local configuration.
