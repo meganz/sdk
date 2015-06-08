@@ -322,54 +322,40 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
     }
 }
 
-void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
+void DemoApp::syncupdate_remote_move(Sync *, shared_ptr<Node> n, shared_ptr<Node> prevparent)
 {
+	shared_ptr<Node> parent = client->nodebyhandle(n->parenthandle);
+	
     cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
-            " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
+            " -> " << (parent ? parent->displayname() : "?") << endl;
 }
 
-<<<<<<< HEAD
-void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
+void DemoApp::syncupdate_remote_rename(Sync *, shared_ptr<Node> n, const char *prevname)
 {
     cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
-=======
-void DemoApp::syncupdate_remote_folder_addition(shared_ptr<Node> n)
->>>>>>> javisdk/nodes_ondemand
+void DemoApp::syncupdate_remote_folder_addition(Sync *, shared_ptr<Node> n)
 {
     cout << "Sync - remote folder addition detected " << n->displayname() << endl;
 }
 
-<<<<<<< HEAD
-void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
-=======
-void DemoApp::syncupdate_remote_file_addition(shared_ptr<Node> n)
->>>>>>> javisdk/nodes_ondemand
+void DemoApp::syncupdate_remote_file_addition(Sync *, shared_ptr<Node> n)
 {
     cout << "Sync - remote file addition detected " << n->displayname() << endl;
 }
 
-<<<<<<< HEAD
-void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
-=======
-void DemoApp::syncupdate_remote_folder_deletion(shared_ptr<Node> n)
->>>>>>> javisdk/nodes_ondemand
+void DemoApp::syncupdate_remote_folder_deletion(Sync *, shared_ptr<Node> n)
 {
     cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
 }
 
-<<<<<<< HEAD
-void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
-=======
-void DemoApp::syncupdate_remote_file_deletion(shared_ptr<Node> n)
->>>>>>> javisdk/nodes_ondemand
+void DemoApp::syncupdate_remote_file_deletion(Sync *, shared_ptr<Node> n)
 {
     cout << "Sync - remote file deletion detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
+void DemoApp::syncupdate_get(Sync*, shared_ptr<Node>, const char* path)
 {
     cout << "Sync - requesting file " << path << endl;
 }

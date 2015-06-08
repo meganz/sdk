@@ -1,5 +1,5 @@
 # applications
-EXAMPLES = examples/megacli
+EXAMPLES = examples/megacli examples/megasimplesync
 
 if BUILD_FUSE_EXAMPLE
 EXAMPLES += examples/linux/megafuse

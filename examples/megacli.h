@@ -99,7 +99,7 @@ struct DemoApp : public MegaApp
     void nodes_updated(shared_ptr<Node>*, int);
     void nodes_current();
 
-    int prepare_download(Node*);
+    int prepare_download(shared_ptr<Node>);
 
     void setattr_result(handle, error);
     void rename_result(handle, error);
@@ -112,13 +112,8 @@ struct DemoApp : public MegaApp
     void share_result(error);
     void share_result(int, error);
 
-<<<<<<< HEAD
-    void fa_complete(Node*, fatype, const char*, uint32_t);
-    int fa_failed(handle, fatype, int, error);
-=======
     void fa_complete(shared_ptr<Node>, fatype, const char*, uint32_t);
-    int fa_failed(handle, fatype, int);
->>>>>>> javisdk/nodes_ondemand
+    int fa_failed(handle, fatype, int, error);
 
     void putfa_result(handle, fatype, error);
 
@@ -163,24 +158,15 @@ struct DemoApp : public MegaApp
     void syncupdate_local_file_change(Sync*, LocalNode*, const char*);
     void syncupdate_local_move(Sync*, LocalNode*, const char*);
     void syncupdate_local_lockretry(bool);
-<<<<<<< HEAD
-    void syncupdate_get(Sync*, Node*, const char*);
+    void syncupdate_get(Sync*, shared_ptr<Node>, const char*);
     void syncupdate_put(Sync*, LocalNode*, const char*);
-    void syncupdate_remote_file_addition(Sync*, Node*);
-    void syncupdate_remote_file_deletion(Sync*, Node*);
-    void syncupdate_remote_folder_addition(Sync*, Node*);
-    void syncupdate_remote_folder_deletion(Sync*, Node*);
-=======
-    void syncupdate_get(Sync*, const char*);
-    void syncupdate_put(Sync*, const char*);
-    void syncupdate_remote_file_addition(shared_ptr<Node>);
-    void syncupdate_remote_file_deletion(shared_ptr<Node>);
-    void syncupdate_remote_folder_addition(shared_ptr<Node>);
-    void syncupdate_remote_folder_deletion(shared_ptr<Node>);
->>>>>>> javisdk/nodes_ondemand
+    void syncupdate_remote_file_addition(Sync*, shared_ptr<Node>);
+    void syncupdate_remote_file_deletion(Sync*, shared_ptr<Node>);
+    void syncupdate_remote_folder_addition(Sync*, shared_ptr<Node>);
+    void syncupdate_remote_folder_deletion(Sync*, shared_ptr<Node>);
     void syncupdate_remote_copy(Sync*, const char*);
-    void syncupdate_remote_move(Sync*, Node*, Node*);
-    void syncupdate_remote_rename(Sync*, Node*, const char*);
+    void syncupdate_remote_move(Sync*, shared_ptr<Node>, shared_ptr<Node>);
+    void syncupdate_remote_rename(Sync*, shared_ptr<Node>, const char*);
     void syncupdate_treestate(LocalNode*);
 
     bool sync_syncable(shared_ptr<Node>);
