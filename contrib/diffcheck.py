@@ -259,15 +259,20 @@ def reduce_nsiqcppstyle(file_line_mapping, **extra):
     # Go through output and collect only relevant lines to the result.
     logging.debug("Reducing N'SIQ CppStyle output ...")
     result = ["\nN'SIQ CppStyle output:\n======================\n"]
-    nsiqcppstyle_expression = os.path.join(r'^{}'.format(PROJECT_PATH),
-                                           r'(.+?),(\d+),(.+),')
-    nsiqcppstyle_expression = re.compile(nsiqcppstyle_expression)
+    # This stunt is required to fix Windows path problems with backslashes.
+    base_path = os.path.join(PROJECT_PATH, '')
+    if os.name == 'nt':
+        base_path = base_path.replace('\\', '\\\\')
+    nsiqcppstyle_expression = re.compile(r'^{}(.+?),(\d+),(.+),'
+                                         .format(base_path))
     for line in output:
         parse_result = nsiqcppstyle_expression.findall(line)
         # Check if we've got a relevant line.
         if parse_result:
             file_name, line_no = parse_result[0][0], int(parse_result[0][1])
             rest = parse_result[0][2]
+            if os.name == 'nt':
+                file_name = file_name.replace('\\', '/')
             # Check if the line is part of our selection list.
             if line_no in file_line_mapping[file_name]:
                 formatted = ', '.join([file_name, str(line_no)]
