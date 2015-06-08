@@ -3110,10 +3110,12 @@ void MegaClient::notifypurge(void)
             if (n->attrstring)
             {
                 LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekey.size();
+#ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
                     LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
                 }
+#endif
             }
 
             if (n->changed.removed)
