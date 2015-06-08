@@ -582,10 +582,12 @@ const char* Node::displayname() const
     if (attrstring)
     {
         LOG_debug << "NO_KEY " << type << " " << size << " " << nodehandle;
+#ifdef ENABLE_SYNC
         if (localnode)
         {
             LOG_debug << "Local name: " << localnode->name;
         }
+#endif
         return "NO_KEY";
     }
 
@@ -598,10 +600,12 @@ const char* Node::displayname() const
         if (type < ROOTNODE || type > RUBBISHNODE)
         {
             LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
+#ifdef ENABLE_SYNC
             if (localnode)
             {
                 LOG_debug << "Local name: " << localnode->name;
             }
+#endif
         }
         return "CRYPTO_ERROR";
     }
@@ -609,10 +613,12 @@ const char* Node::displayname() const
     if (!it->second.size())
     {
         LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
+#ifdef ENABLE_SYNC
         if (localnode)
         {
             LOG_debug << "Local name: " << localnode->name;
         }
+#endif
         return "BLANK";
     }
 
