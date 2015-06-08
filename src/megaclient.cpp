@@ -3107,6 +3107,14 @@ void MegaClient::notifypurge(void)
         for (i = 0; i < t; i++)
         {
             Node* n = nodenotify[i];
+            if (n->attrstring)
+            {
+                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekey.size();
+                if (n->localnode)
+                {
+                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
+                }
+            }
 
             if (n->changed.removed)
             {
@@ -5973,6 +5981,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
          && (l->parent || l->sync->debris != ait->second))
         {
             addchild(&nchildren, &ait->second, *it, &strings);
+        }
+        else
+        {
+            LOG_debug << "Node skipped " << (*it)->nodehandle;
         }
     }
 

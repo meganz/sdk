@@ -581,6 +581,11 @@ const char* Node::displayname() const
     // not yet decrypted
     if (attrstring)
     {
+        LOG_debug << "NO_KEY " << type << " " << size << " " << nodehandle;
+        if (localnode)
+        {
+            LOG_debug << "Local name: " << localnode->name;
+        }
         return "NO_KEY";
     }
 
@@ -590,11 +595,24 @@ const char* Node::displayname() const
 
     if (it == attrs.map.end())
     {
+        if (type < ROOTNODE || type > RUBBISHNODE)
+        {
+            LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
+            if (localnode)
+            {
+                LOG_debug << "Local name: " << localnode->name;
+            }
+        }
         return "CRYPTO_ERROR";
     }
 
     if (!it->second.size())
     {
+        LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
+        if (localnode)
+        {
+            LOG_debug << "Local name: " << localnode->name;
+        }
         return "BLANK";
     }
 

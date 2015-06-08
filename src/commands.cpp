@@ -786,6 +786,7 @@ void CommandPutNodes::procresult()
     if (client->json.isnumeric())
     {
         e = (error)client->json.getint();
+        LOG_debug << "Putnodes error " << e;
 
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -818,6 +819,10 @@ void CommandPutNodes::procresult()
                 {
                     e = API_OK;
                 }
+                else
+                {
+                    LOG_err << "Parse error (readnodes)";
+                }
                 break;
 
             default:
@@ -827,6 +832,8 @@ void CommandPutNodes::procresult()
                 }
 
                 e = API_EINTERNAL;
+                LOG_err << "Parse error (PutNodes)";
+
                 // fall through
             case EOO:
                 client->applykeys();
