@@ -72,6 +72,11 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
     MEGAAttributeTypePreview
 };
 
+typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
+    MEGAUserAttributeFirstname = 1,
+    MEGAUserAttributeLastname = 2
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -1423,6 +1428,148 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
  * @param sourceFilePath Source path of the file that will be set as avatar.
  */
 - (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath;
+
+/**
+ * @brief Get an attribute of a MEGAUser.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value of the attribute
+ *
+ * @param user MEGAUser to get the attribute. If this parameter is set to nil, the attribute
+ * is obtained for the active account
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user
+ *
+ */
+- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
+
+
+/**
+ * @brief Get an attribute of a MEGAUser.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value of the attribute
+ *
+ * @param user MEGAUser to get the attribute. If this parameter is set to nil, the attribute
+ * is obtained for the active account
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get an attribute of the current account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value of the attribute
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user
+ */
+- (void)getUserAttibuteType:(MEGAUserAttribute)type;
+
+/**
+ * @brief Get an attribute of the current account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value of the attribute
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAttibuteType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Set an attribute of the current user.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest text] - Return the new value for the attibute
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user
+ *
+ * @param value New attribute value
+ */
+- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value;
+
+/**
+ * @brief Set an attribute of the current user.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest text] - Return the new value for the attibute
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user
+ *
+ * @param value New attribute value
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Account management Requests
 

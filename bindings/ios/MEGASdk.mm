@@ -548,6 +548,30 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
+- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type {
+    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type);
+}
+
+- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserAttibuteType:(MEGAUserAttribute)type {
+    self.megaApi->getUserAttribute(type);
+}
+
+- (void)getUserAttibuteType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAttribute(type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value {
+    self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL);
+}
+
+- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 #pragma mark - Account management Requests
 
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegate {
