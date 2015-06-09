@@ -33,24 +33,28 @@ void BackoffTimer::reset()
 {
     next = 0;
     delta = 1;
+    base = 1;
 }
 
 void BackoffTimer::backoff()
 {
     next = Waiter::ds + delta;
 
-    delta <<= 1;
+    base <<= 1;
 
-    if (delta > 36000)
+    if (base > 6000)
     {
-        delta = 36000;
+        base = 6000;
     }
+
+    delta = base + (dstime)((base / 2.0) * (PrnGen::genuint32(RAND_MAX)/(float)RAND_MAX));
 }
 
 void BackoffTimer::backoff(dstime newdelta)
 {
     next = Waiter::ds + newdelta;
     delta = newdelta;
+    base = newdelta;
 }
 
 bool BackoffTimer::armed() const
@@ -64,6 +68,7 @@ bool BackoffTimer::arm()
     {
         next = Waiter::ds;
         delta = 1;
+        base = 1;
 
         return true;
     }
@@ -109,6 +114,7 @@ void BackoffTimer::update(dstime* waituntil)
         {
             *waituntil = 0;
             next = 1;
+            base = 1;
         }
         else if (next < *waituntil)
         {
