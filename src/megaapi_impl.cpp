@@ -4402,6 +4402,8 @@ void MegaApiImpl::sessions_killed(handle, error e)
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
     LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
+    client->abortbackoff(false);
+
     if(newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
@@ -4426,13 +4428,18 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
-    if(client) client->syncscanstate = scanning;
+    if(client)
+    {
+        client->abortbackoff(false);
+        client->syncscanstate = scanning;
+    }
     fireOnGlobalSyncStateChanged();
 }
 
 void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *localNode, const char* path)
 {
     LOG_debug << "Sync - local folder addition detected: " << path;
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4444,6 +4451,8 @@ void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *localN
 
 void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localNode)
 {
+    client->abortbackoff(false);
+
     string local;
     string path;
     localNode->getlocalpath(&local, true);
@@ -4462,6 +4471,7 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
 void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *localNode, const char* path)
 {
     LOG_debug << "Sync - local file addition detected: " << path;
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4473,6 +4483,8 @@ void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *localNod
 
 void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNode)
 {
+    client->abortbackoff(false);
+
     string local;
     string path;
     localNode->getlocalpath(&local, true);
@@ -4490,6 +4502,7 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNod
 void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *localNode, const char* path)
 {
     LOG_debug << "Sync - local file change detected: " << path;
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4501,6 +4514,8 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *localNode,
 
 void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const char *to)
 {
+    client->abortbackoff(false);
+
     string local;
     string path;
     localNode->getlocalpath(&local, true);
@@ -4544,6 +4559,7 @@ void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *localNode, const char *p
 void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
 {
     LOG_debug << "Sync - remote file addition detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4556,6 +4572,7 @@ void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
 void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
 {
     LOG_debug << "Sync - remote file deletion detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4568,6 +4585,7 @@ void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
 void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, Node *n)
 {
     LOG_debug << "Sync - remote folder addition detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4580,6 +4598,7 @@ void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, Node *n)
 void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, Node *n)
 {
     LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4592,6 +4611,7 @@ void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, Node *n)
 void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *name)
 {
     LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
+    client->abortbackoff(false);
 }
 
 void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
@@ -4599,6 +4619,7 @@ void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
     LOG_debug << "Sync - remote move " << n->displayname() <<
                  " from " << (prevparent ? prevparent->displayname() : "?") <<
                  " to " << (n->parent ? n->parent->displayname() : "?");
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4612,6 +4633,7 @@ void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
 void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prevname)
 {
     LOG_debug << "Sync - remote rename from " << prevname << " to " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4672,6 +4694,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
     else
     {
         LOG_debug << "Sync - local filesystem lock issue resolved, continuing...";
+        client->abortbackoff(false);
     }
 
     this->waiting = waiting;
