@@ -69,20 +69,11 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (client)
     {
-        if(parenthandle != UNDEF)
+        // if the node has a parent...
+        if (parenthandle != UNDEF)
         {
-            std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
-                    client->nodechildren.equal_range(parenthandle);
-            multimap<handle, handle>::iterator it = range.first;
-            for (; it != range.second; ++it)
-            {
-                if (it->second == nodehandle)
-                {
-                    break;
-                }
-            }
-
-            if(it == range.second)
+            // check that the tuple parent-children is not yet in 'nodechildren'
+            if (!client->childrenexists(parenthandle,nodehandle))
             {
                 client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
             }
@@ -164,15 +155,7 @@ Node::~Node()
     }
 
     // remove from parent's children
-    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
-            client->nodechildren.equal_range(parenthandle);
-    multimap<handle, handle>::iterator it = range.first;
-    for (; it != range.second; ++it) {
-        if (it->second == nodehandle) {
-            client->nodechildren.erase(it);
-            break;
-        }
-    }
+    client->removechildren(parenthandle, nodehandle);
 
     delete inshare;
     delete sharekey;
@@ -740,15 +723,7 @@ bool Node::setparent(shared_ptr<Node> p)
 
     if (parenthandle != UNDEF)
     {
-        std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
-                client->nodechildren.equal_range(parenthandle);
-        multimap<handle, handle>::iterator it = range.first;
-        for (; it != range.second; ++it) {
-            if (it->second == nodehandle) {
-                client->nodechildren.erase(it);
-                break;
-            }
-        }
+        client->removechildren(parenthandle,nodehandle);
     }
 
     parenthandle = p->nodehandle;

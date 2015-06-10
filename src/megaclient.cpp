@@ -3154,6 +3154,7 @@ shared_ptr<Node> MegaClient::nodebyhandle(handle h)
 
     map<handle, int32_t>::iterator it;
 
+    // if the handle is found in the map of handles...
     if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
     {
         return nodebydbid(it->second);
@@ -3691,7 +3692,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             }
             else if (t == FILENODE || t == FOLDERNODE)
             {
-                if (ISUNDEF(ph))
+                if (ISUNDEF(ph))    // if the parent handle is undefined yet...
                 {
                     warn("Missing parent");
                 }
@@ -3718,7 +3719,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h)))
+            if ((n = nodebyhandle(h)))  // if the node is already created and available in RAM...
             {
                 if (n->changed.removed)
                 {
@@ -3735,7 +3736,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     }
                 }
 
-                if (!ISUNDEF(ph))
+                if (!ISUNDEF(ph))   // if the parent handle is already defined...
                 {
                     shared_ptr<Node> p;
 
@@ -3756,7 +3757,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             {
                 byte buf[SymmCipher::KEYLENGTH];
 
-                if (!ISUNDEF(su))
+                if (!ISUNDEF(su))   // if Share User is defined...
                 {
                     if (t != FOLDERNODE)
                     {
@@ -3798,6 +3799,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
+                // store the new node in the DB state cache. If a flag==true, then keep it in nodes[] too
+
                 n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
                 nodes[h] = n;
                 if(n->parenthandle == UNDEF)
@@ -3811,7 +3814,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 Node::copystring(n->attrstring, a);
                 Node::copystring(&n->nodekey, k);
 
-                if (!ISUNDEF(su))
+                if (!ISUNDEF(su))   // if a sharing user is defined...
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
                 }
@@ -7148,6 +7151,38 @@ shared_ptr<vector<shared_ptr<Node> > > MegaClient::getchildren(shared_ptr<Node> 
             children->push_back(n);
     }
     return shared_ptr<vector<shared_ptr<Node> > >(children);
+}
+
+// returns true if the node already exists as a children of 'parent' in 'nodechildren
+bool MegaClient::childrenexists(handle parenthandle, handle nodehandle)
+{
+    // iterate through childrens whose parent is 'parenthandle'
+    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
+            nodechildren.equal_range(parenthandle);
+    multimap<handle, handle>::iterator it = range.first;
+    for (; it != range.second; ++it)
+    {
+        if (it->second == nodehandle)   // if the children's handle is this node's handle...
+        {
+            break;
+        }
+    }
+
+    return (it != range.second);  // if the node's handle was found in 'nodechildren'...
+}
+
+// removes a node from its parent's children
+void MegaClient::removechildren(handle parenthandle, handle nodehandle)
+{
+    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
+            nodechildren.equal_range(parenthandle);
+    multimap<handle, handle>::iterator it = range.first;
+    for (; it != range.second; ++it) {
+        if (it->second == nodehandle) {
+            nodechildren.erase(it);
+            break;
+        }
+    }
 }
 
 // a chunk transfer request failed: record failed protocol & host
