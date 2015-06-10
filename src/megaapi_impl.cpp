@@ -39,7 +39,9 @@
 #include <locale>
 
 #ifndef _WIN32
-#define _LARGEFILE64_SOURCE
+#ifndef _LARGEFILE64_SOURCE
+    #define _LARGEFILE64_SOURCE
+#endif
 #include <signal.h>
 #endif
 
@@ -1882,7 +1884,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 	{
 		gfxAccess = new MegaGfxProc();
 	}
-	
+
 	if(!userAgent)
 	{
 		userAgent = "";
@@ -7656,7 +7658,7 @@ void MegaApiImpl::sendPendingRequests()
                     // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                     struct hostent *hp;
                     struct in_addr **addr_list;
-                    
+
                     while (true)
                     {
                         hp = gethostbyname("ns.mega.co.nz");
@@ -7669,7 +7671,7 @@ void MegaApiImpl::sendPendingRequests()
                                 if (i > 0) servers.append(",");
                                 servers.append(ip);
                             }
-                            
+
                             if (servers.size())
                                 break;
                         }
@@ -7679,7 +7681,7 @@ void MegaApiImpl::sendPendingRequests()
                         sleep(1);
 #endif
                     }
-                    
+
                     LOG_debug << "Using MEGA DNS servers";
                     httpio->setdnsservers(servers.c_str());
                 }
