@@ -153,7 +153,7 @@ void Transfer::complete()
                     symmcipher = n->nodecipher();
                 }
 
-                if (!n->isvalid)
+                if (!n->isvalid && fingerprint.isvalid)
                 {
                     *(FileFingerprint*)n = fingerprint;
 
