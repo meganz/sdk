@@ -404,7 +404,10 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-  ])
+    AC_CHECK_HEADERS([sodium/core.h], [sodium=true], [])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[])
+    ]
+  )
 AC_SUBST(SODIUM_CXXFLAGS)
 AC_SUBST(SODIUM_CPPFLAGS)
 AC_SUBST(SODIUM_LDFLAGS)
