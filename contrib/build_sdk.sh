@@ -226,7 +226,7 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2a"
+    local openssl_ver="1.0.2b"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
@@ -306,7 +306,7 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.1"
+    local sodium_ver="1.0.3"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
@@ -375,8 +375,8 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3080704"
-    local sqlite_url="http://www.sqlite.org/2014/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_ver="3081002"
+    local sqlite_url="http://www.sqlite.org/2015/sqlite-autoconf-$sqlite_ver.tar.gz"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -425,7 +425,7 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.39.0"
+    local curl_ver="7.42.1"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
