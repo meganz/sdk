@@ -909,7 +909,7 @@ class MegaApiImpl : public MegaApp
                              MegaRequestListener *listener = NULL);
 
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
-        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
 

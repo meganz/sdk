@@ -1156,9 +1156,9 @@ void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
     pImpl->creditCardQuerySubscriptions(listener);
 }
 
-void MegaApi::creditCardCancelSubscriptions(MegaRequestListener *listener)
+void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
-    pImpl->creditCardCancelSubscriptions(listener);
+    pImpl->creditCardCancelSubscriptions(reason, listener);
 }
 
 char *MegaApi::exportMasterKey()

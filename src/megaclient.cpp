@@ -4719,9 +4719,9 @@ void MegaClient::creditcardquerysubscriptions()
     reqs[r].add(new CommandCreditCardQuerySubscriptions(this));
 }
 
-void MegaClient::creditcardcancelsubscriptions()
+void MegaClient::creditcardcancelsubscriptions(const char* reason)
 {
-    reqs[r].add(new CommandCreditCardCancelSubscriptions(this));
+    reqs[r].add(new CommandCreditCardCancelSubscriptions(this, reason));
 }
 
 // add new contact (by e-mail address)

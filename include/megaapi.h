@@ -4081,10 +4081,10 @@ class MegaApi
          * @brief Cancel credit card subscriptions if the account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
-         *
+         * @param reason Reason for the cancellation. It can be NULL.
          * @param listener MegaRequestListener to track this request
          */
-        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account

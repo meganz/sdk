@@ -3031,9 +3031,14 @@ void CommandCreditCardQuerySubscriptions::procresult()
     }
 }
 
-CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client)
+CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client, const char* reason)
 {
     cmd("cccs");
+
+    if (reason)
+    {
+        arg("r", reason);
+    }
 
     tag = client->reqtag;
 }
