@@ -4809,6 +4809,31 @@ void MegaClient::notifynode(Node* n)
 {
     n->applykey();
 
+    if(n->tag && !n->changed.removed && n->attrstring)
+    {
+        // report a "NO_KEY" event
+
+        char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
+        Base64::btoa((byte *)n->nodekey.data(), n->nodekey.size(), buf);
+
+        int changed = 0;
+        changed |= (int)n->changed.removed;
+        changed |= n->changed.attrs << 1;
+        changed |= n->changed.owner << 2;
+        changed |= n->changed.ctime << 3;
+        changed |= n->changed.fileattrstring << 4;
+        changed |= n->changed.inshare << 5;
+        changed |= n->changed.outshares << 6;
+        changed |= n->changed.parent << 7;
+
+        char report[512];
+        Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
+        sprintf(report + 8, " %d %" PRIu64 " %X %.200s", n->type, n->size, changed, buf);
+
+        reqtag = 0;
+        reportevent("NK", report);
+    }
+
 #ifdef ENABLE_SYNC
     // is this a synced node that was moved to a non-synced location? queue for
     // deletion from LocalNodes.
