@@ -452,6 +452,7 @@ public:
     void initsc();
     void updatesc();
     void finalizesc(bool);
+    void addnodetosc(shared_ptr<Node>);
 
     // MegaClient-Server response JSON
     JSON json;
@@ -544,6 +545,8 @@ public:
     shared_ptr<Node> nodebyfingerprint(string *);
     shared_ptr<Node> nodebydbid(int32_t dbid);
     shared_ptr<vector<shared_ptr<Node>>> getchildren(shared_ptr<Node> node);
+    bool childrenexists(handle parenthandle, handle nodehandle);
+    void removechildren(handle parenthandle, handle nodehandle);
 
     // generate & return upload handle
     handle getuploadhandle();

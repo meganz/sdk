@@ -2748,6 +2748,7 @@ void CommandFetchNodes::procresult()
 {
     client->purgenodesusersabortsc();
     client->fetchingnodes = false;
+    client->sctable->truncate();    // discard the current state cache
 
     if (client->json.isnumeric())
     {
@@ -2765,16 +2766,23 @@ void CommandFetchNodes::procresult()
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
+                //--- Escribe en DB los nodos que ha recibido
 
             case MAKENAMEID2('o', 'k'):
                 // outgoing sharekeys
                 client->readok(&client->json);
                 break;
+                //--- Rellena la lista de `newshares` (handle, share key, key auth)
+                // y le aplica a los nodos correspondientes las claves de comparticion con mergenewshares(0)
+                // mediante notifynode(node), encolando la actualizacion de los nodos en la BD
 
             case 's':
                 // outgoing shares
                 client->readoutshares(&client->json);
                 break;
+                //--- Rellena la lista de `newshares` (handle, target user, share access, timestamp)
+                // y le aplica a los nodos correspondientes los nuevos attributos con mergenewshares(0)
+                // mediante notifynode(node), encolando la actualizacion de los nodos en la BD
 
             case 'u':
                 // users/contacts
@@ -2783,16 +2791,19 @@ void CommandFetchNodes::procresult()
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
+                //--- Rellena el array `notifyusers` con los nuevos usuarios
 
             case MAKENAMEID2('c', 'r'):
                 // crypto key request
                 client->proccr(&client->json);
                 break;
+                //--- Accede a nodos mediante `nodebyhandle(handle)` --> problemas si se lee antes de terminar
 
             case MAKENAMEID2('s', 'r'):
                 // sharekey distribution request
                 client->procsr(&client->json);
                 break;
+                //--- Accede a nodos mediante `nodebyhandle(handle)` --> problemas si se lee antes de terminar
 
             case MAKENAMEID2('s', 'n'):
                 // share node
@@ -2801,6 +2812,7 @@ void CommandFetchNodes::procresult()
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
+                //--- Establece el server-client sequence number (scsn)
 
             case EOO:
                 if (!*client->scsn)
@@ -2808,16 +2820,18 @@ void CommandFetchNodes::procresult()
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
-                client->mergenewshares(0);
-                client->applykeys();
+                client->mergenewshares(0);  // se llama en readok() y readoutshares()
+//                client->applykeys();        //--- Itera por todos los nodos --> problema!!!
 #ifdef ENABLE_SYNC
                 client->syncsup = false;
 #endif
                 client->app->fetchnodes_result(API_OK);
                 client->initsc();
+                //--- solo debe escribir el scsn y los usuarios, no los nodos
 
                 // NULL vector: "notify all nodes"
-                client->app->nodes_updated(NULL, client->nodes.size());
+                client->app->nodes_updated(NULL, client->nodes.size()); // notify the app about updated nodes
+                // set the state of every node to false (nothing is changed)
                 for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
                 {
                     memset(&(it->second->changed), 0, sizeof it->second->changed);

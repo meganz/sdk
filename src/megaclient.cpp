@@ -2258,7 +2258,7 @@ void MegaClient::initsc()
         bool complete;
 
         sctable->begin();
-        sctable->truncate();
+//        sctable->truncate();
 
         // 1. write current scsn
         handle tscsn;
@@ -2277,23 +2277,18 @@ void MegaClient::initsc()
             }
         }
 
-        if (complete)
-        {
-            // 3. write new or modified nodes, purge deleted nodes
-            for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-            {
-                if (!(complete = sctable->put(CACHEDNODE, it->second.get(), &key)))
-                {
-                    break;
-                }
-                nodehandletodbid[it->second->nodehandle] = it->second->dbid;
-                shared_ptr<Node> nnn = nodebydbid(it->second->dbid);
-                if(!nnn.get())
-                {
-                    cout << "ERROR" << endl;
-                }
-            }
-        }
+//        if (complete)
+//        {
+//            // 3. write new or modified nodes, purge deleted nodes
+//            for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+//            {
+//                if (!(complete = sctable->put(CACHEDNODE, it->second.get(), &key)))
+//                {
+//                    break;
+//                }
+//                nodehandletodbid[it->second->nodehandle] = it->second->dbid;
+//            }
+//        }
 
         LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
@@ -2386,6 +2381,18 @@ void MegaClient::finalizesc(bool complete)
         sctable = NULL;
     }
 
+}
+
+void MegaClient::addnodetosc(shared_ptr<Node> n)
+{
+    if(sctable)
+    {
+        if (!sctable->put(CACHEDNODE, n.get(), &key))
+        {
+            finalizesc(false);
+        }
+        nodehandletodbid[n->nodehandle] = n->dbid;
+    }
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -3596,6 +3603,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     node_vector dp;
     shared_ptr<Node> n;
 
+    sctable->begin();   // start a DB transaction to store nodes
+
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -3675,6 +3684,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 default:
                     if (!j->storeobject())
                     {
+                        finalizesc(false);
                         return 0;
                     }
             }
@@ -3799,20 +3809,20 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                // store the new node in the DB state cache. If a flag==true, then keep it in nodes[] too
-
                 n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
-                nodes[h] = n;
-                if(n->parenthandle == UNDEF)
+//                nodes[h] = n;
+                if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
+                // ?? Do we need to set parent for Rootnode, Incoming and Rubish? I don't think so
                 {
                     dp.push_back(n);
                 }
-
                 n->tag = tag;
-
                 n->attrstring = new string;
                 Node::copystring(n->attrstring, a);
                 Node::copystring(&n->nodekey, k);
+
+                n->applykey();
+                addnodetosc(n);
 
                 if (!ISUNDEF(su))   // if a sharing user is defined...
                 {
@@ -3870,8 +3880,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
+            addnodetosc(dp[i]);     // if parent pdated, dump node to DB
         }
     }
+
+    // commit the DB transaction to effectively store the nodes
+    finalizesc(true);
 
     return j->leavearray();
 }
