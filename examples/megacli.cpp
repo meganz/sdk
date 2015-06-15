@@ -3330,20 +3330,14 @@ void DemoApp::nodes_updated(shared_ptr<Node>* n, int count)
                 n++;
             }
         }
-    }
-    else
-    {
-        for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
-        {
-            if (it->second->type < 6)
-            {
-                c[1][it->second->type]++;
-            }
-        }
-    }
 
-    nodestats(c[1], "added or updated");
-    nodestats(c[0], "removed");
+        nodestats(c[1], "added or updated");
+        nodestats(c[0], "removed");
+    }
+    else    // from fetchnodes
+    {
+        cout << "A total of " << count << " nodes have been reloaded" << endl;
+    }
 
     if (ISUNDEF(cwd))
     {

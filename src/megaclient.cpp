@@ -2276,21 +2276,7 @@ void MegaClient::initsc()
                 }
             }
         }
-
-//        if (complete)
-//        {
-//            // 3. write new or modified nodes, purge deleted nodes
-//            for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-//            {
-//                if (!(complete = sctable->put(CACHEDNODE, it->second.get(), &key)))
-//                {
-//                    break;
-//                }
-//                nodehandletodbid[it->second->nodehandle] = it->second->dbid;
-//            }
-//        }
-
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn << " with " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
 }
@@ -2392,6 +2378,7 @@ void MegaClient::addnodetosc(shared_ptr<Node> n)
             finalizesc(false);
         }
         nodehandletodbid[n->nodehandle] = n->dbid;
+        nodescount++;
     }
 }
 
@@ -3130,8 +3117,6 @@ void MegaClient::notifypurge(void)
                     n->inshare->user->sharing.erase(n->nodehandle);
                     notifyuser(n->inshare->user);
                 }
-
-                nodes.erase(n->nodehandle);
             }
             else
             {
@@ -3604,6 +3589,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     shared_ptr<Node> n;
 
     sctable->begin();   // start a DB transaction to store nodes
+    nodescount = 0;     // reset the count of updated/added nodes
 
     while (j->enterobject())
     {
@@ -3822,6 +3808,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 Node::copystring(&n->nodekey, k);
 
                 n->applykey();
+                memset(&(n->changed), 0, sizeof n->changed);    // set status to false (nothing is changed)
                 addnodetosc(n);
 
                 if (!ISUNDEF(su))   // if a sharing user is defined...
@@ -4058,13 +4045,13 @@ int MegaClient::applykeys()
 
     // FIXME: rather than iterating through the whole node set, maintain subset
     // with missing keys
-    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-    {
-        if (it->second->applykey())
-        {
-            t++;
-        }
-    }
+//    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+//    {
+//        if (it->second->applykey())
+//        {
+//            t++;
+//        }
+//    }
 
     if (sharekeyrewrite.size())
     {
@@ -5536,18 +5523,15 @@ void MegaClient::fetchnodes()
     }
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
+//    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
+    if (loggedin() == FULLACCOUNT && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
         restag = reqtag;
 #ifdef ENABLE_SYNC
         syncsup = false;
 #endif
         app->fetchnodes_result(API_OK);
-        app->nodes_updated(NULL, nodes.size());
-        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-        {
-            memset(&(it->second->changed), 0, sizeof it->second->changed);
-        }
+        app->nodes_updated(NULL, nodescount);
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
@@ -5588,8 +5572,6 @@ void MegaClient::purgenodesusersabortsc()
 
     syncs.clear();
 #endif
-
-    nodes.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {

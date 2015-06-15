@@ -45,10 +45,6 @@ public:
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
 
-    // all nodes
-    node_map nodes;
-
-
     map<handle, int32_t> nodehandletodbid;
     multimap<string, int32_t> fingerprinttodbid;
     multimap<handle, handle> nodechildren;
@@ -453,6 +449,7 @@ public:
     void updatesc();
     void finalizesc(bool);
     void addnodetosc(shared_ptr<Node>);
+    int nodescount;     // for counting the added/updated nodes at fetchnodes
 
     // MegaClient-Server response JSON
     JSON json;

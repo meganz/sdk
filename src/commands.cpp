@@ -2830,12 +2830,7 @@ void CommandFetchNodes::procresult()
                 //--- solo debe escribir el scsn y los usuarios, no los nodos
 
                 // NULL vector: "notify all nodes"
-                client->app->nodes_updated(NULL, client->nodes.size()); // notify the app about updated nodes
-                // set the state of every node to false (nothing is changed)
-                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
-                {
-                    memset(&(it->second->changed), 0, sizeof it->second->changed);
-                }
+                client->app->nodes_updated(NULL, client->nodescount);
                 return;
 
             default:
