@@ -4826,12 +4826,19 @@ void MegaClient::notifynode(Node* n)
         changed |= n->changed.outshares << 6;
         changed |= n->changed.parent << 7;
 
+        int attrlen = n->attrstring->size();
+        string base64attrstring;
+        base64attrstring.resize(attrlen * 4 / 3 + 4);
+        base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), n->attrstring->size(), (char *)base64attrstring.data()));
+
         char report[512];
         Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
-        sprintf(report + 8, " %d %" PRIu64 " %X %.200s", n->type, n->size, changed, buf);
+        sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
         reqtag = 0;
         reportevent("NK", report);
+
+        delete [] buf;
     }
 
 #ifdef ENABLE_SYNC
