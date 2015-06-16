@@ -3796,7 +3796,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
-//                nodes[h] = n;
                 if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
                 // ?? Do we need to set parent for Rootnode, Incoming and Rubish? I don't think so
                 {
@@ -5460,6 +5459,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     LOG_info << "Loading session from local cache";
 
     sctable->rewind();
+    nodescount = 0;
 
     while (sctable->next(&id, &data, &key))
     {
@@ -5476,6 +5476,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 if ((n = Node::unserialize(this, &data, &dp)))
                 {
                     n->dbid = id;
+                    nodescount++;
                 }
                 else
                 {
