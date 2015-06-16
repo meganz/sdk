@@ -123,6 +123,7 @@ struct MEGA_API MegaApp
     virtual void creditcardstore_result(error) { }
     virtual void creditcardquerysubscriptions_result(int, error) {}
     virtual void creditcardcancelsubscriptions_result(error) {}
+    virtual void getpaymentmethods_result(int, error) {}
     virtual void copysession_result(string*, error) { }
 
     // user invites/attributes

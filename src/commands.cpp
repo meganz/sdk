@@ -3107,4 +3107,42 @@ void CommandCopySession::procresult()
     }
 }
 
+CommandGetPaymentMethods::CommandGetPaymentMethods(MegaClient *client)
+{
+    cmd("ufpq");
+    tag = client->reqtag;
+}
+
+void CommandGetPaymentMethods::procresult()
+{
+    int methods = 0;
+
+    if(!client->json.isnumeric())
+    {
+        LOG_err << "Parse error in ufpq";
+        client->app->getpaymentmethods_result(methods, API_EINTERNAL);
+        return;
+    }
+
+    do
+    {
+        int value = client->json.getint();
+        if(value < 0)
+        {
+            client->app->getpaymentmethods_result(methods, (error)value);
+
+            //Consume remaining values if they exist
+            while(client->json.isnumeric())
+            {
+                client->json.getint();
+            }
+            return;
+        }
+
+        methods |= 1 << value;
+    } while(client->json.isnumeric());
+
+    client->app->getpaymentmethods_result(methods, API_OK);
+}
+
 } // namespace

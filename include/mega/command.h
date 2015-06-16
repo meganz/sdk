@@ -545,6 +545,14 @@ public:
     CommandCopySession(MegaClient*);
 };
 
+class MEGA_API CommandGetPaymentMethods : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPaymentMethods(MegaClient*);
+};
+
 } // namespace
 
 #endif

@@ -2706,6 +2706,13 @@ void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestL
     waiter->notify();
 }
 
+void MegaApiImpl::getPaymentMethods(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_METHODS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 char *MegaApiImpl::exportMasterKey()
 {
     sdkMutex.lock();
@@ -5063,6 +5070,16 @@ void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS)) return;
 
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::getpaymentmethods_result(int methods, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_METHODS)) return;
+
+    request->setNumber(methods);
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -8037,6 +8054,11 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char* reason = request->getText();
             client->creditcardcancelsubscriptions(reason);
+            break;
+        }
+        case MegaRequest::TYPE_GET_PAYMENT_METHODS:
+        {
+            client->getpaymentmethods();
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

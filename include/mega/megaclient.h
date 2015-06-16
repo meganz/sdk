@@ -279,6 +279,9 @@ public:
     // cancel credit card subscriptions
     void creditcardcancelsubscriptions(const char *reason = NULL);
 
+    // get payment methods
+    void getpaymentmethods();
+
     // toggle global debug flag
     bool toggledebug();
 

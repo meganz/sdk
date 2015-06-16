@@ -1044,7 +1044,8 @@ class MegaRequest
             TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
-            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL
+            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
+            TYPE_GET_PAYMENT_METHODS
         };
 
         virtual ~MegaRequest();
@@ -1426,6 +1427,7 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::resumeSync - Returns the fingerprint of the local file
          * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
+         * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          *
          * @return Number related to this request
          */
@@ -2760,6 +2762,11 @@ class MegaApi
 
         enum {
             PAYMENT_METHOD_BALANCE = 0,
+            PAYMENT_METHOD_PAYPAL = 1,
+            PAYMENT_METHOD_ITUNES = 2,
+            PAYMENT_METHOD_BITCOIN = 4,
+            PAYMENT_METHOD_UNIONPAY = 5,
+            PAYMENT_METHOD_FORTUMO = 6,
             PAYMENT_METHOD_CREDIT_CARD = 8
         };
 
@@ -4085,6 +4092,22 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the available payment methods
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_METHODS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Bitfield with available payment methods
+         *
+         * To know if a payment method is available, you can do a check like this one:
+         * request->getNumber() & (1 << MegaApi::PAYMENT_METHOD_CREDIT_CARD)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Export the master key of the account
@@ -5547,13 +5570,6 @@ public:
 class MegaAccountPurchase
 {
 public:
-    enum
-    {
-        METHOD_TYPE_BALANCE = 0,
-        METHOD_TYPE_PAYPAL = 1,
-        METHOD_TYPE_ITUNES = 2
-    };
-
     virtual ~MegaAccountPurchase();
 
     /**
@@ -5590,9 +5606,13 @@ public:
      * @brief Get the method of the purchase
      *
      * These are the valid methods:
-     * - MegaAccountPurchase::METHOD_TYPE_BALANCE = 0
-     * - MegaAccountPurchase::METHOD_TYPE_PAYPAL = 1
-     * - MegaAccountPurchase::METHOD_TYPE_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_BALANCE = 0,
+     * - MegaApi::PAYMENT_METHOD_PAYPAL = 1,
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2,
+     * - MegaApi::PAYMENT_METHOD_BITCOIN = 4,
+     * - MegaApi::PAYMENT_METHOD_UNIONPAY = 5,
+     * - MegaApi::PAYMENT_METHOD_FORTUMO = 6,
+     * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
      *
      * @return Method of the purchase
      */
