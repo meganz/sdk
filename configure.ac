@@ -32,7 +32,7 @@ AC_PREREQ([2.61])
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [2])
-m4_define([mega_minor_version], [5])
+m4_define([mega_minor_version], [6])
 m4_define([mega_micro_version], [0])
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
