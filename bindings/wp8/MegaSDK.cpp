@@ -380,12 +380,12 @@ void MegaSDK::fastLogin(String^ session, MRequestListenerInterface^ listener)
 		createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::getUserData(MRequestListenerInterface^ listener)
+void MegaSDK::getOwnUserData(MRequestListenerInterface^ listener)
 {
 	megaApi->getUserData(createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::getUserData()
+void MegaSDK::getOwnUserData()
 {
 	megaApi->getUserData();
 }
@@ -401,7 +401,7 @@ void MegaSDK::getUserData(MUser^ user)
 	megaApi->getUserData((user != nullptr) ? user->getCPtr() : NULL);
 }
 
-void MegaSDK::getUserData(String^ user, MRequestListenerInterface^ listener)
+void MegaSDK::getUserDataById(String^ user, MRequestListenerInterface^ listener)
 {
 	std::string utf8user;
 	if (user != nullptr)
@@ -411,7 +411,7 @@ void MegaSDK::getUserData(String^ user, MRequestListenerInterface^ listener)
 		createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::getUserData(String^ user)
+void MegaSDK::getUserDataById(String^ user)
 {
 	std::string utf8user;
 	if (user != nullptr)
@@ -1131,12 +1131,21 @@ void MegaSDK::creditCardQuerySubscriptions()
 
 void MegaSDK::creditCardCancelSubscriptions(MRequestListenerInterface^ listener)
 {
-	megaApi->creditCardCancelSubscriptions(createDelegateMRequestListener(listener));
+	megaApi->creditCardCancelSubscriptions(NULL, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::creditCardCancelSubscriptions(String^ reason, MRequestListenerInterface^ listener)
+{
+	std::string utf8reason;
+	if (reason != nullptr)
+		MegaApi::utf16ToUtf8(reason->Data(), reason->Length(), &utf8reason);
+
+	megaApi->creditCardCancelSubscriptions((reason != nullptr) ? utf8reason.c_str() : NULL, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::creditCardCancelSubscriptions()
 {
-	megaApi->creditCardCancelSubscriptions();
+	megaApi->creditCardCancelSubscriptions(NULL);
 }
 
 String^ MegaSDK::exportMasterKey()
