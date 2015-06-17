@@ -44,6 +44,7 @@
 #include <iterator>
 #include <queue>
 #include <list>
+#include <functional>
 
 #ifdef HAVE_STDDEF_H
     #include <stddef.h>
