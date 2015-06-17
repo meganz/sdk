@@ -5498,15 +5498,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
     }
 
-    // any child nodes arrived before their parents?
-    for (int i = dp.size(); i--; )
-    {
-        if ((n = nodebyhandle(dp[i]->parenthandle)))
-        {
-            dp[i]->setparent(n);
-        }
-    }
-
     mergenewshares(0);
 
     return true;
