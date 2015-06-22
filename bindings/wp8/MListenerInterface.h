@@ -45,6 +45,7 @@ namespace mega
 		void onTransferTemporaryError(MegaSDK^ api, MTransfer^ transfer, MError^ e);
 		void onUsersUpdate(MegaSDK^ api, MUserList^ users);
 		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
+		void onAccountUpdate(MegaSDK^ api);
 		void onReloadNeeded(MegaSDK^ api);
 	};
 }

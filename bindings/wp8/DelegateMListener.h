@@ -49,6 +49,7 @@ namespace mega
 		void onTransferTemporaryError(MegaApi* api, MegaTransfer* transfer, MegaError* e);
 		void onUsersUpdate(MegaApi* api, MegaUserList *users);
 		void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+		void onAccountUpdate(MegaApi* api);
 		void onReloadNeeded(MegaApi* api);
 
 	private:

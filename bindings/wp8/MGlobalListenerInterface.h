@@ -33,6 +33,7 @@ namespace mega
 	public:
 		void onUsersUpdate(MegaSDK^ api, MUserList ^users);
 		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
+		void onAccountUpdate(MegaSDK^ api);
 		void onReloadNeeded(MegaSDK^ api);
 	};
 }

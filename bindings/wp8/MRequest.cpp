@@ -180,6 +180,11 @@ int MRequest::getParamType()
 	return megaRequest ? megaRequest->getParamType() : 0;
 }
 
+uint64 MRequest::getNumber()
+{
+	return megaRequest ? megaRequest->getNumber() : 0;
+}
+
 bool MRequest::getFlag()
 {
 	return megaRequest ? megaRequest->getFlag() : 0;
