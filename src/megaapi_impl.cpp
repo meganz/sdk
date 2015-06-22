@@ -2283,38 +2283,44 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 void MegaApiImpl::loop()
 {
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
-    if(!servers.size())
-    {
-        // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-        struct hostent *hp;
-        struct in_addr **addr_list;
+    struct hostent *hp;
+    struct in_addr **addr_list;
 
-        while (true)
+    while (true)
+    {
+        hp = gethostbyname("ns.mega.co.nz");
+        if (hp != NULL && hp->h_addr != NULL)
         {
-            hp = gethostbyname("ns.mega.co.nz");
-            if (hp != NULL && hp->h_addr != NULL)
+            addr_list = (struct in_addr **)hp->h_addr_list;
+            for (int i = 0; addr_list[i] != NULL; i++)
             {
-                addr_list = (struct in_addr **)hp->h_addr_list;
-                for (int i = 0; addr_list[i] != NULL; i++)
+                char str[INET_ADDRSTRLEN];
+                const char *ip = inet_ntop(AF_INET, addr_list[i], str, INET_ADDRSTRLEN);
+                if(ip == str)
                 {
-                    const char *ip = inet_ntoa(*addr_list[i]);
-                    if (i > 0) servers.append(",");
+                    if (servers.size())
+                    {
+                        servers.append(",");
+                    }
                     servers.append(ip);
                 }
-
-                if (servers.size())
-                    break;
             }
-            #ifdef WINDOWS_PHONE
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            #else
-                sleep(1);
-            #endif
-        }
 
-        httpio->setdnsservers(servers.c_str());
+            if (servers.size())
+                break;
+        }
+        #ifdef WINDOWS_PHONE
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        #else
+            sleep(1);
+        #endif
     }
+
+    LOG_debug << "Using MEGA DNS servers";
+    httpio->setdnsservers(servers.c_str());
+
 #elif _WIN32
     httpio->lock();
 #endif
@@ -7670,39 +7676,43 @@ void MegaApiImpl::sendPendingRequests()
 			if(disconnect)
             {
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+                // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
-                if(!servers.size())
-                {
-                    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-                    struct hostent *hp;
-                    struct in_addr **addr_list;
+                struct hostent *hp;
+                struct in_addr **addr_list;
 
-                    while (true)
+                while (true)
+                {
+                    hp = gethostbyname("ns.mega.co.nz");
+                    if (hp != NULL && hp->h_addr != NULL)
                     {
-                        hp = gethostbyname("ns.mega.co.nz");
-                        if (hp != NULL && hp->h_addr != NULL)
+                        addr_list = (struct in_addr **)hp->h_addr_list;
+                        for (int i = 0; addr_list[i] != NULL; i++)
                         {
-                            addr_list = (struct in_addr **)hp->h_addr_list;
-                            for (int i = 0; addr_list[i] != NULL; i++)
+                            char str[INET_ADDRSTRLEN];
+                            const char *ip = inet_ntop(AF_INET, addr_list[i], str, INET_ADDRSTRLEN);
+                            if(ip == str)
                             {
-                                const char *ip = inet_ntoa(*addr_list[i]);
-                                if (i > 0) servers.append(",");
+                                if (servers.size())
+                                {
+                                    servers.append(",");
+                                }
                                 servers.append(ip);
                             }
-
-                            if (servers.size())
-                                break;
                         }
-#ifdef WINDOWS_PHONE
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
-                        sleep(1);
-#endif
-                    }
 
-                    LOG_debug << "Using MEGA DNS servers";
-                    httpio->setdnsservers(servers.c_str());
+                        if (servers.size())
+                            break;
+                    }
+                    #ifdef WINDOWS_PHONE
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                    #else
+                        sleep(1);
+                    #endif
                 }
+
+                LOG_debug << "Using MEGA DNS servers";
+                httpio->setdnsservers(servers.c_str());
 #endif
                 client->disconnect();
             }
