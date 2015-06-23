@@ -2371,6 +2371,8 @@ void MegaClient::finalizesc(bool complete)
 
 void MegaClient::addnodetosc(shared_ptr<Node> n)
 {
+    sctable->begin();   // start a DB transaction to store nodes
+
     if(sctable)
     {
         if (!sctable->put(CACHEDNODE, n.get(), &key))
@@ -2380,6 +2382,8 @@ void MegaClient::addnodetosc(shared_ptr<Node> n)
         nodehandletodbid[n->nodehandle] = n->dbid;
         nodescount++;
     }
+
+    finalizesc(true);
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -3588,7 +3592,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     node_vector dp;
     shared_ptr<Node> n;
 
-    sctable->begin();   // start a DB transaction to store nodes
+//    sctable->begin();   // start a DB transaction to store nodes
     nodescount = 0;     // reset the count of updated/added nodes
 
     while (j->enterobject())
@@ -3670,7 +3674,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 default:
                     if (!j->storeobject())
                     {
-                        finalizesc(false);
+//                        finalizesc(false);
                         return 0;
                     }
             }
@@ -3871,7 +3875,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     }
 
     // commit the DB transaction to effectively store the nodes
-    finalizesc(true);
+//    finalizesc(true);
 
     return j->leavearray();
 }
