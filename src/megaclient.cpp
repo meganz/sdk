@@ -54,6 +54,16 @@ const char MegaClient::PAYMENT_PUBKEY[] =
         "TpPvuz-oZABEBAAE";
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
+/**
+* @brief MegaClient::decryptkey
+* @param sk Symmetric key used to encrypt the decrypted target key
+* @param tk Target key to be decrypted
+* @param tl Lenght of target key
+* @param sc Symmetric cipher used if target key is to be decrypted using symmetric key
+* @param type Type of encryption used in target key
+* @param node If the target key is linked to a node and encrypted with RSA, the new key needs to be rewritten
+* @return False if target key cannot be decrypted. True if success
+*/
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
     int sl;
@@ -93,11 +103,11 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
         if (!ISUNDEF(node))
         {
-            if (type)
+            if (type)       // type = 1 <-- from MegaClient::readnodes(), readokelement(), sc_shares()
             {
                 sharekeyrewrite.push_back(node);
             }
-            else
+            else            // type = 0 <-- from Node::applykey()
             {
                 nodekeyrewrite.push_back(node);
             }
@@ -240,7 +250,7 @@ void MegaClient::mergenewshares(bool notify)
                             }
                         }
                     }
-                    else
+                    else    // inshare
                     {
                         if (s->peer)
                         {
@@ -3581,7 +3591,16 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
     return MemAccess::get<uint64_t>((const char*)hash);
 }
 
-// read and add/verify node array
+/**
+ * @brief Read and add/verify node array.
+ * @param j JSON being processed
+ * @param notify Flag to indicate whether the node must be notified
+ * @param source Optional value. By default, PUTNODES_APP
+ * @param nn Optional value. By default, NULL
+ * @param nnsize Optional value. By default, 0
+ * @param tag Optional value. By default, 0
+ * @return True if JSON was successfully processed. Otherwise, it returns 0.
+ */
 int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag)
 {
     if (!j->enterarray())
@@ -3732,7 +3751,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     // node already present - check for race condition
                     if ((n->parenthandle != UNDEF && ph != n->parenthandle) || n->type != t)
                     {
-                        app->reload("shared_ptr<Node> inconsistency (parent linkage)");
+                        app->reload("Node inconsistency (parent linkage)");
                     }
                 }
 
@@ -3757,7 +3776,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             {
                 byte buf[SymmCipher::KEYLENGTH];
 
-                if (!ISUNDEF(su))   // if Share User is defined...
+                if (!ISUNDEF(su))   // if Share User is defined... then node is incoming share
                 {
                     if (t != FOLDERNODE)
                     {
@@ -3870,7 +3889,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
-            addnodetosc(dp[i]);     // if parent pdated, dump node to DB
+            addnodetosc(dp[i]);     // if parent updated, dump node to DB
         }
     }
 

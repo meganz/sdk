@@ -662,16 +662,16 @@ bool Node::applykey()
             {
                 continue;
             }
+            // else: node is the outshare root folder and nodekey is encrypted to master key
         }
-        else
+        else    // l == NODEHANDLE
         {
             // look for share key if not folder access with folder master key
             if (h != me)
             {
                 shared_ptr<Node> n;
 
-                // this is a share node handle - check if we have node and the
-                // share key
+                // this is a share node handle - check if we have node and the share key
                 if (!(n = client->nodebyhandle(h)) || !n->sharekey)
                 {
                     continue;

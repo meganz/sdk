@@ -2822,6 +2822,7 @@ void CommandFetchNodes::procresult()
                 //--- Rellena la lista de `newshares` (handle, target user, share access, timestamp)
                 // y le aplica a los nodos correspondientes los nuevos attributos con mergenewshares(0)
                 // mediante notifynode(node), encolando la actualizacion de los nodos en la BD
+                // También crea/actualiza el mapa de `outshares` del nodo
 
             case 'u':
                 // users/contacts
