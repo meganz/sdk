@@ -3685,43 +3685,45 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
 int MegaApiImpl::getAccess(MegaNode* megaNode)
 {
-	if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
+    if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
 
     sdkMutex.lock();
-	Node *node = client->nodebyhandle(megaNode->getHandle());
-	if(!node)
-	{
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
         sdkMutex.unlock();
-		return MegaShare::ACCESS_UNKNOWN;
-	}
+        return MegaShare::ACCESS_UNKNOWN;
+    }
 
-	if (!client->loggedin())
-	{
+    if (!client->loggedin())
+    {
         sdkMutex.unlock();
-		return MegaShare::ACCESS_READ;
-	}
-	if(node->type > FOLDERNODE)
-	{
-        sdkMutex.unlock();
-		return MegaShare::ACCESS_OWNER;
-	}
+        return MegaShare::ACCESS_READ;
+    }
 
-	Node *n = node;
-    accesslevel_t a = FULL;
-	while (n)
-	{
-		if (n->inshare) { a = n->inshare->access; break; }
+    if(node->type > FOLDERNODE)
+    {
+        sdkMutex.unlock();
+        return MegaShare::ACCESS_OWNER;
+    }
+
+    Node *n = node;
+    accesslevel_t a = OWNER;
+    while (n)
+    {
+        if (n->inshare) { a = n->inshare->access; break; }
         n = n->parent;
-	}
+    }
 
     sdkMutex.unlock();
 
-	switch(a)
-	{
-		case RDONLY: return MegaShare::ACCESS_READ;
-		case RDWR: return MegaShare::ACCESS_READWRITE;
-		default: return MegaShare::ACCESS_FULL;
-	}
+    switch(a)
+    {
+        case RDONLY: return MegaShare::ACCESS_READ;
+        case RDWR: return MegaShare::ACCESS_READWRITE;
+        case FULL: return MegaShare::ACCESS_FULL;
+        default: return MegaShare::ACCESS_OWNER;
+    }
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
