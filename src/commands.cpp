@@ -792,6 +792,15 @@ void CommandPutNodes::procresult()
         if (source == PUTNODES_SYNC)
         {
             client->app->putnodes_result(e, type, NULL);
+
+            for (int i=0; i < nnsize; i++)
+            {
+                if (nn[i].localnode)
+                {
+                    nn[i].localnode->newnode = NULL;
+                }
+            }
+
             return client->putnodes_sync_result(e, nn, 0);
         }
         else
