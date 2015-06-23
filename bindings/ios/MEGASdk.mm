@@ -923,13 +923,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (NSInteger)accessLevelForNode:(MEGANode *)node {
-    if (node == nil) return -1;
+- (MEGAShareType)accessLevelForNode:(MEGANode *)node {
+    if (node == nil) return MEGAShareTypeAccessUnkown;
     
-    return self.megaApi->getAccess([node getCPtr]);
+    return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(NSInteger)level {
+- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (node == nil) return nil;
     
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess((node != nil) ? [node getCPtr] : NULL, (int) level).copy() cMemoryOwn:YES];

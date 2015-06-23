@@ -2554,7 +2554,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
  * - MEGAShareTypeAccessRead
  * - MEGAShareTypeAccessUnkown
  */
-- (NSInteger)accessLevelForNode:(MEGANode *)node;
+- (MEGAShareType)accessLevelForNode:(MEGANode *)node;
 
 /**
  * @brief Check if a node has an access level.
@@ -2574,7 +2574,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
  * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(NSInteger)level;
+- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level;
 
 /**
  * @brief Check if a node can be moved to a target node.
