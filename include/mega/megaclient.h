@@ -464,8 +464,12 @@ public:
     // application key
     char appkey[16];
 
-    // incoming shares to be attached to a corresponding node
+    // incoming/outcoming shares to be attached to a corresponding node
     newshare_list newshares;
+
+    // keys and handle authentication from `ok` element (pre-fetch for nodes_on_demand)
+    std::map<handle,string> outsharekeys;
+    std::map<handle,string> outshareauths;
 
     // current request tag
     int reqtag;

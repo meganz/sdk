@@ -2743,6 +2743,43 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
     tag = client->reqtag;
 }
 
+void readoutshares(const char *j, std::map<handle,string> * outsharekeys, std::map<handle,string> * outshareauths)
+{
+   string json(j);
+    handle h;
+    string k, ha;
+
+    int startpos = json.find("\"ok\":[");
+    if (startpos == string::npos)
+        return;
+    startpos += 6;  // discard "ok":[
+    int endpos = json.find("]", startpos) + 1;
+    int start = startpos;
+    byte buf[9] = { 0 };
+    string tmp;
+    while(1)
+    {
+        start = json.find("\"h\":\"", startpos) + 5;
+        if(start > endpos)
+            break;
+
+        tmp = json.substr(start, 8);
+        Base64::atob(tmp.c_str(), buf, sizeof buf);
+        h = MemAccess::get<handle>((const char*)buf);
+
+        start = json.find("\"ha\":\"", startpos) + 6;
+        ha = json.substr(start, 22);
+
+        start = json.find("\"k\":\"", startpos) + 5;
+        k = json.substr(start, 22);
+
+        (*outsharekeys)[h] = k;
+        (*outshareauths)[h] = ha;
+
+        startpos = start;
+    }
+}
+
 // purge and rebuild node/user tree
 void CommandFetchNodes::procresult()
 {
@@ -2754,6 +2791,8 @@ void CommandFetchNodes::procresult()
     {
         return client->app->fetchnodes_result((error)client->json.getint());
     }
+
+    readoutshares(client->json.pos, &(client->outsharekeys), &(client->outshareauths));
 
     for (;;)
     {
