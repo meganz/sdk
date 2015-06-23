@@ -4196,6 +4196,10 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 {
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
+    if(!transfer)
+    {
+        return;
+    }
 
     if(tr->slot)
     {
