@@ -2786,13 +2786,14 @@ void CommandFetchNodes::procresult()
     client->purgenodesusersabortsc();
     client->fetchingnodes = false;
     client->sctable->truncate();    // discard the current state cache
+    client->encryptednodes.clear();
 
     if (client->json.isnumeric())
     {
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
-    readoutshares(client->json.pos, &(client->outsharekeys), &(client->outshareauths));
+    //readoutshares(client->json.pos, &(client->outsharekeys), &(client->outshareauths));
 
     for (;;)
     {
@@ -2861,7 +2862,7 @@ void CommandFetchNodes::procresult()
                 }
 
                 client->mergenewshares(0);  // se llama en readok() y readoutshares()
-//                client->applykeys();        //--- Itera por todos los nodos --> problema!!!
+                client->applykeys();        //--- Itera por todos los nodos --> problema!!!
 #ifdef ENABLE_SYNC
                 client->syncsup = false;
 #endif

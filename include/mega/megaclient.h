@@ -44,6 +44,7 @@ public:
 
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
+    node_map encryptednodes;
 
     map<handle, int32_t> nodehandletodbid;
     multimap<string, int32_t> fingerprinttodbid;

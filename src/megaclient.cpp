@@ -3159,9 +3159,14 @@ shared_ptr<Node> MegaClient::nodebyhandle(handle h)
     }
 
     map<handle, int32_t>::iterator it;
+    node_map::iterator it1;
 
     // if the handle is found in the map of handles...
-    if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
+    if ((it1 = encryptednodes.find(h)) != encryptednodes.end())    // node is encrypted
+    {
+        return encryptednodes[h];
+    }
+    else if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
     {
         return nodebydbid(it->second);
     }
@@ -3829,9 +3834,15 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 Node::copystring(n->attrstring, a);
                 Node::copystring(&n->nodekey, k);
 
-                n->applykey();
                 memset(&(n->changed), 0, sizeof n->changed);    // set status to false (nothing is changed)
-                addnodetosc(n);
+                if (n->applykey() || n->type > FOLDERNODE) // successfully decrypted nodes or rootnodes
+                {
+                    addnodetosc(n);
+                }
+                else    // nodekey (and attributes) cannot be decrypted yet
+                {
+                    encryptednodes[h] = n;
+                }
 
                 if (!ISUNDEF(su))   // if a sharing user is defined...
                 {
@@ -4067,13 +4078,16 @@ int MegaClient::applykeys()
 
     // FIXME: rather than iterating through the whole node set, maintain subset
     // with missing keys
-//    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-//    {
-//        if (it->second->applykey())
-//        {
-//            t++;
-//        }
-//    }
+    for (node_map::iterator it = encryptednodes.begin(); it != encryptednodes.end(); it++)
+    {
+        if (it->second->applykey())
+        {
+            t++;
+
+            addnodetosc(it->second);
+            encryptednodes.erase(it->first);
+        }
+    }
 
     if (sharekeyrewrite.size())
     {

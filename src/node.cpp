@@ -332,6 +332,7 @@ shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* d
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
+    bool encnode = false;
     // do not serialize encrypted nodes
     if (attrstring)
     {
@@ -344,12 +345,15 @@ bool Node::serialize(string* d)
         if (attrstring)
         {
             LOG_err << "Skipping undecryptable node";
-            return false;
+//            return false;
+            encnode = true;
         }
     }
 
-    switch (type)
+    if(!encnode)    // check key lenght only for nodes with valid key
     {
+        switch (type)
+        {
         case FILENODE:
             if ((int)nodekey.size() != FILENODEKEYLENGTH)
             {
@@ -369,6 +373,7 @@ bool Node::serialize(string* d)
             {
                 return false;
             }
+        }
     }
 
     unsigned short ll;
