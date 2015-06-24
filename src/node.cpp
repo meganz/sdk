@@ -310,9 +310,10 @@ shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* d
         // read inshare or outshares
         while (Share::unserialize(client,
                                   (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end)
+                                  h, skey, &ptr, end, n)
                && numshares > 0
                && --numshares);
+
     }
 
     ptr = n->attrs.unserialize(ptr);

@@ -38,7 +38,7 @@ struct MEGA_API Share
     void update(accesslevel_t, m_time_t);
 
     void serialize(string*);
-    static bool unserialize(MegaClient *, int, handle, const byte *, const char**, const char*);
+    static bool unserialize(MegaClient *, int, handle, const byte *, const char**, const char*, shared_ptr<Node>);
 
     Share(User*, accesslevel_t, m_time_t);
 };
