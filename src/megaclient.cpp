@@ -2268,7 +2268,6 @@ void MegaClient::initsc()
         bool complete;
 
         sctable->begin();
-//        sctable->truncate();
 
         // 1. write current scsn
         handle tscsn;
@@ -4076,8 +4075,6 @@ int MegaClient::applykeys()
 {
     int t = 0;
 
-    // FIXME: rather than iterating through the whole node set, maintain subset
-    // with missing keys
     for (node_map::iterator it = encryptednodes.begin(); it != encryptednodes.end(); it++)
     {
         if (it->second->applykey())

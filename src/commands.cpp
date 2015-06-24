@@ -2800,60 +2800,51 @@ void CommandFetchNodes::procresult()
         switch (client->json.getnameid())
         {
             case 'f':
-                // nodes
+                // nodes - write decryptable nodes to DB, postpone encrypted ones until sharekey reception
                 if (!client->readnodes(&client->json, 0))
                 {
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
-                //--- Escribe en DB los nodos que ha recibido
 
             case MAKENAMEID2('o', 'k'):
-                // outgoing sharekeys
+                // outgoing sharekeys - populate the `newshares` list (handle, sharekey, key auth)
+                // and apply to nodes their corresponding sharekeys via `mergenewshares(0)`
                 client->readok(&client->json);
                 break;
-                //--- Rellena la lista de `newshares` (handle, share key, key auth)
-                // y le aplica a los nodos correspondientes las claves de comparticion con mergenewshares(0)
-                // mediante notifynode(node), encolando la actualizacion de los nodos en la BD
 
             case 's':
-                // outgoing shares
+                // outgoing shares - populate the `newshares` list (handle, target user, share access, timestamp),
+                // apply to nodes their corresponding new attributes via `mergenewshares(0)` and create/update the
+                // `outshares` map of each node
                 client->readoutshares(&client->json);
                 break;
-                //--- Rellena la lista de `newshares` (handle, target user, share access, timestamp)
-                // y le aplica a los nodos correspondientes los nuevos attributos con mergenewshares(0)
-                // mediante notifynode(node), encolando la actualizacion de los nodos en la BD
-                // También crea/actualiza el mapa de `outshares` del nodo
 
             case 'u':
-                // users/contacts
+                // users/contacts - populate the `notifyusers` array with received users
                 if (!client->readusers(&client->json))
                 {
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
-                //--- Rellena el array `notifyusers` con los nuevos usuarios
 
             case MAKENAMEID2('c', 'r'):
-                // crypto key request
+                // crypto key request - create a response to send the missing sharekey to the user
                 client->proccr(&client->json);
                 break;
-                //--- Accede a nodos mediante `nodebyhandle(handle)` --> problemas si se lee antes de terminar
 
             case MAKENAMEID2('s', 'r'):
-                // sharekey distribution request
+                // sharekey distribution request - create a request to retrieve the missing sharekeys
                 client->procsr(&client->json);
                 break;
-                //--- Accede a nodos mediante `nodebyhandle(handle)` --> problemas si se lee antes de terminar
 
             case MAKENAMEID2('s', 'n'):
-                // share node
+                // Set the server-client sequence number (scsn)
                 if (!client->setscsn(&client->json))
                 {
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
-                //--- Establece el server-client sequence number (scsn)
 
             case EOO:
                 if (!*client->scsn)
@@ -2861,14 +2852,13 @@ void CommandFetchNodes::procresult()
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
-                client->mergenewshares(0);  // se llama en readok() y readoutshares()
-                client->applykeys();        //--- Itera por todos los nodos --> problema!!!
+                client->mergenewshares(0);
+                client->applykeys();
 #ifdef ENABLE_SYNC
                 client->syncsup = false;
 #endif
                 client->app->fetchnodes_result(API_OK);
-                client->initsc();
-                //--- solo debe escribir el scsn y los usuarios, no los nodos
+                client->initsc();   // write scsn + users
 
                 // NULL vector: "notify all nodes"
                 client->app->nodes_updated(NULL, client->nodescount);

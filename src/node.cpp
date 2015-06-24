@@ -673,21 +673,29 @@ bool Node::applykey()
         else    // l == NODEHANDLE
         {
             // look for share key if not folder access with folder master key
-            if (h != me)
+            shared_ptr<Node> n;
+            if (h == nodehandle)    // if share root is myself...
             {
-                shared_ptr<Node> n;
-
-                // this is a share node handle - check if we have node and the share key
-                if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                if (!sharekey)      // ...but don't have sharekey, look for other node with sharekey
                 {
                     continue;
                 }
 
-                sc = n->sharekey;
-
-                // this key will be rewritten when the node leaves the outbound share
-                foreignkey = true;
+                sc = sharekey;
             }
+            else
+            {
+                // look for the share root and check if we have node and the share key
+                if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                {
+                    continue;   // if not, look for other node with sharekey
+                }
+
+                sc = n->sharekey;
+            }
+
+            // this key will be rewritten when the node leaves the outbound share
+            foreignkey = true;
         }
 
         k = nodekey.c_str() + t;
