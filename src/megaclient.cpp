@@ -872,8 +872,10 @@ void MegaClient::exec()
                             else if (e == API_ETOOMANY)
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
+                                int creqtag = reqtag;
                                 reqtag = 0;
                                 fetchnodes();
+                                reqtag = creqtag;
                             }
                         }
                         // fall through
@@ -4841,8 +4843,10 @@ void MegaClient::notifynode(Node* n)
         Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
         sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
+        int creqtag = reqtag;
         reqtag = 0;
         reportevent("NK", report);
+        reqtag = creqtag;
 
         delete [] buf;
     }
@@ -6328,10 +6332,11 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         
                         sprintf(report + 8, " %d %.200s", (*it)->type, buf);
 
-                        reqtag = 0;
-
                         // report an "undecrypted child" event
+                        int creqtag = reqtag;
+                        reqtag = 0;
                         reportevent("CU", report);
+                        reqtag = creqtag;
 
                         delete [] buf;
                     }
@@ -6348,10 +6353,11 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         l->reported = true;
 
-                        reqtag = 0;
-
                         // report a "no-name child" event
+                        int creqtag = reqtag;
+                        reqtag = 0;
                         reportevent("CN");
+                        reqtag = creqtag;
                     }
 
                     continue;
@@ -6386,8 +6392,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 sprintf(report, "%d %d %d %d", (int)lit->first->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
+                int creqtag = reqtag;
                 reqtag = 0;
                 reportevent("LN", report);
+                reqtag = creqtag;
             }
             continue;
         }
@@ -6597,10 +6605,11 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 }
 
-                reqtag = 0;
-
                 // report a "dupe" event
+                int creqtag = reqtag;
+                reqtag = 0;
                 reportevent("D", report);
+                reqtag = creqtag;
             }
             else
             {
@@ -6863,8 +6872,10 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
+            int creqtag = reqtag;
             reqtag = tn->tag;
             unlink(tn);
+            reqtag = creqtag;
         }
 
         tn->tounlink_it = tounlink.end();
@@ -6941,8 +6952,10 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
+                    int creqtag = reqtag;
                     reqtag = n->tag;
                     rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
+                    reqtag = creqtag;
                     it++;
                 }
                 else

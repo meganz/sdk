@@ -858,11 +858,13 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 if (name != node->attrs.map['n'])
                 {
                     string prevname = node->attrs.map['n'];
+                    int creqtag = sync->client->reqtag;
 
                     // set new name
                     node->attrs.map['n'] = name;
                     sync->client->reqtag = sync->tag;
                     sync->client->setattr(node, NULL, prevname.c_str());
+                    sync->client->reqtag = creqtag;
                     treestate(TREESTATE_SYNCING);
                 }
             }
@@ -884,6 +886,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 assert(parent->node);
                 
+                int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
                 {
@@ -892,6 +895,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // save for deletion
                     todelete = node;
                 }
+                sync->client->reqtag = creqtag;
                 treestate(TREESTATE_SYNCING);
             }
 
