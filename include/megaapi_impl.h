@@ -1126,7 +1126,6 @@ protected:
         MegaUserList *activeUsers;
 
         int threadExit;
-        dstime pausetime;
         void loop();
 
         int maxRetries;

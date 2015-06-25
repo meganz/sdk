@@ -1831,7 +1831,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     sdkMutex.init(true);
     maxRetries = 10;
 	currentTransfer = NULL;
-    pausetime = 0;
     pendingUploads = 0;
     pendingDownloads = 0;
     totalUploads = 0;
@@ -5226,7 +5225,6 @@ void MegaApiImpl::logout_result(error e)
             if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
         }
 
-        pausetime = 0;
         pendingUploads = 0;
         pendingDownloads = 0;
         totalUploads = 0;
@@ -7808,28 +7806,6 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_EARGS;
                 break;
-            }
-
-            if(pause)
-            {
-                if(!pausetime) pausetime = Waiter::ds;
-            }
-            else if(pausetime)
-            {
-                for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
-                {
-                    MegaTransfer *transfer = iter->second;
-                    if(!transfer)
-                        continue;
-
-                    m_time_t starttime = transfer->getStartTime();
-                    if(starttime)
-                    {
-						m_time_t timepaused = Waiter::ds - pausetime;
-                        iter->second->setStartTime(starttime + timepaused);
-                    }
-                }
-                pausetime = 0;
             }
 
             if(direction == -1)
