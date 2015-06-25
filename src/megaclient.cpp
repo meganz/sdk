@@ -5598,9 +5598,6 @@ void MegaClient::purgenodesusersabortsc()
         delete *(it++);
     }
 
-    todebris.clear();
-    tounlink.clear();
-
     syncs.clear();
 #endif
 
@@ -5610,6 +5607,12 @@ void MegaClient::purgenodesusersabortsc()
     }
 
     nodes.clear();
+
+#ifdef ENABLE_SYNC
+    todebris.clear();
+    tounlink.clear();
+    fingerprints.clear();
+#endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
