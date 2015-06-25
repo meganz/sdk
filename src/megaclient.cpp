@@ -3134,6 +3134,7 @@ void MegaClient::notifypurge(void)
             {
                 n->notified = false;
                 memset(&(n->changed), 0, sizeof(n->changed));
+                n->tag = 0;
             }
         }
 
