@@ -142,6 +142,7 @@ else {
 
 win32 {
     INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
+    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/../src/qtbase/src/3rdparty/zlib
     INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
     DEFINES += PCRE_STATIC
