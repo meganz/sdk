@@ -1271,7 +1271,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
             client->key.ecb_encrypt(n->sharekey->key, sharekey, SymmCipher::KEYLENGTH);
 
             element(h, MegaClient::NODEHANDLE);
-            element(client->me, 8);
+            element(client->me, MegaClient::USERHANDLE);
             element(sharekey, SymmCipher::KEYLENGTH);
         }
     }

@@ -836,6 +836,11 @@ char *MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+char *MegaApi::getMyUserHandle()
+{
+    return pImpl->getMyUserHandle();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);

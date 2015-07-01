@@ -171,7 +171,7 @@ void Command::element(int n)
 // add handle (with size specifier)
 void Command::element(handle h, int len)
 {
-    char buf[12];
+    char buf[16];
 
     Base64::btoa((const byte*)&h, len, buf);
 

@@ -3423,6 +3423,18 @@ class MegaApi
         char* getMyEmail();
 
         /**
+         * @brief Returns the user handle of the currently open account
+         *
+         * If the MegaApi object isn't logged in,
+         * this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @return User handle of the account
+         */
+        char* getMyUserHandle();
+
+        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. If you set a log listener using

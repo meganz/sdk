@@ -1935,6 +1935,23 @@ char* MegaApiImpl::getMyEmail()
     return result;
 }
 
+char *MegaApiImpl::getMyUserHandle()
+{
+    User* u;
+    sdkMutex.lock();
+    if (!client->loggedin() || !(u = client->finduser(client->me)))
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char buf[12];
+    Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, buf);
+    char *result = MegaApi::strdup(buf);
+    sdkMutex.unlock();
+    return result;
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     if(!externalLogger)
