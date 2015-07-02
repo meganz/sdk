@@ -731,7 +731,7 @@ bool Node::applykey()
 // returns whether node was moved
 bool Node::setparent(shared_ptr<Node> p)
 {
-    if (p->nodehandle == parenthandle)
+    if (p && p->nodehandle == parenthandle) // 'p' can be NULL (call from readnodes())
     {
         return false;
     }
@@ -741,7 +741,14 @@ bool Node::setparent(shared_ptr<Node> p)
         client->removechildren(parenthandle,nodehandle);
     }
 
-    parenthandle = p->nodehandle;
+    if(p)
+    {
+        parenthandle = p->nodehandle;
+    }
+    else
+    {
+        parenthandle = UNDEF;
+    }
 
     if (parenthandle != UNDEF)
     {
