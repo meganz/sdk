@@ -34,8 +34,6 @@ import subprocess
 import collections
 import config
 
-JSHINT_RULES = '--verbose'
-JSCS_RULES = '--verbose'
 PLATFORMS = {'posix': 'posix',
              'nt': 'win32'}
 PROJECT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__),

@@ -11,7 +11,7 @@ here.
 
 # Checkers to run. Available options for checkers are:
 # "jshint", "jscs", "cppcheck", "nsiqcppstyle"
-checkers = ['cppcheck', 'nsiqcppstyle']
+checkers = ['jshint', 'jscs']
 
 # Extra options for designated checkers.
 # This configuration needs an entry for every encountered checker if the
@@ -28,10 +28,12 @@ JSHINT_BIN = 'node_modules/.bin/jshint'
 JSCS_BIN = 'node_modules/.bin/jscs'
 CPPCHECK_BIN = 'cppcheck'
 NSIQCPPSTYLE_BIN = '/usr/local/nsiqcppstyle/nsiqcppstyle.py'
+JSHINT_RULES = '--verbose'
+JSCS_RULES = '--verbose'
 
 # Command line configuration.
-JSHINT_COMMAND = 'node {binary} {rules}'
-JSCS_COMMAND = 'node {binary} {rules}'
+JSHINT_COMMAND = 'node {binary} {rules} .'
+JSCS_COMMAND = 'node {binary} {rules} .'
 
 CPPCHECK_COMMAND = ("{command}"
                     " --template={{file}};{{line}};{{severity}};{{id}};{{message}}"
