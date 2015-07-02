@@ -86,9 +86,15 @@ using namespace mega;
 }
 
 - (NSString *)currencyAtProductIndex:(NSInteger)index {
-    if (!self.pricing) return nil;
-    
-    return self.pricing->getCurrency((int)index) ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency((int)index)] : nil;
+    return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency((int)index)] : nil;
+}
+
+- (NSString *)descriptionAtProductIndex:(NSInteger)index {
+    return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getDescription((int)index)] : nil;
+}
+
+- (NSString *)iOSIDAtProductIndex:(NSInteger)index {
+    return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getIosID((int)index)] : nil;
 }
 
 @end

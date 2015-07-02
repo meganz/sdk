@@ -88,7 +88,7 @@
 - (NSInteger)monthsAtProductIndex:(NSInteger)index;
 
 /**
- * @brief getAmount Get the price of the product (in cents).
+ * @brief Get the price of the product (in cents).
  * @param index Product index (from 0 to [MEGAPricing products]).
  * @return Price of the product (in cents).
  */
@@ -101,5 +101,21 @@
  * @return Currency associated with [MEGAPricing amountAtProductIndex:].
  */
 - (NSString *)currencyAtProductIndex:(NSInteger)index;
+
+/**
+ * @brief Get a description of the product
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return Description of the product
+ */
+- (NSString *)descriptionAtProductIndex:(NSInteger)index;
+
+/**
+ * @brief Get the iOS ID of the product
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return iOS ID of the product
+ */
+- (NSString *)iOSIDAtProductIndex:(NSInteger)index;
 
 @end
