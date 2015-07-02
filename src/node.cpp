@@ -652,6 +652,7 @@ bool Node::applykey()
     const char* k = NULL;
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
+    shared_ptr<Node> n; // declare 'n' here, so the reference is valid until the end of this method
 
     while ((t = nodekey.find_first_of(':', t)) != (int)string::npos)
     {
