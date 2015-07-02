@@ -25,6 +25,9 @@
 
 namespace mega
 {
+	using namespace Windows::Foundation;
+	using Platform::String;
+
 	public enum class MAccountType
 	{
 		ACCOUNT_TYPE_FREE = 0,
@@ -51,6 +54,8 @@ namespace mega
 		int64 getProExpiration();
 		MSubscriptionStatus getSubscriptionStatus();
 		int64 getSubscriptionRenewTime();
+		String^ getSubscriptionMethod();
+		String^ getSubscriptionCycle();
 
 		uint64 getStorageMax();
 		uint64 getStorageUsed();
