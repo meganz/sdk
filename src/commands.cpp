@@ -2795,6 +2795,8 @@ void CommandFetchNodes::procresult()
 
     //readoutshares(client->json.pos, &(client->outsharekeys), &(client->outshareauths));
 
+    client->sctable->begin();       // start new DB transaction
+
     for (;;)
     {
         switch (client->json.getnameid())
@@ -2858,7 +2860,7 @@ void CommandFetchNodes::procresult()
                 client->syncsup = false;
 #endif
                 client->app->fetchnodes_result(API_OK);
-                client->initsc();   // write scsn + users
+                client->initsc();   // write scsn + users (nodes, during readnodes())
 
                 // NULL vector: "notify all nodes"
                 client->app->nodes_updated(NULL, client->nodescount);

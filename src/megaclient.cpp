@@ -56,11 +56,11 @@ const char MegaClient::PAYMENT_PUBKEY[] =
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 /**
 * @brief MegaClient::decryptkey
-* @param sk Symmetric key used to encrypt the decrypted target key
+* @param sk Source key used to encrypt the decrypted target key (can be symmetric or assymetric)
 * @param tk Target key to be decrypted
 * @param tl Lenght of target key
 * @param sc Symmetric cipher used if target key is to be decrypted using symmetric key
-* @param type Type of encryption used in target key
+* @param type Type of target key to be decrypted. 1 means sharekey, 0 means nodekey.
 * @param node If the target key is linked to a node and encrypted with RSA, the new key needs to be rewritten
 * @return False if target key cannot be decrypted. True if success
 */
@@ -2229,7 +2229,7 @@ bool MegaClient::procsc()
                                 break;
 
                             case MAKENAMEID2('u', 'a'):
-                                // user attribtue update
+                                // user attribute update
                                 sc_userattr();
                                 break;
 
@@ -2267,7 +2267,7 @@ void MegaClient::initsc()
     {
         bool complete;
 
-        sctable->begin();
+//        sctable->begin(); // it's done at the beginning of `CommandFetchNodes::procresult()`
 
         // 1. write current scsn
         handle tscsn;
@@ -2285,6 +2285,9 @@ void MegaClient::initsc()
                 }
             }
         }
+
+        // 3. write all nodes: they are writen during readnodes(), one by one
+
         LOG_debug << "Saving SCSN " << scsn << " with " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
@@ -2380,7 +2383,7 @@ void MegaClient::finalizesc(bool complete)
 
 void MegaClient::addnodetosc(shared_ptr<Node> n)
 {
-    sctable->begin();   // start a DB transaction to store nodes
+//    sctable->begin();   // start a DB transaction to store nodes
 
     if(sctable)
     {
@@ -2392,7 +2395,7 @@ void MegaClient::addnodetosc(shared_ptr<Node> n)
         nodescount++;
     }
 
-    finalizesc(true);
+//    finalizesc(true);
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -3614,8 +3617,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
     node_vector dp;
     shared_ptr<Node> n;
-
-//    sctable->begin();   // start a DB transaction to store nodes
     nodescount = 0;     // reset the count of updated/added nodes
 
     while (j->enterobject())
@@ -3697,7 +3698,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 default:
                     if (!j->storeobject())
                     {
-//                        finalizesc(false);
+                        finalizesc(false);
                         return 0;
                     }
             }
@@ -3740,6 +3741,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             warn("Spurious file attributes");
         }
 
+
         if (!warnlevel())
         {
             if ((n = nodebyhandle(h)))  // if the node is already created and available in RAM...
@@ -3778,6 +3780,21 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             }
             else
             {
+                string fas;
+
+                Node::copystring(&fas, fa);
+
+                // fallback timestamps
+                if (!(ts + 1))
+                {
+                    ts = time(NULL);
+                }
+
+                if (!(sts + 1))
+                {
+                    sts = ts;
+                }
+
                 byte buf[SymmCipher::KEYLENGTH];
 
                 if (!ISUNDEF(su))   // if Share User is defined... then node is incoming share
@@ -3807,20 +3824,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     }
                 }
 
-                string fas;
-
-                Node::copystring(&fas, fa);
-
-                // fallback timestamps
-                if (!(ts + 1))
-                {
-                    ts = time(NULL);
-                }
-
-                if (!(sts + 1))
-                {
-                    sts = ts;
-                }
 
                 n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
                 if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
@@ -3834,6 +3837,177 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 Node::copystring(&n->nodekey, k);
 
                 memset(&(n->changed), 0, sizeof n->changed);    // set status to false (nothing is changed)
+
+                if (!ISUNDEF(su))
+                {
+
+                    // inmediately after decryption, set the sharekey to the node instead
+                    // of adding it to `newshares` for a later `mergenewshares()`
+//                  newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
+
+                    int outgoing = 0;
+                    handle peer = su;
+                    accesslevel_t access = rl;
+                    m_time_t ts = sts;
+                    byte key[SymmCipher::BLOCKSIZE];
+                    if(buf)
+                        memcpy(key, buf, sizeof key);
+                    bool have_key = buf ? 1 : 0;
+                    byte auth[SymmCipher::BLOCKSIZE];
+                    const byte* cauth = NULL;
+                    if ((outgoing > 0) && cauth)
+                        memcpy(auth, cauth, sizeof auth);
+                    bool have_auth = cauth ? 1 : 0;
+                    bool notify = false;
+
+                    if (!n->sharekey && have_key)
+                    {
+                        // setting an outbound sharekey requires node authentication
+                        // unless coming from a trusted source (the local cache)
+                        bool auth = true;
+
+                        if (outgoing > 0)
+                        {
+                            if (!checkaccess(n, OWNERPRELOGIN))
+                            {
+                                LOG_warn << "Attempt to create dislocated outbound share foiled";
+                                auth = false;
+                            }
+                            else
+                            {
+                                byte buf[SymmCipher::KEYLENGTH];
+
+                                handleauth(h, buf);
+
+                                if (memcmp(buf, cauth, sizeof buf))
+                                {
+                                    LOG_warn << "Attempt to create forged outbound share foiled";
+                                    auth = false;
+                                }
+                            }
+                        }
+
+                        if (auth)
+                        {
+                            n->sharekey = new SymmCipher(key);
+                        }
+                    }
+
+                    if (access == ACCESS_UNKNOWN && !have_key)
+                    {
+                        // share was deleted
+                        if (outgoing)
+                        {
+                            if (n->outshares)
+                            {
+                                // outgoing share to user u deleted
+                                if (n->outshares->erase(peer) && notify)
+                                {
+                                    n->changed.outshares = true;
+                                    notifynode(n);
+                                }
+
+                                // if no other outgoing shares remain on this node, erase sharekey
+                                if (!n->outshares->size())
+                                {
+                                    delete n->outshares;
+                                    n->outshares = NULL;
+
+                                    delete n->sharekey;
+                                    n->sharekey = NULL;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // incoming share deleted - remove tree
+                            if (n->parenthandle != UNDEF)
+                            {
+                                TreeProcDel td;
+                                proctree(n, &td, true);
+                            }
+                            else
+                            {
+                                if (n->inshare)
+                                {
+                                    n->inshare->user->sharing.erase(n->nodehandle);
+                                    notifyuser(n->inshare->user);
+                                    n->inshare = NULL;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (!ISUNDEF(peer))
+                        {
+                            if (outgoing)
+                            {
+                                // perform mandatory verification of outgoing shares:
+                                // only on own nodes and signed unless read from cache
+                                if (checkaccess(n, OWNERPRELOGIN))
+                                {
+                                    if (!n->outshares)
+                                    {
+                                        n->outshares = new share_map;
+                                    }
+
+                                    Share** sharep = &((*n->outshares)[peer]);
+
+                                    // modification of existing share or new share
+                                    if (*sharep)
+                                    {
+                                        (*sharep)->update(access, ts);
+                                    }
+                                    else
+                                    {
+                                        *sharep = new Share(finduser(peer, 1), access, ts);
+                                    }
+
+                                    if (notify)
+                                    {
+                                        n->changed.outshares = true;
+                                        notifynode(n);
+                                    }
+                                }
+                            }
+                            else    // inshare
+                            {
+                                if (peer)
+                                {
+                                    if (!checkaccess(n, OWNERPRELOGIN))
+                                    {
+                                        // modification of existing share or new share
+                                        if (n->inshare)
+                                        {
+                                            n->inshare->update(access, ts);
+                                        }
+                                        else
+                                        {
+                                            n->inshare = new Share(finduser(peer, 1), access, ts);
+                                            n->inshare->user->sharing.insert(n->nodehandle);
+                                        }
+
+                                        if (notify)
+                                        {
+                                            n->changed.inshare = true;
+                                            notifynode(n);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        LOG_warn << "Invalid inbound share location";
+                                    }
+                                }
+                                else
+                                {
+                                    LOG_warn << "Invalid null peer on inbound share";
+                                }
+                            }
+                        }
+                    }   // end of `mergenewshares()`
+                }
+
                 if (n->applykey() || n->type > FOLDERNODE) // successfully decrypted nodes or rootnodes
                 {
                     addnodetosc(n);
@@ -3841,11 +4015,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else    // nodekey (and attributes) cannot be decrypted yet
                 {
                     encryptednodes[h] = n;
-                }
-
-                if (!ISUNDEF(su))   // if a sharing user is defined...
-                {
-                    newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
                 }
 
                 if (nn && nni >= 0 && nni < nnsize)
@@ -3902,9 +4071,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             addnodetosc(dp[i]);     // if parent updated, dump node to DB
         }
     }
-
-    // commit the DB transaction to effectively store the nodes
-//    finalizesc(true);
 
     return j->leavearray();
 }
