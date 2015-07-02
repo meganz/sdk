@@ -61,6 +61,28 @@ int64 MAccountDetails::getSubscriptionRenewTime()
 	return accountDetails ? accountDetails->getSubscriptionRenewTime() : 0;
 }
 
+String^ MAccountDetails::getSubscriptionMethod()
+{
+	if (!accountDetails) return nullptr;
+
+	std::string utf16subscriptionMethod;
+	const char *utf8subscriptionMethod = accountDetails->getSubscriptionMethod();
+	MegaApi::utf8ToUtf16(utf8subscriptionMethod, &utf16subscriptionMethod);
+
+	return utf8subscriptionMethod ? ref new String((wchar_t *)utf16subscriptionMethod.data()) : nullptr;
+}
+
+String^ MAccountDetails::getSubscriptionCycle()
+{
+	if (!accountDetails) return nullptr;
+
+	std::string utf16subscriptionCycle;
+	const char *utf8subscriptionCycle = accountDetails->getSubscriptionCycle();
+	MegaApi::utf8ToUtf16(utf8subscriptionCycle, &utf16subscriptionCycle);
+
+	return utf8subscriptionCycle ? ref new String((wchar_t *)utf16subscriptionCycle.data()) : nullptr;
+}
+
 uint64 MAccountDetails::getStorageMax()
 {
 	return accountDetails ? accountDetails->getStorageMax() : 0;

@@ -204,6 +204,8 @@ namespace mega
 		void creditCardCancelSubscriptions(MRequestListenerInterface^ listener);
 		void creditCardCancelSubscriptions(String^ reason, MRequestListenerInterface^ listener);
 		void creditCardCancelSubscriptions();
+		void getPaymentMethods(MRequestListenerInterface^ listener);
+		void getPaymentMethods();
 
 		String^ exportMasterKey();
 		

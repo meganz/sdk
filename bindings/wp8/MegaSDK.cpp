@@ -1148,6 +1148,16 @@ void MegaSDK::creditCardCancelSubscriptions()
 	megaApi->creditCardCancelSubscriptions(NULL);
 }
 
+void MegaSDK::getPaymentMethods(MRequestListenerInterface^ listener)
+{
+	megaApi->getPaymentMethods(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPaymentMethods()
+{
+	megaApi->getPaymentMethods();
+}
+
 String^ MegaSDK::exportMasterKey()
 {
 	std::string utf16key;
