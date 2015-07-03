@@ -9,9 +9,11 @@ which can contain options overlaying those specified for the proejct
 here.
 """
 
+import os
+
 # Checkers to run. Available options for checkers are:
 # "jshint", "jscs", "cppcheck", "nsiqcppstyle"
-checkers = ['cppcheck', 'nsiqcppstyle']
+checkers = ['nsiqcppstyle', 'cppcheck']
 
 # Extra options for designated checkers.
 # This configuration needs an entry for every encountered checker if the
@@ -27,6 +29,13 @@ extra_options = {
 JSHINT_BIN = 'node_modules/.bin/jshint'
 JSCS_BIN = 'node_modules/.bin/jscs'
 CPPCHECK_BIN = 'cppcheck'
+
+# Some attempts to "auto fix" for Win.
+if os.name == 'nt':
+    JSHINT_BIN += '.cmd'
+    JSCS_BIN += '.cmd'
+    CPPCHECK_BIN += '.exe'
+
 NSIQCPPSTYLE_BIN = '/usr/local/nsiqcppstyle/nsiqcppstyle.py'
 JSHINT_RULES = '--verbose'
 JSCS_RULES = '--verbose'
