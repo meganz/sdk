@@ -11,7 +11,7 @@ here.
 
 # Checkers to run. Available options for checkers are:
 # "jshint", "jscs", "cppcheck", "nsiqcppstyle"
-checkers = ['jshint', 'jscs']
+checkers = ['cppcheck', 'nsiqcppstyle']
 
 # Extra options for designated checkers.
 # This configuration needs an entry for every encountered checker if the
