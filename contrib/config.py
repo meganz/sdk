@@ -30,19 +30,13 @@ JSHINT_BIN = 'node_modules/.bin/jshint'
 JSCS_BIN = 'node_modules/.bin/jscs'
 CPPCHECK_BIN = 'cppcheck'
 
-# Some attempts to "auto fix" for Win.
-if os.name == 'nt':
-    JSHINT_BIN += '.cmd'
-    JSCS_BIN += '.cmd'
-    CPPCHECK_BIN += '.exe'
-
 NSIQCPPSTYLE_BIN = '/usr/local/nsiqcppstyle/nsiqcppstyle.py'
 JSHINT_RULES = '--verbose'
 JSCS_RULES = '--verbose'
 
 # Command line configuration.
-JSHINT_COMMAND = 'node {binary} {rules} .'
-JSCS_COMMAND = 'node {binary} {rules} .'
+JSHINT_COMMAND = '{binary} {rules} .'
+JSCS_COMMAND = '{binary} {rules} .'
 
 CPPCHECK_COMMAND = ("{command}"
                     " --template={{file}};{{line}};{{severity}};{{id}};{{message}}"
@@ -55,6 +49,13 @@ CPPCHECK_COMMAND = ("{command}"
 NSIQCPPSTYLE_COMMAND = ('python {binary} --output=csv --ci -o {outfile}'
                         ' -f contrib/nsiq_filefilter.txt .')
 
+# Some attempts to "auto fix" stuff for Win.
+if os.name == 'nt':
+    JSHINT_BIN = '{}.cmd'.format(JSHINT_BIN).replace('/', '\\')
+    JSCS_BIN = '{}.cmd'.format(JSCS_BIN).replace('/', '\\')
+    CPPCHECK_BIN += '.exe'
+    JSHINT_COMMAND = 'cmd /c {}'.format(JSHINT_COMMAND)
+    JSCS_COMMAND = 'cmd /c {}'.format(JSCS_COMMAND)
 
 # Overlay project-config with a potentially available local configuration.
 try:
