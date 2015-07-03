@@ -38,6 +38,7 @@ PLATFORMS = {'posix': 'posix',
              'nt': 'win32'}
 PROJECT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                             os.path.pardir))
+PATH_SPLITTER = re.compile(r'\\|/')
 
 
 def get_git_line_sets(base, target):
@@ -64,7 +65,7 @@ def get_git_line_sets(base, target):
         if line.startswith('+++'):
             # Line giving target file.
             for_file = line.split()[1]
-            current_file = for_file[2:]
+            current_file = tuple(re.split(PATH_SPLITTER, for_file[2:]))
         elif line.startswith('@@'):
             # Line giving alteration line range of diff fragment.
             target_lines = line.split()[2].split(',')
@@ -114,6 +115,7 @@ def reduce_jshint(file_line_mapping, **extra):
         # Check if we've got a relevant line.
         if parse_result:
             file_name, line_no = parse_result[0][0], int(parse_result[0][1])
+            file_name = tuple(re.split(PATH_SPLITTER, file_name))
             # Check if the line is part of our selection list.
             if line_no in file_line_mapping[file_name]:
                 result.append(line)
@@ -162,6 +164,7 @@ def reduce_jscs(file_line_mapping, **extra):
         if line_no_candidates and '' in line_no_candidates:
             line_no = int(line_no_candidates[line_no_candidates.index('') - 1])
             file_name = file_expression.findall(item)[0]
+            file_name = tuple(re.split(PATH_SPLITTER, file_name))
             # Check if the line is part of our selection list.
             if line_no in file_line_mapping[file_name]:
                 result.append(item)
@@ -212,6 +215,7 @@ def reduce_cppcheck(file_line_mapping, **extra):
         # Check if we've got a relevant line.
         if parse_result:
             file_name, line_no = parse_result[0][0], int(parse_result[0][1])
+            file_name = tuple(re.split(PATH_SPLITTER, file_name))
             # Check if the line is part of our selection list.
             if line_no in file_line_mapping[file_name]:
                 formatted = '; '.join(line.split(';'))
@@ -267,13 +271,12 @@ def reduce_nsiqcppstyle(file_line_mapping, **extra):
         parse_result = nsiqcppstyle_expression.findall(line)
         # Check if we've got a relevant line.
         if parse_result:
-            file_name, line_no = parse_result[0][0], int(parse_result[0][1])
+            file_name = tuple(re.split(PATH_SPLITTER, parse_result[0][0]))
+            line_no = int(parse_result[0][1])
             rest = parse_result[0][2]
-            if os.name == 'nt':
-                file_name = file_name.replace('\\', '/')
             # Check if the line is part of our selection list.
             if line_no in file_line_mapping[file_name]:
-                formatted = ', '.join([file_name, str(line_no)]
+                formatted = ', '.join(['/'.join(file_name), str(line_no)]
                                       + rest.split(','))
                 result.append(formatted)
 

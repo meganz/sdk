@@ -35,6 +35,8 @@ if os.path.isdir(_wrapper_dir) and os.path.isfile(_shared_lib):
 
 from mega import (MegaApi, MegaListener, MegaError, MegaRequest, MegaNode)
 
+APP_KEY = 'ox8xnQZL'
+
 CREDENTIALS_FILE = 'credentials.json'
 
 
@@ -284,7 +286,7 @@ def main():
         credentials['password'] = getpass.getpass()
     
     # Create the required Mega API objects.
-    api = MegaApi('ox8xnQZL', None, None, 'Python CRUD example')
+    api = MegaApi(APP_KEY, None, None, 'Python CRUD example')
     listener = AppListener()
     api.addListener(listener)
 

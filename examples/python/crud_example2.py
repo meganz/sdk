@@ -36,6 +36,8 @@ if os.path.isdir(_wrapper_dir) and os.path.isfile(_shared_lib):
 
 from mega import (MegaApi, MegaListener, MegaError, MegaRequest, MegaNode)
 
+APP_KEY = 'ox8xnQZL'
+
 CREDENTIALS_FILE = 'credentials.json'
 
 
@@ -209,7 +211,7 @@ class AsyncExecutor(object):
         Performs the asynchronous operation and waits for a signal from the
         Mega API using the event.
 
-        :param function: Callable Mega APi operation.
+        :param function: Callable Mega API operation.
         :param args: Arguments to the callable.
         """
         self.continue_event.clear()
@@ -322,7 +324,7 @@ def main():
     
     # Create the required Mega API objects.
     executor = AsyncExecutor()
-    api = MegaApi('ox8xnQZL', None, None, 'Python CRUD example')
+    api = MegaApi(APP_KEY, None, None, 'Python CRUD example')
     listener = AppListener(executor.continue_event)
     api.addListener(listener)
 
