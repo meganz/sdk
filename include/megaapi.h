@@ -491,6 +491,15 @@ class MegaNode
         virtual MegaHandle getHandle();
 
         /**
+         * @brief Returns the handle of the parent node
+         *
+         * You can use MegaApi::getNodeByHandle to recover the node later.
+         *
+         * @return Handle of the parent node (or INVALID_HANDLE for root nodes)
+         */
+        virtual MegaHandle getParentHandle();
+
+        /**
          * @brief Returns the key of the node in a Base64-encoded string
          *
          * The return value is only valid for nodes of type TYPE_FILE
@@ -666,6 +675,17 @@ class MegaNode
          * decrypted and in a manageable format.
          */
         virtual std::string* getAttrString();
+
+        /**
+         * @brief Return the special auth token to access this node
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual std::string* getAuth();
 
 #ifdef ENABLE_SYNC
         /**
@@ -5296,6 +5316,44 @@ class MegaApi
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         /**
+         * @brief Create a MegaNode that represents a file of a different account
+         *
+         * The resulting node can be used in MegaApi::startDownload and MegaApi::startStreaming but
+         * can not be copied.
+         *
+         * At least the parameters handle, key, size, mtime and auth must be correct to be able to use the resulting node.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param handle Handle of the node
+         * @param key Key of the node (Base64 encoded)
+         * @param name Name of the node (Base64 encoded)
+         * @param size Size of the node
+         * @param mtime Modification time of the node
+         * @param parentHandle Handle of the parent node
+         * @param auth Authentication token to access the node
+         * @return MegaNode object
+         */
+        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name,
+                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *auth);
+
+        /**
+         * @brief Create a MegaNode that represents a folder of a different account
+         *
+         * The resulting node can not be successfully used in any other function of MegaApi.
+         * The resulting object is only useful to store the values passed as parameters.
+         *
+         * You take the ownership of the returned value.
+
+         * @param handle Handle of the node
+         * @param name Name of the node (Base64 encoded)
+         * @param parentHandle Handle of the parent node
+         * @param auth Authentication token to access the node
+         * @return MegaNode object
+         */
+        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth);
+
+        /**
          * @brief Get the SDK version
          *
          * The returned string is an statically allocated array.
@@ -5341,24 +5399,29 @@ class MegaApi
          * @brief Make a name suitable for a file name in the local filesystem
          *
          * This function escapes (%xx) forbidden characters in the local filesystem if needed.
-         * You can revert this operation using MegaApi::localToName
+         * You can revert this operation using MegaApi::unescapeFsIncompatible
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          *
          * You take the ownership of the returned value
          *
-         * @param name Name to convert
-         * @return Converted name
+         * @param filename Name to convert (UTF8)
+         * @return Converted name (UTF8)
          */
-        char* nameToLocal(const char *name);
+        char* escapeFsIncompatible(const char *filename);
 
         /**
-         * @brief Unescape a file name escaped with MegaApi::nameToLocal
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          *
          * You take the ownership of the returned value
          *
-         * @param name Escaped name to convert
-         * @return Converted name
+         * @param name Escaped name to convert (UTF8)
+         * @return Converted name (UTF8)
          */
-        char* localToName(const char*localName);
+        char* unescapeFsIncompatible(const char* name);
+
 
         /**
          * @brief Create a thumbnail for an image

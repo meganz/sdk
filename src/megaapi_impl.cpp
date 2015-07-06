@@ -72,7 +72,7 @@ const char* inet_ntop(int af, const void* src, char* dst, int cnt);
 
 using namespace mega;
 
-MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring)
+MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, MegaHandle parentHandle, const char*auth)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -81,6 +81,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->ctime = ctime;
     this->mtime = mtime;
     this->nodehandle = nodehandle;
+    this->parenthandle = parentHandle;
     this->attrstring.assign(attrstring->data(), attrstring->size());
     this->nodekey.assign(nodekey->data(),nodekey->size());
     this->changed = 0;
@@ -88,6 +89,11 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->previewAvailable = false;
     this->tag = 0;
     this->isPublicNode = true;
+
+    if(auth)
+    {
+        this->auth = auth;
+    }
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
@@ -103,6 +109,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->ctime = node->getCreationTime();
     this->mtime = node->getModificationTime();
     this->nodehandle = node->getHandle();
+    this->parenthandle = node->getParentHandle();
     string * attrstring = node->getAttrString();
     this->attrstring.assign(attrstring->data(), attrstring->size());
     string *nodekey = node->getNodeKey();
@@ -112,6 +119,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->previewAvailable = node->hasPreview();
     this->tag = node->getTag();
     this->isPublicNode = node->isPublic();
+    this->auth = *node->getAuth();
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = node->isSyncDeleted();
@@ -128,6 +136,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->ctime = node->ctime;
     this->mtime = node->mtime;
     this->nodehandle = node->nodehandle;
+    this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
+
     if(node->attrstring)
     {
         this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
@@ -218,7 +228,12 @@ int64_t MegaNodePrivate::getCreationTime()
 
 int64_t MegaNodePrivate::getModificationTime()
 {
-	return mtime;
+    return mtime;
+}
+
+MegaHandle MegaNodePrivate::getParentHandle()
+{
+    return parenthandle;
 }
 
 uint64_t MegaNodePrivate::getHandle()
@@ -441,6 +456,10 @@ bool MegaNodePrivate::isPublic()
     return isPublicNode;
 }
 
+string *MegaNodePrivate::getAuth()
+{
+    return &auth;
+}
 
 MegaNodePrivate::~MegaNodePrivate()
 {
@@ -1699,7 +1718,12 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
         memcpy(filekey,n->getNodeKey()->data(),sizeof filekey);
 
     client->fsaccess->path2local(&finalPath, &localname);
-    hprivate = false;
+    hprivate = !n->isPublic();
+
+    if(n->getAuth()->size())
+    {
+        auth = *n->getAuth();
+    }
 }
 
 void MegaFileGet::prepare()
@@ -3491,28 +3515,26 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
-char *MegaApiImpl::nameToLocal(const char *name)
+char *MegaApiImpl::escapeFsIncompatible(const char *filename)
+{
+    if(!filename)
+    {
+        return NULL;
+    }
+    string name = filename;
+    client->fsaccess->escapefsincompatible(&name);
+    return MegaApi::strdup(name.c_str());
+}
+
+char *MegaApiImpl::unescapeFsIncompatible(const char *name)
 {
     if(!name)
     {
         return NULL;
     }
-
-    string local = name;
-    client->fsaccess->name2local(&local);
-    return MegaApi::strdup(local.c_str());
-}
-
-char *MegaApiImpl::localToName(const char *localName)
-{
-    if(!localName)
-    {
-        return NULL;
-    }
-
-    string name = localName;
-    client->fsaccess->local2name(&name);
-    return MegaApi::strdup(name.c_str());
+    string filename = name;
+    client->fsaccess->unescapefsincompatible(&filename);
+    return MegaApi::strdup(filename.c_str());
 }
 
 bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
@@ -3786,6 +3808,22 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 
     sdkMutex.unlock();
     return result;
+}
+
+MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, MegaHandle parentHandle, const char* auth)
+{
+    string nodekey;
+    string attrstring;
+    nodekey.resize(strlen(key) * 3 / 4 + 3);
+    nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), nodekey.size()));
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, parentHandle, auth);
+}
+
+MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+{
+    string nodekey;
+    string attrstring;
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, parentHandle, auth);
 }
 
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
@@ -7272,6 +7310,12 @@ void MegaApiImpl::sendPendingRequests()
 
             if(publicNode)
             {
+                if(publicNode->getAuth()->size())
+                {
+                    e = API_EACCESS;
+                    break;
+                }
+
                 NewNode *newnode = new NewNode[1];
                 newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
                 newnode->attrstring = new string;

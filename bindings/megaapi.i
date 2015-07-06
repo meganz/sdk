@@ -178,6 +178,8 @@
 %newobject mega::MegaApi::getNodeByCRC;
 %newobject mega::MegaApi::getSessionTransferURL;
 %newobject mega::MegaRequest::getMegaAccountDetails;
+%newobject mega::MegaApi::escapeFsIncompatible;
+%newobject mega::MegaApi::unescapeFsIncompatible;
 %newobject mega::MegaRequest::getPricing;
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
