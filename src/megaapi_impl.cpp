@@ -213,7 +213,22 @@ int MegaNodePrivate::getType()
 
 const char* MegaNodePrivate::getName()
 {
-	return name;
+    if(type <= FOLDERNODE)
+    {
+        return name;
+    }
+
+    switch(type)
+    {
+        case ROOTNODE:
+            return "Cloud Drive";
+        case INCOMINGNODE:
+            return "Inbox";
+        case RUBBISHNODE:
+            return "Rubbish Bin";
+        default:
+            return name;
+    }
 }
 
 int64_t MegaNodePrivate::getSize()
