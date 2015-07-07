@@ -674,13 +674,25 @@ bool Node::applykey()
         }
         else    // l == NODEHANDLE
         {
-            // look for the share root and check if we have node and the share key
-            if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+            if (h == nodehandle)
             {
-                continue;   // if not, look for other node with sharekey
-            }
+                if(!sharekey)
+                {
+                    continue;
+                }
 
-            sc = n->sharekey;
+                sc = sharekey;
+            }
+            else
+            {
+                // look for the share root and check if we have node and the share key
+                if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                {
+                    continue;   // if not, look for other node with sharekey
+                }
+
+                sc = n->sharekey;
+            }
 
             // this key will be rewritten when the node leaves the outbound share
             foreignkey = true;
