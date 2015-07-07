@@ -35,6 +35,10 @@ VERAPP_BIN = 'vera++'
 NSIQCPPSTYLE_BIN = '/usr/local/nsiqcppstyle/nsiqcppstyle.py'
 JSHINT_RULES = '--verbose'
 JSCS_RULES = '--verbose'
+# Vera++ rules like this should be superseded by a "profile", but it
+# doesn't work well, yet, on Vera++ v1.2 :-(
+# For rules, look here:
+# https://bitbucket.org/verateam/vera/wiki/Rules
 VERAPP_RULES = ['F001', 'F002',
                 'L001', 'L002', 'L003', 'L004', 'L005',
                 'T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007',
@@ -56,7 +60,8 @@ CPPCHECK_COMMAND = ("{command}"
                     " src/ examples/")
 NSIQCPPSTYLE_COMMAND = ('python {binary} --output=csv --ci -o {outfile}'
                         ' -f contrib/nsiq_filefilter.txt .')
-VERAPP_COMMAND = ('vera++ {rules} --show-rule --summary'
+VERAPP_COMMAND = ('vera++ --show-rule --summary'
+                  ' {rules}'
                   ' --parameter max-line-length=120 -i -')
 
 
