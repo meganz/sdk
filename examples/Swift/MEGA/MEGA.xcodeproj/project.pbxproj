@@ -22,6 +22,7 @@
 		41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */; };
 		41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B41A5E94B8008B6E73 /* Helper.swift */; };
 		41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */; };
+		41C346BC1B4C47C9002091F8 /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41C346BB1B4C47C9002091F8 /* libMEGASDK.a */; };
 		41C6A0441A5FD13300865971 /* Offline.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41C6A0431A5FD13300865971 /* Offline.storyboard */; };
 		41C6A0461A5FD15B00865971 /* OfflineTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C6A0451A5FD15B00865971 /* OfflineTableViewController.swift */; };
 		41C6A0491A5FF8CC00865971 /* Settings.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41C6A0481A5FF8CC00865971 /* Settings.storyboard */; };
@@ -29,7 +30,6 @@
 		41F1756F1A51E22500570E30 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F1756E1A51E22500570E30 /* AppDelegate.swift */; };
 		41F175761A51E22500570E30 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41F175751A51E22500570E30 /* Images.xcassets */; };
 		41F175791A51E22500570E30 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41F175771A51E22500570E30 /* LaunchScreen.xib */; };
-		41F175911A51E3A600570E30 /* libmega.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175901A51E3A500570E30 /* libmega.a */; };
 		41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F1759F1A51F17E00570E30 /* ImageIO.framework */; };
 		41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A11A51F18B00570E30 /* MobileCoreServices.framework */; };
 		41F175A41A51F19F00570E30 /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A31A51F19F00570E30 /* libresolv.dylib */; };
@@ -49,15 +49,16 @@
 		41A29D461A6528C8006B24D2 /* SVProgressHUD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVProgressHUD.h; sourceTree = "<group>"; };
 		41A29D471A6528C8006B24D2 /* SVProgressHUD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SVProgressHUD.m; sourceTree = "<group>"; };
 		41A990771A5D645600B2094A /* MainTabBarViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainTabBarViewController.swift; sourceTree = "<group>"; };
-		41A9907A1A5D65C100B2094A /* Cloud.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Cloud.storyboard; sourceTree = "<group>"; };
-		41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudDriveTableViewController.swift; sourceTree = "<group>"; };
-		41A9907E1A5D8C3F00B2094A /* NodeTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NodeTableViewCell.swift; sourceTree = "<group>"; };
+		41A9907A1A5D65C100B2094A /* Cloud.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = Cloud.storyboard; path = ../CloudDrive/Cloud.storyboard; sourceTree = "<group>"; };
+		41A9907C1A5D678400B2094A /* CloudDriveTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = CloudDriveTableViewController.swift; path = ../CloudDrive/CloudDriveTableViewController.swift; sourceTree = "<group>"; };
+		41A9907E1A5D8C3F00B2094A /* NodeTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = NodeTableViewCell.swift; path = ../CloudDrive/NodeTableViewCell.swift; sourceTree = "<group>"; };
 		41AB404C1A52D66500E5E16E /* Main.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
 		41AB404D1A52D66500E5E16E /* LoginViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
 		41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactsTableViewController.swift; sourceTree = "<group>"; };
 		41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactTableViewCell.swift; sourceTree = "<group>"; };
 		41B4A5B41A5E94B8008B6E73 /* Helper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Helper.swift; sourceTree = "<group>"; };
-		41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DetailsNodeInfoViewController.swift; sourceTree = "<group>"; };
+		41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetailsNodeInfoViewController.swift; path = ../CloudDrive/DetailsNodeInfoViewController.swift; sourceTree = "<group>"; };
+		41C346BB1B4C47C9002091F8 /* libMEGASDK.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libMEGASDK.a; path = "../../../bindings/ios/build/Debug-iphoneos/libMEGASDK.a"; sourceTree = "<group>"; };
 		41C6A0431A5FD13300865971 /* Offline.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Offline.storyboard; sourceTree = "<group>"; };
 		41C6A0451A5FD15B00865971 /* OfflineTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OfflineTableViewController.swift; sourceTree = "<group>"; };
 		41C6A0481A5FF8CC00865971 /* Settings.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Settings.storyboard; sourceTree = "<group>"; };
@@ -82,13 +83,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41C346BC1B4C47C9002091F8 /* libMEGASDK.a in Frameworks */,
 				41F175AA1A51F1C200570E30 /* libsqlite3.dylib in Frameworks */,
 				41F175A81A51F1B700570E30 /* libz.dylib in Frameworks */,
 				41F175A61A51F1AF00570E30 /* libc++.dylib in Frameworks */,
 				41F175A41A51F19F00570E30 /* libresolv.dylib in Frameworks */,
 				41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */,
 				41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */,
-				41F175911A51E3A600570E30 /* libmega.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -231,6 +232,7 @@
 		41F175931A51E57C00570E30 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				41C346BB1B4C47C9002091F8 /* libMEGASDK.a */,
 				41F175A91A51F1C200570E30 /* libsqlite3.dylib */,
 				41F175A71A51F1B700570E30 /* libz.dylib */,
 				41F175A51A51F1AF00570E30 /* libc++.dylib */,
@@ -435,10 +437,7 @@
 				INFOPLIST_FILE = MEGA/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
@@ -452,10 +451,7 @@
 				INFOPLIST_FILE = MEGA/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"/Users/javiernavarro/Documents/Source/MEGA/sdk/bindings/ios/build/Debug-iphoneos",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";

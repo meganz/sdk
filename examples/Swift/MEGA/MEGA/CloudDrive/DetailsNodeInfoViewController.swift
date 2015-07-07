@@ -39,7 +39,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     var renameAlertView : UIAlertView!
     var removeAlertView : UIAlertView!
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
