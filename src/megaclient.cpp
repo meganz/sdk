@@ -84,6 +84,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
         if (sl > 4096)
         {
+            LOG_warn << "Invalid lenght of RSA node key";
             return false;
         }
 
@@ -3795,9 +3796,21 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                byte buf[SymmCipher::KEYLENGTH];
+                n = pnode_t(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
+                if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
+                // ?? Do we need to set parent for Rootnode, Incoming and Rubish? I don't think so
+                {
+                    dp.push_back(n);
+                }
+                n->tag = tag;
+                n->attrstring = new string;
+                Node::copystring(n->attrstring, a);
+                Node::copystring(&n->nodekey, k);
 
-                if (!ISUNDEF(su))   // if Share User is defined... then node is incoming share
+                memset(&(n->changed), 0, sizeof n->changed);    // set status to false (nothing is changed)
+
+
+                if (!ISUNDEF(su))   // if Share User is defined... then node it's incoming share
                 {
                     if (t != FOLDERNODE)
                     {
@@ -3820,192 +3833,28 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     }
                     else
                     {
+                        // 1. Decrypt the sharekey
+                        byte buf[SymmCipher::KEYLENGTH];
                         decryptkey(sk, buf, sizeof buf, &key, 1, h);
-                    }
-                }
 
+//                        newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
 
-                n = shared_ptr<Node>(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
-                if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
-                // ?? Do we need to set parent for Rootnode, Incoming and Rubish? I don't think so
-                {
-                    dp.push_back(n);
-                }
-                n->tag = tag;
-                n->attrstring = new string;
-                Node::copystring(n->attrstring, a);
-                Node::copystring(&n->nodekey, k);
+                        // Instead of queuing a `NewShare` object to be merged to the `Node` in a later stage, do it
+                        // here straight away, so the object is fully rebuilt
 
-                memset(&(n->changed), 0, sizeof n->changed);    // set status to false (nothing is changed)
+                        // 2. Create the incoming share object
+                        n->sharekey = new SymmCipher(buf);
 
-                if (!ISUNDEF(su))
-                {
-
-                    // inmediately after decryption, set the sharekey to the node instead
-                    // of adding it to `newshares` for a later `mergenewshares()`
-//                  newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
-
-                    int outgoing = 0;
-                    handle peer = su;
-                    accesslevel_t access = rl;
-                    m_time_t ts = sts;
-                    byte key[SymmCipher::BLOCKSIZE];
-                    if(buf)
-                        memcpy(key, buf, sizeof key);
-                    bool have_key = buf ? 1 : 0;
-                    byte auth[SymmCipher::BLOCKSIZE];
-                    const byte* cauth = NULL;
-                    if ((outgoing > 0) && cauth)
-                        memcpy(auth, cauth, sizeof auth);
-                    bool have_auth = cauth ? 1 : 0;
-                    bool notify = false;
-
-                    if (!n->sharekey && have_key)
-                    {
-                        // setting an outbound sharekey requires node authentication
-                        // unless coming from a trusted source (the local cache)
-                        bool auth = true;
-
-                        if (outgoing > 0)
+                        if (!checkaccess(n, OWNERPRELOGIN))
                         {
-                            if (!checkaccess(n, OWNERPRELOGIN))
-                            {
-                                LOG_warn << "Attempt to create dislocated outbound share foiled";
-                                auth = false;
-                            }
-                            else
-                            {
-                                byte buf[SymmCipher::KEYLENGTH];
-
-                                handleauth(h, buf);
-
-                                if (memcmp(buf, cauth, sizeof buf))
-                                {
-                                    LOG_warn << "Attempt to create forged outbound share foiled";
-                                    auth = false;
-                                }
-                            }
-                        }
-
-                        if (auth)
-                        {
-                            n->sharekey = new SymmCipher(key);
-                        }
-                    }
-
-                    if (access == ACCESS_UNKNOWN && !have_key)
-                    {
-                        // share was deleted
-                        if (outgoing)
-                        {
-                            if (n->outshares)
-                            {
-                                // outgoing share to user u deleted
-                                if (n->outshares->erase(peer) && notify)
-                                {
-                                    n->changed.outshares = true;
-                                    notifynode(n);
-                                }
-
-                                // if no other outgoing shares remain on this node, erase sharekey
-                                if (!n->outshares->size())
-                                {
-                                    delete n->outshares;
-                                    n->outshares = NULL;
-
-                                    delete n->sharekey;
-                                    n->sharekey = NULL;
-                                }
-                            }
+                            n->inshare = new Share(finduser(su, 1), rl, ts);
+                            n->inshare->user->sharing.insert(n->nodehandle);
                         }
                         else
                         {
-                            // incoming share deleted - remove tree
-                            if (n->parenthandle != UNDEF)
-                            {
-                                TreeProcDel td;
-                                proctree(n, &td, true);
-                            }
-                            else
-                            {
-                                if (n->inshare)
-                                {
-                                    n->inshare->user->sharing.erase(n->nodehandle);
-                                    notifyuser(n->inshare->user);
-                                    n->inshare = NULL;
-                                }
-                            }
+                            LOG_warn << "Invalid inbound share location";
                         }
                     }
-                    else
-                    {
-                        if (!ISUNDEF(peer))
-                        {
-                            if (outgoing)
-                            {
-                                // perform mandatory verification of outgoing shares:
-                                // only on own nodes and signed unless read from cache
-                                if (checkaccess(n, OWNERPRELOGIN))
-                                {
-                                    if (!n->outshares)
-                                    {
-                                        n->outshares = new share_map;
-                                    }
-
-                                    Share** sharep = &((*n->outshares)[peer]);
-
-                                    // modification of existing share or new share
-                                    if (*sharep)
-                                    {
-                                        (*sharep)->update(access, ts);
-                                    }
-                                    else
-                                    {
-                                        *sharep = new Share(finduser(peer, 1), access, ts);
-                                    }
-
-                                    if (notify)
-                                    {
-                                        n->changed.outshares = true;
-                                        notifynode(n);
-                                    }
-                                }
-                            }
-                            else    // inshare
-                            {
-                                if (peer)
-                                {
-                                    if (!checkaccess(n, OWNERPRELOGIN))
-                                    {
-                                        // modification of existing share or new share
-                                        if (n->inshare)
-                                        {
-                                            n->inshare->update(access, ts);
-                                        }
-                                        else
-                                        {
-                                            n->inshare = new Share(finduser(peer, 1), access, ts);
-                                            n->inshare->user->sharing.insert(n->nodehandle);
-                                        }
-
-                                        if (notify)
-                                        {
-                                            n->changed.inshare = true;
-                                            notifynode(n);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        LOG_warn << "Invalid inbound share location";
-                                    }
-                                }
-                                else
-                                {
-                                    LOG_warn << "Invalid null peer on inbound share";
-                                }
-                            }
-                        }
-                    }   // end of `mergenewshares()`
                 }
 
                 if (n->applykey() || n->type > FOLDERNODE) // successfully decrypted nodes or rootnodes
