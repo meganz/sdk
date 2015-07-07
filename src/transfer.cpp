@@ -120,7 +120,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        shared_ptr<Node> n;
+        pnode_t n;
 
         if (fa->fopen(&localfilename, true, false))
         {

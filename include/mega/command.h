@@ -249,7 +249,7 @@ class MEGA_API CommandMoveNode : public Command
 public:
     void procresult();
 
-    CommandMoveNode(MegaClient*, shared_ptr<Node>, shared_ptr<Node>, syncdel_t, handle = UNDEF);
+    CommandMoveNode(MegaClient*, pnode_t, pnode_t, syncdel_t, handle = UNDEF);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -366,7 +366,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     void procresult();
 
-    CommandSetAttr(MegaClient*, shared_ptr<Node>, SymmCipher*, const char* = NULL);
+    CommandSetAttr(MegaClient*, pnode_t, SymmCipher*, const char* = NULL);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -380,7 +380,7 @@ class MEGA_API CommandSetShare : public Command
 public:
     void procresult();
 
-    CommandSetShare(MegaClient*, shared_ptr<Node>, User*, accesslevel_t, int);
+    CommandSetShare(MegaClient*, pnode_t, User*, accesslevel_t, int);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -438,7 +438,7 @@ class MEGA_API CommandSetPH : public Command
 public:
     void procresult();
 
-    CommandSetPH(MegaClient*, shared_ptr<Node>, int);
+    CommandSetPH(MegaClient*, pnode_t, int);
 };
 
 class MEGA_API CommandGetPH : public Command

@@ -604,7 +604,7 @@ void CommandGetFile::procresult()
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, shared_ptr<Node> n, SymmCipher* cipher, const char* prevattr)
+CommandSetAttr::CommandSetAttr(MegaClient* client, pnode_t n, SymmCipher* cipher, const char* prevattr)
 {
     cmd("a");
     notself(client);
@@ -635,7 +635,7 @@ void CommandSetAttr::procresult()
 #ifdef ENABLE_SYNC
         if(!e && syncop)
         {
-            shared_ptr<Node> node = client->nodebyhandle(h);
+            pnode_t node = client->nodebyhandle(h);
             if(node)
             {
                 Sync* sync = NULL;
@@ -748,7 +748,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     // add cr element for new nodes, if applicable
     if (type == NODE_HANDLE)
     {
-        shared_ptr<Node> tn;
+        pnode_t tn;
 
         if ((tn = client->nodebyhandle(th)))
         {
@@ -854,7 +854,7 @@ void CommandPutNodes::procresult()
     }
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, shared_ptr<Node> n, shared_ptr<Node> t, syncdel_t csyncdel, handle prevparent)
+CommandMoveNode::CommandMoveNode(MegaClient* client, pnode_t n, pnode_t t, syncdel_t csyncdel, handle prevparent)
 {
     h = n->nodehandle;
     syncdel = csyncdel;
@@ -881,13 +881,13 @@ void CommandMoveNode::procresult()
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
-            shared_ptr<Node> syncn = client->nodebyhandle(h);
+            pnode_t syncn = client->nodebyhandle(h);
 
             if (syncn)
             {
                 if (e == API_OK)
                 {
-                    shared_ptr<Node> n;
+                    pnode_t n;
 
                     // update all todebris records in the subtree
                     for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
@@ -936,7 +936,7 @@ void CommandMoveNode::procresult()
         }
         else if(syncop)
         {
-            shared_ptr<Node> n = client->nodebyhandle(h);
+            pnode_t n = client->nodebyhandle(h);
             if(n)
             {
                 Sync *sync = NULL;
@@ -1240,7 +1240,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle sh, cons
 
 CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
 {
-    shared_ptr<Node> n;
+    pnode_t n;
     byte sharekey[SymmCipher::KEYLENGTH];
 
     cmd("k");
@@ -1264,7 +1264,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, shared_ptr<Node> n, User* u, accesslevel_t a, int newshare)
+CommandSetShare::CommandSetShare(MegaClient* client, pnode_t n, User* u, accesslevel_t a, int newshare)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -1389,7 +1389,7 @@ void CommandSetShare::procresult()
                                          // concurrently with a different key
                 if (client->json.storebinary(key, sizeof key + 1) == SymmCipher::KEYLENGTH)
                 {
-                    shared_ptr<Node> n;
+                    pnode_t n;
 
                     if ((n = client->nodebyhandle(sh)) && n->sharekey)
                     {
@@ -1843,7 +1843,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
     {
         handle h = (*v)[i];
 
-        shared_ptr<Node> n;
+        pnode_t n;
 
         if ((n = client->nodebyhandle(h)))
         {
@@ -2413,7 +2413,7 @@ void CommandGetUserSessions::procresult()
     client->app->account_details(details, false, false, false, false, false, true);
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, shared_ptr<Node> n, int del)
+CommandSetPH::CommandSetPH(MegaClient* client, pnode_t n, int del)
 {
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);

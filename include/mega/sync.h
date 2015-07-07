@@ -114,7 +114,7 @@ public:
     // Error that causes a cancellation
     error errorcode;
     
-    Sync(MegaClient*, string*, const char*, string*, shared_ptr<Node>, fsfp_t, bool, int);
+    Sync(MegaClient*, string*, const char*, string*, pnode_t, fsfp_t, bool, int);
     ~Sync();
 
 protected :

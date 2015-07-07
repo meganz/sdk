@@ -33,11 +33,11 @@ class MEGA_API ShareNodeKeys
 
     string keys;
 
-    int addshare(shared_ptr<Node>);
+    int addshare(pnode_t);
 
 public:
-    void add(shared_ptr<Node>, shared_ptr<Node>, int);
-    void add(NodeCore*, shared_ptr<Node>, int, const byte* = NULL, int = 0);
+    void add(pnode_t, pnode_t, int);
+    void add(NodeCore*, pnode_t, int, const byte* = NULL, int = 0);
 
     void get(Command*);
 };

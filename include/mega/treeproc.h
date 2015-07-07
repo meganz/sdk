@@ -1,6 +1,6 @@
 /**
  * @file mega/treeproc.h
- * @brief shared_ptr<Node> tree processor
+ * @brief pnode_t tree processor
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -32,7 +32,7 @@ namespace mega {
 class MEGA_API TreeProc
 {
 public:
-    virtual void proc(MegaClient*, shared_ptr<Node>) = 0;
+    virtual void proc(MegaClient*, pnode_t) = 0;
 
     virtual ~TreeProc() { }
 };
@@ -40,13 +40,13 @@ public:
 class MEGA_API TreeProcDel : public TreeProc
 {
 public:
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
 };
 
 class MEGA_API TreeProcListOutShares : public TreeProc
 {
 public:
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
 };
 
 class MEGA_API TreeProcCopy : public TreeProc
@@ -57,7 +57,7 @@ public:
 
     void allocnodes(void);
 
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
     TreeProcCopy();
     ~TreeProcCopy();
 };
@@ -69,33 +69,33 @@ public:
     int numfiles;
     int numfolders;
 
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
     TreeProcDU();
 };
 
 class MEGA_API TreeProcShareKeys : public TreeProc
 {
     ShareNodeKeys snk;
-    shared_ptr<Node> sn;
+    pnode_t sn;
 
 public:
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
     void get(Command*);
 
-    TreeProcShareKeys(shared_ptr<Node> = NULL);
+    TreeProcShareKeys(pnode_t = NULL);
 };
 
 class MEGA_API TreeProcForeignKeys : public TreeProc
 {
 public:
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
 };
 
 #ifdef ENABLE_SYNC
 class MEGA_API TreeProcDelSyncGet : public TreeProc
 {
 public:
-    void proc(MegaClient*, shared_ptr<Node>);
+    void proc(MegaClient*, pnode_t);
 };
 
 class MEGA_API LocalTreeProc

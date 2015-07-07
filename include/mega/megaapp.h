@@ -76,7 +76,7 @@ struct MEGA_API MegaApp
     virtual void unlink_result(handle, error) { }
 
     // nodes have been updated
-    virtual void nodes_updated(shared_ptr<Node> *, int) { }
+    virtual void nodes_updated(pnode_t *, int) { }
 
     // users have been added or updated
     virtual void users_updated(User**, int) { }
@@ -104,7 +104,7 @@ struct MEGA_API MegaApp
     virtual void share_result(int, error) { }
 
     // file attribute fetch result
-    virtual void fa_complete(shared_ptr<Node>, fatype, const char*, uint32_t) { }
+    virtual void fa_complete(pnode_t, fatype, const char*, uint32_t) { }
     virtual int fa_failed(handle, fatype, int, error)
     {
         return 0;
@@ -169,19 +169,19 @@ struct MEGA_API MegaApp
     virtual void syncupdate_local_file_change(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_move(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_lockretry(bool) { }
-    virtual void syncupdate_get(Sync*, shared_ptr<Node>, const char*) { }
+    virtual void syncupdate_get(Sync*, pnode_t, const char*) { }
     virtual void syncupdate_put(Sync*, LocalNode*, const char*) { }
-    virtual void syncupdate_remote_file_addition(Sync*, shared_ptr<Node>) { }
-    virtual void syncupdate_remote_file_deletion(Sync*, shared_ptr<Node>) { }
-    virtual void syncupdate_remote_folder_addition(Sync*, shared_ptr<Node>) { }
-    virtual void syncupdate_remote_folder_deletion(Sync*, shared_ptr<Node>) { }
+    virtual void syncupdate_remote_file_addition(Sync*, pnode_t) { }
+    virtual void syncupdate_remote_file_deletion(Sync*, pnode_t) { }
+    virtual void syncupdate_remote_folder_addition(Sync*, pnode_t) { }
+    virtual void syncupdate_remote_folder_deletion(Sync*, pnode_t) { }
     virtual void syncupdate_remote_copy(Sync*, const char*) { }
-    virtual void syncupdate_remote_move(Sync*, shared_ptr<Node>, shared_ptr<Node>) { }
-    virtual void syncupdate_remote_rename(Sync*, shared_ptr<Node>, const char*) { }
+    virtual void syncupdate_remote_move(Sync*, pnode_t, pnode_t) { }
+    virtual void syncupdate_remote_rename(Sync*, pnode_t, const char*) { }
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(shared_ptr<Node>)
+    virtual bool sync_syncable(pnode_t)
     {
         return true;
     }

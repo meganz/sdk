@@ -79,7 +79,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
             }
         }
 
-        shared_ptr<Node> p;
+        pnode_t p;
 
         // folder link access: first returned record defines root node and
         // identity
@@ -113,7 +113,7 @@ Node::~Node()
 
     // abort pending direct reads
     // TODO: Fix this
-    //client->preadabort(shared_ptr<Node>(this));
+    //client->preadabort(pnode_t(this));
 
     // remove node's fingerprint from hash
     if (type == FILENODE)
@@ -184,9 +184,9 @@ void Node::setkey(const byte* newkey)
     setattr();
 }
 
-// parse serialized node and return shared_ptr<Node> object - updates nodes hash and parent
+// parse serialized node and return pnode_t object - updates nodes hash and parent
 // mismatch vector
-shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* dp)
+pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 {
     handle h, ph;
     nodetype_t t;
@@ -199,7 +199,7 @@ shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* d
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    shared_ptr<Node> n;
+    pnode_t n;
     int i;
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
@@ -298,7 +298,8 @@ shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* d
         skey = NULL;
     }
 
-    n = shared_ptr<Node>(new Node(client, dp, h, ph, t, s, u, fa, ts));
+    //n = pnode_t(new Node(client, dp, h, ph, t, s, u, fa, ts));
+    n = make_shared<Node>(client, dp, h, ph, t, s, u, fa, ts);  // allocate object manager and object at once
 
     if (k)
     {
@@ -333,7 +334,7 @@ shared_ptr<Node> Node::unserialize(MegaClient* client, string* d, node_vector* d
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
-    bool encnode = false;
+//    bool encnode = false;
     // do not serialize encrypted nodes
     if (attrstring)
     {
@@ -346,12 +347,12 @@ bool Node::serialize(string* d)
         if (attrstring)
         {
             LOG_err << "Skipping undecryptable node";
-//            return false;
-            encnode = true;
+            return false;
+//            encnode = true;
         }
     }
 
-    if(!encnode)    // check key lenght only for nodes with valid key
+//    if(!encnode)    // check key lenght only for nodes with valid key
     {
         switch (type)
         {
@@ -652,7 +653,7 @@ bool Node::applykey()
     const char* k = NULL;
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
-    shared_ptr<Node> n; // declare 'n' here, so the reference is valid until the end of this method
+    pnode_t n = NULL; // declare 'n' here, so the reference is valid until the end of this method
 
     while ((t = nodekey.find_first_of(':', t)) != (int)string::npos)
     {
@@ -704,7 +705,6 @@ bool Node::applykey()
     }
 
     byte key[FILENODEKEYLENGTH];
-
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
         nodekey.assign((const char*)key, keylength);
@@ -715,7 +715,7 @@ bool Node::applykey()
 }
 
 // returns whether node was moved
-bool Node::setparent(shared_ptr<Node> p)
+bool Node::setparent(pnode_t p)
 {
     if (p && p->nodehandle == parenthandle) // 'p' can be NULL (call from readnodes())
     {
@@ -759,7 +759,7 @@ bool Node::setparent(shared_ptr<Node> p)
         if (!p)
         {
             TreeProcDelSyncGet tdsg;
-            client->proctree(shared_ptr<Node>(this), &tdsg);
+            client->proctree(pnode_t(this), &tdsg);
         }
     }
 #endif
@@ -768,9 +768,9 @@ bool Node::setparent(shared_ptr<Node> p)
 }
 
 // returns 1 if n is under p, 0 otherwise
-bool Node::isbelow(shared_ptr<Node> p) const
+bool Node::isbelow(pnode_t p) const
 {
-    shared_ptr<Node> n;
+    pnode_t n;
     if (nodehandle == p->nodehandle)
     {
         return true;
@@ -779,7 +779,7 @@ bool Node::isbelow(shared_ptr<Node> p) const
 
     for (;;)
     {
-        if (!n.get())
+        if (!n)
         {
             return false;
         }
@@ -813,7 +813,7 @@ NodeCore::~NodeCore()
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
     bool newnode = !localname.size();
-    shared_ptr<Node> todelete = NULL;
+    pnode_t todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
 
@@ -1046,7 +1046,7 @@ void LocalNode::treestate(treestate_t newts)
     dts = ts;
 }
 
-void LocalNode::setnode(shared_ptr<Node> cnode)
+void LocalNode::setnode(pnode_t cnode)
 {
     if (node && (node != cnode) && node->localnode)
     {
@@ -1307,7 +1307,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - type/size
 // - fsid
 // - parent LocalNode's dbid
-// - corresponding shared_ptr<Node> handle
+// - corresponding pnode_t handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)

@@ -30,7 +30,7 @@ namespace mega {
 struct MEGA_API NodeCore
 {
     NodeCore();
-    ~NodeCore();
+    virtual ~NodeCore();
 
     // node's own handle
     handle nodehandle;
@@ -81,7 +81,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     MegaClient* client;
 
     // change parent node association
-    bool setparent(shared_ptr<Node>);
+    bool setparent(pnode_t);
 
     // copy JSON-delimited string
     static void copystring(string*, const char*);
@@ -182,13 +182,13 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     int tag;
 
     // check if node is below this node
-    bool isbelow(shared_ptr<Node>) const;
+    bool isbelow(pnode_t) const;
 
     bool serialize(string*);
-    static shared_ptr<Node> unserialize(MegaClient*, string*, node_vector*);
+    static pnode_t unserialize(MegaClient*, string*, node_vector*);
 
-    Node(MegaClient*, vector<shared_ptr<Node>>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
-    ~Node();
+    Node(MegaClient*, vector<pnode_t>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    virtual ~Node();
 };
 
 #ifdef ENABLE_SYNC
@@ -214,7 +214,7 @@ struct MEGA_API LocalNode : public File, Cachable
     handlelocalnode_map::iterator fsid_it;
 
     // related cloud node, if any
-    shared_ptr<Node> node;
+    pnode_t node;
 
     // related pending node creation or NULL
     NewNode* newnode;
@@ -272,7 +272,7 @@ struct MEGA_API LocalNode : public File, Cachable
     void prepare();
     void completed(Transfer*, LocalNode*);
 
-    void setnode(shared_ptr<Node>);
+    void setnode(pnode_t);
 
     void setnotseen(int);
 

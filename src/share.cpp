@@ -42,7 +42,7 @@ void Share::serialize(string* d)
 }
 
 bool Share::unserialize(MegaClient* client, int direction, handle h,
-                        const byte* ckey, const char** ptr, const char* end, shared_ptr<Node> n)
+                        const byte* ckey, const char** ptr, const char* end, pnode_t n)
 {
     if (*ptr + sizeof(handle) + sizeof(m_time_t) + 2 > end)
     {

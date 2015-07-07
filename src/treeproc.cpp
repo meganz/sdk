@@ -1,6 +1,6 @@
 /**
  * @file treeproc.cpp
- * @brief shared_ptr<Node> tree processor
+ * @brief pnode_t tree processor
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -24,12 +24,12 @@
 
 namespace mega {
 // create share keys
-TreeProcShareKeys::TreeProcShareKeys(shared_ptr<Node> n)
+TreeProcShareKeys::TreeProcShareKeys(pnode_t n)
 {
     sn = n;
 }
 
-void TreeProcShareKeys::proc(MegaClient*, shared_ptr<Node> n)
+void TreeProcShareKeys::proc(MegaClient*, pnode_t n)
 {
     snk.add(n, sn, sn != NULL);
 }
@@ -39,7 +39,7 @@ void TreeProcShareKeys::get(Command* c)
     snk.get(c);
 }
 
-void TreeProcForeignKeys::proc(MegaClient* client, shared_ptr<Node> n)
+void TreeProcForeignKeys::proc(MegaClient* client, pnode_t n)
 {
     if (n->foreignkey)
     {
@@ -57,7 +57,7 @@ TreeProcDU::TreeProcDU()
     numfolders = 0;
 }
 
-void TreeProcDU::proc(MegaClient*, shared_ptr<Node> n)
+void TreeProcDU::proc(MegaClient*, pnode_t n)
 {
     if (n->type == FILENODE)
     {
@@ -71,7 +71,7 @@ void TreeProcDU::proc(MegaClient*, shared_ptr<Node> n)
 }
 
 // mark node as removed and notify
-void TreeProcDel::proc(MegaClient* client, shared_ptr<Node> n)
+void TreeProcDel::proc(MegaClient* client, pnode_t n)
 {
     n->changed.removed = true;
     client->notifynode(n);
@@ -79,7 +79,7 @@ void TreeProcDel::proc(MegaClient* client, shared_ptr<Node> n)
 
 #ifdef ENABLE_SYNC
 // stop sync get
-void TreeProcDelSyncGet::proc(MegaClient*, shared_ptr<Node> n)
+void TreeProcDelSyncGet::proc(MegaClient*, pnode_t n)
 {
     if (n->syncget)
     {

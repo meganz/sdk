@@ -48,19 +48,19 @@ class SyncApp : public MegaApp
     void syncupdate_local_file_deletion(Sync*, LocalNode*);
     void syncupdate_local_file_change(Sync*, LocalNode*, const char *);
     void syncupdate_local_move(Sync*, LocalNode*, const char*);
-    void syncupdate_get(Sync*, shared_ptr<Node>, const char*);
+    void syncupdate_get(Sync*, pnode_t, const char*);
     void syncupdate_put(Sync*, LocalNode*, const char*);
-    void syncupdate_remote_file_addition(Sync*, shared_ptr<Node>);
-    void syncupdate_remote_file_deletion(Sync*, shared_ptr<Node>);
-    void syncupdate_remote_folder_addition(Sync*, shared_ptr<Node>);
-    void syncupdate_remote_folder_deletion(Sync*, shared_ptr<Node>);
+    void syncupdate_remote_file_addition(Sync*, pnode_t);
+    void syncupdate_remote_file_deletion(Sync*, pnode_t);
+    void syncupdate_remote_folder_addition(Sync*, pnode_t);
+    void syncupdate_remote_folder_deletion(Sync*, pnode_t);
     void syncupdate_remote_copy(Sync*, const char*);
-    void syncupdate_remote_move(Sync*, shared_ptr<Node>, shared_ptr<Node>);
-    void syncupdate_remote_rename(Sync*sync, shared_ptr<Node> n, const char* prevname);
+    void syncupdate_remote_move(Sync*, pnode_t, pnode_t);
+    void syncupdate_remote_rename(Sync*sync, pnode_t n, const char* prevname);
     void syncupdate_treestate(LocalNode*);
 #endif
 
-    shared_ptr<Node> nodebypath(const char* ptr, string* user, string* namepart);
+    pnode_t nodebypath(const char* ptr, string* user, string* namepart);
 public:
     SyncApp(string local_folder_, string remote_folder_);
 };
@@ -79,15 +79,15 @@ MegaClient* client;
 // : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
-shared_ptr<Node> SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+pnode_t SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
     vector<string> c;
     string s;
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    shared_ptr<Node> n;
-    shared_ptr<Node> nn;
+    pnode_t n;
+    pnode_t nn;
 
     // split path by / or :
     do
@@ -322,7 +322,7 @@ void SyncApp::fetchnodes_result(error e)
             cwd = client->rootnodes[0];
         }
 
-        shared_ptr<Node> n = nodebypath(remote_folder.c_str());
+        pnode_t n = nodebypath(remote_folder.c_str());
         if (client->checkaccess(n, FULL))
         {
             string localname;
@@ -412,40 +412,40 @@ void SyncApp::syncupdate_local_move(Sync*, LocalNode *localNode, const char* pat
     LOG_info << "Sync - local rename/move " << localNode->name << " -> " << path;
 }
 
-void SyncApp::syncupdate_remote_move(Sync *, shared_ptr<Node> n, shared_ptr<Node> prevparent)
+void SyncApp::syncupdate_remote_move(Sync *, pnode_t n, pnode_t prevparent)
 {
-	shared_ptr<Node> parent = client->nodebyhandle(n->parenthandle);
+	pnode_t parent = client->nodebyhandle(n->parenthandle);
 	
     LOG_info << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
                  " -> " << (parent ? parent->displayname() : "?");
 }
 
-void SyncApp::syncupdate_remote_rename(Sync *, shared_ptr<Node> n, const char *prevname)
+void SyncApp::syncupdate_remote_rename(Sync *, pnode_t n, const char *prevname)
 {
     LOG_info << "Sync - remote rename " << prevname << " -> " << n->displayname();
 }
 
-void SyncApp::syncupdate_remote_folder_addition(Sync *, shared_ptr<Node> n)
+void SyncApp::syncupdate_remote_folder_addition(Sync *, pnode_t n)
 {
     LOG_info << "Sync - remote folder addition detected " << n->displayname();
 }
 
-void SyncApp::syncupdate_remote_file_addition(Sync*, shared_ptr<Node> n)
+void SyncApp::syncupdate_remote_file_addition(Sync*, pnode_t n)
 {
     LOG_info << "Sync - remote file addition detected " << n->displayname();
 }
 
-void SyncApp::syncupdate_remote_folder_deletion(Sync*, shared_ptr<Node> n)
+void SyncApp::syncupdate_remote_folder_deletion(Sync*, pnode_t n)
 {
     LOG_info << "Sync - remote folder deletion detected " << n->displayname();
 }
 
-void SyncApp::syncupdate_remote_file_deletion(Sync*, shared_ptr<Node> n)
+void SyncApp::syncupdate_remote_file_deletion(Sync*, pnode_t n)
 {
     LOG_info << "Sync - remote file deletion detected " << n->displayname();
 }
 
-void SyncApp::syncupdate_get(Sync*, shared_ptr<Node>, const char* path)
+void SyncApp::syncupdate_get(Sync*, pnode_t, const char* path)
 {
     LOG_info << "Sync - requesting file " << path;
 }

@@ -322,40 +322,40 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
     }
 }
 
-void DemoApp::syncupdate_remote_move(Sync *, shared_ptr<Node> n, shared_ptr<Node> prevparent)
+void DemoApp::syncupdate_remote_move(Sync *, pnode_t n, pnode_t prevparent)
 {
-	shared_ptr<Node> parent = client->nodebyhandle(n->parenthandle);
+    pnode_t parent = client->nodebyhandle(n->parenthandle);
 	
     cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
             " -> " << (parent ? parent->displayname() : "?") << endl;
 }
 
-void DemoApp::syncupdate_remote_rename(Sync *, shared_ptr<Node> n, const char *prevname)
+void DemoApp::syncupdate_remote_rename(Sync *, pnode_t n, const char *prevname)
 {
     cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_folder_addition(Sync *, shared_ptr<Node> n)
+void DemoApp::syncupdate_remote_folder_addition(Sync *, pnode_t n)
 {
     cout << "Sync - remote folder addition detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_file_addition(Sync *, shared_ptr<Node> n)
+void DemoApp::syncupdate_remote_file_addition(Sync *, pnode_t n)
 {
     cout << "Sync - remote file addition detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_folder_deletion(Sync *, shared_ptr<Node> n)
+void DemoApp::syncupdate_remote_folder_deletion(Sync *, pnode_t n)
 {
     cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_remote_file_deletion(Sync *, shared_ptr<Node> n)
+void DemoApp::syncupdate_remote_file_deletion(Sync *, pnode_t n)
 {
     cout << "Sync - remote file deletion detected " << n->displayname() << endl;
 }
 
-void DemoApp::syncupdate_get(Sync*, shared_ptr<Node>, const char* path)
+void DemoApp::syncupdate_get(Sync*, pnode_t, const char* path)
 {
     cout << "Sync - requesting file " << path << endl;
 }
@@ -400,7 +400,7 @@ static bool is_syncable(const char* name)
 }
 
 // determines whether remote node should be synced
-bool DemoApp::sync_syncable(shared_ptr<Node> n)
+bool DemoApp::sync_syncable(pnode_t n)
 {
     return is_syncable(n->displayname());
 }
@@ -412,7 +412,7 @@ bool DemoApp::sync_syncable(const char* name, string* localpath, string* localna
 }
 #endif
 
-AppFileGet::AppFileGet(shared_ptr<Node> n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
+AppFileGet::AppFileGet(pnode_t n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint)
 {
     if (n)
@@ -549,7 +549,7 @@ void DemoApp::share_result(int, error e)
     }
 }
 
-void DemoApp::fa_complete(shared_ptr<Node> n, fatype type, const char* data, uint32_t len)
+void DemoApp::fa_complete(pnode_t n, fatype type, const char* data, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
 }
@@ -666,7 +666,7 @@ static void listtrees()
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
     {
         User* u = &uit->second;
-        shared_ptr<Node> n;
+        pnode_t n;
 
         if (u->show == VISIBLE || u->sharing.size())
         {
@@ -693,15 +693,15 @@ static void listtrees()
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
-static shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+static pnode_t nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
     vector<string> c;
     string s;
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    shared_ptr<Node> n;
-    shared_ptr<Node> nn;
+    pnode_t n;
+    pnode_t nn;
 
     // split path by / or :
     do {
@@ -902,7 +902,7 @@ static shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, string*
     return n;
 }
 
-static void listnodeshares(shared_ptr<Node> n)
+static void listnodeshares(pnode_t n)
 {
     if(n->outshares)
     {
@@ -923,12 +923,12 @@ static void listnodeshares(shared_ptr<Node> n)
     }
 }
 
-void TreeProcListOutShares::proc(MegaClient*, shared_ptr<Node> n)
+void TreeProcListOutShares::proc(MegaClient*, pnode_t n)
 {
     listnodeshares(n);
 }
 
-static void dumptree(shared_ptr<Node> n, int recurse, int depth = 0, const char* title = NULL)
+static void dumptree(pnode_t n, int recurse, int depth = 0, const char* title = NULL)
 {
     if (depth)
     {
@@ -995,8 +995,8 @@ static void dumptree(shared_ptr<Node> n, int recurse, int depth = 0, const char*
 
     if (n->type != FILENODE)
     {
-		shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(n);
-        for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
+        shared_ptr<vector<pnode_t>> children = client->getchildren(n);
+        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
         {
             dumptree(*it, recurse, depth + 1);
         }
@@ -1013,7 +1013,7 @@ static void nodepath(handle h, string* path)
         return;
     }
 
-    shared_ptr<Node> n = client->nodebyhandle(h);
+    pnode_t n = client->nodebyhandle(h);
 
     while (n)
     {
@@ -1111,7 +1111,7 @@ TreeProcCopy::~TreeProcCopy()
 }
 
 // determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, shared_ptr<Node> n)
+void TreeProcCopy::proc(MegaClient* client, pnode_t n)
 {
     if (nn)
     {
@@ -1410,7 +1410,7 @@ static void process_line(char* l)
                 return;
             }
 
-            shared_ptr<Node> n;
+            pnode_t n;
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
@@ -1548,7 +1548,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "mv")
                     {
-                        shared_ptr<Node> tn;
+                        pnode_t tn;
                         string newname;
 
                         if (words.size() > 2)
@@ -1680,7 +1680,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "cp")
                     {
-                        shared_ptr<Node> tn;
+                        pnode_t tn;
                         string targetuser;
                         string newname;
                         error e;
@@ -1869,8 +1869,8 @@ static void process_line(char* l)
                                     else
                                     {
                                         // ...or all files in the specified folder (non-recursive)
-                                        shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(n);
-										for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
+                                        shared_ptr<vector<pnode_t>> children = client->getchildren(n);
+                                        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
                                         {
                                             if ((*it)->type == FILENODE)
                                             {
@@ -1909,7 +1909,7 @@ static void process_line(char* l)
 
                             if (words.size() > 2)
                             {
-                                shared_ptr<Node> n;
+                                pnode_t n;
 
                                 if ((n = nodebypath(words[2].c_str(), &targetuser, &newname)))
                                 {
@@ -2005,7 +2005,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 3)
                         {
-                            shared_ptr<Node> n = nodebypath(words[2].c_str());
+                            pnode_t n = nodebypath(words[2].c_str());
 
                             if (client->checkaccess(n, FULL))
                             {
@@ -2202,7 +2202,7 @@ static void process_line(char* l)
                             case 1:		// list all shares (incoming and outgoing)
                                 {
                                     TreeProcListOutShares listoutshares;
-                                    shared_ptr<Node> n;
+                                    pnode_t n;
 
                                     cout << "Shared folders:" << endl;
 
@@ -2218,7 +2218,7 @@ static void process_line(char* l)
                                          uit != client->users.end(); uit++)
                                     {
                                         User* u = &uit->second;
-                                        shared_ptr<Node> n;
+                                        pnode_t n;
 
                                         if (u->show == VISIBLE && u->sharing.size())
                                         {
@@ -2398,7 +2398,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            shared_ptr<Node> n;
+                            pnode_t n;
                             int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
 
                             if (words.size() < 3)
@@ -2427,8 +2427,8 @@ static void process_line(char* l)
                                 }
                                 else
                                 {
-									shared_ptr<vector<shared_ptr<Node>>> children = client->getchildren(n);
-									for (vector<shared_ptr<Node>>::iterator it = children->begin(); it != children->end(); it++)
+                                    shared_ptr<vector<pnode_t>> children = client->getchildren(n);
+                                    for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
@@ -2815,7 +2815,7 @@ static void process_line(char* l)
                     {
                         if (words.size() > 1)
                         {
-                            shared_ptr<Node> n;
+                            pnode_t n;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
@@ -3178,7 +3178,7 @@ void DemoApp::exportnode_result(error e)
 
 void DemoApp::exportnode_result(handle h, handle ph)
 {
-    shared_ptr<Node> n;
+    pnode_t n;
 
     if ((n = client->nodebyhandle(h)))
     {
@@ -3228,7 +3228,7 @@ void DemoApp::openfilelink_result(error e)
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                                   string* a, string* fa, int)
 {
-    shared_ptr<Node> n;
+    pnode_t n;
 
     if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
@@ -3326,7 +3326,7 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(shared_ptr<Node>* n, int count)
+void DemoApp::nodes_updated(pnode_t* n, int count)
 {
     int c[2][6] = { { 0 } };
 

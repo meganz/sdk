@@ -27,7 +27,7 @@
 
 namespace mega {
 // add share node and return its index
-int ShareNodeKeys::addshare(shared_ptr<Node> sn)
+int ShareNodeKeys::addshare(pnode_t sn)
 {
     for (int i = shares.size(); i--;)
     {
@@ -42,7 +42,7 @@ int ShareNodeKeys::addshare(shared_ptr<Node> sn)
     return shares.size() - 1;
 }
 
-void ShareNodeKeys::add(shared_ptr<Node> n, shared_ptr<Node> sn, int specific)
+void ShareNodeKeys::add(pnode_t n, pnode_t sn, int specific)
 {
     if (!sn)
     {
@@ -53,7 +53,7 @@ void ShareNodeKeys::add(shared_ptr<Node> n, shared_ptr<Node> sn, int specific)
 }
 
 // add a nodecore (!sn: all relevant shares, otherwise starting from sn, fixed: only sn)
-void ShareNodeKeys::add(NodeCore* n, shared_ptr<Node> sn, int specific, const byte* item, int itemlen)
+void ShareNodeKeys::add(NodeCore* n, pnode_t sn, int specific, const byte* item, int itemlen)
 {
     char buf[96];
     char* ptr;
