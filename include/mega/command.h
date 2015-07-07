@@ -318,7 +318,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandGetFile(TransferSlot*, byte*, handle, bool);
+    CommandGetFile(TransferSlot*, byte*, handle, bool, const char* = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command

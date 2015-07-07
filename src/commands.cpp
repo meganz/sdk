@@ -360,11 +360,23 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p)
+CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
 {
     cmd("g");
-    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if(auth)
+    {
+        if(strlen(auth) == 8)
+        {
+            arg("en", auth);
+        }
+        else
+        {
+            arg("esid", auth);
+        }
+    }
 
     tslot = ctslot;
     ph = h;

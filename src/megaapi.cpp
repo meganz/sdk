@@ -190,6 +190,11 @@ MegaHandle MegaNode::getHandle()
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaNode::getParentHandle()
+{
+    return INVALID_HANDLE;
+}
+
 char *MegaNode::getBase64Key()
 {
     return NULL;
@@ -246,6 +251,11 @@ string *MegaNode::getNodeKey()
 }
 
 string *MegaNode::getAttrString()
+{
+    return NULL;
+}
+
+string *MegaNode::getAuth()
 {
     return NULL;
 }
@@ -1477,6 +1487,18 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
     return pImpl->processMegaTree(n, processor, recursive);
 }
 
+MegaNode *MegaApi::createPublicFileNode(MegaHandle handle, const char *key,
+                                    const char *name, int64_t size, int64_t mtime,
+                                        MegaHandle parentHandle, const char *auth)
+{
+    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, auth);
+}
+
+MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+{
+    return pImpl->createPublicFolderNode(handle, name, parentHandle, auth);
+}
+
 const char *MegaApi::getVersion()
 {
     return pImpl->getVersion();
@@ -1803,14 +1825,14 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 #endif
 
-char *MegaApi::nameToLocal(const char *name)
+char *MegaApi::escapeFsIncompatible(const char *filename)
 {
-    return pImpl->nameToLocal(name);
+    return pImpl->escapeFsIncompatible(filename);
 }
 
-char *MegaApi::localToName(const char *localName)
+char *MegaApi::unescapeFsIncompatible(const char *name)
 {
-    return pImpl->localToName(localName);
+    return pImpl->unescapeFsIncompatible(name);
 }
 
 bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)

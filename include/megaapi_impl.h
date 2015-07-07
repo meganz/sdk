@@ -134,52 +134,58 @@ private:
 
 class MegaNodePrivate : public MegaNode
 {
-	public:
-		MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring);
-		MegaNodePrivate(MegaNode *node);
-		virtual ~MegaNodePrivate();
-		virtual int getType();
-		virtual const char* getName();
+    public:
+        MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
+                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
+                        MegaHandle parentHandle = INVALID_HANDLE, const char*auth = NULL);
+        MegaNodePrivate(MegaNode *node);
+        virtual ~MegaNodePrivate();
+        virtual int getType();
+        virtual const char* getName();
         virtual char *getBase64Handle();
-		virtual int64_t getSize();
-		virtual int64_t getCreationTime();
-		virtual int64_t getModificationTime();
-		virtual MegaHandle getHandle();
-		virtual std::string* getNodeKey();
+        virtual int64_t getSize();
+        virtual int64_t getCreationTime();
+        virtual int64_t getModificationTime();
+        virtual MegaHandle getHandle();
+        virtual MegaHandle getParentHandle();
+        virtual std::string* getNodeKey();
         virtual char *getBase64Key();
-		virtual std::string* getAttrString();
-		virtual int getTag();
-		virtual bool isFile();
-		virtual bool isFolder();
+        virtual std::string* getAttrString();
+        virtual int getTag();
+        virtual bool isFile();
+        virtual bool isFolder();
         bool isRemoved();
         virtual bool hasChanged(int changeType);
         virtual int getChanges();
-		virtual bool hasThumbnail();
-		virtual bool hasPreview();
+        virtual bool hasThumbnail();
+        virtual bool hasPreview();
         virtual bool isPublic();
+        virtual std::string* getAuth();
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
         virtual std::string getLocalPath();
 #endif
 
-		static MegaNode *fromNode(Node *node);
-		virtual MegaNode *copy();
+        static MegaNode *fromNode(Node *node);
+        virtual MegaNode *copy();
 
-	protected:
-		MegaNodePrivate(Node *node);
-		int type;
-		const char *name;
-		int64_t size;
-		int64_t ctime;
-		int64_t mtime;
-		MegaHandle nodehandle;
-		std::string nodekey;
-		std::string attrstring;
-		int tag;
+    protected:
+        MegaNodePrivate(Node *node);
+        int type;
+        const char *name;
+        int64_t size;
+        int64_t ctime;
+        int64_t mtime;
+        MegaHandle nodehandle;
+        MegaHandle parenthandle;
+        std::string nodekey;
+        std::string attrstring;
+        std::string auth;
+        int tag;
         int changed;
-		bool thumbnailAvailable;
-		bool previewAvailable;
+        bool thumbnailAvailable;
+        bool previewAvailable;
         bool isPublicNode;
 
 #ifdef ENABLE_SYNC
@@ -1018,6 +1024,10 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRubbishNode();
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
+
+        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, MegaHandle parentHandle, const char *auth);
+        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth);
+
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 
         const char *getVersion();
@@ -1037,8 +1047,8 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
-        char *nameToLocal(const char *name);
-        char *localToName(const char*localName);
+        char* escapeFsIncompatible(const char *filename);
+        char* unescapeFsIncompatible(const char* name);
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
