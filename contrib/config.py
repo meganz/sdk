@@ -13,7 +13,7 @@ import os
 
 # Checkers to run. Available options for checkers are:
 # "jshint", "jscs", "cppcheck", "nsiqcppstyle", "vera++"
-checkers = ['nsiqcppstyle', 'cppcheck']
+checkers = ['vera++', 'nsiqcppstyle', 'cppcheck']
 
 # Extra options for designated checkers.
 # This configuration needs an entry for every encountered checker if the
