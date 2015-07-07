@@ -352,7 +352,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
     }
 
     va_start(args, format);
-    ret = vsnprintf_s(s, n, _TRUNCATE, format, args);
+    ret = vsnprintf(s, n, format, args);
     va_end(args);
 
     s[n - 1] = '\0';

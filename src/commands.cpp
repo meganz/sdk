@@ -786,11 +786,21 @@ void CommandPutNodes::procresult()
     if (client->json.isnumeric())
     {
         e = (error)client->json.getint();
+        LOG_debug << "Putnodes error " << e;
 
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
             client->app->putnodes_result(e, type, NULL);
+
+            for (int i=0; i < nnsize; i++)
+            {
+                if (nn[i].localnode)
+                {
+                    nn[i].localnode->newnode = NULL;
+                }
+            }
+
             return client->putnodes_sync_result(e, nn, 0);
         }
         else
@@ -818,6 +828,10 @@ void CommandPutNodes::procresult()
                 {
                     e = API_OK;
                 }
+                else
+                {
+                    LOG_err << "Parse error (readnodes)";
+                }
                 break;
 
             default:
@@ -827,6 +841,8 @@ void CommandPutNodes::procresult()
                 }
 
                 e = API_EINTERNAL;
+                LOG_err << "Parse error (PutNodes)";
+
                 // fall through
             case EOO:
                 client->applykeys();
@@ -1255,7 +1271,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
             client->key.ecb_encrypt(n->sharekey->key, sharekey, SymmCipher::KEYLENGTH);
 
             element(h, MegaClient::NODEHANDLE);
-            element(client->me, 8);
+            element(client->me, MegaClient::USERHANDLE);
             element(sharekey, SymmCipher::KEYLENGTH);
         }
     }
@@ -3066,9 +3082,14 @@ void CommandCreditCardQuerySubscriptions::procresult()
     }
 }
 
-CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client)
+CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaClient* client, const char* reason)
 {
     cmd("cccs");
+
+    if (reason)
+    {
+        arg("r", reason);
+    }
 
     tag = client->reqtag;
 }
@@ -3135,6 +3156,44 @@ void CommandCopySession::procresult()
                 }
         }
     }
+}
+
+CommandGetPaymentMethods::CommandGetPaymentMethods(MegaClient *client)
+{
+    cmd("ufpq");
+    tag = client->reqtag;
+}
+
+void CommandGetPaymentMethods::procresult()
+{
+    int methods = 0;
+
+    if(!client->json.isnumeric())
+    {
+        LOG_err << "Parse error in ufpq";
+        client->app->getpaymentmethods_result(methods, API_EINTERNAL);
+        return;
+    }
+
+    do
+    {
+        int value = client->json.getint();
+        if(value < 0)
+        {
+            client->app->getpaymentmethods_result(methods, (error)value);
+
+            //Consume remaining values if they exist
+            while(client->json.isnumeric())
+            {
+                client->json.getint();
+            }
+            return;
+        }
+
+        methods |= 1 << value;
+    } while(client->json.isnumeric());
+
+    client->app->getpaymentmethods_result(methods, API_OK);
 }
 
 } // namespace

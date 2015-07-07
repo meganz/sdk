@@ -868,6 +868,7 @@ class MegaApiImpl : public MegaApp
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         char* getMyEmail();
+        char* getMyUserHandle();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
@@ -909,7 +910,8 @@ class MegaApiImpl : public MegaApp
                              MegaRequestListener *listener = NULL);
 
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
-        void creditCardCancelSubscriptions(MegaRequestListener *listener = NULL);
+        void creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener = NULL);
+        void getPaymentMethods(MegaRequestListener *listener = NULL);
 
         char *exportMasterKey();
 
@@ -1082,6 +1084,16 @@ protected:
         map<int, MegaRequestPrivate *> requestMap;
         map<int, MegaTransferPrivate *> transferMap;
 
+        vector<m_time_t> downloadTimes;
+        vector<int64_t> downloadBytes;
+        int64_t downloadPartialBytes;
+        int64_t downloadSpeed;
+
+        vector<m_time_t> uploadTimes;
+        vector<int64_t> uploadBytes;
+        int64_t uploadPartialBytes;
+        int64_t uploadSpeed;
+
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
 #endif
@@ -1115,7 +1127,6 @@ protected:
         MegaUserList *activeUsers;
 
         int threadExit;
-        dstime pausetime;
         void loop();
 
         int maxRetries;
@@ -1184,6 +1195,7 @@ protected:
         virtual void creditcardstore_result(error);
         virtual void creditcardquerysubscriptions_result(int, error);
         virtual void creditcardcancelsubscriptions_result(error);
+        virtual void getpaymentmethods_result(int, error);
         virtual void copysession_result(string*, error);
 
         virtual void checkfile_result(handle h, error e);

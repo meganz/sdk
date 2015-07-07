@@ -161,6 +161,7 @@
 %newobject mega::MegaApi::search;
 %newobject mega::MegaApi::ebcEncryptKey;
 %newobject mega::MegaApi::getMyEmail;
+%newobject mega::MegaApi::getMyUserHandle;
 %newobject mega::MegaApi::dumpSession;
 %newobject mega::MegaApi::getNodeByPath;
 %newobject mega::MegaApi::getNodeByHandle;

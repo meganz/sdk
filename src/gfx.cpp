@@ -124,8 +124,10 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
                 // store the file attribute data - it will be attached to the file
                 // immediately if the upload has already completed; otherwise, once
                 // the upload completes
+                int creqtag = client->reqtag;
                 client->reqtag = 0;
                 client->putfa(th, (meta_t)i, key, jpeg);
+                client->reqtag = creqtag;
                 numputs++;
 
                 jpeg = NULL;

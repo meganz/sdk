@@ -884,8 +884,10 @@ void MegaClient::exec()
                             else if (e == API_ETOOMANY)
                             {
                                 LOG_warn << "Too many pending updates - reloading local state";
+                                int creqtag = reqtag;
                                 reqtag = 0;
                                 fetchnodes();
+                                reqtag = creqtag;
                             }
                         }
                         // fall through
@@ -3125,6 +3127,16 @@ void MegaClient::notifypurge(void)
         for (i = 0; i < t; i++)
         {
             pnode_t n = nodenotify[i];
+            if (n->attrstring)
+            {
+                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekey.size();
+#ifdef ENABLE_SYNC
+                if (n->localnode)
+                {
+                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
+                }
+#endif
+            }
 
             if (n->changed.removed)
             {
@@ -3139,6 +3151,7 @@ void MegaClient::notifypurge(void)
             {
                 n->notified = false;
                 memset(&(n->changed), 0, sizeof(n->changed));
+                n->tag = 0;
             }
         }
 
@@ -4777,9 +4790,14 @@ void MegaClient::creditcardquerysubscriptions()
     reqs[r].add(new CommandCreditCardQuerySubscriptions(this));
 }
 
-void MegaClient::creditcardcancelsubscriptions()
+void MegaClient::creditcardcancelsubscriptions(const char* reason)
 {
-    reqs[r].add(new CommandCreditCardCancelSubscriptions(this));
+    reqs[r].add(new CommandCreditCardCancelSubscriptions(this, reason));
+}
+
+void MegaClient::getpaymentmethods()
+{
+    reqs[r].add(new CommandGetPaymentMethods(this));
 }
 
 // add new contact (by e-mail address)
@@ -4866,6 +4884,40 @@ void MegaClient::getua(User* u, const char* an, int p)
 void MegaClient::notifynode(pnode_t n)
 {
     n->applykey();
+
+    if(n->tag && !n->changed.removed && n->attrstring)
+    {
+        // report a "NO_KEY" event
+
+        char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
+        Base64::btoa((byte *)n->nodekey.data(), n->nodekey.size(), buf);
+
+        int changed = 0;
+        changed |= (int)n->changed.removed;
+        changed |= n->changed.attrs << 1;
+        changed |= n->changed.owner << 2;
+        changed |= n->changed.ctime << 3;
+        changed |= n->changed.fileattrstring << 4;
+        changed |= n->changed.inshare << 5;
+        changed |= n->changed.outshares << 6;
+        changed |= n->changed.parent << 7;
+
+        int attrlen = n->attrstring->size();
+        string base64attrstring;
+        base64attrstring.resize(attrlen * 4 / 3 + 4);
+        base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), n->attrstring->size(), (char *)base64attrstring.data()));
+
+        char report[512];
+        Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
+        sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
+
+        int creqtag = reqtag;
+        reqtag = 0;
+        reportevent("NK", report);
+        reqtag = creqtag;
+
+        delete [] buf;
+    }
 
 #ifdef ENABLE_SYNC
     // is this a synced node that was moved to a non-synced location? queue for
@@ -5608,10 +5660,13 @@ void MegaClient::purgenodesusersabortsc()
         delete *(it++);
     }
 
+    syncs.clear();
+#endif
+
+#ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-
-    syncs.clear();
+    fingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6026,6 +6081,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         {
             addchild(&nchildren, &ait->second, *it, &strings);
         }
+        else
+        {
+            LOG_debug << "Node skipped " << (*it)->nodehandle;
+        }
     }
 
     // remove remote items that exist locally from hash, recurse into existing folders
@@ -6325,10 +6384,11 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
                         sprintf(report + 8, " %d %.200s", (*it)->type, buf);
 
-                        reqtag = 0;
-
                         // report an "undecrypted child" event
+                        int creqtag = reqtag;
+                        reqtag = 0;
                         reportevent("CU", report);
+                        reqtag = creqtag;
 
                         delete [] buf;
                     }
@@ -6345,10 +6405,11 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         l->reported = true;
 
-                        reqtag = 0;
-
                         // report a "no-name child" event
+                        int creqtag = reqtag;
+                        reqtag = 0;
                         reportevent("CN");
+                        reqtag = creqtag;
                     }
 
                     continue;
@@ -6383,8 +6444,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 sprintf(report, "%d %d %d %d", (int)lit->first->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
+                int creqtag = reqtag;
                 reqtag = 0;
                 reportevent("LN", report);
+                reqtag = creqtag;
             }
             continue;
         }
@@ -6594,10 +6657,11 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 }
 
-                reqtag = 0;
-
                 // report a "dupe" event
+                int creqtag = reqtag;
+                reqtag = 0;
                 reportevent("D", report);
+                reqtag = creqtag;
             }
             else
             {
@@ -6867,8 +6931,10 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
+            int creqtag = reqtag;
             reqtag = tn->tag;
             unlink(tn);
+            reqtag = creqtag;
         }
 
         tn->tounlink_it = tounlink.end();
@@ -6945,9 +7011,15 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
+                    int creqtag = reqtag;
                     reqtag = n->tag;
+<<<<<<< HEAD
                     rename(n, tn, target, n->parenthandle);
                     // I assume that parenthandle is properly set to its value or UNDEF
+=======
+                    rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
+                    reqtag = creqtag;
+>>>>>>> upstream/master
                     it++;
                 }
                 else

@@ -45,6 +45,7 @@
 #include <queue>
 #include <list>
 #include <memory>
+#include <functional>
 
 #ifdef HAVE_STDDEF_H
     #include <stddef.h>

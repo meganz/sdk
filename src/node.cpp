@@ -615,6 +615,13 @@ const char* Node::displayname() const
     // not yet decrypted
     if (attrstring)
     {
+        LOG_debug << "NO_KEY " << type << " " << size << " " << nodehandle;
+#ifdef ENABLE_SYNC
+        if (localnode)
+        {
+            LOG_debug << "Local name: " << localnode->name;
+        }
+#endif
         return "NO_KEY";
     }
 
@@ -624,11 +631,28 @@ const char* Node::displayname() const
 
     if (it == attrs.map.end())
     {
+        if (type < ROOTNODE || type > RUBBISHNODE)
+        {
+            LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
+#ifdef ENABLE_SYNC
+            if (localnode)
+            {
+                LOG_debug << "Local name: " << localnode->name;
+            }
+#endif
+        }
         return "CRYPTO_ERROR";
     }
 
     if (!it->second.size())
     {
+        LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
+#ifdef ENABLE_SYNC
+        if (localnode)
+        {
+            LOG_debug << "Local name: " << localnode->name;
+        }
+#endif
         return "BLANK";
     }
 
@@ -886,11 +910,13 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 if (name != node->attrs.map['n'])
                 {
                     string prevname = node->attrs.map['n'];
+                    int creqtag = sync->client->reqtag;
 
                     // set new name
                     node->attrs.map['n'] = name;
                     sync->client->reqtag = sync->tag;
                     sync->client->setattr(node, NULL, prevname.c_str());
+                    sync->client->reqtag = creqtag;
                     treestate(TREESTATE_SYNCING);
                 }
             }
@@ -912,6 +938,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 assert(parent->node);
                 
+                int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parenthandle) != API_OK)
 //              I assume that 'node->parenthandle' is correctly set to its value or UNDEF
@@ -922,6 +949,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // save for deletion
                     todelete = node;
                 }
+                sync->client->reqtag = creqtag;
                 treestate(TREESTATE_SYNCING);
             }
 

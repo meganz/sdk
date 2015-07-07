@@ -332,6 +332,20 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 
     for (;;)
     {
+        if (nptr > end)
+        {
+            string utf8path;
+            client->fsaccess->local2path(localpath, &utf8path);
+            LOG_err << "Invalid parameter in localnodebypath: " << utf8path << "  Size: " << localpath->size();
+
+            if (rpath)
+            {
+                rpath->clear();
+            }
+
+            return NULL;
+        }
+
         if (nptr == end || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen))
         {
             if (parent)

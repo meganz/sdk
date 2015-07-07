@@ -836,6 +836,11 @@ char *MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+char *MegaApi::getMyUserHandle()
+{
+    return pImpl->getMyUserHandle();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
@@ -1156,9 +1161,14 @@ void MegaApi::creditCardQuerySubscriptions(MegaRequestListener *listener)
     pImpl->creditCardQuerySubscriptions(listener);
 }
 
-void MegaApi::creditCardCancelSubscriptions(MegaRequestListener *listener)
+void MegaApi::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
-    pImpl->creditCardCancelSubscriptions(listener);
+    pImpl->creditCardCancelSubscriptions(reason, listener);
+}
+
+void MegaApi::getPaymentMethods(MegaRequestListener *listener)
+{
+    pImpl->getPaymentMethods(listener);
 }
 
 char *MegaApi::exportMasterKey()

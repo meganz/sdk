@@ -50,6 +50,7 @@
 #include <queue>
 #include <list>
 #include <memory>
+#include <functional>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,7 +83,7 @@
 #endif
 
 #ifndef MEGA_MINOR_VERSION
-#define MEGA_MINOR_VERSION 5
+#define MEGA_MINOR_VERSION 6
 #endif
 
 #ifndef MEGA_MICRO_VERSION

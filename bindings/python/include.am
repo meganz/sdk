@@ -19,4 +19,4 @@ bindings/python/megaapi_wrap.cpp: $(top_srcdir)/bindings/megaapi.i
 	$(SWIG) -threads -python -I$(top_srcdir)/include -o $@ $<
 
 bindings/python/__init__.py: bindings/python/megaapi_wrap.cpp
-	ln -f $< $@
+	touch $@

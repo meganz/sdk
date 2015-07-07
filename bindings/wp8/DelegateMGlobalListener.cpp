@@ -47,6 +47,12 @@ void DelegateMGlobalListener::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
 		listener->onNodesUpdate(megaSDK, nodes ? ref new MNodeList(nodes->copy(), true) : nullptr);
 }
 
+void DelegateMGlobalListener::onAccountUpdate(MegaApi* api)
+{
+	if (listener != nullptr)
+		listener->onAccountUpdate(megaSDK);
+}
+
 void DelegateMGlobalListener::onReloadNeeded(MegaApi* api)
 {
 	if (listener != nullptr)

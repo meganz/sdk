@@ -5,6 +5,7 @@
 + include/
 + examples/
 - include/mega/config.h
+- bindings/
 
 ## Rules documented here:
 ## http://nsiqcppstyle.appspot.com/rule_doc/

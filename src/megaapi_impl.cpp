@@ -39,7 +39,9 @@
 #include <locale>
 
 #ifndef _WIN32
-#define _LARGEFILE64_SOURCE
+#ifndef _LARGEFILE64_SOURCE
+    #define _LARGEFILE64_SOURCE
+#endif
 #include <signal.h>
 #endif
 
@@ -62,6 +64,10 @@
 
 #if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
 #include <openssl/rand.h>
+#endif
+
+#ifdef WINDOWS_PHONE
+const char* inet_ntop(int af, const void* src, char* dst, int cnt);
 #endif
 
 using namespace mega;
@@ -1400,6 +1406,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS: return "CREDIT_CARD_QUERY_SUBSCRIPTIONS";
         case TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS: return "CREDIT_CARD_CANCEL_SUBSCRIPTIONS";
         case TYPE_GET_SESSION_TRANSFER_URL: return "GET_SESSION_TRANSFER_URL";
+        case TYPE_GET_PAYMENT_METHODS: return "GET_PAYMENT_METHODS";
 	}
     return "UNKNOWN";
 }
@@ -1825,7 +1832,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     sdkMutex.init(true);
     maxRetries = 10;
 	currentTransfer = NULL;
-    pausetime = 0;
     pendingUploads = 0;
     pendingDownloads = 0;
     totalUploads = 0;
@@ -1842,6 +1848,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeUsers = NULL;
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
+    downloadSpeed = 0;
+    uploadSpeed = 0;
+    uploadPartialBytes = 0;
+    downloadPartialBytes = 0;
 
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
@@ -1878,7 +1888,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 	{
 		gfxAccess = new MegaGfxProc();
 	}
-	
+
 	if(!userAgent)
 	{
 		userAgent = "";
@@ -1922,6 +1932,23 @@ char* MegaApiImpl::getMyEmail()
 	}
 
     char *result = MegaApi::strdup(u->email.c_str());
+    sdkMutex.unlock();
+    return result;
+}
+
+char *MegaApiImpl::getMyUserHandle()
+{
+    User* u;
+    sdkMutex.lock();
+    if (!client->loggedin() || !(u = client->finduser(client->me)))
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char buf[12];
+    Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, buf);
+    char *result = MegaApi::strdup(buf);
     sdkMutex.unlock();
     return result;
 }
@@ -2277,38 +2304,44 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 void MegaApiImpl::loop()
 {
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
-    if(!servers.size())
-    {
-        // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-        struct hostent *hp;
-        struct in_addr **addr_list;
+    struct hostent *hp;
+    struct in_addr **addr_list;
 
-        while (true)
+    while (true)
+    {
+        hp = gethostbyname("ns.mega.co.nz");
+        if (hp != NULL && hp->h_addr != NULL)
         {
-            hp = gethostbyname("ns.mega.co.nz");
-            if (hp != NULL && hp->h_addr != NULL)
+            addr_list = (struct in_addr **)hp->h_addr_list;
+            for (int i = 0; addr_list[i] != NULL; i++)
             {
-                addr_list = (struct in_addr **)hp->h_addr_list;
-                for (int i = 0; addr_list[i] != NULL; i++)
+                char str[INET_ADDRSTRLEN];
+                const char *ip = inet_ntop(AF_INET, addr_list[i], str, INET_ADDRSTRLEN);
+                if(ip == str)
                 {
-                    const char *ip = inet_ntoa(*addr_list[i]);
-                    if (i > 0) servers.append(",");
+                    if (servers.size())
+                    {
+                        servers.append(",");
+                    }
                     servers.append(ip);
                 }
-
-                if (servers.size())
-                    break;
             }
-            #ifdef WINDOWS_PHONE
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            #else
-                sleep(1);
-            #endif
-        }
 
-        httpio->setdnsservers(servers.c_str());
+            if (servers.size())
+                break;
+        }
+        #ifdef WINDOWS_PHONE
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        #else
+            sleep(1);
+        #endif
     }
+
+    LOG_debug << "Using MEGA DNS servers";
+    httpio->setdnsservers(servers.c_str());
+
 #elif _WIN32
     httpio->lock();
 #endif
@@ -2692,9 +2725,17 @@ void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::creditCardCancelSubscriptions(MegaRequestListener *listener)
+void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
+    request->setText(reason);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getPaymentMethods(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_METHODS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -3661,43 +3702,46 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
 int MegaApiImpl::getAccess(MegaNode* megaNode)
 {
-	if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
+    if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
 
     sdkMutex.lock();
+
     pnode_t node = client->nodebyhandle(megaNode->getHandle());
 	if(!node)
-	{
+    {
         sdkMutex.unlock();
-		return MegaShare::ACCESS_UNKNOWN;
-	}
+        return MegaShare::ACCESS_UNKNOWN;
+    }
 
-	if (!client->loggedin())
-	{
+    if (!client->loggedin())
+    {
         sdkMutex.unlock();
-		return MegaShare::ACCESS_READ;
-	}
-	if(node->type > FOLDERNODE)
-	{
+        return MegaShare::ACCESS_READ;
+    }
+
+    if(node->type > FOLDERNODE)
+    {
         sdkMutex.unlock();
-		return MegaShare::ACCESS_OWNER;
-	}
+        return MegaShare::ACCESS_OWNER;
+    }
 
     pnode_t n = node;
-    accesslevel_t a = FULL;
-	while (n)
-	{
-		if (n->inshare) { a = n->inshare->access; break; }
+    accesslevel_t a = OWNER;
+    while (n)
+    {
+        if (n->inshare) { a = n->inshare->access; break; }
         n = client->nodebyhandle(n->parenthandle);
-	}
+    }
 
     sdkMutex.unlock();
 
-	switch(a)
-	{
-		case RDONLY: return MegaShare::ACCESS_READ;
-		case RDWR: return MegaShare::ACCESS_READWRITE;
-		default: return MegaShare::ACCESS_FULL;
-	}
+    switch(a)
+    {
+        case RDONLY: return MegaShare::ACCESS_READ;
+        case RDWR: return MegaShare::ACCESS_READWRITE;
+        case FULL: return MegaShare::ACCESS_FULL;
+        default: return MegaShare::ACCESS_OWNER;
+    }
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -4173,32 +4217,78 @@ void MegaApiImpl::transfer_update(Transfer *tr)
 {
     if(transferMap.find(tr->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(tr->tag);
+    if(!transfer)
+    {
+        return;
+    }
 
     if(tr->slot)
     {
-        if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported ||
-           (tr->slot->progressreported == tr->size))
+        if((transfer->getUpdateTime() != Waiter::ds) || !tr->slot->progressreported || (tr->slot->progressreported == tr->size))
         {
-            if(!transfer->getStartTime()) transfer->setStartTime(Waiter::ds);
-            transfer->setDeltaSize(tr->slot->progressreported - transfer->getTransferredBytes());
+            if(!transfer->getStartTime())
+            {
+                transfer->setStartTime(Waiter::ds);
+            }
 
+            m_off_t deltaSize = tr->slot->progressreported - transfer->getTransferredBytes();
+            transfer->setDeltaSize(deltaSize);
+
+            dstime currentTime = Waiter::ds;
+            long long speed = 0;
             if(tr->type == GET)
-                totalDownloadedBytes += transfer->getDeltaSize();
+            {
+                totalDownloadedBytes += deltaSize;
+
+                while(downloadBytes.size())
+                {
+                    dstime deltaTime = currentTime - downloadTimes[0];
+                    if(deltaTime <= 50)
+                    {
+                        break;
+                    }
+
+                    downloadPartialBytes -= downloadBytes[0];
+                    downloadBytes.erase(downloadBytes.begin());
+                    downloadTimes.erase(downloadTimes.begin());
+                }
+
+                downloadBytes.push_back(deltaSize);
+                downloadTimes.push_back(currentTime);
+                downloadPartialBytes += deltaSize;
+
+                downloadSpeed = (downloadPartialBytes * 10) / 50;
+                speed = downloadSpeed;
+            }
             else
-                totalUploadedBytes += transfer->getDeltaSize();
+            {
+                totalUploadedBytes += deltaSize;
+
+                while(uploadBytes.size())
+                {
+                    dstime deltaTime = currentTime - uploadTimes[0];
+                    if(deltaTime <= 50)
+                    {
+                        break;
+                    }
+
+                    uploadPartialBytes -= uploadBytes[0];
+                    uploadBytes.erase(uploadBytes.begin());
+                    uploadTimes.erase(uploadTimes.begin());
+                }
+
+                uploadBytes.push_back(deltaSize);
+                uploadTimes.push_back(currentTime);
+                uploadPartialBytes += deltaSize;
+
+                uploadSpeed = (uploadPartialBytes * 10) / 50;
+                speed = uploadSpeed;
+            }
 
             transfer->setTransferredBytes(tr->slot->progressreported);
 
-            dstime currentTime = Waiter::ds;
-            if(currentTime<transfer->getStartTime())
+            if(currentTime < transfer->getStartTime())
                 transfer->setStartTime(currentTime);
-
-            long long speed = 0;
-            long long deltaTime = currentTime-transfer->getStartTime();
-            if(deltaTime<=0)
-                deltaTime = 1;
-            if(transfer->getTransferredBytes()>0)
-                speed = (10*transfer->getTransferredBytes())/deltaTime;
 
             transfer->setSpeed(speed);
             transfer->setUpdateTime(currentTime);
@@ -4359,6 +4449,8 @@ void MegaApiImpl::sessions_killed(handle, error e)
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
     LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
+    client->abortbackoff(false);
+
     if(newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
@@ -4383,13 +4475,18 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
-    if(client) client->syncscanstate = scanning;
+    if(client)
+    {
+        client->abortbackoff(false);
+        client->syncscanstate = scanning;
+    }
     fireOnGlobalSyncStateChanged();
 }
 
 void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *localNode, const char* path)
 {
     LOG_debug << "Sync - local folder addition detected: " << path;
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4401,6 +4498,8 @@ void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *localN
 
 void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localNode)
 {
+    client->abortbackoff(false);
+
     string local;
     string path;
     localNode->getlocalpath(&local, true);
@@ -4419,6 +4518,7 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
 void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *localNode, const char* path)
 {
     LOG_debug << "Sync - local file addition detected: " << path;
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4430,6 +4530,8 @@ void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *localNod
 
 void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNode)
 {
+    client->abortbackoff(false);
+
     string local;
     string path;
     localNode->getlocalpath(&local, true);
@@ -4447,6 +4549,7 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNod
 void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *localNode, const char* path)
 {
     LOG_debug << "Sync - local file change detected: " << path;
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4458,6 +4561,8 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *localNode,
 
 void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const char *to)
 {
+    client->abortbackoff(false);
+
     string local;
     string path;
     localNode->getlocalpath(&local, true);
@@ -4501,6 +4606,7 @@ void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *localNode, const char *p
 void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, pnode_t n)
 {
     LOG_debug << "Sync - remote file addition detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4513,6 +4619,7 @@ void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, pnode_t n)
 void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, pnode_t n)
 {
     LOG_debug << "Sync - remote file deletion detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4525,6 +4632,7 @@ void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, pnode_t n)
 void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, pnode_t n)
 {
     LOG_debug << "Sync - remote folder addition detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4537,6 +4645,7 @@ void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, pnode_t n)
 void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, pnode_t n)
 {
     LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4549,13 +4658,16 @@ void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, pnode_t n)
 void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *name)
 {
     LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
+    client->abortbackoff(false);
 }
 
 void MegaApiImpl::syncupdate_remote_move(Sync *sync, pnode_t n, pnode_t prevparent)
 {
+    pnode_t p = client->nodebyhandle(n->parenthandle);
     LOG_debug << "Sync - remote move " << n->displayname() <<
                  " from " << (prevparent ? prevparent->displayname() : "?") <<
-                 " to " << (client->nodebyhandle(n->parenthandle) ? client->nodebyhandle(n->parenthandle)->displayname() : "?");
+                 " to " << (p ? p->displayname() : "?");
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4569,6 +4681,7 @@ void MegaApiImpl::syncupdate_remote_move(Sync *sync, pnode_t n, pnode_t prevpare
 void MegaApiImpl::syncupdate_remote_rename(Sync *sync, pnode_t n, const char *prevname)
 {
     LOG_debug << "Sync - remote rename from " << prevname << " to " << n->displayname();
+    client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
@@ -4629,6 +4742,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
     else
     {
         LOG_debug << "Sync - local filesystem lock issue resolved, continuing...";
+        client->abortbackoff(false);
     }
 
     this->waiting = waiting;
@@ -4997,6 +5111,16 @@ void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::getpaymentmethods_result(int methods, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_METHODS)) return;
+
+    request->setNumber(methods);
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::creditcardstore_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -5124,7 +5248,6 @@ void MegaApiImpl::logout_result(error e)
             if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
         }
 
-        pausetime = 0;
         pendingUploads = 0;
         pendingDownloads = 0;
         totalUploads = 0;
@@ -5134,6 +5257,14 @@ void MegaApiImpl::logout_result(error e)
         excludedNames.clear();
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
+        uploadSpeed = 0;
+        downloadSpeed = 0;
+        downloadTimes.clear();
+        downloadBytes.clear();
+        uploadTimes.clear();
+        uploadBytes.clear();
+        uploadPartialBytes = 0;
+        downloadPartialBytes = 0;
 
         fireOnRequestFinish(request, MegaError(request->getParamType()));
         return;
@@ -7591,39 +7722,43 @@ void MegaApiImpl::sendPendingRequests()
 			if(disconnect)
             {
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
+                // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
-                if(!servers.size())
+                struct hostent *hp;
+                struct in_addr **addr_list;
+
+                while (true)
                 {
-                    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-                    struct hostent *hp;
-                    struct in_addr **addr_list;
-                    
-                    while (true)
+                    hp = gethostbyname("ns.mega.co.nz");
+                    if (hp != NULL && hp->h_addr != NULL)
                     {
-                        hp = gethostbyname("ns.mega.co.nz");
-                        if (hp != NULL && hp->h_addr != NULL)
+                        addr_list = (struct in_addr **)hp->h_addr_list;
+                        for (int i = 0; addr_list[i] != NULL; i++)
                         {
-                            addr_list = (struct in_addr **)hp->h_addr_list;
-                            for (int i = 0; addr_list[i] != NULL; i++)
+                            char str[INET_ADDRSTRLEN];
+                            const char *ip = inet_ntop(AF_INET, addr_list[i], str, INET_ADDRSTRLEN);
+                            if(ip == str)
                             {
-                                const char *ip = inet_ntoa(*addr_list[i]);
-                                if (i > 0) servers.append(",");
+                                if (servers.size())
+                                {
+                                    servers.append(",");
+                                }
                                 servers.append(ip);
                             }
-                            
-                            if (servers.size())
-                                break;
                         }
-#ifdef WINDOWS_PHONE
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
-                        sleep(1);
-#endif
+
+                        if (servers.size())
+                            break;
                     }
-                    
-                    LOG_debug << "Using MEGA DNS servers";
-                    httpio->setdnsservers(servers.c_str());
+                    #ifdef WINDOWS_PHONE
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                    #else
+                        sleep(1);
+                    #endif
                 }
+
+                LOG_debug << "Using MEGA DNS servers";
+                httpio->setdnsservers(servers.c_str());
 #endif
                 client->disconnect();
             }
@@ -7709,28 +7844,6 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_EARGS;
                 break;
-            }
-
-            if(pause)
-            {
-                if(!pausetime) pausetime = Waiter::ds;
-            }
-            else if(pausetime)
-            {
-                for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
-                {
-                    MegaTransfer *transfer = iter->second;
-                    if(!transfer)
-                        continue;
-
-                    m_time_t starttime = transfer->getStartTime();
-                    if(starttime)
-                    {
-						m_time_t timepaused = Waiter::ds - pausetime;
-                        iter->second->setStartTime(starttime + timepaused);
-                    }
-                }
-                pausetime = 0;
             }
 
             if(direction == -1)
@@ -7973,7 +8086,13 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS:
         {
-            client->creditcardcancelsubscriptions();
+            const char* reason = request->getText();
+            client->creditcardcancelsubscriptions(reason);
+            break;
+        }
+        case MegaRequest::TYPE_GET_PAYMENT_METHODS:
+        {
+            client->getpaymentmethods();
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

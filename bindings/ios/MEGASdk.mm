@@ -548,6 +548,30 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL);
 }
 
+- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type {
+    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type);
+}
+
+- (void)getUserAttibuteForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserAttibuteType:(MEGAUserAttribute)type {
+    self.megaApi->getUserAttribute(type);
+}
+
+- (void)getUserAttibuteType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAttribute(type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value {
+    self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL);
+}
+
+- (void)setUserAttibuteType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 #pragma mark - Account management Requests
 
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -899,13 +923,13 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
 
-- (NSInteger)accessLevelForNode:(MEGANode *)node {
-    if (node == nil) return -1;
+- (MEGAShareType)accessLevelForNode:(MEGANode *)node {
+    if (node == nil) return MEGAShareTypeAccessUnkown;
     
-    return self.megaApi->getAccess([node getCPtr]);
+    return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(NSInteger)level {
+- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (node == nil) return nil;
     
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess((node != nil) ? [node getCPtr] : NULL, (int) level).copy() cMemoryOwn:YES];

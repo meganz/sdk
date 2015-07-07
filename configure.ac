@@ -32,7 +32,7 @@ AC_PREREQ([2.61])
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [2])
-m4_define([mega_minor_version], [5])
+m4_define([mega_minor_version], [6])
 m4_define([mega_micro_version], [0])
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
@@ -404,7 +404,10 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-  ])
+    AC_CHECK_HEADERS([sodium/core.h], [sodium=true], [])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[])
+    ]
+  )
 AC_SUBST(SODIUM_CXXFLAGS)
 AC_SUBST(SODIUM_CPPFLAGS)
 AC_SUBST(SODIUM_LDFLAGS)

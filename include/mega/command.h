@@ -534,7 +534,7 @@ class MEGA_API CommandCreditCardCancelSubscriptions : public Command
 public:
     void procresult();
 
-    CommandCreditCardCancelSubscriptions(MegaClient*);
+    CommandCreditCardCancelSubscriptions(MegaClient*, const char* = NULL);
 };
 
 class MEGA_API CommandCopySession : public Command
@@ -543,6 +543,14 @@ public:
     void procresult();
 
     CommandCopySession(MegaClient*);
+};
+
+class MEGA_API CommandGetPaymentMethods : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPaymentMethods(MegaClient*);
 };
 
 } // namespace

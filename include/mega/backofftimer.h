@@ -30,6 +30,7 @@ class MEGA_API BackoffTimer
 {
     dstime next;
     dstime delta;
+    dstime base;
 
 public:
     // reset timer

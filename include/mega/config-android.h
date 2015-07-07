@@ -118,7 +118,7 @@
 #define MEGA_MICRO_VERSION 0
 
 /* MEGA SDK minor version. */
-#define MEGA_MINOR_VERSION 5
+#define MEGA_MINOR_VERSION 6
 
 /* Name of package */
 #define PACKAGE "libmega"
