@@ -308,12 +308,27 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if (numshares)
     {
-        // read inshare or outshares
-        while (Share::unserialize(client,
-                                  (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end, n)
-               && numshares > 0
-               && --numshares);
+        // read inshare (numshares = -1) or outshares (numshares = x)
+        do
+        {
+            int direction;
+            if(numshares > 0)
+                direction = -1;
+            else
+                direction = 0;
+
+            if(!Share::unserialize(client, direction, h, skey, &ptr, end, n))
+                break;
+
+            --numshares;
+
+        } while (numshares > 0);
+
+//        while (Share::unserialize(client,
+//                                  (numshares > 0) ? -1 : 0,
+//                                  h, skey, &ptr, end, n)
+//               && numshares > 0
+//               && --numshares);
 
     }
 
