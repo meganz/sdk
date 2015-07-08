@@ -276,7 +276,28 @@ void TransferSlot::doio(MegaClient* client)
                         reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
                     }
 
-                    if (reqs[i]->prepare(fa, tempurl.c_str(), &transfer->key,
+                    string finaltempurl = tempurl;
+                    if (transfer->type == GET && client->usealtdownport
+                            && !memcmp(tempurl.c_str(), "http:", 5))
+                    {
+                        int index = tempurl.find("/", 8);
+                        if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                        {
+                            finaltempurl.insert(index, ":8080");
+                        }
+                    }
+
+                    if (transfer->type == PUT && client->usealtupport
+                            && !memcmp(tempurl.c_str(), "http:", 5))
+                    {
+                        int index = tempurl.find("/", 8);
+                        if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                        {
+                            finaltempurl.insert(index, ":8080");
+                        }
+                    }
+
+                    if (reqs[i]->prepare(fa, finaltempurl.c_str(), &transfer->key,
                                          &transfer->chunkmacs, transfer->ctriv,
                                          transfer->pos, npos))
                     {

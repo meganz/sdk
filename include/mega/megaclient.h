@@ -290,6 +290,12 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // use an alternative port for downloads (8080)
+    bool usealtdownport;
+
+    // use an alternative port for uploads (8080)
+    bool usealtupport;
+
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
 
