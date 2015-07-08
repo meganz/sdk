@@ -3327,31 +3327,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Make a name suitable for a file name in the local filesystem
-     * 
-     * This function escapes (%xx) forbidden characters in the local filesystem if needed.
-     * You can revert this operation using MegaApi::localToName
-     * 
-     * @param name
-     *            Name to convert
-     * @return Converted name
-     */
-    public String nameToLocal(String name) {
-        return megaApi.nameToLocal(name);
-    }
-
-    /**
-     * @brief Unescape a file name escaped with MegaApi::nameToLocal
-     * 
-     * @param name
-     *            Escaped name to convert
-     * @return Converted name
-     */
-    public String localToName(String localName) {
-        return megaApi.localToName(localName);
-    }
-
-    /**
      * Convert a Base64 string to Base32
      * 
      * If the input pointer is NULL, this function will return NULL.
