@@ -1,0 +1,4 @@
+# binding Java: only SWIG auto-generated files
+megaapi_wrap.cpp
+megaapi_wrap.h
+nz/mega/sdk/*.java

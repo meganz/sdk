@@ -14,19 +14,24 @@ Below, you will find instructions to generate the required sources and library (
     sh autogen.sh
     ./configure --enable-java
     make
-    sudo make install
     ```
+
+    It might need to be necessary to pass the Java include directory for
+    `jni.h` to the `configure` command, e. g.
+
+    `--with-java-include-dir=/usr/lib/jvm/java-8-openjdk-amd64/include`
 
 2. Copy the library `libmegajava.so` into the `libs` folder in your project.
     
     ```
-    cp bindings/java/.libs/libmegajava.so examples/java/libs
+    mkdir examples/java/libs
+    cp bindings/java/.libs/libmegajava.so examples/java/libs/
     ```
     
 3. Copy the Java classes into the `src` folder in your project.
 
     ```
-    cp bindings/java/nz/mega/sdk/*.java examples/java/src/nz/mega/sdk
+    cp -a bindings/java/nz/mega/sdk examples/java/src/nz/mega/
     ```
 
 ## Prerequisites in Windows:
@@ -44,8 +49,8 @@ You have two options, using a prebuilt native library or building it by yourself
 Instead of downloading the prebuilt library, you can build it directly from the sources.
 
 1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Follow the instructions in [this guide](https://github.com/meganz/sdk/bindings/java/vs2010/README.md).
-3. Copy the new file `mega.dll` from `sdk/bindings/java/vs2010/Debug` into `sdk/examples/java/libs`.
+2. Follow the instructions in [this guide](https://github.com/meganz/sdk/bindings/java/contrib/vs2010/README.md).
+3. Copy the new file `mega.dll` from `sdk/bindings/java/contrib/vs2010/Debug` into `sdk/examples/java/libs`.
 4. Copy the Java classes from `sdk/bindings/java/nz/mega/sdk` into `sdk/bindings/java/src/nz/mega/sdk`.
 
 ## How to run the application
@@ -55,6 +60,7 @@ At this point, you should have all the required source code and the MEGA library
 You can simply compile the application and execute it:
 
 	```
+        mkdir bin
 	javac -d bin -sourcepath src/ src/nz/mega/bindingsample/MainWindow.java
 	java -cp bin nz.mega.bindingsample.MainWindow
 	```
@@ -67,5 +73,5 @@ Or you might prefer to use Eclipse:
 
 ## Notes
 
-The file `nz/mega/sdk/MegaApiJava.java` contains Javadoc documentation. It is recommended to use the `MegaApiSwing` subclass instead because it makes some needed initialization and sends callbacks to the UI thread, but the documentation in `MegaApiJava` applies also for `MegaApiSwing`.
+The file `nz/mega/sdk/MegaApiJava.java` contains JavaDoc documentation. It is recommended to use the `MegaApiSwing` subclass instead because it makes some needed initialization and sends callbacks to the UI thread, but the documentation in `MegaApiJava` applies also for `MegaApiSwing`.
 
