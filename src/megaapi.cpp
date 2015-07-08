@@ -1242,6 +1242,26 @@ void MegaApi::setUploadLimit(int bpslimit)
     pImpl->setUploadLimit(bpslimit);
 }
 
+void MegaApi::setDownloadMethod(int method)
+{
+    pImpl->setDownloadMethod(method);
+}
+
+void MegaApi::setUploadMethod(int method)
+{
+    pImpl->setUploadMethod(method);
+}
+
+int MegaApi::getDownloadMethod()
+{
+    return pImpl->getDownloadMethod();
+}
+
+int MegaApi::getUploadMethod()
+{
+    return pImpl->getUploadMethod();
+}
+
 MegaTransferList *MegaApi::getTransfers()
 {
     return pImpl->getTransfers();

@@ -2791,6 +2791,11 @@ class MegaApi
             PAYMENT_METHOD_CREDIT_CARD = 8
         };
 
+        enum {
+            TRANSFER_METHOD_NORMAL = 0,
+            TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -4427,6 +4432,62 @@ class MegaApi
          * in bytes per second
          */
         void setUploadLimit(int bpslimit);
+
+        /**
+         * @brief Set the transfer method for downloads
+         *
+         * Valid methods are:
+         * - TRANSFER_METHOD_NORMAL = 0
+         * HTTP transfers using port 80. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+         * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * @param method Selected transfer method for downloads
+         */
+        void setDownloadMethod(int method);
+
+        /**
+         * @brief Set the transfer method for uploads
+         *
+         * Valid methods are:
+         * - TRANSFER_METHOD_NORMAL = 0
+         * HTTP transfers using port 80. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+         * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * @param method Selected transfer method for uploads
+         */
+        void setUploadMethod(int method);
+
+        /**
+         * @brief Get the active transfer method for downloads
+         *
+         * Valid values for the return parameter are:
+         * - TRANSFER_METHOD_NORMAL = 0
+         * HTTP transfers using port 80. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+         * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * @return Active transfer method for downloads
+         */
+        int getDownloadMethod();
+
+        /**
+         * @brief Get the active transfer method for uploads
+         *
+         * Valid values for the return parameter are:
+         * - TRANSFER_METHOD_NORMAL = 0
+         * HTTP transfers using port 80. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+         * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * @return Active transfer method for uploads
+         */
+        int getUploadMethod();
 
         /**
          * @brief Get all active transfers

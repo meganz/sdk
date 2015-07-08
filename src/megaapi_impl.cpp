@@ -3013,6 +3013,56 @@ void MegaApiImpl::setUploadLimit(int bpslimit)
     client->putmbpscap = bpslimit;
 }
 
+void MegaApiImpl::setDownloadMethod(int method)
+{
+    switch(method)
+    {
+        case MegaApi::TRANSFER_METHOD_NORMAL:
+            client->usealtdownport = false;
+            break;
+        case MegaApi::TRANSFER_METHOD_ALTERNATIVE_PORT:
+            client->usealtdownport = true;
+            break;
+        default:
+            break;
+    }
+}
+
+void MegaApiImpl::setUploadMethod(int method)
+{
+    switch(method)
+    {
+        case MegaApi::TRANSFER_METHOD_NORMAL:
+            client->usealtupport = false;
+            break;
+        case MegaApi::TRANSFER_METHOD_ALTERNATIVE_PORT:
+            client->usealtupport = true;
+            break;
+        default:
+            break;
+    }
+}
+
+int MegaApiImpl::getDownloadMethod()
+{
+    if (client->usealtdownport)
+    {
+        return MegaApi::TRANSFER_METHOD_ALTERNATIVE_PORT;
+    }
+
+    return MegaApi::TRANSFER_METHOD_NORMAL;
+}
+
+int MegaApiImpl::getUploadMethod()
+{
+    if (client->usealtupport)
+    {
+        return MegaApi::TRANSFER_METHOD_ALTERNATIVE_PORT;
+    }
+
+    return MegaApi::TRANSFER_METHOD_NORMAL;
+}
+
 MegaTransferList *MegaApiImpl::getTransfers()
 {
     sdkMutex.lock();

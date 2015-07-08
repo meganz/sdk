@@ -943,6 +943,10 @@ class MegaApiImpl : public MegaApp
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
         bool areTansfersPaused(int direction);
         void setUploadLimit(int bpslimit);
+        void setDownloadMethod(int method);
+        void setUploadMethod(int method);
+        int getDownloadMethod();
+        int getUploadMethod();
         MegaTransferList *getTransfers();
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
