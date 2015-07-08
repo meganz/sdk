@@ -7088,6 +7088,14 @@ bool MegaClient::startxfer(direction_t d, File* f)
         if (it != transfers[d].end())
         {
             t = it->second;
+
+            for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+            {
+                if(f->localname == (*it)->localname)
+                {
+                    return false;
+                }
+            }
         }
         else
         {
