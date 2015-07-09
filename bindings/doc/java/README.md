@@ -14,4 +14,7 @@ For more info on Sphinx please see http://sphinx-doc.org/
 If you wish you can simply read the reStructuredText files in the source folder.  
 These can also be used to generate other formats.
 
- 
+PLEASE NOTE   
+This is work in progress. As such there may be times when files are uploaded without/missing content.  
+However You should always be able to build the documentation but results may vary from day to day.
+
