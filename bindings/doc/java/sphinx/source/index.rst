@@ -13,19 +13,6 @@ Contents:
    :maxdepth: 2
 
    summary
-   MegaGlobalListenerInterface
-   MegaListenerInterface
-   MegaLoggerInterface
-   MegaRequestListenerInterface
-   MegaTransferListenerInterface
-   MegaTreeProcessorInterface
-   DelegateMegaGlobalListener
-   DelegateMegaListener
-   DelegateMegaLogger 
-   DelegateMegaRequestListener
-   DelegateMegaTransferListener
-   DelegateMegaTreeProcessor
-   DelegateOutputMegaTransferListener
-   MegaApiJava
-   MegaApiSwing
+   megagloballistener
+
 
