@@ -7,12 +7,13 @@ Welcome to Java Bindings Sphinx's documentation!
 ================================================
 
 Contents:
--------
+---------
 
 .. toctree::
    :maxdepth: 2
 
    summary
-   megagloballistener
+   megagloballistenerinterface
+   delegatemegagloballistener
 
 
