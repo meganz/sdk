@@ -41,7 +41,7 @@ You have two options, using a prebuilt native library or building it by yourself
 ### To use a prebuilt library (the easy way), follow these steps:
 
 1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](https://mega.nz/#!vsMCWJbJ!WmvaOaat1ccHbi1dQyhOk9_zj4xVO09R4NnIYPUrzlE).
+2. Download the prebuilt library (`mega.dll`) along with its corresponding Java classes from [here](https://mega.nz/#!B4cx1KoA!GWYOcP0mp5_n6ouUEv27BKSkRcPGj9x17Eos6S72NB8).
 3. Extract the content into `sdk/examples/java/`, keeping the folder structure.
 
 ### To build the library by yourself
