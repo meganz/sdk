@@ -1,6 +1,9 @@
 # Java Example App
 
-This example shows a simple GUI (Swing) to allow the user log into MEGA. If login is successfull, it retrieves the MEGA filesystem and lists files/folders in the root folder.
+There are two examples provided for the Java bindings:
+
+* A simple GUI (Swing) to allow the user log into MEGA. If login is successfull, it retrieves the MEGA filesystem and lists files/folders in the root folder.
+* A simple console example that will demonstrate a simple "CRUD" (create, read, update delete) workflow, using this README file to upload and download. This example uses no GUI, and will display all interactions on the console using the Java provided logging framework.
 
 Below, you will find instructions to generate the required sources and library (prerequisites) for developing a MEGA app in Java. Afterwards, the Example application can be compiled and executed.
 
@@ -21,17 +24,21 @@ Below, you will find instructions to generate the required sources and library (
 
     `--with-java-include-dir=/usr/lib/jvm/java-8-openjdk-amd64/include`
 
-2. Copy the library `libmegajava.so` into the `libs` folder in your project.
+2. Copy or symlink the library `libmegajava.so` into the `libs` folder in your project.
     
     ```
     mkdir examples/java/libs
     cp bindings/java/.libs/libmegajava.so examples/java/libs/
+    # Alternatively for linking:
+    ln -s ../../../bindings/java/.libs/libmegajava.so examples/java/libs/.
     ```
     
-3. Copy the Java classes into the `src` folder in your project.
+3. Copy or symlink the Java classes into the `src` folder in your project.
 
     ```
     cp -a bindings/java/nz/mega/sdk examples/java/src/nz/mega/
+    # Alternatively for linking:
+    ln -s ../../../../../bindings/java/nz/mega/sdk examples/java/src/nz/mega/.
     ```
 
 ## Prerequisites in Windows:
@@ -61,9 +68,17 @@ You can simply compile the application and execute it:
 
 	```
         mkdir bin
-	javac -d bin -sourcepath src/ src/nz/mega/bindingsample/MainWindow.java
-	java -cp bin nz.mega.bindingsample.MainWindow
+        # For the Java Swing GUI example:
+	javac -d bin -sourcepath src/ src/nz/mega/bindingsample/SwigExample.java
+	java -cp bin nz.mega.bindingsample.SwigExample
+
+        # For the Java console example (`-D` parameter is to configure logging):
+	javac -d bin -sourcepath src/ src/nz/mega/bindingsample/CrudExample.java
+        java -cp bin -Djava.util.logging.config.file=logging.properties \
+            nz.mega.bindingsample.CrudExample
 	```
+
+Note: The console example will not work from some IDEs (like Eclipse) as it requires the hidden password entry using the console directly.
 
 Or you might prefer to use Eclipse:
 

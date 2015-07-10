@@ -1,49 +1,23 @@
-package nz.mega.bindingsample;
-
-import java.awt.HeadlessException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import javax.swing.DefaultListModel;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPasswordField;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-
 import nz.mega.sdk.MegaApiJava;
-import nz.mega.sdk.MegaApiSwing;
 import nz.mega.sdk.MegaError;
 import nz.mega.sdk.MegaLoggerInterface;
 import nz.mega.sdk.MegaNode;
 import nz.mega.sdk.MegaRequest;
 import nz.mega.sdk.MegaRequestListenerInterface;
 
-public class MainWindow extends JFrame implements MegaRequestListenerInterface, MegaLoggerInterface {
+public class CrudExample implements MegaRequestListenerInterface, MegaLoggerInterface {
 
     private static final long serialVersionUID = 1L;
 
-    static MegaApiSwing megaApi = null;
+    static MegaApiJava megaApi = null;
 
     static final String APP_KEY = "YYJwAIRI";
     static final String USER_AGENT = "MEGA Java Sample Demo SDK";
 
-    static JPanel panel;
-    static JTextField loginText;
-    static JTextField passwordText;
-    static JButton loginButton;
-    static JScrollPane listFiles;
-    static DefaultListModel<String> listModel;
-    static JLabel statusLabel;
-
-    private static final String STR_APP_TITLE = "Java Bindings Example";
     private static final String STR_EMAIL_TEXT = "Email:";
     private static final String STR_PWD_TEXT = "Password:";
     private static final String STR_LOGIN_TEXT = "Login";
@@ -69,12 +43,12 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
      */
     private void initializeMegaApi() {
 
-        MegaApiSwing.setLoggerObject(this);
-        MegaApiSwing.setLogLevel(MegaApiSwing.LOG_LEVEL_MAX);
+        MegaApiJava.setLoggerObject(this);
+        MegaApiJava.setLogLevel(MegaApiJava.LOG_LEVEL_MAX);
 
         if (megaApi == null) {
             String path = System.getProperty("user.dir");
-            megaApi = new MegaApiSwing(MainWindow.APP_KEY, MainWindow.USER_AGENT, path);
+            megaApi = new MegaApiJava(CrudExample.APP_KEY, path);
         }
     }
 
@@ -333,7 +307,7 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
     }
 
     public static void log(String message) {
-        MegaApiSwing.log(MegaApiSwing.LOG_LEVEL_INFO, message, "MainActivity");
+        MegaApiJava.log(MegaApiJava.LOG_LEVEL_INFO, message, "MainActivity");
     }
 
     @Override
