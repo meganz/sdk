@@ -2310,7 +2310,10 @@ void MegaClient::updatesc()
 
         if (t.size() != sizeof cachedscsn)
         {
-            LOG_err << "Invalid scsn size";
+            if (t.size())
+            {
+                LOG_err << "Invalid scsn size";
+            }
             return;
         }
 
