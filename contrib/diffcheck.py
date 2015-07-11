@@ -160,7 +160,7 @@ def reduce_jscs(file_line_mapping, **extra):
     # Go through output and collect only relevant lines to the result.
     result = ['\nJSCS output:\n============']
     lines_expression = re.compile(r'^ +(\d+) |.*(?:\n|\r\n?)-', re.MULTILINE)
-    file_expression = re.compile(r'^[^\b].* \./(.+) :$', re.MULTILINE)
+    file_expression = re.compile(r'^[^\b].* (?:\./)?(.+) :$', re.MULTILINE)
     for item in output:
         # Do the processing for every block here.
         line_no_candidates = lines_expression.findall(item, re.MULTILINE)

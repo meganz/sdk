@@ -1,321 +1,461 @@
-import java.util.ArrayList;
-import java.util.Locale;
-import java.util.regex.Pattern;
+/*
+ * CrudExample.java
+ *
+ * This file is part of the Mega SDK Java bindings example code.
+ *
+ * Created: 2015-07-09 Guy K. Kloss <gk@mega.co.nz>
+ * Changed:
+ *
+ * (c) 2015 by Mega Limited, Auckland, New Zealand
+ *     https://mega.nz/
+ *     Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ *
+ * This code is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
 
+package nz.mega.bindingsample;
+
+import java.io.Console;
+import java.util.ArrayList;
+import java.util.logging.Logger;
+
+import nz.mega.sdk.MegaAccountDetails;
 import nz.mega.sdk.MegaApiJava;
 import nz.mega.sdk.MegaError;
-import nz.mega.sdk.MegaLoggerInterface;
+import nz.mega.sdk.MegaGlobalListenerInterface;
 import nz.mega.sdk.MegaNode;
 import nz.mega.sdk.MegaRequest;
 import nz.mega.sdk.MegaRequestListenerInterface;
+import nz.mega.sdk.MegaTransfer;
+import nz.mega.sdk.MegaTransferListenerInterface;
+import nz.mega.sdk.MegaUser;
 
-public class CrudExample implements MegaRequestListenerInterface, MegaLoggerInterface {
+/**
+ * A simple example implementation that demonstrates a CRUD (create, read,
+ * update, delete) scenario for file storage.
+ * 
+ * Note: To "force" the fully asynchronous Mega API into a mocked synchronous
+ *       mode of operation, a condition variable was used to signal to and wait
+ *       for synchronisation points according to this tutorial:
+ *       http://tutorials.jenkov.com/java-concurrency/thread-signaling.html
+ *
+ * @author Guy K. Kloss
+ */
+public class CrudExample implements MegaRequestListenerInterface,
+                        MegaTransferListenerInterface,
+                        MegaGlobalListenerInterface {
 
-    private static final long serialVersionUID = 1L;
-
+    /** Reference to the Mega API object. */
     static MegaApiJava megaApi = null;
 
-    static final String APP_KEY = "YYJwAIRI";
-    static final String USER_AGENT = "MEGA Java Sample Demo SDK";
-
-    private static final String STR_EMAIL_TEXT = "Email:";
-    private static final String STR_PWD_TEXT = "Password:";
-    private static final String STR_LOGIN_TEXT = "Login";
-    private static final String STR_LOGOUT_TEXT = "Logout";
-    private static final String STR_INITIAL_STATUS = "Please, enter your login details";
-    private static final String STR_ERROR_ENTER_EMAIL = "Please, enter your email address";
-    private static final String STR_ERROR_INVALID_EMAIL = "Invalid email address";
-    private static final String STR_ERROR_ENTER_PWD = "Please, enter your password";
-    private static final String STR_ERROR_INCORRECT_EMAIL_OR_PWD = "Incorrect email or password";
-    private static final String STR_LOGGING_IN = "Logging in...";
-    private static final String STR_FETCHING_NODES = "Fetching nodes...";
-    private static final String STR_PREPARING_NODES = "Preparing nodes...";
-
-    public MainWindow() throws HeadlessException {
-        super(STR_APP_TITLE);
-
-        initializeMegaApi();
-        initializeGUI();
-    }
-
     /**
-     * Set logger and get reference to MEGA API
+     * Mega SDK application key.
+     * Generate one for free here: https://mega.nz/#sdk
      */
-    private void initializeMegaApi() {
+    static final String APP_KEY = "YYJwAIRI";
+    
+    /** Condition variable to signal asynchronous continuation. */
+    private Object continueEvent = null;
 
-        MegaApiJava.setLoggerObject(this);
-        MegaApiJava.setLogLevel(MegaApiJava.LOG_LEVEL_MAX);
+    /** Signal for condition variable to indicate signalling. */
+    private boolean wasSignalled = false;
 
+    /** Root node of the logged in account. */
+    private MegaNode rootNode = null;
+    
+    /** Java logging utility. */
+    private static final Logger log = Logger.getLogger(CrudExample.class.getName());
+    
+    /** Constructor. */
+    public CrudExample() {
+        // Make a new condition variable to signal continuation.
+        this.continueEvent = new Object();
+        
+        // Get reference to Mega API.
         if (megaApi == null) {
             String path = System.getProperty("user.dir");
             megaApi = new MegaApiJava(CrudExample.APP_KEY, path);
         }
     }
-
-    /**
-     * Create GUI components and configure them
-     */
-    private void initializeGUI() {
-        // Create and set up the window.
-        this.setSize(270, 160);
-        this.setResizable(false);
-        this.setLocationByPlatform(true);
-        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        panel = new JPanel();
-        this.add(panel);
-
-        panel.setLayout(null);
-
-        JLabel loginLabel = new JLabel(STR_EMAIL_TEXT);
-        loginLabel.setBounds(10, 10, 80, 25);
-        panel.add(loginLabel);
-
-        loginText = new JTextField(20);
-        loginText.setBounds(100, 10, 160, 25);
-        panel.add(loginText);
-
-        JLabel passwordLabel = new JLabel(STR_PWD_TEXT);
-        passwordLabel.setBounds(10, 40, 80, 25);
-        panel.add(passwordLabel);
-
-        passwordText = new JPasswordField(20);
-        passwordText.setBounds(100, 40, 160, 25);
-        panel.add(passwordText);
-
-        loginButton = new JButton(STR_LOGIN_TEXT);
-        loginButton.setBounds(160, 70, 100, 25);
-        panel.add(loginButton);
-
-        loginButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                JButton loginButton = (JButton) e.getSource();
-
-                if (loginButton.getText().compareTo(STR_LOGIN_TEXT) == 0) {
-                    initLogin();
-                } else if (loginButton.getText().compareTo(STR_LOGOUT_TEXT) == 0) {
-                    initLogout();
+    
+    public static void main(String[] args) {
+        CrudExample myListener = new CrudExample();
+        
+        // Execute a sequence of jobs on the Mega API.
+        long startTime = System.currentTimeMillis();
+        
+        // Log in.
+        log.info("*** start: login ***");
+        Console console = System.console();
+        String email = console.readLine("Email: ");
+        char[] passwordArray = console.readPassword("Password: ");
+        String password = new String(passwordArray);
+        synchronized(myListener.continueEvent) {
+            megaApi.login(email, password, myListener);
+            while (!myListener.wasSignalled) {
+                try {
+                    myListener.continueEvent.wait();
+                } catch(InterruptedException e) {
+                    log.warning("login interrupted: " + e.toString());
                 }
             }
-        });
-        getRootPane().setDefaultButton(loginButton);
+            myListener.wasSignalled = false;
+        }
+        // Set our current working directory.
+        MegaNode cwd = myListener.rootNode;
+        log.info("*** done: login ***");
+        
+        // Who am I.
+        log.info("*** start: whoami ***");
+        log.info("My email: " + megaApi.getMyEmail());
+        synchronized(myListener.continueEvent) {
+            megaApi.getAccountDetails(myListener);
+            while (!myListener.wasSignalled) {
+                try {
+                    myListener.continueEvent.wait();
+                } catch(InterruptedException e) {
+                    log.warning("whoami interrupted: " + e.toString());
+                }
+            }
+            myListener.wasSignalled = false;
+        }
+        log.info("*** done: whoami ***");
+        
+        // Make a directory.
+        log.info("*** start: mkdir ***");
+        MegaNode check = megaApi.getNodeByPath("sandbox", cwd);
+        if (check == null) {
+            synchronized(myListener.continueEvent) {
+                megaApi.createFolder("sandbox", cwd, myListener);
+                while (!myListener.wasSignalled) {
+                    try {
+                        myListener.continueEvent.wait();
+                    } catch(InterruptedException e) {
+                        log.warning("mkdir interrupted: " + e.toString());
+                    }
+                }
+                myListener.wasSignalled = false;
+            }
+        } else {
+            log.info("Path already exists: " + megaApi.getNodePath(check));
+        }
+        log.info("*** done: mkdir ***");
 
-        listModel = new DefaultListModel<String>();
-        JList<String> list = new JList<String>(listModel);
-        listFiles = new JScrollPane(list);
-        listFiles.setBounds(10, 100, this.getWidth() - 20, 200);
-        // panel.add(listFiles); // Do not add it yet
+        // Now go and play in the sandbox.
+        log.info("*** start: cd ***");
+        MegaNode node = megaApi.getNodeByPath("sandbox", cwd);
+        if (node == null) {
+            log.warning("No such file or directory: sandbox");
+        }
+        if (node.getType() == MegaNode.TYPE_FOLDER) {
+            cwd = node;
+        } else {
+            log.warning("Not a directory: sandbox");
+        }
+        log.info("*** done: cd ***");
 
-        statusLabel = new JLabel();
-        statusLabel.setBounds(10, 110, this.getWidth() - 20, 15);
-        setStatus(STR_INITIAL_STATUS);
-        panel.add(statusLabel);
+        // Upload a file (create).
+        log.info("*** start: upload ***");
+        synchronized(myListener.continueEvent) {
+            megaApi.startUpload("README.md", cwd, myListener);
+            while (!myListener.wasSignalled) {
+                try {
+                    myListener.continueEvent.wait();
+                } catch(InterruptedException e) {
+                    log.warning("upload interrupted: " + e.toString());
+                }
+            }
+            myListener.wasSignalled = false;
+        }
+        log.info("*** done: upload ***");
 
-        this.setVisible(true);
+        // Download a file (read).
+        log.info("*** start: download ***");
+        node = megaApi.getNodeByPath("README.md", cwd);
+        if (node != null) {
+            synchronized(myListener.continueEvent) {
+                megaApi.startDownload(node, "README_returned.md", myListener);
+                while (!myListener.wasSignalled) {
+                    try {
+                        myListener.continueEvent.wait();
+                    } catch(InterruptedException e) {
+                        log.warning("download interrupted: " + e.toString());
+                    }
+                }
+                myListener.wasSignalled = false;
+            }
+        } else {
+            log.warning("Node not found: README.md");
+        }
+        log.info("*** done: download ***");
+
+        // Change a file (update).
+        // Note: A new upload won't overwrite, but create a new node with same
+        //       name!
+        log.info("*** start: update ***");
+        MegaNode oldNode = megaApi.getNodeByPath("README.md", cwd);
+        synchronized(myListener.continueEvent) {
+            megaApi.startUpload("README.md", cwd, myListener);
+            while (!myListener.wasSignalled) {
+                try {
+                    myListener.continueEvent.wait();
+                } catch(InterruptedException e) {
+                    log.warning("upload interrupted: " + e.toString());
+                }
+            }
+            myListener.wasSignalled = false;
+        }
+        if (oldNode != null) {
+            // Remove the old node with the same name.
+            synchronized(myListener.continueEvent) {
+                megaApi.remove(oldNode, myListener);
+                while (!myListener.wasSignalled) {
+                    try {
+                        myListener.continueEvent.wait();
+                    } catch(InterruptedException e) {
+                        log.warning("remove interrupted: " + e.toString());
+                    }
+                }
+                myListener.wasSignalled = false;
+            }
+        } else {
+            log.info("No old file node needs removing");
+        }
+        log.info("*** done: update ***");
+        
+        // Delete a file.
+        log.info("*** start: delete ***");
+        node = megaApi.getNodeByPath("README.md", cwd);
+        if (node != null) {
+            synchronized(myListener.continueEvent) {
+                megaApi.remove(node, myListener);
+                while (!myListener.wasSignalled) {
+                    try {
+                        myListener.continueEvent.wait();
+                    } catch(InterruptedException e) {
+                        log.warning("remove interrupted: " + e.toString());
+                    }
+                }
+                myListener.wasSignalled = false;
+            }
+        } else {
+            log.warning("Node not found: README.md");
+        }
+        log.info("*** done: delete ***");
+    
+        // Logout.
+        log.info("*** start: logout ***");
+        synchronized(myListener.continueEvent) {
+            megaApi.logout(myListener);
+            while (!myListener.wasSignalled) {
+                try {
+                    myListener.continueEvent.wait();
+                } catch(InterruptedException e) {
+                    log.warning("remove interrupted: " + e.toString());
+                }
+            }
+            myListener.wasSignalled = false;
+        }
+        myListener.rootNode = null;
+        log.info("*** done: logout ***");
+        
+        log.info("Total time taken: "
+                 + ((System.currentTimeMillis() - startTime) / 1000) + " s");
+    }
+
+    
+    // Implementation of listener methods.
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaRequestListenerInterface#onRequestStart(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaRequest)
+     */
+    @Override
+    public void onRequestStart(MegaApiJava api, MegaRequest request) {
+        log.fine("Request start (" + request.getRequestString() + ")");
     }
 
     /**
-     * Change the design of Main window when a session is opened.
-     * - Prevent user to modify 'email' and 'password'
-     * - Rename button to 'Logout'
-     * - Prevent user to click on button 'login'
-     * - Show the component where nodes are listed
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaRequestListenerInterface#onRequestUpdate(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaRequest)
      */
-    private void setLoggedInMode() {
+    @Override
+    public void onRequestUpdate(MegaApiJava api, MegaRequest request) {
+        log.fine("Request update (" + request.getRequestString() + ")");
 
-        loginButton.setText(STR_LOGOUT_TEXT);
-        loginButton.setEnabled(true); // It might be disabled if called during a login process
-        loginText.setEnabled(false);
-        passwordText.setEnabled(false);
-
-        setSize(270, 360);
-        statusLabel.setBounds(10, 310, getWidth() - 20, 15);
-        panel.add(listFiles);
+        if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
+            if (request.getTotalBytes() > 0) {
+                double progressValue = 100.0 * request.getTransferredBytes()
+                        / request.getTotalBytes();
+                if ((progressValue > 99) || (progressValue < 0)) {
+                    progressValue = 100;
+                }
+                log.fine("Preparing nodes ... " + String.valueOf((int)progressValue) + "%");
+            }
+        }
     }
 
     /**
-     * Change the design of Main window when a session is closed:
-     * - Allow user to modify 'email' and 'password'
-     * - Rename button to 'Login'
-     * - Allow user to click on button 'login'
-     * - Hide the component where nodes are listed
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaRequestListenerInterface#onRequestFinish(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaRequest, nz.mega.sdk.MegaError)
      */
-    private void setLoggedOutMode() {
-        loginButton.setText(STR_LOGIN_TEXT);
-        enableUserInteraction(true);
+    @Override
+    public void onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e) {
+        log.fine("Request finish (" + request.getRequestString()
+                 + "); Result: " + e.toString());
 
-        setSize(270, 160);
-        statusLabel.setBounds(10, 110, getWidth() - 20, 15);
-        panel.remove(listFiles);
-    }
-
-    private void enableUserInteraction(boolean b) {
-        loginText.setEnabled(b);
-        passwordText.setEnabled(b);
-        loginButton.setEnabled(b);
-    }
-
-    private void initLogin() {
-
-        if (!validateForm()) {
-            return;
+        int requestType = request.getType();
+        
+        if (requestType == MegaRequest.TYPE_LOGIN) {
+            if (e.getErrorCode() != MegaError.API_OK) {
+                String errorMessage = e.getErrorString();
+                if (e.getErrorCode() == MegaError.API_ENOENT) {
+                    errorMessage = "Login error: Incorrect email or password!";
+                }
+                log.severe(errorMessage);
+                return;
+            }
+            megaApi.fetchNodes(this);
+        } else if (requestType == MegaRequest.TYPE_FETCH_NODES) {
+            this.rootNode = api.getRootNode();
+        } else if (requestType == MegaRequest.TYPE_ACCOUNT_DETAILS) {
+            MegaAccountDetails accountDetails = request.getMegaAccountDetails();
+            log.info("Account details received");
+            log.info("Storage: " + accountDetails.getStorageUsed()
+                     + " of " + accountDetails.getStorageMax()
+                     + " (" + String.valueOf((int)(100.0 * accountDetails.getStorageUsed()
+                                                   / accountDetails.getStorageMax()))
+                     + " %)");
+            log.info("Pro level: " + accountDetails.getProLevel());
         }
 
-        enableUserInteraction(false);
-
-        String email = loginText.getText().toString().toLowerCase(Locale.ENGLISH).trim();
-        String password = passwordText.getText().toString();
-
-        megaApi.login(email, password, this);
+        // Send the continue event so our synchronised code continues.
+        if (requestType != MegaRequest.TYPE_LOGIN) {
+            synchronized(this.continueEvent){
+                this.wasSignalled = true;
+                this.continueEvent.notify();
+            }
+        }
     }
 
-    private boolean validateForm() {
-        String emailError = getEmailError();
-        String passwordError = getPasswordError();
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaRequestListenerInterface#onRequestTemporaryError(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaRequest, nz.mega.sdk.MegaError)
+     */
+    @Override
+    public void onRequestTemporaryError(MegaApiJava api, MegaRequest request, MegaError e) {
+        log.warning("Request temporary error (" + request.getRequestString()
+                    + "); Error: " + e.toString());
+    }
 
-        if (emailError != null) {
-            JOptionPane.showMessageDialog(null, emailError);
-            loginText.requestFocus();
-            return false;
-        } else if (passwordError != null) {
-            JOptionPane.showMessageDialog(null, passwordError);
-            passwordText.requestFocus();
-            return false;
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaTransferListenerInterface#onTransferStart(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaTransfer)
+     */
+    @Override
+    public void onTransferStart(MegaApiJava api, MegaTransfer transfer) {
+        log.fine("Transfer start: " + transfer.getFileName());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaTransferListenerInterface#onTransferFinish(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaTransfer, nz.mega.sdk.MegaError)
+     */
+    @Override
+    public void onTransferFinish(MegaApiJava api, MegaTransfer transfer,
+                                 MegaError e) {
+        log.fine("Transfer finished (" + transfer.getFileName()
+                 + "); Result: " + e.toString() + " ");
+        // Signal the other thread we're done.
+        synchronized(this.continueEvent){
+            this.wasSignalled = true;
+            this.continueEvent.notify();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaTransferListenerInterface#onTransferUpdate(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaTransfer)
+     */
+    @Override
+    public void onTransferUpdate(MegaApiJava api, MegaTransfer transfer) {
+        log.fine("Transfer finished (" + transfer.getFileName()
+                 + "): " + transfer.getSpeed() + " B/s ");
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaTransferListenerInterface#onTransferTemporaryError(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaTransfer, nz.mega.sdk.MegaError)
+     */
+    @Override
+    public void onTransferTemporaryError(MegaApiJava api,
+                                         MegaTransfer transfer, MegaError e) {
+        log.warning("Transfer temporary error (" + transfer.getFileName()
+                    + "); Error: " + e.toString());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaTransferListenerInterface#onTransferData(nz.mega.sdk.MegaApiJava, nz.mega.sdk.MegaTransfer, byte[])
+     */
+    @Override
+    public boolean onTransferData(MegaApiJava api, MegaTransfer transfer,
+                                  byte[] buffer) {
+        log.fine("Got transfer data.");
         return true;
     }
 
     /**
-     * Validate email: not empty and valid format
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaGlobalListenerInterface#onUsersUpdate(nz.mega.sdk.MegaApiJava, java.util.ArrayList)
      */
-    private String getEmailError() {
-        String value = loginText.getText();
-        if (value.length() == 0) {
-            return STR_ERROR_ENTER_EMAIL;
-        }
-        if (!rfc2822.matcher(value).matches()) {
-            return STR_ERROR_INVALID_EMAIL;
-        }
-        return null;
+    @Override
+    public void onUsersUpdate(MegaApiJava api, ArrayList<MegaUser> users) {
+        // TODO Auto-generated method stub
+        
     }
-
-    final static Pattern rfc2822 = Pattern
-            .compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?");
 
     /**
-     * Validate password: not empty
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaGlobalListenerInterface#onNodesUpdate(nz.mega.sdk.MegaApiJava, java.util.ArrayList)
      */
-    private String getPasswordError() {
-        String value = passwordText.getText();
-        if (value.length() == 0) {
-            return STR_ERROR_ENTER_PWD;
-        }
-        return null;
-    }
-
-    protected void initLogout() {
-        megaApi.logout(this);
-
-        setLoggedOutMode();
-        setStatus(STR_LOGOUT_TEXT);
-    }
-
-    public static void main(String[] args) {
-        // Schedule a job for the event-dispatching thread
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                new MainWindow();
-            }
-        });
-    }
-
     @Override
-    public void onRequestStart(MegaApiJava api, MegaRequest request) {
-        log("onRequestStart: " + request.getRequestString());
+    public void onNodesUpdate(MegaApiJava api, ArrayList<MegaNode> nodes) {
+        if (nodes != null) {
+            log.info("Nodes updated (" + nodes.size() + ")");
+        }
 
-        if (request.getType() == MegaRequest.TYPE_LOGIN) {
-            setStatus(STR_LOGGING_IN);
-        } else if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
-            setStatus(STR_FETCHING_NODES);
+        // Signal the other thread we're done.
+        synchronized(this.continueEvent){
+            this.wasSignalled = true;
+            this.continueEvent.notify();
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaGlobalListenerInterface#onReloadNeeded(nz.mega.sdk.MegaApiJava)
+     */
     @Override
-    public void onRequestUpdate(MegaApiJava api, MegaRequest request) {
-        log("onRequestUpdate: " + request.getRequestString());
-
-        if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
-            if (request.getTotalBytes() > 0) {
-                double progressValue = 100.0 * request.getTransferredBytes() / request.getTotalBytes();
-                if ((progressValue > 99) || (progressValue < 0)) {
-                    progressValue = 100;
-                }
-                log("progressValue = " + (int) progressValue);
-                setStatus(STR_PREPARING_NODES + String.valueOf((int) progressValue) + "%");
-            }
-        }
-    }
-
-    @Override
-    public void onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e) {
-        log("onRequestFinish: " + request.getRequestString());
-
-        if (request.getType() == MegaRequest.TYPE_LOGIN) {
-            if (e.getErrorCode() == MegaError.API_OK) {
-                megaApi.fetchNodes(this);
-            } else {
-                String errorMessage = e.getErrorString();
-                if (e.getErrorCode() == MegaError.API_ENOENT) {
-                    errorMessage = STR_ERROR_INCORRECT_EMAIL_OR_PWD;
-                }
-
-                JOptionPane.showMessageDialog(null, errorMessage);
-                setStatus(errorMessage);
-
-                // Enable user to change the credentials and hit 'login' again
-                enableUserInteraction(true);
-            }
-        } else if (request.getType() == MegaRequest.TYPE_FETCH_NODES) {
-            if (e.getErrorCode() != MegaError.API_OK) {
-                JOptionPane.showMessageDialog(null, e.getErrorString());
-                setStatus(e.getErrorString());
-
-                // TODO: investigate errors from Request==TYPE_FETCH_NODES
-                // and adapt the behaviour of GUI components below
-                enableUserInteraction(true);
-
-            } else {
-                MegaNode parentNode = megaApi.getRootNode();
-                ArrayList<MegaNode> nodes = megaApi.getChildren(parentNode);
-
-                listModel.clear();
-                MegaNode temp;
-                for (int i = 0; i < nodes.size(); i++) {
-                    temp = nodes.get(i);
-                    listModel.addElement(temp.getName());
-                }
-
-                setLoggedInMode();
-                setStatus("Done");
-            }
-        }
-    }
-
-    @Override
-    public void onRequestTemporaryError(MegaApiJava api, MegaRequest request, MegaError e) {
-        log("onRequestTemporaryError: " + request.getRequestString());
-    }
-
-    public static void log(String message) {
-        MegaApiJava.log(MegaApiJava.LOG_LEVEL_INFO, message, "MainActivity");
-    }
-
-    @Override
-    public void log(String time, int loglevel, String source, String message) {
-        System.out.println("[" + time + "] " + message + " (Source: " + source + ")");
-    }
-
-    private void setStatus(String status) {
-        statusLabel.setText(status);
+    public void onReloadNeeded(MegaApiJava api) {
+        // TODO Auto-generated method stub
+        
     }
 }
