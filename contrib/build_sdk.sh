@@ -709,9 +709,9 @@ display_help() {
 
 main() {
     local cwd=$(pwd)
-    local work_dir=$cwd"/sdk_build/"
-    local build_dir=$work_dir"build/"
-    local install_dir=$work_dir"install/"
+    local work_dir=$cwd"/sdk_build"
+    local build_dir=$work_dir/"build"
+    local install_dir=$work_dir/"install"
     local debug=""
     # by the default store archives in work_dir
     local_dir=$work_dir
