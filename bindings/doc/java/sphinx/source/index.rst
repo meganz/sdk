@@ -15,5 +15,7 @@ Contents:
    summary
    megagloballistenerinterface
    delegatemegagloballistener
+   delegatemegalistener
+   delegatemegalogger
 
 
