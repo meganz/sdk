@@ -17,5 +17,15 @@ Contents:
    delegatemegagloballistener
    delegatemegalistener
    delegatemegalogger
-
-
+   delegatemegarequestlistener
+   delegatemegatransferlistener
+   delegatemegatreeprocessor
+   delegateoutputmegatransferlistener
+   megaapijava
+   megaapiswing
+   megagloballistenerinterface
+   megalistenerinterface
+   megaloggerinterface
+   megarequestlistenerinterface
+   megatransferlistenerinterface
+   megatreeprocessorinterface
