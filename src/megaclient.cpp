@@ -121,6 +121,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 void MegaClient::mergenewshares(bool notify)
 {
     newshare_list::iterator it;
+    bool skreceived = false;
 
     for (it = newshares.begin(); it != newshares.end(); )
     {
@@ -159,6 +160,7 @@ void MegaClient::mergenewshares(bool notify)
                 if (auth)
                 {
                     n->sharekey = new SymmCipher(s->key);
+                    skreceived = true;
                 }
             }
 
@@ -272,6 +274,14 @@ void MegaClient::mergenewshares(bool notify)
                         {
                             LOG_warn << "Invalid null peer on inbound share";
                         }
+                    }
+                }
+                else
+                {
+                    if (skreceived && notify)
+                    {
+                        TreeProcApplyKey td;
+                        proctree(n, &td);
                     }
                 }
             }
@@ -2838,9 +2848,9 @@ bool MegaClient::sc_shares()
                 {
                     if (!ISUNDEF(oh) && !ISUNDEF(uh))
                     {
-                        // share revocation
-                        newshares.push_back(new NewShare(h, outbound, outbound ? uh : oh, ACCESS_UNKNOWN, 0, NULL));
-                        return true;
+                        // share revocation or share without key
+                        newshares.push_back(new NewShare(h, outbound, outbound ? uh : oh, r, 0, NULL));
+                        return r == ACCESS_UNKNOWN;
                     }
                 }
 
@@ -3780,7 +3790,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                     if (!sk)
                     {
-                        warn("Missing share key for inbound share");
+                        LOG_warn << "Missing share key for inbound share";
                     }
 
                     if (warnlevel())
@@ -3789,7 +3799,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     }
                     else
                     {
-                        decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                        if (sk)
+                        {
+                            decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                        }
                     }
                 }
 
@@ -3818,7 +3831,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 if (!ISUNDEF(su))
                 {
-                    newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
+                    newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
                 }
 
                 if (nn && nni >= 0 && nni < nnsize)
