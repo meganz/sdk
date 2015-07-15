@@ -8,24 +8,27 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Allows to control a MEGA account or a shared folder
- * 
- * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
+ * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
+ * <p>
+ * An appKey must be specified to use the MEGA SDK. Generate an appKey for free here:
  * - https://mega.co.nz/#sdk
- * 
- * You can enable local node caching by passing a local path in the constructor of this class. That saves many data usage
- * and many time starting your app because the entire filesystem won't have to be downloaded each time. The persistent
- * node cache will only be loaded by logging in with a session key. To take advantage of this feature, apart of passing the
- * local path to the constructor, your application have to save the session key after login (MegaApi::dumpSession) and use
- * it to log in the next time. This is highly recommended also to enhance the security, because in this was the access password
- * doesn't have to be stored by the application.
- * 
- * To access MEGA using this SDK, you have to create an object of this class and use one of the MegaApi::login options (to log in
- * to a MEGA account or a public folder). If the login request succeed, call MegaApi::fetchNodes to get the filesystem in MEGA.
- * After that, you can use all other requests, manage the files and start transfers.
- * 
- * After using MegaApi::logout you can reuse the same MegaApi object to log in to another MEGA account or a public folder.
- * 
+ * <p>
+ * Save on data usage and start up time by enabling local node caching. This can be enabled by passing a local path
+ * in the constructor. Local node caching prevents the need to download the entire file system each time the MegaApiJava
+ * object is logged in.
+ * To take advantage of local node caching, the application needs to save the session key after login
+ * (MegaApiJava::dumpSession) and use it to login during the next session. A persistent local node cache will only be
+ * loaded if logging in with a session key.
+ * Local node caching is also recommended in order to enhance security as it prevents the account password from being
+ * stored by the application.
+ * <p>
+ * To access MEGA services using the MEGA SDK, an object of this class (MegaApiJava) needs to be created and one of the
+ * MegaApiJava::login options used to log into a MEGA account or a public folder. If the login request succeeds,
+ * call MegaApiJava::fetchNodes to get the account's file system from MEGA. Once the file system is retrieved, all other
+ * requests including file management and transfers can be used.
+ * <p>
+ * After using MegaApiJava::logout you can reuse the same MegaApi object to log in to another MEGA account or a public
+ * folder.
  */
 public class MegaApiJava {
     MegaApi megaApi;
@@ -56,7 +59,7 @@ public class MegaApiJava {
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
 
     public final static int LOG_LEVEL_FATAL = 0; // Very severe error event that will presumably lead the application to abort.
-    public final static int LOG_LEVEL_ERROR = LOG_LEVEL_FATAL + 1; // Error information but will continue application to keep running.
+    public final static int LOG_LEVEL_ERROR = LOG_LEVEL_FATAL + 1; // Error information but application will continue run.
     public final static int LOG_LEVEL_WARNING = LOG_LEVEL_ERROR + 1; // Information representing errors in application but application will keep
                                                                      // running
     public final static int LOG_LEVEL_INFO = LOG_LEVEL_WARNING + 1; // Mainly useful to represent current progress of application.
@@ -69,15 +72,14 @@ public class MegaApiJava {
     public final static int EVENT_INVALID = EVENT_DEBUG + 1;
 
     /**
-     * Constructor suitable for most applications
+     * Constructor suitable for most applications.
      * 
      * @param appKey
-     *            AppKey of your application
-     *            You can generate your AppKey for free here:
-     *            - https://mega.co.nz/#sdk
+     *            AppKey of your application.
+     *            Generate an AppKey for free here: https://mega.co.nz/#sdk
      * 
      * @param basePath
-     *            Base path to store the local cache
+     *            Base path to store the local cache.
      *            If you pass NULL to this parameter, the SDK won't use any local cache.
      * 
      */
@@ -86,27 +88,26 @@ public class MegaApiJava {
     }
 
     /**
-     * MegaApi Constructor that allows to use a custom GFX processor
+     * MegaApi Constructor that allows to use a custom GFX processor.
      * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
-     * You can build the SDK with one of the provided built-in graphics processors. If none of them is available
-     * in your app, you can implement the MegaGfxProcessor interface to provide your custom processor. Please
+     * You can build the SDK with one of the provided built-in graphics processors. If none are available
+     * in your app, you can implement the MegaGfxProcessor interface to provide a custom processor. Please
      * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
      * 
      * @param appKey
-     *            AppKey of your application
-     *            You can generate your AppKey for free here:
-     *            - https://mega.co.nz/#sdk
+     *            AppKey of your application.
+     *            Generate an AppKey for free here: https://mega.co.nz/#sdk
      * 
      * @param userAgent
-     *            User agent to use in network requests
-     *            If you pass NULL to this parameter, a default user agent will be used
+     *            User agent to use in network requests.
+     *            If you pass NULL to this parameter, a default user agent will be used.
      * 
      * @param basePath
-     *            Base path to store the local cache
+     *            Base path to store the local cache.
      *            If you pass NULL to this parameter, the SDK won't use any local cache.
      * 
      * @param gfxProcessor
-     *            Image processor. The SDK will use it to generate previews and thumbnails
+     *            Image processor. The SDK will use it to generate previews and thumbnails.
      *            If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
      * 
      */
@@ -116,12 +117,11 @@ public class MegaApiJava {
     }
 
     /**
-     * Constructor suitable for most applications
+     * Constructor suitable for most applications.
      * 
      * @param appKey
-     *            AppKey of your application
-     *            You can generate your AppKey for free here:
-     *            - https://mega.co.nz/#sdk
+     *            AppKey of your application.
+     *            Generate an AppKey for free here: https://mega.co.nz/#sdk
      * 
      */
     public MegaApiJava(String appKey) {
@@ -133,8 +133,8 @@ public class MegaApiJava {
     /****************************************************************************************************/
 
     /**
-     * Register a listener to receive all events (requests, transfers, global, synchronization)
-     * 
+     * Register a listener to receive all events (requests, transfers, global, synchronization).
+     * <p>
      * You can use MegaApi::removeListener to stop receiving events.
      * 
      * @param listener
@@ -145,8 +145,8 @@ public class MegaApiJava {
     }
 
     /**
-     * Register a listener to receive all events about requests
-     * 
+     * Register a listener to receive all events about requests.
+     * <p>
      * You can use MegaApi::removeRequestListener to stop receiving events.
      * 
      * @param listener
@@ -157,8 +157,8 @@ public class MegaApiJava {
     }
 
     /**
-     * Register a listener to receive all events about transfers
-     * 
+     * Register a listener to receive all events about transfers.
+     * <p>
      * You can use MegaApi::removeTransferListener to stop receiving events.
      * 
      * @param listener
@@ -169,8 +169,8 @@ public class MegaApiJava {
     }
 
     /**
-     * Register a listener to receive global events
-     * 
+     * Register a listener to receive global events.
+     * <p>
      * You can use MegaApi::removeGlobalListener to stop receiving events.
      * 
      * @param listener
@@ -181,9 +181,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Unregister a listener
-     * 
-     * This listener won't receive more events.
+     * Unregister a listener.
+     * <p>
+     * Stop receiving events from the specified listener.
      * 
      * @param listener
      *            Object that is unregistered
@@ -202,9 +202,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Unregister a MegaRequestListener
-     * 
-     * This listener won't receive more events.
+     * Unregister a MegaRequestListener.
+     * <p>
+     * Stop receiving events from the specified listener.
      * 
      * @param listener
      *            Object that is unregistered
@@ -221,11 +221,11 @@ public class MegaApiJava {
             }
         }
     }
-
+    // TODO:2015.07.15 Got to here.
     /**
-     * Unregister a MegaTransferListener
-     * 
-     * This listener won't receive more events.
+     * Unregister a MegaTransferListener.
+     * <p>
+     * Stop receiving events from the specified listener.
      * 
      * @param listener
      *            Object that is unregistered
@@ -244,9 +244,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Unregister a MegaGlobalListener
+     * Unregister a MegaGlobalListener.
      * 
-     * This listener won't receive more events.
+     * Stop receiving events from the specified listener.
      * 
      * @param listener
      *            Object that is unregistered
@@ -269,9 +269,9 @@ public class MegaApiJava {
     /****************************************************************************************************/
 
     /**
-     * Generates a private key based on the access password
+     * Generates a private key based on the access password.
      * 
-     * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
+     * This is a time consuming operation (especially for low-end mobile devices). Since the resulting key is
      * required to log in, this function allows to do this step in a separate function. You should run this function
      * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
      * 
@@ -284,9 +284,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Generates a hash based in the provided private key and email
+     * Generates a hash based in the provided private key and email.
      * 
-     * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
+     * This is a time consuming operation (especially for low-end mobile devices). Since the resulting key is
      * required to log in, this function allows to do this step in a separate function. You should run this function
      * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
      * 
@@ -299,7 +299,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Converts a Base32-encoded user handle (JID) to a MegaHandle
+     * Converts a Base32-encoded user handle (JID) to a MegaHandle.
      * 
      * @param base32Handle
      *            Base32-encoded handle (JID)
@@ -310,7 +310,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Converts a Base64-encoded node handle to a MegaHandle
+     * Converts a Base64-encoded node handle to a MegaHandle.
      * 
      * The returned value can be used to recover a MegaNode using MegaApi::getNodeByHandle
      * You can revert this operation using MegaApi::handleToBase64
@@ -324,7 +324,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Converts a MegaHandle to a Base64-encoded string
+     * Converts a MegaHandle to a Base64-encoded string.
      * 
      * You can revert this operation using MegaApi::base64ToHandle
      * 
@@ -337,7 +337,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Converts a MegaHandle to a Base64-encoded string
+     * Converts a MegaHandle to a Base64-encoded string.
      * 
      * You take the ownership of the returned value
      * You can revert this operation using MegaApi::base64ToHandle
@@ -351,10 +351,10 @@ public class MegaApiJava {
     }
 
     /**
-     * Add entropy to internal random number generators
+     * Add entropy to internal random number generators.
      * 
-     * It's recommended to call this function with random data specially to
-     * enhance security,
+     * It's recommended to call this function with random data to
+     * enhance security
      * 
      * @param data
      *            Byte array with random data
@@ -366,7 +366,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Reconnect and retry also transfers
+     * Reconnect and retry all transfers.
      * 
      * @param listener
      *            MegaRequestListener to track this request
@@ -376,7 +376,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Retry all pending requests
+     * Retry all pending requests.
      * 
      * When requests fails they wait some time before being retried. That delay grows exponentially if the request
      * fails again. For this reason, and since this request is very lightweight, it's recommended to call it with
