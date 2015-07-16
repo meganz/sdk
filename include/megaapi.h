@@ -389,7 +389,8 @@ class MegaNode
             CHANGE_TYPE_FILE_ATTRIBUTES = 0x10,
             CHANGE_TYPE_INSHARE         = 0x20,
             CHANGE_TYPE_OUTSHARE        = 0x40,
-            CHANGE_TYPE_PARENT          = 0x80
+            CHANGE_TYPE_PARENT          = 0x80,
+            CHANGE_TYPE_PENDINGSHARE        = 0x100
         };
 
         virtual ~MegaNode();

@@ -165,6 +165,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_OUTSHARE;
     }
+    if(node->changed.pendingshares)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PENDINGSHARE;
+    }
     if(node->changed.owner)
     {
         this->changed |= MegaNode::CHANGE_TYPE_OWNER;
