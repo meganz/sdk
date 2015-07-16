@@ -80,7 +80,7 @@ void QTMegaListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transf
 void QTMegaListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnUsersUpdate);
-    event->setUsers(users);
+    event->setUsers(users ? users->copy() : NULL);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 

@@ -24,6 +24,7 @@ QTMegaEvent::~QTMegaEvent()
     delete transfer;
     delete error;
     delete nodes;
+    delete users;
 
 #ifdef ENABLE_SYNC
     delete sync;
