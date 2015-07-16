@@ -170,7 +170,6 @@ void MegaClient::mergenewshares(bool notify)
                 if (s->outgoing)
                 {
                     bool found = false;
-                    int totalcount = 0;
                     if (n->outshares)
                     {
                         // outgoing share to user u deleted
@@ -180,8 +179,6 @@ void MegaClient::mergenewshares(bool notify)
                             n->changed.outshares = true;
                             notifynode(n);
                         }
-
-                        totalcount += n->outshares->size();
                         
                         if (!n->outshares->size())
                         {
@@ -199,7 +196,6 @@ void MegaClient::mergenewshares(bool notify)
                             notifynode(n);
                         }
 
-                        totalcount += n->pendingshares->size();
                         if (!n->pendingshares->size())
                         {
                             delete n->pendingshares;
@@ -208,7 +204,7 @@ void MegaClient::mergenewshares(bool notify)
                     }
 
                     // Erase sharekey if no outgoing shares (incl pending) exist
-                    if (!totalcount)
+                    if (!n->outshares && !n->pendingshares)
                     {
                         delete n->sharekey;
                         n->sharekey = NULL;
