@@ -359,13 +359,13 @@ void MegaClient::mergenewshares(bool notify)
                             LOG_warn << "Invalid null peer on inbound share";
                         }
                     }
-                }
-                else
-                {
-                    if (skreceived && notify)
+                    else
                     {
-                        TreeProcApplyKey td;
-                        proctree(n, &td);
+                        if (skreceived && notify)
+                        {
+                            TreeProcApplyKey td;
+                            proctree(n, &td);
+                        }
                     }
                 }
             }
