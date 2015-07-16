@@ -301,11 +301,6 @@ void MegaClient::mergenewshares(bool notify)
                             if (!ISUNDEF(s->pending))
                             {
                                 pcr = findpcr(s->pending);
-                                if (pcr == NULL)
-                                {
-                                    char buffer[12];
-                                    Base64::btoa((byte*)&(s->pending), sizeof(s->pending), buffer);
-                                }
                             }
                             *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, pcr);
                         }
