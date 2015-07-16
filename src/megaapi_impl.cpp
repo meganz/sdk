@@ -1549,7 +1549,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_SESSION_TRANSFER_URL: return "GET_SESSION_TRANSFER_URL";
         case TYPE_GET_PAYMENT_METHODS: return "GET_PAYMENT_METHODS";
         case TYPE_INVITE_CONTACT: return "INVITE_CONTACT";
-        case TYPE_REPLY_CONTACT_REQUEST: return "TYPE_REPLY_CONTACT_REQUEST";
+        case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
 	}
     return "UNKNOWN";
 }

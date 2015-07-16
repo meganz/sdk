@@ -1487,6 +1487,7 @@ class MegaRequest
          * - MegaApi::pauseTransfers - Returns the direction of the transfers to pause/resume
          * - MegaApi::upgradeAccount - Returns the payment method
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
+         * - MegaApi::inviteContact - Returns the action to do with the contact request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4398,6 +4399,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getText - Returns the text of the invitation
+         * - MegaRequest::getNumber - Returns the action
          *
          * @param email Email of the new contact
          * @param message Message for the user (can be NULL)
