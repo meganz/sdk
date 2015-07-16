@@ -1574,9 +1574,8 @@ void CommandSetPendingContact::procresult()
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
 {
     cmd("upca");   
-    char buf[12];
-    Base64::btoa((const byte*)&p, MegaClient::PCRHANDLE, buf);
-    arg("p", buf);
+
+    arg("p", (byte*)&p, MegaClient::PCRHANDLE);
     switch (action)     
     {   
         case IPCA_ACCEPT:
