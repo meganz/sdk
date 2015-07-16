@@ -1305,22 +1305,29 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     user = u;
     access = a;
 
-    this->personal_representation = personal_representation == NULL ? NULL : new string(personal_representation);
-    this->msg = msg == NULL ? NULL : new string(msg);
+    if (personal_representation)
+    {
+        this->personal_representation = personal_representation;
+    }
+
+    if (msg)
+    {
+        this->msg = msg;
+    }
 
     cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
 
     // Only for inviting non-contacts
-    if (this->personal_representation && this->personal_representation->size())
+    if (this->personal_representation.size())
     {
         arg("e", personal_representation);
     }
-    if (this->msg && this->msg->size())
+
+    if (this->msg.size())
     {
         arg("msg", msg);
     }
-    
 
     if (a != ACCESS_UNKNOWN)
     {
@@ -1370,12 +1377,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
         client->proctree(n, &tpsk);
         tpsk.get(this);
     }
-}
-
-CommandSetShare::~CommandSetShare()
-{
-    delete personal_representation;
-    delete msg;
 }
 
 // process user element (email/handle pairs)
@@ -1445,7 +1446,7 @@ void CommandSetShare::procresult()
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg == NULL ? NULL : msg->c_str(), personal_representation == NULL ? NULL : personal_representation->c_str()));
+                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
                         return;
                     }
                 }
