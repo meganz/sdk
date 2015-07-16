@@ -461,12 +461,9 @@ bool Node::serialize(string* d)
         }
         else
         {
-            if (outshares)
+            for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
             {
-                for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
-                {
-                    it->second->serialize(d);
-                }
+                it->second->serialize(d);
             }
         }
     }
