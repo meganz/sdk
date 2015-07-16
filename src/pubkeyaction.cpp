@@ -105,7 +105,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // we have all ingredients ready: the target user's public key, the share
     // key and all nodes to share
     client->restag = tag;
-    client->reqs[client->r].add(new CommandSetShare(client, n, u, a, newshare, NULL, selfemail!=NULL ? selfemail->c_str() : NULL));
+    client->reqs[client->r].add(new CommandSetShare(client, n, u, a, newshare, NULL, selfemail.c_str()));
 }
 
 // share node sh with access level sa
@@ -115,13 +115,10 @@ PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, in
     a = sa;
     tag = ctag;
 
-    selfemail = NULL;
-    if (personal_representation!=NULL) selfemail = new string(personal_representation);
-}
-
-PubKeyActionCreateShare::~PubKeyActionCreateShare()
-{
-    if (selfemail!=NULL) delete selfemail;
+    if (personal_representation)
+    {
+        selfemail = personal_representation;
+    }
 }
 
 void PubKeyActionNotifyApp::proc(MegaClient *client, User *u)
