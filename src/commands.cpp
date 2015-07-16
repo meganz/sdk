@@ -1346,7 +1346,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     beginarray("s");
     beginobject();
 
-    arg("u", u ? u->email.c_str() : MegaClient::EXPORTEDLINK);
+    arg("u", u ? u->uid.c_str() : MegaClient::EXPORTEDLINK);
 
     if (a != ACCESS_UNKNOWN)
     {
