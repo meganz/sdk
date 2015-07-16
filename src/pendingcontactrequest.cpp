@@ -27,7 +27,9 @@ namespace mega {
 PendingContactRequest::PendingContactRequest(const handle id)
 {
     this->id = id;
-    this->targetemail = "";
+    this->ts = 0;
+    this->uts = 0;
+    this->isoutgoing = true;
 
     memset(&changed, 0, sizeof changed);
 }
