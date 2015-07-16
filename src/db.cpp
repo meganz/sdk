@@ -28,18 +28,13 @@ DbTable::DbTable()
     nextid = 0;
 }
 
-// add or update record from string
-bool DbTable::put(uint32_t index, string* data)
-{
-    return put(index, (char*)data->data(), data->size());
-}
-
-// add or update record with padding and encryption
-bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
+bool DbTable::putnode(pnode_t n, SymmCipher* key)
 {
     string data;
 
-    if (!record->serialize(&data))
+    // TODO: serialize undecryptable nodes too, not only decryptable ones
+
+    if (!n->serialize(&data))
     {
         //Don't return false if there are errors in the serialization
         //to let the SDK continue and save the rest of records
@@ -48,12 +43,17 @@ bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
 
     PaddedCBC::encrypt(&data, key);
 
-    if (!record->dbid)
-    {
-        record->dbid = (nextid += IDSPACING) | type;
-    }
+    // TODO: encrypt n->nodehandle
+    // TODO: encrypt n->parenthandle
 
-    bool result = put(record->dbid, &data);
+    string fpstring;
+    if(n->type == FILENODE)
+        n->serializefingerprint(&fpstring);
+
+    // TODO: encrypt n->fingerprint??
+    // check that an empty fingerprint is saves as NULL
+
+    bool result = putnode(n->nodehandle, n->parenthandle, (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
     if(result)
     {
         //Add to cache?
@@ -61,24 +61,93 @@ bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
     return result;
 }
 
-// get next record, decrypt and unpad
-bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
+
+bool DbTable::putuser(User * u, SymmCipher* key)
 {
-    if (next(type, data))
+    string data;
+
+    if (!u->serialize(&data))
     {
-        if (!*type)
-        {
-            return true;
-        }
+        //Don't return false if there are errors in the serialization
+        //to let the SDK continue and save the rest of records
+        return true;
+    }
 
-        if (*type > nextid)
-        {
-            nextid = *type & - IDSPACING;
-        }
+    PaddedCBC::encrypt(&data, key);
 
+    // TODO: encrypt u->email
+
+    bool result = putuser((char*) u->email.data(), u->email.size(), (char *)data.data(), data.size());
+    if(result)
+    {
+        //Add to cache?
+    }
+    return result;
+}
+
+bool DbTable::delnode(pnode_t n, SymmCipher *key)
+{
+    // TODO: encrypt n->nodehandle
+
+    bool result = delnode(n->nodehandle);
+    if(result)
+    {
+        //Add to cache?
+    }
+    return result;
+}
+
+bool DbTable::getnode(handle h, string* data, SymmCipher* key)
+{
+    // TODO: encrypt the nodehandle prior to query
+
+    if (getnodebyhandle(h, data))
+    {
         return PaddedCBC::decrypt(data, key);
     }
 
     return false;
 }
+
+bool DbTable::getnode(string *fingerprint, string* data, SymmCipher* key)
+{
+    // TODO: encrypt the fingerprint prior to query?? not necessary probably
+
+    if (getnodebyfingerprint(fingerprint, data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+bool DbTable::getuser(string* data, SymmCipher* key)
+{
+    // TODO: encrypt the user's email??
+
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+void DbTable::rewindchildren(handle h, SymmCipher *key)
+{
+    // TODO: encrypt the handle
+
+    rewindchildren(h);
+}
+
+bool DbTable::getchildren(string *data, SymmCipher *key)
+{
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
 } // namespace

@@ -56,10 +56,27 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+    string sql;
 
-    rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    // 1. Create table 'scsn'
+    sql = "CREATE TABLE IF NOT EXISTS init (id INTEGER PRIMARY KEY NOT NULL, content BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
 
+    // 2. Create table for 'nodes'
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle INTEGER PRIMARY KEY NOT NULL, parenthandle INTEGER, fingerprint BLOB, node BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
+    // 3. Create table for 'users'
+    sql = "CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
         return NULL;
@@ -92,55 +109,8 @@ SqliteDbTable::~SqliteDbTable()
     LOG_debug << "Database closed";
 }
 
-// set cursor to first record
-void SqliteDbTable::rewind()
-{
-    if (!db)
-    {
-        return;
-    }
-
-    if (pStmt)
-    {
-        sqlite3_reset(pStmt);
-    }
-    else
-    {
-        sqlite3_prepare(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
-    }
-}
-
-// retrieve next record through cursor
-bool SqliteDbTable::next(uint32_t* index, string* data)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    if (!pStmt)
-    {
-        return false;
-    }
-
-    int rc = sqlite3_step(pStmt);
-
-    if (rc != SQLITE_ROW)
-    {
-        sqlite3_finalize(pStmt);
-        pStmt = NULL;
-        return false;
-    }
-
-    *index = sqlite3_column_int(pStmt, 0);
-
-    data->assign((char*)sqlite3_column_blob(pStmt, 1), sqlite3_column_bytes(pStmt, 1));
-
-    return true;
-}
-
 // retrieve record by index
-bool SqliteDbTable::get(uint32_t index, string* data)
+bool SqliteDbTable::getscsn(string* data)
 {
     if (!db)
     {
@@ -149,14 +119,14 @@ bool SqliteDbTable::get(uint32_t index, string* data)
 
     sqlite3_stmt *stmt;
 
-    int rc = sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
+    int rc = sqlite3_prepare(db, "SELECT content FROM init WHERE id = ?", -1, &stmt, NULL);
 
     if (rc)
     {
         return false;
     }
 
-    rc = sqlite3_bind_int(stmt, 1, index);
+    rc = sqlite3_bind_int(stmt, 1, 0);
 
     if (rc)
     {
@@ -177,8 +147,59 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     return true;
 }
 
-// add/update record by index
-bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
+bool SqliteDbTable::getrootnodes(handle *rootnodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    handle *h;
+
+    // TODO: consider to encrypt rootnode handles, or simply retrieve them from "Nodes" table (parenthandle = -1)
+
+    for (int i=0; i<3; i++)
+    {
+        if (stmt)
+        {
+            rc = sqlite3_reset(stmt);
+            if (rc)
+            {
+                return false;
+            }
+        }
+
+        rc = sqlite3_prepare(db, "SELECT content FROM init WHERE id = ?", -1, &stmt, NULL);
+        if (rc)
+        {
+            return false;
+        }
+
+        rc = sqlite3_bind_int(stmt, 1, i+1);    // 0: scsn 1-3: rootnodes
+        if (rc)
+        {
+            return false;
+        }
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_ROW)
+        {
+            return false;
+        }
+
+        // TODO: decrypt `nodehandle` if they were encrypted at `putrootnodes()`
+
+        h = (handle *) sqlite3_column_blob(stmt, 0);
+        rootnodes[i] = *h;
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool SqliteDbTable::getnodebyhandle(handle h, string *data)
 {
     if (!db)
     {
@@ -187,22 +208,155 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     sqlite3_stmt *stmt;
 
-    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
-
+    int rc = sqlite3_prepare(db, "SELECT node FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
     if (rc)
     {
         return false;
     }
 
-    rc = sqlite3_bind_int(stmt, 1, index);
+    rc = sqlite3_bind_int64(stmt, 1, h);
+    if (rc)
+    {
+        return false;
+    }
 
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW)
+    {
+        return false;
+    }
+
+    data->assign((char*)sqlite3_column_blob(stmt,0), sqlite3_column_bytes(stmt,0));
+
+    sqlite3_finalize(stmt);
+
+    return true;
+}
+
+bool SqliteDbTable::getnodebyfingerprint(string* fingerprint, string *data)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+
+    int rc = sqlite3_prepare(db, "SELECT node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_blob(stmt, 1, (char*)fingerprint->data(), fingerprint->size(), SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW)
+    {
+        return false;
+    }
+
+    data->assign((char*)sqlite3_column_blob(stmt,0), sqlite3_column_bytes(stmt,0));
+
+    sqlite3_finalize(stmt);
+
+    return true;
+}
+
+void SqliteDbTable::rewinduser()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    sqlite3_prepare(db, "SELECT user FROM users", -1, &pStmt, NULL);
+
+}
+
+void SqliteDbTable::rewindchildren(handle h)
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    if (sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ?", -1, &pStmt, NULL))
+    {
+        return;
+    }
+
+    if (sqlite3_bind_int64(pStmt, 1, h))
+    {
+        return;
+    }
+
+}
+
+bool SqliteDbTable::next(string *data)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (!pStmt)
+    {
+        return false;
+    }
+
+    int rc = sqlite3_step(pStmt);
+
+    if (rc != SQLITE_ROW)
+    {
+        sqlite3_finalize(pStmt);
+        pStmt = NULL;
+        return false;
+    }
+
+    data->assign((char*)sqlite3_column_blob(pStmt, 0), sqlite3_column_bytes(pStmt, 0));
+
+    return true;
+}
+
+// update SCSN
+bool SqliteDbTable::putscsn(char* data, unsigned len)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
+
+    // `id` for the `scsn` is always the same, only one row
+    rc = sqlite3_bind_int(stmt, 1, 0);
     if (rc)
     {
         return false;
     }
 
     rc = sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC);
-
     if (rc)
     {
         return false;
@@ -219,8 +373,145 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     return true;
 }
 
-// delete record by index
-bool SqliteDbTable::del(uint32_t index)
+bool SqliteDbTable::putrootnodes(handle *rootnodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    // TODO: consider to encrypt rootnode handles
+
+    for (int i=0; i<3; i++)
+    {
+        if (stmt)
+        {
+            rc = sqlite3_reset(stmt);
+            if (rc)
+            {
+                return false;
+            }
+        }
+
+        rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL);
+        if (rc)
+        {
+            return false;
+        }
+
+        rc = sqlite3_bind_int(stmt, 1, i+1);    // 0: scsn 1-3: rootnodes
+        if (rc)
+        {
+            return false;
+        }
+
+        rc = sqlite3_bind_blob(stmt, 2, &rootnodes[i], sizeof (handle), SQLITE_STATIC);
+        if (rc)
+        {
+            return false;
+        }
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE)
+        {
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool SqliteDbTable::putnode(handle h, handle ph, char *fp, unsigned fpsize, char *node, unsigned nodesize)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, fingerprint, node) VALUES (?, ?, ?, ?)", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_int64(stmt, 1, h);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_int64(stmt, 2, ph);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_blob(stmt, 3, fp, fpsize, SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_blob(stmt, 4, node, nodesize, SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE)
+    {
+        return false;
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool SqliteDbTable::putuser(char *email, unsigned emailsize, char *user, unsigned usersize)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO users (email, user) VALUES (?, ?)", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_text(stmt, 1, email, emailsize, SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_blob(stmt, 2, user, usersize, SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE)
+    {
+        return false;
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool SqliteDbTable::delnode(handle h)
 {
     if (!db)
     {
@@ -229,7 +520,7 @@ bool SqliteDbTable::del(uint32_t index)
 
     char buf[64];
 
-    sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
+    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRIu64, h);
 
     return !sqlite3_exec(db, buf, 0, 0, NULL);
 }
@@ -242,7 +533,9 @@ void SqliteDbTable::truncate()
         return;
     }
 
-    sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
+    sqlite3_exec(db, "DELETE FROM scsn", 0, 0, NULL);
+    sqlite3_exec(db, "DELETE FROM nodes", 0, 0, NULL);
+    sqlite3_exec(db, "DELETE FROM users", 0, 0, NULL);
 }
 
 // begin transaction

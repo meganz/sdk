@@ -45,11 +45,22 @@ class MEGA_API SqliteDbTable : public DbTable
     FileSystemAccess *fsaccess;
 
 public:
-    void rewind();
-    bool next(uint32_t*, string*);
-    bool get(uint32_t, string*);
-    bool put(uint32_t, char*, unsigned);
-    bool del(uint32_t);
+    bool getscsn(string*);
+    bool getrootnodes(handle*);
+    bool getnodebyhandle(handle, string*);          // node by handle
+    bool getnodebyfingerprint(string*, string*);    // node by fingerprint
+
+    void rewinduser();
+    void rewindchildren(handle);
+    bool next(string*);
+
+    bool putscsn(char*, unsigned);
+    bool putrootnodes(handle*);
+    bool putnode(handle, handle, char *, unsigned, char *, unsigned);
+    bool putuser(char *, unsigned, char *, unsigned);
+
+    bool delnode(handle);
+
     void truncate();
     void begin();
     void commit();

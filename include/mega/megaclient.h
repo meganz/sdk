@@ -46,9 +46,7 @@ public:
     handle rootnodes[3];
     node_map encryptednodes;
 
-    map<handle, int32_t> nodehandletodbid;
     multimap<string, int32_t> fingerprinttodbid;
-    multimap<handle, handle> nodechildren;
 
     // all users
     user_map users;
@@ -550,8 +548,6 @@ public:
     pnode_t nodebyfingerprint(string *);
     pnode_t nodebydbid(int32_t dbid);
     shared_ptr<vector<pnode_t>> getchildren(pnode_t node);
-    bool childrenexists(handle parenthandle, handle nodehandle);
-    void removechildren(handle parenthandle, handle nodehandle);
 
     // generate & return upload handle
     handle getuploadhandle();

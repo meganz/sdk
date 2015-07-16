@@ -2275,21 +2275,27 @@ void MegaClient::initsc()
         // 1. write current scsn
         handle tscsn;
         Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
-        complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+        complete = sctable->putscsn((char*)&tscsn, sizeof tscsn);
 
         if (complete)
         {
-            // 2. write all users
+            // 2. write rootnodes handles
+            complete = sctable->putrootnodes(rootnodes);
+        }
+
+        if (complete)
+        {
+            // 3. write all users
             for (user_map::iterator it = users.begin(); it != users.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDUSER, &it->second, &key)))
+                if (!(complete = sctable->putuser(&it->second, &key)))
                 {
                     break;
                 }
             }
         }
 
-        // 3. write all nodes: they are writen during readnodes(), one by one
+        // 4. write all nodes: they are writen during readnodes(), one by one
 
         LOG_debug << "Saving SCSN " << scsn << " with " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
@@ -2303,11 +2309,17 @@ void MegaClient::updatesc()
     {
         string t;
 
-        sctable->get(CACHEDSCSN, &t);
+        sctable->getscsn(&t);
 
         if (t.size() != sizeof cachedscsn)
         {
             LOG_err << "Invalid scsn size";
+            return;
+        }
+
+        if (!sctable->getrootnodes(rootnodes))
+        {
+            LOG_err << "Invalid rootnodes";
             return;
         }
 
@@ -2318,14 +2330,14 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn;
         Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
-        complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+        complete = sctable->putscsn((char*)&tscsn, sizeof tscsn);
 
         if (complete)
         {
             // 2. write new or update modified users
             for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDUSER, *it, &key)))
+                if (!(complete = sctable->putuser(*it, &key)))
                 {
                     break;
                 }
@@ -2341,7 +2353,7 @@ void MegaClient::updatesc()
                 if ((*it)->changed.removed && (*it)->dbid)
                 {
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->del((*it)->dbid)))
+                    if (!(complete = sctable->delnode(*it, &key)))
                     {
                         break;
                     }
@@ -2349,11 +2361,10 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(CACHEDNODE, (*it).get(), &key)))
+                    if (!(complete = sctable->putnode(*it, &key)))
                     {
                         break;
                     }
-                    nodehandletodbid[(*it)->nodehandle] = (*it)->dbid;
                 }
             }
         }
@@ -2386,19 +2397,15 @@ void MegaClient::finalizesc(bool complete)
 
 void MegaClient::addnodetosc(pnode_t n)
 {
-//    sctable->begin();   // start a DB transaction to store nodes
-
     if(sctable)
     {
-        if (!sctable->put(CACHEDNODE, n.get(), &key))
+        if (!sctable->putnode(n, &key))
         {
             finalizesc(false);
         }
-        nodehandletodbid[n->nodehandle] = n->dbid;
+//        nodehandles.insert(n->nodehandle);
         nodescount++;
     }
-
-//    finalizesc(true);
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -3182,9 +3189,17 @@ pnode_t MegaClient::nodebyhandle(handle h)
     {
         return encryptednodes[h];
     }
-    else if ((it = nodehandletodbid.find(h)) != nodehandletodbid.end())
+    else
     {
-        return nodebydbid(it->second);
+        string data;
+        if (sctable->getnode(h, &data, &key))
+        {
+            pnode_t n;
+            node_vector dp;
+
+            n = Node::unserialize(this, &data, &dp);
+            return n;
+        }
     }
 
     return NULL;
@@ -3809,7 +3824,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                n = pnode_t(new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts));
+                n = make_shared<Node>(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
                 if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
                 // ?? Do we need to set parent for Rootnode, Incoming and Rubish? I don't think so
                 {
@@ -3821,7 +3836,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 Node::copystring(&n->nodekey, k);
 
                 memset(&(n->changed), 0, sizeof n->changed);    // set status to false (nothing is changed)
-
 
                 if (!ISUNDEF(su))   // if Share User is defined... then node it's incoming share
                 {
@@ -3877,6 +3891,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 else    // nodekey (and attributes) cannot be decrypted yet
                 {
                     encryptednodes[h] = n;
+                }
+
+                // set rootnodes[] in client as entry point for each tree
+                if (n->type >= ROOTNODE)
+                {
+                    rootnodes[n->type - 2] = n->nodehandle;
                 }
 
                 if (nn && nni >= 0 && nni < nnsize)
@@ -4281,7 +4301,7 @@ void MegaClient::login(const byte* session, int size)
 
         opensctable();
 
-        if (sctable && sctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
+        if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
         {
             cachedscsn = MemAccess::get<handle>(t.data());
         }
@@ -5551,55 +5571,26 @@ int MegaClient::inited25519()
 
 bool MegaClient::fetchsc(DbTable* sctable)
 {
-    uint32_t id;
-    string data;
-    pnode_t n;
-    User* u;
-    node_vector dp;
-
     LOG_info << "Loading session from local cache";
 
-    sctable->rewind();
-    nodescount = 0;
-
-    while (sctable->next(&id, &data, &key))
+    // 1. Load handles of rootnodes
+    if (!sctable->getrootnodes(rootnodes))
     {
-        switch (id & 15)
-        {
-            case CACHEDSCSN:
-                if (data.size() != sizeof cachedscsn)
-                {
-                    return false;
-                }
-                break;
-
-            case CACHEDNODE:
-                if ((n = Node::unserialize(this, &data, &dp)))
-                {
-                    n->dbid = id;
-                    nodescount++;
-                }
-                else
-                {
-                    LOG_err << "Failed - node record read error";
-                    return false;
-                }
-                break;
-
-            case CACHEDUSER:
-                if ((u = User::unserialize(this, &data)))
-                {
-                    u->dbid = id;
-                }
-                else
-                {
-                    LOG_err << "Failed - user record read error";
-                    return false;
-                }
-        }
+        LOG_err << "Failed to load rootnodes from cache";
+        return false;
     }
 
-    mergenewshares(0);
+    // 2. Load all users in the account
+    string data;
+    sctable->rewinduser();
+    while (sctable->getuser(&data, &key))
+    {
+        if (!User::unserialize(this, &data))
+        {
+            LOG_err << "Failed to load users from cache";
+            return false;
+        }
+    }
 
     return true;
 }
@@ -5616,7 +5607,6 @@ void MegaClient::fetchnodes()
     }
 
     // only initial load from local cache
-//    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     if (loggedin() == FULLACCOUNT && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
         restag = reqtag;
@@ -7223,75 +7213,38 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 
 pnode_t MegaClient::nodebyfingerprint(string* fingerprint)
 {
-    multimap<string, int32_t>::iterator it;
-    if ((it = fingerprinttodbid.find(*fingerprint)) != fingerprinttodbid.end())
-    {
-        return nodebydbid(it->second);
-    }
-
-    return NULL;
-}
-
-pnode_t MegaClient::nodebydbid(int32_t dbid)
-{
     string data;
-    if(sctable->get(dbid, &data) && PaddedCBC::decrypt(&data, &key))
+    if (sctable->getnode(fingerprint, &data, &key))
     {
-        pnode_t n = Node::unserialize(this, &data, NULL);
-        if(!n)
-        {
-            return NULL;
-        }
-        n->dbid = dbid;
+        pnode_t n;
+        node_vector dp;
+
+        n = Node::unserialize(this, &data, &dp);
         return n;
     }
+
     return NULL;
 }
 
 shared_ptr<vector<pnode_t > > MegaClient::getchildren(pnode_t node)
 {
     vector<pnode_t> *children = new vector<pnode_t>();
-    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range = nodechildren.equal_range(node->nodehandle);
-    multimap<handle, handle>::iterator it = range.first;
-    for (; it != range.second; ++it)
-    {
-        pnode_t n = nodebyhandle(it->second);
-        if(n)
-            children->push_back(n);
-    }
-    return shared_ptr<vector<pnode_t > >(children);
-}
 
-// returns true if the node already exists as a children of 'parent' in 'nodechildren
-bool MegaClient::childrenexists(handle parenthandle, handle nodehandle)
-{
-    // iterate through childrens whose parent is 'parenthandle'
-    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
-            nodechildren.equal_range(parenthandle);
-    multimap<handle, handle>::iterator it = range.first;
-    for (; it != range.second; ++it)
+    string data;
+    node_vector dp;
+
+    sctable->rewindchildren(node->nodehandle, &key);
+
+    while (sctable->getchildren(&data, &key))
     {
-        if (it->second == nodehandle)   // if the children's handle is this node's handle...
+        pnode_t n = Node::unserialize(this, &data, &dp);
+        if (n)
         {
-            break;
+            children->push_back(n);
         }
     }
 
-    return (it != range.second);  // if the node's handle was found in 'nodechildren'...
-}
-
-// removes a node from its parent's children
-void MegaClient::removechildren(handle parenthandle, handle nodehandle)
-{
-    std::pair<multimap<handle, handle>::iterator, multimap<handle, handle>::iterator> range =
-            nodechildren.equal_range(parenthandle);
-    multimap<handle, handle>::iterator it = range.first;
-    for (; it != range.second; ++it) {
-        if (it->second == nodehandle) {
-            nodechildren.erase(it);
-            break;
-        }
-    }
+    return shared_ptr<vector<pnode_t > >(children);
 }
 
 // a chunk transfer request failed: record failed protocol & host

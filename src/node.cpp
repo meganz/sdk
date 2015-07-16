@@ -69,36 +69,9 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (client)
     {
-        // if the node has a parent...
-        if (parenthandle != UNDEF)
-        {
-            // check that the tuple parent-children is not yet in 'nodechildren'
-            if (!client->childrenexists(parenthandle,nodehandle))
-            {
-                client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
-            }
-        }
-
-        pnode_t p;
-
-        // folder link access: first returned record defines root node and
-        // identity
-        if (ISUNDEF(*client->rootnodes))
-        {
-            *client->rootnodes = h;
-        }
-
-        if (t >= ROOTNODE && t <= RUBBISHNODE)
-        {
-            client->rootnodes[t - ROOTNODE] = h;
-        }
-
         // set parent linkage or queue for delayed parent linkage in case of
         // out-of-order delivery
-        if ((p = client->nodebyhandle(ph)))
-        {
-            setparent(p);
-        }
+        setparent(client->nodebyhandle(ph));
     }
 }
 
@@ -153,9 +126,6 @@ Node::~Node()
         }
         delete outshares;
     }
-
-    // remove from parent's children
-    client->removechildren(parenthandle, nodehandle);
 
     delete inshare;
     delete sharekey;
@@ -770,11 +740,6 @@ bool Node::setparent(pnode_t p)
         return false;
     }
 
-    if (parenthandle != UNDEF)
-    {
-        client->removechildren(parenthandle,nodehandle);
-    }
-
     if(p)
     {
         parenthandle = p->nodehandle;
@@ -782,11 +747,6 @@ bool Node::setparent(pnode_t p)
     else
     {
         parenthandle = UNDEF;
-    }
-
-    if (parenthandle != UNDEF)
-    {
-        client->nodechildren.insert(pair<handle, handle>(parenthandle, nodehandle));
     }
 
 #ifdef ENABLE_SYNC

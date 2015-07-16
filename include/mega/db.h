@@ -23,32 +23,62 @@
 #define MEGA_DB_H 1
 
 #include "filesystem.h"
+#include "node.h"
+#include "user.h"
 
 namespace mega {
 // generic host transactional database access interface
 class MEGA_API DbTable
 {
+protected:
     static const int IDSPACING = 16;
 
 public:
-    // for a full sequential get: rewind to first record
-    virtual void rewind() = 0;
-
-    // get next record in sequence
-    virtual bool next(uint32_t*, string*) = 0;
-    bool next(uint32_t*, string*, SymmCipher*);
-
     // get specific record by key
-    virtual bool get(uint32_t, string*) = 0;
+    bool getnode(handle, string*, SymmCipher*);     // by handle
+    bool getnode(string*, string*, SymmCipher*);    // by fingerprint
 
+protected:
+    virtual bool getnodebyhandle(handle, string*) = 0;          // node by handle
+    virtual bool getnodebyfingerprint(string*, string*) = 0;    // node by fingerprint
+
+public:
+    // for a sequential read of Users or child nodes
+    void rewindchildren(handle, SymmCipher*);
+    virtual void rewinduser() = 0;
+
+    bool getuser(string*, SymmCipher*);
+    bool getchildren(string*, SymmCipher*);
+
+    // get records for `scsn` and `rootnodes`
+    virtual bool getscsn(string*) = 0;
+    virtual bool getrootnodes(handle*) = 0;
+
+protected:
+    // get sequential records for Users & child nodes
+    virtual bool next(string*) = 0;
+    virtual void rewindchildren(handle) = 0;
+
+public:
     // update or add specific record
-    virtual bool put(uint32_t, char*, unsigned) = 0;
-    bool put(uint32_t, string*);
-    bool put(uint32_t, Cachable *, SymmCipher*);
+    virtual bool putscsn(char *, unsigned) = 0;
+    virtual bool putrootnodes(handle*) = 0;
+    bool putnode(pnode_t, SymmCipher*);
+    bool putuser(User *, SymmCipher*);
 
+protected:
+    // update or add specific record
+    virtual bool putnode(handle, handle, char *, unsigned, char *, unsigned) = 0;
+    virtual bool putuser(char *, unsigned, char *, unsigned) = 0;
+
+public:
     // delete specific record
-    virtual bool del(uint32_t) = 0;
+    bool delnode(pnode_t, SymmCipher*);
 
+protected:
+    virtual bool delnode(handle h) = 0;
+
+public:
     // delete all records
     virtual void truncate() = 0;
 
