@@ -42,11 +42,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     //when the second one was opened.
     sqlite3* db;
 
-#ifdef __ANDROID__
     string dbdir = dbpath + "megaclient_statecache7_" + *name + ".db";
-#else
-    string dbdir = dbpath + "megaclient_statecache6_" + *name + ".db";
-#endif
 
     int rc;
 
