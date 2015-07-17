@@ -2988,7 +2988,8 @@ class MegaApi
             PAYMENT_METHOD_BITCOIN = 4,
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
-            PAYMENT_METHOD_CREDIT_CARD = 8
+            PAYMENT_METHOD_CREDIT_CARD = 8,
+            PAYMENT_METHOD_CENTILI = 9
         };
 
         enum {
@@ -6041,6 +6042,7 @@ public:
      * - MegaApi::PAYMENT_METHOD_UNIONPAY = 5,
      * - MegaApi::PAYMENT_METHOD_FORTUMO = 6,
      * - MegaApi::PAYMENT_METHOD_CREDIT_CARD = 8
+     * - MegaApi::PAYMENT_METHOD_CENTILI = 9
      *
      * @return Method of the purchase
      */
