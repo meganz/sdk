@@ -78,6 +78,9 @@ struct MEGA_API MegaApp
     // nodes have been updated
     virtual void nodes_updated(Node**, int) { }
 
+    // nodes have been updated
+    virtual void pcrs_updated(PendingContactRequest**, int) { }
+
     // users have been added or updated
     virtual void users_updated(User**, int) { }
 
@@ -102,6 +105,11 @@ struct MEGA_API MegaApp
     // share update result
     virtual void share_result(error) { }
     virtual void share_result(int, error) { }
+
+    // outgoing pending contact result
+    virtual void setpcr_result(handle, error, opcactions_t) { }
+    // incoming pending contact result
+    virtual void updatepcr_result(error, ipcactions_t) { }
 
     // file attribute fetch result
     virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }

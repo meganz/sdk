@@ -119,6 +119,23 @@ int MegaTransferList::size()
     return 0;
 }
 
+MegaContactRequestList::~MegaContactRequestList() { }
+
+MegaContactRequestList *MegaContactRequestList::copy()
+{
+    return NULL;
+}
+
+MegaContactRequest *MegaContactRequestList::get(int i)
+{
+    return NULL;
+}
+
+int MegaContactRequestList::size()
+{
+    return 0;
+}
+
 MegaUserList::~MegaUserList() { }
 
 MegaUserList *MegaUserList::copy()
@@ -731,6 +748,56 @@ const char *MegaError::__toString() const
 	return getErrorString();
 }
 
+MegaContactRequest::~MegaContactRequest()
+{
+
+}
+
+MegaContactRequest *MegaContactRequest::copy() const
+{
+    return NULL;
+}
+
+MegaHandle MegaContactRequest::getHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+char *MegaContactRequest::getSourceEmail() const
+{
+    return NULL;
+}
+
+char *MegaContactRequest::getSourceMessage() const
+{
+    return NULL;
+}
+
+char *MegaContactRequest::getTargetEmail() const
+{
+    return NULL;
+}
+
+int64_t MegaContactRequest::getCreationTime() const
+{
+    return 0;
+}
+
+int64_t MegaContactRequest::getModificationTime() const
+{
+    return 0;
+}
+
+int MegaContactRequest::getStatus() const
+{
+    return 0;
+}
+
+bool MegaContactRequest::isOutgoing() const
+{
+    return true;
+}
+
 //Request callbacks
 void MegaRequestListener::onRequestStart(MegaApi *, MegaRequest *)
 { }
@@ -763,6 +830,8 @@ void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
+void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
+{ }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 MegaGlobalListener::~MegaGlobalListener()
@@ -790,6 +859,8 @@ void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaListener::onAccountUpdate(MegaApi *)
+{ }
+void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaListener::onReloadNeeded(MegaApi *)
 { }
@@ -1216,6 +1287,16 @@ void MegaApi::addContact(const char* email, MegaRequestListener* listener)
     pImpl->addContact(email, listener);
 }
 
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, listener);
+}
+
+void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
+{
+    pImpl->replyContactRequest(r, action, listener);
+}
+
 void MegaApi::removeContact(MegaUser *user, MegaRequestListener* listener)
 {
     pImpl->removeContact(user, listener);
@@ -1497,6 +1578,26 @@ MegaShareList* MegaApi::getOutShares(MegaNode *megaNode)
     return pImpl->getOutShares(megaNode);
 }
 
+MegaShareList *MegaApi::getPendingOutShares()
+{
+    return pImpl->getPendingOutShares();
+}
+
+MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
+{
+    return pImpl->getPendingOutShares(node);
+}
+
+MegaContactRequestList *MegaApi::getIncomingContactRequests()
+{
+    return pImpl->getIncomingContactRequests();
+}
+
+MegaContactRequestList *MegaApi::getOutgoingContactRequests()
+{
+    return pImpl->getOutgoingContactRequests();
+}
+
 int MegaApi::getAccess(MegaNode* megaNode)
 {
     return pImpl->getAccess(megaNode);
@@ -1757,9 +1858,14 @@ MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
     return pImpl->getNodeByPath(path, node);
 }
 
-MegaNode* MegaApi::getNodeByHandle(uint64_t uint64_t)
+MegaNode* MegaApi::getNodeByHandle(uint64_t h)
 {
-    return pImpl->getNodeByHandle(uint64_t);
+    return pImpl->getNodeByHandle(h);
+}
+
+MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
+{
+    return pImpl->getContactRequestByHandle(handle);
 }
 
 void MegaApi::updateStats()
@@ -2303,3 +2409,4 @@ double MegaAccountTransaction::getAmount() const
 {
     return 0;
 }
+
