@@ -122,6 +122,9 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // outbound shares by user
     share_map *outshares;
 
+    // outbound pending shares
+    share_map *pendingshares;
+
     // incoming/outgoing share key
     SymmCipher* sharekey;
 
@@ -139,6 +142,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
         bool fileattrstring : 1;
         bool inshare : 1;
         bool outshares : 1;
+        bool pendingshares : 1;
         bool parent : 1;
     } changed;
     
@@ -147,15 +151,6 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     void setfingerprint();
 
     void faspec(string*);
-
-    // parent
-//    Node* parent;
-
-//    // children
-//    node_list children;
-
-//    // own position in parent's children
-//    node_list::iterator child_it;
 
     // own position in fingerprint set (only valid for file nodes)
     fingerprint_set::iterator fingerprint_it;

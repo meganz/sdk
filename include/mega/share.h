@@ -34,13 +34,15 @@ struct MEGA_API Share
     User* user;
     m_time_t ts;
 
+    PendingContactRequest* pcr;
+
     void removeshare(handle);
-    void update(accesslevel_t, m_time_t);
+    void update(accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 
     void serialize(string*);
     static bool unserialize(MegaClient *, int, handle, const byte *, const char**, const char*, pnode_t);
 
-    Share(User*, accesslevel_t, m_time_t);
+    Share(User*, accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 };
 
 // new share credentials (will be merged into node as soon as it appears)
@@ -52,12 +54,14 @@ struct MEGA_API NewShare
     accesslevel_t access;
     m_time_t ts;
 
+    handle pending;
+    bool upgrade_pending_to_full;
     bool have_key, have_auth;
 
     byte key[SymmCipher::BLOCKSIZE];
     byte auth[SymmCipher::BLOCKSIZE];
 
-    NewShare(handle, int, handle, accesslevel_t, m_time_t, const byte*, const byte* = NULL);
+    NewShare(handle, int, handle, accesslevel_t, m_time_t, const byte*, const byte* = NULL, handle = UNDEF, bool = false);
 };
 } // namespace
 

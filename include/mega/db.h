@@ -65,6 +65,7 @@ public:
     virtual bool putrootnodes(handle*) = 0;
     bool putnode(pnode_t, SymmCipher*);
     bool putuser(User *, SymmCipher*);
+    bool putpcr(PendingContactRequest *, SymmCipher*);
 
 protected:
     // update or add specific record
@@ -74,6 +75,7 @@ protected:
 public:
     // delete specific record
     bool delnode(pnode_t, SymmCipher*);
+    bool delpcr(PendingContactRequest *, SymmCipher*);
 
 protected:
     virtual bool delnode(handle h) = 0;

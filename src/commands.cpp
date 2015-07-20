@@ -360,11 +360,23 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p)
+CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
 {
     cmd("g");
-    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if(auth)
+    {
+        if(strlen(auth) == 8)
+        {
+            arg("en", auth);
+        }
+        else
+        {
+            arg("esid", auth);
+        }
+    }
 
     tslot = ctslot;
     ph = h;
@@ -1280,12 +1292,11 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, pnode_t n, User* u, accesslevel_t a, int newshare)
+CommandSetShare::CommandSetShare(MegaClient* client, pnode_t n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
     byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    string uid;
     int t;
 
     tag = client->restag;
@@ -1294,8 +1305,29 @@ CommandSetShare::CommandSetShare(MegaClient* client, pnode_t n, User* u, accessl
     user = u;
     access = a;
 
-    cmd("s");
+    if (personal_representation)
+    {
+        this->personal_representation = personal_representation;
+    }
+
+    if (msg)
+    {
+        this->msg = msg;
+    }
+
+    cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
+
+    // Only for inviting non-contacts
+    if (this->personal_representation.size())
+    {
+        arg("e", personal_representation);
+    }
+
+    if (this->msg.size())
+    {
+        arg("msg", msg);
+    }
 
     if (a != ACCESS_UNKNOWN)
     {
@@ -1414,7 +1446,7 @@ void CommandSetShare::procresult()
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0));
+                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
                         return;
                     }
                 }
@@ -1467,6 +1499,113 @@ void CommandSetShare::procresult()
         }
     }
 }
+
+
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail)
+{
+    cmd("upc");
+
+    if (oemail != NULL)
+    {
+        arg("e", oemail);
+    }
+
+    arg("u", temail);
+    switch (action)     
+    {   
+        case OPCA_DELETE:
+            arg("aa", "d");
+            break;
+        case OPCA_REMIND:
+            arg("aa", "r");
+            break;
+        case OPCA_ADD:          
+        default:
+            arg("aa", "a");
+            break;
+    }
+
+    if (msg != NULL)
+    {
+        arg("msg", msg);
+    }
+
+    tag = client->reqtag;
+    this->action = action;
+}
+
+void CommandSetPendingContact::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->setpcr_result(UNDEF, (error)client->json.getint(), this->action);
+    }
+
+    handle p = UNDEF;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'p':
+                p = client->json.gethandle(MegaClient::PCRHANDLE);  
+                break;              
+            case EOO:
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Undefined handle";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+                }
+                else
+                {
+                    client->app->setpcr_result(p, API_OK, this->action);
+                }
+                return;
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Parse error";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
+                }
+        }
+    }
+}
+
+CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
+{
+    cmd("upca");   
+
+    arg("p", (byte*)&p, MegaClient::PCRHANDLE);
+    switch (action)     
+    {   
+        case IPCA_ACCEPT:
+            arg("aa", "a");
+            break;
+        case IPCA_DENY:
+            arg("aa", "d");
+            break;
+        case IPCA_IGNORE:          
+        default:
+            arg("aa", "i");
+            break;
+    }
+
+    tag = client->reqtag;
+    this->action = action;
+}
+
+void CommandUpdatePendingContact::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->updatepcr_result((error)client->json.getint(), this->action);
+    }
+   
+    LOG_err << "Unexpected response for CommandUpdatePendingContact";
+    client->app->updatepcr_result(API_EINTERNAL, this->action);
+    return;    
+}
+
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
@@ -2809,8 +2948,6 @@ void CommandFetchNodes::procresult()
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
-    //readoutshares(client->json.pos, &(client->outsharekeys), &(client->outshareauths));
-
     client->sctable->begin();       // start new DB transaction
 
     for (;;)
@@ -2835,6 +2972,10 @@ void CommandFetchNodes::procresult()
                 // outgoing shares - populate the `newshares` list (handle, target user, share access, timestamp),
                 // apply to nodes their corresponding new attributes via `mergenewshares(0)` and create/update the
                 // `outshares` map of each node
+
+                // Fall through
+            case MAKENAMEID2('p', 's'):
+                // outgoing or pending shares
                 client->readoutshares(&client->json);
                 break;
 
@@ -2864,6 +3005,16 @@ void CommandFetchNodes::procresult()
                 }
                 break;
 
+            case MAKENAMEID3('i', 'p', 'c'):
+                // Incoming pending contact
+                client->readipc(&client->json);
+                break;
+
+            case MAKENAMEID3('o', 'p', 'c'):
+                // Outgoing pending contact
+                client->readopc(&client->json);
+                break;
+
             case EOO:
                 if (!*client->scsn)
                 {
@@ -2880,6 +3031,7 @@ void CommandFetchNodes::procresult()
 
                 // NULL vector: "notify all nodes"
                 client->app->nodes_updated(NULL, client->nodescount);
+                client->app->pcrs_updated(NULL, client->pcrindex.size());
                 return;
 
             default:

@@ -23,22 +23,26 @@
 #include "logging.h"
 
 namespace mega {
-Share::Share(User* u, accesslevel_t a, m_time_t t)
+Share::Share(User* u, accesslevel_t a, m_time_t t, PendingContactRequest* pending)
 {
     user = u;
     access = a;
     ts = t;
+    this->pcr = pending;
 }
 
 void Share::serialize(string* d)
 {
     handle uh = user ? user->userhandle : 0;
-    char a = (char)access;
+    char a = (char)access;    
+    char version = 1;
+    handle ph = pcr!=NULL ? pcr->id : UNDEF;  
 
     d->append((char*)&uh, sizeof uh);
     d->append((char*)&ts, sizeof ts);
     d->append((char*)&a, 1);
-    d->append("", 1);
+    d->append((char*)&version, 1);
+    d->append((char*)&ph, sizeof ph);
 }
 
 bool Share::unserialize(MegaClient* client, int direction, handle h,
@@ -51,14 +55,23 @@ bool Share::unserialize(MegaClient* client, int direction, handle h,
 
 //    client->newshares.push_back(new NewShare(h, direction, MemAccess::get<handle>(*ptr),
 //                                             (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],
-//                                             MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key));
+//                                             MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key, NULL, ph));
+
 
     // Instead of queuing a `NewShare` object to be merged to the `Node` in a later stage, do it
     // here straight away, so the object is fully rebuilt
 
     handle peer = MemAccess::get<handle>(*ptr);
-    accesslevel_t access = (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)];
     m_time_t ts = MemAccess::get<m_time_t>(*ptr + sizeof(handle));
+    accesslevel_t access = (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)];
+    char version_flag =  (*ptr)[sizeof(handle) + sizeof(m_time_t) + 1];
+
+    handle ph = UNDEF;
+    if (version_flag >= 1)
+    {
+        // Pending flag exists
+        ph = MemAccess::get<handle>(*ptr + sizeof(handle) + sizeof(m_time_t) + 2);
+    }
 
     if (ckey)
     {
@@ -109,25 +122,32 @@ bool Share::unserialize(MegaClient* client, int direction, handle h,
     }   // end of 'inline mergenewshares()'
 
     *ptr += sizeof(handle) + sizeof(m_time_t) + 2;
+    if (version_flag >= 1)
+    {
+        *ptr += sizeof(handle);
+    }
 
     return true;
 }
 
-void Share::update(accesslevel_t a, m_time_t t)
+void Share::update(accesslevel_t a, m_time_t t, PendingContactRequest* pending)
 {
     access = a;
     ts = t;
+    pcr = pending;
 }
 
 // coutgoing: < 0 - don't authenticate, > 0 - authenticate using handle auth
 NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess,
-                   m_time_t cts, const byte* ckey, const byte* cauth)
+                   m_time_t cts, const byte* ckey, const byte* cauth, handle cpending,bool cupgrade_pending_to_full)
 {
     h = ch;
     outgoing = coutgoing;
     peer = cpeer;
     access = caccess;
     ts = cts;
+    pending = cpending;
+    upgrade_pending_to_full = cupgrade_pending_to_full;
 
     if (ckey)
     {

@@ -78,7 +78,7 @@ public class MegaApiJava {
      * 
      * @param basePath
      *            Base path to store the local cache
-     *            If you pass NULL to this parameter, the SDK won't use any local cache.
+     *            If you pass `null` to this parameter, the SDK won't use any local cache.
      * 
      */
     public MegaApiJava(String appKey, String basePath) {
@@ -99,15 +99,15 @@ public class MegaApiJava {
      * 
      * @param userAgent
      *            User agent to use in network requests
-     *            If you pass NULL to this parameter, a default user agent will be used
+     *            If you pass `null` to this parameter, a default user agent will be used
      * 
      * @param basePath
      *            Base path to store the local cache
-     *            If you pass NULL to this parameter, the SDK won't use any local cache.
+     *            If you pass `null` to this parameter, the SDK won't use any local cache.
      * 
      * @param gfxProcessor
      *            Image processor. The SDK will use it to generate previews and thumbnails
-     *            If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
+     *            If you pass `null` to this parameter, the SDK will try to use the built-in image processors.
      * 
      */
     public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor) {
@@ -655,7 +655,7 @@ public class MegaApiJava {
      * Returns the current session key
      * 
      * You have to be logged in to get a valid session key. Otherwise,
-     * this function returns NULL.
+     * this function returns `null`.
      * 
      * @return Current session key
      */
@@ -667,7 +667,7 @@ public class MegaApiJava {
      * Returns the current XMPP session key
      * 
      * You have to be logged in to get a valid session key. Otherwise,
-     * this function returns NULL.
+     * this function returns `null`.
      * 
      * @return Current XMPP session key
      */
@@ -897,7 +897,7 @@ public class MegaApiJava {
      * Retuns the email of the currently open account
      * 
      * If the MegaApi object isn't logged in or the email isn't available,
-     * this function returns NULL
+     * this function returns `null`
      * 
      * @return Email of the account
      */
@@ -2569,7 +2569,7 @@ public class MegaApiJava {
      * 
      * @param Transfer
      *            tag to check
-     * @return MegaTransfer object with that tag, or NULL if there isn't any
+     * @return MegaTransfer object with that tag, or `null` if there isn't any
      *         active transfer with it
      * 
      */
@@ -2785,7 +2785,7 @@ public class MegaApiJava {
      * Get all children of a MegaNode
      * 
      * If the parent node doesn't exist or it isn't a folder, this function
-     * returns NULL
+     * returns `null`
      * 
      * @param parent
      *            Parent node
@@ -2835,7 +2835,7 @@ public class MegaApiJava {
      * Get all children of a MegaNode
      * 
      * If the parent node doesn't exist or it isn't a folder, this function
-     * returns NULL
+     * returns `null`
      * 
      * @param parent
      *            Parent node
@@ -2880,7 +2880,7 @@ public class MegaApiJava {
     /**
      * Get the child node with the provided name
      * 
-     * If the node doesn't exist, this function returns NULL
+     * If the node doesn't exist, this function returns `null`
      * 
      * @param Parent
      *            node
@@ -2896,7 +2896,7 @@ public class MegaApiJava {
      * Get the parent node of a MegaNode
      * 
      * If the node doesn't exist in the account or
-     * it is a root node, this function returns NULL
+     * it is a root node, this function returns `null`
      * 
      * @param node
      *            MegaNode to get the parent
@@ -2909,7 +2909,7 @@ public class MegaApiJava {
     /**
      * Get the path of a MegaNode
      * 
-     * If the node doesn't exist, this function returns NULL.
+     * If the node doesn't exist, this function returns `null`.
      * You can recoved the node later unsing MegaApi::getNodeByPath
      * except if the path contains names with '/', '\' or ':' characters.
      * 
@@ -2935,7 +2935,7 @@ public class MegaApiJava {
      *            Path to check
      * @param n
      *            Base node if the path is relative
-     * @return The MegaNode object in the path, otherwise NULL
+     * @return The MegaNode object in the path, otherwise `null`
      */
     public MegaNode getNodeByPath(String path, MegaNode baseFolder) {
         return megaApi.getNodeByPath(path, baseFolder);
@@ -2954,7 +2954,7 @@ public class MegaApiJava {
      * @param path
      *            Path to check
      * 
-     * @return The MegaNode object in the path, otherwise NULL
+     * @return The MegaNode object in the path, otherwise `null`
      */
     public MegaNode getNodeByPath(String path) {
         return megaApi.getNodeByPath(path);
@@ -2969,7 +2969,7 @@ public class MegaApiJava {
      * 
      * @param MegaHandler
      *            Node handle to check
-     * @return MegaNode object with the handle, otherwise NULL
+     * @return MegaNode object with the handle, otherwise `null`
      */
     public MegaNode getNodeByHandle(long handle) {
         return megaApi.getNodeByHandle(handle);
@@ -2991,7 +2991,7 @@ public class MegaApiJava {
      * 
      * @param email
      *            Email address to check
-     * @return MegaUser that has the email address, otherwise NULL
+     * @return MegaUser that has the email address, otherwise `null`
      */
     public MegaUser getContact(String email) {
         return megaApi.getContact(email);
@@ -3327,40 +3327,15 @@ public class MegaApiJava {
     }
 
     /**
-     * Make a name suitable for a file name in the local filesystem
-     * 
-     * This function escapes (%xx) forbidden characters in the local filesystem if needed.
-     * You can revert this operation using MegaApi::localToName
-     * 
-     * @param name
-     *            Name to convert
-     * @return Converted name
-     */
-    public String nameToLocal(String name) {
-        return megaApi.nameToLocal(name);
-    }
-
-    /**
-     * @brief Unescape a file name escaped with MegaApi::nameToLocal
-     * 
-     * @param name
-     *            Escaped name to convert
-     * @return Converted name
-     */
-    public String localToName(String localName) {
-        return megaApi.localToName(localName);
-    }
-
-    /**
      * Convert a Base64 string to Base32
      * 
-     * If the input pointer is NULL, this function will return NULL.
+     * If the input pointer is `null`, this function will return `null`.
      * If the input character array isn't a valid base64 string
      * the effect is undefined
      * 
      * @param base64
-     *            NULL-terminated Base64 character array
-     * @return NULL-terminated Base32 character array
+     *            `null`-terminated Base64 character array
+     * @return `null`-terminated Base32 character array
      */
     public static String base64ToBase32(String base64) {
         return MegaApi.base64ToBase32(base64);
@@ -3369,13 +3344,13 @@ public class MegaApiJava {
     /**
      * Convert a Base32 string to Base64
      * 
-     * If the input pointer is NULL, this function will return NULL.
+     * If the input pointer is `null`, this function will return `null`.
      * If the input character array isn't a valid base32 string
      * the effect is undefined
      * 
      * @param base32
-     *            NULL-terminated Base32 character array
-     * @return NULL-terminated Base64 character array
+     *            `null`-terminated Base32 character array
+     * @return `null`-terminated Base64 character array
      */
     public static String base32ToBase64(String base32) {
         return MegaApi.base32ToBase64(base32);

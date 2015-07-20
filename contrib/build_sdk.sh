@@ -226,7 +226,7 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2c"
+    local openssl_ver="1.0.2d"
     local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
@@ -709,9 +709,9 @@ display_help() {
 
 main() {
     local cwd=$(pwd)
-    local work_dir=$cwd"/sdk_build/"
-    local build_dir=$work_dir"build/"
-    local install_dir=$work_dir"install/"
+    local work_dir=$cwd"/sdk_build"
+    local build_dir=$work_dir/"build"
+    local install_dir=$work_dir/"install"
     local debug=""
     # by the default store archives in work_dir
     local_dir=$work_dir

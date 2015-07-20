@@ -36,6 +36,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 {
     client = cclient;
     outshares = NULL;
+    pendingshares = NULL;
     tag = 0;
     appdata = NULL;
 
@@ -125,6 +126,16 @@ Node::~Node()
             delete it->second;
         }
         delete outshares;
+    }
+
+    if (pendingshares)
+    {
+        // delete pending shares
+        for (share_map::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
+        {
+            delete it->second;
+        }
+        delete pendingshares;
     }
 
     delete inshare;
@@ -299,7 +310,6 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 //                                  h, skey, &ptr, end, n)
 //               && numshares > 0
 //               && --numshares);
-
     }
 
     ptr = n->attrs.unserialize(ptr);
@@ -409,13 +419,14 @@ bool Node::serialize(string* d)
     }
     else
     {
-        if (!outshares)
+        numshares = 0;
+        if (outshares)
         {
-            numshares = 0;
+            numshares += (short)outshares->size();
         }
-        else
+        if (pendingshares)
         {
-            numshares = (short)outshares->size();
+            numshares += (short)pendingshares->size();
         }
     }
 
@@ -434,6 +445,13 @@ bool Node::serialize(string* d)
             for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
             {
                 it->second->serialize(d);
+            }
+            if (pendingshares)
+            {
+                for (share_map::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
+                {
+                    it->second->serialize(d);
+                }
             }
         }
     }

@@ -84,6 +84,7 @@ class LocalTreeProc;
 struct User;
 struct Waiter;
 struct Proxy;
+struct PendingContactRequest;
 
 #define EOO 0
 
@@ -202,6 +203,11 @@ typedef uint64_t nameid;
 // OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
+// operations for outgoing pending contacts
+typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
+// operations for incoming pending contacts
+typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
+
 // contact visibility:
 // HIDDEN - not shown
 // VISIBLE - shown
@@ -271,6 +277,7 @@ typedef set<pair<handle, handle> > handlepair_set;
 // node and user vectors
 typedef vector<struct NodeCore*> nodecore_vector;
 typedef vector<struct User*> user_vector;
+typedef vector<struct PendingContactRequest*> pcr_vector;
 
 // actual user data (indexed by userid)
 typedef map<int, User> user_map;
@@ -344,6 +351,9 @@ typedef deque<Notification> notify_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
+
+typedef map<handle, PendingContactRequest*> handlepcr_map;
+
 } // namespace
 
 #endif

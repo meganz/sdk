@@ -33,6 +33,7 @@
 #include "backofftimer.h"
 #include "http.h"
 #include "pubkeyaction.h"
+#include "pendingcontactrequest.h"
 
 namespace mega {
 
@@ -225,7 +226,11 @@ public:
     error invite(const char*, visibility_t = VISIBLE);
 
     // add/remove/update outgoing share
-    void setshare(pnode_t, const char*, accesslevel_t);
+    void setshare(pnode_t, const char*, accesslevel_t, const char* = NULL);
+
+    // Add/delete/remind outgoing pending contact request
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
     error exportnode(pnode_t, int);
@@ -289,6 +294,12 @@ public:
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
+
+    // use an alternative port for downloads (8080)
+    bool usealtdownport;
+
+    // use an alternative port for uploads (8080)
+    bool usealtupport;
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
@@ -370,6 +381,9 @@ private:
     void sc_userattr();
     bool sc_shares();
     bool sc_upgrade();
+    void sc_opc();
+    void sc_ipc();
+    void sc_upc();
 
     void init();
 
@@ -444,7 +458,7 @@ public:
     bool statecurrent;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
 
     // initialize/update state cache referenced sctable
     void initsc();
@@ -475,6 +489,9 @@ public:
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;
     um_map umindex;
+
+    // mapping of pending contact handles to their structure
+    handlepcr_map pcrindex;
 
     // pending file attributes
     fa_map pendingfa;
@@ -529,6 +546,9 @@ public:
 
     user_vector usernotify;
     void notifyuser(User*);
+
+    pcr_vector pcrnotify;
+    void notifypcr(PendingContactRequest*);
 
     node_vector nodenotify;
     void notifynode(pnode_t);
@@ -676,6 +696,9 @@ public:
     void readoutshares(JSON*);
     void readoutshareelement(JSON*);
 
+    void readipc(JSON*);
+    void readopc(JSON*);
+
     void readcr();
     void readsr();
 
@@ -699,6 +722,7 @@ public:
     void purgenodesusersabortsc();
 
     static const int USERHANDLE = 8;
+    static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
 
     // session ID length (binary)
@@ -732,6 +756,9 @@ public:
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
     void mapuser(handle, const char*);
+    void mappcr(handle, PendingContactRequest*);
+
+    PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);

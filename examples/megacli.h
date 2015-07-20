@@ -97,6 +97,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int);
     void nodes_updated(pnode_t*, int);
+    void pcrs_updated(PendingContactRequest**, int);
     void nodes_current();
 
     int prepare_download(pnode_t);
@@ -111,6 +112,9 @@ struct DemoApp : public MegaApp
 
     void share_result(error);
     void share_result(int, error);
+
+    void setpcr_result(handle, error, opcactions_t);
+    void updatepcr_result(error, ipcactions_t);
 
     void fa_complete(pnode_t, fatype, const char*, uint32_t);
     int fa_failed(handle, fatype, int, error);

@@ -85,6 +85,11 @@ bool DbTable::putuser(User * u, SymmCipher* key)
     return result;
 }
 
+bool DbTable::putpcr(PendingContactRequest *pcr, SymmCipher *key)
+{
+    return true;
+}
+
 bool DbTable::delnode(pnode_t n, SymmCipher *key)
 {
     // TODO: encrypt n->nodehandle
@@ -95,6 +100,11 @@ bool DbTable::delnode(pnode_t n, SymmCipher *key)
         //Add to cache?
     }
     return result;
+}
+
+bool DbTable::delpcr(PendingContactRequest *pcr, SymmCipher *key)
+{
+    return true;
 }
 
 bool DbTable::getnode(handle h, string* data, SymmCipher* key)

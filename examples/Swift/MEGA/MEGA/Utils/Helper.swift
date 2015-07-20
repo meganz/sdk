@@ -199,7 +199,7 @@ class Helper {
     
     class func imageForNode(node : MEGANode) -> UIImage {
         
-        let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as AppDelegate).megaapi
+        let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
         
         switch node.type {
         case MEGANodeType.Folder:
@@ -224,7 +224,7 @@ class Helper {
     }
     
     class func pathForNode(node : MEGANode, path : NSSearchPathDirectory, directory : String) -> String {
-        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] as String
+        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
         let filename = node.base64Handle
         let destinationFilePath = directory == "" ? destinationPath.stringByAppendingPathComponent(filename) : destinationPath.stringByAppendingPathComponent(directory).stringByAppendingPathComponent(filename)
         
@@ -236,7 +236,7 @@ class Helper {
     }
     
     class func pathForUser(user : MEGAUser, path : NSSearchPathDirectory, directory : String) -> String {
-        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] as String
+        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
         let filename = user.email
         let destinationFilePath = directory == "" ? destinationPath.stringByAppendingPathComponent(filename) : destinationPath.stringByAppendingPathComponent(directory).stringByAppendingPathComponent(filename)
         

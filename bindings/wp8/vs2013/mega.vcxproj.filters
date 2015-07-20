@@ -81,6 +81,9 @@
     <ClInclude Include="..\..\..\include\mega\node.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\pendingcontactrequest.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\include\mega\proxy.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
@@ -297,6 +300,9 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\node.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\proxy.cpp">

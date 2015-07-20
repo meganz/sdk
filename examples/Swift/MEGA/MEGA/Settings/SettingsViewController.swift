@@ -29,7 +29,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     @IBOutlet weak var spaceUsedLabel: UILabel!
     @IBOutlet weak var accountTypeLabel: UILabel!
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -88,7 +88,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
                 println("(Cache) Remove file error: \(error)")
             }
             
-            let documentDirectory : String = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as String
+            let documentDirectory : String = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
             success = NSFileManager.defaultManager().removeItemAtPath(documentDirectory, error: &error)
             if (!success || error != nil) {
                 println("(Document) Remove file error: \(error)")
@@ -96,7 +96,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
             
             SVProgressHUD.dismiss()
             let storyboard = UIStoryboard(name: "Main", bundle: nil)
-            let lvc = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as LoginViewController
+            let lvc = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as! LoginViewController
             presentViewController(lvc, animated: true, completion: nil)
             
         case MEGARequestType.GetAttrUser:
