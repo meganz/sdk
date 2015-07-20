@@ -39,7 +39,7 @@ User::User(const char* cemail)
 bool User::serialize(string* d)
 {
     unsigned char l;
-    attr_map::iterator it;
+    handle_set::iterator it;
     time_t ts;
 
     d->reserve(d->size() + 100 + attrs.storagesize(10));
@@ -54,6 +54,13 @@ bool User::serialize(string* d)
     l = email.size();
     d->append((char*)&l, sizeof l);
     d->append(email.c_str(), l);
+
+    l = sharing.size();
+    d->append((char*)&l, sizeof l);
+    for (it = sharing.begin(); it != sharing.end(); it++)
+    {
+        d->append((char*)&(*it), sizeof *it);
+    }
 
     d->append("\0\0\0\0\0\0\0", 8);
 
@@ -74,6 +81,8 @@ User* User::unserialize(MegaClient* client, string* d)
     visibility_t v;
     unsigned char l;
     string m;
+    handle_set sharing;
+    handle sh;
     User* u;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -101,6 +110,14 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     ptr += l;
 
+    l = *ptr++;
+    for (i = 0; i < l; i++)
+    {
+        sh = MemAccess::get<handle>(ptr);
+        ptr += sizeof(sh);
+        sharing.insert(sh);
+    }
+
     for (i = 8; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
@@ -121,6 +138,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
+    u->sharing = sharing;
 
     if ((ptr < end) && !(ptr = u->attrs.unserialize(ptr)))
     {
