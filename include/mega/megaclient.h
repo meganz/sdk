@@ -469,10 +469,6 @@ public:
     // incoming/outcoming shares to be attached to a corresponding node
     newshare_list newshares;
 
-    // keys and handle authentication from `ok` element (pre-fetch for nodes_on_demand)
-    std::map<handle,string> outsharekeys;
-    std::map<handle,string> outshareauths;
-
     // current request tag
     int reqtag;
 
@@ -546,7 +542,6 @@ public:
 
     pnode_t nodebyhandle(handle);
     pnode_t nodebyfingerprint(string *);
-    pnode_t nodebydbid(int32_t dbid);
     shared_ptr<vector<pnode_t>> getchildren(pnode_t node);
 
     // generate & return upload handle
