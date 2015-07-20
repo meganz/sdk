@@ -536,6 +536,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
+    autodownport = true;
+    autoupport = true;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;

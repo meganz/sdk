@@ -27,6 +27,7 @@
 #include "mega/base64.h"
 #include "mega/megaapp.h"
 #include "mega/utils.h"
+#include "mega/logging.h"
 
 namespace mega {
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -95,6 +96,29 @@ TransferSlot::~TransferSlot()
     }
 
     delete[] reqs;
+}
+
+void TransferSlot::toggleport(HttpReqXfer *req)
+{
+    if (!memcmp(req->posturl.c_str(), "http:", 5))
+    {
+       int portendindex = req->posturl.find("/", 8);
+       int portstartindex = req->posturl.find(":", 8);
+
+       if (portendindex != string::npos)
+       {
+           if (portstartindex == string::npos)
+           {
+               LOG_debug << "Enabling alternative port for chunk";
+               req->posturl.insert(portendindex, ":8080");
+           }
+           else
+           {
+               LOG_debug << "Disabling alternative port for chunk";
+               req->posturl.erase(portstartindex, portendindex - portstartindex);
+           }
+       }
+    }
 }
 
 // abort all HTTP connections
@@ -247,7 +271,27 @@ void TransferSlot::doio(MegaClient* client)
                         if (!failure)
                         {
                             failure = true;
+                            bool changeport = false;
+
+                            if (transfer->type == GET && client->autodownport)
+                            {
+                                LOG_debug << "Automatically changing download port";
+                                client->usealtdownport = !client->usealtdownport;
+                                changeport = true;
+                            }
+                            else if (transfer->type == PUT && client->autoupport)
+                            {
+                                LOG_debug << "Automatically changing upload port";
+                                client->usealtupport = !client->usealtupport;
+                                changeport = true;
+                            }
+
                             client->setchunkfailed(&reqs[i]->posturl);
+
+                            if (changeport)
+                            {
+                                toggleport(reqs[i]);
+                            }
                         }
 
                         reqs[i]->status = REQ_PREPARED;
@@ -341,6 +385,21 @@ void TransferSlot::doio(MegaClient* client)
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
         failure = true;
+        bool changeport = false;
+
+        if (transfer->type == GET && client->autodownport)
+        {
+            LOG_debug << "Automatically changing download port due to a timeout";
+            client->usealtdownport = !client->usealtdownport;
+            changeport = true;
+        }
+        else if (transfer->type == PUT && client->autoupport)
+        {
+            LOG_debug << "Automatically changing upload port due to a timeout";
+            client->usealtupport = !client->usealtupport;
+            changeport = true;
+        }
+
         client->app->transfer_failed(transfer, API_EFAILED);
 
         for (int i = connections; i--; )
@@ -349,6 +408,12 @@ void TransferSlot::doio(MegaClient* client)
             {
                 client->setchunkfailed(&reqs[i]->posturl);
                 reqs[i]->disconnect();
+
+                if (changeport)
+                {
+                    toggleport(reqs[i]);
+                }
+
                 reqs[i]->status = REQ_PREPARED;
             }
         }

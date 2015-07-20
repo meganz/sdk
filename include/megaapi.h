@@ -2994,7 +2994,8 @@ class MegaApi
 
         enum {
             TRANSFER_METHOD_NORMAL = 0,
-            TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+            TRANSFER_METHOD_ALTERNATIVE_PORT = 1,
+            TRANSFER_METHOD_AUTO = 2
         };
 
         /**
@@ -4686,6 +4687,9 @@ class MegaApi
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
          *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
+         *
          * @param method Selected transfer method for downloads
          */
         void setDownloadMethod(int method);
@@ -4699,6 +4703,9 @@ class MegaApi
          *
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
          *
          * @param method Selected transfer method for uploads
          */
@@ -4714,6 +4721,9 @@ class MegaApi
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
          *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
+         *
          * @return Active transfer method for downloads
          */
         int getDownloadMethod();
@@ -4727,6 +4737,9 @@ class MegaApi
          *
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
          *
          * @return Active transfer method for uploads
          */
