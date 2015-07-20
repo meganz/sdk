@@ -298,8 +298,14 @@ public:
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
+    // select the download port automatically
+    bool autodownport;
+
     // use an alternative port for uploads (8080)
     bool usealtupport;
+
+    // select the upload port automatically
+    bool autoupport;
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
