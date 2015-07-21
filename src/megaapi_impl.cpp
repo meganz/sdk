@@ -1554,7 +1554,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PAYMENT_METHODS: return "GET_PAYMENT_METHODS";
         case TYPE_INVITE_CONTACT: return "INVITE_CONTACT";
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
-        case TYPE_USER_FEEDBACK_STORE: return "USER_FEEDBACK_STORE";
+        case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
         case TYPE_SEND_EVENT: return "SEND_EVENT";
 	}
     return "UNKNOWN";
@@ -3027,11 +3027,9 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
 
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
-    request->setParamType(MegaApi::EVENT_FEEDBACK);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
     request->setText(comment);
     request->setNumber(rating);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5612,7 +5610,7 @@ void MegaApiImpl::userfeedbackstore_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_USER_FEEDBACK_STORE)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_FEEDBACK)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -8651,10 +8649,27 @@ void MegaApiImpl::sendPendingRequests()
             client->getpaymentmethods();
             break;
         }
-        case MegaRequest::TYPE_USER_FEEDBACK_STORE:
+        case MegaRequest::TYPE_SUBMIT_FEEDBACK:
         {
+            int rating = request->getNumber();
             const char *message = request->getText();
-            client->userfeedbackstore(message);
+
+            if(rating < 1 || rating > 5)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if(!message)
+            {
+                message = "";
+            }
+
+            string feedback;
+            feedback.resize(64 + strlen(message));
+
+            snprintf((char *)feedback.data(), feedback.size(), "{\"r\":\"%d\",\"m\":\"%s\"}", rating, message);
+            client->userfeedbackstore(feedback.c_str());
             break;
         }
         case MegaRequest::TYPE_SEND_EVENT:

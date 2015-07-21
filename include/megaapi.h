@@ -1108,7 +1108,7 @@ class MegaRequest
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-            TYPE_USER_FEEDBACK_STORE, TYPE_SEND_EVENT
+            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT
         };
 
         virtual ~MegaRequest();
@@ -1448,7 +1448,6 @@ class MegaRequest
          * - MegaApi::cancelGetPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
          * - MegaApi::setThumbnail - Returns MegaApi::ATTR_TYPE_THUMBNAIL
          * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
-         * - MegaApi::submitFeedback - Returns MegaApi::EVENT_FEEDBACK
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
@@ -4466,11 +4465,8 @@ class MegaApi
         /**
          * @brief Submit feedback about the app
          *
-         * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REPORT_EVENT
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns MegaApi::EVENT_FEEDBACK
          * - MegaRequest::getText - Retuns the comment about the app
          * - MegaRequest::getNumber - Returns the rating for the app
          *
@@ -4480,7 +4476,6 @@ class MegaApi
          *
          * @deprecated This function is for internal usage of MEGA apps. This feedback
          * is sent to MEGA servers.
-         *
          */
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
 

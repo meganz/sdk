@@ -7960,8 +7960,12 @@ void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";
     type.append(&(appkey[4]));
+    type.append(".");
+    fsaccess->osversion(&type);
 
-    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, useragent.c_str()));
+    char buf[12];
+    Base64::btoa((const byte*)me, MegaClient::USERHANDLE, buf);
+    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, buf));
 }
 
 void MegaClient::sendevent(int event, const char *desc)
