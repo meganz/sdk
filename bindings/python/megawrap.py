@@ -22,7 +22,7 @@ from mega import MegaApi
 
 
 
-class Mega(object):     
+class MegaApi(object):     
         
     def __init__(self, a,b,c,d): 
         self.a = a
@@ -30,12 +30,12 @@ class Mega(object):
         self.c = c
         self.d = d
         print(d)
+                
         
         
         
         
-        
-    def add_listener(Mega, *args): return MegaApi.addListener(self, *args)
+    def add_listener(self, *args): return MegaApi.addListener(self, *args)
     def add_request_listener(self, *args): return MegaApi.addRequestListener(self, *args)
     def add_transfer_listener(self, *args): return MegaApi.addTransferListener(self, *args)
     def add_global_listener(self, *args): return MegaApi.addGlobalListener(self, *args)
