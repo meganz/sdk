@@ -119,6 +119,23 @@ int MegaTransferList::size()
     return 0;
 }
 
+MegaContactRequestList::~MegaContactRequestList() { }
+
+MegaContactRequestList *MegaContactRequestList::copy()
+{
+    return NULL;
+}
+
+MegaContactRequest *MegaContactRequestList::get(int i)
+{
+    return NULL;
+}
+
+int MegaContactRequestList::size()
+{
+    return 0;
+}
+
 MegaUserList::~MegaUserList() { }
 
 MegaUserList *MegaUserList::copy()
@@ -190,6 +207,11 @@ MegaHandle MegaNode::getHandle()
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaNode::getParentHandle()
+{
+    return INVALID_HANDLE;
+}
+
 char *MegaNode::getBase64Key()
 {
     return NULL;
@@ -246,6 +268,11 @@ string *MegaNode::getNodeKey()
 }
 
 string *MegaNode::getAttrString()
+{
+    return NULL;
+}
+
+string *MegaNode::getAuth()
 {
     return NULL;
 }
@@ -721,6 +748,56 @@ const char *MegaError::__toString() const
 	return getErrorString();
 }
 
+MegaContactRequest::~MegaContactRequest()
+{
+
+}
+
+MegaContactRequest *MegaContactRequest::copy() const
+{
+    return NULL;
+}
+
+MegaHandle MegaContactRequest::getHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+char *MegaContactRequest::getSourceEmail() const
+{
+    return NULL;
+}
+
+char *MegaContactRequest::getSourceMessage() const
+{
+    return NULL;
+}
+
+char *MegaContactRequest::getTargetEmail() const
+{
+    return NULL;
+}
+
+int64_t MegaContactRequest::getCreationTime() const
+{
+    return 0;
+}
+
+int64_t MegaContactRequest::getModificationTime() const
+{
+    return 0;
+}
+
+int MegaContactRequest::getStatus() const
+{
+    return 0;
+}
+
+bool MegaContactRequest::isOutgoing() const
+{
+    return true;
+}
+
 //Request callbacks
 void MegaRequestListener::onRequestStart(MegaApi *, MegaRequest *)
 { }
@@ -753,6 +830,8 @@ void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
+void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
+{ }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 MegaGlobalListener::~MegaGlobalListener()
@@ -780,6 +859,8 @@ void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaListener::onAccountUpdate(MegaApi *)
+{ }
+void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaListener::onReloadNeeded(MegaApi *)
 { }
@@ -1206,6 +1287,16 @@ void MegaApi::addContact(const char* email, MegaRequestListener* listener)
     pImpl->addContact(email, listener);
 }
 
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, listener);
+}
+
+void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
+{
+    pImpl->replyContactRequest(r, action, listener);
+}
+
 void MegaApi::removeContact(MegaUser *user, MegaRequestListener* listener)
 {
     pImpl->removeContact(user, listener);
@@ -1230,6 +1321,26 @@ bool MegaApi::areTansfersPaused(int direction)
 void MegaApi::setUploadLimit(int bpslimit)
 {
     pImpl->setUploadLimit(bpslimit);
+}
+
+void MegaApi::setDownloadMethod(int method)
+{
+    pImpl->setDownloadMethod(method);
+}
+
+void MegaApi::setUploadMethod(int method)
+{
+    pImpl->setUploadMethod(method);
+}
+
+int MegaApi::getDownloadMethod()
+{
+    return pImpl->getDownloadMethod();
+}
+
+int MegaApi::getUploadMethod()
+{
+    return pImpl->getUploadMethod();
 }
 
 MegaTransferList *MegaApi::getTransfers()
@@ -1467,6 +1578,26 @@ MegaShareList* MegaApi::getOutShares(MegaNode *megaNode)
     return pImpl->getOutShares(megaNode);
 }
 
+MegaShareList *MegaApi::getPendingOutShares()
+{
+    return pImpl->getPendingOutShares();
+}
+
+MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
+{
+    return pImpl->getPendingOutShares(node);
+}
+
+MegaContactRequestList *MegaApi::getIncomingContactRequests()
+{
+    return pImpl->getIncomingContactRequests();
+}
+
+MegaContactRequestList *MegaApi::getOutgoingContactRequests()
+{
+    return pImpl->getOutgoingContactRequests();
+}
+
 int MegaApi::getAccess(MegaNode* megaNode)
 {
     return pImpl->getAccess(megaNode);
@@ -1475,6 +1606,18 @@ int MegaApi::getAccess(MegaNode* megaNode)
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     return pImpl->processMegaTree(n, processor, recursive);
+}
+
+MegaNode *MegaApi::createPublicFileNode(MegaHandle handle, const char *key,
+                                    const char *name, int64_t size, int64_t mtime,
+                                        MegaHandle parentHandle, const char *auth)
+{
+    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, auth);
+}
+
+MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+{
+    return pImpl->createPublicFolderNode(handle, name, parentHandle, auth);
 }
 
 const char *MegaApi::getVersion()
@@ -1715,9 +1858,14 @@ MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
     return pImpl->getNodeByPath(path, node);
 }
 
-MegaNode* MegaApi::getNodeByHandle(uint64_t uint64_t)
+MegaNode* MegaApi::getNodeByHandle(uint64_t h)
 {
-    return pImpl->getNodeByHandle(uint64_t);
+    return pImpl->getNodeByHandle(h);
+}
+
+MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
+{
+    return pImpl->getContactRequestByHandle(handle);
 }
 
 void MegaApi::updateStats()
@@ -1803,14 +1951,14 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 #endif
 
-char *MegaApi::nameToLocal(const char *name)
+char *MegaApi::escapeFsIncompatible(const char *filename)
 {
-    return pImpl->nameToLocal(name);
+    return pImpl->escapeFsIncompatible(filename);
 }
 
-char *MegaApi::localToName(const char *localName)
+char *MegaApi::unescapeFsIncompatible(const char *name)
 {
-    return pImpl->localToName(localName);
+    return pImpl->unescapeFsIncompatible(name);
 }
 
 bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)
@@ -2261,3 +2409,4 @@ double MegaAccountTransaction::getAmount() const
 {
     return 0;
 }
+

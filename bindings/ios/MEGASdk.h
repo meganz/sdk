@@ -2632,20 +2632,26 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
  * @brief Make a name suitable for a file name in the local filesystem
  *
  * This function escapes (%xx) forbidden characters in the local filesystem if needed.
- * You can revert this operation using [MEGASdk localToName:]
+ * You can revert this operation using [MEGASdk unescapeFsIncompatible:]
  *
- * @param name Name to convert
- * @return Converted name
+ * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param filename Name to convert (UTF8)
+ * @return Converted name (UTF8)
  */
-- (NSString *)nameToLocal:(NSString *)name;
+- (NSString *)escapeFsIncompatible:(NSString *)name;
 
 /**
- * @brief Unescape a file name escaped with [MEGASdk nameToLocal:]
+ * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
  *
- * @param name Escaped name to convert
- * @return Converted name
+ * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+ *
+ * @param name Escaped name to convert (UTF8)
+ * @return Converted name (UTF8)
  */
-- (NSString *)localToName:(NSString *)localName;
+- (NSString *)unescapeFsIncompatible:(NSString *)localName;
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp;
 

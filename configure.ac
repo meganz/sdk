@@ -186,7 +186,7 @@ AC_CHECK_LIB([rt], [clock_gettime])
 
 # check for malloc only on for native builds
 # users report issues with cross-compiling builds
-AS_IF([test "x$cross_compiling" != "xyes"], [AC_FUNC_MALLOC AC_FUNC_REALLOC])
+#AS_IF([test "x$cross_compiling" != "xyes"], [AC_FUNC_MALLOC AC_FUNC_REALLOC])
 
 # Check if building for Win32, determine Win32 API libs
 WIN32=no

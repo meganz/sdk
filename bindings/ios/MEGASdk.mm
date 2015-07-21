@@ -951,12 +951,12 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getSize([node getCPtr])];
 }
 
-- (NSString *)nameToLocal:(NSString *)name {
-    return [[NSString alloc] initWithUTF8String:self.megaApi->nameToLocal([name UTF8String])];
+- (NSString *)escapeFsIncompatible:(NSString *)name {
+    return [[NSString alloc] initWithUTF8String:self.megaApi->escapeFsIncompatible([name UTF8String])];
 }
 
-- (NSString *)localToName:(NSString *)localName {
-    return [[NSString alloc] initWithUTF8String:self.megaApi->localToName([localName UTF8String])];
+- (NSString *)unescapeFsIncompatible:(NSString *)localName {
+    return [[NSString alloc] initWithUTF8String:self.megaApi->unescapeFsIncompatible([localName UTF8String])];
 }
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {

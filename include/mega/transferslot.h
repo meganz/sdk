@@ -87,6 +87,10 @@ struct MEGA_API TransferSlot
     
     TransferSlot(Transfer*);
     ~TransferSlot();
+
+protected:
+    void toggleport(HttpReqXfer* req);
+
 };
 } // namespace
 

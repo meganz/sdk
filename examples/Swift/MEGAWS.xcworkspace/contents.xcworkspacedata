@@ -5,6 +5,6 @@
       location = "group:MEGA/MEGA.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:../../bindings/ios/mega.xcodeproj">
+      location = "group:../../bindings/ios/MEGASDK.xcodeproj">
    </FileRef>
 </Workspace>

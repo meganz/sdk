@@ -35,11 +35,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
         if (SSKeychain.passwordForService("MEGA", account: "session") != nil) {
             megaapi.fastLoginWithSession(SSKeychain.passwordForService("MEGA", account: "session"), delegate: self)
 
-            let tabBarC = storyboard.instantiateViewControllerWithIdentifier("TabBarControllerID") as UITabBarController
+            let tabBarC = storyboard.instantiateViewControllerWithIdentifier("TabBarControllerID") as! UITabBarController
             window?.rootViewController = tabBarC
             
         } else {
-            let loginVC = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as UIViewController
+            let loginVC = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as! UIViewController
             window?.rootViewController = loginVC;
         }
         

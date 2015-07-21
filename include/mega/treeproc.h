@@ -43,6 +43,12 @@ public:
     void proc(MegaClient*, Node*);
 };
 
+class MEGA_API TreeProcApplyKey : public TreeProc
+{
+public:
+    void proc(MegaClient*, Node*);
+};
+
 class MEGA_API TreeProcListOutShares : public TreeProc
 {
 public:

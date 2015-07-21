@@ -168,6 +168,7 @@
     <ClCompile Include="..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\src\win32\net.cpp" />
     <ClCompile Include="..\..\src\node.cpp" />
+    <ClCompile Include="..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\src\proxy.cpp" />
     <ClCompile Include="..\..\src\pubkeyaction.cpp" />
     <ClCompile Include="..\..\src\request.cpp" />
@@ -218,6 +219,7 @@
     <ClInclude Include="..\..\include\mega\win32\megasys.h" />
     <ClInclude Include="..\..\include\mega\win32\megawaiter.h" />
     <ClInclude Include="..\..\include\mega\node.h" />
+    <ClInclude Include="..\..\include\mega\pendingcontactrequest.h" />
     <ClInclude Include="..\..\include\mega\proxy.h" />
     <ClInclude Include="..\..\include\mega\pubkeyaction.h" />
     <ClInclude Include="..\..\include\mega\request.h" />

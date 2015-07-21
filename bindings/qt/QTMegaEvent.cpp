@@ -8,6 +8,8 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
     request = NULL;
     transfer = NULL;
     error = NULL;
+    nodes = NULL;
+    users = NULL;
 
 #ifdef ENABLE_SYNC
     sync = NULL;
@@ -21,6 +23,8 @@ QTMegaEvent::~QTMegaEvent()
     delete request;
     delete transfer;
     delete error;
+    delete nodes;
+    delete users;
 
 #ifdef ENABLE_SYNC
     delete sync;

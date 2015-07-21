@@ -77,6 +77,19 @@ void TreeProcDel::proc(MegaClient* client, Node* n)
     client->notifynode(n);
 }
 
+void TreeProcApplyKey::proc(MegaClient *client, Node *n)
+{
+    if (n->attrstring)
+    {
+        n->applykey();
+        if (!n->attrstring)
+        {
+            n->changed.attrs = true;
+            client->notifynode(n);
+        }
+    }
+}
+
 #ifdef ENABLE_SYNC
 // stop sync get
 void TreeProcDelSyncGet::proc(MegaClient*, Node* n)

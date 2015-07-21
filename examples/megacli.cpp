@@ -26,6 +26,7 @@
 #define PREFER_STDARG
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <iomanip>
 
 using namespace mega;
 
@@ -477,6 +478,50 @@ void DemoApp::users_updated(User** u, int count)
     }
 }
 
+void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
+{
+    int deletecount = 0;
+    int updatecount = 0;
+    if (list != NULL)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (list[i]->changed.deleted)
+            {
+                deletecount++; 
+            } 
+            else
+            {
+                updatecount++;
+            }
+        }
+    } 
+    else
+    {
+        // All pcrs are updated
+        for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
+        {
+            if (it->second->changed.deleted)
+            {
+                deletecount++; 
+            } 
+            else
+            {
+                updatecount++;
+            }
+        }
+    }
+
+    if (deletecount != 0)
+    {
+        cout << deletecount << " pending contact request" << (deletecount != 1 ? "s" : "") << " deleted" << endl;
+    }
+    if (updatecount != 0)
+    {
+        cout << updatecount << " pending contact request" << (updatecount != 1 ? "s" : "") << " received or updated" << endl;
+    }
+}
+
 void DemoApp::setattr_result(handle, error e)
 {
     if (e)
@@ -544,6 +589,41 @@ void DemoApp::share_result(int, error e)
     else
     {
         cout << "Share creation/modification succeeded" << endl;
+    }
+}
+
+void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
+{
+    if (e)
+    {
+        cout << "Outgoing pending contact request failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (h == UNDEF)
+        {
+            // must have been deleted
+            cout << "Outgoing pending contact request " << (action == OPCA_DELETE ? "deleted" : "reminded") << " successfully" << endl;
+        } 
+        else
+        {
+            char buffer[12];
+            Base64::btoa((byte*)&h, sizeof(h), buffer);
+            cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
+        }
+    }
+}
+
+void DemoApp::updatepcr_result(error e, ipcactions_t action)
+{
+    if (e)
+    {
+        cout << "Incoming pending contact request update failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        string labels[3] = {"accepted", "denied", "ignored"};
+        cout << "Incoming pending contact request successfully " << labels[(int)action] << endl;
     }
 }
 
@@ -970,6 +1050,18 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                         {
                             cout << ", shared as exported folder link";
                         }
+                    }
+                }
+
+                if (n->pendingshares)
+                {
+                    for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+                    {
+                        if (it->first)
+                        {
+                            cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
+                                 << accesslevels[it->second->access];
+                        }                        
                     }
                 }
 
@@ -1439,8 +1531,10 @@ static void process_line(char* l)
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 #endif
                 cout << "      export remotepath [del]" << endl;
-                cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
-                cout << "      invite dstemail [del]" << endl;
+                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
+                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                cout << "      ipc handle a|d|i" << endl;
+                cout << "      showpcr" << endl;
                 cout << "      users" << endl;
                 cout << "      getua attrname [email|private]" << endl;
                 cout << "      putua attrname [del|set string|load file] [private]" << endl;
@@ -1982,6 +2076,39 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "ipc")
+                    {
+                        // incoming pending contact action
+                        handle phandle;
+                        if (words.size() == 3 && Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
+                        {
+                            ipcactions_t action;
+                            if (words[2] == "a")
+                            {
+                                action = IPCA_ACCEPT;
+                            }
+                            else if (words[2] == "d")
+                            {
+                                action = IPCA_DENY;
+                            }
+                            else if (words[2] == "i")
+                            {
+                                action = IPCA_IGNORE;
+                            }
+                            else
+                            {
+                                cout << "      ipc handle a|d|i" << endl;
+                                return;
+                            }
+
+                            client->updatepcr(phandle, action);
+                        }
+                        else
+                        {
+                            cout << "      ipc handle a|d|i" << endl;
+                        }
+                        return;
+                    }
                     break;
 
                 case 4:
@@ -2233,9 +2360,10 @@ static void process_line(char* l)
                                 }
                                 break;
 
-                            case 2:		// list all outgoing shares on this path
-                            case 3:		// remove outgoing share to specified e-mail address
-                            case 4:		// add outgoing share to specified e-mail address
+                            case 2:	    // list all outgoing shares on this path
+                            case 3:	    // remove outgoing share to specified e-mail address
+                            case 4:	    // add outgoing share to specified e-mail address
+                            case 5:     // user specified a personal representation to appear as for the invitation
                                 if ((n = nodebypath(words[1].c_str())))
                                 {
                                     if (words.size() == 2)
@@ -2245,7 +2373,7 @@ static void process_line(char* l)
                                     else
                                     {
                                         accesslevel_t a = ACCESS_UNKNOWN;
-
+                                        const char* personal_representation = NULL;
                                         if (words.size() > 3)
                                         {
                                             if (words[3] == "r" || words[3] == "ro")
@@ -2266,9 +2394,14 @@ static void process_line(char* l)
 
                                                 return;
                                             }
+
+                                            if (words.size() > 4)
+                                            {
+                                                personal_representation = words[4].c_str();
+                                            }
                                         }
 
-                                        client->setshare(n, words[2].c_str(), a);
+                                        client->setshare(n, words[2].c_str(), a, personal_representation);
                                     }
                                 }
                                 else
@@ -2279,7 +2412,7 @@ static void process_line(char* l)
                                 break;
 
                             default:
-                                cout << "      share [remotepath [dstemail [r|rw|full]]]" << endl;
+                                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                         }
 
                         return;
@@ -2710,19 +2843,23 @@ static void process_line(char* l)
                     else if (words[0] == "invite")
                     {
                         int del = words.size() == 3 && words[2] == "del";
-
-                        if (words.size() == 2 || del)
+                        int rmd = words.size() == 3 && words[2] == "rmd";
+                        if (words.size() == 2 || words.size() == 3)
                         {
-                            error e;
-
-                            if ((e = client->invite(words[1].c_str(), del ? HIDDEN : VISIBLE)))
+                            if (del || rmd)
                             {
-                                cout << "Invitation failed: " << errorstring(e) << endl;
+                                client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                            } 
+                            else 
+                            {
+                                // Original email is not required, but can be used if this account has multiple email addresses associated,
+                                // to have the invite come from a specific email
+                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
                             }
                         }
                         else
                         {
-                            cout << "      invite dstemail [del]" << endl;
+                            cout << "      invite dstemail [origemail|del|rmd]" << endl;
                         }
 
                         return;
@@ -2977,8 +3114,54 @@ static void process_line(char* l)
                         cwd = UNDEF;
 
                         return;
+                    } 
+                    else if (words[0] == "showpcr")
+                    {
+                        string outgoing = "";
+                        string incoming = "";
+                        for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
+                        {
+                            if (it->second->isoutgoing)
+                            {
+                                ostringstream os;
+                                os << setw(34) << it->second->targetemail;
+
+                                char buffer[12];
+                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                os << "\t(id: ";
+                                os << buffer;
+                                
+                                os << ", ts: ";
+                                
+                                os << it->second->ts;                                
+
+                                outgoing.append(os.str());
+                                outgoing.append(")\n");
+                            }
+                            else
+                            {
+                                ostringstream os;
+                                os << setw(34) << it->second->originatoremail;
+
+                                char buffer[12];
+                                int size = Base64::btoa((byte*)&(it->second->id), sizeof(it->second->id), buffer);
+                                os << "\t(id: ";
+                                os << buffer;
+                                
+                                os << ", ts: ";
+                                
+                                os << it->second->ts;                                
+
+                                incoming.append(os.str());
+                                incoming.append(")\n");
+                            }
+                        }
+                        cout << "Incoming PCRs:" << endl << incoming << endl;
+                        cout << "Outgoing PCRs:" << endl << outgoing << endl;
+                        return;
                     }
                     break;
+
                 case 11:                    
                     if (words[0] == "killsession")
                     {
