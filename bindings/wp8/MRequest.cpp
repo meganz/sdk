@@ -180,6 +180,17 @@ int MRequest::getParamType()
 	return megaRequest ? megaRequest->getParamType() : 0;
 }
 
+String^ MRequest::getText()
+{
+    if (!megaRequest) return nullptr;
+
+    std::string utf16text;
+    const char *utf8text = megaRequest->getText();
+    MegaApi::utf8ToUtf16(utf8text, &utf16text);
+
+    return utf8text ? ref new String((wchar_t *)utf16text.data()) : nullptr;
+}
+
 uint64 MRequest::getNumber()
 {
 	return megaRequest ? megaRequest->getNumber() : 0;

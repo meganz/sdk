@@ -83,6 +83,11 @@ namespace mega
 		ATTR_TYPE_THUMBNAIL = 0,
 		ATTR_TYPE_PREVIEW = 1
 	};
+    
+    public enum class MUserAttrType{
+        USER_ATTR_FIRSTNAME = 1,
+        USER_ATTR_LASTNAME = 2
+    };
 
 	public enum class MPaymentMethod {
 		PAYMENT_METHOD_BALANCE = 0,
@@ -177,8 +182,16 @@ namespace mega
 		void setPreview(MNode^ node, String^ srcFilePath);
 		void getUserAvatar(MUser^ user, String^ dstFilePath, MRequestListenerInterface^ listener);
 		void getUserAvatar(MUser^ user, String^ dstFilePath);
+        void getOwnUserAvatar(String^ dstFilePath, MRequestListenerInterface^ listener);
+        void getOwnUserAvatar(String^ dstFilePath);
 		void setAvatar(String ^dstFilePath, MRequestListenerInterface^ listener);
 		void setAvatar(String ^dstFilePath);
+        void getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener);
+        void getUserAttribute(MUser^ user, int type);
+        void getOwnUserAttribute(int type, MRequestListenerInterface^ listener);
+        void getOwnUserAttribute(int type);
+        void setUserAttribute(int type, String^ value, MRequestListenerInterface^ listener);
+        void setUserAttribute(int type, String^ value);
 		void exportNode(MNode^ node, MRequestListenerInterface^ listener);
 		void exportNode(MNode^ node);
 		void disableExport(MNode^ node, MRequestListenerInterface^ listener);

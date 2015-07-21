@@ -79,6 +79,7 @@ namespace mega
 		String^ getFile();
 		MNode^ getPublicNode();
 		int getParamType();
+        String^ getText();
 		uint64 getNumber();
 		bool getFlag();
 		uint64 getTransferredBytes();
