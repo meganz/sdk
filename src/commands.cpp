@@ -3331,4 +3331,26 @@ void CommandUserFeedbackStore::procresult()
     }
 }
 
+CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *desc)
+{
+    cmd("log");
+    arg("e", type);
+    arg("m", desc);
+
+    tag = client->reqtag;
+}
+
+void CommandSendEvent::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->sendevent_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->sendevent_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

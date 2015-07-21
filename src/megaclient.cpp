@@ -7958,11 +7958,15 @@ void MegaClient::reportevent(const char* event, const char* details)
 
 void MegaClient::userfeedbackstore(const char *message)
 {
-    // TODO: assign the type and unique id (per type)
-    const char *type = NULL;
-    const char *uid = NULL;
+    string type = "feedback.";
+    type.append(&(appkey[4]));
 
-    reqs[r].add(new CommandUserFeedbackStore(this, type, message, uid));
+    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, useragent.c_str()));
+}
+
+void MegaClient::sendevent(int event, const char *desc)
+{
+    reqs[r].add(new CommandSendEvent(this, event, desc));
 }
 
 } // namespace

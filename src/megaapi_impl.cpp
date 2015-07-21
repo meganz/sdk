@@ -1555,6 +1555,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_INVITE_CONTACT: return "INVITE_CONTACT";
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
         case TYPE_USER_FEEDBACK_STORE: return "USER_FEEDBACK_STORE";
+        case TYPE_SEND_EVENT: return "SEND_EVENT";
 	}
     return "UNKNOWN";
 }
@@ -5616,6 +5617,15 @@ void MegaApiImpl::userfeedbackstore_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::sendevent_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SEND_EVENT)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::creditcardstore_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -8645,6 +8655,13 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *message = request->getText();
             client->userfeedbackstore(message);
+            break;
+        }
+        case MegaRequest::TYPE_SEND_EVENT:
+        {
+            int number = request->getNumber();
+            const char *text = request->getText();
+            client->sendevent(number, text);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

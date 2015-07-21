@@ -290,6 +290,9 @@ public:
     // store user feedback
     void userfeedbackstore(const char *);
 
+    // send event
+    void sendevent(int, const char *);
+
     // toggle global debug flag
     bool toggledebug();
 
