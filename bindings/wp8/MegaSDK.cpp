@@ -833,23 +833,23 @@ void MegaSDK::cancelGetPreview(MNode^ node)
 
 void MegaSDK::setPreview(MNode^ node, String^ srcFilePath, MRequestListenerInterface^ listener)
 {
-	std::string utf8srcFilePath;
-	if (srcFilePath != nullptr)
-		MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
-	
-	megaApi->setPreview((node != nullptr) ? node->getCPtr() : NULL,
-		(srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL,
-		createDelegateMRequestListener(listener));
+    std::string utf8srcFilePath;
+    if (srcFilePath != nullptr)
+        MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
+
+    megaApi->setPreview((node != nullptr) ? node->getCPtr() : NULL,
+        (srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::setPreview(MNode^ node, String^ srcFilePath)
 {
-	std::string utf8srcFilePath;
-	if (srcFilePath != nullptr)
-		MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
+    std::string utf8srcFilePath;
+    if (srcFilePath != nullptr)
+        MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
 
-	megaApi->setPreview((node != nullptr) ? node->getCPtr() : NULL,
-		(srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL);
+    megaApi->setPreview((node != nullptr) ? node->getCPtr() : NULL,
+        (srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL);
 }
 
 void MegaSDK::getUserAvatar(MUser^ user, String^ dstFilePath, MRequestListenerInterface^ listener)
@@ -894,21 +894,21 @@ void MegaSDK::getOwnUserAvatar(String^ dstFilePath)
 
 void MegaSDK::setAvatar(String ^srcFilePath, MRequestListenerInterface^ listener)
 {
-	std::string utf8srcFilePath;
-	if (srcFilePath != nullptr)
-		MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
+    std::string utf8srcFilePath;
+    if (srcFilePath != nullptr)
+        MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
 
-	megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::setAvatar(String ^srcFilePath)
 {
-	std::string utf8srcFilePath;
-	if (srcFilePath != nullptr)
-		MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
+    std::string utf8srcFilePath;
+    if (srcFilePath != nullptr)
+        MegaApi::utf16ToUtf8(srcFilePath->Data(), srcFilePath->Length(), &utf8srcFilePath);
 
-	megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL);
+    megaApi->setAvatar((srcFilePath != nullptr) ? utf8srcFilePath.c_str() : NULL);
 }
 
 void MegaSDK::getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener)
@@ -953,24 +953,24 @@ void MegaSDK::setUserAttribute(int type, String^ value)
 
 void MegaSDK::exportNode(MNode^ node, MRequestListenerInterface^ listener)
 {
-	megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::exportNode(MNode^ node)
 {
-	megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL);
+    megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 void MegaSDK::disableExport(MNode^ node, MRequestListenerInterface^ listener)
 {
-	megaApi->disableExport((node != nullptr) ? node->getCPtr() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->disableExport((node != nullptr) ? node->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::disableExport(MNode^ node)
 {
-	megaApi->disableExport((node != nullptr) ? node->getCPtr() : NULL);
+    megaApi->disableExport((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 void MegaSDK::fetchNodes(MRequestListenerInterface^ listener)
