@@ -1,11 +1,32 @@
+/*
+ * SwingExample.java
+ *
+ * This file is part of the Mega SDK Java bindings example code.
+ *
+ * Created: 2015-04-30 Sergio Hernández Sánchez <shs@mega.co.nz>
+ * Changed:
+ *
+ * (c) 2015 by Mega Limited, Auckland, New Zealand
+ *     https://mega.nz/
+ *     Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ *
+ * This code is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
 package nz.mega.bindingsample;
+
+import java.util.ArrayList;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 import java.awt.HeadlessException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Locale;
-import java.util.regex.Pattern;
 
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -26,15 +47,29 @@ import nz.mega.sdk.MegaNode;
 import nz.mega.sdk.MegaRequest;
 import nz.mega.sdk.MegaRequestListenerInterface;
 
-public class MainWindow extends JFrame implements MegaRequestListenerInterface, MegaLoggerInterface {
+/**
+ * A simple Java Swing UI example implementation that demonstrates accessing
+ * Mega's file storage.
+ * 
+ * @author Sergio Hernández Sánchez
+ */
+public class SwingExample extends JFrame implements MegaRequestListenerInterface, MegaLoggerInterface {
 
     private static final long serialVersionUID = 1L;
 
+    /** Reference to the Mega API object. */
     static MegaApiSwing megaApi = null;
 
+    /**
+     * Mega SDK application key.
+     * Generate one for free here: https://mega.nz/#sdk
+     */
     static final String APP_KEY = "YYJwAIRI";
+    
+    /** User agent string used for HTTP requests to the Mega API. */
     static final String USER_AGENT = "MEGA Java Sample Demo SDK";
 
+    // UI elements.
     static JPanel panel;
     static JTextField loginText;
     static JTextField passwordText;
@@ -43,6 +78,7 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
     static DefaultListModel<String> listModel;
     static JLabel statusLabel;
 
+    // Some externalised strings.
     private static final String STR_APP_TITLE = "Java Bindings Example";
     private static final String STR_EMAIL_TEXT = "Email:";
     private static final String STR_PWD_TEXT = "Password:";
@@ -57,7 +93,7 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
     private static final String STR_FETCHING_NODES = "Fetching nodes...";
     private static final String STR_PREPARING_NODES = "Preparing nodes...";
 
-    public MainWindow() throws HeadlessException {
+    public SwingExample() throws HeadlessException {
         super(STR_APP_TITLE);
 
         initializeMegaApi();
@@ -250,7 +286,7 @@ public class MainWindow extends JFrame implements MegaRequestListenerInterface, 
         // Schedule a job for the event-dispatching thread
         javax.swing.SwingUtilities.invokeLater(new Runnable() {
             public void run() {
-                new MainWindow();
+                new SwingExample();
             }
         });
     }

@@ -20,14 +20,14 @@ QTMegaGlobalListener::~QTMegaGlobalListener()
 void QTMegaGlobalListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnUsersUpdate);
-    event->setUsers(users);
+    event->setUsers(users ? users->copy() : NULL);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
 void QTMegaGlobalListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnNodesUpdate);
-    event->setNodes(nodes);
+    event->setNodes(nodes ? nodes->copy() : NULL);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 

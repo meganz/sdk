@@ -25,7 +25,7 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     var offlineDocuments = [MEGANode]()
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -52,13 +52,13 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     func reloadUI() {
         offlineDocuments = [MEGANode]()
         
-        let documentDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as String
+        let documentDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
         
         if let directoryContent : Array = NSFileManager.defaultManager().contentsOfDirectoryAtPath(documentDirectory, error: nil) {
             var i = 0
             
             for i = 0; i < directoryContent.count; i++ {
-                let filename: String = String(directoryContent[i] as NSString)
+                let filename: String = String(directoryContent[i] as! NSString)
                 let filePath = documentDirectory.stringByAppendingPathComponent(filename)
                 
                 if !(filename.lowercaseString.pathExtension == "mega") {
@@ -84,7 +84,7 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCellWithIdentifier("nodeCell", forIndexPath: indexPath) as NodeTableViewCell
+        let cell = tableView.dequeueReusableCellWithIdentifier("nodeCell", forIndexPath: indexPath) as! NodeTableViewCell
         let node = offlineDocuments[indexPath.row]
         
         cell.nameLabel.text = node.name

@@ -5,13 +5,13 @@
 ## Created: 16 May 2015 Guy Kloss <gk@mega.co.nz>
 ##
 ## (c) 2015 by Mega Limited, Auckland, New Zealand
-##     http://mega.co.nz/
+##     https://mega.nz/   
 ##     Simplified (2-clause) BSD License.
 ##
 ## You should have received a copy of the license along with this
 ## program.
 ##
-## This file is part of the multi-party chat encryption suite.
+## This file is part of the Mega SDK Python bindings example code.
 ##
 ## This code is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of

@@ -95,6 +95,10 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getHandle() : ::mega::INVALID_HANDLE;
 }
 
+- (uint64_t)parentHandle {
+    return self.megaNode ? self.megaNode->getParentHandle() : ::mega::INVALID_HANDLE;
+}
+
 - (NSInteger)tag {
     return self.megaNode ? self.megaNode->getTag() : 0;
 }

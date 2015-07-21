@@ -41,7 +41,8 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     //The previous implementation was closing the first database
     //when the second one was opened.
     sqlite3* db;
-    string dbdir = dbpath + "megaclient_statecache6_" + *name + ".db";
+
+    string dbdir = dbpath + "megaclient_statecache7_" + *name + ".db";
 
     int rc;
 

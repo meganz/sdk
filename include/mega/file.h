@@ -65,6 +65,9 @@ struct MEGA_API File: public FileFingerprint
     // source handle private?
     bool hprivate;
 
+    // special auth to access the node
+    string auth;
+
     // is this part of a sync transfer?
     bool syncxfer;
 

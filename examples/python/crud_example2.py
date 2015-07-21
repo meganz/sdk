@@ -5,13 +5,13 @@
 ## Created: 16 May 2015 Guy Kloss <gk@mega.co.nz>
 ##
 ## (c) 2015 by Mega Limited, Auckland, New Zealand
-##     http://mega.co.nz/
+##     https://mega.nz/
 ##     Simplified (2-clause) BSD License.
 ##
 ## You should have received a copy of the license along with this
 ## program.
 ##
-## This file is part of the multi-party chat encryption suite.
+## This file is part of the Mega SDK Python bindings example code.
 ##
 ## This code is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -36,8 +36,11 @@ if os.path.isdir(_wrapper_dir) and os.path.isfile(_shared_lib):
 
 from mega import (MegaApi, MegaListener, MegaError, MegaRequest, MegaNode)
 
+# Mega SDK application key.
+# Generate one for free here: https://mega.nz/#sdk
 APP_KEY = 'ox8xnQZL'
 
+# Credentials file to look for login info.
 CREDENTIALS_FILE = 'credentials.json'
 
 
@@ -85,15 +88,12 @@ class AppListener(MegaListener):
         """
         logging.info('Request finished ({}); Result: {}'
                      .format(request, error))
-        if error.getErrorCode() != MegaError.API_OK:
-            self.continue_event.set()
-            return
 
         request_type = request.getType()
         if request_type == MegaRequest.TYPE_LOGIN:
             api.fetchNodes()
-        elif request_type == MegaRequest.TYPE_EXPORT:
-            logging.info('Exported link: {}'.format(request.getLink()))
+        elif request_type == MegaRequest.TYPE_FETCH_NODES:
+            self.root_node = api.getRootNode()
         elif request_type == MegaRequest.TYPE_ACCOUNT_DETAILS:
             account_details = request.getMegaAccountDetails()
             logging.info('Account details received')
@@ -185,8 +185,6 @@ class AppListener(MegaListener):
         """
         if nodes != None:
             logging.info('Nodes updated ({})'.format(nodes.size()))
-        else:
-            self.root_node = api.getRootNode()
         self.continue_event.set()
 
 
@@ -246,11 +244,12 @@ def worker(api, listener, executor, credentials):
 
     # Make a directory.
     logging.info('*** start: mkdir ***')
+    print '###', cwd.getName()
     check = api.getNodeByPath('sandbox', cwd)
     if check == None:
         executor.do(api.createFolder, ('sandbox', cwd))
     else:
-        logging.warn('Path already exists: {}'
+        logging.info('Path already exists: {}'
                      .format(api.getNodePath(check)))
     logging.info('*** done: mkdir ***')
 
