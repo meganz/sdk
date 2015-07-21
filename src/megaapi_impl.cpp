@@ -1921,9 +1921,21 @@ void MegaFileGet::prepare()
     {
         transfer->localfilename = localname;
 
-        int index = transfer->localfilename.find_last_of(transfer->client->fsaccess->localseparator);
+        int index =  string::npos;
+        while ((index = transfer->localfilename.rfind(transfer->client->fsaccess->localseparator, index)) != string::npos)
+        {
+            if(!(index % transfer->client->fsaccess->localseparator.size()))
+            {
+                break;
+            }
+
+            index--;
+        }
+
         if(index != string::npos)
-            transfer->localfilename.resize(index+1);
+        {
+            transfer->localfilename.resize(index + 1);
+        }
 
         string suffix;
         transfer->client->fsaccess->tmpnamelocal(&suffix);
