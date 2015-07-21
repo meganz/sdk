@@ -1934,7 +1934,7 @@ void MegaFileGet::prepare()
 
         if(index != string::npos)
         {
-            transfer->localfilename.resize(index + 1);
+            transfer->localfilename.resize(index + transfer->client->fsaccess->localseparator.size());
         }
 
         string suffix;
