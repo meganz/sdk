@@ -83,6 +83,14 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
+    // 4. Create table for 'pcrs'
+    sql = "CREATE TABLE IF NOT EXISTS pcrs (id INTEGER PRIMARY KEY NOT NULL, pcr BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
     return new SqliteDbTable(db, fsaccess, &dbdir);
 }
 
@@ -305,7 +313,21 @@ void SqliteDbTable::rewindchildren(handle h)
     {
         return;
     }
+}
 
+void SqliteDbTable::rewindpcr()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    sqlite3_prepare(db, "SELECT pcr FROM pcrs", -1, &pStmt, NULL);
 }
 
 bool SqliteDbTable::next(string *data)
@@ -512,6 +534,43 @@ bool SqliteDbTable::putuser(char *email, unsigned emailsize, char *user, unsigne
     return true;
 }
 
+bool SqliteDbTable::putpcr(handle id, char *pcr, unsigned pcrsize)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO pcrs (id, pcr) VALUES (?, ?)", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_int64(stmt, 1, id);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_bind_blob(stmt, 2, pcr, pcrsize, SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE)
+    {
+        return false;
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
 bool SqliteDbTable::delnode(handle h)
 {
     if (!db)
@@ -522,6 +581,20 @@ bool SqliteDbTable::delnode(handle h)
     char buf[64];
 
     sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRIu64, h);
+
+    return !sqlite3_exec(db, buf, 0, 0, NULL);
+}
+
+bool SqliteDbTable::delpcr(handle id)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    char buf[64];
+
+    sprintf(buf, "DELETE FROM pcrs WHERE id = %" PRIu64, id);
 
     return !sqlite3_exec(db, buf, 0, 0, NULL);
 }
@@ -537,6 +610,7 @@ void SqliteDbTable::truncate()
     sqlite3_exec(db, "DELETE FROM scsn", 0, 0, NULL);
     sqlite3_exec(db, "DELETE FROM nodes", 0, 0, NULL);
     sqlite3_exec(db, "DELETE FROM users", 0, 0, NULL);
+    sqlite3_exec(db, "DELETE FROM pcrs", 0, 0, NULL);
 }
 
 // begin transaction

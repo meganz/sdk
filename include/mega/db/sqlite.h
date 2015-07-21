@@ -52,14 +52,17 @@ public:
 
     void rewinduser();
     void rewindchildren(handle);
+    void rewindpcr();
     bool next(string*);
 
     bool putscsn(char*, unsigned);
     bool putrootnodes(handle*);
     bool putnode(handle, handle, char *, unsigned, char *, unsigned);
     bool putuser(char *, unsigned, char *, unsigned);
+    bool putpcr(handle, char *, unsigned);
 
     bool delnode(handle);
+    bool delpcr(handle);
 
     void truncate();
     void begin();

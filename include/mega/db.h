@@ -25,6 +25,7 @@
 #include "filesystem.h"
 #include "node.h"
 #include "user.h"
+#include "pendingcontactrequest.h"
 
 namespace mega {
 // generic host transactional database access interface
@@ -46,9 +47,11 @@ public:
     // for a sequential read of Users or child nodes
     void rewindchildren(handle, SymmCipher*);
     virtual void rewinduser() = 0;
+    virtual void rewindpcr() = 0;
 
     bool getuser(string*, SymmCipher*);
     bool getchildren(string*, SymmCipher*);
+    bool getpcr(string*, SymmCipher*);
 
     // get records for `scsn` and `rootnodes`
     virtual bool getscsn(string*) = 0;
@@ -71,6 +74,7 @@ protected:
     // update or add specific record
     virtual bool putnode(handle, handle, char *, unsigned, char *, unsigned) = 0;
     virtual bool putuser(char *, unsigned, char *, unsigned) = 0;
+    virtual bool putpcr(handle, char *, unsigned) = 0;
 
 public:
     // delete specific record
@@ -79,6 +83,7 @@ public:
 
 protected:
     virtual bool delnode(handle h) = 0;
+    virtual bool delpcr(handle h) = 0;
 
 public:
     // delete all records

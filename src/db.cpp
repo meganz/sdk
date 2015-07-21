@@ -33,6 +33,7 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
     string data;
 
     // TODO: serialize undecryptable nodes too, not only decryptable ones
+    // This changes should avoid `serialize()` returning false -> change if() below
 
     if (!n->serialize(&data))
     {
@@ -51,12 +52,12 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
         n->serializefingerprint(&fpstring);
 
     // TODO: encrypt n->fingerprint??
-    // check that an empty fingerprint is saves as NULL
+    // check that an empty fingerprint is saved as NULL
 
     bool result = putnode(n->nodehandle, n->parenthandle, (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
     if(result)
     {
-        //Add to cache?
+        // TODO: Add to cache?
     }
     return result;
 }
@@ -65,29 +66,25 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
 bool DbTable::putuser(User * u, SymmCipher* key)
 {
     string data;
-
-    if (!u->serialize(&data))
-    {
-        //Don't return false if there are errors in the serialization
-        //to let the SDK continue and save the rest of records
-        return true;
-    }
+    u->serialize(&data);
 
     PaddedCBC::encrypt(&data, key);
 
     // TODO: encrypt u->email
 
-    bool result = putuser((char*) u->email.data(), u->email.size(), (char *)data.data(), data.size());
-    if(result)
-    {
-        //Add to cache?
-    }
-    return result;
+    return putuser((char*) u->email.data(), u->email.size(), (char *)data.data(), data.size());
 }
 
 bool DbTable::putpcr(PendingContactRequest *pcr, SymmCipher *key)
 {
-    return true;
+    string data;
+    pcr->serialize(&data);
+
+    PaddedCBC::encrypt(&data, key);
+
+    // TODO: encrypt pcr->id
+
+    return putpcr(pcr->id, (char*)data.data(), data.size());
 }
 
 bool DbTable::delnode(pnode_t n, SymmCipher *key)
@@ -97,14 +94,16 @@ bool DbTable::delnode(pnode_t n, SymmCipher *key)
     bool result = delnode(n->nodehandle);
     if(result)
     {
-        //Add to cache?
+        // TODO: delete from cache?
     }
     return result;
 }
 
 bool DbTable::delpcr(PendingContactRequest *pcr, SymmCipher *key)
 {
-    return true;
+    // TODO: encrypt pcr->id
+
+    return delpcr(pcr->id);
 }
 
 bool DbTable::getnode(handle h, string* data, SymmCipher* key)
@@ -134,6 +133,18 @@ bool DbTable::getnode(string *fingerprint, string* data, SymmCipher* key)
 bool DbTable::getuser(string* data, SymmCipher* key)
 {
     // TODO: encrypt the user's email??
+
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+bool DbTable::getpcr(string *data, SymmCipher* key)
+{
+    // TODO: encrypt the id
 
     if (next(data))
     {

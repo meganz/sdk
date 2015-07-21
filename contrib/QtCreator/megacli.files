@@ -69,6 +69,7 @@
 ../../include/mega/utils.h
 ../../include/mega/waiter.h
 ../../include/mega.h
+../../include/mega/pendingcontactrequest.h
 ../../src/crypto/cryptopp.cpp
 ../../src/crypto/sodium.cpp
 ../../src/db/bdb.cpp
@@ -125,6 +126,7 @@
 ../../src/user.cpp
 ../../src/utils.cpp
 ../../src/waiterbase.cpp
+../../src/pendingcontactrequest.cpp
 ../../tests/paycrypt_test.cpp
 ../../tests/tests.cpp
 ../../third_party/glob/glob.c

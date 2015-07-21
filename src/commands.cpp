@@ -3027,7 +3027,7 @@ void CommandFetchNodes::procresult()
                 client->syncsup = false;
 #endif
                 client->app->fetchnodes_result(API_OK);
-                client->initsc();   // write scsn + users (nodes, during readnodes())
+                client->initsc();   // write scsn + users + pcrs (nodes, during readnodes())
 
                 // NULL vector: "notify all nodes"
                 client->app->nodes_updated(NULL, client->nodescount);

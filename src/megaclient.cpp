@@ -3270,6 +3270,7 @@ void MegaClient::sc_ipc()
                 m = jsonsc.getvalue();
                 break;
             case MAKENAMEID2('p', 's'):
+                // pending shares (for informative purposes)
                 ps = jsonsc.getint();
                 break;
             case MAKENAMEID2('t', 's'):
@@ -3494,6 +3495,7 @@ void MegaClient::sc_upc()
         switch (jsonsc.getnameid())
         {
             case 'm':
+                // originators email
                 m = jsonsc.getvalue();
                 break;
             case MAKENAMEID3('u', 't', 's'):
@@ -3654,12 +3656,12 @@ void MegaClient::notifypurge(void)
     {
         app->pcrs_updated(&pcrnotify[0], t);
 
-        // check all notified nodes for removed status and purge
+        // check for all notified pending contact request and purge
         for (i = 0; i < t; i++)
         {
             PendingContactRequest* pcr = pcrnotify[i];
 
-            if (pcr->removed())
+            if (pcr->removed()) // true if accepted, denied, ignored or deleted
             {
                 pcrindex.erase(pcr->id);
                 delete pcr;
@@ -6308,7 +6310,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     // 1. Load handles of rootnodes
     if (!sctable->getrootnodes(rootnodes))
     {
-        LOG_err << "Failed to load rootnodes from cache";
+        LOG_err << "Failed - rootnodes record read error";
         return false;
     }
 
@@ -6319,22 +6321,21 @@ bool MegaClient::fetchsc(DbTable* sctable)
     {
         if (!User::unserialize(this, &data))
         {
-            LOG_err << "Failed to load users from cache";
+            LOG_err << "Failed - user record read error";
             return false;
         }
     }
 
-    //            case CACHEDPCR:
-    //                if ((pcr = PendingContactRequest::unserialize(this, &data)))
-    //                {
-    //                    pcr->dbid = id;
-    //                }
-    //                else
-    //                {
-    //                    LOG_err << "Failed - pcr record read error";
-    //                    return false;
-    //                }
-    //                break;
+    // 3. Load all the pending contact requests
+    sctable->rewindpcr();
+    while (sctable->getpcr(&data, &key))
+    {
+        if (!PendingContactRequest::unserialize(this, &data))
+        {
+            LOG_err << "Failed - pcr record read error";
+            return false;
+        }
+    }
 
     return true;
 }
