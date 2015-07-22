@@ -40,7 +40,7 @@ public:
     bool getnode(string*, string*, SymmCipher*);    // by fingerprint
 
 protected:
-    virtual bool getnodebyhandle(handle, string*) = 0;          // node by handle
+    virtual bool getnodebyhandle(string*, string*) = 0;          // node by handle
     virtual bool getnodebyfingerprint(string*, string*) = 0;    // node by fingerprint
 
 public:
@@ -60,7 +60,7 @@ public:
 protected:
     // get sequential records for Users & child nodes
     virtual bool next(string*) = 0;
-    virtual void rewindchildren(handle) = 0;
+    virtual void rewindchildren(string*) = 0;
 
 public:
     // update or add specific record
@@ -72,9 +72,9 @@ public:
 
 protected:
     // update or add specific record
-    virtual bool putnode(handle, handle, char *, unsigned, char *, unsigned) = 0;
-    virtual bool putuser(char *, unsigned, char *, unsigned) = 0;
-    virtual bool putpcr(handle, char *, unsigned) = 0;
+    virtual bool putnode(string*, string*, string*, string*) = 0;
+    virtual bool putuser(string*, string*) = 0;
+    virtual bool putpcr(string*, string*) = 0;
 
 public:
     // delete specific record
@@ -82,8 +82,8 @@ public:
     bool delpcr(PendingContactRequest *, SymmCipher*);
 
 protected:
-    virtual bool delnode(handle h) = 0;
-    virtual bool delpcr(handle h) = 0;
+    virtual bool delnode(string *) = 0;
+    virtual bool delpcr(string *) = 0;
 
 public:
     // delete all records
@@ -101,11 +101,12 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
-    // autoincrement
-    uint32_t nextid;
-
     DbTable();
     virtual ~DbTable() { }
+
+private:
+    void encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor = false);
+//    void decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor = false);
 };
 
 struct MEGA_API DbAccess

@@ -47,22 +47,22 @@ class MEGA_API SqliteDbTable : public DbTable
 public:
     bool getscsn(string*);
     bool getrootnodes(handle*);
-    bool getnodebyhandle(handle, string*);          // node by handle
-    bool getnodebyfingerprint(string*, string*);    // node by fingerprint
+    bool getnodebyhandle(string*, string*);
+    bool getnodebyfingerprint(string*, string*);
 
     void rewinduser();
-    void rewindchildren(handle);
+    void rewindchildren(string*);
     void rewindpcr();
     bool next(string*);
 
     bool putscsn(char*, unsigned);
     bool putrootnodes(handle*);
-    bool putnode(handle, handle, char *, unsigned, char *, unsigned);
-    bool putuser(char *, unsigned, char *, unsigned);
-    bool putpcr(handle, char *, unsigned);
+    bool putnode(string*, string*, string*, string*);
+    bool putuser(string*, string*);
+    bool putpcr(string*, string*);
 
-    bool delnode(handle);
-    bool delpcr(handle);
+    bool delnode(string*);
+    bool delpcr(string*);
 
     void truncate();
     void begin();

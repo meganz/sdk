@@ -68,7 +68,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     }
 
     // 2. Create table for 'nodes'
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle INTEGER PRIMARY KEY NOT NULL, parenthandle INTEGER, fingerprint BLOB, node BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle BLOB PRIMARY KEY NOT NULL, parenthandle BLOB NOT NULL, fingerprint BLOB, node BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -76,7 +76,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     }
 
     // 3. Create table for 'users'
-    sql = "CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS users (email BLOB PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -84,7 +84,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     }
 
     // 4. Create table for 'pcrs'
-    sql = "CREATE TABLE IF NOT EXISTS pcrs (id INTEGER PRIMARY KEY NOT NULL, pcr BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS pcrs (id BLOB PRIMARY KEY NOT NULL, pcr BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -208,7 +208,7 @@ bool SqliteDbTable::getrootnodes(handle *rootnodes)
     return true;
 }
 
-bool SqliteDbTable::getnodebyhandle(handle h, string *data)
+bool SqliteDbTable::getnodebyhandle(string * h, string *data)
 {
     if (!db)
     {
@@ -223,7 +223,7 @@ bool SqliteDbTable::getnodebyhandle(handle h, string *data)
         return false;
     }
 
-    rc = sqlite3_bind_int64(stmt, 1, h);
+    rc = sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
@@ -242,7 +242,7 @@ bool SqliteDbTable::getnodebyhandle(handle h, string *data)
     return true;
 }
 
-bool SqliteDbTable::getnodebyfingerprint(string* fingerprint, string *data)
+bool SqliteDbTable::getnodebyfingerprint(string *fp, string *data)
 {
     if (!db)
     {
@@ -257,7 +257,7 @@ bool SqliteDbTable::getnodebyfingerprint(string* fingerprint, string *data)
         return false;
     }
 
-    rc = sqlite3_bind_blob(stmt, 1, (char*)fingerprint->data(), fingerprint->size(), SQLITE_STATIC);
+    rc = sqlite3_bind_blob(stmt, 1, fp->data(), fp->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
@@ -292,7 +292,7 @@ void SqliteDbTable::rewinduser()
 
 }
 
-void SqliteDbTable::rewindchildren(handle h)
+void SqliteDbTable::rewindchildren(string * ph)
 {
     if (!db)
     {
@@ -309,7 +309,9 @@ void SqliteDbTable::rewindchildren(handle h)
         return;
     }
 
-    if (sqlite3_bind_int64(pStmt, 1, h))
+    // bind the blob as transient data, so SQLITE makes its own copy
+    // otherwise, calling to next() results in unexpected results, since the blob is already freed
+    if (sqlite3_bind_blob(pStmt, 1, ph->data(), ph->size(), SQLITE_TRANSIENT))
     {
         return;
     }
@@ -448,7 +450,7 @@ bool SqliteDbTable::putrootnodes(handle *rootnodes)
     return true;
 }
 
-bool SqliteDbTable::putnode(handle h, handle ph, char *fp, unsigned fpsize, char *node, unsigned nodesize)
+bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *node)//char *fp, unsigned fpsize, char *node, unsigned nodesize)
 {
     if (!db)
     {
@@ -463,25 +465,28 @@ bool SqliteDbTable::putnode(handle h, handle ph, char *fp, unsigned fpsize, char
         return false;
     }
 
-    rc = sqlite3_bind_int64(stmt, 1, h);
+    rc = sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
     }
 
-    rc = sqlite3_bind_int64(stmt, 2, ph);
+    rc = sqlite3_bind_blob(stmt, 2, ph->data(), ph->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
     }
 
-    rc = sqlite3_bind_blob(stmt, 3, fp, fpsize, SQLITE_STATIC);
-    if (rc)
+    if (fp->size())
     {
-        return false;
-    }
+        rc = sqlite3_bind_blob(stmt, 3, fp->data(), fp->size(), SQLITE_STATIC);
+        if (rc)
+        {
+            return false;
+        }
+    }   // else, the node is a folder, so fingerprint is NULL (sqlite default if not binding provided)
 
-    rc = sqlite3_bind_blob(stmt, 4, node, nodesize, SQLITE_STATIC);
+    rc = sqlite3_bind_blob(stmt, 4, node->data(), node->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
@@ -497,7 +502,7 @@ bool SqliteDbTable::putnode(handle h, handle ph, char *fp, unsigned fpsize, char
     return true;
 }
 
-bool SqliteDbTable::putuser(char *email, unsigned emailsize, char *user, unsigned usersize)
+bool SqliteDbTable::putuser(string *email, string *user)
 {
     if (!db)
     {
@@ -512,13 +517,13 @@ bool SqliteDbTable::putuser(char *email, unsigned emailsize, char *user, unsigne
         return false;
     }
 
-    rc = sqlite3_bind_text(stmt, 1, email, emailsize, SQLITE_STATIC);
+    rc = sqlite3_bind_blob(stmt, 1, email->data(), email->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
     }
 
-    rc = sqlite3_bind_blob(stmt, 2, user, usersize, SQLITE_STATIC);
+    rc = sqlite3_bind_blob(stmt, 2, user->data(), user->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
@@ -534,7 +539,7 @@ bool SqliteDbTable::putuser(char *email, unsigned emailsize, char *user, unsigne
     return true;
 }
 
-bool SqliteDbTable::putpcr(handle id, char *pcr, unsigned pcrsize)
+bool SqliteDbTable::putpcr(string * id, string *pcr)
 {
     if (!db)
     {
@@ -549,13 +554,13 @@ bool SqliteDbTable::putpcr(handle id, char *pcr, unsigned pcrsize)
         return false;
     }
 
-    rc = sqlite3_bind_int64(stmt, 1, id);
+    rc = sqlite3_bind_blob(stmt, 1, id->data(), id->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
     }
 
-    rc = sqlite3_bind_blob(stmt, 2, pcr, pcrsize, SQLITE_STATIC);
+    rc = sqlite3_bind_blob(stmt, 2, pcr->data(), pcr->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;
@@ -571,32 +576,66 @@ bool SqliteDbTable::putpcr(handle id, char *pcr, unsigned pcrsize)
     return true;
 }
 
-bool SqliteDbTable::delnode(handle h)
+bool SqliteDbTable::delnode(string *h)
 {
     if (!db)
     {
         return false;
     }
 
-    char buf[64];
+    sqlite3_stmt *stmt;
 
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRIu64, h);
+    int rc = sqlite3_prepare(db, "DELETE FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
 
-    return !sqlite3_exec(db, buf, 0, 0, NULL);
+    rc = sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE)
+    {
+        return false;
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
 }
 
-bool SqliteDbTable::delpcr(handle id)
+bool SqliteDbTable::delpcr(string *id)
 {
     if (!db)
     {
         return false;
     }
 
-    char buf[64];
+    sqlite3_stmt *stmt;
 
-    sprintf(buf, "DELETE FROM pcrs WHERE id = %" PRIu64, id);
+    int rc = sqlite3_prepare(db, "DELETE FROM pcrs WHERE id = ?", -1, &stmt, NULL);
+    if (rc)
+    {
+        return false;
+    }
 
-    return !sqlite3_exec(db, buf, 0, 0, NULL);
+    rc = sqlite3_bind_blob(stmt, 1, id->data(), id->size(), SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE)
+    {
+        return false;
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
 }
 
 // truncate table

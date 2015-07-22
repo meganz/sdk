@@ -21,16 +21,18 @@
 
 #include "mega/db.h"
 #include "mega/utils.h"
+#include "mega/base64.h"
 
 namespace mega {
 DbTable::DbTable()
 {
-    nextid = 0;
+
 }
 
 bool DbTable::putnode(pnode_t n, SymmCipher* key)
 {
     string data;
+    string h, ph, fp;
 
     // TODO: serialize undecryptable nodes too, not only decryptable ones
     // This changes should avoid `serialize()` returning false -> change if() below
@@ -44,17 +46,18 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
 
     PaddedCBC::encrypt(&data, key);
 
-    // TODO: encrypt n->nodehandle
-    // TODO: encrypt n->parenthandle
+    encrypthandle(n->nodehandle, &h, key);
 
-    string fpstring;
+    encrypthandle(n->parenthandle, &ph, key, true);
+
     if(n->type == FILENODE)
-        n->serializefingerprint(&fpstring);
+    {
+        n->serializefingerprint(&fp);
+        PaddedCBC::encrypt(&fp, key);
+    }
 
-    // TODO: encrypt n->fingerprint??
-    // check that an empty fingerprint is saved as NULL
+    bool result = putnode(&h, &ph, &fp, &data);// (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
 
-    bool result = putnode(n->nodehandle, n->parenthandle, (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
     if(result)
     {
         // TODO: Add to cache?
@@ -67,31 +70,32 @@ bool DbTable::putuser(User * u, SymmCipher* key)
 {
     string data;
     u->serialize(&data);
-
     PaddedCBC::encrypt(&data, key);
 
-    // TODO: encrypt u->email
+    string email = u->email;
+    PaddedCBC::encrypt(&email, key);
 
-    return putuser((char*) u->email.data(), u->email.size(), (char *)data.data(), data.size());
+    return putuser(&email, &data);
 }
 
 bool DbTable::putpcr(PendingContactRequest *pcr, SymmCipher *key)
 {
     string data;
     pcr->serialize(&data);
-
     PaddedCBC::encrypt(&data, key);
 
-    // TODO: encrypt pcr->id
+    string id;
+    encrypthandle(pcr->id, &id, key);
 
-    return putpcr(pcr->id, (char*)data.data(), data.size());
+    return putpcr(&id, &data);
 }
 
 bool DbTable::delnode(pnode_t n, SymmCipher *key)
 {
-    // TODO: encrypt n->nodehandle
+    string hstring;
+    encrypthandle(n->nodehandle, &hstring, key);
 
-    bool result = delnode(n->nodehandle);
+    bool result = delnode(&hstring);
     if(result)
     {
         // TODO: delete from cache?
@@ -101,16 +105,18 @@ bool DbTable::delnode(pnode_t n, SymmCipher *key)
 
 bool DbTable::delpcr(PendingContactRequest *pcr, SymmCipher *key)
 {
-    // TODO: encrypt pcr->id
+    string id;
+    encrypthandle(pcr->id, &id, key);
 
-    return delpcr(pcr->id);
+    return delpcr(&id);
 }
 
 bool DbTable::getnode(handle h, string* data, SymmCipher* key)
 {
-    // TODO: encrypt the nodehandle prior to query
+    string hstring;
+    encrypthandle(h, &hstring, key);
 
-    if (getnodebyhandle(h, data))
+    if (getnodebyhandle(&hstring, data))
     {
         return PaddedCBC::decrypt(data, key);
     }
@@ -120,7 +126,7 @@ bool DbTable::getnode(handle h, string* data, SymmCipher* key)
 
 bool DbTable::getnode(string *fingerprint, string* data, SymmCipher* key)
 {
-    // TODO: encrypt the fingerprint prior to query?? not necessary probably
+    PaddedCBC::encrypt(fingerprint, key);
 
     if (getnodebyfingerprint(fingerprint, data))
     {
@@ -132,8 +138,6 @@ bool DbTable::getnode(string *fingerprint, string* data, SymmCipher* key)
 
 bool DbTable::getuser(string* data, SymmCipher* key)
 {
-    // TODO: encrypt the user's email??
-
     if (next(data))
     {
         return PaddedCBC::decrypt(data, key);
@@ -144,8 +148,6 @@ bool DbTable::getuser(string* data, SymmCipher* key)
 
 bool DbTable::getpcr(string *data, SymmCipher* key)
 {
-    // TODO: encrypt the id
-
     if (next(data))
     {
         return PaddedCBC::decrypt(data, key);
@@ -156,9 +158,10 @@ bool DbTable::getpcr(string *data, SymmCipher* key)
 
 void DbTable::rewindchildren(handle h, SymmCipher *key)
 {
-    // TODO: encrypt the handle
+    string hstring;
+    encrypthandle(h, &hstring, key, true);
 
-    rewindchildren(h);
+    rewindchildren(&hstring);
 }
 
 bool DbTable::getchildren(string *data, SymmCipher *key)
@@ -170,5 +173,47 @@ bool DbTable::getchildren(string *data, SymmCipher *key)
 
     return false;
 }
+
+void DbTable::encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor)
+{
+    hstring->resize(sizeof(h));
+    hstring->resize(Base64::btoa((const byte *)&h, sizeof(h), (char *) hstring->data()));
+
+    PaddedCBC::encrypt(hstring, key);
+
+    if (applyXor)
+    {
+        int size = hstring->size();
+        byte src[size];
+        byte dst[size];
+
+        memcpy(src, hstring->data(), size);
+
+        SymmCipher::xorblock(src, dst);
+
+        hstring->assign((char*)dst, size);
+    }
+}
+
+// Untested
+//void DbTable::decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor)
+//{
+//    if (applyXor)
+//    {
+//        int size = hstring->size();
+//        byte src[size];
+//        byte dst[size];
+
+//        memcpy(src, hstring->data(), size);
+
+//        SymmCipher::xorblock(src, dst);
+
+//        hstring->assign((char*)dst, size);
+//    }
+
+//    PaddedCBC::decrypt(hstring, key);
+
+//    Base64::atob(hstring->data(), (byte *)h, 6);
+//}
 
 } // namespace
