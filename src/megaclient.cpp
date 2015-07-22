@@ -2476,7 +2476,7 @@ void MegaClient::updatesc()
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
                 char base64[12];
-                if ((*it)->changed.removed && (*it)->dbid)
+                if ((*it)->changed.removed)
                 {
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->delnode(*it, &key)))
@@ -2501,7 +2501,7 @@ void MegaClient::updatesc()
             for (pcr_vector::iterator it = pcrnotify.begin(); it != pcrnotify.end(); it++)
             {
                 char base64[12];
-                if ((*it)->removed() && (*it)->dbid)
+                if ((*it)->removed())
                 {
                     LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->delpcr(*it, &key)))
@@ -4156,7 +4156,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
     node_vector dp;
     pnode_t n;
-    nodescount = 0;     // reset the count of updated/added nodes
+//    nodescount = 0;     // reset the count of updated/added nodes
 
     while (j->enterobject())
     {
@@ -6345,6 +6345,7 @@ void MegaClient::fetchnodes()
     statecurrent = false;
 
     opensctable();
+    nodescount = 0;     // reset the count of updated/added nodes
 
     if (sctable && cachedscsn == UNDEF)
     {
