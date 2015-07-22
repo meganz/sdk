@@ -8649,11 +8649,16 @@ void MegaApiImpl::sendPendingRequests()
                 message = "";
             }
 
+            int size = strlen(message);
+            char *base64message = new char[size * 4 / 3 + 4];
+            Base64::btoa((byte *)message, size, base64message);
+
             string feedback;
             feedback.resize(64 + strlen(message));
 
-            snprintf((char *)feedback.data(), feedback.size(), "{\"r\":\"%d\",\"m\":\"%s\"}", rating, message);
+            snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\"}", rating, base64message);
             client->userfeedbackstore(feedback.c_str());
+            delete base64message;
             break;
         }
         case MegaRequest::TYPE_SEND_EVENT:
