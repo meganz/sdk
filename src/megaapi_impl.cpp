@@ -8563,35 +8563,19 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_REPORT_EVENT:
         {
-            int evtType = request->getParamType();
             const char *details = request->getText();
-            int number = request->getNumber();
-
-            if(evtType < 0 || evtType >= MegaApi::EVENT_INVALID)
+            if(!details)
             {
                 e = API_EARGS;
                 break;
             }
 
-            string event;
-            switch(evtType)
-            {
-                case MegaApi::EVENT_FEEDBACK:
-                    event = "F";
-                    if(number < 1 || number > 5)
-                        e = API_EARGS;
-                    else
-                        event.append(1, '0'+number);
-                    break;
-                case MegaApi::EVENT_DEBUG:
-                    event = "A"; //Application event
-                    break;
-                default:
-                    e = API_EINTERNAL;
-            }
-
-            if(!e)
-                client->reportevent(event.c_str(), details);
+            string event = "A"; //Application event
+            int size = strlen(details);
+            char *base64details = new char[size * 4 / 3 + 4];
+            Base64::btoa((byte *)details, size, base64details);
+            client->reportevent(event.c_str(), base64details);
+            delete base64details;
             break;
         }
         case MegaRequest::TYPE_DELETE:

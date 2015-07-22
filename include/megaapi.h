@@ -2954,13 +2954,6 @@ class MegaApi
 			STATE_IGNORED
 		};
 
-        enum
-        {
-            EVENT_FEEDBACK = 0,
-            EVENT_DEBUG,
-            EVENT_INVALID
-        };
-
         enum {
             LOG_LEVEL_FATAL = 0,   // Very severe error event that will presumably lead the application to abort.
             LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
