@@ -3034,12 +3034,10 @@ void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::reportEvent(int event, const char *details, MegaRequestListener *listener)
+void MegaApiImpl::reportEvent(const char *details, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
-    request->setParamType(event);
     request->setText(details);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }

@@ -991,7 +991,7 @@ class MegaApiImpl : public MegaApp
         void logout(MegaRequestListener *listener = NULL);
         void localLogout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
-        void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
+        void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
