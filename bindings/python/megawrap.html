@@ -1,0 +1,799 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module megawrap</title>
+<meta charset="utf-8">
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>megawrap</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/home/kira/sdk/bindings/python/megawrap.py">/home/kira/sdk/bindings/python/megawrap.py</a></font></td></tr></table>
+    <p><tt>#&nbsp;-*-&nbsp;coding:&nbsp;utf-8&nbsp;-*-</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="getpass.html">getpass</a><br>
+<a href="json.html">json</a><br>
+</td><td width="25%" valign=top><a href="logging.html">logging</a><br>
+<a href="mega.html">mega</a><br>
+</td><td width="25%" valign=top><a href="os.html">os</a><br>
+<a href="sys.html">sys</a><br>
+</td><td width="25%" valign=top><a href="threading.html">threading</a><br>
+<a href="time.html">time</a><br>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="__builtin__.html#object">__builtin__.object</a>
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="megawrap.html#MegaApi">MegaApi</a>
+</font></dt></dl>
+</dd>
+</dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="MegaApi">class <strong>MegaApi</strong></a>(<a href="__builtin__.html#object">__builtin__.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Allows&nbsp;to&nbsp;control&nbsp;a&nbsp;MEGA&nbsp;account&nbsp;or&nbsp;a&nbsp;shared&nbsp;folder.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;You&nbsp;must&nbsp;provide&nbsp;an&nbsp;appKey&nbsp;to&nbsp;use&nbsp;this&nbsp;SDK.&nbsp;You&nbsp;can&nbsp;generate&nbsp;an&nbsp;appKey&nbsp;for&nbsp;your&nbsp;app&nbsp;for&nbsp;free&nbsp;here:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;https://mega.co.nz/#sdk<br>
+&nbsp;&nbsp;&nbsp;&nbsp;You&nbsp;can&nbsp;enable&nbsp;local&nbsp;node&nbsp;caching&nbsp;by&nbsp;passing&nbsp;a&nbsp;local&nbsp;path&nbsp;in&nbsp;the&nbsp;constructor&nbsp;of&nbsp;this&nbsp;class.&nbsp;That&nbsp;saves&nbsp;many&nbsp;data&nbsp;usage&nbsp;and&nbsp;many&nbsp;time&nbsp;starting&nbsp;your&nbsp;app&nbsp;because&nbsp;the&nbsp;entire&nbsp;filesystem&nbsp;won't&nbsp;have&nbsp;to&nbsp;&nbsp;be&nbsp;&nbsp;&nbsp;&nbsp;downloaded&nbsp;each&nbsp;time.&nbsp;The&nbsp;persistent&nbsp;node&nbsp;cache&nbsp;will&nbsp;only&nbsp;be&nbsp;loaded&nbsp;by&nbsp;logging&nbsp;in&nbsp;with&nbsp;a&nbsp;session&nbsp;key.&nbsp;To&nbsp;take&nbsp;advantage&nbsp;of&nbsp;this&nbsp;feature,&nbsp;apart&nbsp;of&nbsp;passing&nbsp;the&nbsp;local&nbsp;path&nbsp;to&nbsp;the&nbsp;constructor,&nbsp;your&nbsp;&nbsp;application&nbsp;have&nbsp;to&nbsp;save&nbsp;the&nbsp;session&nbsp;key&nbsp;after&nbsp;login&nbsp;(<a href="#MegaApi">MegaApi</a>.dumpSession)&nbsp;and&nbsp;use&nbsp;it&nbsp;to&nbsp;log&nbsp;in&nbsp;the&nbsp;next&nbsp;time.&nbsp;This&nbsp;is&nbsp;highly&nbsp;recommended&nbsp;also&nbsp;to&nbsp;enhance&nbsp;the&nbsp;security,&nbsp;because&nbsp;in&nbsp;this&nbsp;was&nbsp;the&nbsp;access&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;password&nbsp;doesn't&nbsp;have&nbsp;to&nbsp;be&nbsp;stored&nbsp;by&nbsp;the&nbsp;application.<br>
+To&nbsp;access&nbsp;MEGA&nbsp;using&nbsp;this&nbsp;SDK,&nbsp;you&nbsp;have&nbsp;to&nbsp;create&nbsp;an&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;of&nbsp;this&nbsp;class&nbsp;and&nbsp;use&nbsp;one&nbsp;of&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>.login&nbsp;options&nbsp;(to&nbsp;log&nbsp;in&nbsp;to&nbsp;a&nbsp;MEGA&nbsp;account&nbsp;or&nbsp;a&nbsp;public&nbsp;folder).&nbsp;If&nbsp;the&nbsp;login&nbsp;request&nbsp;succeed,&nbsp;you&nbsp;must&nbsp;call&nbsp;<a href="#MegaApi">MegaApi</a>.fetchNodes&nbsp;to&nbsp;get&nbsp;the&nbsp;filesystem&nbsp;in&nbsp;MEGA.&nbsp;After&nbsp;successfully&nbsp;completing&nbsp;that&nbsp;request,&nbsp;you&nbsp;can&nbsp;use&nbsp;all&nbsp;other&nbsp;functions,&nbsp;manage&nbsp;the&nbsp;files&nbsp;and&nbsp;start&nbsp;transfers.<br>
+After&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.logout&nbsp;you&nbsp;can&nbsp;reuse&nbsp;the&nbsp;same&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;to&nbsp;log&nbsp;in&nbsp;to&nbsp;another&nbsp;MEGA&nbsp;account&nbsp;or&nbsp;a&nbsp;public&nbsp;folder.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="MegaApi-__init__"><strong>__init__</strong></a>(self, a, b, c, d)</dt><dd><tt>Constructor</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-add_contact"><strong>add_contact</strong></a>(self, *args)</dt><dd><tt>Add&nbsp;a&nbsp;new&nbsp;contact&nbsp;to&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_ADD_CONTACT&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;of&nbsp;the&nbsp;contact<br>
+:param&nbsp;email&nbsp;-&nbsp;Email&nbsp;of&nbsp;the&nbsp;new&nbsp;contact<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-add_global_listener"><strong>add_global_listener</strong></a>(self, *args)</dt><dd><tt>Register&nbsp;a&nbsp;listener&nbsp;to&nbsp;receive&nbsp;global&nbsp;events.&nbsp;<br>
+You&nbsp;can&nbsp;use&nbsp;<a href="#MegaApi">MegaApi</a>.removeGlobalListener&nbsp;to&nbsp;stop&nbsp;receiving&nbsp;events.<br>
+:param&nbsp;listener&nbsp;-&nbsp;Listener&nbsp;that&nbsp;will&nbsp;receive&nbsp;global&nbsp;events</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-add_listener"><strong>add_listener</strong></a>(self, *args)</dt><dd><tt>Register&nbsp;a&nbsp;listener&nbsp;to&nbsp;receive&nbsp;all&nbsp;events&nbsp;(requests,&nbsp;transfers,&nbsp;global,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;synchronization)<br>
+You&nbsp;can&nbsp;use&nbsp;<a href="#MegaApi">MegaApi</a>.removeListener()&nbsp;to&nbsp;stop&nbsp;receiving&nbsp;events.&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;Listener&nbsp;that&nbsp;will&nbsp;receive&nbsp;all&nbsp;events&nbsp;(requests,&nbsp;transfers,&nbsp;global,&nbsp;synchronization)</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-add_request_listener"><strong>add_request_listener</strong></a>(self, *args)</dt><dd><tt>Register&nbsp;a&nbsp;listener&nbsp;to&nbsp;receive&nbsp;all&nbsp;events&nbsp;about&nbsp;requests.<br>
+You&nbsp;can&nbsp;use&nbsp;<a href="#MegaApi">MegaApi</a>.removeRequestListener&nbsp;to&nbsp;stop&nbsp;receiving&nbsp;events.<br>
+:param&nbsp;listener&nbsp;-&nbsp;Listener&nbsp;that&nbsp;will&nbsp;receive&nbsp;all&nbsp;events&nbsp;about&nbsp;requests</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-add_transfer_listener"><strong>add_transfer_listener</strong></a>(self, *args)</dt><dd><tt>Register&nbsp;a&nbsp;listener&nbsp;to&nbsp;receive&nbsp;all&nbsp;events&nbsp;about&nbsp;transfers.<br>
+You&nbsp;can&nbsp;use&nbsp;<a href="#MegaApi">MegaApi</a>.removeTransferListener&nbsp;to&nbsp;stop&nbsp;receiving&nbsp;events.<br>
+:param&nbsp;listener&nbsp;-&nbsp;Listener&nbsp;that&nbsp;will&nbsp;receive&nbsp;all&nbsp;events&nbsp;about&nbsp;transfers</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-are_tansfers_paused"><strong>are_tansfers_paused</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-cancel_get_preview"><strong>cancel_get_preview</strong></a>(self, *args)</dt><dd><tt>Cancel&nbsp;the&nbsp;retrieval&nbsp;of&nbsp;a&nbsp;preview.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CANCEL_ATTR_FILE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;<a href="#MegaApi">MegaApi</a>.ATTR_TYPE_PREVIEW<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;cancel&nbsp;the&nbsp;retrieval&nbsp;of&nbsp;the&nbsp;preview<br>
+:param&nbsp;listener&nbsp;-&nbsp;listener&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-cancel_get_thumbnail"><strong>cancel_get_thumbnail</strong></a>(self, *args)</dt><dd><tt>Cancel&nbsp;the&nbsp;retrieval&nbsp;of&nbsp;a&nbsp;thumbnail.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CANCEL_ATTR_FILE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;<a href="#MegaApi">MegaApi</a>.ATTR_TYPE_THUMBNAIL<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;cancel&nbsp;the&nbsp;retrieval&nbsp;of&nbsp;the&nbsp;preview<br>
+:param&nbsp;listener&nbsp;-&nbsp;listener&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-cancel_transfer"><strong>cancel_transfer</strong></a>(self, *args)</dt><dd><tt>Cancel&nbsp;a&nbsp;transfer.<br>
+When&nbsp;a&nbsp;transfer&nbsp;is&nbsp;cancelled,&nbsp;it&nbsp;will&nbsp;finish&nbsp;and&nbsp;will&nbsp;provide&nbsp;the&nbsp;error&nbsp;code&nbsp;MegaError.API_EINCOMPLETE&nbsp;in&nbsp;MegaTransferListener.onTransferFinish&nbsp;and&nbsp;MegaListener.onTransferFinish<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CANCEL_TRANSFER&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getTransferTag&nbsp;-&nbsp;Returns&nbsp;the&nbsp;tag&nbsp;of&nbsp;the&nbsp;cancelled&nbsp;transfer&nbsp;(MegaTransfer.getTag)<br>
+:param&nbsp;transfer&nbsp;-&nbsp;MegaTransfer&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;that&nbsp;identifies&nbsp;the&nbsp;transfer&nbsp;You&nbsp;can&nbsp;get&nbsp;this&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;in&nbsp;any&nbsp;MegaTransferListener&nbsp;callback&nbsp;or&nbsp;any&nbsp;MegaListener&nbsp;callback&nbsp;related&nbsp;to&nbsp;transfers.<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-cancel_transfer_by_tag"><strong>cancel_transfer_by_tag</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-cancel_transfers"><strong>cancel_transfers</strong></a>(self, *args)</dt><dd><tt>Cancel&nbsp;all&nbsp;transfers&nbsp;of&nbsp;the&nbsp;same&nbsp;type.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CANCEL_TRANSFERS&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;the&nbsp;first&nbsp;parameter<br>
+:param&nbsp;type&nbsp;-&nbsp;&nbsp;&nbsp;Type&nbsp;of&nbsp;transfers&nbsp;to&nbsp;cancel.&nbsp;Valid&nbsp;values&nbsp;are:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaTransfer.TYPE_DOWNLOAD&nbsp;=&nbsp;0<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaTransfer.TYPE_UPLOAD&nbsp;=&nbsp;1<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-change_api_url"><strong>change_api_url</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-change_password"><strong>change_password</strong></a>(self, *args)</dt><dd><tt>Change&nbsp;the&nbsp;password&nbsp;of&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CHANGE_PW&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPassword&nbsp;-&nbsp;Returns&nbsp;the&nbsp;old&nbsp;password<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNewPassword&nbsp;-&nbsp;Returns&nbsp;the&nbsp;new&nbsp;password<br>
+:param&nbsp;oldPassword&nbsp;-&nbsp;old&nbsp;password<br>
+:param&nbsp;newPassword&nbsp;-&nbsp;new&nbsp;password<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-check_access"><strong>check_access</strong></a>(self, *args)</dt><dd><tt>Check&nbsp;if&nbsp;a&nbsp;node&nbsp;has&nbsp;an&nbsp;access&nbsp;level.&nbsp;<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;check<br>
+:param&nbsp;level&nbsp;-&nbsp;Access&nbsp;level&nbsp;to&nbsp;check&nbsp;Valid&nbsp;values&nbsp;for&nbsp;this&nbsp;parameter&nbsp;are:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_OWNER<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_FULL<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_READWRITE<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_READ<br>
+:Returns&nbsp;MegaError&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;the&nbsp;result:&nbsp;Valid&nbsp;values&nbsp;for&nbsp;the&nbsp;error&nbsp;code&nbsp;are:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_OK&nbsp;-&nbsp;The&nbsp;node&nbsp;can&nbsp;be&nbsp;moved&nbsp;to&nbsp;the&nbsp;target<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_EACCESS&nbsp;-&nbsp;The&nbsp;node&nbsp;can't&nbsp;be&nbsp;moved&nbsp;because&nbsp;of&nbsp;permissions&nbsp;problems<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_ECIRCULAR&nbsp;-&nbsp;The&nbsp;node&nbsp;can't&nbsp;be&nbsp;moved&nbsp;because&nbsp;that&nbsp;would&nbsp;create&nbsp;a&nbsp;circular&nbsp;linkage<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_ENOENT&nbsp;-&nbsp;The&nbsp;node&nbsp;or&nbsp;the&nbsp;target&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_EARGS&nbsp;-&nbsp;Invalid&nbsp;parameters</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-check_move"><strong>check_move</strong></a>(self, *args)</dt><dd><tt>Check&nbsp;if&nbsp;a&nbsp;node&nbsp;can&nbsp;be&nbsp;moved&nbsp;to&nbsp;a&nbsp;target&nbsp;node.<br>
+node&nbsp;-&nbsp;Node&nbsp;to&nbsp;check<br>
+target&nbsp;-&nbsp;Target&nbsp;for&nbsp;the&nbsp;move&nbsp;operation<br>
+:Returns&nbsp;MegaError&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;the&nbsp;result:&nbsp;Valid&nbsp;values&nbsp;for&nbsp;the&nbsp;error&nbsp;code&nbsp;are:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_OK&nbsp;-&nbsp;The&nbsp;node&nbsp;can&nbsp;be&nbsp;moved&nbsp;to&nbsp;the&nbsp;target<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_EACCESS&nbsp;-&nbsp;The&nbsp;node&nbsp;can't&nbsp;be&nbsp;moved&nbsp;because&nbsp;of&nbsp;permissions&nbsp;problems<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_ECIRCULAR&nbsp;-&nbsp;The&nbsp;node&nbsp;can't&nbsp;be&nbsp;moved&nbsp;because&nbsp;that&nbsp;would&nbsp;create&nbsp;a&nbsp;circular&nbsp;linkage<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_ENOENT&nbsp;-&nbsp;The&nbsp;node&nbsp;or&nbsp;the&nbsp;target&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaError.API_EARGS&nbsp;-&nbsp;Invalid&nbsp;parameters</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-confirm_account"><strong>confirm_account</strong></a>(self, *args)</dt><dd><tt>Confirm&nbsp;a&nbsp;MEGA&nbsp;account&nbsp;using&nbsp;a&nbsp;confirmation&nbsp;link&nbsp;and&nbsp;the&nbsp;user&nbsp;password.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CONFIRM_ACCOUNT&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+MegaRequest.getLink&nbsp;-&nbsp;Returns&nbsp;the&nbsp;confirmation&nbsp;link<br>
+MegaRequest.getPassword&nbsp;-&nbsp;Returns&nbsp;the&nbsp;password<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Email&nbsp;of&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Name&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;link&nbsp;-&nbsp;Confirmation&nbsp;link<br>
+:param&nbsp;password&nbsp;-&nbsp;Password&nbsp;of&nbsp;the&nbsp;account<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-copy_node"><strong>copy_node</strong></a>(self, *args)</dt><dd><tt>Copy&nbsp;a&nbsp;node&nbsp;in&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_COPY&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node&nbsp;to&nbsp;copy<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParentHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;new&nbsp;parent&nbsp;for&nbsp;the&nbsp;new&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPublicMegaNode&nbsp;-&nbsp;Returns&nbsp;the&nbsp;node&nbsp;to&nbsp;copy&nbsp;(if&nbsp;it&nbsp;is&nbsp;a&nbsp;public&nbsp;node)<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Handle&nbsp;of&nbsp;the&nbsp;new&nbsp;node<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;copy<br>
+:param&nbsp;newParent&nbsp;-&nbsp;Parent&nbsp;for&nbsp;the&nbsp;new&nbsp;node<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-create_account"><strong>create_account</strong></a>(self, *args)</dt><dd><tt>Initialize&nbsp;the&nbsp;creation&nbsp;of&nbsp;a&nbsp;new&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CREATE_ACCOUNT.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;for&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPassword&nbsp;-&nbsp;Returns&nbsp;the&nbsp;password&nbsp;for&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Returns&nbsp;the&nbsp;name&nbsp;of&nbsp;the&nbsp;user<br>
+If&nbsp;this&nbsp;request&nbsp;succeed,&nbsp;a&nbsp;confirmation&nbsp;email&nbsp;will&nbsp;be&nbsp;sent&nbsp;to&nbsp;the&nbsp;users.&nbsp;If&nbsp;an&nbsp;account&nbsp;with&nbsp;the&nbsp;same&nbsp;email&nbsp;already&nbsp;exists,&nbsp;you&nbsp;will&nbsp;get&nbsp;the&nbsp;error&nbsp;code&nbsp;MegaError.API_EEXIST&nbsp;in&nbsp;onRequestFinish<br>
+:param&nbsp;email&nbsp;-&nbsp;Email&nbsp;for&nbsp;the&nbsp;account<br>
+:param&nbsp;password&nbsp;-&nbsp;Password&nbsp;for&nbsp;the&nbsp;account<br>
+:param&nbsp;name&nbsp;-&nbsp;Name&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-create_folder"><strong>create_folder</strong></a>(self, *args)</dt><dd><tt>Create&nbsp;a&nbsp;folder&nbsp;in&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CREATE_FOLDER&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParentHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;parent&nbsp;folder<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Returns&nbsp;the&nbsp;name&nbsp;of&nbsp;the&nbsp;new&nbsp;folder<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Handle&nbsp;of&nbsp;the&nbsp;new&nbsp;folder<br>
+:param&nbsp;name&nbsp;-&nbsp;Name&nbsp;of&nbsp;the&nbsp;new&nbsp;folder<br>
+:param&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;folder<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-create_preview"><strong>create_preview</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-create_public_file_node"><strong>create_public_file_node</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-create_public_folder_node"><strong>create_public_folder_node</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-create_thumbnail"><strong>create_thumbnail</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-credit_card_cancel_subscriptions"><strong>credit_card_cancel_subscriptions</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-credit_card_query_subscriptions"><strong>credit_card_query_subscriptions</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-credit_card_store"><strong>credit_card_store</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-disable_export"><strong>disable_export</strong></a>(self, *args)</dt><dd><tt>Stop&nbsp;sharing&nbsp;a&nbsp;file/folder.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_EXPORT&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getAccess&nbsp;-&nbsp;Returns&nbsp;false<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;stop&nbsp;sharing<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-dump_XMPP_session"><strong>dump_XMPP_session</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-dump_session"><strong>dump_session</strong></a>(self)</dt><dd><tt>Returns&nbsp;the&nbsp;current&nbsp;session&nbsp;key.<br>
+You&nbsp;have&nbsp;to&nbsp;be&nbsp;logged&nbsp;in&nbsp;to&nbsp;get&nbsp;a&nbsp;valid&nbsp;session&nbsp;key.&nbsp;Otherwise,&nbsp;this&nbsp;function&nbsp;returns&nbsp;NULL.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+:Returns&nbsp;current&nbsp;session&nbsp;key</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-escape_fs_incompatible"><strong>escape_fs_incompatible</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-export_master_key"><strong>export_master_key</strong></a>(self)</dt><dd><tt>Export&nbsp;the&nbsp;master&nbsp;key&nbsp;of&nbsp;the&nbsp;account.<br>
+The&nbsp;returned&nbsp;value&nbsp;is&nbsp;a&nbsp;Base64-encoded&nbsp;string<br>
+With&nbsp;the&nbsp;master&nbsp;key,&nbsp;it's&nbsp;possible&nbsp;to&nbsp;start&nbsp;the&nbsp;recovery&nbsp;of&nbsp;an&nbsp;account&nbsp;when&nbsp;the&nbsp;password&nbsp;is&nbsp;lost:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;https://mega.co.nz/#recovery<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+:Returns&nbsp;Base64-encoded&nbsp;master&nbsp;key</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-export_node"><strong>export_node</strong></a>(self, *args)</dt><dd><tt>Generate&nbsp;a&nbsp;public&nbsp;link&nbsp;of&nbsp;a&nbsp;file/folder&nbsp;in&nbsp;MEGA.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_EXPORT&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getAccess&nbsp;-&nbsp;Returns&nbsp;true<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getLink&nbsp;-&nbsp;Public&nbsp;link<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;get&nbsp;the&nbsp;public&nbsp;link<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-fast_confirm_account"><strong>fast_confirm_account</strong></a>(self, *args)</dt><dd><tt>Confirm&nbsp;a&nbsp;MEGA&nbsp;account&nbsp;using&nbsp;a&nbsp;confirmation&nbsp;link&nbsp;and&nbsp;a&nbsp;precomputed&nbsp;key.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CONFIRM_ACCOUNT&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getLink&nbsp;-&nbsp;Returns&nbsp;the&nbsp;confirmation&nbsp;link<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPrivateKey&nbsp;-&nbsp;Returns&nbsp;the&nbsp;base64pwkey&nbsp;parameter<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Email&nbsp;of&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Name&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;link&nbsp;-&nbsp;Confirmation&nbsp;link<br>
+:param&nbsp;base64pwkey&nbsp;-&nbsp;Private&nbsp;key&nbsp;precomputed&nbsp;with&nbsp;<a href="#MegaApi">MegaApi</a>.getBase64PwKey<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-fast_create_account"><strong>fast_create_account</strong></a>(self, *args)</dt><dd><tt>Initialize&nbsp;the&nbsp;creation&nbsp;of&nbsp;a&nbsp;new&nbsp;MEGA&nbsp;account&nbsp;with&nbsp;precomputed&nbsp;keys.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CREATE_ACCOUNT.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;for&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPrivateKey&nbsp;-&nbsp;Returns&nbsp;the&nbsp;private&nbsp;key&nbsp;calculated&nbsp;with&nbsp;<a href="#MegaApi">MegaApi</a>.getBase64PwKey<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Returns&nbsp;the&nbsp;name&nbsp;of&nbsp;the&nbsp;user<br>
+If&nbsp;this&nbsp;request&nbsp;succeed,&nbsp;a&nbsp;confirmation&nbsp;email&nbsp;will&nbsp;be&nbsp;sent&nbsp;to&nbsp;the&nbsp;users.&nbsp;If&nbsp;an&nbsp;account&nbsp;with&nbsp;the&nbsp;same&nbsp;email&nbsp;already&nbsp;exists,&nbsp;you&nbsp;will&nbsp;get&nbsp;the&nbsp;error&nbsp;code&nbsp;MegaError.API_EEXIST&nbsp;in&nbsp;onRequestFinish<br>
+:param&nbsp;email&nbsp;-&nbsp;Email&nbsp;for&nbsp;the&nbsp;account<br>
+:param&nbsp;base64pwkey&nbsp;-&nbsp;Private&nbsp;key&nbsp;calculated&nbsp;with&nbsp;<a href="#MegaApi">MegaApi</a>.getBase64PwKey<br>
+:param&nbsp;name&nbsp;-&nbsp;Name&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-fast_login"><strong>fast_login</strong></a>(self, *args)</dt><dd><tt>Initialize&nbsp;the&nbsp;creation&nbsp;of&nbsp;a&nbsp;new&nbsp;MEGA&nbsp;account&nbsp;with&nbsp;precomputed&nbsp;keys.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_CREATE_ACCOUNT.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;for&nbsp;the&nbsp;account<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPrivateKey&nbsp;-&nbsp;Returns&nbsp;the&nbsp;private&nbsp;key&nbsp;calculated&nbsp;with&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.getBase64PwKey<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Returns&nbsp;the&nbsp;name&nbsp;of&nbsp;the&nbsp;user<br>
+If&nbsp;this&nbsp;request&nbsp;succeed,&nbsp;a&nbsp;confirmation&nbsp;email&nbsp;will&nbsp;be&nbsp;sent&nbsp;to&nbsp;the&nbsp;users.&nbsp;If&nbsp;an&nbsp;account&nbsp;with&nbsp;the&nbsp;same&nbsp;email&nbsp;already&nbsp;exists,&nbsp;you&nbsp;will&nbsp;get&nbsp;the&nbsp;error&nbsp;code&nbsp;MegaError.API_EEXIST&nbsp;in&nbsp;onRequestFinish<br>
+:param&nbsp;email&nbsp;-&nbsp;Email&nbsp;for&nbsp;the&nbsp;account<br>
+:param&nbsp;base64pwkey&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Private&nbsp;key&nbsp;calculated&nbsp;with&nbsp;<a href="#MegaApi">MegaApi</a>.getBase64PwKey<br>
+:param&nbsp;name&nbsp;-&nbsp;Name&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-fetch_nodes"><strong>fetch_nodes</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>Fetch&nbsp;the&nbsp;filesystem&nbsp;in&nbsp;MEGA.<br>
+The&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;must&nbsp;be&nbsp;logged&nbsp;in&nbsp;in&nbsp;an&nbsp;account&nbsp;or&nbsp;a&nbsp;public&nbsp;folder&nbsp;to&nbsp;successfully&nbsp;complete&nbsp;this&nbsp;request.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_FETCH_NODES<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-getTotalUploadedBytes"><strong>getTotalUploadedBytes</strong></a>(self)</dt><dd><tt>Get&nbsp;the&nbsp;total&nbsp;uploaded&nbsp;bytes&nbsp;since&nbsp;the&nbsp;creation&nbsp;of&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a>.<br>
+:Returns&nbsp;total&nbsp;uploaded&nbsp;bytes&nbsp;since&nbsp;the&nbsp;creation&nbsp;of&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a></tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_CRC"><strong>get_CRC</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_access"><strong>get_access</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;access&nbsp;level&nbsp;of&nbsp;a&nbsp;MegaNode.&nbsp;<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;check&nbsp;<br>
+:Returns&nbsp;Access&nbsp;level&nbsp;of&nbsp;the&nbsp;node&nbsp;Valid&nbsp;values&nbsp;are:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_OWNER<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_FULL<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_READWRITE<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_READ<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_UNKNOWN</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_account_details"><strong>get_account_details</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>Get&nbsp;details&nbsp;about&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_ACCOUNT_DETAILS<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getMegaAccountDetails&nbsp;-&nbsp;Details&nbsp;of&nbsp;the&nbsp;MEGA&nbsp;account<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_auto_proxy_settings"><strong>get_auto_proxy_settings</strong></a>(self)</dt><dd><tt>Try&nbsp;to&nbsp;detect&nbsp;the&nbsp;system's&nbsp;proxy&nbsp;settings.<br>
+Automatic&nbsp;proxy&nbsp;detection&nbsp;is&nbsp;currently&nbsp;supported&nbsp;on&nbsp;Windows&nbsp;only.&nbsp;On&nbsp;other&nbsp;platforms,&nbsp;this&nbsp;fuction&nbsp;will&nbsp;return&nbsp;a&nbsp;MegaProxy&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;of&nbsp;type&nbsp;MegaProxy.PROXY_NONE<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+:param&nbsp;Returns&nbsp;MegaProxy&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;the&nbsp;detected&nbsp;proxy&nbsp;settings.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_base64_pw_key"><strong>get_base64_pw_key</strong></a>(self, *args)</dt><dd><tt>Generates&nbsp;a&nbsp;private&nbsp;key&nbsp;based&nbsp;on&nbsp;the&nbsp;access&nbsp;password.&nbsp;This&nbsp;is&nbsp;a&nbsp;time&nbsp;consuming&nbsp;operation&nbsp;(specially&nbsp;for&nbsp;low-end&nbsp;mobile&nbsp;devices).&nbsp;&nbsp;Since&nbsp;the&nbsp;resulting&nbsp;key&nbsp;is&nbsp;required&nbsp;to&nbsp;log&nbsp;in,&nbsp;this&nbsp;function&nbsp;&nbsp;&nbsp;allows&nbsp;to&nbsp;do&nbsp;this&nbsp;step&nbsp;in&nbsp;a&nbsp;separate&nbsp;function.&nbsp;You&nbsp;should&nbsp;run&nbsp;this&nbsp;function&nbsp;in&nbsp;a&nbsp;background&nbsp;thread,&nbsp;to&nbsp;prevent&nbsp;UI&nbsp;hangs.&nbsp;The&nbsp;resulting&nbsp;key&nbsp;can&nbsp;be&nbsp;used&nbsp;in&nbsp;<a href="#MegaApi">MegaApi</a>.fastLogin.&nbsp;<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.&nbsp;<br>
+:param&nbsp;password&nbsp;-&nbsp;Access&nbsp;password&nbsp;<br>
+:Returns&nbsp;-&nbsp;Base64-encoded&nbsp;private&nbsp;key</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_child_node"><strong>get_child_node</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;child&nbsp;node&nbsp;with&nbsp;the&nbsp;provided&nbsp;name.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;node<br>
+:param&nbsp;name&nbsp;-&nbsp;name&nbsp;of&nbsp;the&nbsp;node<br>
+:Returns&nbsp;The&nbsp;MegaNode&nbsp;that&nbsp;has&nbsp;the&nbsp;selected&nbsp;parent&nbsp;and&nbsp;name</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_children"><strong>get_children</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;all&nbsp;children&nbsp;of&nbsp;a&nbsp;MegaNode.<br>
+If&nbsp;the&nbsp;parent&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;or&nbsp;it&nbsp;isn't&nbsp;a&nbsp;folder,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value&nbsp;<br>
+:param&nbsp;parent&nbsp;-&nbsp;parent&nbsp;node<br>
+:param&nbsp;order&nbsp;Order&nbsp;of&nbsp;the&nbsp;returned&nbsp;list.&nbsp;Valid&nbsp;values&nbsp;are:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_NONE&nbsp;=&nbsp;0&nbsp;Undefined&nbsp;order<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_DEFAULT_ASC&nbsp;=&nbsp;1&nbsp;Folders&nbsp;first&nbsp;in&nbsp;alphabetical&nbsp;order,&nbsp;then&nbsp;files&nbsp;in&nbsp;the&nbsp;same&nbsp;order<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_DEFAULT_DESC&nbsp;=&nbsp;2&nbsp;Files&nbsp;first&nbsp;in&nbsp;reverse&nbsp;alphabetical&nbsp;order,&nbsp;then&nbsp;folders&nbsp;in&nbsp;the&nbsp;same&nbsp;order<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_SIZE_ASC&nbsp;=&nbsp;3&nbsp;Sort&nbsp;by&nbsp;size,&nbsp;ascending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_SIZE_DESC&nbsp;=&nbsp;4&nbsp;Sort&nbsp;by&nbsp;size,&nbsp;descending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_CREATION_ASC&nbsp;=&nbsp;5&nbsp;Sort&nbsp;by&nbsp;creation&nbsp;time&nbsp;in&nbsp;MEGA,&nbsp;ascending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_CREATION_DESC&nbsp;=&nbsp;6&nbsp;Sort&nbsp;by&nbsp;creation&nbsp;time&nbsp;in&nbsp;MEGA,&nbsp;descending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_MODIFICATION_ASC&nbsp;=&nbsp;7&nbsp;Sort&nbsp;by&nbsp;modification&nbsp;time&nbsp;of&nbsp;the&nbsp;original&nbsp;file,&nbsp;ascending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_MODIFICATION_DESC&nbsp;=&nbsp;8&nbsp;Sort&nbsp;by&nbsp;modification&nbsp;time&nbsp;of&nbsp;the&nbsp;original&nbsp;file,&nbsp;descending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_ALPHABETICAL_ASC&nbsp;=&nbsp;9&nbsp;Sort&nbsp;in&nbsp;alphabetical&nbsp;order,&nbsp;ascending<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#MegaApi">MegaApi</a>.ORDER_ALPHABETICAL_DESC&nbsp;=&nbsp;10&nbsp;Sort&nbsp;in&nbsp;alphabetical&nbsp;order,&nbsp;descending</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_contact"><strong>get_contact</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;MegaUser&nbsp;that&nbsp;has&nbsp;a&nbsp;specific&nbsp;email&nbsp;address.<br>
+You&nbsp;can&nbsp;get&nbsp;the&nbsp;email&nbsp;of&nbsp;a&nbsp;MegaUser&nbsp;using&nbsp;MegaUser.getEmail<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;email&nbsp;-&nbsp;Email&nbsp;address&nbsp;to&nbsp;check&nbsp;<br>
+:Returns&nbsp;MegaUser&nbsp;that&nbsp;has&nbsp;the&nbsp;email&nbsp;address,&nbsp;otherwise&nbsp;None</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_contact_request_by_handle"><strong>get_contact_request_by_handle</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_contacts"><strong>get_contacts</strong></a>(self)</dt><dd><tt>Get&nbsp;all&nbsp;contacts&nbsp;of&nbsp;this&nbsp;MEGA&nbsp;account.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:Returns&nbsp;List&nbsp;of&nbsp;MegaUser&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;all&nbsp;contacts&nbsp;of&nbsp;this&nbsp;account</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_current_error"><strong>get_current_error</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_current_nodes"><strong>get_current_nodes</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_current_request"><strong>get_current_request</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_current_transfer"><strong>get_current_transfer</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_current_users"><strong>get_current_users</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_download_method"><strong>get_download_method</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_extendedAccount_details"><strong>get_extendedAccount_details</strong></a>(self, sessions<font color="#909090">=False</font>, purchases<font color="#909090">=False</font>, transactions<font color="#909090">=False</font>, listener<font color="#909090">=None</font>)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_fingerprint"><strong>get_fingerprint</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;a&nbsp;Base64-encoded&nbsp;fingerprint&nbsp;for&nbsp;a&nbsp;node.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;or&nbsp;doesn't&nbsp;have&nbsp;a&nbsp;fingerprint,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;for&nbsp;which&nbsp;we&nbsp;want&nbsp;to&nbsp;get&nbsp;the&nbsp;fingerprint<br>
+:Returns&nbsp;Base64-encoded&nbsp;fingerprint&nbsp;for&nbsp;the&nbsp;file</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_in_shares"><strong>get_in_shares</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;a&nbsp;list&nbsp;with&nbsp;all&nbsp;inbound&nbsp;sharings&nbsp;from&nbsp;one&nbsp;MegaUser.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;user&nbsp;-&nbsp;MegaUser&nbsp;sharing&nbsp;folders&nbsp;with&nbsp;this&nbsp;account<br>
+:Returns&nbsp;List&nbsp;of&nbsp;MegaNode&nbsp;objects&nbsp;that&nbsp;this&nbsp;user&nbsp;is&nbsp;sharing&nbsp;with&nbsp;this&nbsp;account</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_inbox_node"><strong>get_inbox_node</strong></a>(self)</dt><dd><tt>Returns&nbsp;the&nbsp;inbox&nbsp;node&nbsp;of&nbsp;the&nbsp;account.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+If&nbsp;you&nbsp;haven't&nbsp;successfully&nbsp;called&nbsp;<a href="#MegaApi">MegaApi</a>.fetchNodes&nbsp;before,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None<br>
+:Returns&nbsp;Inbox&nbsp;node&nbsp;of&nbsp;the&nbsp;account</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_incoming_contact_requests"><strong>get_incoming_contact_requests</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_index"><strong>get_index</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;current&nbsp;index&nbsp;of&nbsp;the&nbsp;node&nbsp;in&nbsp;the&nbsp;parent&nbsp;folder&nbsp;for&nbsp;a&nbsp;specific&nbsp;sorting&nbsp;order.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;or&nbsp;it&nbsp;doesn't&nbsp;have&nbsp;a&nbsp;parent&nbsp;node&nbsp;(because&nbsp;it's&nbsp;a&nbsp;root&nbsp;node)&nbsp;this&nbsp;function&nbsp;returns&nbsp;-1&nbsp;<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;check<br>
+:param&nbsp;order&nbsp;-&nbsp;Sorting&nbsp;order&nbsp;to&nbsp;use<br>
+:Returns&nbsp;index&nbsp;of&nbsp;the&nbsp;node&nbsp;in&nbsp;its&nbsp;parent&nbsp;folder</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_my_email"><strong>get_my_email</strong></a>(self)</dt><dd><tt>Retuns&nbsp;the&nbsp;email&nbsp;of&nbsp;the&nbsp;currently&nbsp;open&nbsp;account.<br>
+If&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;isn't&nbsp;logged&nbsp;in&nbsp;or&nbsp;the&nbsp;email&nbsp;isn't&nbsp;available,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:Returns&nbsp;Email&nbsp;of&nbsp;the&nbsp;account</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_my_user_handle"><strong>get_my_user_handle</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_node_by_CRC"><strong>get_node_by_CRC</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_node_by_fingerprint"><strong>get_node_by_fingerprint</strong></a>(self, *args)</dt><dd><tt>Returns&nbsp;a&nbsp;node&nbsp;with&nbsp;the&nbsp;provided&nbsp;fingerprint.<br>
+If&nbsp;there&nbsp;isn't&nbsp;any&nbsp;node&nbsp;in&nbsp;the&nbsp;account&nbsp;with&nbsp;that&nbsp;fingerprint,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+:param&nbsp;fingerprint&nbsp;-&nbsp;Fingerprint&nbsp;to&nbsp;check<br>
+:Returns&nbsp;MegaNode&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;the&nbsp;provided&nbsp;fingerprint</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_node_by_handle"><strong>get_node_by_handle</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;MegaNode&nbsp;that&nbsp;has&nbsp;a&nbsp;specific&nbsp;handle.&nbsp;<br>
+You&nbsp;can&nbsp;get&nbsp;the&nbsp;handle&nbsp;of&nbsp;a&nbsp;MegaNode&nbsp;using&nbsp;MegaNode.getHandle.&nbsp;The&nbsp;same&nbsp;handle&nbsp;can&nbsp;be&nbsp;got&nbsp;in&nbsp;a&nbsp;Base64-encoded&nbsp;string&nbsp;using&nbsp;MegaNode.getBase64Handle.&nbsp;Conversions&nbsp;between&nbsp;these&nbsp;formats&nbsp;can&nbsp;be&nbsp;done&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.base64ToHandle&nbsp;and&nbsp;<a href="#MegaApi">MegaApi</a>.handleToBase64.<br>
+It&nbsp;is&nbsp;needed&nbsp;to&nbsp;be&nbsp;logged&nbsp;in&nbsp;and&nbsp;to&nbsp;have&nbsp;successfully&nbsp;completed&nbsp;a&nbsp;fetchNodes&nbsp;request&nbsp;before&nbsp;calling&nbsp;this&nbsp;function.&nbsp;Otherwise,&nbsp;it&nbsp;will&nbsp;return&nbsp;None.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+:param&nbsp;MegaHandler&nbsp;-&nbsp;Node&nbsp;handle&nbsp;to&nbsp;check&nbsp;<br>
+:Returns&nbsp;MegaNode&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;the&nbsp;handle,&nbsp;otherwise&nbsp;None</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_node_by_path"><strong>get_node_by_path</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;MegaNode&nbsp;in&nbsp;a&nbsp;specific&nbsp;path&nbsp;in&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;path&nbsp;separator&nbsp;character&nbsp;is&nbsp;'/'&nbsp;The&nbsp;Root&nbsp;node&nbsp;is&nbsp;/&nbsp;The&nbsp;Inbox&nbsp;root&nbsp;node&nbsp;is&nbsp;//in/&nbsp;The&nbsp;Rubbish&nbsp;root&nbsp;node&nbsp;is&nbsp;//bin/<br>
+Paths&nbsp;with&nbsp;names&nbsp;containing&nbsp;'/',&nbsp;''&nbsp;or&nbsp;':'&nbsp;aren't&nbsp;compatible&nbsp;with&nbsp;this&nbsp;function.<br>
+It&nbsp;is&nbsp;needed&nbsp;to&nbsp;be&nbsp;logged&nbsp;in&nbsp;and&nbsp;to&nbsp;have&nbsp;successfully&nbsp;completed&nbsp;a&nbsp;fetchNodes&nbsp;request&nbsp;before&nbsp;calling&nbsp;this&nbsp;function.&nbsp;Otherwise,&nbsp;it&nbsp;will&nbsp;return&nbsp;None.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;path&nbsp;-&nbsp;Path&nbsp;to&nbsp;check<br>
+:param&nbsp;n&nbsp;-&nbsp;Base&nbsp;node&nbsp;if&nbsp;the&nbsp;path&nbsp;is&nbsp;relative&nbsp;<br>
+:Returns&nbsp;The&nbsp;MegaNode&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;in&nbsp;the&nbsp;path,&nbsp;otherwise&nbsp;None</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_node_path"><strong>get_node_path</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;path&nbsp;of&nbsp;a&nbsp;MegaNode.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist,&nbsp;this&nbsp;function&nbsp;returns&nbsp;NULL.&nbsp;You&nbsp;can&nbsp;recoved&nbsp;the&nbsp;node&nbsp;later&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.getNodeByPath&nbsp;except&nbsp;if&nbsp;the&nbsp;path&nbsp;contains&nbsp;names&nbsp;with&nbsp;'/',&nbsp;''&nbsp;or&nbsp;':'&nbsp;characters.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;for&nbsp;which&nbsp;the&nbsp;path&nbsp;will&nbsp;be&nbsp;returned&nbsp;<br>
+:Returns&nbsp;the&nbsp;path&nbsp;of&nbsp;the&nbsp;node</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_num_child_files"><strong>get_num_child_files</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;child&nbsp;files&nbsp;of&nbsp;a&nbsp;node.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;MEGA&nbsp;or&nbsp;isn't&nbsp;a&nbsp;folder,&nbsp;this&nbsp;function&nbsp;returns&nbsp;0<br>
+This&nbsp;function&nbsp;doesn't&nbsp;search&nbsp;recursively,&nbsp;only&nbsp;returns&nbsp;the&nbsp;direct&nbsp;child&nbsp;files.<br>
+:parent&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;node&nbsp;<br>
+:Returns&nbsp;Number&nbsp;of&nbsp;child&nbsp;files</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_num_child_folders"><strong>get_num_child_folders</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;child&nbsp;folders&nbsp;of&nbsp;a&nbsp;node.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;MEGA&nbsp;or&nbsp;isn't&nbsp;a&nbsp;folder,&nbsp;this&nbsp;function&nbsp;returns&nbsp;0<br>
+This&nbsp;function&nbsp;doesn't&nbsp;search&nbsp;recursively,&nbsp;only&nbsp;returns&nbsp;the&nbsp;direct&nbsp;child&nbsp;folders.<br>
+:param&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;node&nbsp;<br>
+:Returns&nbsp;Number&nbsp;of&nbsp;child&nbsp;folders</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_num_children"><strong>get_num_children</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;child&nbsp;nodes.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;MEGA&nbsp;or&nbsp;isn't&nbsp;a&nbsp;folder,&nbsp;this&nbsp;function&nbsp;returns&nbsp;0<br>
+This&nbsp;function&nbsp;doesn't&nbsp;search&nbsp;recursively,&nbsp;only&nbsp;returns&nbsp;the&nbsp;direct&nbsp;child&nbsp;nodes.<br>
+:param&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;node&nbsp;<br>
+:Returns&nbsp;Number&nbsp;of&nbsp;child&nbsp;nodes</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_num_pending_downloads"><strong>get_num_pending_downloads</strong></a>(self)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;pending&nbsp;downloads.<br>
+:Returns&nbsp;the&nbsp;number&nbsp;of&nbsp;pending&nbsp;downloads.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_num_pending_uploads"><strong>get_num_pending_uploads</strong></a>(self)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;pending&nbsp;uploads.<br>
+:Returns&nbsp;the&nbsp;number&nbsp;of&nbsp;pending&nbsp;uploads.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_out_shares"><strong>get_out_shares</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;a&nbsp;list&nbsp;with&nbsp;the&nbsp;active&nbsp;outbound&nbsp;sharings&nbsp;for&nbsp;a&nbsp;MegaNode.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;the&nbsp;account,&nbsp;this&nbsp;function&nbsp;returns&nbsp;an&nbsp;empty&nbsp;list.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;check<br>
+:Returns&nbsp;List&nbsp;of&nbsp;MegaShare&nbsp;objects</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_outgoing_contact_requests"><strong>get_outgoing_contact_requests</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_parent_node"><strong>get_parent_node</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;parent&nbsp;node&nbsp;of&nbsp;a&nbsp;MegaNode.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;exist&nbsp;in&nbsp;the&nbsp;account&nbsp;or&nbsp;it&nbsp;is&nbsp;a&nbsp;root&nbsp;node,&nbsp;this&nbsp;function&nbsp;returns&nbsp;NULL<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;get&nbsp;the&nbsp;parent<br>
+:Returns&nbsp;the&nbsp;parent&nbsp;of&nbsp;the&nbsp;provided&nbsp;node</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_payment_id"><strong>get_payment_id</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_payment_methods"><strong>get_payment_methods</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_pending_out_shares"><strong>get_pending_out_shares</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_preview"><strong>get_preview</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;preview&nbsp;of&nbsp;a&nbsp;node.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;have&nbsp;a&nbsp;preview&nbsp;the&nbsp;request&nbsp;fails&nbsp;with&nbsp;the&nbsp;MegaError.API_ENOENT&nbsp;error&nbsp;code<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_GET_ATTR_FILE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFile&nbsp;-&nbsp;Returns&nbsp;the&nbsp;destination&nbsp;path<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;<a href="#MegaApi">MegaApi</a>.ATTR_TYPE_PREVIEW<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;get&nbsp;the&nbsp;preview<br>
+:param&nbsp;dstFilePath&nbsp;-&nbsp;Destination&nbsp;path&nbsp;for&nbsp;the&nbsp;preview.&nbsp;If&nbsp;this&nbsp;path&nbsp;is&nbsp;a&nbsp;local&nbsp;folder,&nbsp;it&nbsp;must&nbsp;end&nbsp;with&nbsp;a&nbsp;''&nbsp;or&nbsp;'/'&nbsp;character&nbsp;and&nbsp;(Base64-encoded&nbsp;handle&nbsp;+&nbsp;"1.jpg")&nbsp;will&nbsp;be&nbsp;used&nbsp;as&nbsp;the&nbsp;file&nbsp;name&nbsp;inside&nbsp;that&nbsp;folder.&nbsp;If&nbsp;the&nbsp;path&nbsp;doesn't&nbsp;finish&nbsp;with&nbsp;one&nbsp;of&nbsp;these&nbsp;characters,&nbsp;the&nbsp;file&nbsp;will&nbsp;be&nbsp;downloaded&nbsp;to&nbsp;a&nbsp;file&nbsp;in&nbsp;that&nbsp;path.<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_pricing"><strong>get_pricing</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>Get&nbsp;the&nbsp;available&nbsp;pricing&nbsp;plans&nbsp;to&nbsp;upgrade&nbsp;a&nbsp;MEGA&nbsp;account.<br>
+You&nbsp;can&nbsp;get&nbsp;a&nbsp;payment&nbsp;URL&nbsp;for&nbsp;any&nbsp;of&nbsp;the&nbsp;pricing&nbsp;plans&nbsp;provided&nbsp;by&nbsp;this&nbsp;function&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.getPaymentUrl<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_GET_PRICING<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPricing&nbsp;-&nbsp;MegaPricing&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;all&nbsp;pricing&nbsp;plans<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_public_node"><strong>get_public_node</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;a&nbsp;MegaNode&nbsp;from&nbsp;a&nbsp;public&nbsp;link&nbsp;to&nbsp;a&nbsp;file.<br>
+A&nbsp;public&nbsp;node&nbsp;can&nbsp;be&nbsp;imported&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.copyNode&nbsp;or&nbsp;downloaded&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.startDownload<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_GET_PUBLIC_NODE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getLink&nbsp;-&nbsp;Returns&nbsp;the&nbsp;public&nbsp;link&nbsp;to&nbsp;the&nbsp;file<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPublicMegaNode&nbsp;-&nbsp;Public&nbsp;MegaNode&nbsp;corresponding&nbsp;to&nbsp;the&nbsp;public&nbsp;link<br>
+:param&nbsp;megaFileLink&nbsp;-&nbsp;Public&nbsp;link&nbsp;to&nbsp;a&nbsp;file&nbsp;in&nbsp;MEGA<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_root_node"><strong>get_root_node</strong></a>(self)</dt><dd><tt>Returns&nbsp;the&nbsp;root&nbsp;node&nbsp;of&nbsp;the&nbsp;account.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+If&nbsp;you&nbsp;haven't&nbsp;successfully&nbsp;called&nbsp;<a href="#MegaApi">MegaApi</a>.fetchNodes&nbsp;before,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None<br>
+:Returns&nbsp;Root&nbsp;node&nbsp;of&nbsp;the&nbsp;account</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_rubbish_node"><strong>get_rubbish_node</strong></a>(self)</dt><dd><tt>Returns&nbsp;the&nbsp;rubbish&nbsp;node&nbsp;of&nbsp;the&nbsp;account.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+If&nbsp;you&nbsp;haven't&nbsp;successfully&nbsp;called&nbsp;<a href="#MegaApi">MegaApi</a>.fetchNodes&nbsp;before,&nbsp;this&nbsp;function&nbsp;returns&nbsp;None<br>
+:Returns&nbsp;Rubbish&nbsp;node&nbsp;of&nbsp;the&nbsp;account</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_session_transfer_URL"><strong>get_session_transfer_URL</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_size"><strong>get_size</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;size&nbsp;of&nbsp;a&nbsp;node&nbsp;tree.<br>
+If&nbsp;the&nbsp;MegaNode&nbsp;is&nbsp;a&nbsp;file,&nbsp;this&nbsp;function&nbsp;returns&nbsp;the&nbsp;size&nbsp;of&nbsp;the&nbsp;file.&nbsp;If&nbsp;it's&nbsp;a&nbsp;folder,&nbsp;this&nbsp;fuction&nbsp;returns&nbsp;the&nbsp;sum&nbsp;of&nbsp;the&nbsp;sizes&nbsp;of&nbsp;all&nbsp;nodes&nbsp;in&nbsp;the&nbsp;node&nbsp;tree.<br>
+:param&nbsp;node&nbsp;-&nbsp;Parent&nbsp;node<br>
+:Returns&nbsp;size&nbsp;of&nbsp;the&nbsp;node&nbsp;tree</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_string_hash"><strong>get_string_hash</strong></a>(self, *args)</dt><dd><tt>Generates&nbsp;a&nbsp;hash&nbsp;based&nbsp;in&nbsp;the&nbsp;provided&nbsp;private&nbsp;key&nbsp;and&nbsp;email.<br>
+This&nbsp;is&nbsp;a&nbsp;time&nbsp;consuming&nbsp;operation&nbsp;(specially&nbsp;for&nbsp;low-end&nbsp;mobile&nbsp;devices).&nbsp;Since&nbsp;the&nbsp;resulting&nbsp;key&nbsp;is&nbsp;required&nbsp;to&nbsp;log&nbsp;in,&nbsp;this&nbsp;function&nbsp;allows&nbsp;to&nbsp;do&nbsp;this&nbsp;step&nbsp;in&nbsp;a&nbsp;separate&nbsp;function.&nbsp;You&nbsp;should&nbsp;run&nbsp;this&nbsp;function&nbsp;in&nbsp;a&nbsp;background&nbsp;thread,&nbsp;to&nbsp;prevent&nbsp;UI&nbsp;hangs.&nbsp;The&nbsp;resulting&nbsp;key&nbsp;can&nbsp;be&nbsp;used&nbsp;in&nbsp;<a href="#MegaApi">MegaApi</a>.fastLogin<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:param&nbsp;base64pwkey-&nbsp;Private&nbsp;key&nbsp;returned&nbsp;by&nbsp;<a href="#MegaApi">MegaApi</a>.getBase64PwKey<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:param&nbsp;email&nbsp;-&nbsp;Email&nbsp;to&nbsp;create&nbsp;the&nbsp;hash&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:Returns&nbsp;-&nbsp;Base64-encoded&nbsp;hash</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_thumbnail"><strong>get_thumbnail</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;thumbnail&nbsp;of&nbsp;a&nbsp;node.<br>
+If&nbsp;the&nbsp;node&nbsp;doesn't&nbsp;have&nbsp;a&nbsp;thumbnail&nbsp;the&nbsp;request&nbsp;fails&nbsp;with&nbsp;the&nbsp;MegaError.API_ENOENT&nbsp;error&nbsp;code<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_GET_ATTR_FILE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFile&nbsp;-&nbsp;Returns&nbsp;the&nbsp;destination&nbsp;path<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;<a href="#MegaApi">MegaApi</a>.ATTR_TYPE_THUMBNAIL<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;get&nbsp;the&nbsp;thumbnail<br>
+:param&nbsp;dstFilePath&nbsp;-&nbsp;Destination&nbsp;path&nbsp;for&nbsp;the&nbsp;thumbnail.&nbsp;If&nbsp;this&nbsp;path&nbsp;is&nbsp;a&nbsp;local&nbsp;folder,&nbsp;it&nbsp;must&nbsp;end&nbsp;with&nbsp;a&nbsp;''&nbsp;or&nbsp;'/'&nbsp;character&nbsp;and&nbsp;(Base64-encoded&nbsp;handle&nbsp;+&nbsp;"0.jpg")&nbsp;will&nbsp;be&nbsp;used&nbsp;as&nbsp;the&nbsp;file&nbsp;name&nbsp;inside&nbsp;that&nbsp;folder.&nbsp;If&nbsp;the&nbsp;path&nbsp;doesn't&nbsp;finish&nbsp;with&nbsp;one&nbsp;of&nbsp;these&nbsp;characters,&nbsp;the&nbsp;file&nbsp;will&nbsp;be&nbsp;downloaded&nbsp;to&nbsp;a&nbsp;file&nbsp;in&nbsp;that&nbsp;path.<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_total_downloaded_bytes"><strong>get_total_downloaded_bytes</strong></a>(self)</dt><dd><tt>Get&nbsp;the&nbsp;total&nbsp;downloaded&nbsp;bytes&nbsp;since&nbsp;the&nbsp;creation&nbsp;of&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a>.<br>
+:Returns&nbsp;total&nbsp;downloaded&nbsp;bytes&nbsp;since&nbsp;the&nbsp;creation&nbsp;of&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a></tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_total_downloads"><strong>get_total_downloads</strong></a>(self)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;queued&nbsp;uploads&nbsp;since&nbsp;the&nbsp;last&nbsp;call&nbsp;to&nbsp;<a href="#MegaApi">MegaApi</a>.resetTotalDownloads.<br>
+:Returns&nbsp;number&nbsp;of&nbsp;queued&nbsp;uploads&nbsp;since&nbsp;the&nbsp;last&nbsp;call&nbsp;to&nbsp;<a href="#MegaApi">MegaApi</a>.resetTotalDownloads</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_total_uploads"><strong>get_total_uploads</strong></a>(self)</dt><dd><tt>Get&nbsp;the&nbsp;number&nbsp;of&nbsp;queued&nbsp;uploads&nbsp;since&nbsp;the&nbsp;last&nbsp;call&nbsp;to&nbsp;<a href="#MegaApi">MegaApi</a>.resetTotalUploads.<br>
+:Returns&nbsp;number&nbsp;of&nbsp;queued&nbsp;uploads&nbsp;since&nbsp;the&nbsp;last&nbsp;call&nbsp;to&nbsp;<a href="#MegaApi">MegaApi</a>.resetTotalUploads</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_transfer_by_tag"><strong>get_transfer_by_tag</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_transfers"><strong>get_transfers</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;all&nbsp;active&nbsp;transfers.<br>
+You&nbsp;take&nbsp;the&nbsp;ownership&nbsp;of&nbsp;the&nbsp;returned&nbsp;value<br>
+:Returns&nbsp;list&nbsp;with&nbsp;all&nbsp;active&nbsp;transfers</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_upload_method"><strong>get_upload_method</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_user_agent"><strong>get_user_agent</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_user_attribute"><strong>get_user_attribute</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_user_avatar"><strong>get_user_avatar</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;the&nbsp;avatar&nbsp;of&nbsp;a&nbsp;MegaUser.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_GET_ATTR_USER&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFile&nbsp;-&nbsp;Returns&nbsp;the&nbsp;destination&nbsp;path<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;user&nbsp;-&nbsp;MegaUser&nbsp;to&nbsp;get&nbsp;the&nbsp;avatar<br>
+:param&nbsp;dstFilePath&nbsp;-&nbsp;Destination&nbsp;path&nbsp;for&nbsp;the&nbsp;avatar.&nbsp;It&nbsp;has&nbsp;to&nbsp;be&nbsp;a&nbsp;path&nbsp;to&nbsp;a&nbsp;file,&nbsp;not&nbsp;to&nbsp;a&nbsp;folder.&nbsp;If&nbsp;this&nbsp;path&nbsp;is&nbsp;a&nbsp;local&nbsp;folder,&nbsp;it&nbsp;must&nbsp;end&nbsp;with&nbsp;a&nbsp;''&nbsp;or&nbsp;'/'&nbsp;character&nbsp;and&nbsp;(email&nbsp;+&nbsp;"0.jpg")&nbsp;will&nbsp;be&nbsp;used&nbsp;as&nbsp;the&nbsp;file&nbsp;name&nbsp;inside&nbsp;that&nbsp;folder.&nbsp;If&nbsp;the&nbsp;path&nbsp;doesn't&nbsp;finish&nbsp;with&nbsp;one&nbsp;of&nbsp;these&nbsp;characters,&nbsp;the&nbsp;file&nbsp;will&nbsp;be&nbsp;downloaded&nbsp;to&nbsp;a&nbsp;file&nbsp;in&nbsp;that&nbsp;path.<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_user_data"><strong>get_user_data</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-get_version"><strong>get_version</strong></a>(self)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-has_fingerprint"><strong>has_fingerprint</strong></a>(self, *args)</dt><dd><tt>Check&nbsp;if&nbsp;the&nbsp;account&nbsp;already&nbsp;has&nbsp;a&nbsp;node&nbsp;with&nbsp;the&nbsp;provided&nbsp;fingerprint.<br>
+A&nbsp;fingerprint&nbsp;for&nbsp;a&nbsp;local&nbsp;file&nbsp;can&nbsp;be&nbsp;generated&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.getFingerprint<br>
+:param&nbsp;fingerprint&nbsp;-&nbsp;Fingerprint&nbsp;to&nbsp;check&nbsp;<br>
+:Returns&nbsp;True&nbsp;if&nbsp;the&nbsp;account&nbsp;contains&nbsp;a&nbsp;node&nbsp;with&nbsp;the&nbsp;same&nbsp;fingerprint</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-import_file_link"><strong>import_file_link</strong></a>(self, *args)</dt><dd><tt>Import&nbsp;a&nbsp;public&nbsp;link&nbsp;to&nbsp;the&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_IMPORT_LINK&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getLink&nbsp;-&nbsp;Returns&nbsp;the&nbsp;public&nbsp;link&nbsp;to&nbsp;the&nbsp;file<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParentHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;folder&nbsp;that&nbsp;receives&nbsp;the&nbsp;imported&nbsp;file<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Handle&nbsp;of&nbsp;the&nbsp;new&nbsp;node&nbsp;in&nbsp;the&nbsp;account<br>
+:param&nbsp;megaFileLink&nbsp;-&nbsp;Public&nbsp;link&nbsp;to&nbsp;a&nbsp;file&nbsp;in&nbsp;MEGA<br>
+:param&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;folder&nbsp;for&nbsp;the&nbsp;imported&nbsp;file<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-invite_contact"><strong>invite_contact</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-is_logged_in"><strong>is_logged_in</strong></a>(self)</dt><dd><tt>Check&nbsp;if&nbsp;the&nbsp;<a href="#MegaApi">MegaApi</a>&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;is&nbsp;logged&nbsp;in.<br>
+:Returns&nbsp;0&nbsp;if&nbsp;not&nbsp;logged&nbsp;in,&nbsp;else&nbsp;a&nbsp;number&nbsp;&gt;=&nbsp;0</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-is_shared"><strong>is_shared</strong></a>(self, *args)</dt><dd><tt>Check&nbsp;if&nbsp;a&nbsp;MegaNode&nbsp;is&nbsp;being&nbsp;shared.<br>
+For&nbsp;nodes&nbsp;that&nbsp;are&nbsp;being&nbsp;shared,&nbsp;you&nbsp;can&nbsp;get&nbsp;a&nbsp;a&nbsp;list&nbsp;of&nbsp;MegaShare&nbsp;objects&nbsp;using&nbsp;<a href="#MegaApi">MegaApi</a>.getOutShares<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;check&nbsp;<br>
+:Returns&nbsp;True&nbsp;if&nbsp;the&nbsp;MegaNode&nbsp;is&nbsp;being&nbsp;shared,&nbsp;otherwise&nbsp;false</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-is_waiting"><strong>is_waiting</strong></a>(self)</dt><dd><tt>Check&nbsp;if&nbsp;the&nbsp;SDK&nbsp;is&nbsp;waiting&nbsp;for&nbsp;the&nbsp;server.<br>
+:Returns&nbsp;true&nbsp;if&nbsp;the&nbsp;SDK&nbsp;is&nbsp;waiting&nbsp;for&nbsp;the&nbsp;server&nbsp;to&nbsp;complete&nbsp;a&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-kill_session"><strong>kill_session</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-local_logout"><strong>local_logout</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-login"><strong>login</strong></a>(self, *args)</dt><dd><tt>Log&nbsp;in&nbsp;to&nbsp;a&nbsp;MEGA&nbsp;account.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_LOGIN.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;first&nbsp;parameter<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getPassword&nbsp;-&nbsp;Returns&nbsp;the&nbsp;second&nbsp;parameter<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;the&nbsp;email/password&nbsp;aren't&nbsp;valid&nbsp;the&nbsp;error&nbsp;code&nbsp;provided&nbsp;in&nbsp;onRequestFinish&nbsp;is&nbsp;MegaError.API_ENOENT.<br>
+:param&nbsp;email&nbsp;-Email&nbsp;of&nbsp;the&nbsp;user<br>
+:param&nbsp;password&nbsp;-&nbsp;Password&nbsp;&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-login_to_folder"><strong>login_to_folder</strong></a>(self, *args)</dt><dd><tt>Log&nbsp;in&nbsp;to&nbsp;a&nbsp;public&nbsp;folder&nbsp;using&nbsp;a&nbsp;folder&nbsp;link.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;After&nbsp;a&nbsp;successful&nbsp;login,&nbsp;you&nbsp;should&nbsp;call&nbsp;<a href="#MegaApi">MegaApi</a>.fetchNodes&nbsp;to&nbsp;get&nbsp;filesystem&nbsp;and&nbsp;start&nbsp;working&nbsp;with&nbsp;the&nbsp;folder.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_LOGIN.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Retuns&nbsp;the&nbsp;string&nbsp;"FOLDER"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getLink&nbsp;-&nbsp;Returns&nbsp;the&nbsp;public&nbsp;link&nbsp;to&nbsp;the&nbsp;folder<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:param&nbsp;megaFolderLink&nbsp;-&nbsp;Public&nbsp;link&nbsp;to&nbsp;a&nbsp;folder&nbsp;in&nbsp;MEGA<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-logout"><strong>logout</strong></a>(self, listener<font color="#909090">=None</font>)</dt><dd><tt>Logout&nbsp;of&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_LOGOUT&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-move_node"><strong>move_node</strong></a>(self, *args)</dt><dd><tt>Move&nbsp;a&nbsp;node&nbsp;in&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_MOVE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node&nbsp;to&nbsp;move<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParentHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;new&nbsp;parent&nbsp;for&nbsp;the&nbsp;node<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;move<br>
+:param&nbsp;newParent&nbsp;-&nbsp;New&nbsp;parent&nbsp;for&nbsp;the&nbsp;node<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-pause_transfers"><strong>pause_transfers</strong></a>(self, *args)</dt><dd><tt>Pause/resume&nbsp;all&nbsp;transfers.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_PAUSE_TRANSFERS&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFlag&nbsp;-&nbsp;Returns&nbsp;the&nbsp;first&nbsp;parameter<br>
+:param&nbsp;pause&nbsp;-&nbsp;True&nbsp;to&nbsp;pause&nbsp;all&nbsp;transfers&nbsp;or&nbsp;False&nbsp;to&nbsp;resume&nbsp;all&nbsp;transfers<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-process_mega_tree"><strong>process_mega_tree</strong></a>(self, *args)</dt><dd><tt>Process&nbsp;a&nbsp;node&nbsp;tree&nbsp;using&nbsp;a&nbsp;MegaTreeProcessor&nbsp;implementation.&nbsp;<br>
+:param&nbsp;node&nbsp;-&nbsp;The&nbsp;parent&nbsp;node&nbsp;of&nbsp;the&nbsp;tree&nbsp;to&nbsp;explore<br>
+:param&nbsp;processor&nbsp;-&nbsp;MegaTreeProcessor&nbsp;that&nbsp;will&nbsp;receive&nbsp;callbacks&nbsp;for&nbsp;every&nbsp;node&nbsp;in&nbsp;the&nbsp;tree<br>
+:param&nbsp;recursive&nbsp;-&nbsp;True&nbsp;if&nbsp;you&nbsp;want&nbsp;to&nbsp;recursively&nbsp;process&nbsp;the&nbsp;whole&nbsp;node&nbsp;tree.&nbsp;False&nbsp;if&nbsp;you&nbsp;want&nbsp;to&nbsp;process&nbsp;the&nbsp;children&nbsp;of&nbsp;the&nbsp;node&nbsp;only<br>
+:Returns&nbsp;True&nbsp;&nbsp;if&nbsp;all&nbsp;nodes&nbsp;were&nbsp;processed.&nbsp;False&nbsp;otherwise&nbsp;(the&nbsp;operation&nbsp;can&nbsp;be&nbsp;cancelled&nbsp;by&nbsp;MegaTreeProcessor.processMegaNode())</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-query_signup_link"><strong>query_signup_link</strong></a>(self, *args)</dt><dd><tt>Get&nbsp;information&nbsp;about&nbsp;a&nbsp;confirmation&nbsp;link.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_QUERY_SIGNUP_LINK.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;all&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getLink&nbsp;-&nbsp;Returns&nbsp;the&nbsp;confirmation&nbsp;link<br>
+Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;in&nbsp;onRequestFinish&nbsp;when&nbsp;the&nbsp;error&nbsp;code&nbsp;is&nbsp;MegaError.API_OK:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Return&nbsp;the&nbsp;email&nbsp;associated&nbsp;with&nbsp;the&nbsp;confirmation&nbsp;link<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Returns&nbsp;the&nbsp;name&nbsp;associated&nbsp;with&nbsp;the&nbsp;confirmation&nbsp;link<br>
+:param&nbsp;link&nbsp;-&nbsp;Confirmation&nbsp;link<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-remove"><strong>remove</strong></a>(self, *args)</dt><dd><tt>Remove&nbsp;a&nbsp;node&nbsp;from&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+This&nbsp;function&nbsp;doesn't&nbsp;move&nbsp;the&nbsp;node&nbsp;to&nbsp;the&nbsp;Rubbish&nbsp;Bin,&nbsp;it&nbsp;fully&nbsp;removes&nbsp;the&nbsp;node.&nbsp;To&nbsp;move&nbsp;the&nbsp;node&nbsp;to&nbsp;the&nbsp;Rubbish&nbsp;Bin&nbsp;use&nbsp;<a href="#MegaApi">MegaApi</a>.moveNode<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_REMOVE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node&nbsp;to&nbsp;remove<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;remove<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-remove_contact"><strong>remove_contact</strong></a>(self, *args)</dt><dd><tt>Remove&nbsp;a&nbsp;contact&nbsp;to&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_REMOVE_CONTACT&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;of&nbsp;the&nbsp;contact<br>
+:param&nbsp;user&nbsp;-&nbsp;&nbsp;&nbsp;MegaUser&nbsp;of&nbsp;the&nbsp;contact&nbsp;(see&nbsp;<a href="#MegaApi">MegaApi</a>.getContact)&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-remove_global_listener"><strong>remove_global_listener</strong></a>(self, *args)</dt><dd><tt>Unregister&nbsp;a&nbsp;MegaGlobalListener.<br>
+This&nbsp;listener&nbsp;won't&nbsp;receive&nbsp;more&nbsp;events.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-remove_listener"><strong>remove_listener</strong></a>(self, *args)</dt><dd><tt>Unregister&nbsp;a&nbsp;listener.&nbsp;<br>
+This&nbsp;listener&nbsp;won't&nbsp;receive&nbsp;more&nbsp;events.<br>
+:param&nbsp;listener&nbsp;-&nbsp;Object&nbsp;that&nbsp;is&nbsp;unregistered</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-remove_request_listener"><strong>remove_request_listener</strong></a>(self, *args)</dt><dd><tt>Unregister&nbsp;a&nbsp;MegaRequest&nbsp;listener.<br>
+This&nbsp;listener&nbsp;won't&nbsp;receive&nbsp;any&nbsp;more&nbsp;requests.<br>
+:param&nbsp;listener&nbsp;-&nbsp;Object&nbsp;that&nbsp;is&nbsp;unregistered.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-remove_transfer_listener"><strong>remove_transfer_listener</strong></a>(self, *args)</dt><dd><tt>Unregister&nbsp;a&nbsp;MegaTransferListener.&nbsp;<br>
+This&nbsp;listener&nbsp;won't&nbsp;receive&nbsp;more&nbsp;events.<br>
+:param&nbsp;listener&nbsp;-&nbsp;Object&nbsp;that&nbsp;is&nbsp;unregistered</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-rename_node"><strong>rename_node</strong></a>(self, *args)</dt><dd><tt>Rename&nbsp;a&nbsp;node&nbsp;in&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_RENAME&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node&nbsp;to&nbsp;rename<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getName&nbsp;-&nbsp;Returns&nbsp;the&nbsp;new&nbsp;name&nbsp;for&nbsp;the&nbsp;node<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;modify<br>
+:param&nbsp;newName&nbsp;-&nbsp;New&nbsp;name&nbsp;for&nbsp;the&nbsp;node<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-reply_contact_request"><strong>reply_contact_request</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-report_debug_event"><strong>report_debug_event</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-reset_total_downloads"><strong>reset_total_downloads</strong></a>(self)</dt><dd><tt>Reset&nbsp;the&nbsp;number&nbsp;of&nbsp;total&nbsp;downloads&nbsp;This&nbsp;function&nbsp;resets&nbsp;the&nbsp;number&nbsp;returned&nbsp;by&nbsp;<a href="#MegaApi">MegaApi</a>.getTotalDownloads.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-reset_total_uploads"><strong>reset_total_uploads</strong></a>(self)</dt><dd><tt>Reset&nbsp;the&nbsp;number&nbsp;of&nbsp;total&nbsp;uploads&nbsp;This&nbsp;function&nbsp;resets&nbsp;the&nbsp;number&nbsp;returned&nbsp;by&nbsp;<a href="#MegaApi">MegaApi</a>.getTotalUploads.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-retry_pending_connections"><strong>retry_pending_connections</strong></a>(self, disconnect<font color="#909090">=False</font>, includexfers<font color="#909090">=False</font>, listener<font color="#909090">=None</font>)</dt><dd><tt>Retry&nbsp;all&nbsp;pending&nbsp;requests.<br>
+When&nbsp;requests&nbsp;fails&nbsp;they&nbsp;wait&nbsp;some&nbsp;time&nbsp;before&nbsp;being&nbsp;retried.&nbsp;That&nbsp;delay&nbsp;grows&nbsp;exponentially&nbsp;if&nbsp;the&nbsp;request&nbsp;fails&nbsp;again.&nbsp;For&nbsp;this&nbsp;reason,&nbsp;and&nbsp;since&nbsp;this&nbsp;request&nbsp;is&nbsp;very&nbsp;lightweight,&nbsp;it's&nbsp;recommended&nbsp;to&nbsp;call&nbsp;it&nbsp;with&nbsp;the&nbsp;default&nbsp;parameters&nbsp;on&nbsp;every&nbsp;user&nbsp;interaction&nbsp;with&nbsp;the&nbsp;application.&nbsp;This&nbsp;will&nbsp;prevent&nbsp;very&nbsp;big&nbsp;delays&nbsp;completing&nbsp;requests.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_RETRY_PENDING_CONNECTIONS.&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+MegaRequest.getFlag&nbsp;-&nbsp;Returns&nbsp;the&nbsp;first&nbsp;parameter<br>
+MegaRequest.getNumber&nbsp;-&nbsp;Returns&nbsp;the&nbsp;second&nbsp;parameter<br>
+:param&nbsp;disconnect&nbsp;-true&nbsp;if&nbsp;you&nbsp;want&nbsp;to&nbsp;disconnect&nbsp;already&nbsp;connected&nbsp;requests&nbsp;It's&nbsp;not&nbsp;recommended&nbsp;to&nbsp;set&nbsp;this&nbsp;flag&nbsp;to&nbsp;true&nbsp;if&nbsp;you&nbsp;are&nbsp;not&nbsp;fully&nbsp;sure&nbsp;about&nbsp;what&nbsp;are&nbsp;you&nbsp;doing.&nbsp;If&nbsp;you&nbsp;send&nbsp;a&nbsp;request&nbsp;that&nbsp;needs&nbsp;some&nbsp;time&nbsp;to&nbsp;complete&nbsp;and&nbsp;you&nbsp;disconnect&nbsp;it&nbsp;in&nbsp;a&nbsp;loop&nbsp;without&nbsp;giving&nbsp;it&nbsp;enough&nbsp;time,&nbsp;it&nbsp;could&nbsp;be&nbsp;retrying&nbsp;forever.<br>
+:param&nbsp;includexfers&nbsp;-&nbsp;true&nbsp;to&nbsp;retry&nbsp;also&nbsp;transfers&nbsp;It's&nbsp;not&nbsp;recommended&nbsp;to&nbsp;set&nbsp;this&nbsp;flag.&nbsp;Transfer&nbsp;has&nbsp;a&nbsp;retry&nbsp;counter&nbsp;and&nbsp;are&nbsp;aborted&nbsp;after&nbsp;a&nbsp;number&nbsp;of&nbsp;retries&nbsp;MegaTransfer.getMaxRetries.&nbsp;Setting&nbsp;this&nbsp;flag&nbsp;to&nbsp;true,&nbsp;you&nbsp;will&nbsp;force&nbsp;more&nbsp;immediate&nbsp;retries&nbsp;and&nbsp;your&nbsp;transfers&nbsp;could&nbsp;fail&nbsp;faster.<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-search"><strong>search</strong></a>(self, *args)</dt><dd><tt>Search&nbsp;nodes&nbsp;containing&nbsp;a&nbsp;search&nbsp;string&nbsp;in&nbsp;their&nbsp;name.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;search&nbsp;is&nbsp;case-insensitive.<br>
+:param&nbsp;node&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;parent&nbsp;node&nbsp;of&nbsp;the&nbsp;tree&nbsp;to&nbsp;explore<br>
+:param&nbsp;searchString&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Search&nbsp;string.&nbsp;The&nbsp;search&nbsp;is&nbsp;case-insensitive<br>
+:param&nbsp;recursive&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;True&nbsp;if&nbsp;you&nbsp;want&nbsp;to&nbsp;seach&nbsp;recursively&nbsp;in&nbsp;the&nbsp;node&nbsp;tree.&nbsp;False&nbsp;if&nbsp;you&nbsp;want&nbsp;to&nbsp;seach&nbsp;in&nbsp;the&nbsp;children&nbsp;of&nbsp;the&nbsp;node&nbsp;only<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:Returns&nbsp;list&nbsp;of&nbsp;nodes&nbsp;that&nbsp;contain&nbsp;the&nbsp;desired&nbsp;string&nbsp;in&nbsp;their&nbsp;name</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-send_file_to_user"><strong>send_file_to_user</strong></a>(self, *args)</dt><dd><tt>Send&nbsp;a&nbsp;node&nbsp;to&nbsp;the&nbsp;Inbox&nbsp;of&nbsp;another&nbsp;MEGA&nbsp;user&nbsp;using&nbsp;a&nbsp;MegaUser.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_COPY&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node&nbsp;to&nbsp;send<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;of&nbsp;the&nbsp;user&nbsp;that&nbsp;receives&nbsp;the&nbsp;node<br>
+:param&nbsp;node&nbsp;-&nbsp;Node&nbsp;to&nbsp;send<br>
+:param&nbsp;user&nbsp;-&nbsp;User&nbsp;that&nbsp;receives&nbsp;the&nbsp;node<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_avatar"><strong>set_avatar</strong></a>(self, *args)</dt><dd><tt>Set&nbsp;the&nbsp;avatar&nbsp;of&nbsp;the&nbsp;MEGA&nbsp;account.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_SET_ATTR_USER&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFile&nbsp;-&nbsp;Returns&nbsp;the&nbsp;source&nbsp;path<br>
+:param&nbsp;srcFilePath&nbsp;-&nbsp;Source&nbsp;path&nbsp;of&nbsp;the&nbsp;file&nbsp;that&nbsp;will&nbsp;be&nbsp;set&nbsp;as&nbsp;avatar&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_download_method"><strong>set_download_method</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_preview"><strong>set_preview</strong></a>(self, *args)</dt><dd><tt>Set&nbsp;the&nbsp;preview&nbsp;of&nbsp;a&nbsp;MegaNode.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_SET_ATTR_FILE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFile&nbsp;-&nbsp;Returns&nbsp;the&nbsp;source&nbsp;path<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;<a href="#MegaApi">MegaApi</a>.ATTR_TYPE_PREVIEW<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;set&nbsp;the&nbsp;preview<br>
+:param&nbsp;srcFilePath&nbsp;-&nbsp;Source&nbsp;path&nbsp;of&nbsp;the&nbsp;file&nbsp;that&nbsp;will&nbsp;be&nbsp;set&nbsp;as&nbsp;preview&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_proxy_settings"><strong>set_proxy_settings</strong></a>(self, *args)</dt><dd><tt>Set&nbsp;proxy&nbsp;settings.<br>
+The&nbsp;SDK&nbsp;will&nbsp;start&nbsp;using&nbsp;the&nbsp;provided&nbsp;proxy&nbsp;settings&nbsp;as&nbsp;soon&nbsp;as&nbsp;this&nbsp;function&nbsp;returns.<br>
+:param&nbsp;proxySettings&nbsp;-&nbsp;Proxy&nbsp;settings</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_thumbnail"><strong>set_thumbnail</strong></a>(self, *args)</dt><dd><tt>Set&nbsp;the&nbsp;thumbnail&nbsp;of&nbsp;a&nbsp;MegaNode.<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_SET_ATTR_FILE&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;node<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getFile&nbsp;-&nbsp;Returns&nbsp;the&nbsp;source&nbsp;path<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getParamType&nbsp;-&nbsp;Returns&nbsp;<a href="#MegaApi">MegaApi</a>.ATTR_TYPE_THUMBNAIL<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;to&nbsp;set&nbsp;the&nbsp;thumbnail<br>
+:param&nbsp;srcFilePath&nbsp;-&nbsp;Source&nbsp;path&nbsp;of&nbsp;the&nbsp;file&nbsp;that&nbsp;will&nbsp;be&nbsp;set&nbsp;as&nbsp;thumbnail&nbsp;<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_upload_limit"><strong>set_upload_limit</strong></a>(self, *args)</dt><dd><tt>Set&nbsp;the&nbsp;upload&nbsp;speed&nbsp;limit.<br>
+The&nbsp;limit&nbsp;will&nbsp;be&nbsp;applied&nbsp;on&nbsp;the&nbsp;server&nbsp;side&nbsp;when&nbsp;starting&nbsp;a&nbsp;transfer.&nbsp;Thus&nbsp;the&nbsp;limit&nbsp;won't&nbsp;be&nbsp;applied&nbsp;for&nbsp;already&nbsp;started&nbsp;uploads&nbsp;and&nbsp;it's&nbsp;applied&nbsp;per&nbsp;storage&nbsp;server.<br>
+:param&nbsp;bpslimit&nbsp;-&nbsp;-1&nbsp;to&nbsp;automatically&nbsp;select&nbsp;the&nbsp;limit,&nbsp;0&nbsp;for&nbsp;no&nbsp;limit,&nbsp;otherwise&nbsp;the&nbsp;speed&nbsp;limit&nbsp;in&nbsp;bytes&nbsp;per&nbsp;second</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_upload_method"><strong>set_upload_method</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-set_user_attribute"><strong>set_user_attribute</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-share"><strong>share</strong></a>(self, *args)</dt><dd><tt>Share&nbsp;or&nbsp;stop&nbsp;sharing&nbsp;a&nbsp;folder&nbsp;in&nbsp;MEGA&nbsp;with&nbsp;another&nbsp;user&nbsp;using&nbsp;a&nbsp;MegaUser.<br>
+To&nbsp;share&nbsp;a&nbsp;folder&nbsp;with&nbsp;an&nbsp;user,&nbsp;set&nbsp;the&nbsp;desired&nbsp;access&nbsp;level&nbsp;in&nbsp;the&nbsp;level&nbsp;parameter.&nbsp;If&nbsp;you&nbsp;want&nbsp;to&nbsp;stop&nbsp;sharing&nbsp;a&nbsp;folder&nbsp;use&nbsp;the&nbsp;access&nbsp;level&nbsp;MegaShare.ACCESS_UNKNOWN<br>
+The&nbsp;associated&nbsp;request&nbsp;type&nbsp;with&nbsp;this&nbsp;request&nbsp;is&nbsp;MegaRequest.TYPE_COPY&nbsp;Valid&nbsp;data&nbsp;in&nbsp;the&nbsp;MegaRequest&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;received&nbsp;on&nbsp;callbacks:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getNodeHandle&nbsp;-&nbsp;Returns&nbsp;the&nbsp;handle&nbsp;of&nbsp;the&nbsp;folder&nbsp;to&nbsp;share<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getEmail&nbsp;-&nbsp;Returns&nbsp;the&nbsp;email&nbsp;of&nbsp;the&nbsp;user&nbsp;that&nbsp;receives&nbsp;the&nbsp;shared&nbsp;folder<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaRequest.getAccess&nbsp;-&nbsp;Returns&nbsp;the&nbsp;access&nbsp;that&nbsp;is&nbsp;granted&nbsp;to&nbsp;the&nbsp;user<br>
+:param&nbsp;node&nbsp;-&nbsp;The&nbsp;folder&nbsp;to&nbsp;share.&nbsp;It&nbsp;must&nbsp;be&nbsp;a&nbsp;non-root&nbsp;folder<br>
+:param&nbsp;user&nbsp;-&nbsp;User&nbsp;that&nbsp;receives&nbsp;the&nbsp;shared&nbsp;folder<br>
+:param&nbsp;level&nbsp;-&nbsp;Permissions&nbsp;that&nbsp;are&nbsp;granted&nbsp;to&nbsp;the&nbsp;user&nbsp;Valid&nbsp;values&nbsp;for&nbsp;this&nbsp;parameter:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_UNKNOWN&nbsp;=&nbsp;-1&nbsp;Stop&nbsp;sharing&nbsp;a&nbsp;folder&nbsp;with&nbsp;this&nbsp;user<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_READ&nbsp;=&nbsp;0<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_READWRITE&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_FULL&nbsp;=&nbsp;2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;MegaShare.ACCESS_OWNER&nbsp;=&nbsp;3<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaRequestListener&nbsp;to&nbsp;track&nbsp;this&nbsp;request</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-start_download"><strong>start_download</strong></a>(self, *args)</dt><dd><tt>Download&nbsp;a&nbsp;file&nbsp;from&nbsp;MEGA.<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;that&nbsp;identifies&nbsp;the&nbsp;file&nbsp;<br>
+:param&nbsp;localPath&nbsp;-&nbsp;Destination&nbsp;path&nbsp;for&nbsp;the&nbsp;file&nbsp;If&nbsp;this&nbsp;path&nbsp;is&nbsp;a&nbsp;local&nbsp;folder,&nbsp;it&nbsp;must&nbsp;end&nbsp;with&nbsp;a&nbsp;''&nbsp;or&nbsp;'/'&nbsp;character&nbsp;and&nbsp;the&nbsp;file&nbsp;name&nbsp;in&nbsp;MEGA&nbsp;will&nbsp;be&nbsp;used&nbsp;to&nbsp;store&nbsp;a&nbsp;file&nbsp;inside&nbsp;that&nbsp;folder.&nbsp;If&nbsp;the&nbsp;path&nbsp;doesn't&nbsp;finish&nbsp;with&nbsp;one&nbsp;of&nbsp;these&nbsp;characters,&nbsp;the&nbsp;file&nbsp;will&nbsp;be&nbsp;downloaded&nbsp;to&nbsp;a&nbsp;file&nbsp;in&nbsp;that&nbsp;path.<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaTransferListener&nbsp;to&nbsp;track&nbsp;this&nbsp;transfer</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-start_streaming"><strong>start_streaming</strong></a>(self, *args)</dt><dd><tt>Start&nbsp;an&nbsp;streaming&nbsp;download.&nbsp;<br>
+Streaming&nbsp;downloads&nbsp;don't&nbsp;save&nbsp;the&nbsp;downloaded&nbsp;data&nbsp;into&nbsp;a&nbsp;local&nbsp;file.&nbsp;It&nbsp;is&nbsp;provided&nbsp;in&nbsp;MegaTransferListener.onTransferUpdate&nbsp;in&nbsp;a&nbsp;byte&nbsp;buffer.&nbsp;<br>
+Only&nbsp;the&nbsp;MegaTransferListener&nbsp;passed&nbsp;to&nbsp;this&nbsp;function&nbsp;will&nbsp;receive&nbsp;MegaTransferListener.onTransferData&nbsp;callbacks.&nbsp;MegaTransferListener&nbsp;objects&nbsp;registered&nbsp;with&nbsp;<a href="#MegaApi">MegaApi</a>.addTransferListener&nbsp;won't&nbsp;receive&nbsp;them&nbsp;for&nbsp;performance&nbsp;reasons<br>
+:param&nbsp;node&nbsp;-&nbsp;MegaNode&nbsp;that&nbsp;identifies&nbsp;the&nbsp;file&nbsp;(public&nbsp;nodes&nbsp;aren't&nbsp;supported&nbsp;yet)<br>
+:param&nbsp;startPos&nbsp;-&nbsp;First&nbsp;byte&nbsp;to&nbsp;download&nbsp;from&nbsp;the&nbsp;file<br>
+:param&nbsp;size&nbsp;-&nbsp;Size&nbsp;of&nbsp;the&nbsp;data&nbsp;to&nbsp;download<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaTransferListener&nbsp;to&nbsp;track&nbsp;this&nbsp;transfer</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-start_upload"><strong>start_upload</strong></a>(self, *args)</dt><dd><tt>Upload&nbsp;a&nbsp;file.&nbsp;<br>
+:param&nbsp;localPath&nbsp;-&nbsp;Local&nbsp;path&nbsp;of&nbsp;the&nbsp;file&nbsp;<br>
+:param&nbsp;parent&nbsp;-&nbsp;Parent&nbsp;node&nbsp;for&nbsp;the&nbsp;file&nbsp;in&nbsp;the&nbsp;MEGA&nbsp;account<br>
+:param&nbsp;listener&nbsp;-&nbsp;MegaTransferListener&nbsp;to&nbsp;track&nbsp;this&nbsp;transfer</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-submit_feedback"><strong>submit_feedback</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-submit_purchase_receipt"><strong>submit_purchase_receipt</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-unescape_fs_incompatible"><strong>unescape_fs_incompatible</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-update"><strong>update</strong></a>(self)</dt><dd><tt>Force&nbsp;a&nbsp;loop&nbsp;of&nbsp;the&nbsp;SDK&nbsp;thread.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-updateStats"><strong>updateStats</strong></a>(self)</dt><dd><tt>Force&nbsp;a&nbsp;loop&nbsp;of&nbsp;the&nbsp;SDK&nbsp;thread.</tt></dd></dl>
+
+<dl><dt><a name="MegaApi-upgrade_account"><strong>upgrade_account</strong></a>(self, *args)</dt><dd><tt>need&nbsp;clarification</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table></td></tr></table>
+</body></html>
