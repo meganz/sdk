@@ -7956,4 +7956,23 @@ void MegaClient::reportevent(const char* event, const char* details)
     reqs[r].add(new CommandReportEvent(this, event, details));
 }
 
+void MegaClient::userfeedbackstore(const char *message)
+{
+    string type = "feedback.";
+    type.append(&(appkey[4]));
+    type.append(".");
+
+    string base64userAgent;
+    base64userAgent.resize(useragent.size() * 4 / 3 + 4);
+    Base64::btoa((byte *)useragent.data(), useragent.size(), (char *)base64userAgent.data());
+    type.append(base64userAgent);
+
+    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+}
+
+void MegaClient::sendevent(int event, const char *desc)
+{
+    reqs[r].add(new CommandSendEvent(this, event, desc));
+}
+
 } // namespace

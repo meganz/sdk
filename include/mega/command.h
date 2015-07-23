@@ -575,6 +575,22 @@ public:
     CommandGetPaymentMethods(MegaClient*);
 };
 
+class MEGA_API CommandUserFeedbackStore : public Command
+{
+public:
+    void procresult();
+
+    CommandUserFeedbackStore(MegaClient*, const char *, const char *, const char *);
+};
+
+class MEGA_API CommandSendEvent : public Command
+{
+public:
+    void procresult();
+
+    CommandSendEvent(MegaClient*, int, const char *);
+};
+
 } // namespace
 
 #endif
