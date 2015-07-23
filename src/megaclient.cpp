@@ -2390,7 +2390,7 @@ void MegaClient::initsc()
         if (complete)
         {
             // 2. write rootnodes handles
-            complete = sctable->putrootnodes(rootnodes);
+            complete = sctable->putrootnodes(rootnodes, &key);
         }
 
         if (complete)
@@ -2443,7 +2443,8 @@ void MegaClient::updatesc()
             return;
         }
 
-        if (!sctable->getrootnodes(rootnodes))
+        // TODO: decide if we really need to check rootnodes on updatesc()
+        if (!sctable->getrootnodes(rootnodes, &key))
         {
             LOG_err << "Invalid rootnodes";
             return;
@@ -6308,7 +6309,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     LOG_info << "Loading session from local cache";
 
     // 1. Load handles of rootnodes
-    if (!sctable->getrootnodes(rootnodes))
+    if (!sctable->getrootnodes(rootnodes, &key))
     {
         LOG_err << "Failed - rootnodes record read error";
         return false;

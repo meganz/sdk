@@ -29,6 +29,40 @@ DbTable::DbTable()
 
 }
 
+bool DbTable::putrootnodes(handle *rootnodes, SymmCipher *key)
+{
+    string data;
+
+    for (int i=0; i<3; i++)
+    {
+        encrypthandle(rootnodes[i], &data, key);
+
+        if (!putrootnode(i+1, &data))    // 0: scsn 1-3: rootnodes
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool DbTable::getrootnodes(handle *rootnodes, SymmCipher *key)
+{
+    string data;
+
+    for (int i=0; i<3; i++)
+    {
+        if (!getrootnode(i+1, &data))    // 0: scsn 1-3: rootnodes
+        {
+            return false;
+        }
+
+        decrypthandle(&rootnodes[i], &data, key);
+    }
+
+    return true;
+}
+
 bool DbTable::putnode(pnode_t n, SymmCipher* key)
 {
     string data;
@@ -195,25 +229,24 @@ void DbTable::encrypthandle(handle h, string *hstring, SymmCipher *key, bool app
     }
 }
 
-// Untested
-//void DbTable::decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor)
-//{
-//    if (applyXor)
-//    {
-//        int size = hstring->size();
-//        byte src[size];
-//        byte dst[size];
+void DbTable::decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor)
+{
+    if (applyXor)
+    {
+        int size = hstring->size();
+        byte src[size];
+        byte dst[size];
 
-//        memcpy(src, hstring->data(), size);
+        memcpy(src, hstring->data(), size);
 
-//        SymmCipher::xorblock(src, dst);
+        SymmCipher::xorblock(src, dst);
 
-//        hstring->assign((char*)dst, size);
-//    }
+        hstring->assign((char*)dst, size);
+    }
 
-//    PaddedCBC::decrypt(hstring, key);
+    PaddedCBC::decrypt(hstring, key);
 
-//    Base64::atob(hstring->data(), (byte *)h, 6);
-//}
+    Base64::atob(hstring->data(), (byte *)h, 6);
+}
 
 } // namespace

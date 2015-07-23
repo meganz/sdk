@@ -156,7 +156,7 @@ bool SqliteDbTable::getscsn(string* data)
     return true;
 }
 
-bool SqliteDbTable::getrootnodes(handle *rootnodes)
+bool SqliteDbTable::getrootnode(int index, string *data)
 {
     if (!db)
     {
@@ -164,45 +164,26 @@ bool SqliteDbTable::getrootnodes(handle *rootnodes)
     }
 
     sqlite3_stmt *stmt = NULL;
-    int rc;
-    handle *h;
 
-    // TODO: consider to encrypt rootnode handles, or simply retrieve them from "Nodes" table (parenthandle = -1)
-
-    for (int i=0; i<3; i++)
+    int rc = sqlite3_prepare(db, "SELECT content FROM init WHERE id = ?", -1, &stmt, NULL);
+    if (rc)
     {
-        if (stmt)
-        {
-            rc = sqlite3_reset(stmt);
-            if (rc)
-            {
-                return false;
-            }
-        }
-
-        rc = sqlite3_prepare(db, "SELECT content FROM init WHERE id = ?", -1, &stmt, NULL);
-        if (rc)
-        {
-            return false;
-        }
-
-        rc = sqlite3_bind_int(stmt, 1, i+1);    // 0: scsn 1-3: rootnodes
-        if (rc)
-        {
-            return false;
-        }
-
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_ROW)
-        {
-            return false;
-        }
-
-        // TODO: decrypt `nodehandle` if they were encrypted at `putrootnodes()`
-
-        h = (handle *) sqlite3_column_blob(stmt, 0);
-        rootnodes[i] = *h;
+        return false;
     }
+
+    rc = sqlite3_bind_int(stmt, 1, index);    // 0: scsn 1-3: rootnodes
+    if (rc)
+    {
+        return false;
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW)
+    {
+        return false;
+    }
+
+    data->assign((char*)sqlite3_column_blob(stmt,0), sqlite3_column_bytes(stmt,0));
 
     sqlite3_finalize(stmt);
     return true;
@@ -398,7 +379,7 @@ bool SqliteDbTable::putscsn(char* data, unsigned len)
     return true;
 }
 
-bool SqliteDbTable::putrootnodes(handle *rootnodes)
+bool SqliteDbTable::putrootnode(int index, string *data)
 {
     if (!db)
     {
@@ -406,44 +387,29 @@ bool SqliteDbTable::putrootnodes(handle *rootnodes)
     }
 
     sqlite3_stmt *stmt = NULL;
-    int rc;
 
-    // TODO: consider to encrypt rootnode handles
-
-    for (int i=0; i<3; i++)
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL);
+    if (rc)
     {
-        if (stmt)
-        {
-            rc = sqlite3_reset(stmt);
-            if (rc)
-            {
-                return false;
-            }
-        }
+        return false;
+    }
 
-        rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL);
-        if (rc)
-        {
-            return false;
-        }
+    rc = sqlite3_bind_int(stmt, 1, index);    // 0: scsn 1-3: rootnodes
+    if (rc)
+    {
+        return false;
+    }
 
-        rc = sqlite3_bind_int(stmt, 1, i+1);    // 0: scsn 1-3: rootnodes
-        if (rc)
-        {
-            return false;
-        }
+    rc = sqlite3_bind_blob(stmt, 2, data->data(), data->size(), SQLITE_STATIC);
+    if (rc)
+    {
+        return false;
+    }
 
-        rc = sqlite3_bind_blob(stmt, 2, &rootnodes[i], sizeof (handle), SQLITE_STATIC);
-        if (rc)
-        {
-            return false;
-        }
-
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE)
-        {
-            return false;
-        }
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE)
+    {
+        return false;
     }
 
     sqlite3_finalize(stmt);

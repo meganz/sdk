@@ -49,23 +49,24 @@ public:
     virtual void rewinduser() = 0;
     virtual void rewindpcr() = 0;
 
+    bool getrootnodes(handle*, SymmCipher*);
     bool getuser(string*, SymmCipher*);
     bool getchildren(string*, SymmCipher*);
     bool getpcr(string*, SymmCipher*);
 
     // get records for `scsn` and `rootnodes`
     virtual bool getscsn(string*) = 0;
-    virtual bool getrootnodes(handle*) = 0;
 
 protected:
     // get sequential records for Users & child nodes
     virtual bool next(string*) = 0;
     virtual void rewindchildren(string*) = 0;
+    virtual bool getrootnode(int, string*) = 0;
 
 public:
     // update or add specific record
     virtual bool putscsn(char *, unsigned) = 0;
-    virtual bool putrootnodes(handle*) = 0;
+    bool putrootnodes(handle *, SymmCipher*);
     bool putnode(pnode_t, SymmCipher*);
     bool putuser(User *, SymmCipher*);
     bool putpcr(PendingContactRequest *, SymmCipher*);
@@ -75,6 +76,7 @@ protected:
     virtual bool putnode(string*, string*, string*, string*) = 0;
     virtual bool putuser(string*, string*) = 0;
     virtual bool putpcr(string*, string*) = 0;
+    virtual bool putrootnode(int, string*) = 0;
 
 public:
     // delete specific record
@@ -106,7 +108,7 @@ public:
 
 private:
     void encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor = false);
-//    void decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor = false);
+    void decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor = false);
 };
 
 struct MEGA_API DbAccess

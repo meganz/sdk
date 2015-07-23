@@ -46,7 +46,7 @@ class MEGA_API SqliteDbTable : public DbTable
 
 public:
     bool getscsn(string*);
-    bool getrootnodes(handle*);
+    bool getrootnode(int, string*);
     bool getnodebyhandle(string*, string*);
     bool getnodebyfingerprint(string*, string*);
 
@@ -56,7 +56,7 @@ public:
     bool next(string*);
 
     bool putscsn(char*, unsigned);
-    bool putrootnodes(handle*);
+    bool putrootnode(int, string*);
     bool putnode(string*, string*, string*, string*);
     bool putuser(string*, string*);
     bool putpcr(string*, string*);
