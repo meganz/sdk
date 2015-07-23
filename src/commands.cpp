@@ -3311,9 +3311,18 @@ void CommandGetPaymentMethods::procresult()
 CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const char *type, const char *blob, const char *uid)
 {
     cmd("clog");
+
     arg("t", type);
-    arg("d", blob);
-    arg("id", uid);
+
+    if (blob)
+    {
+        arg("d", blob);
+    }
+
+    if (uid)
+    {
+        arg("id", uid);
+    }
 
     tag = client->reqtag;
 }
