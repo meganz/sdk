@@ -5557,6 +5557,7 @@ void MegaClient::notifynode(Node* n)
         int creqtag = reqtag;
         reqtag = 0;
         reportevent("NK", report);
+        sendevent(99400, report);
         reqtag = creqtag;
 
         delete [] buf;
