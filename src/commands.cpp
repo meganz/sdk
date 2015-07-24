@@ -2941,7 +2941,7 @@ void CommandFetchNodes::procresult()
     client->purgenodesusersabortsc();
     client->fetchingnodes = false;
     client->sctable->truncate();    // discard the current state cache
-    client->encryptednodes.clear();
+    client->nodenotify.clear();     // discard any obsolete notified node
 
     if (client->json.isnumeric())
     {
@@ -3021,7 +3021,7 @@ void CommandFetchNodes::procresult()
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
-                client->mergenewshares(0);
+                client->mergenewshares(1);
                 client->applykeys();
 #ifdef ENABLE_SYNC
                 client->syncsup = false;

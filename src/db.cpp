@@ -90,7 +90,7 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
         PaddedCBC::encrypt(&fp, key);
     }
 
-    bool result = putnode(&h, &ph, &fp, &data);// (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
+    bool result = putnode(&h, &ph, &fp, n->attrstring, &data);// (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
 
     if(result)
     {
@@ -181,6 +181,16 @@ bool DbTable::getuser(string* data, SymmCipher* key)
 }
 
 bool DbTable::getpcr(string *data, SymmCipher* key)
+{
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+bool DbTable::getencryptednode(string *data, SymmCipher *key)
 {
     if (next(data))
     {

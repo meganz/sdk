@@ -132,166 +132,171 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 void MegaClient::mergenewshares(bool notify)
 {
     newshare_list::iterator it;
-    bool skreceived = false;
 
     for (it = newshares.begin(); it != newshares.end(); )
     {
-        pnode_t n;
         NewShare* s = *it;
+        pnode_t n = nodebyhandle(s->h);
 
-        if ((n = nodebyhandle(s->h)))
+        mergenewshare(s, n, notify);
+
+        delete s;
+        newshares.erase(it++);
+    }
+}
+
+// 's' is not deleted, caller keeps ownership
+void MegaClient::mergenewshare(NewShare *s, pnode_t n, bool notify)
+{
+    bool skreceived = false;
+
+    if (n)
+    {
+        if (!n->sharekey && s->have_key)
         {
-            if (!n->sharekey && s->have_key)
+            // setting an outbound sharekey requires node authentication
+            // unless coming from a trusted source (the local cache)
+            bool auth = true;
+
+            if (s->outgoing > 0)
             {
-                // setting an outbound sharekey requires node authentication
-                // unless coming from a trusted source (the local cache)
-                bool auth = true;
-
-                if (s->outgoing > 0)
+                if (!checkaccess(n, OWNERPRELOGIN))
                 {
-                    if (!checkaccess(n, OWNERPRELOGIN))
-                    {
-                        LOG_warn << "Attempt to create dislocated outbound share foiled";
-                        auth = false;
-                    }
-                    else
-                    {
-                        byte buf[SymmCipher::KEYLENGTH];
-
-                        handleauth(s->h, buf);
-
-                        if (memcmp(buf, s->auth, sizeof buf))
-                        {
-                            LOG_warn << "Attempt to create forged outbound share foiled";
-                            auth = false;
-                        }
-                    }
-                }
-
-                if (auth)
-                {
-                    n->sharekey = new SymmCipher(s->key);
-                    skreceived = true;
-                }
-            }
-
-            if (s->access == ACCESS_UNKNOWN && !s->have_key)
-            {
-                // share was deleted
-                if (s->outgoing)
-                {
-                    bool found = false;
-                    if (n->outshares)
-                    {
-                        // outgoing share to user u deleted
-                        if (n->outshares->erase(s->peer) && notify)
-                        {
-                            found = true;
-                            n->changed.outshares = true;
-                            notifynode(n);
-                        }
-                        
-                        if (!n->outshares->size())
-                        {
-                            delete n->outshares;
-                            n->outshares = NULL;                            
-                        }
-                    }
-                    if (n->pendingshares && !found && s->pending)
-                    {
-                        // delete the pending share
-                        if (n->pendingshares->erase(s->pending) && notify)
-                        {
-                            found = true;
-                            n->changed.pendingshares = true;
-                            notifynode(n);
-                        }
-
-                        if (!n->pendingshares->size())
-                        {
-                            delete n->pendingshares;
-                            n->pendingshares = NULL;                            
-                        }
-                    }
-
-                    // Erase sharekey if no outgoing shares (incl pending) exist
-                    if (!n->outshares && !n->pendingshares)
-                    {
-                        delete n->sharekey;
-                        n->sharekey = NULL;
-                    }
+                    LOG_warn << "Attempt to create dislocated outbound share foiled";
+                    auth = false;
                 }
                 else
                 {
-                    // incoming share deleted - remove tree
-                    if (n->parenthandle != UNDEF)
+                    byte buf[SymmCipher::KEYLENGTH];
+
+                    handleauth(s->h, buf);
+
+                    if (memcmp(buf, s->auth, sizeof buf))
                     {
-                        TreeProcDel td;
-                        proctree(n, &td, true);
-                    }
-                    else
-                    {
-                        if (n->inshare)
-                        {
-                            n->inshare->user->sharing.erase(n->nodehandle);
-                            notifyuser(n->inshare->user);
-                            n->inshare = NULL;
-                        }
+                        LOG_warn << "Attempt to create forged outbound share foiled";
+                        auth = false;
                     }
                 }
             }
-            else
-            {     
-                if (s->outgoing)
+
+            if (auth)
+            {
+                n->sharekey = new SymmCipher(s->key);
+                skreceived = true;
+
+                if (notify)
                 {
-                    if((!s->upgrade_pending_to_full && (!ISUNDEF(s->peer) || !ISUNDEF(s->pending)))
-                        || (s->upgrade_pending_to_full && !ISUNDEF(s->peer) && !ISUNDEF(s->pending)))
+                    notifynode(n);
+                }
+            }
+        }
+
+        if (s->access == ACCESS_UNKNOWN && !s->have_key)
+        {
+            // share was deleted
+            if (s->outgoing)
+            {
+                bool found = false;
+                if (n->outshares)
+                {
+                    // outgoing share to user u deleted
+                    if (n->outshares->erase(s->peer) && notify)
                     {
-                        // perform mandatory verification of outgoing shares:
-                        // only on own nodes and signed unless read from cache
-                        if (checkaccess(n, OWNERPRELOGIN))
+                        found = true;
+                        n->changed.outshares = true;
+                        notifynode(n);
+                    }
+
+                    if (!n->outshares->size())
+                    {
+                        delete n->outshares;
+                        n->outshares = NULL;
+                    }
+                }
+                if (n->pendingshares && !found && s->pending)
+                {
+                    // delete the pending share
+                    if (n->pendingshares->erase(s->pending) && notify)
+                    {
+                        found = true;
+                        n->changed.pendingshares = true;
+                        notifynode(n);
+                    }
+
+                    if (!n->pendingshares->size())
+                    {
+                        delete n->pendingshares;
+                        n->pendingshares = NULL;
+                    }
+                }
+
+                // Erase sharekey if no outgoing shares (incl pending) exist
+                if (!n->outshares && !n->pendingshares)
+                {
+                    delete n->sharekey;
+                    n->sharekey = NULL;
+                }
+            }
+            else
+            {
+                // incoming share deleted - remove tree
+                if (n->parenthandle != UNDEF)
+                {
+                    TreeProcDel td;
+                    proctree(n, &td, true);
+                }
+                else
+                {
+                    if (n->inshare)
+                    {
+                        n->inshare->user->sharing.erase(n->nodehandle);
+                        notifyuser(n->inshare->user);
+                        n->inshare = NULL;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (s->outgoing)    // outshare
+            {
+                if((!s->upgrade_pending_to_full && (!ISUNDEF(s->peer) || !ISUNDEF(s->pending)))
+                    || (s->upgrade_pending_to_full && !ISUNDEF(s->peer) && !ISUNDEF(s->pending)))
+                {
+                    // perform mandatory verification of outgoing shares:
+                    // only on own nodes and signed unless read from cache
+                    if (checkaccess(n, OWNERPRELOGIN))
+                    {
+                        Share** sharep;
+                        if (!ISUNDEF(s->pending))
                         {
-                            Share** sharep;
-                            if (!ISUNDEF(s->pending))
+                            // Pending share
+                            if (!n->pendingshares)
                             {
-                                // Pending share
-                                if (!n->pendingshares)
-                                {
-                                    n->pendingshares = new share_map;
-                                }
-
-                                sharep = &((*n->pendingshares)[s->pending]);
-
-                                if (*sharep && s->upgrade_pending_to_full)
-                                {
-                                    // This is currently a pending share that needs to be upgraded to a full share
-                                    // erase from pending shares & delete the pending share list if needed
-                                    if (n->pendingshares->erase(s->pending) && notify)
-                                    {
-                                        n->changed.pendingshares = true;
-                                        notifynode(n);
-                                    }
-                                    if (!n->pendingshares->size())
-                                    {
-                                        delete n->pendingshares;
-                                        n->pendingshares = NULL;
-                                    }
-                                    // clear this so we can fall through to below and have it re-create the share in
-                                    // the outshares list
-                                    s->pending = UNDEF;
-
-                                    // create the outshares list if needed
-                                    if (!n->outshares)
-                                    {
-                                        n->outshares = new share_map();
-                                    }
-
-                                    sharep = &((*n->outshares)[s->peer]);
-                                }
+                                n->pendingshares = new share_map;
                             }
-                            else
+
+                            sharep = &((*n->pendingshares)[s->pending]);
+
+                            if (*sharep && s->upgrade_pending_to_full)
                             {
-                                // Normal outshare
+                                // This is currently a pending share that needs to be upgraded to a full share
+                                // erase from pending shares & delete the pending share list if needed
+                                if (n->pendingshares->erase(s->pending) && notify)
+                                {
+                                    n->changed.pendingshares = true;
+                                    notifynode(n);
+                                }
+                                if (!n->pendingshares->size())
+                                {
+                                    delete n->pendingshares;
+                                    n->pendingshares = NULL;
+                                }
+                                // clear this so we can fall through to below and have it re-create the share in
+                                // the outshares list
+                                s->pending = UNDEF;
+
+                                // create the outshares list if needed
                                 if (!n->outshares)
                                 {
                                     n->outshares = new share_map();
@@ -299,112 +304,119 @@ void MegaClient::mergenewshares(bool notify)
 
                                 sharep = &((*n->outshares)[s->peer]);
                             }
-
-                            // modification of existing share or new share
-                            if (*sharep)
+                        }
+                        else
+                        {
+                            // Normal outshare
+                            if (!n->outshares)
                             {
-                                (*sharep)->update(s->access, s->ts, findpcr(s->pending));
+                                n->outshares = new share_map();
+                            }
+
+                            sharep = &((*n->outshares)[s->peer]);
+                        }
+
+                        // modification of existing share or new share
+                        if (*sharep)
+                        {
+                            (*sharep)->update(s->access, s->ts, findpcr(s->pending));
+                        }
+                        else
+                        {
+                            *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                        }
+
+                        if (notify)
+                        {
+                            if (!ISUNDEF(s->pending))
+                            {
+                                n->changed.pendingshares = true;
                             }
                             else
                             {
-                                *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                                n->changed.outshares = true;
                             }
-
-                            if (notify)
-                            {
-                                if (!ISUNDEF(s->pending))
-                                {
-                                    n->changed.pendingshares = true;
-                                }
-                                else
-                                {
-                                    n->changed.outshares = true;
-                                }
-                                notifynode(n);
-                            }
+                            notifynode(n);
                         }
-                    }
-                    else    // inshare
-                    {
-                        LOG_err << "Incomplete outshare info";
                     }
                 }
                 else
                 {
-                    if (!ISUNDEF(s->peer))
+                    LOG_err << "Incomplete outshare info";
+                }
+            }
+            else   // inshare
+            {
+                if (!ISUNDEF(s->peer))
+                {
+                    if (s->peer)
                     {
-                        if (s->peer)
+                        if (!checkaccess(n, OWNERPRELOGIN))
                         {
-                            if (!checkaccess(n, OWNERPRELOGIN))
+                            // modification of existing share or new share
+                            if (n->inshare)
                             {
-                                // modification of existing share or new share
-                                if (n->inshare)
-                                {
-                                    n->inshare->update(s->access, s->ts);
-                                }
-                                else
-                                {
-                                    n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
-                                    n->inshare->user->sharing.insert(n->nodehandle);
-                                }
-
-                                if (notify)
-                                {
-                                    n->changed.inshare = true;
-                                    notifynode(n);
-                                }
+                                n->inshare->update(s->access, s->ts);
                             }
                             else
                             {
-                                LOG_warn << "Invalid inbound share location";
+                                n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                                n->inshare->user->sharing.insert(n->nodehandle);
+                            }
+
+                            if (notify)
+                            {
+                                n->changed.inshare = true;
+                                notifynode(n);
                             }
                         }
                         else
                         {
-                            LOG_warn << "Invalid null peer on inbound share";
+                            LOG_warn << "Invalid inbound share location";
                         }
                     }
                     else
                     {
-                        if (skreceived && notify)
-                        {
-                            TreeProcApplyKey td;
-                            proctree(n, &td);
-                        }
+                        LOG_warn << "Invalid null peer on inbound share";
                     }
                 }
-            }
-#ifdef ENABLE_SYNC
-            if (n->inshare && s->access != FULL)
-            {
-                // check if the low(ered) access level is affecting any syncs
-                // a) have we just cut off full access to a subtree of a sync?
-                do {
-                    if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
-                    {
-                        LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                        n->localnode->sync->errorcode = API_EACCESS;
-                        n->localnode->sync->changestate(SYNC_FAILED);
-                    }
-                } while ((n = n->client->nodebyhandle(n->parenthandle)));
-                
-                // b) have we just lost full access to the subtree a sync is in?
-                for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                else
                 {
-                    if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
+                    if (skreceived && notify)
                     {
-                        LOG_warn << "Existing inbound share sync lost full access";
-                        (*it)->errorcode = API_EACCESS;
-                        (*it)->changestate(SYNC_FAILED);
+                        TreeProcApplyKey td;
+                        proctree(n, &td);
                     }
                 }
-
             }
-#endif
         }
+#ifdef ENABLE_SYNC
+        if (n->inshare && s->access != FULL)
+        {
+            // check if the low(ered) access level is affecting any syncs
+            // a) have we just cut off full access to a subtree of a sync?
+            do {
+                if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
+                {
+                    LOG_warn << "Existing inbound share sync or part thereof lost full access";
+                    n->localnode->sync->errorcode = API_EACCESS;
+                    n->localnode->sync->changestate(SYNC_FAILED);
+                }
+            } while ((n = n->client->nodebyhandle(n->parenthandle)));
 
-        delete s;
-        newshares.erase(it++);
+            // b) have we just lost full access to the subtree a sync is in?
+            for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            {
+                if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
+                {
+                    LOG_warn << "Existing inbound share sync lost full access";
+                    (*it)->errorcode = API_EACCESS;
+                    (*it)->changestate(SYNC_FAILED);
+                }
+            }
+
+        }
+#endif
     }
 }
 
@@ -2412,7 +2424,6 @@ void MegaClient::initsc()
             // 5. write new or modified pcrs, purge deleted pcrs
             for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
             {
-//                if (!(complete = sctable->put(CACHEDPCR, it->second, &key)))
                 if (!(complete = sctable->putpcr(it->second, &key)))
                 {
                     break;
@@ -3692,25 +3703,24 @@ pnode_t MegaClient::nodebyhandle(handle h)
         return NULL;
     }
 
-    map<handle, int32_t>::iterator it;
-    node_map::iterator it1;
-
-    // if the handle is found in the map of handles...
-    if ((it1 = encryptednodes.find(h)) != encryptednodes.end())    // node is still encrypted
+    // first search for the node within modified nodes, already in memory
+    for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
     {
-        return encryptednodes[h];
-    }
-    else
-    {
-        string data;
-        if (sctable->getnode(h, &data, &key))
+        if ((*it)->nodehandle == h)
         {
-            pnode_t n;
-            node_vector dp;
-
-            n = Node::unserialize(this, &data, &dp);
-            return n;
+            return (*it);
         }
+    }
+
+    // if node was not found, search for it in local cache
+    string data;
+    if (sctable->getnode(h, &data, &key))
+    {
+        pnode_t n;
+        node_vector dp;
+
+        n = Node::unserialize(this, &data, &dp);
+        return n;
     }
 
     return NULL;
@@ -4377,38 +4387,22 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                             byte buf[SymmCipher::KEYLENGTH];
                             decryptkey(sk, buf, sizeof buf, &key, 1, h);
 
-                            //                        newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
-
                             // Instead of queuing a `NewShare` object to be merged to the `Node` in a later stage, do it
                             // here straight away, so the object is fully rebuilt
 
                             // 2. Create the incoming share object
-                            n->sharekey = new SymmCipher(buf);
-
-                            if (!checkaccess(n, OWNERPRELOGIN))
-                            {
-                                n->inshare = new Share(finduser(su, 1), rl, ts);
-                                n->inshare->user->sharing.insert(n->nodehandle);
-                            }
-                            else
-                            {
-                                LOG_warn << "Invalid inbound share location";
-                            }
+                            NewShare *s = new NewShare(h, 0, su, rl, sts, sk ? buf : NULL);
+                            mergenewshare(s, n);
+                            delete s;
                         }
                     }
                 }
 
-                if (n->applykey() || n->type > FOLDERNODE) // successfully decrypted nodes or rootnodes
-                {
-                    addnodetosc(n);
-                }
-                else    // nodekey (and attributes) cannot be decrypted yet
-                {
-                    encryptednodes[h] = n;
-                }
+                n->applykey();
+                addnodetosc(n);
 
                 // set rootnodes[] in client as entry point for each tree
-                if (n->type >= ROOTNODE)
+                if (n->type > FOLDERNODE)
                 {
                     rootnodes[n->type - 2] = n->nodehandle;
                 }
@@ -4495,7 +4489,7 @@ void MegaClient::readok(JSON* j)
 
         j->leavearray();
 
-        mergenewshares(0);
+        mergenewshares(1);
     }
 }
 
@@ -4570,7 +4564,7 @@ void MegaClient::readoutshares(JSON* j)
 
         j->leavearray();
 
-        mergenewshares(0);
+        mergenewshares(1);
     }
 }
 
@@ -4810,15 +4804,36 @@ void MegaClient::readopc(JSON *j)
 int MegaClient::applykeys()
 {
     int t = 0;
+    string data;
+    node_vector dp;
 
-    for (node_map::iterator it = encryptednodes.begin(); it != encryptednodes.end(); it++)
+    // notified nodes may have been modified, but not stored in DB yet
+    for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
     {
-        if (it->second->applykey())
+        pnode_t n = (*it);
+        if (n->attrstring)
         {
-            t++;
+            n->applykey();
+            n->setattr();
 
-            addnodetosc(it->second);
-            encryptednodes.erase(it->first);
+            if (!n->attrstring)
+            {
+                addnodetosc(n);
+                t++;
+            }
+        }
+    }
+
+    // apply keys also to not notified nodes, but encrypted nodes stored in DB
+    sctable->rewindencryptednode();
+    while (sctable->getencryptednode(&data, &key))
+    {
+        pnode_t n = Node::unserialize(this, &data, &dp);
+
+        if (n->applykey())
+        {
+            addnodetosc(n);
+            t++;
         }
     }
 

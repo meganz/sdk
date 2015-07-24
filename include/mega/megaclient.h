@@ -45,7 +45,6 @@ public:
 
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
-    node_map encryptednodes;
 
     multimap<string, int32_t> fingerprinttodbid;
 
@@ -513,6 +512,7 @@ public:
 
     // merge newly received share into nodes
     void mergenewshares(bool);
+    void mergenewshare(NewShare *, pnode_t, bool = false);    // merge only the given share
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];

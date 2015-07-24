@@ -68,7 +68,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     }
 
     // 2. Create table for 'nodes'
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle BLOB PRIMARY KEY NOT NULL, parenthandle BLOB NOT NULL, fingerprint BLOB, node BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle BLOB PRIMARY KEY NOT NULL, parenthandle BLOB NOT NULL, fingerprint BLOB, attrstring TEXT, node BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -313,6 +313,21 @@ void SqliteDbTable::rewindpcr()
     sqlite3_prepare(db, "SELECT pcr FROM pcrs", -1, &pStmt, NULL);
 }
 
+void SqliteDbTable::rewindencryptednode()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    sqlite3_prepare(db, "SELECT node FROM nodes WHERE attrstring IS NOT NULL", -1, &pStmt, NULL);
+}
+
 bool SqliteDbTable::next(string *data)
 {
     if (!db)
@@ -416,7 +431,7 @@ bool SqliteDbTable::putrootnode(int index, string *data)
     return true;
 }
 
-bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *node)//char *fp, unsigned fpsize, char *node, unsigned nodesize)
+bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, string *node)//char *fp, unsigned fpsize, char *node, unsigned nodesize)
 {
     if (!db)
     {
@@ -425,7 +440,7 @@ bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *node)//ch
 
     sqlite3_stmt *stmt;
 
-    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, fingerprint, node) VALUES (?, ?, ?, ?)", -1, &stmt, NULL);
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, fingerprint, attrstring, node) VALUES (?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (rc)
     {
         return false;
@@ -452,7 +467,16 @@ bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *node)//ch
         }
     }   // else, the node is a folder, so fingerprint is NULL (sqlite default if not binding provided)
 
-    rc = sqlite3_bind_blob(stmt, 4, node->data(), node->size(), SQLITE_STATIC);
+    if (attr)
+    {
+        rc = sqlite3_bind_text(stmt, 4, attr->data(), attr->size(), SQLITE_STATIC);
+        if (rc)
+        {
+            return false;
+        }
+    }   // else, the attrstring is NULL (sqlite default if not binding provided)
+
+    rc = sqlite3_bind_blob(stmt, 5, node->data(), node->size(), SQLITE_STATIC);
     if (rc)
     {
         return false;

@@ -176,10 +176,14 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     const byte* k = NULL;
     const char* fa;
     m_time_t ts;
+    m_off_t keylen;
     const byte* skey;
+    m_off_t attrstringlen;
+    string attrstring;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
+    bool encnode = false;
     pnode_t n;
     int i;
 
@@ -222,10 +226,24 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     ts = (uint32_t)MemAccess::get<time_t>(ptr);
     ptr += sizeof(time_t);
 
-    if ((t == FILENODE) || (t == FOLDERNODE))
-    {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+    attrstringlen = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof attrstringlen;
 
+    if (attrstringlen)
+    {
+        attrstring.assign((char*)ptr, attrstringlen);
+        ptr += attrstringlen;
+
+        encnode = true;
+    }
+
+    // nodekey is longer when not decrypted yet. We need the actual lenght
+    // Format: user_handle:user_specific_nodekey/share_rootnode1:share_specific_nodekey1/share_rootnode2:share_specific_nodekey2/...
+    keylen = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof keylen;
+
+    if (keylen) // only files and folders have a nodekey, rootnodes do not
+    {
         if (ptr + keylen + 8 + sizeof(short) > end)
         {
             return NULL;
@@ -279,12 +297,21 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         skey = NULL;
     }
 
-    //n = pnode_t(new Node(client, dp, h, ph, t, s, u, fa, ts));
     n = make_shared<Node>(client, dp, h, ph, t, s, u, fa, ts);  // allocate object manager and object at once
 
     if (k)
     {
-        n->setkey(k);
+        if (!encnode)
+        {
+            n->setkey(k);
+        }
+        else
+        {
+            n->nodekey.assign((char *)k, keylen);
+
+            n->attrstring = new string;
+            n->attrstring->assign(attrstring.c_str(),attrstringlen);
+        }
     }
 
     if (numshares)
@@ -304,12 +331,6 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
             --numshares;
 
         } while (numshares > 0);
-
-//        while (Share::unserialize(client,
-//                                  (numshares > 0) ? -1 : 0,
-//                                  h, skey, &ptr, end, n)
-//               && numshares > 0
-//               && --numshares);
     }
 
     ptr = n->attrs.unserialize(ptr);
@@ -329,25 +350,21 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
-//    bool encnode = false;
+    bool encnode = false;
     // do not serialize encrypted nodes
     if (attrstring)
     {
-        LOG_warn << "Trying to serialize an encrypted node";
-
         //Last attempt to decrypt the node
         applykey();
         setattr();
 
         if (attrstring)
         {
-            LOG_err << "Skipping undecryptable node";
-            return false;
-//            encnode = true;
+            encnode = true;
         }
     }
 
-//    if(!encnode)    // check key lenght only for nodes with valid key
+    if(!encnode)    // check key lenght only for nodes with decrypted nodekey
     {
         switch (type)
         {
@@ -375,7 +392,6 @@ bool Node::serialize(string* d)
 
     unsigned short ll;
     short numshares;
-    string t;
     m_off_t s;
 
     s = type ? -type : size;
@@ -402,6 +418,20 @@ bool Node::serialize(string* d)
     ts = ctime;
     d->append((char*)&ts, sizeof(ts));
 
+    m_off_t attrstringlen = 0;
+    if (attrstring)
+    {
+        attrstringlen = attrstring->size();
+        d->append((char *)&attrstringlen, sizeof attrstringlen);
+        d->append(attrstring->c_str());
+    }
+    else
+    {
+        d->append((char *)&attrstringlen, sizeof attrstringlen);
+    }
+
+    m_off_t keylen = nodekey.size();
+    d->append((char *)&keylen, sizeof keylen);
     d->append(nodekey);
 
     if (type == FILENODE)
@@ -442,9 +472,12 @@ bool Node::serialize(string* d)
         }
         else
         {
-            for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+            if (outshares)
             {
-                it->second->serialize(d);
+                for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+                {
+                    it->second->serialize(d);
+                }
             }
             if (pendingshares)
             {

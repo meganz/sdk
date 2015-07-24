@@ -46,26 +46,14 @@ void Share::serialize(string* d)
 }
 
 bool Share::unserialize(MegaClient* client, int direction, handle h,
-                        const byte* ckey, const char** ptr, const char* end, pnode_t n)
+                        const byte* key, const char** ptr, const char* end, pnode_t n)
 {
     if (*ptr + sizeof(handle) + sizeof(m_time_t) + 2 > end)
     {
         return 0;
     }
 
-//    client->newshares.push_back(new NewShare(h, direction, MemAccess::get<handle>(*ptr),
-//                                             (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],
-//                                             MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key, NULL, ph));
-
-
-    // Instead of queuing a `NewShare` object to be merged to the `Node` in a later stage, do it
-    // here straight away, so the object is fully rebuilt
-
-    handle peer = MemAccess::get<handle>(*ptr);
-    m_time_t ts = MemAccess::get<m_time_t>(*ptr + sizeof(handle));
-    accesslevel_t access = (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)];
     char version_flag =  (*ptr)[sizeof(handle) + sizeof(m_time_t) + 1];
-
     handle ph = UNDEF;
     if (version_flag >= 1)
     {
@@ -73,53 +61,15 @@ bool Share::unserialize(MegaClient* client, int direction, handle h,
         ph = MemAccess::get<handle>(*ptr + sizeof(handle) + sizeof(m_time_t) + 2);
     }
 
-    if (ckey)
-    {
-        n->sharekey = new SymmCipher(ckey);
-    }
+    // Instead of queuing a `NewShare` object to be merged to the `Node` in a later stage, do it
+    // here straight away, so the object is fully rebuilt
 
-    if (!ISUNDEF(peer))
-    {
-        if (direction)  // outgoing share
-        {
-            if (!n->outshares)  // a node may contain several outshares
-            {
-                n->outshares = new share_map;
-            }
+    NewShare *s = new NewShare(h, direction, MemAccess::get<handle>(*ptr),
+                               (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],
+                               MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key, NULL, ph);
 
-            Share** sharep = &((*n->outshares)[peer]);
-
-            // modification of existing share or new share
-            if (*sharep)
-            {
-                (*sharep)->update(access, ts);
-            }
-            else
-            {
-                *sharep = new Share(client->finduser(peer, 1), access, ts);
-            }
-        }
-        else    // incoming share
-        {
-            if (peer)
-            {
-                if (!client->checkaccess(n, OWNERPRELOGIN))
-                {
-                    n->inshare = new Share(client->finduser(peer, 1), access, ts);
-                    n->inshare->user->sharing.insert(n->nodehandle);
-                }
-                else
-                {
-                    LOG_warn << "Invalid inbound share location";
-                }
-            }
-            else
-            {
-                LOG_warn << "Invalid null peer on inbound share";
-            }
-        }
-
-    }   // end of 'inline mergenewshares()'
+    client->mergenewshare(s, n);
+    delete s;
 
     *ptr += sizeof(handle) + sizeof(m_time_t) + 2;
     if (version_flag >= 1)

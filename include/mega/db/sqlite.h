@@ -53,11 +53,12 @@ public:
     void rewinduser();
     void rewindchildren(string*);
     void rewindpcr();
+    void rewindencryptednode();
     bool next(string*);
 
     bool putscsn(char*, unsigned);
     bool putrootnode(int, string*);
-    bool putnode(string*, string*, string*, string*);
+    bool putnode(string*, string*, string*, string*, string*);
     bool putuser(string*, string*);
     bool putpcr(string*, string*);
 

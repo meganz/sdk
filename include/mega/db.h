@@ -44,15 +44,17 @@ protected:
     virtual bool getnodebyfingerprint(string*, string*) = 0;    // node by fingerprint
 
 public:
-    // for a sequential read of Users or child nodes
+    // for a sequential read
     void rewindchildren(handle, SymmCipher*);
     virtual void rewinduser() = 0;
     virtual void rewindpcr() = 0;
+    virtual void rewindencryptednode() = 0;
 
     bool getrootnodes(handle*, SymmCipher*);
     bool getuser(string*, SymmCipher*);
     bool getchildren(string*, SymmCipher*);
     bool getpcr(string*, SymmCipher*);
+    bool getencryptednode(string*, SymmCipher*);
 
     // get records for `scsn` and `rootnodes`
     virtual bool getscsn(string*) = 0;
@@ -73,7 +75,7 @@ public:
 
 protected:
     // update or add specific record
-    virtual bool putnode(string*, string*, string*, string*) = 0;
+    virtual bool putnode(string*, string*, string*, string*, string*) = 0;
     virtual bool putuser(string*, string*) = 0;
     virtual bool putpcr(string*, string*) = 0;
     virtual bool putrootnode(int, string*) = 0;
