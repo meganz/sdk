@@ -2075,6 +2075,8 @@ void MegaClient::logout()
         }
 #endif
         locallogout();
+
+        restag = reqtag;
         app->logout_result(API_OK);
         return;
     }
