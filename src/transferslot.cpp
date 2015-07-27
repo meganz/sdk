@@ -102,8 +102,8 @@ void TransferSlot::toggleport(HttpReqXfer *req)
 {
     if (!memcmp(req->posturl.c_str(), "http:", 5))
     {
-       int portendindex = req->posturl.find("/", 8);
-       int portstartindex = req->posturl.find(":", 8);
+       size_t portendindex = req->posturl.find("/", 8);
+       size_t portstartindex = req->posturl.find(":", 8);
 
        if (portendindex != string::npos)
        {
@@ -324,7 +324,7 @@ void TransferSlot::doio(MegaClient* client)
                     if (transfer->type == GET && client->usealtdownport
                             && !memcmp(tempurl.c_str(), "http:", 5))
                     {
-                        int index = tempurl.find("/", 8);
+                        size_t index = tempurl.find("/", 8);
                         if(index != string::npos && tempurl.find(":", 8) == string::npos)
                         {
                             finaltempurl.insert(index, ":8080");
@@ -334,7 +334,7 @@ void TransferSlot::doio(MegaClient* client)
                     if (transfer->type == PUT && client->usealtupport
                             && !memcmp(tempurl.c_str(), "http:", 5))
                     {
-                        int index = tempurl.find("/", 8);
+                        size_t index = tempurl.find("/", 8);
                         if(index != string::npos && tempurl.find(":", 8) == string::npos)
                         {
                             finaltempurl.insert(index, ":8080");

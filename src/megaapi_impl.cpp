@@ -1923,7 +1923,7 @@ void MegaFileGet::prepare()
     {
         transfer->localfilename = localname;
 
-        int index =  string::npos;
+        size_t index =  string::npos;
         while ((index = transfer->localfilename.rfind(transfer->client->fsaccess->localseparator, index)) != string::npos)
         {
             if(!(index % transfer->client->fsaccess->localseparator.size()))

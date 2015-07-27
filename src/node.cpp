@@ -673,13 +673,14 @@ bool Node::applykey()
         return false;
     }
 
-    int l = -1, t = 0;
+    int l = -1;
+    size_t t = 0;
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
 
-    while ((t = nodekey.find_first_of(':', t)) != (int)string::npos)
+    while ((t = nodekey.find_first_of(':', t)) != string::npos)
     {
         // compound key: locate suitable subkey (always symmetric)
         h = 0;

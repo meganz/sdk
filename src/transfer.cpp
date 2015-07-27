@@ -243,7 +243,7 @@ void Transfer::complete()
                     // the destination path isn't synced, save with a (x) suffix
                     string utf8fullname;
                     client->fsaccess->local2path(&localname, &utf8fullname);
-                    string::size_type dotindex = utf8fullname.find_last_of('.');
+                    size_t dotindex = utf8fullname.find_last_of('.');
                     string name;
                     string extension;
                     if (dotindex == string::npos)
@@ -254,7 +254,7 @@ void Transfer::complete()
                     {
                         string separator;
                         client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
-                        string::size_type sepindex = utf8fullname.find_last_of(separator);
+                        size_t sepindex = utf8fullname.find_last_of(separator);
                         if(sepindex == string::npos || sepindex < dotindex)
                         {
                             name = utf8fullname.substr(0, dotindex);
