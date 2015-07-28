@@ -25,8 +25,8 @@
 #include <inttypes.h>
 
 #include "mega.h"
-#include "mega/thread/posixthread.h"
 #include "mega/thread/qtthread.h"
+#include "mega/thread/posixthread.h"
 #include "mega/thread/win32thread.h"
 #include "mega/gfx/external.h"
 #include "mega/gfx/qt.h"
@@ -66,12 +66,12 @@
 namespace mega
 {
 
-#ifdef USE_PTHREAD
-typedef PosixThread MegaThread;
-typedef PosixMutex MegaMutex;
-#elif USE_QT
+#ifdef USE_QT
 typedef QtThread MegaThread;
 typedef QtMutex MegaMutex;
+#elif USE_PTHREAD
+typedef PosixThread MegaThread;
+typedef PosixMutex MegaMutex;
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
 typedef Win32Thread MegaThread;
 typedef Win32Mutex MegaMutex;
