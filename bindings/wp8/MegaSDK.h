@@ -47,6 +47,8 @@
 #include "DelegateMGfxProcessor.h"
 #include "DelegateMLogger.h"
 #include "MRandomNumberProvider.h"
+#include "MContactRequest.h"
+#include "MContactRequestList.h"
 
 #include <megaapi.h>
 #include <set>
@@ -276,6 +278,7 @@ namespace mega
         MNode^ getNodeByPath(String^ path, MNode^ n);
         MNode^ getNodeByPath(String^ path);
         MNode^ getNodeByHandle(uint64 handle);
+        MContactRequest^ getContactRequestByHandle(MegaHandle handle);
         MUserList^ getContacts();
         MUser^ getContact(String^ email);
         MNodeList^ getInShares(MUser^ user);
@@ -283,6 +286,12 @@ namespace mega
         bool isShared(MNode^ node);
         MShareList^ getOutShares();
         MShareList^ getOutShares(MNode^ node);
+        MShareList^ getPendingOutShares();
+        MShareList ^getPendingOutShares(MNode^ megaNode);
+        MContactRequestList^ getIncomingContactRequests();
+        MContactRequestList^ getOutgoingContactRequests();
+
+        
         String^ getFileFingerprint(String^ filePath);
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);

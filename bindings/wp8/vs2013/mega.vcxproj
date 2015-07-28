@@ -392,6 +392,8 @@
     <ClInclude Include="..\DelegateMTransferListener.h" />
     <ClInclude Include="..\DelegateMTreeProcessor.h" />
     <ClInclude Include="..\MAccountDetails.h" />
+    <ClInclude Include="..\MContactRequest.h" />
+    <ClInclude Include="..\MContactRequestList.h" />
     <ClInclude Include="..\MegaSDK.h" />
     <ClInclude Include="..\MError.h" />
     <ClInclude Include="..\MGfxProcessorInterface.h" />
@@ -463,6 +465,8 @@
     <ClCompile Include="..\DelegateMTransferListener.cpp" />
     <ClCompile Include="..\DelegateMTreeProcessor.cpp" />
     <ClCompile Include="..\MAccountDetails.cpp" />
+    <ClCompile Include="..\MContactRequest.cpp" />
+    <ClCompile Include="..\MContactRequestList.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />
     <ClCompile Include="..\MError.cpp" />
     <ClCompile Include="..\MNode.cpp" />
