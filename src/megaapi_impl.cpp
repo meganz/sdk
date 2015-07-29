@@ -2411,14 +2411,12 @@ char *MegaApiImpl::dumpSession()
 char *MegaApiImpl::dumpXMPPSession()
 {
     sdkMutex.lock();
-    byte session[64];
     char* buf = NULL;
-    int size;
-    size = client->dumpsession(session, sizeof session);
-    if (size > sizeof(client->key.key))
+
+    if (client->loggedin())
     {
-        buf = new char[sizeof(session)*4/3+4];
-        Base64::btoa(session + sizeof(client->key.key), size - sizeof(client->key.key), buf);
+        buf = new char[64 * 4 / 3 + 4];
+        Base64::btoa((const byte *)client->sid.data(), client->sid.size(), buf);
     }
 
     sdkMutex.unlock();
@@ -2970,14 +2968,12 @@ void MegaApiImpl::getPaymentMethods(MegaRequestListener *listener)
 char *MegaApiImpl::exportMasterKey()
 {
     sdkMutex.lock();
-    byte session[64];
     char* buf = NULL;
-    int size;
-    size = client->dumpsession(session, sizeof session);
-    if (size > 0)
+
+    if(client->loggedin())
     {
-        buf = new char[16*4/3+4];
-        Base64::btoa(session, 16, buf);
+        buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+        Base64::btoa(client->key.key, SymmCipher::KEYLENGTH, buf);
     }
 
     sdkMutex.unlock();
@@ -7702,9 +7698,9 @@ void MegaApiImpl::sendPendingRequests()
 
             if(sessionKey)
             {
-                byte session[sizeof client->key.key + MegaClient::SIDLEN];
-                Base64::atob(sessionKey, (byte *)session, sizeof session);
-                client->login(session, sizeof session);
+                byte session[sizeof client->key.key + MegaClient::SIDLEN + 1];
+                int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
+                client->login(session, size);
             }
             else if(login && base64pwkey)
             {

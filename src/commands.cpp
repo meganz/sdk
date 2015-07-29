@@ -1112,17 +1112,23 @@ void CommandLogout::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, int csessionversion)
 {
     cmd("us");
 
     // are we just performing a session validation?
     checksession = !email;
+    sessionversion = csessionversion;
 
     if (!checksession)
     {
         arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
+    }
+
+    if (client->sessionkey.size())
+    {
+        arg("sek", (const byte*)client->sessionkey.data(), client->sessionkey.size());
     }
 
     if (client->cachedscsn != UNDEF)
@@ -1144,7 +1150,8 @@ void CommandLogin::procresult()
     byte hash[SymmCipher::KEYLENGTH];
     byte sidbuf[AsymmCipher::MAXKEYLENGTH];
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
-    int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0;
+    byte sek[SymmCipher::KEYLENGTH];
+    int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0, len_sek = 0;
     handle me = UNDEF;
 
     for (;;)
@@ -1157,6 +1164,10 @@ void CommandLogin::procresult()
 
             case 'u':
                 me = client->json.gethandle(MegaClient::USERHANDLE);
+                break;
+
+            case MAKENAMEID3('s', 'e', 'k'):
+                len_sek = client->json.storebinary(sek, sizeof sek);
                 break;
 
             case MAKENAMEID4('t', 's', 'i', 'd'):
@@ -1191,6 +1202,30 @@ void CommandLogin::procresult()
                     // decrypt and set master key
                     client->key.ecb_decrypt(hash);
                     client->key.setkey(hash);
+                }
+
+                if (len_sek)
+                {
+                    if (len_sek != SymmCipher::KEYLENGTH)
+                    {
+                        return client->app->login_result(API_EINTERNAL);
+                    }
+
+                    if (checksession && sessionversion)
+                    {
+                        byte k[SymmCipher::KEYLENGTH];
+                        memcpy(k, client->key.key, sizeof(k));
+
+                        client->key.setkey(sek);
+                        client->key.ecb_decrypt(k);
+                        client->key.setkey(k);
+                    }
+
+                    client->sessionkey.assign((const char *)sek, sizeof(sek));
+                }
+                else
+                {
+                    client->sessionkey.clear();
                 }
 
                 if (len_tsid)
