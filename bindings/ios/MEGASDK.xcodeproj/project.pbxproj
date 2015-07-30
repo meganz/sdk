@@ -18,6 +18,7 @@
 		41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED61A0A859C006C40FB /* DelegateMEGARequestListener.mm */; };
 		41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */; };
 		41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */; };
+		41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */; };
 		940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8D19ED9245007E7FA2 /* libcares.a */; };
 		940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8E19ED9245007E7FA2 /* libcrypto.a */; };
 		940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BEF8F19ED9245007E7FA2 /* libcryptopp.a */; };
@@ -114,6 +115,7 @@
 		41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = DelegateMEGATransferListener.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		41B538CA1A0284CB00EABDC9 /* MEGAPricing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = MEGAPricing.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		41B538CB1A0284CB00EABDC9 /* MEGAPricing.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAPricing.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = pendingcontactrequest.cpp; path = ../../src/pendingcontactrequest.cpp; sourceTree = "<group>"; };
 		940BEF8D19ED9245007E7FA2 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = 3rdparty/lib/libcares.a; sourceTree = "<group>"; };
 		940BEF8E19ED9245007E7FA2 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = 3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
 		940BEF8F19ED9245007E7FA2 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = 3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
@@ -299,6 +301,7 @@
 				940BEFA719ED92C2007E7FA2 /* megaapi.cpp */,
 				940BEFA819ED92C2007E7FA2 /* megaclient.cpp */,
 				940BEFA919ED92C2007E7FA2 /* node.cpp */,
+				41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */,
 				940BEFAA19ED92C2007E7FA2 /* proxy.cpp */,
 				940BEFAB19ED92C2007E7FA2 /* pubkeyaction.cpp */,
 				940BEFAC19ED92C2007E7FA2 /* request.cpp */,
@@ -630,6 +633,7 @@
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
 				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
 				940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */,
+				41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */,
 				940BF01219ED97B9007E7FA2 /* MEGANodeList.mm in Sources */,
 				940BEFC419ED92C2007E7FA2 /* logging.cpp in Sources */,
 				940BEFF519ED9351007E7FA2 /* waiter.cpp in Sources */,

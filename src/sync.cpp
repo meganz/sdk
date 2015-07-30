@@ -502,7 +502,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         // in newname
         l = localnodebypath(l, localpath, &parent, &newname);
 
-        int index = 0;
+        size_t index = 0;
         while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
         {
             if(!(index % client->fsaccess->localseparator.size()))

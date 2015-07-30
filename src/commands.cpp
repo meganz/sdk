@@ -3308,4 +3308,58 @@ void CommandGetPaymentMethods::procresult()
     client->app->getpaymentmethods_result(methods, API_OK);
 }
 
+CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const char *type, const char *blob, const char *uid)
+{
+    cmd("clog");
+
+    arg("t", type);
+
+    if (blob)
+    {
+        arg("d", blob);
+    }
+
+    if (uid)
+    {
+        arg("id", uid);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandUserFeedbackStore::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->userfeedbackstore_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->userfeedbackstore_result(API_EINTERNAL);
+    }
+}
+
+CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *desc)
+{
+    cmd("log");
+    arg("e", type);
+    arg("m", desc);
+
+    tag = client->reqtag;
+}
+
+void CommandSendEvent::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->sendevent_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->sendevent_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

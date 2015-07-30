@@ -1554,6 +1554,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PAYMENT_METHODS: return "GET_PAYMENT_METHODS";
         case TYPE_INVITE_CONTACT: return "INVITE_CONTACT";
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
+        case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
+        case TYPE_SEND_EVENT: return "SEND_EVENT";
 	}
     return "UNKNOWN";
 }
@@ -1921,9 +1923,21 @@ void MegaFileGet::prepare()
     {
         transfer->localfilename = localname;
 
-        int index = transfer->localfilename.find_last_of(transfer->client->fsaccess->localseparator);
+        size_t index =  string::npos;
+        while ((index = transfer->localfilename.rfind(transfer->client->fsaccess->localseparator, index)) != string::npos)
+        {
+            if(!(index % transfer->client->fsaccess->localseparator.size()))
+            {
+                break;
+            }
+
+            index--;
+        }
+
         if(index != string::npos)
-            transfer->localfilename.resize(index+1);
+        {
+            transfer->localfilename.resize(index + transfer->client->fsaccess->localseparator.size());
+        }
 
         string suffix;
         transfer->client->fsaccess->tmpnamelocal(&suffix);
@@ -3013,21 +3027,17 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
 
 void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
-    request->setParamType(MegaApi::EVENT_FEEDBACK);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
     request->setText(comment);
     request->setNumber(rating);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::reportEvent(int event, const char *details, MegaRequestListener *listener)
+void MegaApiImpl::reportEvent(const char *details, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
-    request->setParamType(event);
     request->setText(details);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5584,7 +5594,6 @@ void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
 
     fireOnRequestFinish(request, MegaError(e));
 }
-
 void MegaApiImpl::getpaymentmethods_result(int methods, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -5592,6 +5601,24 @@ void MegaApiImpl::getpaymentmethods_result(int methods, error e)
     if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_METHODS)) return;
 
     request->setNumber(methods);
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::userfeedbackstore_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_FEEDBACK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::sendevent_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SEND_EVENT)) return;
+
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -8534,35 +8561,19 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_REPORT_EVENT:
         {
-            int evtType = request->getParamType();
             const char *details = request->getText();
-            int number = request->getNumber();
-
-            if(evtType < 0 || evtType >= MegaApi::EVENT_INVALID)
+            if(!details)
             {
                 e = API_EARGS;
                 break;
             }
 
-            string event;
-            switch(evtType)
-            {
-                case MegaApi::EVENT_FEEDBACK:
-                    event = "F";
-                    if(number < 1 || number > 5)
-                        e = API_EARGS;
-                    else
-                        event.append(1, '0'+number);
-                    break;
-                case MegaApi::EVENT_DEBUG:
-                    event = "A"; //Application event
-                    break;
-                default:
-                    e = API_EINTERNAL;
-            }
-
-            if(!e)
-                client->reportevent(event.c_str(), details);
+            string event = "A"; //Application event
+            int size = strlen(details);
+            char *base64details = new char[size * 4 / 3 + 4];
+            Base64::btoa((byte *)details, size, base64details);
+            client->reportevent(event.c_str(), base64details);
+            delete base64details;
             break;
         }
         case MegaRequest::TYPE_DELETE:
@@ -8618,6 +8629,44 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_METHODS:
         {
             client->getpaymentmethods();
+            break;
+        }
+        case MegaRequest::TYPE_SUBMIT_FEEDBACK:
+        {
+            int rating = request->getNumber();
+            const char *message = request->getText();
+
+            if(rating < 1 || rating > 5)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if(!message)
+            {
+                message = "";
+            }
+
+            int size = strlen(message);
+            char *base64message = new char[size * 4 / 3 + 4];
+            Base64::btoa((byte *)message, size, base64message);
+
+            char base64uhandle[12];
+            Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, base64uhandle);
+
+            string feedback;
+            feedback.resize(128 + strlen(base64message));
+
+            snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
+            client->userfeedbackstore(feedback.c_str());
+            delete base64message;
+            break;
+        }
+        case MegaRequest::TYPE_SEND_EVENT:
+        {
+            int number = request->getNumber();
+            const char *text = request->getText();
+            client->sendevent(number, text);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:
