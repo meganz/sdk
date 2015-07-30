@@ -1279,7 +1279,7 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
 
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
 {
-    pImpl->reportEvent(MegaApi::EVENT_DEBUG, text, listener);
+    pImpl->reportEvent(text, listener);
 }
 
 void MegaApi::addContact(const char* email, MegaRequestListener* listener)

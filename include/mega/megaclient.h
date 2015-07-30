@@ -287,6 +287,12 @@ public:
     // get payment methods
     void getpaymentmethods();
 
+    // store user feedback
+    void userfeedbackstore(const char *);
+
+    // send event
+    void sendevent(int, const char *);
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -517,6 +523,7 @@ public:
 
     // merge newly received share into nodes
     void mergenewshares(bool);
+    void mergenewshare(NewShare *s, bool notify);    // merge only the given share
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
