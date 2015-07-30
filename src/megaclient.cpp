@@ -4927,7 +4927,7 @@ void MegaClient::login(const byte* session, int size)
         sessionkey.resize(SymmCipher::KEYLENGTH);
         PrnGen::genblock((byte *)sessionkey.data(), sessionkey.size());
 
-        reqs[r].add(new CommandLogin(this, NULL, UNDEF));
+        reqs[r].add(new CommandLogin(this, NULL, UNDEF, sessionversion));
     }
     else
     {
