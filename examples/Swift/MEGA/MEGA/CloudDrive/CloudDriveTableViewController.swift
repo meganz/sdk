@@ -32,7 +32,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     var parentNode : MEGANode!
     var nodes : MEGANodeList!
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -124,7 +124,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     }
     
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCellWithIdentifier("nodeCell", forIndexPath: indexPath) as NodeTableViewCell
+        let cell = tableView.dequeueReusableCellWithIdentifier("nodeCell", forIndexPath: indexPath) as! NodeTableViewCell
         let node = nodes.nodeAtIndex(indexPath.row)
         
         cell.nameLabel.text = node.name
@@ -181,7 +181,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         
         if node.isFolder() {
             let storyboard = UIStoryboard(name: "Cloud", bundle: nil)
-            let cdtvc = storyboard.instantiateViewControllerWithIdentifier("CloudDriveID") as CloudDriveTableViewController
+            let cdtvc = storyboard.instantiateViewControllerWithIdentifier("CloudDriveID") as!CloudDriveTableViewController
             cdtvc.parentNode = node
             self.navigationController?.pushViewController(cdtvc, animated: true)
         }
@@ -191,7 +191,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         let node = nodes.nodeAtIndex(indexPath.row)
         
         let storyboard = UIStoryboard(name: "Cloud", bundle: nil)
-        let nidvc = storyboard.instantiateViewControllerWithIdentifier("nodeInfoDetails") as DetailsNodeInfoViewController
+        let nidvc = storyboard.instantiateViewControllerWithIdentifier("nodeInfoDetails") as! DetailsNodeInfoViewController
         nidvc.node = node
         self.navigationController?.pushViewController(nidvc, animated: true)
     }
@@ -239,14 +239,14 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     // MARK: - UIImagePickerControllerDelegate
     
     func imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [NSObject : AnyObject]) {
-        let assetURL = info[UIImagePickerControllerReferenceURL] as NSURL
+        let assetURL = info[UIImagePickerControllerReferenceURL] as! NSURL
         
         let library = ALAssetsLibrary()
         library.assetForURL(assetURL, resultBlock: { (let asset: ALAsset!) in
             let name: String = asset.defaultRepresentation().filename()
-            let modificationTime: NSDate = asset.valueForProperty(ALAssetPropertyDate) as NSDate
+            let modificationTime: NSDate = asset.valueForProperty(ALAssetPropertyDate) as! NSDate
             let imageView = UIImageView()
-            imageView.image = (info[UIImagePickerControllerOriginalImage] as UIImage)
+            imageView.image = (info[UIImagePickerControllerOriginalImage] as! UIImage)
             let webData: NSData = UIImageJPEGRepresentation(imageView.image, 0.9)
             
             let localFilePath: String = NSTemporaryDirectory().stringByAppendingPathComponent(name)
@@ -285,7 +285,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             SVProgressHUD.dismiss()
             
         case MEGARequestType.GetAttrFile:
-            for tableViewCell in tableView.visibleCells() as [NodeTableViewCell] {
+            for tableViewCell in tableView.visibleCells() as! [NodeTableViewCell] {
                 if request?.nodeHandle == tableViewCell.nodeHandle {
                     let node = megaapi.nodeForHandle(request.nodeHandle)
                     let thumbnailFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")

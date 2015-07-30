@@ -502,13 +502,19 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
         // in newname
         l = localnodebypath(l, localpath, &parent, &newname);
 
-        int index;
-        if((index = newname.find(client->fsaccess->localseparator)) != string::npos)
+        size_t index = 0;
+        while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
         {
-            LOG_warn << "Parent not detected yet. Unknown reminder: " << newname;
-            string parentpath = localpath->substr(0, localpath->size() - newname.size() + index);
-            dirnotify->notify(DirNotify::DIREVENTS, NULL, parentpath.data(), parentpath.size(), true);
-            return NULL;
+            if(!(index % client->fsaccess->localseparator.size()))
+            {
+                LOG_warn << "Parent not detected yet. Unknown reminder: " << newname;
+                string parentpath = localpath->substr(0, localpath->size() - newname.size() + index);
+                dirnotify->notify(DirNotify::DIREVENTS, NULL, parentpath.data(), parentpath.size(), true);
+                return NULL;
+            }
+
+            LOG_debug << "Skipping invalid separator detection";
+            index++;
         }
 
         client->fsaccess->local2path(&tmppath, &path);

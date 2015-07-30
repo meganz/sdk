@@ -608,6 +608,9 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
     target_exists = errno == EEXIST;
     transient_error = errno == ETXTBSY || errno == EBUSY;
 
+    int e = errno;
+    LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
+
     return false;
 }
 
@@ -620,6 +623,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
     // Linux-specific - kernel 2.6.33+ required
     if ((sfd = open(oldname->c_str(), O_RDONLY | O_DIRECT)) >= 0)
     {
+        LOG_verbose << "Copying via sendfile";
         if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0600)) >= 0)
         {
             while ((t = sendfile(tfd, sfd, NULL, 1024 * 1024 * 1024)) > 0);
@@ -628,6 +632,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
 
     if ((sfd = open(oldname->c_str(), O_RDONLY)) >= 0)
     {
+        LOG_verbose << "Copying via read/write";
         if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600)) >= 0)
         {
             while (((t = read(sfd, buf, sizeof buf)) > 0) && write(tfd, buf, t) == t);
@@ -638,6 +643,9 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
         {
             target_exists = errno == EEXIST;
             transient_error = errno == ETXTBSY || errno == EBUSY;
+
+            int e = errno;
+            LOG_warn << "Unable to copy file. Error code: " << e;
         }
 
         close(sfd);
@@ -645,7 +653,12 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
 
     if (!t)
     {
-        setmtimelocal(newname,mtime);
+        setmtimelocal(newname, mtime);
+    }
+    else
+    {
+        int e = errno;
+        LOG_debug << "Unable to copy file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
     }
 
     return !t;

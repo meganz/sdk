@@ -75,6 +75,8 @@ void Transfer::failed(error e)
 {
     bool defer = false;
 
+    LOG_debug << "Transfer failed with error " << e;
+
     bt.backoff();
 
     client->app->transfer_failed(this, e);
@@ -91,9 +93,13 @@ void Transfer::failed(error e)
     {
         failcount++;
         delete slot;
+
+        LOG_debug << "Deferring transfer " << failcount;
     }
     else
     {
+        LOG_debug << "Removing transfer";
+
         client->app->transfer_removed(this);
         delete this;
     }
@@ -103,7 +109,7 @@ void Transfer::failed(error e)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
-    LOG_debug << "Transfer complete";
+    LOG_debug << "Transfer complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
     if (type == GET)
     {
@@ -237,7 +243,7 @@ void Transfer::complete()
                     // the destination path isn't synced, save with a (x) suffix
                     string utf8fullname;
                     client->fsaccess->local2path(&localname, &utf8fullname);
-                    string::size_type dotindex = utf8fullname.find_last_of('.');
+                    size_t dotindex = utf8fullname.find_last_of('.');
                     string name;
                     string extension;
                     if (dotindex == string::npos)
@@ -248,7 +254,7 @@ void Transfer::complete()
                     {
                         string separator;
                         client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
-                        string::size_type sepindex = utf8fullname.find_last_of(separator);
+                        size_t sepindex = utf8fullname.find_last_of(separator);
                         if(sepindex == string::npos || sepindex < dotindex)
                         {
                             name = utf8fullname.substr(0, dotindex);
@@ -309,7 +315,7 @@ void Transfer::complete()
             {
                 if((tmplocalname.size() ? tmplocalname : localfilename) == localname)
                 {
-                    //Identical node downloaded to the same folder
+                    LOG_debug << "Identical node downloaded to the same folder";
                     success = true;
                 }
                 else if (client->fsaccess->copylocal(tmplocalname.size() ? &tmplocalname : &localfilename,
@@ -338,17 +344,21 @@ void Transfer::complete()
                     files.erase(it++);
                     if(!success)
                     {
+                        LOG_warn << "Unable to complete transfer due to a persistent error";
+
                         f->transfer = NULL;
                         f->terminated();
                     }
                 }
                 else
                 {
+                    LOG_debug << "Persistent error completing file";
                     it++;
                 }
             }
             else
             {
+                LOG_debug << "Transient error completing file";
                 it++;
             }
         }
@@ -369,6 +379,9 @@ void Transfer::complete()
             // some files are still pending completion, close fa and set retry timer
             delete slot->fa;
             slot->fa = NULL;
+
+            LOG_debug << "Files pending completion: " << files.size() << ". Waiting for a retry.";
+            LOG_debug << "First pending file: " << files.front()->name;
 
             slot->retrying = true;
             slot->retrybt.backoff(11);

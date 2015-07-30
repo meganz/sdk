@@ -51,6 +51,7 @@
 #include "mega/sharenodekeys.h"
 #include "mega/treeproc.h"
 #include "mega/user.h"
+#include "mega/pendingcontactrequest.h"
 #include "mega/utils.h"
 #include "mega/logging.h"
 #include "mega/waiter.h"

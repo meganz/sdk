@@ -81,6 +81,9 @@
     <ClInclude Include="..\..\..\include\mega\node.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\pendingcontactrequest.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\include\mega\proxy.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
@@ -243,6 +246,12 @@
     <ClInclude Include="..\MPricing.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MContactRequest.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MContactRequestList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -297,6 +306,9 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\node.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\proxy.cpp">
@@ -424,6 +436,12 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
       <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MContactRequest.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MContactRequestList.cpp">
+      <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

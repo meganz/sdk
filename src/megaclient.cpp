@@ -124,189 +124,282 @@ void MegaClient::mergenewshares(bool notify)
 
     for (it = newshares.begin(); it != newshares.end(); )
     {
-        Node* n;
         NewShare* s = *it;
 
-        if ((n = nodebyhandle(s->h)))
-        {
-            if (!n->sharekey && s->have_key)
-            {
-                // setting an outbound sharekey requires node authentication
-                // unless coming from a trusted source (the local cache)
-                bool auth = true;
+        mergenewshare(s, notify);
 
-                if (s->outgoing > 0)
+        delete s;
+        newshares.erase(it++);
+    }
+}
+
+void MegaClient::mergenewshare(NewShare *s, bool notify)
+{
+    bool skreceived = false;
+    Node* n;
+
+    if ((n = nodebyhandle(s->h)))
+    {
+        if (!n->sharekey && s->have_key)
+        {
+            // setting an outbound sharekey requires node authentication
+            // unless coming from a trusted source (the local cache)
+            bool auth = true;
+
+            if (s->outgoing > 0)
+            {
+                if (!checkaccess(n, OWNERPRELOGIN))
                 {
-                    if (!checkaccess(n, OWNERPRELOGIN))
+                    LOG_warn << "Attempt to create dislocated outbound share foiled";
+                    auth = false;
+                }
+                else
+                {
+                    byte buf[SymmCipher::KEYLENGTH];
+
+                    handleauth(s->h, buf);
+
+                    if (memcmp(buf, s->auth, sizeof buf))
                     {
-                        LOG_warn << "Attempt to create dislocated outbound share foiled";
+                        LOG_warn << "Attempt to create forged outbound share foiled";
                         auth = false;
                     }
-                    else
-                    {
-                        byte buf[SymmCipher::KEYLENGTH];
-
-                        handleauth(s->h, buf);
-
-                        if (memcmp(buf, s->auth, sizeof buf))
-                        {
-                            LOG_warn << "Attempt to create forged outbound share foiled";
-                            auth = false;
-                        }
-                    }
-                }
-
-                if (auth)
-                {
-                    n->sharekey = new SymmCipher(s->key);
                 }
             }
 
-            if (s->access == ACCESS_UNKNOWN && !s->have_key)
+            if (auth)
             {
-                // share was deleted
-                if (s->outgoing)
+                n->sharekey = new SymmCipher(s->key);
+                skreceived = true;
+            }
+        }
+
+        if (s->access == ACCESS_UNKNOWN && !s->have_key)
+        {
+            // share was deleted
+            if (s->outgoing)
+            {
+                bool found = false;
+                if (n->outshares)
                 {
-                    if (n->outshares)
+                    // outgoing share to user u deleted
+                    if (n->outshares->erase(s->peer) && notify)
                     {
-                        // outgoing share to user u deleted
-                        if (n->outshares->erase(s->peer) && notify)
+                        found = true;
+                        n->changed.outshares = true;
+                        notifynode(n);
+                    }
+
+                    if (!n->outshares->size())
+                    {
+                        delete n->outshares;
+                        n->outshares = NULL;
+                    }
+                }
+                if (n->pendingshares && !found && s->pending)
+                {
+                    // delete the pending share
+                    if (n->pendingshares->erase(s->pending) && notify)
+                    {
+                        found = true;
+                        n->changed.pendingshares = true;
+                        notifynode(n);
+                    }
+
+                    if (!n->pendingshares->size())
+                    {
+                        delete n->pendingshares;
+                        n->pendingshares = NULL;
+                    }
+                }
+
+                // Erase sharekey if no outgoing shares (incl pending) exist
+                if (!n->outshares && !n->pendingshares)
+                {
+                    delete n->sharekey;
+                    n->sharekey = NULL;
+                }
+            }
+            else
+            {
+                // incoming share deleted - remove tree
+                if (!n->parent)
+                {
+                    TreeProcDel td;
+                    proctree(n, &td, true);
+                }
+                else
+                {
+                    if (n->inshare)
+                    {
+                        n->inshare->user->sharing.erase(n->nodehandle);
+                        notifyuser(n->inshare->user);
+                        n->inshare = NULL;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (s->outgoing)
+            {
+                if((!s->upgrade_pending_to_full && (!ISUNDEF(s->peer) || !ISUNDEF(s->pending)))
+                    || (s->upgrade_pending_to_full && !ISUNDEF(s->peer) && !ISUNDEF(s->pending)))
+                {
+                    // perform mandatory verification of outgoing shares:
+                    // only on own nodes and signed unless read from cache
+                    if (checkaccess(n, OWNERPRELOGIN))
+                    {
+                        Share** sharep;
+                        if (!ISUNDEF(s->pending))
                         {
-                            n->changed.outshares = true;
-                            notifynode(n);
+                            // Pending share
+                            if (!n->pendingshares)
+                            {
+                                n->pendingshares = new share_map;
+                            }
+
+                            sharep = &((*n->pendingshares)[s->pending]);
+
+                            if (*sharep && s->upgrade_pending_to_full)
+                            {
+                                // This is currently a pending share that needs to be upgraded to a full share
+                                // erase from pending shares & delete the pending share list if needed
+                                if (n->pendingshares->erase(s->pending) && notify)
+                                {
+                                    n->changed.pendingshares = true;
+                                    notifynode(n);
+                                }
+                                if (!n->pendingshares->size())
+                                {
+                                    delete n->pendingshares;
+                                    n->pendingshares = NULL;
+                                }
+                                // clear this so we can fall through to below and have it re-create the share in
+                                // the outshares list
+                                s->pending = UNDEF;
+
+                                // create the outshares list if needed
+                                if (!n->outshares)
+                                {
+                                    n->outshares = new share_map();
+                                }
+
+                                sharep = &((*n->outshares)[s->peer]);
+                            }
+                        }
+                        else
+                        {
+                            // Normal outshare
+                            if (!n->outshares)
+                            {
+                                n->outshares = new share_map();
+                            }
+
+                            sharep = &((*n->outshares)[s->peer]);
                         }
 
-                        // if no other outgoing shares remain on this node, erase sharekey
-                        if (!n->outshares->size())
+                        // modification of existing share or new share
+                        if (*sharep)
                         {
-                            delete n->outshares;
-                            n->outshares = NULL;
+                            (*sharep)->update(s->access, s->ts, findpcr(s->pending));
+                        }
+                        else
+                        {
+                            *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                        }
 
-                            delete n->sharekey;
-                            n->sharekey = NULL;
+                        if (notify)
+                        {
+                            if (!ISUNDEF(s->pending))
+                            {
+                                n->changed.pendingshares = true;
+                            }
+                            else
+                            {
+                                n->changed.outshares = true;
+                            }
+                            notifynode(n);
                         }
                     }
                 }
                 else
                 {
-                    // incoming share deleted - remove tree
-                    if (!n->parent)
-                    {
-                        TreeProcDel td;
-                        proctree(n, &td, true);
-                    }
-                    else
-                    {
-                        if (n->inshare)
-                        {
-                            n->inshare->user->sharing.erase(n->nodehandle);
-                            notifyuser(n->inshare->user);
-                            n->inshare = NULL;
-                        }
-                    }
+                    LOG_err << "Incomplete outshare info";
                 }
             }
             else
             {
                 if (!ISUNDEF(s->peer))
                 {
-                    if (s->outgoing)
+                    if (s->peer)
                     {
-                        // perform mandatory verification of outgoing shares:
-                        // only on own nodes and signed unless read from cache
-                        if (checkaccess(n, OWNERPRELOGIN))
+                        if (!checkaccess(n, OWNERPRELOGIN))
                         {
-                            if (!n->outshares)
-                            {
-                                n->outshares = new share_map;
-                            }
-
-                            Share** sharep = &((*n->outshares)[s->peer]);
-
                             // modification of existing share or new share
-                            if (*sharep)
+                            if (n->inshare)
                             {
-                                (*sharep)->update(s->access, s->ts);
+                                n->inshare->update(s->access, s->ts);
                             }
                             else
                             {
-                                *sharep = new Share(finduser(s->peer, 1), s->access, s->ts);
+                                n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                                n->inshare->user->sharing.insert(n->nodehandle);
                             }
 
                             if (notify)
                             {
-                                n->changed.outshares = true;
+                                n->changed.inshare = true;
                                 notifynode(n);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (s->peer)
-                        {
-                            if (!checkaccess(n, OWNERPRELOGIN))
-                            {
-                                // modification of existing share or new share
-                                if (n->inshare)
-                                {
-                                    n->inshare->update(s->access, s->ts);
-                                }
-                                else
-                                {
-                                    n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts);
-                                    n->inshare->user->sharing.insert(n->nodehandle);
-                                }
-
-                                if (notify)
-                                {
-                                    n->changed.inshare = true;
-                                    notifynode(n);
-                                }
-                            }
-                            else
-                            {
-                                LOG_warn << "Invalid inbound share location";
                             }
                         }
                         else
                         {
-                            LOG_warn << "Invalid null peer on inbound share";
+                            LOG_warn << "Invalid inbound share location";
                         }
                     }
-                }
-            }
-
-#ifdef ENABLE_SYNC
-            if (n->inshare && s->access != FULL)
-            {
-                // check if the low(ered) access level is affecting any syncs
-                // a) have we just cut off full access to a subtree of a sync?
-                do {
-                    if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
+                    else
                     {
-                        LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                        n->localnode->sync->errorcode = API_EACCESS;
-                        n->localnode->sync->changestate(SYNC_FAILED);
+                        LOG_warn << "Invalid null peer on inbound share";
                     }
-                } while ((n = n->parent));
-                
-                // b) have we just lost full access to the subtree a sync is in?
-                for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                }
+                else
                 {
-                    if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
+                    if (skreceived && notify)
                     {
-                        LOG_warn << "Existing inbound share sync lost full access";
-                        (*it)->errorcode = API_EACCESS;
-                        (*it)->changestate(SYNC_FAILED);
+                        TreeProcApplyKey td;
+                        proctree(n, &td);
                     }
                 }
-
             }
-#endif
         }
+#ifdef ENABLE_SYNC
+        if (n->inshare && s->access != FULL)
+        {
+            // check if the low(ered) access level is affecting any syncs
+            // a) have we just cut off full access to a subtree of a sync?
+            do {
+                if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
+                {
+                    LOG_warn << "Existing inbound share sync or part thereof lost full access";
+                    n->localnode->sync->errorcode = API_EACCESS;
+                    n->localnode->sync->changestate(SYNC_FAILED);
+                }
+            } while ((n = n->parent));
 
-        delete s;
-        newshares.erase(it++);
+            // b) have we just lost full access to the subtree a sync is in?
+            for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            {
+                if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
+                {
+                    LOG_warn << "Existing inbound share sync lost full access";
+                    (*it)->errorcode = API_EACCESS;
+                    (*it)->changestate(SYNC_FAILED);
+                }
+            }
+
+        }
+#endif
     }
 }
 
@@ -447,6 +540,10 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     sctable = NULL;
     me = UNDEF;
     followsymlinks = false;
+    usealtdownport = false;
+    usealtupport = false;
+    autodownport = true;
+    autoupport = true;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -1762,6 +1859,7 @@ bool MegaClient::dispatch(direction_t d)
             {
                 handle h = UNDEF;
                 bool hprivate = true;
+                const char *auth = NULL;
 
                 nextit->second->pos = 0;
 
@@ -1807,6 +1905,7 @@ bool MegaClient::dispatch(direction_t d)
                         {
                             h = (*it)->h;
                             hprivate = (*it)->hprivate;
+                            auth = (*it)->auth.size() ? (*it)->auth.c_str() : NULL;
                             break;
                         }
                     }
@@ -1815,7 +1914,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 reqs[r].add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(ts, putmbpscap)
-                          : (Command*)new CommandGetFile(ts, NULL, h, hprivate)));
+                          : (Command*)new CommandGetFile(ts, NULL, h, hprivate, auth)));
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
@@ -1976,6 +2075,8 @@ void MegaClient::logout()
         }
 #endif
         locallogout();
+
+        restag = reqtag;
         app->logout_result(API_OK);
         return;
     }
@@ -2197,6 +2298,7 @@ bool MegaClient::procsc()
                                 break;
 
                             case 's':
+                            case MAKENAMEID2('s', '2'):
                                 // share addition/update/revocation
                                 if (sc_shares())
                                 {
@@ -2229,6 +2331,24 @@ bool MegaClient::procsc()
                                 {
                                     app->account_updated();
                                 }
+                                break;
+
+                            case MAKENAMEID3('i', 'p', 'c'):
+                                // incoming pending contact request (to us)
+                                sc_ipc();
+                                break;
+
+                            case MAKENAMEID3('o', 'p', 'c'):
+                                // outgoing pending contact request (from us)
+                                sc_opc();
+                                break;
+
+                            case MAKENAMEID4('u', 'p', 'c', 'i'):
+                                // incoming pending contact request update (accept/deny/ignore)
+                                // fall through
+                            case MAKENAMEID4('u', 'p', 'c', 'o'):
+                                // outgoing pending contact request update (from them, accept/deny/ignore)
+                                sc_upc();
                                 break;
                         }
                     }
@@ -2290,6 +2410,18 @@ void MegaClient::initsc()
             }
         }
 
+        if (complete)
+        {
+            // 4. write new or modified pcrs, purge deleted pcrs
+            for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
+            {
+                if (!(complete = sctable->put(CACHEDPCR, it->second, &key)))
+                {
+                    break;
+                }
+            }
+        }
+
         LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
@@ -2306,7 +2438,10 @@ void MegaClient::updatesc()
 
         if (t.size() != sizeof cachedscsn)
         {
-            LOG_err << "Invalid scsn size";
+            if (t.size())
+            {
+                LOG_err << "Invalid scsn size";
+            }
             return;
         }
 
@@ -2349,6 +2484,31 @@ void MegaClient::updatesc()
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (complete)
+        {
+            // 4. write new or modified pcrs, purge deleted pcrs
+            for (pcr_vector::iterator it = pcrnotify.begin(); it != pcrnotify.end(); it++)
+            {
+                char base64[12];
+                if ((*it)->removed() && (*it)->dbid)
+                {
+                    LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->del((*it)->dbid)))
+                    {
+                        break;
+                    }
+                }
+                else if (!(*it)->removed())
+                {
+                    LOG_verbose << "Adding pcr to database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->put(CACHEDPCR, *it, &key)))
                     {
                         break;
                     }
@@ -2729,6 +2889,8 @@ bool MegaClient::sc_shares()
     handle h = UNDEF;
     handle oh = UNDEF;
     handle uh = UNDEF;
+    handle p = UNDEF;
+    bool upgrade_pending_to_full = false;
     const char* k = NULL;
     const char* ok = NULL;
     byte ha[SymmCipher::BLOCKSIZE];
@@ -2742,6 +2904,14 @@ bool MegaClient::sc_shares()
     {
         switch (jsonsc.getnameid())
         {
+            case 'p':  // Pending contact request handle for an s2 packet
+                p = jsonsc.gethandle(PCRHANDLE);
+                break;
+
+            case MAKENAMEID2('o', 'p'):
+                upgrade_pending_to_full = true;
+                break;
+
             case 'n':   // share node
                 h = jsonsc.gethandle();
                 break;
@@ -2814,13 +2984,14 @@ bool MegaClient::sc_shares()
                         return true;
                     }
 
-                    if (!ISUNDEF(oh) && !ISUNDEF(uh))
+                    if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
                         // new share - can be inbound or outbound
                         newshares.push_back(new NewShare(h, outbound,
                                                          outbound ? uh : oh,
                                                          r, ts, sharekey,
-                                                         have_ha ? ha : NULL));
+                                                         have_ha ? ha : NULL, 
+                                                         p, upgrade_pending_to_full));
 
                         //Returns false because as this is a new share, the node
                         //could not have been received yet
@@ -2829,11 +3000,11 @@ bool MegaClient::sc_shares()
                 }
                 else
                 {
-                    if (!ISUNDEF(oh) && !ISUNDEF(uh))
+                    if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        // share revocation
-                        newshares.push_back(new NewShare(h, outbound, outbound ? uh : oh, ACCESS_UNKNOWN, 0, NULL));
-                        return true;
+                        // share revocation or share without key
+                        newshares.push_back(new NewShare(h, outbound, outbound ? uh : oh, r, 0, NULL, NULL, p, false));
+                        return r == ACCESS_UNKNOWN;
                     }
                 }
 
@@ -3059,6 +3230,319 @@ void MegaClient::sc_userattr()
     }
 }
 
+// Incoming pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
+void MegaClient::sc_ipc()
+{
+    // fields: m, ts, uts, rts, dts, msg, p, ps
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    int ps = 0;
+    const char *m = NULL;
+    const char *msg = NULL;
+    handle p = UNDEF;
+    PendingContactRequest *pcr;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                m = jsonsc.getvalue();
+                break;
+            case MAKENAMEID2('p', 's'):
+                ps = jsonsc.getint();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = jsonsc.getvalue();
+                break;
+            case 'p':
+                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case EOO:
+                done = true;
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "p element not provided";
+                    break;
+                }
+
+                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+
+                if (dts != 0)
+                {
+                    //Trying to remove an ignored request
+                    if(pcr)
+                    {
+                        // this is a delete, find the existing object in state
+                        pcr->uts = dts;
+                        pcr->changed.deleted = true;
+                    }
+                }
+                else if (pcr && rts != 0)
+                {
+                    // reminder
+                    if (uts == 0)
+                    {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    pcr->uts = uts;
+                    pcr->changed.reminded = true;
+                }
+                else
+                {
+                    // new
+                    if (!m)
+                    {
+                        LOG_err << "m element not provided";
+                        break;
+                    }
+                    if (ts == 0)
+                    {
+                        LOG_err << "ts element not provided";
+                        break;
+                    }
+                    if (uts == 0)
+                    {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
+                    mappcr(p, pcr);
+                }
+                notifypcr(pcr);
+
+                break;
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
+// Outgoing pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
+void MegaClient::sc_opc()
+{
+    // fields: e, m, ts, uts, rts, dts, msg, p
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    m_time_t rts = 0;
+    m_time_t dts = 0;
+    const char *e = NULL;
+    const char *m = NULL;
+    const char *msg = NULL;
+    handle p = UNDEF;
+    PendingContactRequest *pcr;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'e':
+                e = jsonsc.getvalue();
+                break;
+            case 'm':
+                m = jsonsc.getvalue();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('r', 't', 's'):
+                rts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('d', 't', 's'):
+                dts = jsonsc.getint();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = jsonsc.getvalue();
+                break;
+            case 'p':
+                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case EOO:
+                done = true;
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "p element not provided";
+                    break;
+                }
+
+                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+
+                if (dts != 0)
+                {
+                    // this is a delete, find the existing object in state
+                    pcr->uts = dts;
+                    pcr->changed.deleted = true;
+                }
+                else if (pcr)
+                {
+                    // reminder
+                    if (uts == 0)
+                    {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+                    if (rts == 0)
+                    {
+                        LOG_err << "rts element not provided";
+                        break;
+                    }
+                    pcr->uts = uts;
+                    pcr->changed.reminded = true;
+                }
+                else
+                {
+                    // new
+                    if (!e)
+                    {
+                        LOG_err << "e element not provided";
+                        break;
+                    }
+                    if (!m)
+                    {
+                        LOG_err << "m element not provided";
+                        break;
+                    }
+                    if (ts == 0)
+                    {
+                        LOG_err << "ts element not provided";
+                        break;
+                    }
+                    if (uts == 0)
+                    {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                    mappcr(p, pcr);
+                }
+                notifypcr(pcr);
+
+                break;
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
+// Incoming pending contact request updates, always triggered by the receiver of the request (accepts, denies, etc)
+void MegaClient::sc_upc()
+{
+    // fields: p, uts, s, m
+    m_time_t uts = 0;
+    int s = 0;
+    const char *m = NULL;
+    handle p = UNDEF;
+    PendingContactRequest *pcr;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                m = jsonsc.getvalue();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = jsonsc.getint();
+                break; 
+            case 's':
+                s = jsonsc.getint();
+                break;
+            case 'p':
+                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case EOO:
+                done = true;
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "p element not provided";
+                    break;
+                }
+
+                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+
+                if (!pcr)
+                {
+                    // As this was an update triggered by us, on an object we must know about, this is kinda a problem.                    
+                    LOG_err << "upci PCR not found, huge massive problem";
+                    break;
+                }
+                else
+                {                    
+                    if (!m)
+                    {
+                        LOG_err << "m element not provided";
+                        break;
+                    }
+                    if (s == 0)
+                    {
+                        LOG_err << "s element not provided";
+                        break;
+                    }
+                    if (uts == 0)
+                    {
+                        LOG_err << "uts element not provided";
+                        break;
+                    }
+
+                    switch (s)
+                    {
+                        case 1:
+                            // ignored
+                            pcr->changed.ignored = true;
+                            break;
+                        case 2:
+                            // accepted
+                            pcr->changed.accepted = true;
+                            break;
+                        case 3:
+                            // denied
+                            pcr->changed.denied = true;
+                            break;
+                    }
+                    pcr->uts = uts;
+                }
+                notifypcr(pcr);
+
+                break;
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
 // scan notified nodes for
 // - name differences with an existing LocalNode
 // - appearance of new folders
@@ -3073,7 +3557,7 @@ void MegaClient::notifypurge(void)
 
     if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
 
-    if (nodenotify.size() || usernotify.size() || cachedscsn != tscsn)
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || cachedscsn != tscsn)
     {
         updatesc();
 
@@ -3141,6 +3625,29 @@ void MegaClient::notifypurge(void)
         }
 
         nodenotify.clear();
+    }
+
+    if ((t = pcrnotify.size()))
+    {
+        app->pcrs_updated(&pcrnotify[0], t);
+
+        // check all notified nodes for removed status and purge
+        for (i = 0; i < t; i++)
+        {
+            PendingContactRequest* pcr = pcrnotify[i];
+
+            if (pcr->removed())
+            {
+                pcrindex.erase(pcr->id);
+                delete pcr;
+            }
+            else
+            {
+                pcr->notified = false;
+            }
+        }
+
+        pcrnotify.clear();
     }
 
     // users are never deleted
@@ -3773,7 +4280,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                     if (!sk)
                     {
-                        warn("Missing share key for inbound share");
+                        LOG_warn << "Missing share key for inbound share";
                     }
 
                     if (warnlevel())
@@ -3782,7 +4289,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     }
                     else
                     {
-                        decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                        if (sk)
+                        {
+                            decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                        }
                     }
                 }
 
@@ -3811,7 +4321,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 if (!ISUNDEF(su))
                 {
-                    newshares.push_back(new NewShare(h, 0, su, rl, sts, buf));
+                    newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
                 }
 
                 if (nn && nni >= 0 && nni < nnsize)
@@ -3958,7 +4468,7 @@ void MegaClient::readokelement(JSON* j)
     }
 }
 
-// read outbound shares
+// read outbound shares and pending shares
 void MegaClient::readoutshares(JSON* j)
 {
     if (j->enterarray())
@@ -3974,11 +4484,12 @@ void MegaClient::readoutshares(JSON* j)
     }
 }
 
-// - h/u/r/ts (outbound share)
+// - h/u/r/ts/p (outbound share or pending share)
 void MegaClient::readoutshareelement(JSON* j)
 {
     handle h = UNDEF;
     handle uh = UNDEF;
+    handle p = UNDEF;
     accesslevel_t r = ACCESS_UNKNOWN;
     m_time_t ts = 0;
 
@@ -3988,6 +4499,10 @@ void MegaClient::readoutshareelement(JSON* j)
         {
             case 'h':
                 h = j->gethandle();
+                break;
+
+            case 'p':
+                p = j->gethandle(PCRHANDLE);
                 break;
 
             case 'u':           // share target user
@@ -4009,7 +4524,7 @@ void MegaClient::readoutshareelement(JSON* j)
                     return;
                 }
 
-                if (ISUNDEF(uh))
+                if (ISUNDEF(uh) && ISUNDEF(p))
                 {
                     LOG_warn << "Missing outgoing share user";
                     return;
@@ -4021,7 +4536,7 @@ void MegaClient::readoutshareelement(JSON* j)
                     return;
                 }
 
-                newshares.push_back(new NewShare(h, 1, uh, r, ts, NULL, NULL));
+                newshares.push_back(new NewShare(h, 1, uh, r, ts, NULL, NULL, p));
                 return;
 
             default:
@@ -4030,6 +4545,175 @@ void MegaClient::readoutshareelement(JSON* j)
                     return;
                 }
         }
+    }
+}
+
+void MegaClient::readipc(JSON *j)
+{
+    // fields: ps, m, ts, uts, msg, p
+    if (j->enterarray())
+    {
+        while (j->enterobject())
+        {
+            m_time_t ts = 0;
+            m_time_t uts = 0;
+            int ps = 0;
+            const char *m = NULL;
+            const char *msg = NULL;
+            handle p = UNDEF;
+
+            bool done = false;
+            while (!done)
+            {
+                switch (j->getnameid()) {
+                    case MAKENAMEID2('p', 's'):
+                        ps = j->getint();
+                        break;
+                    case 'm':
+                        m = j->getvalue();
+                        break;
+                    case MAKENAMEID2('t', 's'):
+                        ts = j->getint();
+                        break;
+                    case MAKENAMEID3('u', 't', 's'):
+                        uts = j->getint();
+                        break;
+                    case MAKENAMEID3('m', 's', 'g'):
+                        msg = j->getvalue();
+                        break;
+                    case 'p':
+                        p = j->gethandle(MegaClient::PCRHANDLE);
+                        break;
+                    case EOO:
+                        done = true;
+                        if (ISUNDEF(p))
+                        {
+                            LOG_err << "p element not provided";
+                            break;
+                        }
+                        if (!m)
+                        {
+                            LOG_err << "m element not provided";
+                            break;
+                        }
+                        if (ts == 0)
+                        {
+                            LOG_err << "ts element not provided";
+                            break;
+                        }
+                        if (uts == 0)
+                        {
+                            LOG_err << "uts element not provided";
+                            break;
+                        }
+
+                        if (pcrindex[p] != NULL)
+                        {
+                            pcrindex[p]->update(m, NULL, ts, uts, msg, false);                        
+                        } 
+                        else
+                        {
+                            pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
+                        }                       
+
+                        break;
+                    default:
+                       if (!j->storeobject())
+                       {
+                            return;
+                       }
+                }
+            }
+        }
+
+        j->leavearray();
+    }
+}
+
+void MegaClient::readopc(JSON *j)
+{
+    // fields: e, m, ts, uts, rts, msg, p
+    if (j->enterarray())
+    {
+        while (j->enterobject())
+        {
+            m_time_t ts = 0;
+            m_time_t uts = 0;
+            m_time_t rts = 0;
+            const char *e = NULL;
+            const char *m = NULL;
+            const char *msg = NULL;
+            handle p = UNDEF;
+
+            bool done = false;
+            while (!done)
+            {
+                switch (j->getnameid())
+                {
+                    case 'e':
+                        e = j->getvalue();
+                        break;
+                    case 'm':
+                        m = j->getvalue();
+                        break;
+                    case MAKENAMEID2('t', 's'):
+                        ts = j->getint();
+                        break;
+                    case MAKENAMEID3('u', 't', 's'):
+                        uts = j->getint();
+                        break;
+                    case MAKENAMEID3('r', 't', 's'):
+                        rts = j->getint();
+                        break;
+                    case MAKENAMEID3('m', 's', 'g'):
+                        msg = j->getvalue();
+                        break;
+                    case 'p':
+                        p = j->gethandle(MegaClient::PCRHANDLE);
+                        break;
+                    case EOO:
+                        done = true;
+                        if (!e)
+                        {
+                            LOG_err << "e element not provided";
+                            break;
+                        }
+                        if (!m)
+                        {
+                            LOG_err << "m element not provided";
+                            break;
+                        }
+                        if (ts == 0)
+                        {
+                            LOG_err << "ts element not provided";
+                            break;
+                        }
+                        if (uts == 0)
+                        {
+                            LOG_err << "uts element not provided";
+                            break;
+                        }
+
+                        if (pcrindex[p] != NULL)
+                        {
+                            pcrindex[p]->update(e, m, ts, uts, msg, true);                        
+                        } 
+                        else
+                        {
+                            pcrindex[p] = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                        }
+
+                        break;
+                    default:
+                       if (!j->storeobject())
+                       {
+                            return;
+                       }
+                }
+            }
+        }
+
+        j->leavearray();
     }
 }
 
@@ -4477,6 +5161,28 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
+PendingContactRequest* MegaClient::findpcr(handle p)
+{
+    if (ISUNDEF(p))
+    {
+        return NULL;
+    }
+
+    PendingContactRequest* pcr = pcrindex[p];
+    if (!pcr)
+    {
+        pcr = new PendingContactRequest(p);
+        pcrindex[p] = pcr;
+    }
+
+    return pcrindex[p];
+}
+
+void MegaClient::mappcr(handle id, PendingContactRequest *pcr)
+{
+    pcrindex[id] = pcr;
+}
+
 // sharekey distribution request - walk array consisting of {node,user+}+ handle tuples
 // and submit public key requests
 void MegaClient::procsr(JSON* j)
@@ -4565,16 +5271,29 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char* personal_representation)
 {
-    if (a == ACCESS_UNKNOWN && n->outshares && n->outshares->size() == 1)
+    int total = n->outshares ? n->outshares->size() : 0;
+    total += n->pendingshares ? n->pendingshares->size() : 0;
+    if (a == ACCESS_UNKNOWN && total == 1)
     {
         // rewrite keys of foreign nodes located in the outbound share that is getting canceled
         // FIXME: verify that it is really getting canceled to prevent benign premature rewrite
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(finduser(user, 1), new PubKeyActionCreateShare(n->nodehandle, a, reqtag));
+    queuepubkeyreq(finduser(user, 1), new PubKeyActionCreateShare(n->nodehandle, a, reqtag, personal_representation));
+}
+
+// Add/delete/remind outgoing pending contact request
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
+{
+    reqs[r].add(new CommandSetPendingContact(this, temail, action, msg, oemail));
+}
+
+void MegaClient::updatepcr(handle p, ipcactions_t action)
+{
+    reqs[r].add(new CommandUpdatePendingContact(this, p, action));
 }
 
 // enumerate Pro account purchase options (not fully implemented)
@@ -4846,6 +5565,7 @@ void MegaClient::notifynode(Node* n)
         int creqtag = reqtag;
         reqtag = 0;
         reportevent("NK", report);
+        sendevent(99400, report);
         reqtag = creqtag;
 
         delete [] buf;
@@ -4927,6 +5647,16 @@ void MegaClient::notifynode(Node* n)
 void MegaClient::notifyuser(User* u)
 {
     usernotify.push_back(u);
+}
+
+// queue pcr for notification
+void MegaClient::notifypcr(PendingContactRequest* pcr)
+{
+    if (pcr && !pcr->notified)
+    {
+        pcr->notified = true;
+        pcrnotify.push_back(pcr);
+    }
 }
 
 // process request for share node keys
@@ -5487,6 +6217,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     string data;
     Node* n;
     User* u;
+    PendingContactRequest* pcr;
     node_vector dp;
 
     LOG_info << "Loading session from local cache";
@@ -5512,6 +6243,18 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 else
                 {
                     LOG_err << "Failed - node record read error";
+                    return false;
+                }
+                break;
+
+            case CACHEDPCR:
+                if ((pcr = PendingContactRequest::unserialize(this, &data)))
+                {
+                    pcr->dbid = id;
+                }
+                else
+                {
+                    LOG_err << "Failed - pcr record read error";
                     return false;
                 }
                 break;
@@ -5640,9 +6383,11 @@ void MegaClient::purgenodesusersabortsc()
 
     nodenotify.clear();
     usernotify.clear();
+    pcrnotify.clear();
     users.clear();
     uhindex.clear();
     umindex.clear();
+    pcrindex.clear();
 
     *scsn = 0;
 
@@ -7086,6 +7831,14 @@ bool MegaClient::startxfer(direction_t d, File* f)
         if (it != transfers[d].end())
         {
             t = it->second;
+
+            for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+            {
+                if(f->localname == (*it)->localname)
+                {
+                    return false;
+                }
+            }
         }
         else
         {
@@ -7211,4 +7964,24 @@ void MegaClient::reportevent(const char* event, const char* details)
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
     reqs[r].add(new CommandReportEvent(this, event, details));
 }
+
+void MegaClient::userfeedbackstore(const char *message)
+{
+    string type = "feedback.";
+    type.append(&(appkey[4]));
+    type.append(".");
+
+    string base64userAgent;
+    base64userAgent.resize(useragent.size() * 4 / 3 + 4);
+    Base64::btoa((byte *)useragent.data(), useragent.size(), (char *)base64userAgent.data());
+    type.append(base64userAgent);
+
+    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+}
+
+void MegaClient::sendevent(int event, const char *desc)
+{
+    reqs[r].add(new CommandSendEvent(this, event, desc));
+}
+
 } // namespace

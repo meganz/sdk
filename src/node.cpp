@@ -36,6 +36,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 {
     client = cclient;
     outshares = NULL;
+    pendingshares = NULL;
     tag = 0;
     appdata = NULL;
 
@@ -139,6 +140,17 @@ Node::~Node()
         }
         delete outshares;
     }
+
+    if (pendingshares)
+    {
+        // delete pending shares
+        for (share_map::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
+        {
+            delete it->second;
+        }
+        delete pendingshares;
+    }
+
 
     // remove from parent's children
     if (parent)
@@ -303,7 +315,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if (numshares)
     {
-        // read inshare or outshares
+        // read inshare, outshares, or pending shares
         while (Share::unserialize(client,
                                   (numshares > 0) ? -1 : 0,
                                   h, skey, &ptr, end)
@@ -413,13 +425,14 @@ bool Node::serialize(string* d)
     }
     else
     {
-        if (!outshares)
+        numshares = 0;
+        if (outshares)
         {
-            numshares = 0;
+            numshares += (short)outshares->size();
         }
-        else
+        if (pendingshares)
         {
-            numshares = (short)outshares->size();
+            numshares += (short)pendingshares->size();
         }
     }
 
@@ -438,6 +451,13 @@ bool Node::serialize(string* d)
             if (outshares)
             {
                 for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+                {
+                    it->second->serialize(d);
+                }
+            }
+            if (pendingshares)
+            {
+                for (share_map::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
                 {
                     it->second->serialize(d);
                 }
@@ -653,13 +673,14 @@ bool Node::applykey()
         return false;
     }
 
-    int l = -1, t = 0;
+    int l = -1;
+    size_t t = 0;
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
 
-    while ((t = nodekey.find_first_of(':', t)) != (int)string::npos)
+    while ((t = nodekey.find_first_of(':', t)) != string::npos)
     {
         // compound key: locate suitable subkey (always symmetric)
         h = 0;
