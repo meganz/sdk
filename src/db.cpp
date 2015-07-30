@@ -220,7 +220,8 @@ bool DbTable::getchildren(string *data, SymmCipher *key)
 
 void DbTable::encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor)
 {
-    hstring->resize(sizeof(h));
+    int len = sizeof(h) * 4/3 + 3;
+    hstring->resize(len);
     hstring->resize(Base64::btoa((const byte *)&h, sizeof(h), (char *) hstring->data()));
 
     PaddedCBC::encrypt(hstring, key);
@@ -256,7 +257,7 @@ void DbTable::decrypthandle(handle *h, string *hstring, SymmCipher *key, bool ap
 
     PaddedCBC::decrypt(hstring, key);
 
-    Base64::atob(hstring->data(), (byte *)h, 6);
+    Base64::atob(hstring->data(), (byte *)h, hstring->size());//sizeof(h));
 }
 
 } // namespace
