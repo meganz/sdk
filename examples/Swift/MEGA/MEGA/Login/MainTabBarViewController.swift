@@ -33,7 +33,7 @@ class MainTabBarViewController: UITabBarController {
         viewControllerArray.addObject(UIStoryboard(name: "Contacts", bundle: nil).instantiateInitialViewController())
         viewControllerArray.addObject(UIStoryboard(name: "Settings", bundle: nil).instantiateInitialViewController())
         
-        self.setViewControllers(viewControllerArray, animated: false)
+        self.setViewControllers(viewControllerArray as [AnyObject], animated: false)
     }
     
     override func didReceiveMemoryWarning() {

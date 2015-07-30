@@ -26,7 +26,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
     var users : MEGAUserList!
     var filterUsers = [MEGAUser]()
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -58,7 +58,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
 
     
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCellWithIdentifier("contactCell", forIndexPath: indexPath) as ContactTableViewCell
+        let cell = tableView.dequeueReusableCellWithIdentifier("contactCell", forIndexPath: indexPath) as! ContactTableViewCell
         let user = filterUsers[indexPath.row]
         
         cell.nameLabel.text = user.email
@@ -97,7 +97,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         
         switch request.type {
         case MEGARequestType.GetAttrUser:
-            for tableViewCell in tableView.visibleCells() as [ContactTableViewCell] {
+            for tableViewCell in tableView.visibleCells() as! [ContactTableViewCell] {
                 if request?.email == tableViewCell.nameLabel.text {
                     let filename = request.email
                     let avatarFilePath = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0].stringByAppendingPathComponent("thumbs").stringByAppendingPathComponent(filename)

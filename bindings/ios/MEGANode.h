@@ -116,6 +116,14 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) uint64_t handle;
 
 /**
+ * @brief The handle of the parent node
+ *
+ * You can use [MEGASdk nodeForHandle:] to recover the node later.
+ *
+ */
+@property (readonly, nonatomic) uint64_t parentHandle;
+
+/**
  * @brief Tag of the operation that created/modified this node in MEGA.
  *
  * Every request and every transfer has a tag that identifies it.
