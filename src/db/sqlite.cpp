@@ -149,33 +149,23 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     }
 
     sqlite3_stmt *stmt;
+    bool result = false;
 
-    int rc = sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
-
-    if (rc)
+    if (sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        return false;
+        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
+
+                result = true;
+            }
+        }
     }
-
-    rc = sqlite3_bind_int(stmt, 1, index);
-
-    if (rc)
-    {
-        return false;
-    }
-
-    rc = sqlite3_step(stmt);
-
-    if (rc != SQLITE_ROW)
-    {
-        return false;
-    }
-
-    data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
 
     sqlite3_finalize(stmt);
-
-    return true;
+    return result;
 }
 
 // add/update record by index
@@ -187,37 +177,24 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     }
 
     sqlite3_stmt *stmt;
+    bool result = false;
 
-    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
-
-    if (rc)
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
     {
-        return false;
-    }
-
-    rc = sqlite3_bind_int(stmt, 1, index);
-
-    if (rc)
-    {
-        return false;
-    }
-
-    rc = sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC);
-
-    if (rc)
-    {
-        return false;
-    }
-
-    rc = sqlite3_step(stmt);
-
-    if (rc != SQLITE_DONE)
-    {
-        return false;
+        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        {
+            if (sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC) == SQLITE_OK)
+            {
+                if (sqlite3_step(stmt) == SQLITE_DONE)
+                {
+                    result = true;
+                }
+            }
+        }
     }
 
     sqlite3_finalize(stmt);
-    return true;
+    return result;
 }
 
 // delete record by index
