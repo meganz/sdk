@@ -57,13 +57,8 @@ struct MEGA_API User : public Cachable
     // user public signing key.
     SharedBuffer puEd25519;
 
-<<<<<<< HEAD
     // user public signing key signature.
     SharedBuffer keySig;
-=======
-	// Public key signature.
-	SharedBuffer keySig;
->>>>>>> d5e86ca3dc1984ade3d22dff6488afeb8b500010
 
     // denotes if the RSA key for this user has been checked against their
     // stored key signature.

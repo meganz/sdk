@@ -39,6 +39,8 @@ class MEGA_API EdDSA
 public:
 
     static const int SODIUM_PK_BYTES;
+    static const int SODIUM_PRI_KEY_BYTES;
+    static const int EXTERN_PRI_KEY_BYTES;
 
     static CryptoPP::AutoSeededRandomPool rng;
 
@@ -175,20 +177,23 @@ public:
      */
     std::pair<SecureBuffer, SecureBuffer> getKeyPair();
 
-<<<<<<< HEAD
     /**
      * @brief Set the key pair.
      *
      * @param pair The key pair to set.
      */
     void setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair);
-=======
-	/**
-	* @brief Set the key pair.
-	* @param pair The key pair to set.
-	*/
-	void setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair);
->>>>>>> d5e86ca3dc1984ade3d22dff6488afeb8b500010
+
+    /**
+     * @brief Set a keypair from a non-libsoidum source.
+     *
+     * This is used in situations where the private key _does not_ contain the
+     * public portion of the key.
+     *
+     * @param pair The keypair to set.
+     * @return 0 on success, -1 if either of the keys is not the correct size.
+     */
+    int setNonSodiumKeyPair(std::pair<SecureBuffer, SecureBuffer> pair);
 };
 
 

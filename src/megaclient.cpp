@@ -3832,7 +3832,15 @@ void MegaClient::getownsigningkeys(GetSigKeysCallback callback, bool reset) {
                 retMap->insert(std::make_pair("", i->second));
                 SecureBuffer pubKey = i->second.toSecureBuffer();
                 SecureBuffer priKey = retMap->find("prEd255")->second.toSecureBuffer();
-                this->signkey.setKeyPair(std::make_pair(pubKey, priKey));
+                std::cout << "priKey len = " << priKey.size() << std::endl;
+                for(int x = 0; x < pubKey.size(); x++) {
+                    std::cout << (int)pubKey.get()[x] << ", ";
+                }
+                std::cout << std::endl;
+                for(int x = 0; x < priKey.size(); x++) {
+                    std::cout << (int)priKey.get()[x] << ", ";
+                }
+                this->signkey.setNonSodiumKeyPair(std::make_pair(pubKey, priKey));
                 callback(retMap, e);
             };
 
@@ -3873,11 +3881,13 @@ void MegaClient::uploadkeys(GetSigKeysCallback callback) {
 
     SharedBuffer pubBuff(pair.first.get(), pair.first.size());
     ValueMap pubMap(new std::map<std::string, SharedBuffer>());
-    // pubMap->insert("puEd255");
     pubMap->insert( { "", pubBuff });
     ValueMap priMap(new std::map<std::string, SharedBuffer>());
+    // We only upload the first 32 bytes of the private key, as the other
+    // 32 bytes are the public key.
     priMap->insert(std::make_pair("prEd255", SharedBuffer(pair.second.get(),
-            pair.second.size())));
+            //pair.second.size())));
+            EdDSA::EXTERN_PRI_KEY_BYTES)));
 
     ////////////// Create the chain of API calls /////////////////
 
@@ -4246,7 +4256,7 @@ ValueMap MegaClient::serilizeMap(int rsa) {
 
     SharedBuffer serBuff(fpMap->size() * (sizeof(handle) + 20 + 1));
     int count = 0;
-    for_each(fpMap->begin(), fpMap->end(), [&](std::pair<handle, FingerPrintRecord> &i) {
+    std::for_each(fpMap->begin(), fpMap->end(), [&](std::pair<const handle, FingerPrintRecord> &i) {
         memcpy(serBuff.get() + count, &i.first, sizeof(handle));
         memcpy(serBuff.get() + (count += sizeof(handle)),
                 i.second.fingerPrint.get(), 20);

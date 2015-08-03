@@ -27,6 +27,32 @@
 
 using namespace mega;
 
+TLV::TLV(const char *type, unsigned int length, unsigned char *value) :
+        type(type),
+        length(length),
+        value(value)
+{
+
+}
+
+TLV::~TLV() {}
+
+const char *TLV::getType() const
+{
+    return type;
+}
+
+unsigned int TLV::getLength() const
+{
+    return length;
+}
+
+unsigned char *TLV::getValue() const
+{
+    return value;
+}
+
+
 MegaProxy::MegaProxy()
 {
     proxyType = PROXY_AUTO;
@@ -473,6 +499,12 @@ int MegaRequest::getNumDetails() const
 void MegaRequest::getUserAttributeMap(TLV **, unsigned int*) const
 {
     return;
+}
+
+TLV MegaRequest::getTLV(const char*) const
+{
+    TLV tlv = { (char*)"null", 0, NULL };
+    return tlv;
 }
 
 const char *MegaRequest::getAttributeName() const { return NULL; }
@@ -1088,6 +1120,16 @@ void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequest
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
+}
+
+void MegaApi::getUserAttribute(MegaUser *user, int type, const char* destFile, MegaRequestListener* listener)
+{
+    pImpl->getUserAttribute(user, type, destFile, listener);
+}
+
+void MegaApi::getUserAttribute(const char *user, int type, const char* destFile, MegaRequestListener* listener)
+{
+    pImpl->getUserAttribute(user, type, destFile, listener);
 }
 
 void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)

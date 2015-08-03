@@ -29,6 +29,8 @@ namespace mega {
 CryptoPP::AutoSeededRandomPool EdDSA::rng;
 
 const int EdDSA::SODIUM_PK_BYTES = crypto_sign_ed25519_PUBLICKEYBYTES;
+const int EdDSA::SODIUM_PRI_KEY_BYTES = crypto_sign_ed25519_SECRETKEYBYTES;
+const int EdDSA::EXTERN_PRI_KEY_BYTES = 32;
 
 bool EdDSA::keySet()
 {
@@ -221,6 +223,19 @@ void EdDSA::setKeyPair(std::pair<SecureBuffer, SecureBuffer> pair)
 {
 	publicKey = pair.first;
 	privateKey = pair.second;
+}
+
+int EdDSA::setNonSodiumKeyPair(std::pair<SecureBuffer, SecureBuffer> pair)
+{
+    if(pair.first.size() != SODIUM_PK_BYTES || pair.second.size() != SODIUM_PRI_KEY_BYTES) {
+        return -1;
+    }
+
+    publicKey = pair.first;
+    privateKey = SecureBuffer(SODIUM_PK_BYTES + SODIUM_PRI_KEY_BYTES);
+    memcpy(privateKey.get(), pair.first.get(), pair.first.size());
+    memcpy(privateKey.get() + pair.second.size(), pair.second.get(), pair.second.size());
+    return 0;
 }
 
 } // namespace

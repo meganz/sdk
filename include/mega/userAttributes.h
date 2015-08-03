@@ -154,8 +154,8 @@ public:
         ValueMap vMap(new std::map<std::string, SharedBuffer>);
         for(int x = 0; x < length; x++)
         {
-            SharedBuffer buffer(tlvArray[x].value, tlvArray[x].length);
-            vMap->insert(std::make_pair(std::string(tlvArray[x].type), buffer));
+            SharedBuffer buffer(tlvArray[x].getValue(), tlvArray[x].getLength());
+            vMap->insert(std::make_pair(std::string(tlvArray[x].getType()), buffer));
         }
         return vMap;
     }
@@ -173,10 +173,8 @@ public:
         int x = 0;
 		std::for_each(map->begin(), map->end(), [&](std::map<std::string, SharedBuffer>::value_type &i) 
         {
-			strcpy(tlvArray[x].type, i.first.c_str());
-            tlvArray[x].value = (unsigned char*)malloc(i.second.size);
-            memcpy(tlvArray[x].value, i.second.get(), i.second.size);
-            tlvArray[x].length = i.second.size;
+		    TLV tlv(i.first.c_str(), i.second.size, i.second.get());
+		    tlvArray[x] = tlv;
             x++;
 		});
 

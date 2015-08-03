@@ -74,13 +74,22 @@ class MegaApi;
  * @brief TLV structure used to put attributes.
  *
  */
-struct TLV
+class TLV
 {
-    char *type; ///< The type (or name) of the attribute.
+    const char *type; ///< The type (or name) of the attribute.
     unsigned int length; ///< The length of the attribute.
     unsigned char *value; ///< The value for this attribute.
-};
+public:
+    TLV(const char *, unsigned int, unsigned char*);
 
+    virtual ~TLV();
+
+    const char *getType() const;
+
+    unsigned int getLength() const;
+
+    unsigned char *getValue() const;
+};
 
 /**
  * @brief Interface to provide an external GFX processor
@@ -1513,6 +1522,8 @@ class MegaRequest
          * @return The map of value:length for the given request attribute.
          */
         virtual void getUserAttributeMap(TLV **tlv, unsigned int *tlvLen) const;
+
+        virtual TLV getTLV(const char*) const;
 
         /**
          * @brief Gets the name of the attribute for this request.
@@ -3759,6 +3770,57 @@ class MegaApi
          */
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get an attribute of a MegaUser.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value of the attribute
+         *
+         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
+         * is obtained for the active account
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(MegaUser *user, int type, const char* destFile, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get an attribute of a MegaUser.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value of the attribute
+         *
+         * @param user User email, to get the attribute. If this parameter is set to NULL, the attribute
+         * is obtained for the active account
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(const char *user, int type, const char* destFile, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Cancel the retrieval of a thumbnail

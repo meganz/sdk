@@ -1207,6 +1207,20 @@ void MegaRequestPrivate::setAttributeMap(TLV *tlvArray, unsigned int tlvLen,
     this->priv = priv;
 }
 
+TLV MegaRequestPrivate::getTLV(const char *valName) const
+{
+    if(!userAttributes || userAttributes->find(valName) == userAttributes->end())
+    {
+        TLV tlv("null", 0, NULL);
+        return tlv;
+    }
+
+    auto a = userAttributes->find(valName);
+    TLV tlv(a->first.c_str(), a->second.size, a->second.get());
+
+    return tlv;
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
 	switch(type)
@@ -1251,6 +1265,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_BALANCING: return "LOAD_BALANCING";
         case TYPE_KILL_SESSION: return "KILL_SESSION";
         case TYPE_SUBMIT_PURCHASE_RECEIPT: return "SUBMIT_PURCHASE_RECEIPT";
+        case TYPE_GET_USER_ATTRIBUTE: return "GET_USER_ATTRIBUTE";
+        case TYPE_GET_SIGNING_KEYS: return "GET_SIGNING_KEYS";
+        case TYPE_SET_USER_ATTRIBUTE: return "SET_USER_ATTRIBUTE";
 	}
     return "UNKNOWN";
 }
@@ -1285,92 +1302,6 @@ void MegaRequestPrivate::setPublicNode(MegaNode *publicNode) {
     else
         this->publicNode = publicNode->copy();
 }
-
-//const char *MegaRequestPrivate::getRequestString() const {
-//    switch (type) {
-//    case TYPE_LOGIN:
-//        return "LOGIN";
-//    case TYPE_CREATE_FOLDER:
-//        return "CREATE_FOLDER";
-//    case TYPE_MOVE:
-//        return "MOVE";
-//    case TYPE_COPY:
-//        return "COPY";
-//    case TYPE_RENAME:
-//        return "RENAME";
-//    case TYPE_REMOVE:
-//        return "REMOVE";
-//    case TYPE_SHARE:
-//        return "SHARE";
-//    case TYPE_IMPORT_LINK:
-//        return "IMPORT_LINK";
-//    case TYPE_EXPORT:
-//        return "EXPORT";
-//    case TYPE_FETCH_NODES:
-//        return "FETCH_NODES";
-//    case TYPE_ACCOUNT_DETAILS:
-//        return "ACCOUNT_DETAILS";
-//    case TYPE_CHANGE_PW:
-//        return "CHANGE_PW";
-//    case TYPE_UPLOAD:
-//        return "UPLOAD";
-//    case TYPE_LOGOUT:
-//        return "LOGOUT";
-//    case TYPE_GET_PUBLIC_NODE:
-//        return "GET_PUBLIC_NODE";
-//    case TYPE_GET_ATTR_FILE:
-//        return "GET_ATTR_FILE";
-//    case TYPE_SET_ATTR_FILE:
-//        return "SET_ATTR_FILE";
-//    case TYPE_GET_ATTR_USER:
-//        return "GET_ATTR_USER";
-//    case TYPE_SET_ATTR_USER:
-//        return "SET_ATTR_USER";
-//    case TYPE_RETRY_PENDING_CONNECTIONS:
-//        return "RETRY_PENDING_CONNECTIONS";
-//    case TYPE_ADD_CONTACT:
-//        return "ADD_CONTACT";
-//    case TYPE_REMOVE_CONTACT:
-//        return "REMOVE_CONTACT";
-//    case TYPE_CREATE_ACCOUNT:
-//        return "CREATE_ACCOUNT";
-//    case TYPE_CONFIRM_ACCOUNT:
-//        return "CONFIRM_ACCOUNT";
-//    case TYPE_QUERY_SIGNUP_LINK:
-//        return "QUERY_SIGNUP_LINK";
-//    case TYPE_ADD_SYNC:
-//        return "ADD_SYNC";
-//    case TYPE_REMOVE_SYNC:
-//        return "REMOVE_SYNC";
-//    case TYPE_REMOVE_SYNCS:
-//        return "REMOVE_SYNCS";
-//    case TYPE_PAUSE_TRANSFERS:
-//        return "PAUSE_TRANSFERS";
-//    case TYPE_CANCEL_TRANSFER:
-//        return "CANCEL_TRANSFER";
-//    case TYPE_CANCEL_TRANSFERS:
-//        return "CANCEL_TRANSFERS";
-//    case TYPE_DELETE:
-//        return "DELETE";
-//    case TYPE_REPORT_EVENT:
-//        return "REPORT_EVENT";
-//    case TYPE_CANCEL_ATTR_FILE:
-//        return "CANCEL_ATTR_FILE";
-//    case TYPE_GET_PRICING:
-//        return "GET_PRICING";
-//    case TYPE_GET_PAYMENT_URL:
-//        return "GET_PAYMENT_URL";
-//    case TYPE_GET_USER_DATA:
-//        return "GET_USER_DATA";
-//    case TYPE_LOAD_BALANCING:
-//        return "LOAD_BALANCING";
-//    case TYPE_KILL_SESSION:
-//        return "KILL_SESSION";
-//    case TYPE_SUBMIT_PURCHASE_RECEIPT:
-//        return "SUBMIT_PURCHASE_RECEIPT";
-//    }
-//    return "UNKNOWN";
-//}
 
 MegaRequestListener *MegaRequestPrivate::getListener() const {
     return listener;
@@ -1721,6 +1652,9 @@ bool TreeProcessor::processNode(Node*) {
 
 TreeProcessor::~TreeProcessor() {
 }
+
+std::map<int, error (MegaApiImpl::*)(MegaRequestPrivate*)>
+        MegaApiImpl::requestCallMap;
 
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param) {
@@ -2675,40 +2609,55 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type,
 }
 
 void MegaApiImpl::getUserAttribute(MegaUser *user, int type,
-        const char *dstFilePath, MegaRequestListener *listener) {
+        const char *dstFilePath, MegaRequestListener *listener)
+{
+    getUserAttribute((user) ? user->getEmail() : nullptr, type,
+            dstFilePath, listener);
+}
+
+void MegaApiImpl::getUserAttribute(const char *user, int type,
+        const char *destFilePath, MegaRequestListener *listener)
+{
     MegaRequestPrivate *request = new MegaRequestPrivate(
-            MegaRequest::TYPE_GET_ATTR_USER, listener);
-    if (dstFilePath) {
-        string path(dstFilePath);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
-        path.insert(0, "\\\\?\\");
-#endif
+               MegaRequest::TYPE_GET_ATTR_USER, listener);
+    if (destFilePath) {
+        string path(destFilePath);
+   #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+           if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+           path.insert(0, "\\\\?\\");
+   #endif
 
-        int c = path[path.size() - 1];
-        if ((c == '/') || (c == '\\')) {
-            const char *email = user->getEmail();
-            path.append(email);
-            path.push_back('0' + type);
-            path.append(".jpg");
-            delete[] email;
-        }
+       int c = path[path.size() - 1];
+       if ((c == '/') || (c == '\\')) {
+           path.append(user);
+           path.push_back('0' + type);
+           path.append(".jpg");
+       }
 
-        request->setFile(path.c_str());
-    }
+       request->setFile(path.c_str());
+   }
 
-    request->setParamType(type);
-    if (user)
-        request->setEmail(user->getEmail());
-    requestQueue.push(request);
-    waiter->notify();
+   request->setParamType(type);
+   requestQueue.push(request);
+   if (user)
+          request->setEmail(user);
+   waiter->notify();
 }
 
 void MegaApiImpl::setUserAttr(int type, const char *srcFilePath,
         MegaRequestListener *listener) {
     MegaRequestPrivate *request = new MegaRequestPrivate(
             MegaRequest::TYPE_SET_ATTR_USER, listener);
-    request->setFile(srcFilePath);
+
+    if(!type)
+    {
+        request->setFile(srcFilePath);
+    }
+    else
+    {
+        request->setText(srcFilePath);
+    }
+
     request->setParamType(type);
     requestQueue.push(request);
     waiter->notify();
@@ -4980,7 +4929,14 @@ void MegaApiImpl::invite_result(error e) {
 }
 
 void MegaApiImpl::putua_result(error e) {
-    //TODO: Support user attribute changes
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end())
+        return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_SET_ATTR_USER)))
+        return;
+
+    fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::getua_result(error e) {
@@ -5001,27 +4957,35 @@ void MegaApiImpl::getua_result(byte* data, unsigned len) {
     if (!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER))
         return;
 
-    FileAccess *f = client->fsaccess->newfileaccess();
-    string filePath(request->getFile());
-    string localPath;
-    fsAccess->path2local(&filePath, &localPath);
+    if(!request->getParamType())
+    {
+        FileAccess *f = client->fsaccess->newfileaccess();
+        string filePath(request->getFile());
+        string localPath;
+        fsAccess->path2local(&filePath, &localPath);
 
-    totalDownloadedBytes += len;
+        totalDownloadedBytes += len;
 
-    fsAccess->unlinklocal(&localPath);
-    if (!f->fopen(&localPath, false, true)) {
+        fsAccess->unlinklocal(&localPath);
+        if (!f->fopen(&localPath, false, true)) {
+            delete f;
+            fireOnRequestFinish(request, MegaError(API_EWRITE));
+            return;
+        }
+
+        if (!f->fwrite((const byte*) data, len, 0)) {
+            delete f;
+            fireOnRequestFinish(request, MegaError(API_EWRITE));
+            return;
+        }
+
         delete f;
-        fireOnRequestFinish(request, MegaError(API_EWRITE));
-        return;
+    }
+    else
+    {
+        request->setText((const char*)data);
     }
 
-    if (!f->fwrite((const byte*) data, len, 0)) {
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_EWRITE));
-        return;
-    }
-
-    delete f;
     fireOnRequestFinish(request, MegaError(API_OK));
 }
 
@@ -6611,7 +6575,6 @@ void MegaApiImpl::sendPendingRequests()
     }
 }
 
-//////////////////////////
 error MegaApiImpl::requestLogin(MegaRequestPrivate *request) {
     const char *login = request->getEmail();
     const char *password = request->getPassword();
@@ -7016,27 +6979,69 @@ error MegaApiImpl::requestGetAttrUser(MegaRequestPrivate *request)
 {
     const char* dstFilePath = request->getFile();
     int type = request->getParamType();
-    User *user = client->finduser(request->getEmail(), 0);
+    const char *u = request->getEmail();
+    int savedReqTag = request->getTag();
+    LOG_test << "type = " << type;
+    if(!type) {
+        client->getgattribute(u, "a", [this, savedReqTag](ValueMap map,
+                error e){
+            client->restag = savedReqTag;
+            if(e != API_OK)
+            {
+                getua_result(e);
+            }
+        });
 
-    if(!dstFilePath || !user || (type != 0)) { return API_EARGS; }
+    }
+    else {
+        string attrName;
+        switch(type) {
 
-    client->getua(user, "a", false);
+        case MegaApi::USER_ATTR_FIRSTNAME:
+            attrName = "firstname";
+            break;
+        case MegaApi::USER_ATTR_LASTNAME:
+            attrName = "lastname";
+            break;
+        default:
+            return API_EARGS;
+        }
+        LOG_test << "Fetching attribute: " << attrName;
+        client->getgattribute(u, attrName.c_str(),
+                [this, savedReqTag, attrName](ValueMap map,
+               error e){
+            client->restag = savedReqTag;
+            if(e != API_OK)
+            {
+               getua_result(e);
+            }
+            LOG_test << "map size = " << map->size();
+            for(auto i : *map) {
+                LOG_test << "value name = " << i.first;
+            }
+            auto v = map->find("");
+            if(v == map->end()) {
+                getua_result(API_EINTERNAL);
+            }
+            else {
+                getua_result(v->second.get(), v->second.size);
+            }
+        });
+    }
 
     return API_OK;
 }
 
 error MegaApiImpl::requestSetAttrUser(MegaRequestPrivate *request)
 {
-    const char* value = request->getFile();
     int type = request->getParamType();
     error e = API_OK;
-    if (!value || type < 0)
-    {
-        return API_EARGS;
-    }
-
+    const char *value;
     if(!type)
     {
+        if(!(value = request->getFile())) {
+            return API_EARGS;
+        }
         string path = value;
         string localpath;
         fsAccess->path2local(&path, &localpath);
@@ -7056,10 +7061,18 @@ error MegaApiImpl::requestSetAttrUser(MegaRequestPrivate *request)
         }
         delete f;
 
-        client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
+        ValueMap map(new std::map<std::string, SharedBuffer>());
+        map->insert(std::make_pair(std::string("a"),
+                SharedBuffer((const unsigned char*)attributedata.data(),
+                        attributedata.size())));
+        client->setuserattribute(nullptr, "a", map, 0, 1);
     }
     else
     {
+        if(!(value = request->getText()))
+        {
+            return API_EARGS;
+        }
         string attrname;
         switch(type)
         {
@@ -7083,7 +7096,18 @@ error MegaApiImpl::requestSetAttrUser(MegaRequestPrivate *request)
         }
         if(!e)
         {
-            client->putua(attrname.c_str(), (byte *)value, strlen(value), 2);
+            ValueMap map(new std::map<std::string, SharedBuffer>());
+            map->insert(std::make_pair(attrname,
+                    SharedBuffer((const unsigned char*)value, strlen(value) + 1)));
+            int savedReqTag = request->getTag();
+            LOG_test << "Calling setgattribute";
+            client->setgattribute(attrname.c_str(), map, 0, 1,
+                    [this, savedReqTag](error e){
+                LOG_test << "Calling callback";
+                LOG_test << "error = " << e;
+                client->restag = savedReqTag;
+                putua_result(e);
+            });
         }
     }
 

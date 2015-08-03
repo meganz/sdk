@@ -33,6 +33,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <functional>
 
 #include "../include/mega/secureBuffer.h"
 #include "../include/mega/sharedbuffer.h"
@@ -143,16 +144,17 @@ public:
     std::string loginName;
     std::string passWord;
 
-    bool wait = true;
+    bool wait;
     std::string email;
     const char *rsaBase64;
-    bool success = false;
+    bool success;
     std::map<std::string, std::pair<unsigned char*, unsigned int>> *valMap;
     MegaApi *api;
-
+    MegaRequest *lastRequest;
     TestClient(std::string loginName, std::string passWord) :
-        loginName(loginName), passWord(passWord),
-                valMap(nullptr) {
+        loginName(loginName), passWord(passWord), wait(true),
+        rsaBase64(nullptr), success(false), valMap(nullptr),
+        lastRequest(nullptr) {
         api = new MegaApi("sdfsdfsdf", (const char*)NULL, "sdk_test");
         api->setLogLevel(mega::logTest);
     }
@@ -166,15 +168,16 @@ public:
         for(int x = 0; x < tlvLen; x++)
         {
             std::pair<unsigned char*, unsigned int> p;
-            p.second = tlvArray[x].length;
+            p.second = tlvArray[x].getLength();
             p.first = (unsigned char*)malloc(p.second);
-            memcpy(p.first, tlvArray[x].value, p.second);
-            valMap->insert({std::string(tlvArray[x].type), p});
+            memcpy(p.first, tlvArray[x].getValue(), p.second);
+            valMap->insert({std::string(tlvArray[x].getType()), p});
         }
     }
 
     virtual void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) {
         LOG_test << "onRequestFinish called";
+        lastRequest = request->copy();
         const char *eM;
         TLV *tlvArray = nullptr;
         unsigned int tlvLen = 0;
@@ -295,6 +298,25 @@ public:
             wait = false;
             break;
         }
+        case MegaRequest::TYPE_SET_ATTR_USER:
+        {
+            LOG_test << "Type = set attr user";
+            if(e->getErrorCode() == MegaError::API_OK) {
+                success = true;
+            }
+            wait = false;
+            break;
+        }
+        case MegaRequest::TYPE_GET_ATTR_USER:
+        {
+            LOG_test << "Type = get attr user";
+            if(e->getErrorCode() == MegaError::API_OK) {
+                success = true;
+                LOG_test << request->getText();
+            }
+            wait = false;
+            break;
+        }
         default:
             wait = false;
             LOG_test << "other type: " << request->getType();
@@ -320,9 +342,10 @@ public:
             return false;
         }
         LOG_test << "login success";
-
+        LOG_test << "fetch user data";
         wait = true;
         success = false;
+        LOG_test << "get user data";
         api->getUserData(this);
         while(wait) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -332,6 +355,7 @@ public:
             std::cerr << "login failed" << std::endl;
             return false;
         }
+        LOG_test << "user data obtained";
 
         byte data[4096];
         int l = Base64::atob(rsaBase64, data, sizeof(data));
@@ -352,33 +376,75 @@ public:
     }
 };
 
+/**
+ * @brief Use this to call api functions asynchronusly and test the outcome.
+ */
+template <typename T, typename ...Params>
+void callApiFunction(TestClient &testClient, T f, Params... p) {
+    testClient.wait = true;
+    testClient.success = false;
+    (testClient.api->*f)(p...);
+    while(testClient.wait) {
+       std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_TRUE(testClient.success);
+
+}
+
+/**
+ * @brief Use this to reset key finger prints.
+ */
+void resetKeys(TestClient &testClient) {
+    TLV resetMap[] = { TLV("", 0, nullptr)};
+    TLV resetMapE[] = { TLV("", 0, nullptr)};
+        testClient.wait = true;
+    testClient.success = false;
+
+    testClient.api->putGenericUserAttribute(testClient.loginName.c_str(),
+            "authRSA", resetMap, 1, 1, 1, &testClient);
+    while(testClient.wait) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_TRUE(testClient.success);
+
+    testClient.wait = true;
+    testClient.success = false;
+
+    testClient.api->putGenericUserAttribute(testClient.loginName.c_str(),
+            "authring", resetMapE, 1, 1, 1, &testClient);
+    while(testClient.wait) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_TRUE(testClient.success);
+}
+
 TEST_F(ApiTest, testSetup) {
     TestClient tcOne(loginNameOne, passWordOne);
     TestClient tcTwo(loginNameThree, passWordThree);
     TestClient tcThree(loginNameTwo, passWordTwo);
 
-    TLV resetMap[] = { "", 0, nullptr};
-    TLV resetMapE[] = { "", 0, nullptr};
+    TLV resetMap[] = { TLV("", 0, nullptr)};
+    TLV resetMapE[] = { TLV("", 0, nullptr)};
     if(tcOne.login()) {
         LOG_test << "Login success";
         tcOne.wait = true;
         tcOne.success = false;
         std::map<std::string, std::pair<unsigned char*, unsigned int>> map;
-        std::string testValueStr("And so it was, it, and always shall be, the ultimate"
-                        " test of one's will is pitted against those who would cause you harm. it "
-                        "is not the harm that inflicts the most damage - it is the intent to cause "
-                        "harm that ultimately destroys the soul.");
+        std::string testValueStr("A bunch of stuff!!!!!!111!!11!11!");
 
         map.insert({"uName", {(unsigned char*)testValueStr.c_str(), testValueStr.size()}});
 
-
+        LOG_info << "Test mapToValueMap";
         ValueMap vMap = UserAttributes::mapToValueMap(&map);
         auto j = vMap->find("uName");
         ASSERT_TRUE(j != vMap->end());
         std::string val((char*)j->second.get(), j->second.size);
         ASSERT_STREQ(testValueStr.c_str(), val.c_str());
+
+        LOG_info << "Test valueMapToTLVarray";
         TLV *retMap = UserAttributes::valueMapToTLVarray(vMap);
 
+        LOG_test << "Test putting attribute Names";
         tcOne.api->putGenericUserAttribute(loginNameOne.c_str(), "Names", retMap,
                 vMap->size(), 0, 1, &tcOne);
         while(tcOne.wait) {
@@ -386,16 +452,17 @@ TEST_F(ApiTest, testSetup) {
         }
         ASSERT_TRUE(tcOne.success);
 
-        tcOne.wait = true;
-        tcOne.success = false;
-        tcOne.api->getGenericUserAttribute(loginNameOne.c_str(), "Names", &tcOne);
-        while(tcOne.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcOne.success);
-        auto l = tcOne.valMap->find("");
-        ASSERT_TRUE(l != tcOne.valMap->end());
-        std::string retVal((char*)l->second.first, l->second.second);
+        callApiFunction(tcOne, &MegaApi::getGenericUserAttribute,
+                loginNameOne.c_str(), "Names", &tcOne);
+
+        //auto l = tcOne.valMap->find("");
+        TLV namesTLV = tcOne.lastRequest->getTLV("");
+        LOG_test << "Test names 2";
+        //ASSERT_TRUE(l != tcOne.valMap->end());
+        ASSERT_TRUE(namesTLV.getValue() != NULL);
+        LOG_test << "Test names 3";
+        //std::string retVal((char*)l->second.first, l->second.second);
+        std::string retVal((char*)namesTLV.getValue(), namesTLV.getLength());
         ASSERT_STREQ(testValueStr.c_str(), retVal.c_str());
 
         tcOne.wait = true;
@@ -407,38 +474,26 @@ TEST_F(ApiTest, testSetup) {
         }
         ASSERT_TRUE(tcOne.success);
 
-        ////////// Uncomment to reset keyrings ///////////////
-//        tcOne.wait = true;
-//        tcOne.success = false;
-//
-//        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
-//                "authRSA", resetMap, 1, 1, 1, &tcOne);
-//        while(tcOne.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcOne.success);
-//
-//        tcOne.wait = true;
-//        tcOne.success = false;
-//
-//        tcOne.api->putGenericUserAttribute(loginNameOne.c_str(),
-//                "authring", resetMapE, 1, 1, 1, &tcOne);
-//        while(tcOne.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcOne.success);
-        ///////////////////////////////////////////////////
+        callApiFunction(tcOne, &MegaApi::getOwnStaticKeys, &tcOne);
 
-        tcOne.wait = true;
-        tcOne.success = false;
-        tcOne.api->getOwnStaticKeys(&tcOne);
-        while(tcOne.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcOne.success);
-        //ASSERT_EQ(2, tcOne.valMap->size());
-        ASSERT_TRUE(tcOne.valMap->find("prEd255") != tcOne.valMap->end());
-        ASSERT_TRUE(tcOne.valMap->find("") != tcOne.valMap->end());
+        ASSERT_TRUE(tcOne.lastRequest->getTLV("prEd255").getValue() != NULL);
+        ASSERT_TRUE(tcOne.lastRequest->getTLV("").getValue() != NULL);
+
+        std::string fNameStr("michael");
+        TLV fname("firstname", fNameStr.length(), (unsigned char*)fNameStr.c_str());
+        callApiFunction(tcOne, &MegaApi::putGenericUserAttribute,
+                tcOne.loginName.c_str(), "firstname", &fname, 1, 0, 1, &tcOne);
+
+        callApiFunction(tcOne, &MegaApi::getGenericUserAttribute,
+                loginNameOne.c_str(), "firstname", &tcOne);
+
+        callApiFunction(tcOne, &MegaApi::setUserAttribute, MegaApi::USER_ATTR_FIRSTNAME,
+                "mike", &tcOne);
+
+        callApiFunction(tcOne,
+                static_cast<void(MegaApi::*)(const char*, int, const char*, MegaRequestListener*)>(&MegaApi::getUserAttribute),
+                loginNameOne.c_str(), MegaApi::USER_ATTR_FIRSTNAME, (const char*)nullptr, &tcOne);
+
     }
     else {
         LOG_test << "login tcOne failed";
@@ -446,35 +501,7 @@ TEST_F(ApiTest, testSetup) {
     }
     if(tcThree.login()) {
         LOG_test << "Login success";
-        tcThree.wait = true;
-        tcThree.success = false;
-        tcThree.api->getOwnStaticKeys(&tcThree);
-        while(tcThree.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcThree.success);
-
-        //////// Uncomment to reset keyrings ///////////////
-//        tcThree.wait = true;
-//        tcThree.success = false;
-//
-//        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
-//                "authRSA", resetMap, 1, 1, 1, &tcThree);
-//        while(tcThree.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcThree.success);
-//
-//        tcThree.wait = true;
-//        tcThree.success = false;
-//
-//        tcThree.api->putGenericUserAttribute("mh@mega.co.nz",
-//                "authring", resetMapE, 1, 1, 1, &tcThree);
-//        while(tcThree.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcThree.success);
-        ///////////////////////////////////////////////////
+        callApiFunction(tcThree, &MegaApi::getOwnStaticKeys, &tcThree);
     }
     else {
         LOG_test << "login tcThree failed";
@@ -483,76 +510,20 @@ TEST_F(ApiTest, testSetup) {
 
     if(tcTwo.login()) {
         LOG_test << "Login success";
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "puEd255", &tcTwo);
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getGenericUserAttribute("michaelholmwood@mega.co.nz", "sgPubk", &tcTwo);
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-//        ////////// Uncomment to reset keyrings ///////////////
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//
-//        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-//                "authRSA", resetMap, 1, 1, 1, &tcTwo);
-//        while(tcOne.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcOne.success);
-//
-//        tcTwo.wait = true;
-//        tcTwo.success = false;
-//
-//        tcTwo.api->putGenericUserAttribute("michaelholmwood@mega.co.nz",
-//                "authring", resetMapE, 1, 1, 1, &tcTwo);
-//        while(tcOne.wait) {
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//        ASSERT_TRUE(tcOne.success);
-        /////////////////////////////////////////////////////
-
-        LOG_test << "****Getting other user data";
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getUserData("michaelholmwood@mega.co.nz", &tcTwo);
-
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-        LOG_test << "***other data ok";
-
-        LOG_test << "****Getting other user data";
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getUserData("mh@mega.co.nz", &tcTwo);
-
-        while(tcTwo.wait) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        ASSERT_TRUE(tcTwo.success);
-
-        LOG_test << "****Calling getPublicStaticKey";
-        tcTwo.wait = true;
-        tcTwo.success = false;
-        tcTwo.api->getPublicStaticKey("michaelholmwood@mega.co.nz", &tcTwo);
-
-        while(tcTwo.wait) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        ASSERT_TRUE(tcTwo.success);
-
+        callApiFunction(tcTwo, &MegaApi::getGenericUserAttribute,
+                "michaelholmwood@mega.co.nz", "puEd255", &tcTwo);
+        callApiFunction(tcTwo, &MegaApi::getGenericUserAttribute,
+                "michaelholmwood@mega.co.nz", "sgPubk", &tcTwo);
+        callApiFunction(tcTwo,
+                static_cast<void (MegaApi::*)(const char*,
+                        MegaRequestListener*)>(&MegaApi::getUserData),
+                "michaelholmwood@mega.co.nz", &tcTwo);
+        callApiFunction(tcTwo,
+                static_cast<void (MegaApi::*)(const char*,
+                        MegaRequestListener*)>(&MegaApi::getUserData),
+                "michaelholmwood@mega.co.nz", &tcTwo);
+        callApiFunction(tcTwo, &MegaApi::getPublicStaticKey,
+                "michaelholmwood@mega.co.nz", &tcTwo);
     }
 }
 
@@ -1065,14 +1036,14 @@ TEST_F(UserAttributesTest, testStaticFunctions) {
     ASSERT_TRUE(map->find("testDataTwo") != map->end());
     ASSERT_TRUE(map->find("testDataThree") != map->end());
 
-    for(int x = 0; x < tlv[0].length; x++) {
-        ASSERT_EQ((*map)["testDataOne"].get()[x], tlv[0].value[x]);
+    for(int x = 0; x < tlv[0].getLength(); x++) {
+        ASSERT_EQ((*map)["testDataOne"].get()[x], tlv[0].getValue()[x]);
     }
-    for(int x = 0; x < tlv[1].length; x++) {
-        ASSERT_EQ((*map)["testDataTwo"].get()[x], tlv[1].value[x]);
+    for(int x = 0; x < tlv[1].getLength(); x++) {
+        ASSERT_EQ((*map)["testDataTwo"].get()[x], tlv[1].getValue()[x]);
     }
-    for(int x = 0; x < tlv[2].length; x++) {
-        ASSERT_EQ((*map)["testDataThree"].get()[x], tlv[2].value[x]);
+    for(int x = 0; x < tlv[2].getLength(); x++) {
+        ASSERT_EQ((*map)["testDataThree"].get()[x], tlv[2].getValue()[x]);
     }
 
     ValueMap vMap = ValueMap(new std::map<std::string, SharedBuffer>);
@@ -1088,22 +1059,22 @@ TEST_F(UserAttributesTest, testStaticFunctions) {
     for(int x = 0; x < 3; x++)
     {
         SharedBuffer test;
-        if(strcmp(rArr[x].type, "testDataOne") == 0)
+        if(strcmp(rArr[x].getType(), "testDataOne") == 0)
         {
             test = vOne;
         }
-        else if(strcmp(rArr[x].type, "testDataTwo") == 0)
+        else if(strcmp(rArr[x].getType(), "testDataTwo") == 0)
         {
             test = vTwo;
         }
-        else if(strcmp(rArr[x].type, "testDataThree") == 0)
+        else if(strcmp(rArr[x].getType(), "testDataThree") == 0)
         {
             test = vThree;
         }
 
         for(int y = 0; y < test.size; y++)
         {
-            ASSERT_EQ(test.get()[y], rArr[x].value[y]);
+            ASSERT_EQ(test.get()[y], rArr[x].getValue()[y]);
         }
     }
 }

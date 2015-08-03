@@ -59,14 +59,14 @@ SharedBuffer
 UserAttributes::valueMapToTlv(ValueMap &valueMap, Visibility visibility)
 {
     int length = 0;
-	std::for_each(valueMap->begin(), valueMap->end(), [&](std::pair<std::string, SharedBuffer> &i) 
+	std::for_each(valueMap->begin(), valueMap->end(), [&](std::pair<const std::string, SharedBuffer> &i)
     {
         length += (i.first.length() + i.second.size + 1 + 2);
 	});
 
     SharedBuffer buffer(length, visibility);
     int offset = 0;
-    std::for_each(valueMap->begin(), valueMap->end(), [&](std::pair<std::string, SharedBuffer> &i)
+    std::for_each(valueMap->begin(), valueMap->end(), [&](std::pair<const std::string, SharedBuffer> &i)
     {
         addValue(i.first, i.second, buffer, &offset);
 	});

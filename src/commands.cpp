@@ -1239,6 +1239,8 @@ void CommandLogin::procresult()
                         }
                         LOG_info << "Logged in, fetching signing keys";
                         // Get own signing keys, bail on failure.
+                        // Note: set the second parameter to this call as 'true' if
+                        // you want to reset signing keys.
                         c->getownsigningkeys(getSigKeys);
                     };
 
@@ -1891,14 +1893,11 @@ CommandGetUserAttr::procresult() {
 
 CommandSetUserAttr::CommandSetUserAttr(MegaClient *client,
         const char *an, byte *av, unsigned int avl, SetAttrCallBack callBack) {
-    int l = avl * (4 * 3 + 3);
-    char *data = new char[l];
-    l = Base64::btoa(av, avl, data);
     cmd("up");
-    arg(an, data, l);
+    arg(an, av, avl);
     this->callBack = callBack;
     tag = client->reqtag;
-	delete data;
+    this->client = client;
 }
 
 void
