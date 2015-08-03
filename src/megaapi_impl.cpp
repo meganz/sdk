@@ -2417,7 +2417,7 @@ char *MegaApiImpl::dumpXMPPSession()
 
     if (client->loggedin())
     {
-        buf = new char[64 * 4 / 3 + 4];
+        buf = new char[MAX_SESSION_LENGTH * 4 / 3 + 4];
         Base64::btoa((const byte *)client->sid.data(), client->sid.size(), buf);
     }
 
