@@ -1112,7 +1112,7 @@ void CommandLogout::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, int csessionversion)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion)
 {
     cmd("us");
 
@@ -1126,9 +1126,9 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
         arg("uh", (byte*)&emailhash, sizeof emailhash);
     }
 
-    if (client->sessionkey.size())
+    if (sessionkey)
     {
-        arg("sek", (const byte*)client->sessionkey.data(), client->sessionkey.size());
+        arg("sek", sessionkey, SymmCipher::KEYLENGTH);
     }
 
     if (client->cachedscsn != UNDEF)
@@ -1220,12 +1220,6 @@ void CommandLogin::procresult()
                         client->key.ecb_decrypt(k);
                         client->key.setkey(k);
                     }
-
-                    client->sessionkey.assign((const char *)sek, sizeof(sek));
-                }
-                else
-                {
-                    client->sessionkey.clear();
                 }
 
                 if (len_tsid)
@@ -1277,6 +1271,11 @@ void CommandLogin::procresult()
                 }
 
                 client->me = me;
+
+                if (len_sek)
+                {
+                    client->sessionkey.assign((const char *)sek, sizeof(sek));
+                }
 
                 return client->app->login_result(API_OK);
 

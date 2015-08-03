@@ -4861,10 +4861,10 @@ void MegaClient::login(const char* email, const byte* pwkey)
 
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
-    sessionkey.resize(SymmCipher::KEYLENGTH);
-    PrnGen::genblock((byte *)sessionkey.data(), sessionkey.size());
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash));
+    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
@@ -4873,10 +4873,10 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
 
     key.setkey((byte*)pwkey);
 
-    sessionkey.resize(SymmCipher::KEYLENGTH);
-    PrnGen::genblock((byte *)sessionkey.data(), sessionkey.size());
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash));
+    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::getuserdata()
@@ -4924,10 +4924,10 @@ void MegaClient::login(const byte* session, int size)
             cachedscsn = MemAccess::get<handle>(t.data());
         }
 
-        sessionkey.resize(SymmCipher::KEYLENGTH);
-        PrnGen::genblock((byte *)sessionkey.data(), sessionkey.size());
+        byte sek[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(sek, sizeof sek);
 
-        reqs[r].add(new CommandLogin(this, NULL, UNDEF, sessionversion));
+        reqs[r].add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
     }
     else
     {

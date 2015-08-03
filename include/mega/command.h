@@ -115,7 +115,7 @@ class MEGA_API CommandLogin : public Command
 public:
     void procresult();
 
-    CommandLogin(MegaClient*, const char*, uint64_t, int = 0);
+    CommandLogin(MegaClient*, const char*, uint64_t, const byte* = NULL,  int = 0);
 };
 
 class MEGA_API CommandSetMasterKey : public Command

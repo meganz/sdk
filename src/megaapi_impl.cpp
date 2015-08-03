@@ -371,6 +371,8 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 }
 
 
+const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
+
 bool MegaApiImpl::is_syncable(const char *name)
 {
     for(unsigned int i=0; i< excludedNames.size(); i++)
@@ -2394,13 +2396,13 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
 char *MegaApiImpl::dumpSession()
 {
     sdkMutex.lock();
-    byte session[64];
+    byte session[MAX_SESSION_LENGTH];
     char* buf = NULL;
     int size;
     size = client->dumpsession(session, sizeof session);
     if (size > 0)
     {
-        buf = new char[sizeof(session)*4/3+4];
+        buf = new char[sizeof(session) * 4 / 3 + 4];
         Base64::btoa(session, size, buf);
     }
 
@@ -7698,7 +7700,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if(sessionKey)
             {
-                byte session[sizeof client->key.key + MegaClient::SIDLEN + 1];
+                byte session[MAX_SESSION_LENGTH];
                 int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
                 client->login(session, size);
             }
