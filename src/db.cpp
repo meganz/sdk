@@ -68,15 +68,7 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
     string data;
     string h, ph, fp;
 
-    // TODO: serialize undecryptable nodes too, not only decryptable ones
-    // This changes should avoid `serialize()` returning false -> change if() below
-
-    if (!n->serialize(&data))
-    {
-        //Don't return false if there are errors in the serialization
-        //to let the SDK continue and save the rest of records
-        return true;
-    }
+    n->serialize(&data);
 
     PaddedCBC::encrypt(&data, key);
 
@@ -90,11 +82,15 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
         PaddedCBC::encrypt(&fp, key);
     }
 
-    bool result = putnode(&h, &ph, &fp, n->attrstring, &data);// (char *) fpstring.data(), fpstring.size(), (char *)data.data(), data.size());
+    bool result = putnode(&h, &ph, &fp, n->attrstring, &data);
 
     if(result)
     {
         // TODO: Add to cache?
+    }
+    else
+    {
+        cout << "Error recording node " << h << endl;
     }
     return result;
 }
