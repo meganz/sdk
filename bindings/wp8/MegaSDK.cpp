@@ -1263,32 +1263,72 @@ void MegaSDK::changePassword(String^ oldPassword, String^ newPassword)
 
 void MegaSDK::addContact(String^ email, MRequestListenerInterface^ listener)
 {
-	std::string utf8email;
-	if (email != nullptr)
-		MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
 
-	megaApi->addContact((email != nullptr) ? utf8email.c_str() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->addContact((email != nullptr) ? utf8email.c_str() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::addContact(String^ email)
 {
-	std::string utf8email;
-	if (email != nullptr)
-		MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
 
-	megaApi->addContact((email != nullptr) ? utf8email.c_str() : NULL);
+    megaApi->addContact((email != nullptr) ? utf8email.c_str() : NULL);
+}
+
+void MegaSDK::inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8message;
+    if (message != nullptr)
+        MegaApi::utf16ToUtf8(message->Data(), message->Length(), &utf8message);
+
+    megaApi->inviteContact((email != nullptr) ? utf8email.c_str() : NULL,
+        (message != nullptr) ? utf8message.c_str() : NULL, (int)action,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::inviteContact(String^ email, String^ message, MContactRequestInviteActionType action)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8message;
+    if (message != nullptr)
+        MegaApi::utf16ToUtf8(message->Data(), message->Length(), &utf8message);
+
+    megaApi->inviteContact((email != nullptr) ? utf8email.c_str() : NULL,
+        (message != nullptr) ? utf8message.c_str() : NULL, (int)action);
+}
+
+void MegaSDK::replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener)
+{
+    megaApi->replyContactRequest((request != nullptr) ? request->getCPtr() : NULL, (int)action,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action)
+{
+    megaApi->replyContactRequest((request != nullptr) ? request->getCPtr() : NULL, (int)action);
 }
 
 void MegaSDK::removeContact(MUser ^user, MRequestListenerInterface^ listener)
 {
-	megaApi->removeContact((user != nullptr) ? user->getCPtr() : NULL,
-		createDelegateMRequestListener(listener));
+    megaApi->removeContact((user != nullptr) ? user->getCPtr() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::removeContact(MUser^ user)
 {
-	megaApi->removeContact((user != nullptr) ? user->getCPtr() : NULL);
+    megaApi->removeContact((user != nullptr) ? user->getCPtr() : NULL);
 }
 
 void MegaSDK::logout(MRequestListenerInterface^ listener)

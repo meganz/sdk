@@ -234,6 +234,10 @@ namespace mega
         void changePassword(String^ oldPassword, String^ newPassword);
         void addContact(String^ email, MRequestListenerInterface^ listener);
         void addContact(String^ email);
+        void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
+        void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
+        void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener);
+        void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action);
         void removeContact(MUser^ user, MRequestListenerInterface^ listener);
         void removeContact(MUser^ user);
         void logout(MRequestListenerInterface^ listener);
