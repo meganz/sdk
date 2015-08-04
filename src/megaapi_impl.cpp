@@ -314,6 +314,9 @@ int MegaNodePrivate::getChanges()
     return changed;
 }
 
+
+const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
+
 #ifdef ENABLE_SYNC
 bool MegaNodePrivate::isSyncDeleted()
 {
@@ -369,9 +372,6 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     }
     return !*pszMatch;
 }
-
-
-const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
 
 bool MegaApiImpl::is_syncable(const char *name)
 {
