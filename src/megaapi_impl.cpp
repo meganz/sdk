@@ -3040,6 +3040,15 @@ void MegaApiImpl::reportEvent(const char *details, MegaRequestListener *listener
     waiter->notify();
 }
 
+void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
+    request->setNumber(eventType);
+    request->setText(message);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_FILE, listener);
@@ -8665,6 +8674,13 @@ void MegaApiImpl::sendPendingRequests()
         {
             int number = request->getNumber();
             const char *text = request->getText();
+
+            if(number < 99500 || number >= 99600 || !text)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             client->sendevent(number, text);
             break;
         }

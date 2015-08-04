@@ -1277,6 +1277,11 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
     pImpl->submitFeedback(rating, comment, listener);
 }
 
+void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
+{
+    pImpl->sendEvent(eventType, message, listener);
+}
+
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
 {
     pImpl->reportEvent(text, listener);
