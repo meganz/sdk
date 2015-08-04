@@ -24,12 +24,12 @@
 #include "mega/base64.h"
 
 namespace mega {
-DbTable::DbTable()
+DbTable::DbTable(SymmCipher *key)
 {
-
+    this->key = key;
 }
 
-bool DbTable::putrootnodes(handle *rootnodes, SymmCipher *key)
+bool DbTable::putrootnodes(handle *rootnodes)
 {
     string data;
 
@@ -46,7 +46,7 @@ bool DbTable::putrootnodes(handle *rootnodes, SymmCipher *key)
     return true;
 }
 
-bool DbTable::getrootnodes(handle *rootnodes, SymmCipher *key)
+bool DbTable::getrootnodes(handle *rootnodes)
 {
     string data;
 
@@ -63,7 +63,7 @@ bool DbTable::getrootnodes(handle *rootnodes, SymmCipher *key)
     return true;
 }
 
-bool DbTable::putnode(pnode_t n, SymmCipher* key)
+bool DbTable::putnode(pnode_t n)
 {
     string data;
     string h, ph, fp;
@@ -82,7 +82,23 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
         PaddedCBC::encrypt(&fp, key);
     }
 
-    bool result = putnode(&h, &ph, &fp, n->attrstring, &data);
+    int shared = 0;
+    if (n->outshares)
+    {
+        shared = 1;
+    }
+    if (n->inshare)
+    {
+        shared = 2;
+    }
+    if (n->pendingshares)
+    {
+        shared += 3;
+        // A node may have outshares and pending shares at the same time (value=4)
+        // A node cannot be an inshare and a pending share at the same time
+    }
+
+    bool result = putnode(&h, &ph, &fp, n->attrstring, shared, &data);
 
     if(result)
     {
@@ -90,13 +106,12 @@ bool DbTable::putnode(pnode_t n, SymmCipher* key)
     }
     else
     {
-        cout << "Error recording node " << h << endl;
+        cout << "Error recording node " << n->nodehandle << endl;
     }
     return result;
 }
 
-
-bool DbTable::putuser(User * u, SymmCipher* key)
+bool DbTable::putuser(User * u)
 {
     string data;
     u->serialize(&data);
@@ -108,7 +123,7 @@ bool DbTable::putuser(User * u, SymmCipher* key)
     return putuser(&email, &data);
 }
 
-bool DbTable::putpcr(PendingContactRequest *pcr, SymmCipher *key)
+bool DbTable::putpcr(PendingContactRequest *pcr)
 {
     string data;
     pcr->serialize(&data);
@@ -120,7 +135,7 @@ bool DbTable::putpcr(PendingContactRequest *pcr, SymmCipher *key)
     return putpcr(&id, &data);
 }
 
-bool DbTable::delnode(pnode_t n, SymmCipher *key)
+bool DbTable::delnode(pnode_t n)
 {
     string hstring;
     encrypthandle(n->nodehandle, &hstring, key);
@@ -133,7 +148,7 @@ bool DbTable::delnode(pnode_t n, SymmCipher *key)
     return result;
 }
 
-bool DbTable::delpcr(PendingContactRequest *pcr, SymmCipher *key)
+bool DbTable::delpcr(PendingContactRequest *pcr)
 {
     string id;
     encrypthandle(pcr->id, &id, key);
@@ -141,7 +156,7 @@ bool DbTable::delpcr(PendingContactRequest *pcr, SymmCipher *key)
     return delpcr(&id);
 }
 
-bool DbTable::getnode(handle h, string* data, SymmCipher* key)
+bool DbTable::getnode(handle h, string* data)
 {
     string hstring;
     encrypthandle(h, &hstring, key);
@@ -154,7 +169,7 @@ bool DbTable::getnode(handle h, string* data, SymmCipher* key)
     return false;
 }
 
-bool DbTable::getnode(string *fingerprint, string* data, SymmCipher* key)
+bool DbTable::getnode(string *fingerprint, string* data)
 {
     PaddedCBC::encrypt(fingerprint, key);
 
@@ -166,7 +181,7 @@ bool DbTable::getnode(string *fingerprint, string* data, SymmCipher* key)
     return false;
 }
 
-bool DbTable::getuser(string* data, SymmCipher* key)
+bool DbTable::getuser(string* data)
 {
     if (next(data))
     {
@@ -176,7 +191,7 @@ bool DbTable::getuser(string* data, SymmCipher* key)
     return false;
 }
 
-bool DbTable::getpcr(string *data, SymmCipher* key)
+bool DbTable::getpcr(string *data)
 {
     if (next(data))
     {
@@ -186,7 +201,7 @@ bool DbTable::getpcr(string *data, SymmCipher* key)
     return false;
 }
 
-bool DbTable::getencryptednode(string *data, SymmCipher *key)
+bool DbTable::getencryptednode(string *data)
 {
     if (next(data))
     {
@@ -196,7 +211,17 @@ bool DbTable::getencryptednode(string *data, SymmCipher *key)
     return false;
 }
 
-void DbTable::rewindchildren(handle h, SymmCipher *key)
+bool DbTable::getoutshare(string *data)
+{
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+void DbTable::rewindchildren(handle h)
 {
     string hstring;
     encrypthandle(h, &hstring, key, true);
@@ -204,7 +229,19 @@ void DbTable::rewindchildren(handle h, SymmCipher *key)
     rewindchildren(&hstring);
 }
 
-bool DbTable::getchildren(string *data, SymmCipher *key)
+// if 'h' is defined, get only the outshares that are child nodes of 'h'
+void DbTable::rewindoutshares(handle h)
+{
+    string hstring;
+    if (h != UNDEF)
+    {
+        encrypthandle(h, &hstring, key, true);
+    }
+
+    rewindoutshares(&hstring);
+}
+
+bool DbTable::getchildren(string *data)
 {
     if (next(data))
     {
@@ -214,7 +251,7 @@ bool DbTable::getchildren(string *data, SymmCipher *key)
     return false;
 }
 
-bool DbTable::getnumchildren(handle ph, int *count, SymmCipher *key)
+bool DbTable::getnumchildren(handle ph, int *count)
 {
     string hstring;
     encrypthandle(ph, &hstring, key, true);
@@ -222,7 +259,7 @@ bool DbTable::getnumchildren(handle ph, int *count, SymmCipher *key)
     return getnumchildren(&hstring, count);
 }
 
-bool DbTable::getnumchildfiles(handle ph, int *count, SymmCipher *key)
+bool DbTable::getnumchildfiles(handle ph, int *count)
 {
     string hstring;
     encrypthandle(ph, &hstring, key, true);
@@ -230,7 +267,7 @@ bool DbTable::getnumchildfiles(handle ph, int *count, SymmCipher *key)
     return getnumchildfiles(&hstring, count);
 }
 
-bool DbTable::getnumchildfolders(handle ph, int *count, SymmCipher *key)
+bool DbTable::getnumchildfolders(handle ph, int *count)
 {
     string hstring;
     encrypthandle(ph, &hstring, key, true);

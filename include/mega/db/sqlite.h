@@ -31,7 +31,7 @@ class MEGA_API SqliteDbAccess : public DbAccess
     string dbpath;
 
 public:
-    DbTable* open(FileSystemAccess*, string*);
+    DbTable* open(FileSystemAccess*, string*, SymmCipher *key);
 
     SqliteDbAccess(string* = NULL);
     ~SqliteDbAccess();
@@ -49,6 +49,7 @@ public:
     bool getrootnode(int, string*);
     bool getnodebyhandle(string*, string*);
     bool getnodebyfingerprint(string*, string*);
+
     bool getnumchildren(string*, int*);
     bool getnumchildfiles(string*, int*);
     bool getnumchildfolders(string*, int*);
@@ -57,11 +58,12 @@ public:
     void rewindchildren(string*);
     void rewindpcr();
     void rewindencryptednode();
+    void rewindoutshares(string*);
     bool next(string*);
 
     bool putscsn(char*, unsigned);
     bool putrootnode(int, string*);
-    bool putnode(string*, string*, string*, string*, string*);
+    bool putnode(string*, string*, string*, string*, int, string*);
     bool putuser(string*, string*);
     bool putpcr(string*, string*);
 
@@ -74,7 +76,7 @@ public:
     void abort();
     void remove();
 
-    SqliteDbTable(sqlite3*, FileSystemAccess *fs, string *filepath);
+    SqliteDbTable(sqlite3*, FileSystemAccess *fs, string *filepath, SymmCipher *key);
     ~SqliteDbTable();
 };
 } // namespace

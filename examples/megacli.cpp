@@ -2328,16 +2328,19 @@ static void process_line(char* l)
                         {
                             case 1:		// list all shares (incoming and outgoing)
                                 {
-                                    TreeProcListOutShares listoutshares;
-                                    pnode_t n;
-
                                     cout << "Shared folders:" << endl;
 
-                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
+                                    string data;
+                                    pnode_t n;
+                                    node_vector dp;
+
+                                    client->sctable->rewindoutshares();
+                                    while (client->sctable->getoutshare(&data))
                                     {
-                                        if ((n = client->nodebyhandle(client->rootnodes[i])))
+                                        n = Node::unserialize(client, &data, &dp);
+                                        if (n)
                                         {
-                                            client->proctree(n, &listoutshares);
+                                            listnodeshares(n);
                                         }
                                     }
 

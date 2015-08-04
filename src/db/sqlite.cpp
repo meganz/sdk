@@ -35,7 +35,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
+DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCipher *key)
 {
     //Each table will use its own database object and its own file
     //The previous implementation was closing the first database
@@ -68,7 +68,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     }
 
     // 2. Create table for 'nodes'
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle BLOB PRIMARY KEY NOT NULL, parenthandle BLOB NOT NULL, fingerprint BLOB, attrstring TEXT, node BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle BLOB PRIMARY KEY NOT NULL, parenthandle BLOB NOT NULL, fingerprint BLOB, attrstring TEXT, shared INTEGER NOT NULL, node BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -91,10 +91,11 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
-    return new SqliteDbTable(db, fsaccess, &dbdir);
+    return new SqliteDbTable(db, fsaccess, &dbdir, key);
 }
 
-SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepath)
+SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepath, SymmCipher *key)
+    : DbTable(key)
 {
     db = cdb;
     pStmt = NULL;
@@ -498,6 +499,37 @@ void SqliteDbTable::rewindencryptednode()
     sqlite3_prepare(db, "SELECT node FROM nodes WHERE attrstring IS NOT NULL", -1, &pStmt, NULL);
 }
 
+void SqliteDbTable::rewindoutshares(string * ph)
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    if (ph->empty())
+    {
+        sqlite3_prepare(db, "SELECT node FROM nodes WHERE shared = 1 OR shared = 4", -1, &pStmt, NULL);
+        // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
+    }
+    else
+    {
+        sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ? AND shared = 1 OR shared = 4", -1, &pStmt, NULL);
+        // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
+
+        if (pStmt)
+        {
+            // bind the blob as transient data, so SQLITE makes its own copy
+            // otherwise, calling to next() results in unexpected results, since the blob is already freed
+            sqlite3_bind_blob(pStmt, 1, ph->data(), ph->size(), SQLITE_TRANSIENT);
+        }
+    }
+}
+
 bool SqliteDbTable::next(string *data)
 {
     if (!db)
@@ -640,7 +672,7 @@ bool SqliteDbTable::putrootnode(int index, string *data)
 //    return true;
 }
 
-bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, string *node)//char *fp, unsigned fpsize, char *node, unsigned nodesize)
+bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, int shared, string *node)
 {
     if (!db)
     {
@@ -650,7 +682,7 @@ bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, str
     sqlite3_stmt *stmt = NULL;
     bool result = false;
 
-    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, fingerprint, attrstring, node) VALUES (?, ?, ?, ?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, fingerprint, attrstring, shared, node) VALUES (?, ?, ?, ?, ?, ?)", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC) == SQLITE_OK)
         {
@@ -661,11 +693,14 @@ bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, str
                 {
                     if (sqlite3_bind_text(stmt, 4, attr ? attr->data() : NULL, attr ? attr->size() : 0, SQLITE_STATIC) == SQLITE_OK)
                     {
-                        if (sqlite3_bind_blob(stmt, 5, node->data(), node->size(), SQLITE_STATIC) == SQLITE_OK)
+                        if (sqlite3_bind_int(stmt, 5, shared) == SQLITE_OK)
                         {
-                            if (sqlite3_step(stmt) == SQLITE_DONE)
+                            if (sqlite3_bind_blob(stmt, 6, node->data(), node->size(), SQLITE_STATIC) == SQLITE_OK)
                             {
-                                result = true;
+                                if (sqlite3_step(stmt) == SQLITE_DONE)
+                                {
+                                    result = true;
+                                }
                             }
                         }
                     }

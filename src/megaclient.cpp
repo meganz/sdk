@@ -2402,7 +2402,7 @@ void MegaClient::initsc()
         if (complete)
         {
             // 2. write rootnodes handles
-            complete = sctable->putrootnodes(rootnodes, &key);
+            complete = sctable->putrootnodes(rootnodes);
         }
 
         if (complete)
@@ -2410,7 +2410,7 @@ void MegaClient::initsc()
             // 3. write all users
             for (user_map::iterator it = users.begin(); it != users.end(); it++)
             {
-                if (!(complete = sctable->putuser(&it->second, &key)))
+                if (!(complete = sctable->putuser(&it->second)))
                 {
                     break;
                 }
@@ -2424,7 +2424,7 @@ void MegaClient::initsc()
             // 5. write new or modified pcrs, purge deleted pcrs
             for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
             {
-                if (!(complete = sctable->putpcr(it->second, &key)))
+                if (!(complete = sctable->putpcr(it->second)))
                 {
                     break;
                 }
@@ -2455,7 +2455,7 @@ void MegaClient::updatesc()
         }
 
         // TODO: decide if we really need to check rootnodes on updatesc()
-        if (!sctable->getrootnodes(rootnodes, &key))
+        if (!sctable->getrootnodes(rootnodes))
         {
             LOG_err << "Invalid rootnodes";
             return;
@@ -2475,7 +2475,7 @@ void MegaClient::updatesc()
             // 2. write new or update modified users
             for (user_vector::iterator it = usernotify.begin(); it != usernotify.end(); it++)
             {
-                if (!(complete = sctable->putuser(*it, &key)))
+                if (!(complete = sctable->putuser(*it)))
                 {
                     break;
                 }
@@ -2491,7 +2491,7 @@ void MegaClient::updatesc()
                 if ((*it)->changed.removed)
                 {
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->delnode(*it, &key)))
+                    if (!(complete = sctable->delnode(*it)))
                     {
                         break;
                     }
@@ -2499,7 +2499,7 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->putnode(*it, &key)))
+                    if (!(complete = sctable->putnode(*it)))
                     {
                         break;
                     }
@@ -2516,7 +2516,7 @@ void MegaClient::updatesc()
                 if ((*it)->removed())
                 {
                     LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->delpcr(*it, &key)))
+                    if (!(complete = sctable->delpcr(*it)))
                     {
                         break;
                     }
@@ -2524,7 +2524,7 @@ void MegaClient::updatesc()
                 else if (!(*it)->removed())
                 {
                     LOG_verbose << "Adding pcr to database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->putpcr(*it, &key)))
+                    if (!(complete = sctable->putpcr(*it)))
                     {
                         break;
                     }
@@ -2562,7 +2562,7 @@ void MegaClient::addnodetosc(pnode_t n)
 {
     if(sctable)
     {
-        if (!sctable->putnode(n, &key))
+        if (!sctable->putnode(n))
         {
             finalizesc(false);
         }
@@ -3713,7 +3713,7 @@ pnode_t MegaClient::nodebyhandle(handle h)
 
     // if node was not found, search for it in local cache
     string data;
-    if (sctable->getnode(h, &data, &key))
+    if (sctable->getnode(h, &data))
     {
         pnode_t n;
         node_vector dp;
@@ -4825,7 +4825,7 @@ int MegaClient::applykeys()
 
     // apply keys also to not notified nodes, but encrypted nodes stored in DB
     sctable->rewindencryptednode();
-    while (sctable->getencryptednode(&data, &key))
+    while (sctable->getencryptednode(&data))
     {
         pnode_t n = Node::unserialize(this, &data, &dp);
 
@@ -5108,7 +5108,7 @@ void MegaClient::opensctable()
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
-        sctable = dbaccess->open(fsaccess, &dbname);
+        sctable = dbaccess->open(fsaccess, &dbname, &key);
     }
 }
 
@@ -6323,7 +6323,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     LOG_info << "Loading session from local cache";
 
     // 1. Load handles of rootnodes
-    if (!sctable->getrootnodes(rootnodes, &key))
+    if (!sctable->getrootnodes(rootnodes))
     {
         LOG_err << "Failed - rootnodes record read error";
         return false;
@@ -6332,7 +6332,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     // 2. Load all users in the account
     string data;
     sctable->rewinduser();
-    while (sctable->getuser(&data, &key))
+    while (sctable->getuser(&data))
     {
         if (!User::unserialize(this, &data))
         {
@@ -6343,7 +6343,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     // 3. Load all the pending contact requests
     sctable->rewindpcr();
-    while (sctable->getpcr(&data, &key))
+    while (sctable->getpcr(&data))
     {
         if (!PendingContactRequest::unserialize(this, &data))
         {
@@ -7981,7 +7981,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 pnode_t MegaClient::nodebyfingerprint(string* fingerprint)
 {
     string data;
-    if (sctable->getnode(fingerprint, &data, &key))
+    if (sctable->getnode(fingerprint, &data))
     {
         pnode_t n;
         node_vector dp;
@@ -8000,9 +8000,9 @@ shared_ptr<vector<pnode_t > > MegaClient::getchildren(pnode_t node)
     string data;
     node_vector dp;
 
-    sctable->rewindchildren(node->nodehandle, &key);
+    sctable->rewindchildren(node->nodehandle);
 
-    while (sctable->getchildren(&data, &key))
+    while (sctable->getchildren(&data))
     {
         pnode_t n = Node::unserialize(this, &data, &dp);
         if (n)
@@ -8018,7 +8018,7 @@ int MegaClient::getnumchildren(handle h)
 {
     int result = 0;
 
-    sctable->getnumchildren(h, &result, &key);
+    sctable->getnumchildren(h, &result);
 
     return result;
 }
@@ -8027,7 +8027,7 @@ int MegaClient::getnumchildfiles(handle h)
 {
     int result = 0;
 
-    sctable->getnumchildfiles(h, &result, &key);
+    sctable->getnumchildfiles(h, &result);
 
     return result;
 }
@@ -8036,7 +8036,7 @@ int MegaClient::getnumchildfolders(handle h)
 {
     int result = 0;
 
-    sctable->getnumchildfolders(h, &result, &key);
+    sctable->getnumchildfolders(h, &result);
 
     return result;
 }
