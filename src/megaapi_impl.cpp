@@ -8243,6 +8243,8 @@ void MegaApiImpl::sendPendingRequests()
 			client->abortbackoff(includexfers);
 			if(disconnect)
             {
+                client->disconnect();
+
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
                 // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
@@ -8282,7 +8284,6 @@ void MegaApiImpl::sendPendingRequests()
                 LOG_debug << "Using MEGA DNS servers";
                 httpio->setdnsservers(servers.c_str());
 #endif
-                client->disconnect();
             }
 
 			fireOnRequestFinish(request, MegaError(API_OK));
