@@ -5160,7 +5160,8 @@ class MegaApi
 		 * This function doesn't search recursively, only returns the direct child files.
 		 *
 		 * @param parent Parent node
-		 * @return Number of child files
+         * @return Number of child files
+         * @note The returned value is a rough estimation.
 		 */
 		int getNumChildFiles(MegaNode* parent);
 
@@ -5174,6 +5175,7 @@ class MegaApi
 		 *
 		 * @param parent Parent node
 		 * @return Number of child folders
+         * @note The returned value is a rough estimation.
 		 */
 		int getNumChildFolders(MegaNode* parent);
 

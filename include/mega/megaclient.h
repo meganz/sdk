@@ -563,6 +563,9 @@ public:
     pnode_t nodebyhandle(handle);
     pnode_t nodebyfingerprint(string *);
     shared_ptr<vector<pnode_t>> getchildren(pnode_t node);
+    int getnumchildren(handle);
+    int getnumchildfiles(handle);
+    int getnumchildfolders(handle);
 
     // generate & return upload handle
     handle getuploadhandle();

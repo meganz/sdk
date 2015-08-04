@@ -49,6 +49,9 @@ public:
     bool getrootnode(int, string*);
     bool getnodebyhandle(string*, string*);
     bool getnodebyfingerprint(string*, string*);
+    bool getnumchildren(string*, int*);
+    bool getnumchildfiles(string*, int*);
+    bool getnumchildfolders(string*, int*);
 
     void rewinduser();
     void rewindchildren(string*);

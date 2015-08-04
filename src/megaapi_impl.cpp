@@ -6797,15 +6797,9 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
 	if (!p) return 0;
 
 	sdkMutex.lock();
-    pnode_t parent = client->nodebyhandle(p->getHandle());
-	if (!parent)
-	{
-		sdkMutex.unlock();
-		return 0;
-	}
 
-    shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-    int numChildren = children->size();
+    int numChildren = client->getnumchildren(p->getHandle());
+
 	sdkMutex.unlock();
 
 	return numChildren;
@@ -6816,20 +6810,9 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
 	if (!p) return 0;
 
 	sdkMutex.lock();
-    pnode_t parent = client->nodebyhandle(p->getHandle());
-	if (!parent)
-	{
-		sdkMutex.unlock();
-		return 0;
-	}
 
-	int numFiles = 0;
-    shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-    for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
-	{
-		if ((*it)->type == FILENODE)
-			numFiles++;
-	}
+    int numFiles = client->getnumchildfiles(p->getHandle());
+
 	sdkMutex.unlock();
 
 	return numFiles;
@@ -6840,21 +6823,10 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 	if (!p) return 0;
 
 	sdkMutex.lock();
-    pnode_t parent = client->nodebyhandle(p->getHandle());
-	if (!parent)
-	{
-		sdkMutex.unlock();
-		return 0;
-	}
 
-	int numFolders = 0;
-    shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-    for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
-	{
-		if ((*it)->type != FILENODE)
-			numFolders++;
-	}
-	sdkMutex.unlock();
+    int numFolders = client->getnumchildfolders(p->getHandle());
+
+    sdkMutex.unlock();
 
 	return numFolders;
 }

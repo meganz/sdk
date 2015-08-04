@@ -331,6 +331,93 @@ bool SqliteDbTable::getnodebyfingerprint(string *fp, string *data)
 //    return true;
 }
 
+bool SqliteDbTable::getnumchildren(string *ph, int *count)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    *count = 0;
+
+    if (sqlite3_prepare(db, "SELECT COUNT(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_blob(stmt, 1, ph->data(), ph->size(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                *count = sqlite3_column_int(stmt,0);
+
+                result = true;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+bool SqliteDbTable::getnumchildfiles(string *ph, int *count)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    *count = 0;
+
+    if (sqlite3_prepare(db, "SELECT COUNT(*) FROM nodes WHERE parenthandle = ? AND fingerprint IS NOT NULL", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_blob(stmt, 1, ph->data(), ph->size(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                *count = sqlite3_column_int(stmt,0);
+
+                result = true;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+bool SqliteDbTable::getnumchildfolders(string *ph, int *count)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    *count = 0;
+
+    if (sqlite3_prepare(db, "SELECT COUNT(*) FROM nodes WHERE parenthandle = ? AND fingerprint IS NULL", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_blob(stmt, 1, ph->data(), ph->size(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                *count = sqlite3_column_int(stmt,0);
+
+                result = true;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
 void SqliteDbTable::rewinduser()
 {
     if (!db)

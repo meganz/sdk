@@ -2524,7 +2524,6 @@ void MegaClient::updatesc()
                 else if (!(*it)->removed())
                 {
                     LOG_verbose << "Adding pcr to database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-//                    if (!(complete = sctable->put(CACHEDPCR, *it, &key)))
                     if (!(complete = sctable->putpcr(*it, &key)))
                     {
                         break;
@@ -7996,7 +7995,7 @@ pnode_t MegaClient::nodebyfingerprint(string* fingerprint)
 
 shared_ptr<vector<pnode_t > > MegaClient::getchildren(pnode_t node)
 {
-    vector<pnode_t> *children = new vector<pnode_t>();
+    shared_ptr<vector<pnode_t>> children = make_shared<vector<pnode_t>>();
 
     string data;
     node_vector dp;
@@ -8012,7 +8011,34 @@ shared_ptr<vector<pnode_t > > MegaClient::getchildren(pnode_t node)
         }
     }
 
-    return shared_ptr<vector<pnode_t > >(children);
+    return children;
+}
+
+int MegaClient::getnumchildren(handle h)
+{
+    int result = 0;
+
+    sctable->getnumchildren(h, &result, &key);
+
+    return result;
+}
+
+int MegaClient::getnumchildfiles(handle h)
+{
+    int result = 0;
+
+    sctable->getnumchildfiles(h, &result, &key);
+
+    return result;
+}
+
+int MegaClient::getnumchildfolders(handle h)
+{
+    int result = 0;
+
+    sctable->getnumchildfolders(h, &result, &key);
+
+    return result;
 }
 
 // a chunk transfer request failed: record failed protocol & host

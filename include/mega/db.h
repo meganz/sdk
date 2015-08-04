@@ -53,17 +53,23 @@ public:
     bool getrootnodes(handle*, SymmCipher*);
     bool getuser(string*, SymmCipher*);
     bool getchildren(string*, SymmCipher*);
+    bool getnumchildren(handle, int*, SymmCipher*);
+    bool getnumchildfiles(handle, int*, SymmCipher*);
+    bool getnumchildfolders(handle, int*, SymmCipher*);
     bool getpcr(string*, SymmCipher*);
     bool getencryptednode(string*, SymmCipher*);
 
-    // get records for `scsn` and `rootnodes`
+    // get records for `scsn`
     virtual bool getscsn(string*) = 0;
 
 protected:
-    // get sequential records for Users & child nodes
+    // get sequential records for Users, child nodes...
     virtual bool next(string*) = 0;
     virtual void rewindchildren(string*) = 0;
     virtual bool getrootnode(int, string*) = 0;
+    virtual bool getnumchildren(string*, int*) = 0;
+    virtual bool getnumchildfiles(string*, int*) = 0;
+    virtual bool getnumchildfolders(string*, int*) = 0;
 
 public:
     // update or add specific record

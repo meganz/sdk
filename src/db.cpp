@@ -214,6 +214,30 @@ bool DbTable::getchildren(string *data, SymmCipher *key)
     return false;
 }
 
+bool DbTable::getnumchildren(handle ph, int *count, SymmCipher *key)
+{
+    string hstring;
+    encrypthandle(ph, &hstring, key, true);
+
+    return getnumchildren(&hstring, count);
+}
+
+bool DbTable::getnumchildfiles(handle ph, int *count, SymmCipher *key)
+{
+    string hstring;
+    encrypthandle(ph, &hstring, key, true);
+
+    return getnumchildfiles(&hstring, count);
+}
+
+bool DbTable::getnumchildfolders(handle ph, int *count, SymmCipher *key)
+{
+    string hstring;
+    encrypthandle(ph, &hstring, key, true);
+
+    return getnumchildfolders(&hstring, count);
+}
+
 void DbTable::encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor)
 {
     int len = sizeof(h) * 4/3 + 3;
