@@ -24,6 +24,7 @@
 #include "MTransfer.h"
 #include "MRequest.h"
 #include "MError.h"
+#include "MContactRequest.h"
 
 namespace mega
 {
@@ -46,6 +47,7 @@ namespace mega
 		void onUsersUpdate(MegaSDK^ api, MUserList^ users);
 		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
 		void onAccountUpdate(MegaSDK^ api);
+        void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
 		void onReloadNeeded(MegaSDK^ api);
 	};
 }
