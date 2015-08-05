@@ -9,29 +9,15 @@ import re
 
 from setuptools import setup
 
-# Utility function to read the README file.
-# Used for the long_description.  It's nice, because now 1) we have a
-# top level README file and 2) it's easier to type in the README file
-# than to put a raw string in below ...
 
 def read(fname):
+    """
+    Utility function to read the README file.
+    Used for the long_description.  It's nice, because now
+    1) we have a top level README file and
+    2) it's easier to type in the README file than to put a raw string in below ...
+    """
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
-
-def make_symlink(src, dst):
-    try:
-        os.symlink(src, dst)
-    except OSError as e:
-        # Let's not complain if it's there already.
-        if e.strerror != 'File exists':
-            raise e
-
-def remove_file(fname):
-    try:
-        os.remove(fname)
-    except OSError as e:
-        # Let's not complain if it's not there.
-        if e.strerror != 'No such file or directory':
-            raise e
 
 def get_version():
     """
@@ -55,10 +41,21 @@ def get_version():
         release = 'raw_development'
     return version, release
 
-# solutions?
-# * put some import magic into the __init__.py
-# * fix it up in setup.py (preferable)
+def make_symlink(src, dst):
+    """Makes a symlink, ignores errors if it's there already."""
+    try:
+        os.symlink(src, dst)
+    except OSError as e:
+        if e.strerror != 'File exists':
+            raise e
 
+def remove_file(fname):
+    """Removes a file/link, ignores errors if it's not there any more."""
+    try:
+        os.remove(fname)
+    except OSError as e:
+        if e.strerror != 'No such file or directory':
+            raise e
 
 # Put native library modules into a "good place" for the package.
 make_symlink('../../src/.libs/libmega.so', 'libmega.so')
