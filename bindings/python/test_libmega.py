@@ -21,6 +21,7 @@ __author__ = 'Paul Ionkin <pi@mega.co.nz>'
 
 import sys
 import os
+import pprint
 
 _wrapper_dir = os.path.join(os.getcwd(), '..', '..', 'bindings', 'python')
 _libs_dir = os.path.join(_wrapper_dir, '.libs')
@@ -34,8 +35,7 @@ import mega
 # TODO: extend test example
 def main():
     api = mega.MegaApi("test")
-    print api
-
+    pprint.pprint(dir(api))
 
 if __name__ == '__main__':
     main()

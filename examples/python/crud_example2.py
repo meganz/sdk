@@ -17,6 +17,18 @@
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+"""
+* use api.dumpSession() to get session info
+
+* to resume session on a later invocation use api.fastLogin()
+
+* also possible to do an api.locallogout()
+  (e. g. to "juggle" multiple accounts)
+
+"""
+
+
+
 __author__ = 'Guy Kloss <gk@mega.co.nz>'
 
 import sys
