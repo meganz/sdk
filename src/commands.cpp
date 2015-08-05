@@ -803,6 +803,11 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
+            if (e == API_EACCESS)
+            {
+                client->sendevent(99402, "API_EACCESS putting node in sync transfer");
+            }
+
             client->app->putnodes_result(e, type, NULL);
 
             for (int i=0; i < nnsize; i++)
