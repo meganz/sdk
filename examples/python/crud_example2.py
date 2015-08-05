@@ -17,18 +17,6 @@
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-"""
-* use api.dumpSession() to get session info
-
-* to resume session on a later invocation use api.fastLogin()
-
-* also possible to do an api.locallogout()
-  (e. g. to "juggle" multiple accounts)
-
-"""
-
-
-
 __author__ = 'Guy Kloss <gk@mega.co.nz>'
 
 import sys
@@ -38,13 +26,6 @@ import time
 import threading
 import json
 import getpass
-
-_wrapper_dir = os.path.join(os.getcwd(), '..', '..', 'bindings', 'python')
-_libs_dir = os.path.join(_wrapper_dir, '.libs')
-_shared_lib = os.path.join(_libs_dir, '_mega.so')
-if os.path.isdir(_wrapper_dir) and os.path.isfile(_shared_lib):
-    sys.path.insert(0, _wrapper_dir)  # mega.py
-    sys.path.insert(0, _libs_dir)     # _mega.so
 
 from mega import (MegaApi, MegaListener, MegaError, MegaRequest, MegaNode)
 
