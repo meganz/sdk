@@ -49,6 +49,12 @@ the Mega API from Python.
 
     python setup.py bdist_wheel
 
+The package created will be located in folder `dist/`.
+
+**Note:** You may need to install the `wheel` package for Python, if your Python
+is not by default equipped for it, yet. This could be the (Linux) `python-wheel`
+distribution package, or by using e. g. `pip install wheel`.
+
 
 Install Python Distribution Package
 -----------------------------------
