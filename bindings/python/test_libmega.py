@@ -23,7 +23,8 @@ import sys
 import os
 import pprint
 
-_wrapper_dir = os.path.join(os.getcwd(), '..', '..', 'bindings', 'python')
+_here = os.path.abspath(os.path.dirname(__file__))
+_wrapper_dir = os.path.join(_here, '..', '..', 'bindings', 'python')
 _libs_dir = os.path.join(_wrapper_dir, '.libs')
 _shared_lib = os.path.join(_libs_dir, '_mega.so')
 if os.path.isdir(_wrapper_dir) and os.path.isfile(_shared_lib):
