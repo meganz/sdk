@@ -120,8 +120,8 @@ public:
     virtual ~DbTable() { }
 
 private:
-    void encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor = false);
-    void decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor = false);
+    void encrypthandle(handle h, string *hstring);
+    void decrypthandle(handle *h, string *hstring);
 };
 
 struct MEGA_API DbAccess

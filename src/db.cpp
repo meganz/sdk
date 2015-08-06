@@ -35,7 +35,7 @@ bool DbTable::putrootnodes(handle *rootnodes)
 
     for (int i=0; i<3; i++)
     {
-        encrypthandle(rootnodes[i], &data, key);
+        encrypthandle(rootnodes[i], &data);
 
         if (!putrootnode(i+1, &data))    // 0: scsn 1-3: rootnodes
         {
@@ -57,7 +57,7 @@ bool DbTable::getrootnodes(handle *rootnodes)
             return false;
         }
 
-        decrypthandle(&rootnodes[i], &data, key);
+        decrypthandle(&rootnodes[i], &data);
     }
 
     return true;
@@ -72,9 +72,9 @@ bool DbTable::putnode(pnode_t n)
 
     PaddedCBC::encrypt(&data, key);
 
-    encrypthandle(n->nodehandle, &h, key);
+    encrypthandle(n->nodehandle, &h);
 
-    encrypthandle(n->parenthandle, &ph, key, true);
+    encrypthandle(n->parenthandle, &ph);
 
     if(n->type == FILENODE)
     {
@@ -130,7 +130,7 @@ bool DbTable::putpcr(PendingContactRequest *pcr)
     PaddedCBC::encrypt(&data, key);
 
     string id;
-    encrypthandle(pcr->id, &id, key);
+    encrypthandle(pcr->id, &id);
 
     return putpcr(&id, &data);
 }
@@ -138,7 +138,7 @@ bool DbTable::putpcr(PendingContactRequest *pcr)
 bool DbTable::delnode(pnode_t n)
 {
     string hstring;
-    encrypthandle(n->nodehandle, &hstring, key);
+    encrypthandle(n->nodehandle, &hstring);
 
     bool result = delnode(&hstring);
     if(result)
@@ -151,7 +151,7 @@ bool DbTable::delnode(pnode_t n)
 bool DbTable::delpcr(PendingContactRequest *pcr)
 {
     string id;
-    encrypthandle(pcr->id, &id, key);
+    encrypthandle(pcr->id, &id);
 
     return delpcr(&id);
 }
@@ -159,7 +159,7 @@ bool DbTable::delpcr(PendingContactRequest *pcr)
 bool DbTable::getnode(handle h, string* data)
 {
     string hstring;
-    encrypthandle(h, &hstring, key);
+    encrypthandle(h, &hstring);
 
     if (getnodebyhandle(&hstring, data))
     {
@@ -224,7 +224,7 @@ bool DbTable::getoutshare(string *data)
 void DbTable::rewindchildren(handle h)
 {
     string hstring;
-    encrypthandle(h, &hstring, key, true);
+    encrypthandle(h, &hstring);
 
     rewindchildren(&hstring);
 }
@@ -235,7 +235,7 @@ void DbTable::rewindoutshares(handle h)
     string hstring;
     if (h != UNDEF)
     {
-        encrypthandle(h, &hstring, key, true);
+        encrypthandle(h, &hstring);
     }
 
     rewindoutshares(&hstring);
@@ -254,7 +254,7 @@ bool DbTable::getchildren(string *data)
 bool DbTable::getnumchildren(handle ph, int *count)
 {
     string hstring;
-    encrypthandle(ph, &hstring, key, true);
+    encrypthandle(ph, &hstring);
 
     return getnumchildren(&hstring, count);
 }
@@ -262,7 +262,7 @@ bool DbTable::getnumchildren(handle ph, int *count)
 bool DbTable::getnumchildfiles(handle ph, int *count)
 {
     string hstring;
-    encrypthandle(ph, &hstring, key, true);
+    encrypthandle(ph, &hstring);
 
     return getnumchildfiles(&hstring, count);
 }
@@ -270,51 +270,25 @@ bool DbTable::getnumchildfiles(handle ph, int *count)
 bool DbTable::getnumchildfolders(handle ph, int *count)
 {
     string hstring;
-    encrypthandle(ph, &hstring, key, true);
+    encrypthandle(ph, &hstring);
 
     return getnumchildfolders(&hstring, count);
 }
 
-void DbTable::encrypthandle(handle h, string *hstring, SymmCipher *key, bool applyXor)
+void DbTable::encrypthandle(handle h, string *hstring)
 {
-    int len = sizeof(h) * 4/3 + 3;
-    hstring->resize(len);
-    hstring->resize(Base64::btoa((const byte *)&h, sizeof(h), (char *) hstring->data()));
+    hstring->resize(sizeof(handle) * 4/3 + 3);
+    hstring->resize(Base64::btoa((const byte *)&h, sizeof(handle), (char *) hstring->data()));
 
     PaddedCBC::encrypt(hstring, key);
-
-    if (applyXor)
-    {
-        int size = hstring->size();
-        byte src[size];
-        byte dst[size];
-
-        memcpy(src, hstring->data(), size);
-
-        SymmCipher::xorblock(src, dst);
-
-        hstring->assign((char*)dst, size);
-    }
 }
 
-void DbTable::decrypthandle(handle *h, string *hstring, SymmCipher *key, bool applyXor)
+void DbTable::decrypthandle(handle *h, string *hstring)
 {
-    if (applyXor)
+    if (PaddedCBC::decrypt(hstring, key))
     {
-        int size = hstring->size();
-        byte src[size];
-        byte dst[size];
-
-        memcpy(src, hstring->data(), size);
-
-        SymmCipher::xorblock(src, dst);
-
-        hstring->assign((char*)dst, size);
+        Base64::atob(hstring->data(), (byte *)h, hstring->size());
     }
-
-    PaddedCBC::decrypt(hstring, key);
-
-    Base64::atob(hstring->data(), (byte *)h, hstring->size());//sizeof(h));
 }
 
 } // namespace

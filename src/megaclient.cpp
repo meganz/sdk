@@ -2566,7 +2566,6 @@ void MegaClient::addnodetosc(pnode_t n)
         {
             finalizesc(false);
         }
-        nodescount++;
     }
 }
 
@@ -4399,6 +4398,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 n->applykey();
                 addnodetosc(n);
+                nodescount++;
 
                 // set rootnodes[] in client as entry point for each tree
                 if (n->type > FOLDERNODE)
@@ -4457,7 +4457,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
-            addnodetosc(dp[i]);     // if parent updated, dump node to DB
+            addnodetosc(dp[i]);     // if parent updated, update the node in DB
         }
     }
 
