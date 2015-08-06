@@ -342,7 +342,10 @@ void MegaClient::mergenewshare(NewShare *s, pnode_t n, bool notify)
                 }
                 else
                 {
-                    LOG_err << "Incomplete outshare info";
+                    LOG_debug << "Merging share without peer information.";
+                    // Outgoing shares received during fetchnodes are merged in two steps:
+                    // 1. From readok(), a NewShare is created with the 'sharekey'
+                    // 2. From readoutshares(), a NewShare is created with the 'peer' information
                 }
             }
             else   // inshare
