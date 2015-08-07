@@ -3728,7 +3728,7 @@ pnode_t MegaClient::nodebyhandle(handle h)
 }
 
 // server-client deletion
-shared_ptr<mega::Node> MegaClient::sc_deltree()
+pnode_t MegaClient::sc_deltree()
 {
     pnode_t n = NULL;
 
