@@ -68,8 +68,10 @@
 ../../include/mega/user.h
 ../../include/mega/utils.h
 ../../include/mega/waiter.h
-../../include/mega.h
 ../../include/mega/pendingcontactrequest.h
+../../include/mega.h
+../../include/megaapi.h
+../../include/megaapi_impl.h
 ../../src/crypto/cryptopp.cpp
 ../../src/crypto/sodium.cpp
 ../../src/db/bdb.cpp
@@ -129,6 +131,7 @@
 ../../src/pendingcontactrequest.cpp
 ../../tests/paycrypt_test.cpp
 ../../tests/tests.cpp
+../../tests/sdk_test.cpp
 ../../third_party/glob/glob.c
 ../../third_party/glob/glob.h
 ../../Makefile

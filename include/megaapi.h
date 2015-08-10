@@ -1107,7 +1107,8 @@ class MegaRequest
             TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
-            TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST
+            TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
+            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT
         };
 
         virtual ~MegaRequest();
@@ -1447,7 +1448,6 @@ class MegaRequest
          * - MegaApi::cancelGetPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
          * - MegaApi::setThumbnail - Returns MegaApi::ATTR_TYPE_THUMBNAIL
          * - MegaApi::setPreview - Returns MegaApi::ATTR_TYPE_PREVIEW
-         * - MegaApi::submitFeedback - Returns MegaApi::EVENT_FEEDBACK
          * - MegaApi::reportDebugEvent - Returns MegaApi::EVENT_DEBUG
          * - MegaApi::cancelTransfers - Returns MegaTransfer::TYPE_DOWNLOAD if downloads are cancelled or MegaTransfer::TYPE_UPLOAD if uploads are cancelled
          * - MegaApi::setUserAttribute - Returns the attribute type
@@ -1468,6 +1468,7 @@ class MegaRequest
          * - MegaApi::reportDebugEvent - Returns the debug message
          * - MegaApi::setUserAttribute - Returns the new value for the attribute
          * - MegaApi::inviteContact - Returns the message appended to the contact invitation
+         * - MegaApi::sendEvent - Returns the event message
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1489,6 +1490,7 @@ class MegaRequest
          * - MegaApi::upgradeAccount - Returns the payment method
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
          * - MegaApi::inviteContact - Returns the action to do with the contact request
+         * - MegaApi::sendEvent - Returns the event type
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2954,13 +2956,6 @@ class MegaApi
 			STATE_IGNORED
 		};
 
-        enum
-        {
-            EVENT_FEEDBACK = 0,
-            EVENT_DEBUG,
-            EVENT_INVALID
-        };
-
         enum {
             LOG_LEVEL_FATAL = 0,   // Very severe error event that will presumably lead the application to abort.
             LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
@@ -2994,7 +2989,8 @@ class MegaApi
 
         enum {
             TRANSFER_METHOD_NORMAL = 0,
-            TRANSFER_METHOD_ALTERNATIVE_PORT = 1
+            TRANSFER_METHOD_ALTERNATIVE_PORT = 1,
+            TRANSFER_METHOD_AUTO = 2
         };
 
         /**
@@ -4464,11 +4460,8 @@ class MegaApi
         /**
          * @brief Submit feedback about the app
          *
-         * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REPORT_EVENT
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns MegaApi::EVENT_FEEDBACK
          * - MegaRequest::getText - Retuns the comment about the app
          * - MegaRequest::getNumber - Returns the rating for the app
          *
@@ -4478,9 +4471,25 @@ class MegaApi
          *
          * @deprecated This function is for internal usage of MEGA apps. This feedback
          * is sent to MEGA servers.
-         *
          */
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send events to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the event type
+         * - MegaRequest::getText - Returns the event message
+         *
+         * @param eventType Event type
+         * @param message Event message
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         * is sent to MEGA servers.
+         */
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send a debug report
@@ -4686,6 +4695,9 @@ class MegaApi
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
          *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
+         *
          * @param method Selected transfer method for downloads
          */
         void setDownloadMethod(int method);
@@ -4699,6 +4711,9 @@ class MegaApi
          *
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
          *
          * @param method Selected transfer method for uploads
          */
@@ -4714,6 +4729,9 @@ class MegaApi
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
          *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
+         *
          * @return Active transfer method for downloads
          */
         int getDownloadMethod();
@@ -4727,6 +4745,9 @@ class MegaApi
          *
          * - TRANSFER_METHOD_ALTERNATIVE_PORT = 1
          * HTTP transfers using port 8080. Data is already encrypted.
+         *
+         * - TRANSFER_METHOD_AUTO = 2
+         * The SDK selects the transfer method automatically
          *
          * @return Active transfer method for uploads
          */

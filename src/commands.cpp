@@ -803,6 +803,11 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
+            if (e == API_EACCESS)
+            {
+                client->sendevent(99402, "API_EACCESS putting node in sync transfer");
+            }
+
             client->app->putnodes_result(e, type, NULL);
 
             for (int i=0; i < nnsize; i++)
@@ -1112,17 +1117,23 @@ void CommandLogout::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion)
 {
     cmd("us");
 
     // are we just performing a session validation?
     checksession = !email;
+    sessionversion = csessionversion;
 
     if (!checksession)
     {
         arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
+    }
+
+    if (sessionkey)
+    {
+        arg("sek", sessionkey, SymmCipher::KEYLENGTH);
     }
 
     if (client->cachedscsn != UNDEF)
@@ -1144,7 +1155,8 @@ void CommandLogin::procresult()
     byte hash[SymmCipher::KEYLENGTH];
     byte sidbuf[AsymmCipher::MAXKEYLENGTH];
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
-    int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0;
+    byte sek[SymmCipher::KEYLENGTH];
+    int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0, len_sek = 0;
     handle me = UNDEF;
 
     for (;;)
@@ -1157,6 +1169,10 @@ void CommandLogin::procresult()
 
             case 'u':
                 me = client->json.gethandle(MegaClient::USERHANDLE);
+                break;
+
+            case MAKENAMEID3('s', 'e', 'k'):
+                len_sek = client->json.storebinary(sek, sizeof sek);
                 break;
 
             case MAKENAMEID4('t', 's', 'i', 'd'):
@@ -1191,6 +1207,24 @@ void CommandLogin::procresult()
                     // decrypt and set master key
                     client->key.ecb_decrypt(hash);
                     client->key.setkey(hash);
+                }
+
+                if (len_sek)
+                {
+                    if (len_sek != SymmCipher::KEYLENGTH)
+                    {
+                        return client->app->login_result(API_EINTERNAL);
+                    }
+
+                    if (checksession && sessionversion)
+                    {
+                        byte k[SymmCipher::KEYLENGTH];
+                        memcpy(k, client->key.key, sizeof(k));
+
+                        client->key.setkey(sek);
+                        client->key.ecb_decrypt(k);
+                        client->key.setkey(k);
+                    }
                 }
 
                 if (len_tsid)
@@ -1242,6 +1276,11 @@ void CommandLogin::procresult()
                 }
 
                 client->me = me;
+
+                if (len_sek)
+                {
+                    client->sessionkey.assign((const char *)sek, sizeof(sek));
+                }
 
                 return client->app->login_result(API_OK);
 
@@ -3346,6 +3385,60 @@ void CommandGetPaymentMethods::procresult()
     } while(client->json.isnumeric());
 
     client->app->getpaymentmethods_result(methods, API_OK);
+}
+
+CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const char *type, const char *blob, const char *uid)
+{
+    cmd("clog");
+
+    arg("t", type);
+
+    if (blob)
+    {
+        arg("d", blob);
+    }
+
+    if (uid)
+    {
+        arg("id", uid);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandUserFeedbackStore::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->userfeedbackstore_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->userfeedbackstore_result(API_EINTERNAL);
+    }
+}
+
+CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *desc)
+{
+    cmd("log");
+    arg("e", type);
+    arg("m", desc);
+
+    tag = client->reqtag;
+}
+
+void CommandSendEvent::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->sendevent_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->sendevent_result(API_EINTERNAL);
+    }
 }
 
 } // namespace

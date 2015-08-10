@@ -563,6 +563,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
+    autodownport = true;
+    autoupport = true;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -2094,6 +2096,8 @@ void MegaClient::logout()
         }
 #endif
         locallogout();
+
+        restag = reqtag;
         app->logout_result(API_OK);
         return;
     }
@@ -2155,6 +2159,7 @@ void MegaClient::locallogout()
     key.setkey(SymmCipher::zeroiv);
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
+    sessionkey.clear();
 
     init();
 
@@ -4968,18 +4973,22 @@ void MegaClient::login(const char* email, const byte* pwkey)
 
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash));
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
 {
     locallogout();
 
-    string lcemail(email);
-
     key.setkey((byte*)pwkey);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash));
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::getuserdata()
@@ -4996,6 +5005,22 @@ void MegaClient::getpubkey(const char *user)
 void MegaClient::login(const byte* session, int size)
 {
     locallogout();
+   
+    int sessionversion = 0;
+    if (size == sizeof key.key + SIDLEN + 1)
+    {
+        sessionversion = session[0];
+
+        if(sessionversion != 1)
+        {
+            restag = reqtag;
+            app->login_result(API_EARGS);
+            return;
+        }
+
+        session++;
+        size--;
+    }
 
     if (size == sizeof key.key + SIDLEN)
     {
@@ -5011,7 +5036,10 @@ void MegaClient::login(const byte* session, int size)
             cachedscsn = MemAccess::get<handle>(t.data());
         }
 
-        reqs[r].add(new CommandLogin(this, NULL, UNDEF));
+        byte sek[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(sek, sizeof sek);
+
+        reqs[r].add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
     }
     else
     {
@@ -5020,22 +5048,45 @@ void MegaClient::login(const byte* session, int size)
     }
 }
 
-int MegaClient::dumpsession(byte* session, int size)
+int MegaClient::dumpsession(byte* session, size_t size)
 {
     if (loggedin() == NOTLOGGEDIN)
     {
         return 0;
     }
 
-    if (size < (int)sid.size() + (int)sizeof key.key)
+    if (size < sid.size() + sizeof key.key)
     {
         return API_ERANGE;
     }
 
-    memcpy(session, key.key, sizeof key.key);
+    if (sessionkey.size())
+    {
+        if (size < sid.size() + sizeof key.key + 1)
+        {
+            return API_ERANGE;
+        }
+
+        size = sid.size() + sizeof key.key + 1;
+
+        session[0] = 1;
+        session++;
+
+        byte k[SymmCipher::KEYLENGTH];
+        SymmCipher cipher;
+        cipher.setkey((const byte *)sessionkey.data(), sessionkey.size());
+        cipher.ecb_encrypt(key.key, k);
+        memcpy(session, k, sizeof k);
+    }
+    else
+    {
+        size = sid.size() + sizeof key.key;
+        memcpy(session, key.key, sizeof key.key);
+    }
+
     memcpy(session + sizeof key.key, sid.data(), sid.size());
 
-    return sizeof key.key + sid.size();
+    return size;
 }
 
 void MegaClient::copysession()
@@ -5674,6 +5725,7 @@ void MegaClient::notifynode(pnode_t n)
         int creqtag = reqtag;
         reqtag = 0;
         reportevent("NK", report);
+        sendevent(99400, report);
         reqtag = creqtag;
 
         delete [] buf;
@@ -8085,6 +8137,25 @@ void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
     reqs[r].add(new CommandReportEvent(this, event, details));
+}
+
+void MegaClient::userfeedbackstore(const char *message)
+{
+    string type = "feedback.";
+    type.append(&(appkey[4]));
+    type.append(".");
+
+    string base64userAgent;
+    base64userAgent.resize(useragent.size() * 4 / 3 + 4);
+    Base64::btoa((byte *)useragent.data(), useragent.size(), (char *)base64userAgent.data());
+    type.append(base64userAgent);
+
+    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+}
+
+void MegaClient::sendevent(int event, const char *desc)
+{
+    reqs[r].add(new CommandSendEvent(this, event, desc));
 }
 
 } // namespace

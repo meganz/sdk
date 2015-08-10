@@ -584,35 +584,6 @@ bool SqliteDbTable::putscsn(char* data, unsigned len)
 
     sqlite3_finalize(stmt);
     return result;
-
-//    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    // `id` for the `scsn` is always the same, only one row
-//    rc = sqlite3_bind_int(stmt, 1, 0);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::putrootnode(int index, string *data)
@@ -641,35 +612,6 @@ bool SqliteDbTable::putrootnode(int index, string *data)
 
     sqlite3_finalize(stmt);
     return result;
-
-
-
-//    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_int(stmt, 1, index);    // 0: scsn 1-3: rootnodes
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 2, data->data(), data->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, int shared, string *node)
@@ -711,57 +653,6 @@ bool SqliteDbTable::putnode(string* h, string* ph, string *fp, string *attr, int
 
     sqlite3_finalize(stmt);
     return result;
-
-//    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, fingerprint, attrstring, node) VALUES (?, ?, ?, ?, ?)", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 2, ph->data(), ph->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    if (fp->size())
-//    {
-//        rc = sqlite3_bind_blob(stmt, 3, fp->data(), fp->size(), SQLITE_STATIC);
-//        if (rc)
-//        {
-//            return false;
-//        }
-//    }   // else, the node is a folder, so fingerprint is NULL (sqlite default if not binding provided)
-
-//    if (attr)
-//    {
-//        rc = sqlite3_bind_text(stmt, 4, attr->data(), attr->size(), SQLITE_STATIC);
-//        if (rc)
-//        {
-//            return false;
-//        }
-//    }   // else, the attrstring is NULL (sqlite default if not binding provided)
-
-//    rc = sqlite3_bind_blob(stmt, 5, node->data(), node->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::putuser(string *email, string *user)
@@ -790,33 +681,6 @@ bool SqliteDbTable::putuser(string *email, string *user)
 
     sqlite3_finalize(stmt);
     return result;
-
-//    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO users (email, user) VALUES (?, ?)", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, email->data(), email->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 2, user->data(), user->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::putpcr(string * id, string *pcr)
@@ -845,33 +709,6 @@ bool SqliteDbTable::putpcr(string * id, string *pcr)
 
     sqlite3_finalize(stmt);
     return result;
-
-//    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO pcrs (id, pcr) VALUES (?, ?)", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, id->data(), id->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 2, pcr->data(), pcr->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::delnode(string *h)
@@ -897,27 +734,6 @@ bool SqliteDbTable::delnode(string *h)
 
     sqlite3_finalize(stmt);
     return result;
-
-//    int rc = sqlite3_prepare(db, "DELETE FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::delpcr(string *id)
@@ -943,29 +759,6 @@ bool SqliteDbTable::delpcr(string *id)
 
     sqlite3_finalize(stmt);
     return result;
-
-
-
-//    int rc = sqlite3_prepare(db, "DELETE FROM pcrs WHERE id = ?", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, id->data(), id->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_DONE)
-//    {
-//        return false;
-//    }
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 // truncate table

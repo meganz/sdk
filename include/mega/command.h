@@ -110,11 +110,12 @@ public:
 class MEGA_API CommandLogin : public Command
 {
     bool checksession;
+    int sessionversion;
 
 public:
     void procresult();
 
-    CommandLogin(MegaClient*, const char*, uint64_t);
+    CommandLogin(MegaClient*, const char*, uint64_t, const byte* = NULL,  int = 0);
 };
 
 class MEGA_API CommandSetMasterKey : public Command
@@ -573,6 +574,22 @@ public:
     void procresult();
 
     CommandGetPaymentMethods(MegaClient*);
+};
+
+class MEGA_API CommandUserFeedbackStore : public Command
+{
+public:
+    void procresult();
+
+    CommandUserFeedbackStore(MegaClient*, const char *, const char *, const char *);
+};
+
+class MEGA_API CommandSendEvent : public Command
+{
+public:
+    void procresult();
+
+    CommandSendEvent(MegaClient*, int, const char *);
 };
 
 } // namespace

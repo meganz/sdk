@@ -7,7 +7,6 @@ CLEANFILES += bindings/python/megaapi_wrap.cpp
 CLEANFILES += bindings/python/megaapi_wrap.h
 CLEANFILES += bindings/python/mega.py
 CLEANFILES += bindings/python/mega.pyc
-CLEANFILES += bindings/python/__init__.py
 
 nodist_bindings_python__mega_la_SOURCES = bindings/python/megaapi_wrap.cpp
 bindings_python__mega_la_SOURCES = $(top_srcdir)/bindings/megaapi.i

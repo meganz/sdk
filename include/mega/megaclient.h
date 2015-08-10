@@ -104,7 +104,7 @@ public:
     sessiontype_t loggedin();
 
     // dump current session
-    int dumpsession(byte*, int);
+    int dumpsession(byte*, size_t);
 
     // create a copy of the current session
     void copysession();
@@ -286,6 +286,12 @@ public:
     // get payment methods
     void getpaymentmethods();
 
+    // store user feedback
+    void userfeedbackstore(const char *);
+
+    // send event
+    void sendevent(int, const char *);
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -297,8 +303,14 @@ public:
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
+    // select the download port automatically
+    bool autodownport;
+
     // use an alternative port for uploads (8080)
     bool usealtupport;
+
+    // select the upload port automatically
+    bool autoupport;
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
@@ -475,6 +487,9 @@ public:
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
+
+    // session key to protect local storage
+    string sessionkey;
 
     // application key
     char appkey[16];

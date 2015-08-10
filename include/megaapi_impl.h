@@ -25,8 +25,8 @@
 #include <inttypes.h>
 
 #include "mega.h"
-#include "mega/thread/posixthread.h"
 #include "mega/thread/qtthread.h"
+#include "mega/thread/posixthread.h"
 #include "mega/thread/win32thread.h"
 #include "mega/gfx/external.h"
 #include "mega/gfx/qt.h"
@@ -66,12 +66,12 @@
 namespace mega
 {
 
-#ifdef USE_PTHREAD
-typedef PosixThread MegaThread;
-typedef PosixMutex MegaMutex;
-#elif USE_QT
+#ifdef USE_QT
 typedef QtThread MegaThread;
 typedef QtMutex MegaMutex;
+#elif USE_PTHREAD
+typedef PosixThread MegaThread;
+typedef PosixMutex MegaMutex;
 #elif defined(_WIN32) && !defined(WINDOWS_PHONE)
 typedef Win32Thread MegaThread;
 typedef Win32Mutex MegaMutex;
@@ -992,7 +992,8 @@ class MegaApiImpl : public MegaApp
         void logout(MegaRequestListener *listener = NULL);
         void localLogout(MegaRequestListener *listener = NULL);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
-        void reportEvent(int event, const char *details = NULL, MegaRequestListener *listener = NULL);
+        void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
@@ -1129,6 +1130,8 @@ class MegaApiImpl : public MegaApp
         bool createPreview(const char* imagePath, const char *dstPath);
 
 protected:
+        static const unsigned int MAX_SESSION_LENGTH;
+
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
 
         static void *threadEntryPoint(void *param);
@@ -1289,6 +1292,9 @@ protected:
         virtual void creditcardcancelsubscriptions_result(error);
         virtual void getpaymentmethods_result(int, error);
         virtual void copysession_result(string*, error);
+
+        virtual void userfeedbackstore_result(error);
+        virtual void sendevent_result(error);
 
         virtual void checkfile_result(handle h, error e);
         virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);

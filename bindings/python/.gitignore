@@ -2,3 +2,6 @@
 mega.py
 megaapi_wrap.cpp
 megaapi_wrap.h
+build/
+dist/
+megasdk.egg-info/
