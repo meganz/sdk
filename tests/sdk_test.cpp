@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "../include/megaapi.h"
+#include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
 
 using namespace mega;
@@ -32,7 +33,7 @@ static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 static const string EMAIL       = "megasdktest@yopmail.com";
 static const string PWD         = "megasdktest??";
 
-static const unsigned int pollingT = 1;  // (seconds) to check if response from server is received
+static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
 
 // Fixture class with common code for most of tests
 class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener {
@@ -41,10 +42,13 @@ public:
     MegaApi *megaApi = NULL;
 
     int lastError;
-    int timeout;
 
     bool loggingReceived;
     bool fetchnodesReceived;
+    bool logoutReceived;
+    bool responseReceived;
+
+    MegaHandle h;
 
 private:
 
@@ -56,13 +60,12 @@ protected:
 
         if (megaApi == NULL)
         {
-            char buf[1024];
-            getcwd(buf, sizeof buf);
-            megaApi = new MegaApi(APP_KEY.c_str(), buf, USER_AGENT.c_str());
+            char path[1024];
+            getcwd(path, sizeof path);
+            megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
             megaApi->addListener(this);
         }
-
     }
 
     virtual void TearDown()
@@ -87,6 +90,33 @@ protected:
         case MegaRequest::TYPE_FETCH_NODES:
             fetchnodesReceived = true;
             break;
+
+        case MegaRequest::TYPE_LOGOUT:
+            logoutReceived = true;
+            break;
+
+        case MegaRequest::TYPE_CREATE_FOLDER:
+            responseReceived = true;
+            h = request->getNodeHandle();
+            break;
+
+        case MegaRequest::TYPE_RENAME:
+            responseReceived = true;
+            break;
+
+        case MegaRequest::TYPE_COPY:
+            responseReceived = true;
+            h = request->getNodeHandle();
+            break;
+
+        case MegaRequest::TYPE_MOVE:
+            responseReceived = true;
+            break;
+
+        case MegaRequest::TYPE_REMOVE:
+            responseReceived = true;
+            break;
+
         }
     }
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
@@ -107,32 +137,109 @@ protected:
 #endif
 
 public:
-    void login(int t)   // t: seconds to wait for response
+    void login(int timeout = 0)   // Seconds to wait for response. 0 means no timeout
     {
-        timeout = t;
         loggingReceived = false;
 
         megaApi->login(EMAIL.data(), PWD.data());
 
-        for(int i = 0; !loggingReceived && i < timeout; i++)
-            sleep(pollingT);
+        waitForResponse(&loggingReceived, timeout);
 
-        ASSERT_TRUE(loggingReceived) << "Logging failed after " << timeout  << " seconds";
+        if (timeout)
+        {
+            ASSERT_TRUE(loggingReceived) << "Logging failed after " << timeout  << " seconds";
+        }
+
         ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed (error: " << lastError << ")";
     }
 
-    void fetchnodes(int t)   // t: seconds to wait for response
+    void fetchnodes(int timeout = 0)   // t: seconds to wait for response. 0 means no timeout
     {
-        timeout = t;
         fetchnodesReceived = false;
 
         megaApi->fetchNodes(this);
 
-        for(int i = 0; !fetchnodesReceived && i < timeout; i++)
-            sleep(pollingT);
+        waitForResponse(&fetchnodesReceived, timeout);
 
-        ASSERT_TRUE(fetchnodesReceived) << "Logging failed after " << timeout  << " seconds";
+        if (timeout)
+        {
+            ASSERT_TRUE(fetchnodesReceived) << "Fetchnodes failed after " << timeout  << " seconds";
+        }
+
         ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed (error: " << lastError << ")";
+    }
+
+    void logout(int timeout = 0)
+    {
+        logoutReceived = false;
+
+        megaApi->logout(this);
+
+        waitForResponse(&logoutReceived, timeout);
+
+        if (timeout)
+        {
+            EXPECT_TRUE(logoutReceived) << "Logout failed after " << timeout  << " seconds";
+        }
+
+        EXPECT_EQ(MegaError::API_OK, lastError) << "Logout failed (error: " << lastError << ")";
+    }
+
+    char* dumpSession()
+    {
+        return megaApi->dumpSession();
+    }
+
+    void locallogout(int timeout = 0)
+    {
+        logoutReceived = false;
+
+        megaApi->localLogout(this);
+
+        waitForResponse(&logoutReceived, timeout);
+
+        if (timeout)
+        {
+            EXPECT_TRUE(logoutReceived) << "Local logout failed after " << timeout  << " seconds";
+        }
+
+        EXPECT_EQ(MegaError::API_OK, lastError) << "Local logout failed (error: " << lastError << ")";
+    }
+
+    void resumeSession(char *session, int timeout = 0)
+    {
+        loggingReceived = false;
+
+        megaApi->fastLogin(session, this);
+
+        waitForResponse(&loggingReceived, timeout);
+
+        if (timeout)
+        {
+            ASSERT_TRUE(loggingReceived) << "Resume session failed after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Resume session failed (error: " << lastError << ")";
+    }
+
+public:
+    void waitForResponse(bool *responseReceived, int timeout = 0)
+    {
+        timeout *= 1000000; // convert to micro-seconds
+        int tWaited = 0;    // microseconds
+        while(!(*responseReceived))
+        {
+            usleep(pollingT);
+
+            if (timeout)
+            {
+                tWaited += pollingT;
+                if (tWaited >= timeout)
+                {
+                    break;
+                }
+            }
+        }
     }
 
 };
@@ -144,10 +251,97 @@ TEST_F(SdkTest, SdkTestLogin)
     login(5);
 }
 
-
 TEST_F(SdkTest, SdkTestFetchnodes)
 {
     login(5);
     fetchnodes(30);
 }
 
+TEST_F(SdkTest, SdkTestResumeSession)
+{
+    login();
+    fetchnodes();
+
+    char *session = dumpSession();
+    locallogout();
+
+    resumeSession(session);
+
+    delete session;
+
+    logout();
+}
+
+// create, rename, copy, move, remove
+TEST_F(SdkTest, SdkTestNodeOperations)
+{
+    login();
+    fetchnodes();
+
+
+    // --- Create a new folder ---
+
+    MegaNode *rootnode = megaApi->getRootNode();
+    char name[64] = "New folder";
+
+    responseReceived = false;
+    megaApi->createFolder(name, rootnode);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
+
+
+    // --- Rename a node ---
+
+    MegaNode *n1 = megaApi->getNodeByHandle(h);
+    strcpy(name, "Folder renamed");
+
+    responseReceived = false;
+    megaApi->renameNode(n1, name);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot rename a node (error: " << lastError << ")";
+
+
+    // --- Copy a node ---
+
+    MegaNode *n2;
+    strcpy(name, "Folder copy");
+
+    responseReceived = false;
+    megaApi->copyNode(n1, rootnode, name);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a copy of a node (error: " << lastError << ")";
+    n2 = megaApi->getNodeByHandle(h);
+
+
+    // --- Move a node ---
+
+    responseReceived = false;
+    megaApi->moveNode(n1, n2);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot move node (error: " << lastError << ")";
+
+
+    // --- Send to Rubbish bin ---
+
+    responseReceived = false;
+    megaApi->moveNode(n2, megaApi->getRubbishNode());
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot move node to Rubbish bin (error: " << lastError << ")";
+
+
+    // --- Remove a node ---
+
+    responseReceived = false;
+    megaApi->remove(n2);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot remove a node (error: " << lastError << ")";
+
+
+    logout();
+}
