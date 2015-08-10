@@ -30,6 +30,7 @@ using ::testing::Test;
 static const string APP_KEY     = "8QxzVRxD";
 static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 
+// IMPORTANT: the account must be empty (Cloud & Rubbish) before start the test
 static const string EMAIL       = "megasdktest@yopmail.com";
 static const string PWD         = "megasdktest??";
 
@@ -65,6 +66,9 @@ protected:
             megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
             megaApi->addListener(this);
+
+            login();
+            fetchnodes();
         }
     }
 
@@ -72,6 +76,11 @@ protected:
     {
         // do some cleanup
 
+        // Remove nodes in Cloud & Rubbish
+        purgeTree(megaApi->getRootNode());
+        purgeTree(megaApi->getRubbishNode());
+
+        logout(10);
         delete megaApi;
     }
 
@@ -222,7 +231,17 @@ public:
         ASSERT_EQ(MegaError::API_OK, lastError) << "Resume session failed (error: " << lastError << ")";
     }
 
-public:
+    void purgeTree(MegaNode *p)
+    {
+        MegaNodeList *children;
+        children = megaApi->getChildren(p);
+
+        for (int i = 0; i < children->size(); i++)
+        {
+            megaApi->remove(children->get(i));
+        }
+    }
+
     void waitForResponse(bool *responseReceived, int timeout = 0)
     {
         timeout *= 1000000; // convert to micro-seconds
@@ -246,46 +265,26 @@ public:
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
-TEST_F(SdkTest, SdkTestLogin)
-{
-    login(5);
-}
-
-TEST_F(SdkTest, SdkTestFetchnodes)
-{
-    login(5);
-    fetchnodes(30);
-}
-
 TEST_F(SdkTest, SdkTestResumeSession)
 {
-    login();
-    fetchnodes();
-
     char *session = dumpSession();
     locallogout();
 
     resumeSession(session);
 
     delete session;
-
-    logout();
 }
 
-// create, rename, copy, move, remove
+// create, rename, copy, move, remove, children, child by name, node by fingerprint, node by path
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
-    login();
-    fetchnodes();
-
-
     // --- Create a new folder ---
 
     MegaNode *rootnode = megaApi->getRootNode();
-    char name[64] = "New folder";
+    char name1[64] = "New folder";
 
     responseReceived = false;
-    megaApi->createFolder(name, rootnode);
+    megaApi->createFolder(name1, rootnode);
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
@@ -294,10 +293,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     // --- Rename a node ---
 
     MegaNode *n1 = megaApi->getNodeByHandle(h);
-    strcpy(name, "Folder renamed");
+    strcpy(name1, "Folder renamed");
 
     responseReceived = false;
-    megaApi->renameNode(n1, name);
+    megaApi->renameNode(n1, name1);
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot rename a node (error: " << lastError << ")";
@@ -306,14 +305,58 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     // --- Copy a node ---
 
     MegaNode *n2;
-    strcpy(name, "Folder copy");
+    char name2[64] = "Folder copy";
 
     responseReceived = false;
-    megaApi->copyNode(n1, rootnode, name);
+    megaApi->copyNode(n1, rootnode, name2);
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a copy of a node (error: " << lastError << ")";
     n2 = megaApi->getNodeByHandle(h);
+
+
+    // --- Get child nodes ---
+
+    MegaNodeList *children;
+    children = megaApi->getChildren(rootnode);
+
+    EXPECT_EQ(2, children->size()) << "Wrong number of child nodes";
+    EXPECT_STREQ(name2, children->get(0)->getName()) << "Wrong name of child node"; // "Folder copy"
+    EXPECT_STREQ(name1, children->get(1)->getName()) << "Wrong name of child node"; // "Folder rename"
+
+    delete children;
+
+
+    // --- Get child node by name ---
+
+    MegaNode *n3;
+    n3 = megaApi->getChildNode(rootnode, name2);
+
+    bool null_pointer = (n3 == NULL);
+    EXPECT_FALSE(null_pointer) << "Child node by name not found";
+//    ASSERT_EQ(n2->getHandle(), n3->getHandle());  This test may fail due to multiple nodes with the same name
+
+
+    // --- Get node by fingerprint ---
+
+    char *fingerprint = megaApi->getFingerprint(n2);
+    MegaNode *n4;
+    n4 = megaApi->getNodeByFingerprint(fingerprint);
+
+    null_pointer = (n4 == NULL);
+    EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
+//    ASSERT_EQ(n2->getHandle(), n4->getHandle());  This test may fail due to multiple nodes with the same name
+    delete fingerprint;
+
+
+    // --- Get node by path ---
+
+    char path[128] = "/Folder copy";
+    MegaNode *n5;
+    n5 = megaApi->getNodeByPath(path);
+
+    null_pointer = (n5 == NULL);
+    EXPECT_FALSE(null_pointer) << "Node by path not found";
 
 
     // --- Move a node ---
@@ -341,7 +384,83 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot remove a node (error: " << lastError << ")";
+}
+
+TEST_F(SdkTest, SdkTestTransfers)
+{
+    // --- Upload a file ---
 
 
-    logout();
+
+
+    // --- Download a file ---
+
+
+    // --- Pause a transfer ---
+
+    // megaApi->areTransfersPaused(MegaTransfer::TYPE_DOWNLOAD);
+    // megaApi->areTransfersPaused(MegaTransfer::TYPE_UPLOAD);
+
+    // --- Resume a transfer ---
+
+
+    // --- Cancel a transfer ---
+    // megaApi->cancelTransfer(transfer);
+    // or
+    // megaApi->cancelTransfers(type);
+}
+
+TEST_F(SdkTest, SdkTestShares)
+{
+    // --- Create a new outgoing share ---
+
+
+    // --- Modify the access level of an outgoing share ---
+
+
+    // --- Check access level of a node ---
+    // megaApi->checkAccess(level);
+
+
+    // --- Revoke access to an outgoing share ---
+
+
+    // --- Receive a new incoming share ---
+    // megaApi->getInShares(user);
+    // megaApi->getInShares();   // from all the users
+
+
+    // --- Create a public link ---
+    // megaApi->exportNode(node);
+
+
+    // --- Remove a public link ---
+    // megaApi->disableExport(node);
+}
+
+TEST_F(SdkTest, SdkTestContacts)
+{
+    // --- Check my email ---
+    // megaApi->getMyEmail();
+
+
+    // --- Add contact ---
+
+
+    // --- Get incoming contacts ---
+    // megaApi->getIncomingContactRequests();
+
+
+    // --- Accept contact ---
+
+
+    // --- Deny contact ---
+
+
+    // --- Remove contact ---
+
+
+    // --- Get contact ---
+    // megaApi->getContact(email);
+    // megaApi->getContacts();
 }
