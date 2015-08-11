@@ -35,8 +35,11 @@ static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 
 static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
 
+static const string UPFILE      = "file1.txt";
+static const string DOWNFILE    = "file2.txt";
+
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener {
+class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
 
 public:
     MegaApi *megaApi = NULL;
@@ -50,7 +53,13 @@ public:
     bool logoutReceived;
     bool responseReceived;
 
+    bool downloadFinished;
+    bool uploadFinished;
+    bool transfersCancelled;
+    bool transfersPaused;
+
     MegaHandle h;
+    MegaTransfer *t;
 
 private:
 
@@ -60,8 +69,7 @@ protected:
     {
         // do some initialization
 
-        email.assign(getenv("MEGA_EMAIL"));
-        pwd.assign(getenv("MEGA_PWD"));
+        readCredentials();
 
         if (megaApi == NULL)
         {
@@ -80,12 +88,20 @@ protected:
     {
         // do some cleanup
 
-        // Remove nodes in Cloud & Rubbish
-        purgeTree(megaApi->getRootNode());
-        purgeTree(megaApi->getRubbishNode());
+        if (megaApi)
+        {
+            // Remove nodes in Cloud & Rubbish
+            purgeTree(megaApi->getRootNode());
+            purgeTree(megaApi->getRubbishNode());
 
-        logout(10);
-        delete megaApi;
+            if (megaApi->isLoggedIn())
+                logout(10);
+
+            delete megaApi;
+        }
+
+        deleteFile(UPFILE);
+        deleteFile(DOWNFILE);
     }
 
     void onRequestStart(MegaApi *api, MegaRequest *request) {}
@@ -130,11 +146,39 @@ protected:
             responseReceived = true;
             break;
 
+        case MegaRequest::TYPE_UPLOAD:
+            uploadFinished = true;
+            break;
+
+        case MegaRequest::TYPE_PAUSE_TRANSFERS:
+            transfersPaused = true;
+            break;
+
+        case MegaRequest::TYPE_CANCEL_TRANSFERS:
+            transfersCancelled = true;
+            break;
         }
     }
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) {}
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) {}
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) { }
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
+    {
+        lastError = e->getErrorCode();
+
+        switch(transfer->getType())
+        {
+        case MegaTransfer::TYPE_DOWNLOAD:
+            downloadFinished = true;
+            break;
+
+        case MegaTransfer::TYPE_UPLOAD:
+            uploadFinished = true;
+            break;
+        }
+
+        if (lastError == MegaError::API_OK)
+            h = transfer->getNodeHandle();
+    }
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {}
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users) {}
@@ -164,6 +208,7 @@ public:
         }
 
         ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed (error: " << lastError << ")";
+        ASSERT_TRUE(megaApi->isLoggedIn()) << "Not logged it";
     }
 
     void fetchnodes(int timeout = 0)   // t: seconds to wait for response. 0 means no timeout
@@ -246,6 +291,19 @@ public:
         }
     }
 
+    void readCredentials()
+    {
+        char *buf = getenv("MEGA_EMAIL");
+        if (buf)
+            email.assign(buf);
+        ASSERT_LT(0, email.length()) << "Set your username at the environment variable $MEGA_EMAIL";
+
+        buf = getenv("MEGA_PWD");
+        if (buf)
+            pwd.assign(buf);
+        ASSERT_LT(0, pwd.length()) << "Set your password at the environment variable $MEGA_PWD";
+    }
+
     void waitForResponse(bool *responseReceived, int timeout = 0)
     {
         timeout *= 1000000; // convert to micro-seconds
@@ -265,11 +323,42 @@ public:
         }
     }
 
+    void createFile(string filename)
+    {
+        FILE *fp;
+        fp = fopen(filename.c_str(), "w");
+
+        if (fp)
+        {
+            // create a file large enough for long upload/download times (5-10MB)
+            int limit = 1000000 + rand() % 1000000;
+            for (int i = 0; i < limit; i++)
+            {
+                fprintf(fp, "test ");
+            }
+
+            fclose(fp);
+        }
+    }
+
+    size_t getFilesize(string filename)
+    {
+        struct stat stat_buf;
+        int rc = stat(filename.c_str(), &stat_buf);
+
+        return rc == 0 ? stat_buf.st_size : -1;
+    }
+
+    void deleteFile(string filename)
+    {
+        remove(filename.c_str());
+    }
+
 };
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
-TEST_F(SdkTest, SdkTestResumeSession)
+TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
 {
     char *session = dumpSession();
     locallogout();
@@ -279,8 +368,8 @@ TEST_F(SdkTest, SdkTestResumeSession)
     delete session;
 }
 
-// create, rename, copy, move, remove, children, child by name, node by fingerprint, node by path
-TEST_F(SdkTest, SdkTestNodeOperations)
+// create, rename, copy, move, remove, children, number of children, child by name, node by path, node by handle, parent node
+TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
 {
     // --- Create a new folder ---
 
@@ -324,7 +413,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     MegaNodeList *children;
     children = megaApi->getChildren(rootnode);
 
-    EXPECT_EQ(2, children->size()) << "Wrong number of child nodes";
+    EXPECT_EQ(megaApi->getNumChildren(rootnode), children->size()) << "Wrong number of child nodes";
     EXPECT_STREQ(name2, children->get(0)->getName()) << "Wrong name of child node"; // "Folder copy"
     EXPECT_STREQ(name1, children->get(1)->getName()) << "Wrong name of child node"; // "Folder rename"
 
@@ -341,26 +430,24 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 //    ASSERT_EQ(n2->getHandle(), n3->getHandle());  This test may fail due to multiple nodes with the same name
 
 
-    // --- Get node by fingerprint ---
-
-    char *fingerprint = megaApi->getFingerprint(n2);
-    MegaNode *n4;
-    n4 = megaApi->getNodeByFingerprint(fingerprint);
-
-    null_pointer = (n4 == NULL);
-    EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
-//    ASSERT_EQ(n2->getHandle(), n4->getHandle());  This test may fail due to multiple nodes with the same name
-    delete fingerprint;
-
-
     // --- Get node by path ---
 
     char path[128] = "/Folder copy";
-    MegaNode *n5;
-    n5 = megaApi->getNodeByPath(path);
+    MegaNode *n4;
+    n4 = megaApi->getNodeByPath(path);
 
-    null_pointer = (n5 == NULL);
+    null_pointer = (n4 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by path not found";
+
+
+    // --- Search for a node ---
+    MegaNodeList *nlist;
+    nlist = megaApi->search(rootnode, "copy");
+
+    EXPECT_EQ(1, nlist->size());
+    EXPECT_EQ(n4->getHandle(), nlist->get(0)->getHandle()) << "Search node by pattern failed";
+
+    delete nlist;
 
 
     // --- Move a node ---
@@ -370,6 +457,14 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot move node (error: " << lastError << ")";
+
+
+    // --- Get parent node ---
+
+    MegaNode *n5;
+    n5 = megaApi->getParentNode(n1);
+
+    ASSERT_EQ(n2->getHandle(), n5->getHandle()) << "Wrong parent node";
 
 
     // --- Send to Rubbish bin ---
@@ -390,36 +485,159 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot remove a node (error: " << lastError << ")";
 }
 
-TEST_F(SdkTest, SdkTestTransfers)
+TEST_F(SdkTest, DISABLED_SdkTestTransfers)
 {
-    // --- Upload a file ---
+    MegaNode *rootnode = megaApi->getRootNode();
+    string filename1 = UPFILE;
+    createFile(filename1);
 
 
+    // --- Cancel a transfer ---
+
+    transfersCancelled = false;
+    megaApi->startUpload(filename1.data(), rootnode);
+    megaApi->cancelTransfers(MegaTransfer::TYPE_UPLOAD);
+    waitForResponse(&transfersCancelled);
+
+    EXPECT_EQ(MegaError::API_OK, lastError) << "Transfer cancellation failed (error: " << lastError << ")";
 
 
-    // --- Download a file ---
+    // --- Upload a file (part 1) ---
+
+    uploadFinished = false;
+    megaApi->startUpload(filename1.data(), rootnode);
+    // do not wait yet for completion
 
 
     // --- Pause a transfer ---
 
-    // megaApi->areTransfersPaused(MegaTransfer::TYPE_DOWNLOAD);
-    // megaApi->areTransfersPaused(MegaTransfer::TYPE_UPLOAD);
+    transfersPaused = false;
+    megaApi->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+    waitForResponse(&transfersPaused);
+
+    EXPECT_EQ(MegaError::API_OK, lastError) << "Cannot pause transfer (error: " << lastError << ")";
+    EXPECT_TRUE(megaApi->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not paused";
+
 
     // --- Resume a transfer ---
 
+    transfersPaused = false;
+    megaApi->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
+    waitForResponse(&transfersPaused);
 
-    // --- Cancel a transfer ---
-    // megaApi->cancelTransfer(transfer);
-    // or
-    // megaApi->cancelTransfers(type);
+    EXPECT_EQ(MegaError::API_OK, lastError) << "Cannot resume transfer (error: " << lastError << ")";
+    EXPECT_FALSE(megaApi->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not resumed";
+
+
+    // --- Upload a file (part 2) ---
+
+    waitForResponse(&uploadFinished);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
+
+    MegaNode *n1 = megaApi->getNodeByHandle(h);
+    bool null_pointer = (n1 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << lastError << ")";
+    ASSERT_STREQ(filename1.data(), n1->getName()) << "Uploaded file with wrong name (error: " << lastError << ")";
+
+
+    // --- Get node by fingerprint (needs to be a file, not a folder) ---
+
+    char *fingerprint = megaApi->getFingerprint(n1);
+    MegaNode *n2 = megaApi->getNodeByFingerprint(fingerprint);
+
+    null_pointer = (n2 == NULL);
+    EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
+//    ASSERT_EQ(n2->getHandle(), n4->getHandle());  This test may fail due to multiple nodes with the same name
+    delete fingerprint;
+
+
+    // --- Get the size of a file ---
+
+    int filesize = getFilesize(filename1);
+    int nodesize = megaApi->getSize(n2);
+    EXPECT_EQ(filesize, nodesize) << "Wrong size of uploaded file";
+
+
+    // --- Download a file ---
+
+    string filename2 = "./" + DOWNFILE;
+
+    downloadFinished = false;
+    megaApi->startDownload(n2, filename2.c_str());
+    waitForResponse(&downloadFinished);
+
+    MegaNode *n3 = megaApi->getNodeByHandle(h);
+    null_pointer = (n3 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot download node";
+    ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError << ")";
 }
 
-TEST_F(SdkTest, SdkTestShares)
+TEST_F(SdkTest, SdkTestContacts)
+{
+    // --- Check my email ---
+    EXPECT_STREQ(email.data(), megaApi->getMyEmail());
+
+
+    // --- Add contact ---
+    // megaApi->inviteContact(email, message, action);
+
+
+    // --- Get outgoing contacts requests ---
+    // MegaContactRequestList *ocr;
+    // ocr = megaApi->getOutgoingContactRequests();
+    // delete ocr;
+
+    // --- Get incoming contacts requests ---
+    // MegaContactRequestList *icr;
+    // icr = megaApi->getIncomingContactRequests();
+    // delete icr;
+
+
+    // --- Accept contact request ---
+    // megaApi->replyContactRequest(request,action);
+
+
+    // --- Deny contact request ---
+    // megaApi->replyContactRequest(request,action);
+
+
+    // --- Ignore contact request ---
+    // megaApi->replyContactRequest(request,action);
+
+
+    // --- Remove contact ---
+    // megaApi->inviteContact(email, message, action=DELETE);
+    // megaApi->removeContact(user);
+
+
+    // --- Get contact ---
+    // megaApi->getContact(email);
+    // megaApi->getContacts();
+}
+
+TEST_F(SdkTest, DISABLED_SdkTestShares)
 {
     // --- Create a new outgoing share ---
+    // megaApi->share(node, user/email, level);
+
+
+    // --- Get existing outgoing shares ---
+    // MegaShareList *os;
+    // outshares = megaApi->getOutShares();
+    // delete outshares;
+
+
+    // --- Get pending outgoing shares ---
+    // MegaShareList *pos;
+    // pos = megaApi->getPendingOutShares();
+    // delete pos;
 
 
     // --- Modify the access level of an outgoing share ---
+    // megaApi->share(node, user/email, level);
 
 
     // --- Check access level of a node ---
@@ -427,6 +645,10 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Revoke access to an outgoing share ---
+
+
+    // --- Check if a node is shared ---
+    // megaApi->isShared(node); sync
 
 
     // --- Receive a new incoming share ---
@@ -438,33 +660,14 @@ TEST_F(SdkTest, SdkTestShares)
     // megaApi->exportNode(node);
 
 
+    // --- Get node from public link ---
+    // megaApi->getPublicNode(link); async
+
+
+    // --- Import a public link ---
+    // megaApi->importFileLink(link, parent);
+
+
     // --- Remove a public link ---
     // megaApi->disableExport(node);
-}
-
-TEST_F(SdkTest, SdkTestContacts)
-{
-    // --- Check my email ---
-    // megaApi->getMyEmail();
-
-
-    // --- Add contact ---
-
-
-    // --- Get incoming contacts ---
-    // megaApi->getIncomingContactRequests();
-
-
-    // --- Accept contact ---
-
-
-    // --- Deny contact ---
-
-
-    // --- Remove contact ---
-
-
-    // --- Get contact ---
-    // megaApi->getContact(email);
-    // megaApi->getContacts();
 }
