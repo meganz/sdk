@@ -30,9 +30,8 @@ using ::testing::Test;
 static const string APP_KEY     = "8QxzVRxD";
 static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 
-// IMPORTANT: the account must be empty (Cloud & Rubbish) before start the test
-static const string EMAIL       = "megasdktest@yopmail.com";
-static const string PWD         = "megasdktest??";
+// IMPORTANT: the account must be empty (Cloud & Rubbish) before starting the test
+// Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD
 
 static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
 
@@ -41,6 +40,8 @@ class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener
 
 public:
     MegaApi *megaApi = NULL;
+    string email;
+    string pwd;
 
     int lastError;
 
@@ -58,6 +59,9 @@ protected:
     virtual void SetUp()
     {
         // do some initialization
+
+        email.assign(getenv("MEGA_EMAIL"));
+        pwd.assign(getenv("MEGA_PWD"));
 
         if (megaApi == NULL)
         {
@@ -150,7 +154,7 @@ public:
     {
         loggingReceived = false;
 
-        megaApi->login(EMAIL.data(), PWD.data());
+        megaApi->login(email.data(), pwd.data());
 
         waitForResponse(&loggingReceived, timeout);
 
