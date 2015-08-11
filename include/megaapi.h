@@ -4420,7 +4420,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REPLY_CONTACT_REQUEST
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the contact request
+         * - MegaRequest::getHandle - Returns the handle of the contact request
          * - MegaRequest::getNumber - Returns the action
          *
          * @param listener MegaRequestListener to track this request
@@ -4672,7 +4672,7 @@ class MegaApi
          *
          * @return true if transfers on that direction are paused, false otherwise
          */
-        bool areTansfersPaused(int direction);
+        bool areTransfersPaused(int direction);
 
         /**
          * @brief Set the upload speed limit

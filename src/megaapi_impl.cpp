@@ -3200,7 +3200,7 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
-bool MegaApiImpl::areTansfersPaused(int direction)
+bool MegaApiImpl::areTransfersPaused(int direction)
 {
     if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
     {
