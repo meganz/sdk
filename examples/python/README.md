@@ -1,10 +1,10 @@
 # Example app using Python
 
 There are two basic examples contained here. A Mega Command Line Interface
-client (`megacli`), and a simple CRUD example (create, read, updaet, delete
+client (`megacli`), and a simple CRUD example (create, read, update, delete
 a file).
 
-To build the requiered (Python) modules, see the `README.md` in
+To build the required (Python) modules, see the `README.md` in
 `bindings/python/`.
 
 ## Mega Command Line Interface
@@ -51,7 +51,7 @@ If you want to create your own Python app, you can use the `MegaApi`
 object. However, these bindings are still a work in progress and have
 some inconveniences:
 
-- You can't use callback parameters out of the callbacks You can use
+- You can't use callback parameters out of the callbacks. Instead, you can use
   the `copy()` method of `MegaRequest`, `MegaTransfer` and `MegaError`
   to preserve them and to use them later.
 - You can't use objects returned by `MegaNodeList`,
