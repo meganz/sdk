@@ -26,13 +26,6 @@ import time
 import json
 import getpass
 
-_wrapper_dir = os.path.join(os.getcwd(), '..', '..', 'bindings', 'python')
-_libs_dir = os.path.join(_wrapper_dir, '.libs')
-_shared_lib = os.path.join(_libs_dir, '_mega.so')
-if os.path.isdir(_wrapper_dir) and os.path.isfile(_shared_lib):
-    sys.path.insert(0, _wrapper_dir)  # mega.py
-    sys.path.insert(0, _libs_dir)     # _mega.so
-
 from mega import (MegaApi, MegaListener, MegaError, MegaRequest, MegaNode)
 
 APP_KEY = 'ox8xnQZL'

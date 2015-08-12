@@ -113,6 +113,10 @@ void File::completed(Transfer* t, LocalNode* l)
             // inaccessible target folder - use / instead
             if (!t->client->nodebyhandle(th))
             {
+                if (syncxfer)
+                {
+                    t->client->sendevent(99401, "Inaccessible target folder in sync upload");
+                }
                 th = t->client->rootnodes[0];
             }
 #ifdef ENABLE_SYNC

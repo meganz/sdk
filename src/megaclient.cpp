@@ -325,7 +325,10 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 }
                 else
                 {
-                    LOG_err << "Incomplete outshare info";
+                    LOG_debug << "Merging share without peer information.";
+                    // Outgoing shares received during fetchnodes are merged in two steps:
+                    // 1. From readok(), a NewShare is created with the 'sharekey'
+                    // 2. From readoutshares(), a NewShare is created with the 'peer' information
                 }
             }
             else
@@ -2138,6 +2141,7 @@ void MegaClient::locallogout()
     key.setkey(SymmCipher::zeroiv);
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
+    sessionkey.clear();
 
     init();
 
@@ -4860,18 +4864,22 @@ void MegaClient::login(const char* email, const byte* pwkey)
 
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash));
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
 {
     locallogout();
 
-    string lcemail(email);
-
     key.setkey((byte*)pwkey);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash));
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::getuserdata()
@@ -4889,6 +4897,22 @@ void MegaClient::login(const byte* session, int size)
 {
     locallogout();
    
+    int sessionversion = 0;
+    if (size == sizeof key.key + SIDLEN + 1)
+    {
+        sessionversion = session[0];
+
+        if(sessionversion != 1)
+        {
+            restag = reqtag;
+            app->login_result(API_EARGS);
+            return;
+        }
+
+        session++;
+        size--;
+    }
+
     if (size == sizeof key.key + SIDLEN)
     {
         string t;
@@ -4903,7 +4927,10 @@ void MegaClient::login(const byte* session, int size)
             cachedscsn = MemAccess::get<handle>(t.data());
         }
 
-        reqs[r].add(new CommandLogin(this, NULL, UNDEF));
+        byte sek[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(sek, sizeof sek);
+
+        reqs[r].add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
     }
     else
     {
@@ -4912,22 +4939,45 @@ void MegaClient::login(const byte* session, int size)
     }
 }
 
-int MegaClient::dumpsession(byte* session, int size)
+int MegaClient::dumpsession(byte* session, size_t size)
 {
     if (loggedin() == NOTLOGGEDIN)
     {
         return 0;
     }
 
-    if (size < (int)sid.size() + (int)sizeof key.key)
+    if (size < sid.size() + sizeof key.key)
     {
         return API_ERANGE;
     }
 
-    memcpy(session, key.key, sizeof key.key);
+    if (sessionkey.size())
+    {
+        if (size < sid.size() + sizeof key.key + 1)
+        {
+            return API_ERANGE;
+        }
+
+        size = sid.size() + sizeof key.key + 1;
+
+        session[0] = 1;
+        session++;
+
+        byte k[SymmCipher::KEYLENGTH];
+        SymmCipher cipher;
+        cipher.setkey((const byte *)sessionkey.data(), sessionkey.size());
+        cipher.ecb_encrypt(key.key, k);
+        memcpy(session, k, sizeof k);
+    }
+    else
+    {
+        size = sid.size() + sizeof key.key;
+        memcpy(session, key.key, sizeof key.key);
+    }
+
     memcpy(session + sizeof key.key, sid.data(), sid.size());
     
-    return sizeof key.key + sid.size();
+    return size;
 }
 
 void MegaClient::copysession()
