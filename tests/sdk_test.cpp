@@ -59,7 +59,9 @@ public:
     bool transfersPaused;
 
     MegaHandle h;
-    MegaTransfer *t;
+
+    MegaApi *megaApiAux = NULL;
+    string emailaux;
 
 private:
 
@@ -86,7 +88,12 @@ protected:
 
     virtual void TearDown()
     {
-        // do some cleanup
+        // do some cleanup        
+
+        deleteFile(UPFILE);
+        deleteFile(DOWNFILE);
+
+        releaseMegaApiAux();
 
         if (megaApi)
         {
@@ -99,9 +106,6 @@ protected:
 
             delete megaApi;
         }
-
-        deleteFile(UPFILE);
-        deleteFile(DOWNFILE);
     }
 
     void onRequestStart(MegaApi *api, MegaRequest *request) {}
@@ -184,7 +188,15 @@ protected:
     void onUsersUpdate(MegaApi* api, MegaUserList *users) {}
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) {}
     void onAccountUpdate(MegaApi *api) {}
-    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) {}
+    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
+    {
+        for (int i = 0; i < requests->size(); i++)
+        {
+            MegaContactRequest *r = requests->get(i);
+
+            r->getSourceEmail();
+        }
+    }
     void onReloadNeeded(MegaApi *api) {}
 #ifdef ENABLE_SYNC
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState) {}
@@ -354,10 +366,67 @@ public:
         remove(filename.c_str());
     }
 
+    void getMegaApiAux()
+    {
+        if (megaApiAux == NULL)
+        {
+            char *buf;
+
+            buf = getenv("MEGA_EMAIL_AUX");
+            if (buf)
+                emailaux.assign(buf);
+            ASSERT_LT(0, emailaux.length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
+
+            string pwdaux;
+            buf = getenv("MEGA_PWD_AUX");
+            if (buf)
+                pwdaux.assign(buf);
+            ASSERT_LT(0, pwdaux.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
+
+            char path[1024];
+            getcwd(path, sizeof path);
+            megaApiAux = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
+
+            megaApiAux->addListener(this);
+
+            loggingReceived = false;
+            megaApiAux->login(emailaux.data(), pwdaux.data());
+            waitForResponse(&loggingReceived);
+
+            ASSERT_TRUE(megaApiAux->isLoggedIn()) << "Login failed in the auxiliar account";
+
+            fetchnodesReceived = false;
+            megaApiAux->fetchNodes();
+            waitForResponse(&fetchnodesReceived);
+
+            ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed in the auxiliar account (error: " << lastError << ")";
+        }
+    }
+
+    void releaseMegaApiAux()
+    {
+        if (megaApiAux)
+        {
+            if (megaApiAux->isLoggedIn())
+            {
+                logoutReceived = false;
+                megaApi->logout();
+                waitForResponse(&logoutReceived, 5);
+            }
+
+            delete megaApiAux;
+            megaApiAux = NULL;
+        }
+    }
 };
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
+/**
+ * @brief TEST_F SdkTestResumeSession
+ *
+ * It creates a local cache, logs out of the current session and tries to resume it later.
+ */
 TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
 {
     char *session = dumpSession();
@@ -368,7 +437,21 @@ TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
     delete session;
 }
 
-// create, rename, copy, move, remove, children, number of children, child by name, node by path, node by handle, parent node
+/**
+ * @brief TEST_F SdkTestNodeOperations
+ *
+ * - Create a new folder
+ * - Rename a node
+ * - Copy a node
+ * - Get child nodes of given node
+ * - Get child node by name
+ * - Get node by path
+ * - Get node by name
+ * - Move a node
+ * - Get parent node
+ * - Move a node to Rubbish bin
+ * - Remove a node
+ */
 TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
 {
     // --- Create a new folder ---
@@ -483,8 +566,24 @@ TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot remove a node (error: " << lastError << ")";
+
+    delete rootnode;
+    delete n1;
+    delete n2;
+    delete n3;
+    delete n4;
+    delete n5;
 }
 
+/**
+ * @brief TEST_F SdkTestTransfers
+ *
+ * - Starts an upload transfer and cancel it
+ * - Starts an upload transfer, pause it, resume it and complete it
+ * - Get node by fingerprint
+ * - Get size of a node
+ * - Download a file
+ */
 TEST_F(SdkTest, DISABLED_SdkTestTransfers)
 {
     MegaNode *rootnode = megaApi->getRootNode();
@@ -550,6 +649,7 @@ TEST_F(SdkTest, DISABLED_SdkTestTransfers)
     null_pointer = (n2 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
 //    ASSERT_EQ(n2->getHandle(), n4->getHandle());  This test may fail due to multiple nodes with the same name
+
     delete fingerprint;
 
 
@@ -573,16 +673,35 @@ TEST_F(SdkTest, DISABLED_SdkTestTransfers)
 
     ASSERT_FALSE(null_pointer) << "Cannot download node";
     ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError << ")";
+
+    delete rootnode;
+    delete n1;
+    delete n2;
+    delete n3;
 }
 
+/**
+ * @brief TEST_F SdkTestContacts
+ *
+ * Creates an auxiliar 'MegaApi' object to interact with the main MEGA account.
+ *
+ * - Invite a contact
+ */
 TEST_F(SdkTest, SdkTestContacts)
 {
     // --- Check my email ---
+
     EXPECT_STREQ(email.data(), megaApi->getMyEmail());
 
 
+    // --- Check the email of the contact ---
+
+    getMegaApiAux();
+    EXPECT_STREQ(emailaux.data(), megaApiAux->getMyEmail());
+
+
     // --- Add contact ---
-    // megaApi->inviteContact(email, message, action);
+    megaApi->inviteContact(emailaux.data(), NULL, MegaContactRequest::INVITE_ACTION_ADD);
 
 
     // --- Get outgoing contacts requests ---
