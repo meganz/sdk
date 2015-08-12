@@ -33,6 +33,8 @@ namespace mega
     public ref class MContactRequestList sealed
     {
         friend ref class MegaSDK;
+        friend class DelegateMListener;
+        friend class DelegateMGlobalListener;
 
     public:        
         virtual ~MContactRequestList();

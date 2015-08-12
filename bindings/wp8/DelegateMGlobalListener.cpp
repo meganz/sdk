@@ -53,6 +53,12 @@ void DelegateMGlobalListener::onAccountUpdate(MegaApi* api)
 		listener->onAccountUpdate(megaSDK);
 }
 
+void DelegateMGlobalListener::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
+{
+    if (listener != nullptr)
+        listener->onContactRequestsUpdate(megaSDK, requests ? ref new MContactRequestList(requests->copy(), true) : nullptr);
+}
+
 void DelegateMGlobalListener::onReloadNeeded(MegaApi* api)
 {
 	if (listener != nullptr)

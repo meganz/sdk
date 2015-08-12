@@ -1468,6 +1468,7 @@ class MegaRequest
          * - MegaApi::reportDebugEvent - Returns the debug message
          * - MegaApi::setUserAttribute - Returns the new value for the attribute
          * - MegaApi::inviteContact - Returns the message appended to the contact invitation
+         * - MegaApi::sendEvent - Returns the event message
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1489,6 +1490,7 @@ class MegaRequest
          * - MegaApi::upgradeAccount - Returns the payment method
          * - MegaApi::replyContactRequest - Returns the action to do with the contact request
          * - MegaApi::inviteContact - Returns the action to do with the contact request
+         * - MegaApi::sendEvent - Returns the event type
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4471,6 +4473,23 @@ class MegaApi
          * is sent to MEGA servers.
          */
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send events to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the event type
+         * - MegaRequest::getText - Returns the event message
+         *
+         * @param eventType Event type
+         * @param message Event message
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         * is sent to MEGA servers.
+         */
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send a debug report

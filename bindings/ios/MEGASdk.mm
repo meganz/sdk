@@ -952,11 +952,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (NSString *)escapeFsIncompatible:(NSString *)name {
-    return [[NSString alloc] initWithUTF8String:self.megaApi->escapeFsIncompatible([name UTF8String])];
+    return (name != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->escapeFsIncompatible([name UTF8String])] : nil;
 }
 
 - (NSString *)unescapeFsIncompatible:(NSString *)localName {
-    return [[NSString alloc] initWithUTF8String:self.megaApi->unescapeFsIncompatible([localName UTF8String])];
+    return (localName != nil) ? [[NSString alloc] initWithUTF8String:self.megaApi->unescapeFsIncompatible([localName UTF8String])] : nil;
 }
 
 - (void)changeApiUrl:(NSString *)apiURL disablepkp:(BOOL)disablepkp {

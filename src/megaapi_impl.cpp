@@ -314,6 +314,9 @@ int MegaNodePrivate::getChanges()
     return changed;
 }
 
+
+const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
+
 #ifdef ENABLE_SYNC
 bool MegaNodePrivate::isSyncDeleted()
 {
@@ -369,7 +372,6 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     }
     return !*pszMatch;
 }
-
 
 bool MegaApiImpl::is_syncable(const char *name)
 {
@@ -2394,13 +2396,13 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
 char *MegaApiImpl::dumpSession()
 {
     sdkMutex.lock();
-    byte session[64];
+    byte session[MAX_SESSION_LENGTH];
     char* buf = NULL;
     int size;
     size = client->dumpsession(session, sizeof session);
     if (size > 0)
     {
-        buf = new char[sizeof(session)*4/3+4];
+        buf = new char[sizeof(session) * 4 / 3 + 4];
         Base64::btoa(session, size, buf);
     }
 
@@ -2411,14 +2413,12 @@ char *MegaApiImpl::dumpSession()
 char *MegaApiImpl::dumpXMPPSession()
 {
     sdkMutex.lock();
-    byte session[64];
     char* buf = NULL;
-    int size;
-    size = client->dumpsession(session, sizeof session);
-    if (size > sizeof(client->key.key))
+
+    if (client->loggedin())
     {
-        buf = new char[sizeof(session)*4/3+4];
-        Base64::btoa(session + sizeof(client->key.key), size - sizeof(client->key.key), buf);
+        buf = new char[MAX_SESSION_LENGTH * 4 / 3 + 4];
+        Base64::btoa((const byte *)client->sid.data(), client->sid.size(), buf);
     }
 
     sdkMutex.unlock();
@@ -2970,14 +2970,12 @@ void MegaApiImpl::getPaymentMethods(MegaRequestListener *listener)
 char *MegaApiImpl::exportMasterKey()
 {
     sdkMutex.lock();
-    byte session[64];
     char* buf = NULL;
-    int size;
-    size = client->dumpsession(session, sizeof session);
-    if (size > 0)
+
+    if(client->loggedin())
     {
-        buf = new char[16*4/3+4];
-        Base64::btoa(session, 16, buf);
+        buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+        Base64::btoa(client->key.key, SymmCipher::KEYLENGTH, buf);
     }
 
     sdkMutex.unlock();
@@ -3038,6 +3036,15 @@ void MegaApiImpl::reportEvent(const char *details, MegaRequestListener *listener
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
     request->setText(details);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
+    request->setNumber(eventType);
+    request->setText(message);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7702,9 +7709,9 @@ void MegaApiImpl::sendPendingRequests()
 
             if(sessionKey)
             {
-                byte session[sizeof client->key.key + MegaClient::SIDLEN];
-                Base64::atob(sessionKey, (byte *)session, sizeof session);
-                client->login(session, sizeof session);
+                byte session[MAX_SESSION_LENGTH];
+                int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
+                client->login(session, size);
             }
             else if(login && base64pwkey)
             {
@@ -8245,6 +8252,8 @@ void MegaApiImpl::sendPendingRequests()
 			client->abortbackoff(includexfers);
 			if(disconnect)
             {
+                client->disconnect();
+
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
                 // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
@@ -8284,7 +8293,6 @@ void MegaApiImpl::sendPendingRequests()
                 LOG_debug << "Using MEGA DNS servers";
                 httpio->setdnsservers(servers.c_str());
 #endif
-                client->disconnect();
             }
 
 			fireOnRequestFinish(request, MegaError(API_OK));
@@ -8666,6 +8674,13 @@ void MegaApiImpl::sendPendingRequests()
         {
             int number = request->getNumber();
             const char *text = request->getText();
+
+            if(number < 99500 || number >= 99600 || !text)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             client->sendevent(number, text);
             break;
         }
