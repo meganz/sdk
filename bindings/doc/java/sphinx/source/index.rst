@@ -18,7 +18,9 @@ Contents:
    :maxdepth: 2
    
    gettingstarted
+   installsdk
    howto
+	
 
 
 Indices and tables
