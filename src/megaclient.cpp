@@ -3328,7 +3328,7 @@ void MegaClient::sc_ipc()
                         break;
                     }
 
-                    pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
+                    pcr = new PendingContactRequest(p, m, finduser(me)->email.c_str(), ts, uts, msg, false);
                     mappcr(p, pcr);
                 }
                 notifypcr(pcr);
@@ -4613,11 +4613,11 @@ void MegaClient::readipc(JSON *j)
 
                         if (pcrindex[p] != NULL)
                         {
-                            pcrindex[p]->update(m, NULL, ts, uts, msg, false);                        
+                            pcrindex[p]->update(m, finduser(me)->email.c_str(), ts, uts, msg, false);                        
                         } 
                         else
                         {
-                            pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
+                            pcrindex[p] = new PendingContactRequest(p, m, finduser(me)->email.c_str(), ts, uts, msg, false);
                         }                       
 
                         break;
