@@ -70,6 +70,9 @@ public:
     bool contactRequestUpdatedAux;
     bool contactRemoved;
 
+    bool nodeUpdated;
+    bool nodeUpdatedAux;
+
 private:
 
 
@@ -107,6 +110,22 @@ protected:
             // Remove nodes in Cloud & Rubbish
             purgeTree(megaApi->getRootNode());
             purgeTree(megaApi->getRubbishNode());
+
+            // Remove auxiliar contact
+            MegaUserList *ul = megaApi->getContacts();
+            for (int i = 0; i < ul->size(); i++)
+            {
+                MegaUser *u = ul->get(i);
+                megaApi->removeContact(u);
+            }
+
+            // Remove pending contact requests
+            MegaContactRequestList *crl = megaApi->getOutgoingContactRequests();
+            for (int i = 0; i < crl->size(); i++)
+            {
+                MegaContactRequest *cr = crl->get(i);
+                megaApi->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+            }
 
             if (megaApi->isLoggedIn())
                 logout(10);
@@ -180,6 +199,10 @@ protected:
         case MegaRequest::TYPE_REMOVE_CONTACT:
             contactRemoved = true;
             break;
+
+        case MegaRequest::TYPE_SHARE:
+            responseReceived = true;
+            break;
         }
     }
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
@@ -212,7 +235,20 @@ protected:
             contactRemoved = true;
         }
     }
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) {}
+    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
+    {
+        // Main testing account
+        if (api == megaApi)
+        {
+            nodeUpdated = true;
+        }
+
+        // Auxiliar testing account
+        if (api == megaApiAux)
+        {
+            nodeUpdatedAux = true;
+        }
+    }
     void onAccountUpdate(MegaApi *api) {}
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
     {
@@ -330,7 +366,11 @@ public:
 
         for (int i = 0; i < children->size(); i++)
         {
-            megaApi->remove(children->get(i));
+            MegaNode *n = children->get(i);
+            if (n->isFolder())
+                purgeTree(n);
+
+            megaApi->remove(n);
         }
     }
 
@@ -441,7 +481,7 @@ public:
             if (megaApiAux->isLoggedIn())
             {
                 logoutReceived = false;
-                megaApi->logout();
+                megaApiAux->logout();
                 waitForResponse(&logoutReceived, 5);
             }
 
@@ -482,6 +522,22 @@ public:
         ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
     }
 
+    void shareFolder(MegaNode *n, const char *email, int action, int timeout = 0)
+    {
+        responseReceived = false;
+
+        megaApi->share(n, email, action);
+
+        waitForResponse(&responseReceived, timeout);
+
+        if (timeout)
+        {
+            ASSERT_TRUE(contactReplyFinished) << "Folder sharing not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")";
+    }
+
     void getContactRequest(MegaContactRequest *cr, bool outgoing)
     {
         MegaContactRequestList *crl;
@@ -513,7 +569,7 @@ public:
  *
  * It creates a local cache, logs out of the current session and tries to resume it later.
  */
-TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
+TEST_F(SdkTest, SdkTestResumeSession)
 {
     char *session = dumpSession();
     locallogout();
@@ -525,6 +581,8 @@ TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
 
 /**
  * @brief TEST_F SdkTestNodeOperations
+ *
+ * It performs different operations with nodes, assuming the Cloud folder is empty at the beginning.
  *
  * - Create a new folder
  * - Rename a node
@@ -538,7 +596,7 @@ TEST_F(SdkTest, DISABLED_SdkTestResumeSession)
  * - Move a node to Rubbish bin
  * - Remove a node
  */
-TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
+TEST_F(SdkTest, SdkTestNodeOperations)
 {
     // --- Create a new folder ---
 
@@ -664,13 +722,15 @@ TEST_F(SdkTest, DISABLED_SdkTestNodeOperations)
 /**
  * @brief TEST_F SdkTestTransfers
  *
+ * It performs different operations related to transfers in both directions: up and down.
+ *
  * - Starts an upload transfer and cancel it
  * - Starts an upload transfer, pause it, resume it and complete it
  * - Get node by fingerprint
  * - Get size of a node
  * - Download a file
  */
-TEST_F(SdkTest, DISABLED_SdkTestTransfers)
+TEST_F(SdkTest, SdkTestTransfers)
 {
     MegaNode *rootnode = megaApi->getRootNode();
     string filename1 = UPFILE;
@@ -782,6 +842,10 @@ TEST_F(SdkTest, DISABLED_SdkTestTransfers)
  * = Accept the invitation
  *
  * - Remove contact
+ *
+ * TODO:
+ * - Invite a contact not registered in MEGA yet (requires validation of account)
+ * - Remind an existing invitation (requires 2 weeks wait)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
@@ -972,46 +1036,227 @@ TEST_F(SdkTest, SdkTestContacts)
     delete u;
 }
 
-TEST_F(SdkTest, DISABLED_SdkTestShares)
+/**
+ * @brief TEST_F SdkTestShares
+ *
+ * Initialize a test scenario by:
+ *
+ * - Creating/uploading some folders/files to share
+ * - Creating a new contact to share to
+ *
+ * Performs different operations related to sharing:
+ *
+ * - Share a folder with an existing contact
+ * - Check the correctness of the outgoing share
+ * - Check the incoming share is received
+ * - Modify the access level
+ * - Revoke the access to the share
+ * - Share a folder with a non registered email
+ * - Check the correctness of the pending outgoing share
+ *
+ */
+TEST_F(SdkTest, SdkTestShares)
 {
+    MegaShareList *sl;
+    MegaShare *s;
+    MegaNodeList *nl;
+    MegaNode *n;
+    MegaNode *n1;
+
+    getMegaApiAux();    // login + fetchnodes
+
+
+    // Initialize a test scenario: create some folders/files to share
+
+    // Create some nodes to share
+    //  |--Shared-folder
+    //    |--subfolder
+    //    |--file.txt
+
+    MegaNode *rootnode = megaApi->getRootNode();
+    char foldername1[64] = "Shared-folder";
+    MegaHandle hfolder1;
+
+    responseReceived = false;
+    megaApi->createFolder(foldername1, rootnode);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
+    hfolder1 = h;     // 'h' is set in 'onRequestFinish()'
+    n1 = megaApi->getNodeByHandle(hfolder1);
+
+    char foldername2[64] = "subfolder";
+    MegaHandle hfolder2;
+
+    responseReceived = false;
+    megaApi->createFolder(foldername2, megaApi->getNodeByHandle(hfolder1));
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
+    hfolder2 = h;
+
+    MegaHandle hfile1;
+    char filename1[64] = "file.txt";
+    createFile(filename1);
+
+    uploadFinished = false;
+    megaApi->startUpload(filename1, megaApi->getNodeByHandle(hfolder1));
+    waitForResponse(&uploadFinished);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
+    hfile1 = h;
+
+
+//    MegaHandle hfile2;
+//    char filename2[64] = "file2.txt";
+//    createFile(filename2);
+
+//    uploadFinished = false;
+//    megaApi->startUpload(filename2, megaApi->getNodeByHandle(h1));
+//    waitForResponse(&uploadFinished);
+
+//    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
+//    hfile2 = h;
+
+    // Initialize a test scenario: create a new contact to share to
+
+    string message = "Hi contact. Let's share some stuff";
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+
+    MegaContactRequestList *crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
+    MegaContactRequest *craux = crlaux->get(0);
+
+    contactReplyFinished = false;
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    megaApiAux->replyContactRequest(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
+
+    waitForResponse(&contactReplyFinished); // at the source side (main account)
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+    delete crlaux;
+
+
     // --- Create a new outgoing share ---
-    // megaApi->share(node, user/email, level);
+
+    nodeUpdated = false;
+    nodeUpdatedAux = false;
+
+    shareFolder(n1, emailaux.data(), MegaShare::ACCESS_READ);
+
+    waitForResponse(&nodeUpdated);
+    waitForResponse(&nodeUpdatedAux);
 
 
-    // --- Get existing outgoing shares ---
-    // MegaShareList *os;
-    // outshares = megaApi->getOutShares();
-    // delete outshares;
+    // --- Check the outgoing share ---
+
+    sl = megaApi->getOutShares();
+    ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
+    s = sl->get(0);
+
+    ASSERT_EQ(MegaShare::ACCESS_READ, s->getAccess()) << "Wrong access level of outgoing share";
+    ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
+    ASSERT_STREQ(emailaux.data(), s->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_TRUE(megaApi->isShared(n1)) << "Wrong sharing information at outgoing share";
+//    ASSERT_TRUE(megaApi->isOutShare(n1)) << "Wrong sharing information at outgoing share";
+
+    delete sl;
 
 
-    // --- Get pending outgoing shares ---
-    // MegaShareList *pos;
-    // pos = megaApi->getPendingOutShares();
-    // delete pos;
+    // --- Check the incoming share ---
+
+    nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
+    ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
+    n = nl->get(0);
+
+    ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
+    ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
+    ASSERT_EQ(MegaError::API_OK, megaApiAux->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
+//    ASSERT_TRUE(megaApiAux->isInShare(n)) << "Wrong sharing information at incoming share";
+    ASSERT_TRUE(megaApiAux->isShared(n)) << "Wrong sharing information at incoming share";
+
+    delete nl;
 
 
     // --- Modify the access level of an outgoing share ---
-    // megaApi->share(node, user/email, level);
 
+    nodeUpdated = false;
+    nodeUpdatedAux = false;
 
-    // --- Check access level of a node ---
-    // megaApi->checkAccess(level);
+    shareFolder(megaApi->getNodeByHandle(hfolder1), emailaux.data(), MegaShare::ACCESS_READWRITE);
+
+    waitForResponse(&responseReceived);
+    waitForResponse(&nodeUpdated);
+    waitForResponse(&nodeUpdatedAux);
+
+    nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
+    ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
+    n = nl->get(0);
+
+    ASSERT_EQ(MegaError::API_OK, megaApiAux->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
+
+    delete nl;
 
 
     // --- Revoke access to an outgoing share ---
 
+    nodeUpdated = false;
+    nodeUpdatedAux = false;
 
-    // --- Check if a node is shared ---
-    // megaApi->isShared(node); sync
+    shareFolder(n1, emailaux.data(), MegaShare::ACCESS_UNKNOWN);
+
+    waitForResponse(&nodeUpdated);
+    waitForResponse(&nodeUpdatedAux);
+
+    sl = megaApi->getOutShares();
+    ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
+    delete sl;
+
+    nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
+    ASSERT_EQ(0, nl->size()) << "Incoming share revocation failed";
+    delete nl;
 
 
-    // --- Receive a new incoming share ---
-    // megaApi->getInShares(user);
-    // megaApi->getInShares();   // from all the users
+    // --- Get pending outgoing shares ---
+
+    char emailfake[64];
+    sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
+    // carefull, antispam rejects repeated tries without response for the same address
+
+    n = megaApi->getNodeByHandle(hfolder2);
+
+    nodeUpdated = false;
+    shareFolder(n, emailfake, MegaShare::ACCESS_FULL);
+    waitForResponse(&nodeUpdated);
+
+    sl = megaApi->getPendingOutShares(n);   delete n;
+    ASSERT_EQ(1, sl->size()) << "Pending outgoing share failed";
+    s = sl->get(0);
+    n = megaApi->getNodeByHandle(s->getNodeHandle());
+
+//    ASSERT_STREQ(emailfake, s->getUser()) << "Wrong email address of outgoing share"; User is not created yet
+    ASSERT_FALSE(megaApi->isShared(n)) << "Node is already shared, must be pending";
+//    ASSERT_FALSE(megaApi->isOutShare(n)) << "Node is already shared, must be pending";
+
+    delete sl;
+    delete n;
+
 
 
     // --- Create a public link ---
     // megaApi->exportNode(node);
+    // Only usign getPublicMegaNode() --> isPublic() == true
 
 
     // --- Get node from public link ---
