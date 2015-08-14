@@ -30,7 +30,8 @@ using ::testing::Test;
 static const string APP_KEY     = "8QxzVRxD";
 static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 
-// IMPORTANT: the account must be empty (Cloud & Rubbish) before starting the test
+// IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
+// Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
 // Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD
 
 static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
@@ -62,6 +63,12 @@ public:
 
     MegaApi *megaApiAux = NULL;
     string emailaux;
+
+    bool contactInvitationFinished;
+    bool contactReplyFinished;
+    bool contactRequestUpdated;
+    bool contactRequestUpdatedAux;
+    bool contactRemoved;
 
 private:
 
@@ -161,6 +168,18 @@ protected:
         case MegaRequest::TYPE_CANCEL_TRANSFERS:
             transfersCancelled = true;
             break;
+
+        case MegaRequest::TYPE_INVITE_CONTACT:
+            contactInvitationFinished = true;
+            break;
+
+        case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
+            contactReplyFinished = true;
+            break;
+
+        case MegaRequest::TYPE_REMOVE_CONTACT:
+            contactRemoved = true;
+            break;
         }
     }
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
@@ -185,16 +204,28 @@ protected:
     }
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {}
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
-    void onUsersUpdate(MegaApi* api, MegaUserList *users) {}
+    void onUsersUpdate(MegaApi* api, MegaUserList *users)
+    {
+        // Main testing account
+        if (api == megaApi)
+        {
+            contactRemoved = true;
+        }
+    }
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) {}
     void onAccountUpdate(MegaApi *api) {}
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
     {
-        for (int i = 0; i < requests->size(); i++)
+        // Main testing account
+        if (api == megaApi)
         {
-            MegaContactRequest *r = requests->get(i);
+            contactRequestUpdated = true;
+        }
 
-            r->getSourceEmail();
+        // Auxiliar testing account
+        if (api == megaApiAux)
+        {
+            contactRequestUpdatedAux = true;
         }
     }
     void onReloadNeeded(MegaApi *api) {}
@@ -227,7 +258,7 @@ public:
     {
         fetchnodesReceived = false;
 
-        megaApi->fetchNodes(this);
+        megaApi->fetchNodes();
 
         waitForResponse(&fetchnodesReceived, timeout);
 
@@ -417,6 +448,61 @@ public:
             delete megaApiAux;
             megaApiAux = NULL;
         }
+    }
+
+    void inviteContact(string email, string message, int action, int timeout = 0)
+    {
+        contactInvitationFinished = false;
+
+        megaApi->inviteContact(email.data(), message.data(), action);
+
+        waitForResponse(&contactInvitationFinished, timeout);    // at the source side (main account)
+
+        if (timeout)
+        {
+            ASSERT_TRUE(contactInvitationFinished) << "Contact invitation not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Contact invitation failed (error: " << lastError << ")";
+    }
+
+    void replyContact(MegaContactRequest *cr, int action, int timeout = 0)
+    {
+        contactReplyFinished = false;
+
+        megaApiAux->replyContactRequest(cr, action);
+
+        waitForResponse(&contactReplyFinished, timeout);      // at the target side (auxiliar account)
+
+        if (timeout)
+        {
+            ASSERT_TRUE(contactReplyFinished) << "Contact reply not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
+    }
+
+    void getContactRequest(MegaContactRequest *cr, bool outgoing)
+    {
+        MegaContactRequestList *crl;
+
+        cr = NULL;
+
+        if (outgoing)
+        {
+            crl = megaApi->getOutgoingContactRequests();
+            ASSERT_EQ(1, crl->size()) << "Too many outgoing contact requests in main account";
+        }
+        else
+        {
+            crl = megaApiAux->getIncomingContactRequests();
+            ASSERT_EQ(1, crl->size()) << "Too many incoming contact requests in auxiliar account";
+        }
+
+        MegaContactRequest *temp = crl->get(0);
+        cr = temp->copy();
+
+        delete crl;
     }
 };
 
@@ -686,55 +772,204 @@ TEST_F(SdkTest, DISABLED_SdkTestTransfers)
  * Creates an auxiliar 'MegaApi' object to interact with the main MEGA account.
  *
  * - Invite a contact
+ * = Ignore the invitation
+ * - Delete the invitation
+ *
+ * - Invite a contact
+ * = Deny the invitation
+ *
+ * - Invite a contact
+ * = Accept the invitation
+ *
+ * - Remove contact
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
-    // --- Check my email ---
+    MegaContactRequestList *crl, *crlaux;
+    MegaContactRequest *cr, *craux;
+
+    getMegaApiAux();    // login + fetchnodes
+
+
+    // --- Check my email and the email of the contact ---
 
     EXPECT_STREQ(email.data(), megaApi->getMyEmail());
-
-
-    // --- Check the email of the contact ---
-
-    getMegaApiAux();
     EXPECT_STREQ(emailaux.data(), megaApiAux->getMyEmail());
 
 
-    // --- Add contact ---
-    megaApi->inviteContact(emailaux.data(), NULL, MegaContactRequest::INVITE_ACTION_ADD);
+    // --- Send a new contact request ---
+
+    string message = "Hi contact. This is a testing message";
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
 
-    // --- Get outgoing contacts requests ---
-    // MegaContactRequestList *ocr;
-    // ocr = megaApi->getOutgoingContactRequests();
-    // delete ocr;
+    // --- Check the sent contact request ---
 
-    // --- Get incoming contacts requests ---
-    // MegaContactRequestList *icr;
-    // icr = megaApi->getIncomingContactRequests();
-    // delete icr;
+//    getContactRequest(cr, true);
 
+    crl = megaApi->getOutgoingContactRequests();
+    ASSERT_EQ(1, crl->size()) << "Too many outgoing contact requests in main account";
+    cr = crl->get(0);
 
-    // --- Accept contact request ---
-    // megaApi->replyContactRequest(request,action);
+    ASSERT_STREQ(message.data(), cr->getSourceMessage()) << "Message sent is corrupted";
+    ASSERT_STREQ(email.data(), cr->getSourceEmail()) << "Wrong source email";
+    ASSERT_STREQ(emailaux.data(), cr->getTargetEmail()) << "Wrong target email";
+    ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr->getStatus()) << "Wrong contact request status";
+    ASSERT_TRUE(cr->isOutgoing()) << "Wrong direction of the contact request";
 
-
-    // --- Deny contact request ---
-    // megaApi->replyContactRequest(request,action);
+    delete crl;
 
 
-    // --- Ignore contact request ---
-    // megaApi->replyContactRequest(request,action);
+    // --- Check received contact request ---
+
+    crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
+    craux = crlaux->get(0);
+
+    ASSERT_STREQ(message.data(), craux->getSourceMessage()) << "Message received is corrupted";
+    ASSERT_STREQ(email.data(), craux->getSourceEmail()) << "Wrong source email";
+    ASSERT_STREQ(NULL, craux->getTargetEmail()) << "Wrong target email";    // NULL according to MegaApi documentation
+    ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, craux->getStatus()) << "Wrong contact request status";
+    ASSERT_FALSE(craux->isOutgoing()) << "Wrong direction of the contact request";
+
+    delete crlaux;
+
+    // --- Ignore received contact request ---
+
+    crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
+    craux = crlaux->get(0);
+
+    contactRequestUpdatedAux = false;
+    replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE);
+    waitForResponse(&contactRequestUpdatedAux); // only at auxiliar account. Main account is not notified
+
+    delete crlaux;
+
+    crlaux = megaApiAux->getIncomingContactRequests();  // it only returns pending requests
+    ASSERT_EQ(0, crlaux->size()) << "Incoming contact requests was not ignored properly";
+    delete crlaux;
 
 
-    // --- Remove contact ---
-    // megaApi->inviteContact(email, message, action=DELETE);
-    // megaApi->removeContact(user);
+    // --- Cancel the invitation ---
+
+    message = "I don't wanna be your contact anymore";
+
+    contactRequestUpdated = false;
+    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_DELETE);
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+    crl = megaApi->getOutgoingContactRequests();
+    ASSERT_EQ(0, crl->size()) << "Outgoing contact requests still pending in main account";
+    delete crl;
+    // The target contact doesn't receive notification, since the invitation was ignored previously
+
+    
+    // --- Remind a contact invitation (cannot until 2 weeks after invitation/last reminder) ---
+
+//    contactRequestReceived = false;
+//    megaApi->inviteContact(emailaux.data(), message.data(), MegaContactRequest::INVITE_ACTION_REMIND);
+//    waitForResponse(&contactRequestReceived, 30); // at the target side (auxiliar account)
+
+//    ASSERT_TRUE(contactRequestReceived) << "Contact invitation reminder not received after " << timeout  << " seconds";
 
 
-    // --- Get contact ---
-    // megaApi->getContact(email);
-    // megaApi->getContacts();
+    // --- Invite a new contact (again) ---
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+
+    // --- Deny a contact invitation ---
+
+    crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(1, crlaux->size()) << "Incoming contact requests was not received properly";
+    craux = crlaux->get(0);
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    replyContact(craux, MegaContactRequest::REPLY_ACTION_DENY);
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+    delete crlaux;
+
+    crl = megaApi->getOutgoingContactRequests();
+    ASSERT_EQ(0, crl->size()) << "Outgoing contact request still pending in main account";
+    delete crl;
+
+    crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(0, crlaux->size()) << "Incoming contact requests still pending in auxliar account";
+    delete crlaux;
+
+
+    // --- Invite a new contact (again) ---
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+
+    // --- Accept a contact invitation ---
+
+    crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
+    craux = crlaux->get(0);
+
+    contactReplyFinished = false;
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    megaApiAux->replyContactRequest(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
+
+    waitForResponse(&contactReplyFinished); // at the source side (main account)    
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+    delete crlaux;
+
+    crl = megaApi->getOutgoingContactRequests();
+    ASSERT_EQ(0, crl->size()) << "Outgoing contact requests still pending in main account";
+    delete crl;
+
+    crlaux = megaApiAux->getIncomingContactRequests();
+    ASSERT_EQ(0, crlaux->size()) << "Incoming contact requests still pending in auxiliar account";
+    delete crlaux;
+
+
+    // --- Delete an existing contact ---
+
+    MegaUser *u = megaApi->getContact(emailaux.data());
+    bool null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find new contact";
+
+    contactRemoved = false;
+    megaApi->removeContact(u);
+    waitForResponse(&contactRemoved);
+
+    delete u;
+
+    u = megaApi->getContact(emailaux.data());
+    ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact still visible";
+    delete u;
 }
 
 TEST_F(SdkTest, DISABLED_SdkTestShares)
