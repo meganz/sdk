@@ -1,8 +1,9 @@
 Java Bindings Documentation
 
-== Ubuntu/Linux ==
+#Ubuntu/Linux#
 
 Guide to installing and using Sphinx on Ubuntu/Linux
+----------------------------------------------------
 
 1. Install Sphinx
    Since Sphinx is written in the Python language, you need to install Python (the required version is at least 2.6) and        Sphinx. The latest Versions of Ubuntu and Fedora already have Python installed so please check this before you continue.
@@ -43,6 +44,21 @@ Guide to installing and using Sphinx on Ubuntu/Linux
    To view the documentation simply navigate into the build(/html) folder and open the index.html with your prefered web        browser. This will open the Documentation and you can browse this like a website.
 
 For more info on Sphinx please see http://sphinx-doc.org/
+
+#To Create PDF files of the Documentation.#
+-------------------------------------------
+
+1. Install rst2pdf
+
+   rst2pdf is a free tool to use to create pdf files from rst. To install simply run:
+   
+   sudo apt-get install rst2pdf
+   
+2. Running rst2pdf
+
+   To run the rst2pdf simply navigate to the directory where the rst file is stored and run:
+   
+   rst2pdf "nameoffile".rst "nameofpdf".pdf
 
 PLEASE NOTE   
 This is work in progress. As such there may be times when files are uploaded without/missing content.  
