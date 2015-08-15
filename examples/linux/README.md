@@ -18,7 +18,7 @@ lower than it could be.
 
 To build and run the project, follow theses steps:
 
-1. Build the SDK including the option `--enable-fuse` in the `./configure` step
+1. Build the SDK including the option `--with-fuse` in the `./configure` step
 2. Run the `megafuse` binary that you will find in this folder
 
 - If you run it without parameters, it will interactively request the required data 
