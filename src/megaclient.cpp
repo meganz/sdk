@@ -7379,7 +7379,16 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d] %d %d %d %" PRIi64, (int)nchildren.size(), (int)l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
+                sprintf(report, "[%u %u %d %d %d] %d %d %d %" PRIi64,
+                    (int)nchildren.size(),
+                    (int)l->children.size(),
+                    l->node ? (int)l->node->children.size() : -1,
+                    (int)synccreate.size(),
+                    syncadding,
+                    ll->type,
+                    (int)ll->name.size(),
+                    (int)ll->mtime,
+                    ll->size);
 
                 if (ll->node)
                 {
@@ -7397,13 +7406,12 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
                     sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
-
                 }
 
                 // report a "dupe" event
                 int creqtag = reqtag;
                 reqtag = 0;
-                reportevent("D", report);
+                reportevent("D2", report);
                 reqtag = creqtag;
             }
             else
