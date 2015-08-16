@@ -586,6 +586,7 @@ build_sdk() {
     local megaapi_flags=""
     local openssl_flags=""
     local sodium_flags=""
+    local cwd=$(pwd)
 
     echo "Configuring MEGA SDK"
 
@@ -659,6 +660,7 @@ build_sdk() {
             --with-sqlite=$install_dir \
             --without-cares \
             --without-curl \
+            --with-winhttp=$cwd \
             $freeimage_flags \
             $readline_flags \
             $disable_posix_threads \
@@ -799,6 +801,14 @@ main() {
     shift $((OPTIND-1))
 
     check_apps
+
+    if [ "$(expr substr $(uname -s) 1 10)" = "MINGW32_NT" ]; then
+        if [ ! -f "$cwd/winhttp.h" -o ! -f "$cwd/winhttp.lib"  ]; then
+            echo "ERROR! Windows build requires WinHTTP header and library to be present in MEGA SDK project folder!"
+            echo "Please get both winhttp.h and winhttp.lib files an put them into the MEGA SDK project's root folder."
+            exit
+        fi
+    fi
 
     trap on_exit_error EXIT
 
