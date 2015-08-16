@@ -7379,7 +7379,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d %d %d] %d %d %d %" PRIi64,
+                sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)l->node->children.size() : -1,
@@ -7388,6 +7388,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     ll->type,
                     (int)ll->name.size(),
                     (int)ll->mtime,
+                    (int)ll->sync->state,
+                    (int)ll->sync->inshare,
                     ll->size);
 
                 if (ll->node)
@@ -7404,7 +7406,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
+                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
                 }
 
