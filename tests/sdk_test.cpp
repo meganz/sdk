@@ -73,6 +73,9 @@ public:
     bool nodeUpdated;
     bool nodeUpdatedAux;
 
+    string link;
+    MegaNode *publicNode;
+
 private:
 
 
@@ -155,8 +158,8 @@ protected:
             break;
 
         case MegaRequest::TYPE_CREATE_FOLDER:
-            responseReceived = true;
             h = request->getNodeHandle();
+            responseReceived = true;
             break;
 
         case MegaRequest::TYPE_RENAME:
@@ -164,8 +167,8 @@ protected:
             break;
 
         case MegaRequest::TYPE_COPY:
-            responseReceived = true;
             h = request->getNodeHandle();
+            responseReceived = true;
             break;
 
         case MegaRequest::TYPE_MOVE:
@@ -203,6 +206,25 @@ protected:
         case MegaRequest::TYPE_SHARE:
             responseReceived = true;
             break;
+
+        case MegaRequest::TYPE_EXPORT:
+            if (request->getAccess())
+                link.assign(request->getLink());
+            h = request->getNodeHandle();
+            responseReceived = true;
+            break;
+
+        case MegaRequest::TYPE_GET_PUBLIC_NODE:
+            if (lastError == API_OK)
+                publicNode = request->getPublicMegaNode();
+            responseReceived = true;
+            break;
+
+        case MegaRequest::TYPE_IMPORT_LINK:
+            h = request->getNodeHandle();
+            responseReceived = true;
+            break;
+
         }
     }
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
@@ -210,6 +232,9 @@ protected:
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
     {
         lastError = e->getErrorCode();
+
+        if (lastError == MegaError::API_OK)
+            h = transfer->getNodeHandle();
 
         switch(transfer->getType())
         {
@@ -221,9 +246,6 @@ protected:
             uploadFinished = true;
             break;
         }
-
-        if (lastError == MegaError::API_OK)
-            h = transfer->getNodeHandle();
     }
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {}
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
@@ -532,10 +554,74 @@ public:
 
         if (timeout)
         {
-            ASSERT_TRUE(contactReplyFinished) << "Folder sharing not finished after " << timeout  << " seconds";
+            ASSERT_TRUE(responseReceived) << "Folder sharing not finished after " << timeout  << " seconds";
         }
 
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")";
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")" << endl << "User: " << email << " Action: " << action;
+    }
+
+    void createPublicLink(MegaNode *n, int timeout = 0)
+    {
+        responseReceived = false;
+
+        megaApi->exportNode(n);
+
+        waitForResponse(&responseReceived, timeout);
+
+        if (timeout)
+        {
+            ASSERT_TRUE(responseReceived) << "Public link creation not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link creation failed (error: " << lastError << ")";
+    }
+
+    void importPublicLink(string link, MegaNode *parent, int timeout = 0)
+    {
+        responseReceived = false;
+
+        megaApi->importFileLink(link.data(), parent);
+
+        waitForResponse(&responseReceived, timeout);
+
+        if (timeout)
+        {
+            ASSERT_TRUE(responseReceived) << "Public link import not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link import failed (error: " << lastError << ")";
+    }
+
+    void getPublicNode(string link, int timeout = 0)
+    {
+        responseReceived = false;
+
+        megaApiAux->getPublicNode(link.data());
+
+        waitForResponse(&responseReceived, timeout);
+
+        if (timeout)
+        {
+            ASSERT_TRUE(responseReceived) << "Public link retrieval not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link retrieval failed (error: " << lastError << ")";
+    }
+
+    void removePublicLink(MegaNode *n, int timeout = 0)
+    {
+        responseReceived = false;
+
+        megaApi->disableExport(n);
+
+        waitForResponse(&responseReceived, timeout);
+
+        if (timeout)
+        {
+            ASSERT_TRUE(responseReceived) << "Public link removal not finished after " << timeout  << " seconds";
+        }
+
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link removal failed (error: " << lastError << ")";
     }
 
     void getContactRequest(MegaContactRequest *cr, bool outgoing)
@@ -1028,6 +1114,7 @@ TEST_F(SdkTest, SdkTestContacts)
     contactRemoved = false;
     megaApi->removeContact(u);
     waitForResponse(&contactRemoved);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Creation of new contact failed";
 
     delete u;
 
@@ -1048,12 +1135,15 @@ TEST_F(SdkTest, SdkTestContacts)
  *
  * - Share a folder with an existing contact
  * - Check the correctness of the outgoing share
- * - Check the incoming share is received
+ * - Check the reception and correctness of the incoming share
  * - Modify the access level
  * - Revoke the access to the share
  * - Share a folder with a non registered email
  * - Check the correctness of the pending outgoing share
- *
+ * - Create a public link
+ * - Import a public link
+ * - Get a node from public link
+ * - Remove a public link
  */
 TEST_F(SdkTest, SdkTestShares)
 {
@@ -1231,8 +1321,9 @@ TEST_F(SdkTest, SdkTestShares)
     // --- Get pending outgoing shares ---
 
     char emailfake[64];
+    srand (time(NULL));
     sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
-    // carefull, antispam rejects repeated tries without response for the same address
+    // carefull, antispam rejects too many tries without response for the same address
 
     n = megaApi->getNodeByHandle(hfolder2);
 
@@ -1253,20 +1344,38 @@ TEST_F(SdkTest, SdkTestShares)
     delete n;
 
 
-
     // --- Create a public link ---
-    // megaApi->exportNode(node);
-    // Only usign getPublicMegaNode() --> isPublic() == true
 
+    MegaNode *nfile1 = megaApi->getNodeByHandle(hfile1);
 
-    // --- Get node from public link ---
-    // megaApi->getPublicNode(link); async
+    createPublicLink(nfile1);
+    // The created link is stored in this->link at onRequestFinish()
 
 
     // --- Import a public link ---
-    // megaApi->importFileLink(link, parent);
+
+    importPublicLink(link, rootnode);
+
+    MegaNode *nimported = megaApi->getNodeByHandle(h);
+
+    ASSERT_STREQ(nfile1->getName(), nimported->getName()) << "Imported file with wrong name";
+    ASSERT_EQ(rootnode->getHandle(), nimported->getParentHandle()) << "Imported file in wrong path";
+
+
+    // --- Get node from public link ---
+
+    getPublicNode(link);
+
+    ASSERT_TRUE(publicNode->isPublic()) << "Cannot get a node from public link";
 
 
     // --- Remove a public link ---
-    // megaApi->disableExport(node);
+
+    removePublicLink(nfile1);
+
+    delete nfile1;
+    nfile1 = megaApi->getNodeByHandle(h);
+    ASSERT_FALSE(nfile1->isPublic()) << "Public link removal failed (still public)";
+
+    delete nimported;
 }
