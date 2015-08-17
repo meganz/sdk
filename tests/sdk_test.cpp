@@ -218,7 +218,7 @@ void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
     }
 }
 
-void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
+void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
 {
     // Main testing account
     if (api == megaApi)
@@ -443,7 +443,7 @@ void SdkTest::releaseMegaApiAux()
     }
 }
 
-void SdkTest::inviteContact(string email, string message, int action, int timeout = 0)
+void SdkTest::inviteContact(string email, string message, int action, int timeout)
 {
     contactInvitationFinished = false;
 
@@ -459,7 +459,7 @@ void SdkTest::inviteContact(string email, string message, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, lastError) << "Contact invitation failed (error: " << lastError << ")";
 }
 
-void SdkTest::replyContact(MegaContactRequest *cr, int action, int timeout = 0)
+void SdkTest::replyContact(MegaContactRequest *cr, int action, int timeout)
 {
     contactReplyFinished = false;
 
@@ -475,7 +475,7 @@ void SdkTest::replyContact(MegaContactRequest *cr, int action, int timeout = 0)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
 }
 
-void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout = 0)
+void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
     responseReceived = false;
 
@@ -491,7 +491,7 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")" << endl << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(MegaNode *n, int timeout = 0)
+void SdkTest::createPublicLink(MegaNode *n, int timeout)
 {
     responseReceived = false;
 
@@ -507,7 +507,7 @@ void SdkTest::createPublicLink(MegaNode *n, int timeout = 0)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Public link creation failed (error: " << lastError << ")";
 }
 
-void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout = 0)
+void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout)
 {
     responseReceived = false;
 
@@ -523,7 +523,7 @@ void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout = 0)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Public link import failed (error: " << lastError << ")";
 }
 
-void SdkTest::getPublicNode(string link, int timeout = 0)
+void SdkTest::getPublicNode(string link, int timeout)
 {
     responseReceived = false;
 
@@ -539,7 +539,7 @@ void SdkTest::getPublicNode(string link, int timeout = 0)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Public link retrieval failed (error: " << lastError << ")";
 }
 
-void SdkTest::removePublicLink(MegaNode *n, int timeout = 0)
+void SdkTest::removePublicLink(MegaNode *n, int timeout)
 {
     responseReceived = false;
 
