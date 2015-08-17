@@ -81,7 +81,7 @@ void SdkTest::TearDown()
         }
 
         if (megaApi->isLoggedIn())
-            logout(10);
+            logout();
 
         delete megaApi;
     }
@@ -1175,7 +1175,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
     ASSERT_STREQ(emailaux.data(), s->getUser()) << "Wrong email address of outgoing share";
     ASSERT_TRUE(megaApi->isShared(n1)) << "Wrong sharing information at outgoing share";
-//    ASSERT_TRUE(megaApi->isOutShare(n1)) << "Wrong sharing information at outgoing share";
+    ASSERT_TRUE(megaApi->isOutShare(n1)) << "Wrong sharing information at outgoing share";
 
     delete sl;
 
@@ -1189,7 +1189,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
     ASSERT_EQ(MegaError::API_OK, megaApiAux->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
-//    ASSERT_TRUE(megaApiAux->isInShare(n)) << "Wrong sharing information at incoming share";
+    ASSERT_TRUE(megaApiAux->isInShare(n)) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(megaApiAux->isShared(n)) << "Wrong sharing information at incoming share";
 
     delete nl;
@@ -1253,7 +1253,7 @@ TEST_F(SdkTest, SdkTestShares)
 
 //    ASSERT_STREQ(emailfake, s->getUser()) << "Wrong email address of outgoing share"; User is not created yet
     ASSERT_FALSE(megaApi->isShared(n)) << "Node is already shared, must be pending";
-//    ASSERT_FALSE(megaApi->isOutShare(n)) << "Node is already shared, must be pending";
+    ASSERT_FALSE(megaApi->isOutShare(n)) << "Node is already shared, must be pending";
 
     delete sl;
     delete n;

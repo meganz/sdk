@@ -621,7 +621,7 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_INSHARE         = 0x20
          * The node is a new or modified inshare
          *
-         * - MegaNode:: CHANGE_TYPE_OUTSHARE       = 0x40
+         * - MegaNode::CHANGE_TYPE_OUTSHARE       = 0x40
          * The node is a new or modified outshare
          *
          * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
@@ -796,7 +796,7 @@ class MegaUser
 };
 
 /**
- * @brief Represents the outbound sharing of a folder with an user in MEGA
+ * @brief Represents the outbound sharing of a folder with a user in MEGA
  *
  * It allows to get all data related to the sharing. You can start sharing a folder with
  * a contact or cancel an existing sharing using MegaApi::share. A public link of a folder
@@ -1920,7 +1920,7 @@ public:
     virtual char* getSourceMessage() const;
 
     /**
-     * @brief Returns the email of the recipient or NULL if the current account of is the recipient
+     * @brief Returns the email of the recipient or NULL if the current account is the recipient
      * @return Email of the recipient or NULL if the request is for us
      */
     virtual char* getTargetEmail() const;
@@ -3828,7 +3828,7 @@ class MegaApi
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
          *
-         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
          * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
@@ -4398,6 +4398,9 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getText - Returns the text of the invitation
          * - MegaRequest::getNumber - Returns the action
+         *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MegaError::API_EACCESS.
          *
          * @param email Email of the new contact
          * @param message Message for the user (can be NULL)
@@ -5390,15 +5393,38 @@ class MegaApi
         MegaNodeList *getInShares();
 
         /**
-         * @brief Check if a MegaNode is being shared
+         * @brief Check if a MegaNode is being shared by/with your own user
          *
-         * For nodes that are being shared, you can get a a list of MegaShare
-         * objects using MegaApi::getOutShares
+         * For nodes that are being shared, you can get a list of MegaShare
+         * objects using MegaApi::getOutShares, or a list of MegaNode objects
+         * using MegaApi::getInShares
          *
          * @param node Node to check
          * @return true is the MegaNode is being shared, otherwise false
          */
         bool isShared(MegaNode *node);
+
+        /**
+         * @brief Check if a MegaNode is being shared with other users
+         *
+         * For nodes that are being shared, you can get a list of MegaShare
+         * objects using MegaApi::getOutShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is being shared, otherwise false
+         */
+        bool isOutShare(MegaNode *node);
+
+        /**
+         * @brief Check if a MegaNode belong to another User, but it is shared with you
+         *
+         * For nodes that are being shared, you can get a list of MegaNode
+         * objects using MegaApi::getInShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is being shared, otherwise false
+         */
+        bool isInShare(MegaNode *node);
 
         /**
          * @brief Get a list with all active outbound sharings

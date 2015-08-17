@@ -1573,6 +1573,16 @@ bool MegaApi::isShared(MegaNode *node)
     return pImpl->isShared(node);
 }
 
+bool MegaApi::isOutShare(MegaNode *node)
+{
+    return pImpl->isOutShare(node);
+}
+
+bool MegaApi::isInShare(MegaNode *node)
+{
+    return pImpl->isInShare(node);
+}
+
 MegaShareList *MegaApi::getOutShares()
 {
     return pImpl->getOutShares();
