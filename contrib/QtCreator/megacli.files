@@ -136,3 +136,5 @@
 ../../third_party/glob/glob.h
 ../../Makefile
 
+../../tests/sdktests.cpp
+../../tests/sdk_test.h

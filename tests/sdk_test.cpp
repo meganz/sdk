@@ -19,640 +19,563 @@
  * program.
  */
 
-#include "mega.h"
-#include "../include/megaapi.h"
-#include "../include/megaapi_impl.h"
-#include "gtest/gtest.h"
+#include "sdk_test.h"
 
-using namespace mega;
-using ::testing::Test;
+void SdkTest::SetUp()
+{
+    // do some initialization
 
-static const string APP_KEY     = "8QxzVRxD";
-static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
+    char *buf = getenv("MEGA_EMAIL");
+    if (buf)
+        email.assign(buf);
+    ASSERT_LT(0, email.length()) << "Set your username at the environment variable $MEGA_EMAIL";
 
-// IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
-// Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
-// Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD
+    buf = getenv("MEGA_PWD");
+    if (buf)
+        pwd.assign(buf);
+    ASSERT_LT(0, pwd.length()) << "Set your password at the environment variable $MEGA_PWD";
 
-static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
-
-static const string PUBLICFILE  = "file.txt";
-static const string UPFILE      = "file1.txt";
-static const string DOWNFILE    = "file2.txt";
-
-// Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
-
-public:
-    MegaApi *megaApi = NULL;
-    string email;
-    string pwd;
-
-    int lastError;
-
-    bool loggingReceived;
-    bool fetchnodesReceived;
-    bool logoutReceived;
-    bool responseReceived;
-
-    bool downloadFinished;
-    bool uploadFinished;
-    bool transfersCancelled;
-    bool transfersPaused;
-
-    MegaHandle h;
-
-    MegaApi *megaApiAux = NULL;
-    string emailaux;
-
-    bool contactInvitationFinished;
-    bool contactReplyFinished;
-    bool contactRequestUpdated;
-    bool contactRequestUpdatedAux;
-    bool contactRemoved;
-
-    bool nodeUpdated;
-    bool nodeUpdatedAux;
-
-    string link;
-    MegaNode *publicNode;
-
-private:
-
-
-protected:
-    virtual void SetUp()
+    if (megaApi == NULL)
     {
-        // do some initialization
+        char path[1024];
+        getcwd(path, sizeof path);
+        megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
-        readCredentials();
+        megaApi->addListener(this);
 
-        if (megaApi == NULL)
+        login();
+        fetchnodes();
+    }
+}
+
+void SdkTest::TearDown()
+{
+    // do some cleanup
+
+    deleteFile(UPFILE);
+    deleteFile(DOWNFILE);
+    deleteFile(PUBLICFILE);
+
+    releaseMegaApiAux();
+
+    if (megaApi)
+    {
+        // Remove nodes in Cloud & Rubbish
+        purgeTree(megaApi->getRootNode());
+        purgeTree(megaApi->getRubbishNode());
+
+        // Remove auxiliar contact
+        MegaUserList *ul = megaApi->getContacts();
+        for (int i = 0; i < ul->size(); i++)
         {
-            char path[1024];
-            getcwd(path, sizeof path);
-            megaApi = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
-
-            megaApi->addListener(this);
-
-            login();
-            fetchnodes();
+            MegaUser *u = ul->get(i);
+            megaApi->removeContact(u);
         }
+
+        // Remove pending contact requests
+        MegaContactRequestList *crl = megaApi->getOutgoingContactRequests();
+        for (int i = 0; i < crl->size(); i++)
+        {
+            MegaContactRequest *cr = crl->get(i);
+            megaApi->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+        }
+
+        if (megaApi->isLoggedIn())
+            logout(10);
+
+        delete megaApi;
+    }
+}
+
+void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+{
+    lastError = e->getErrorCode();
+
+    switch(request->getType())
+    {
+    case MegaRequest::TYPE_LOGIN:
+        loggingReceived = true;
+        break;
+
+    case MegaRequest::TYPE_FETCH_NODES:
+        fetchnodesReceived = true;
+        break;
+
+    case MegaRequest::TYPE_LOGOUT:
+        logoutReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CREATE_FOLDER:
+        h = request->getNodeHandle();
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_RENAME:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_COPY:
+        h = request->getNodeHandle();
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_MOVE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_REMOVE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_UPLOAD:
+        uploadFinished = true;
+        break;
+
+    case MegaRequest::TYPE_PAUSE_TRANSFERS:
+        transfersPaused = true;
+        break;
+
+    case MegaRequest::TYPE_CANCEL_TRANSFERS:
+        transfersCancelled = true;
+        break;
+
+    case MegaRequest::TYPE_INVITE_CONTACT:
+        contactInvitationFinished = true;
+        break;
+
+    case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
+        contactReplyFinished = true;
+        break;
+
+    case MegaRequest::TYPE_REMOVE_CONTACT:
+        contactRemoved = true;
+        break;
+
+    case MegaRequest::TYPE_SHARE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_EXPORT:
+        if (request->getAccess())
+            link.assign(request->getLink());
+        h = request->getNodeHandle();
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_GET_PUBLIC_NODE:
+        if (lastError == API_OK)
+            publicNode = request->getPublicMegaNode();
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_IMPORT_LINK:
+        h = request->getNodeHandle();
+        responseReceived = true;
+        break;
+    }
+}
+
+void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
+{
+    lastError = e->getErrorCode();
+
+    if (lastError == MegaError::API_OK)
+        h = transfer->getNodeHandle();
+
+    switch(transfer->getType())
+    {
+    case MegaTransfer::TYPE_DOWNLOAD:
+        downloadFinished = true;
+        break;
+
+    case MegaTransfer::TYPE_UPLOAD:
+        uploadFinished = true;
+        break;
+    }
+}
+
+void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
+{
+    // Main testing account
+    if (api == megaApi)
+    {
+        contactRemoved = true;
+    }
+}
+
+void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
+{
+    // Main testing account
+    if (api == megaApi)
+    {
+        nodeUpdated = true;
     }
 
-    virtual void TearDown()
+    // Auxiliar testing account
+    if (api == megaApiAux)
     {
-        // do some cleanup        
+        nodeUpdatedAux = true;
+    }
+}
 
-        deleteFile(UPFILE);
-        deleteFile(DOWNFILE);
-        deleteFile(PUBLICFILE);
-
-        releaseMegaApiAux();
-
-        if (megaApi)
-        {
-            // Remove nodes in Cloud & Rubbish
-            purgeTree(megaApi->getRootNode());
-            purgeTree(megaApi->getRubbishNode());
-
-            // Remove auxiliar contact
-            MegaUserList *ul = megaApi->getContacts();
-            for (int i = 0; i < ul->size(); i++)
-            {
-                MegaUser *u = ul->get(i);
-                megaApi->removeContact(u);
-            }
-
-            // Remove pending contact requests
-            MegaContactRequestList *crl = megaApi->getOutgoingContactRequests();
-            for (int i = 0; i < crl->size(); i++)
-            {
-                MegaContactRequest *cr = crl->get(i);
-                megaApi->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
-            }
-
-            if (megaApi->isLoggedIn())
-                logout(10);
-
-            delete megaApi;
-        }
+void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
+{
+    // Main testing account
+    if (api == megaApi)
+    {
+        contactRequestUpdated = true;
     }
 
-    void onRequestStart(MegaApi *api, MegaRequest *request) {}
-    void onRequestUpdate(MegaApi*api, MegaRequest *request) {}
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+    // Auxiliar testing account
+    if (api == megaApiAux)
     {
-        lastError = e->getErrorCode();
-
-        switch(request->getType())
-        {
-        case MegaRequest::TYPE_LOGIN:
-            loggingReceived = true;
-            break;
-
-        case MegaRequest::TYPE_FETCH_NODES:
-            fetchnodesReceived = true;
-            break;
-
-        case MegaRequest::TYPE_LOGOUT:
-            logoutReceived = true;
-            break;
-
-        case MegaRequest::TYPE_CREATE_FOLDER:
-            h = request->getNodeHandle();
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_RENAME:
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_COPY:
-            h = request->getNodeHandle();
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_MOVE:
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_REMOVE:
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_UPLOAD:
-            uploadFinished = true;
-            break;
-
-        case MegaRequest::TYPE_PAUSE_TRANSFERS:
-            transfersPaused = true;
-            break;
-
-        case MegaRequest::TYPE_CANCEL_TRANSFERS:
-            transfersCancelled = true;
-            break;
-
-        case MegaRequest::TYPE_INVITE_CONTACT:
-            contactInvitationFinished = true;
-            break;
-
-        case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
-            contactReplyFinished = true;
-            break;
-
-        case MegaRequest::TYPE_REMOVE_CONTACT:
-            contactRemoved = true;
-            break;
-
-        case MegaRequest::TYPE_SHARE:
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_EXPORT:
-            if (request->getAccess())
-                link.assign(request->getLink());
-            h = request->getNodeHandle();
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_GET_PUBLIC_NODE:
-            if (lastError == API_OK)
-                publicNode = request->getPublicMegaNode();
-            responseReceived = true;
-            break;
-
-        case MegaRequest::TYPE_IMPORT_LINK:
-            h = request->getNodeHandle();
-            responseReceived = true;
-            break;
-
-        }
+        contactRequestUpdatedAux = true;
     }
-    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) { }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
+}
+
+void SdkTest::login(int timeout)
+{
+    loggingReceived = false;
+
+    megaApi->login(email.data(), pwd.data());
+
+    waitForResponse(&loggingReceived, timeout);
+
+    if (timeout)
     {
-        lastError = e->getErrorCode();
-
-        if (lastError == MegaError::API_OK)
-            h = transfer->getNodeHandle();
-
-        switch(transfer->getType())
-        {
-        case MegaTransfer::TYPE_DOWNLOAD:
-            downloadFinished = true;
-            break;
-
-        case MegaTransfer::TYPE_UPLOAD:
-            uploadFinished = true;
-            break;
-        }
+        ASSERT_TRUE(loggingReceived) << "Logging failed after " << timeout  << " seconds";
     }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {}
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
-    void onUsersUpdate(MegaApi* api, MegaUserList *users)
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed (error: " << lastError << ")";
+    ASSERT_TRUE(megaApi->isLoggedIn()) << "Not logged it";
+}
+
+void SdkTest::fetchnodes(int timeout)
+{
+    fetchnodesReceived = false;
+
+    megaApi->fetchNodes();
+
+    waitForResponse(&fetchnodesReceived, timeout);
+
+    if (timeout)
     {
-        // Main testing account
-        if (api == megaApi)
-        {
-            contactRemoved = true;
-        }
+        ASSERT_TRUE(fetchnodesReceived) << "Fetchnodes failed after " << timeout  << " seconds";
     }
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
-    {
-        // Main testing account
-        if (api == megaApi)
-        {
-            nodeUpdated = true;
-        }
 
-        // Auxiliar testing account
-        if (api == megaApiAux)
-        {
-            nodeUpdatedAux = true;
-        }
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed (error: " << lastError << ")";
+}
+
+void SdkTest::logout(int timeout)
+{
+    logoutReceived = false;
+
+    megaApi->logout(this);
+
+    waitForResponse(&logoutReceived, timeout);
+
+    if (timeout)
+    {
+        EXPECT_TRUE(logoutReceived) << "Logout failed after " << timeout  << " seconds";
     }
-    void onAccountUpdate(MegaApi *api) {}
-    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
-    {
-        // Main testing account
-        if (api == megaApi)
-        {
-            contactRequestUpdated = true;
-        }
 
-        // Auxiliar testing account
-        if (api == megaApiAux)
-        {
-            contactRequestUpdatedAux = true;
-        }
+    EXPECT_EQ(MegaError::API_OK, lastError) << "Logout failed (error: " << lastError << ")";
+}
+
+char* SdkTest::dumpSession()
+{
+    return megaApi->dumpSession();
+}
+
+void SdkTest::locallogout(int timeout)
+{
+    logoutReceived = false;
+
+    megaApi->localLogout(this);
+
+    waitForResponse(&logoutReceived, timeout);
+
+    if (timeout)
+    {
+        EXPECT_TRUE(logoutReceived) << "Local logout failed after " << timeout  << " seconds";
     }
-    void onReloadNeeded(MegaApi *api) {}
-#ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState) {}
-    void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) {}
-    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
-    void onGlobalSyncStateChanged(MegaApi* api) {}
-#endif
 
-public:
-    void login(int timeout = 0)   // Seconds to wait for response. 0 means no timeout
+    EXPECT_EQ(MegaError::API_OK, lastError) << "Local logout failed (error: " << lastError << ")";
+}
+
+void SdkTest::resumeSession(char *session, int timeout)
+{
+    loggingReceived = false;
+
+    megaApi->fastLogin(session, this);
+
+    waitForResponse(&loggingReceived, timeout);
+
+    if (timeout)
     {
-        loggingReceived = false;
+        ASSERT_TRUE(loggingReceived) << "Resume session failed after " << timeout  << " seconds";
+    }
 
-        megaApi->login(email.data(), pwd.data());
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Resume session failed (error: " << lastError << ")";
+}
 
-        waitForResponse(&loggingReceived, timeout);
+void SdkTest::purgeTree(MegaNode *p)
+{
+    MegaNodeList *children;
+    children = megaApi->getChildren(p);
+
+    for (int i = 0; i < children->size(); i++)
+    {
+        MegaNode *n = children->get(i);
+        if (n->isFolder())
+            purgeTree(n);
+
+        megaApi->remove(n);
+    }
+}
+
+void SdkTest::waitForResponse(bool *responseReceived, int timeout)
+{
+    timeout *= 1000000; // convert to micro-seconds
+    int tWaited = 0;    // microseconds
+    while(!(*responseReceived))
+    {
+        usleep(pollingT);
 
         if (timeout)
         {
-            ASSERT_TRUE(loggingReceived) << "Logging failed after " << timeout  << " seconds";
+            tWaited += pollingT;
+            if (tWaited >= timeout)
+            {
+                break;
+            }
+        }
+    }
+}
+
+void SdkTest::createFile(string filename, bool largeFile)
+{
+    FILE *fp;
+    fp = fopen(filename.c_str(), "w");
+
+    if (fp)
+    {
+        int limit = 2000;
+
+        // create a file large enough for long upload/download times (5-10MB)
+        if (largeFile)
+            limit = 1000000 + rand() % 1000000;
+
+        for (int i = 0; i < limit; i++)
+        {
+            fprintf(fp, "test ");
         }
 
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed (error: " << lastError << ")";
-        ASSERT_TRUE(megaApi->isLoggedIn()) << "Not logged it";
+        fclose(fp);
     }
+}
 
-    void fetchnodes(int timeout = 0)   // t: seconds to wait for response. 0 means no timeout
+size_t SdkTest::getFilesize(string filename)
+{
+    struct stat stat_buf;
+    int rc = stat(filename.c_str(), &stat_buf);
+
+    return rc == 0 ? stat_buf.st_size : -1;
+}
+
+void SdkTest::deleteFile(string filename)
+{
+    remove(filename.c_str());
+}
+
+
+void SdkTest::getMegaApiAux()
+{
+    if (megaApiAux == NULL)
     {
+        char *buf;
+
+        buf = getenv("MEGA_EMAIL_AUX");
+        if (buf)
+            emailaux.assign(buf);
+        ASSERT_LT(0, emailaux.length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
+
+        string pwdaux;
+        buf = getenv("MEGA_PWD_AUX");
+        if (buf)
+            pwdaux.assign(buf);
+        ASSERT_LT(0, pwdaux.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
+
+        char path[1024];
+        getcwd(path, sizeof path);
+        megaApiAux = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
+
+        megaApiAux->addListener(this);
+
+        loggingReceived = false;
+        megaApiAux->login(emailaux.data(), pwdaux.data());
+        waitForResponse(&loggingReceived);
+
+        ASSERT_TRUE(megaApiAux->isLoggedIn()) << "Login failed in the auxiliar account";
+
         fetchnodesReceived = false;
+        megaApiAux->fetchNodes();
+        waitForResponse(&fetchnodesReceived);
 
-        megaApi->fetchNodes();
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed in the auxiliar account (error: " << lastError << ")";
+    }
+}
 
-        waitForResponse(&fetchnodesReceived, timeout);
-
-        if (timeout)
+void SdkTest::releaseMegaApiAux()
+{
+    if (megaApiAux)
+    {
+        if (megaApiAux->isLoggedIn())
         {
-            ASSERT_TRUE(fetchnodesReceived) << "Fetchnodes failed after " << timeout  << " seconds";
+            logoutReceived = false;
+            megaApiAux->logout();
+            waitForResponse(&logoutReceived, 5);
         }
 
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed (error: " << lastError << ")";
+        delete megaApiAux;
+        megaApiAux = NULL;
     }
+}
 
-    void logout(int timeout = 0)
+void SdkTest::inviteContact(string email, string message, int action, int timeout = 0)
+{
+    contactInvitationFinished = false;
+
+    megaApi->inviteContact(email.data(), message.data(), action);
+
+    waitForResponse(&contactInvitationFinished, timeout);    // at the source side (main account)
+
+    if (timeout)
     {
-        logoutReceived = false;
-
-        megaApi->logout(this);
-
-        waitForResponse(&logoutReceived, timeout);
-
-        if (timeout)
-        {
-            EXPECT_TRUE(logoutReceived) << "Logout failed after " << timeout  << " seconds";
-        }
-
-        EXPECT_EQ(MegaError::API_OK, lastError) << "Logout failed (error: " << lastError << ")";
+        ASSERT_TRUE(contactInvitationFinished) << "Contact invitation not finished after " << timeout  << " seconds";
     }
 
-    char* dumpSession()
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Contact invitation failed (error: " << lastError << ")";
+}
+
+void SdkTest::replyContact(MegaContactRequest *cr, int action, int timeout = 0)
+{
+    contactReplyFinished = false;
+
+    megaApiAux->replyContactRequest(cr, action);
+
+    waitForResponse(&contactReplyFinished, timeout);      // at the target side (auxiliar account)
+
+    if (timeout)
     {
-        return megaApi->dumpSession();
+        ASSERT_TRUE(contactReplyFinished) << "Contact reply not finished after " << timeout  << " seconds";
     }
 
-    void locallogout(int timeout = 0)
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
+}
+
+void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout = 0)
+{
+    responseReceived = false;
+
+    megaApi->share(n, email, action);
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
     {
-        logoutReceived = false;
-
-        megaApi->localLogout(this);
-
-        waitForResponse(&logoutReceived, timeout);
-
-        if (timeout)
-        {
-            EXPECT_TRUE(logoutReceived) << "Local logout failed after " << timeout  << " seconds";
-        }
-
-        EXPECT_EQ(MegaError::API_OK, lastError) << "Local logout failed (error: " << lastError << ")";
+        ASSERT_TRUE(responseReceived) << "Folder sharing not finished after " << timeout  << " seconds";
     }
 
-    void resumeSession(char *session, int timeout = 0)
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")" << endl << "User: " << email << " Action: " << action;
+}
+
+void SdkTest::createPublicLink(MegaNode *n, int timeout = 0)
+{
+    responseReceived = false;
+
+    megaApi->exportNode(n);
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
     {
-        loggingReceived = false;
-
-        megaApi->fastLogin(session, this);
-
-        waitForResponse(&loggingReceived, timeout);
-
-        if (timeout)
-        {
-            ASSERT_TRUE(loggingReceived) << "Resume session failed after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Resume session failed (error: " << lastError << ")";
+        ASSERT_TRUE(responseReceived) << "Public link creation not finished after " << timeout  << " seconds";
     }
 
-    void purgeTree(MegaNode *p)
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link creation failed (error: " << lastError << ")";
+}
+
+void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout = 0)
+{
+    responseReceived = false;
+
+    megaApi->importFileLink(link.data(), parent);
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
     {
-        MegaNodeList *children;
-        children = megaApi->getChildren(p);
-
-        for (int i = 0; i < children->size(); i++)
-        {
-            MegaNode *n = children->get(i);
-            if (n->isFolder())
-                purgeTree(n);
-
-            megaApi->remove(n);
-        }
+        ASSERT_TRUE(responseReceived) << "Public link import not finished after " << timeout  << " seconds";
     }
 
-    void readCredentials()
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link import failed (error: " << lastError << ")";
+}
+
+void SdkTest::getPublicNode(string link, int timeout = 0)
+{
+    responseReceived = false;
+
+    megaApiAux->getPublicNode(link.data());
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
     {
-        char *buf = getenv("MEGA_EMAIL");
-        if (buf)
-            email.assign(buf);
-        ASSERT_LT(0, email.length()) << "Set your username at the environment variable $MEGA_EMAIL";
-
-        buf = getenv("MEGA_PWD");
-        if (buf)
-            pwd.assign(buf);
-        ASSERT_LT(0, pwd.length()) << "Set your password at the environment variable $MEGA_PWD";
+        ASSERT_TRUE(responseReceived) << "Public link retrieval not finished after " << timeout  << " seconds";
     }
 
-    void waitForResponse(bool *responseReceived, int timeout = 0)
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link retrieval failed (error: " << lastError << ")";
+}
+
+void SdkTest::removePublicLink(MegaNode *n, int timeout = 0)
+{
+    responseReceived = false;
+
+    megaApi->disableExport(n);
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
     {
-        timeout *= 1000000; // convert to micro-seconds
-        int tWaited = 0;    // microseconds
-        while(!(*responseReceived))
-        {
-            usleep(pollingT);
-
-            if (timeout)
-            {
-                tWaited += pollingT;
-                if (tWaited >= timeout)
-                {
-                    break;
-                }
-            }
-        }
+        ASSERT_TRUE(responseReceived) << "Public link removal not finished after " << timeout  << " seconds";
     }
 
-    void createFile(string filename, bool largeFile = true)
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Public link removal failed (error: " << lastError << ")";
+}
+
+void SdkTest::getContactRequest(MegaContactRequest *cr, bool outgoing)
+{
+    MegaContactRequestList *crl;
+
+    cr = NULL;
+
+    if (outgoing)
     {
-        FILE *fp;
-        fp = fopen(filename.c_str(), "w");
-
-        if (fp)
-        {
-            int limit = 2000;
-
-            // create a file large enough for long upload/download times (5-10MB)
-            if (largeFile)
-                limit = 1000000 + rand() % 1000000;
-
-            for (int i = 0; i < limit; i++)
-            {
-                fprintf(fp, "test ");
-            }
-
-            fclose(fp);
-        }
+        crl = megaApi->getOutgoingContactRequests();
+        ASSERT_EQ(1, crl->size()) << "Too many outgoing contact requests in main account";
     }
-
-    size_t getFilesize(string filename)
+    else
     {
-        struct stat stat_buf;
-        int rc = stat(filename.c_str(), &stat_buf);
-
-        return rc == 0 ? stat_buf.st_size : -1;
+        crl = megaApiAux->getIncomingContactRequests();
+        ASSERT_EQ(1, crl->size()) << "Too many incoming contact requests in auxiliar account";
     }
 
-    void deleteFile(string filename)
-    {
-        remove(filename.c_str());
-    }
+    MegaContactRequest *temp = crl->get(0);
+    cr = temp->copy();
 
-    void getMegaApiAux()
-    {
-        if (megaApiAux == NULL)
-        {
-            char *buf;
-
-            buf = getenv("MEGA_EMAIL_AUX");
-            if (buf)
-                emailaux.assign(buf);
-            ASSERT_LT(0, emailaux.length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX";
-
-            string pwdaux;
-            buf = getenv("MEGA_PWD_AUX");
-            if (buf)
-                pwdaux.assign(buf);
-            ASSERT_LT(0, pwdaux.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
-
-            char path[1024];
-            getcwd(path, sizeof path);
-            megaApiAux = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
-
-            megaApiAux->addListener(this);
-
-            loggingReceived = false;
-            megaApiAux->login(emailaux.data(), pwdaux.data());
-            waitForResponse(&loggingReceived);
-
-            ASSERT_TRUE(megaApiAux->isLoggedIn()) << "Login failed in the auxiliar account";
-
-            fetchnodesReceived = false;
-            megaApiAux->fetchNodes();
-            waitForResponse(&fetchnodesReceived);
-
-            ASSERT_EQ(MegaError::API_OK, lastError) << "Fetchnodes failed in the auxiliar account (error: " << lastError << ")";
-        }
-    }
-
-    void releaseMegaApiAux()
-    {
-        if (megaApiAux)
-        {
-            if (megaApiAux->isLoggedIn())
-            {
-                logoutReceived = false;
-                megaApiAux->logout();
-                waitForResponse(&logoutReceived, 5);
-            }
-
-            delete megaApiAux;
-            megaApiAux = NULL;
-        }
-    }
-
-    void inviteContact(string email, string message, int action, int timeout = 0)
-    {
-        contactInvitationFinished = false;
-
-        megaApi->inviteContact(email.data(), message.data(), action);
-
-        waitForResponse(&contactInvitationFinished, timeout);    // at the source side (main account)
-
-        if (timeout)
-        {
-            ASSERT_TRUE(contactInvitationFinished) << "Contact invitation not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Contact invitation failed (error: " << lastError << ")";
-    }
-
-    void replyContact(MegaContactRequest *cr, int action, int timeout = 0)
-    {
-        contactReplyFinished = false;
-
-        megaApiAux->replyContactRequest(cr, action);
-
-        waitForResponse(&contactReplyFinished, timeout);      // at the target side (auxiliar account)
-
-        if (timeout)
-        {
-            ASSERT_TRUE(contactReplyFinished) << "Contact reply not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
-    }
-
-    void shareFolder(MegaNode *n, const char *email, int action, int timeout = 0)
-    {
-        responseReceived = false;
-
-        megaApi->share(n, email, action);
-
-        waitForResponse(&responseReceived, timeout);
-
-        if (timeout)
-        {
-            ASSERT_TRUE(responseReceived) << "Folder sharing not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Folder sharing failed (error: " << lastError << ")" << endl << "User: " << email << " Action: " << action;
-    }
-
-    void createPublicLink(MegaNode *n, int timeout = 0)
-    {
-        responseReceived = false;
-
-        megaApi->exportNode(n);
-
-        waitForResponse(&responseReceived, timeout);
-
-        if (timeout)
-        {
-            ASSERT_TRUE(responseReceived) << "Public link creation not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link creation failed (error: " << lastError << ")";
-    }
-
-    void importPublicLink(string link, MegaNode *parent, int timeout = 0)
-    {
-        responseReceived = false;
-
-        megaApi->importFileLink(link.data(), parent);
-
-        waitForResponse(&responseReceived, timeout);
-
-        if (timeout)
-        {
-            ASSERT_TRUE(responseReceived) << "Public link import not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link import failed (error: " << lastError << ")";
-    }
-
-    void getPublicNode(string link, int timeout = 0)
-    {
-        responseReceived = false;
-
-        megaApiAux->getPublicNode(link.data());
-
-        waitForResponse(&responseReceived, timeout);
-
-        if (timeout)
-        {
-            ASSERT_TRUE(responseReceived) << "Public link retrieval not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link retrieval failed (error: " << lastError << ")";
-    }
-
-    void removePublicLink(MegaNode *n, int timeout = 0)
-    {
-        responseReceived = false;
-
-        megaApi->disableExport(n);
-
-        waitForResponse(&responseReceived, timeout);
-
-        if (timeout)
-        {
-            ASSERT_TRUE(responseReceived) << "Public link removal not finished after " << timeout  << " seconds";
-        }
-
-        ASSERT_EQ(MegaError::API_OK, lastError) << "Public link removal failed (error: " << lastError << ")";
-    }
-
-    void getContactRequest(MegaContactRequest *cr, bool outgoing)
-    {
-        MegaContactRequestList *crl;
-
-        cr = NULL;
-
-        if (outgoing)
-        {
-            crl = megaApi->getOutgoingContactRequests();
-            ASSERT_EQ(1, crl->size()) << "Too many outgoing contact requests in main account";
-        }
-        else
-        {
-            crl = megaApiAux->getIncomingContactRequests();
-            ASSERT_EQ(1, crl->size()) << "Too many incoming contact requests in auxiliar account";
-        }
-
-        MegaContactRequest *temp = crl->get(0);
-        cr = temp->copy();
-
-        delete crl;
-    }
-};
+    delete crl;
+}
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
@@ -1162,7 +1085,7 @@ TEST_F(SdkTest, SdkTestShares)
     getMegaApiAux();    // login + fetchnodes
 
 
-    // Initialize a test scenario: create some folders/files to share
+    // Initialize a test scenario : create some folders/files to share
 
     // Create some nodes to share
     //  |--Shared-folder
@@ -1201,17 +1124,6 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
     hfile1 = h;
 
-
-//    MegaHandle hfile2;
-//    char filename2[64] = "file2.txt";
-//    createFile(filename2);
-
-//    uploadFinished = false;
-//    megaApi->startUpload(filename2, megaApi->getNodeByHandle(h1));
-//    waitForResponse(&uploadFinished);
-
-//    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
-//    hfile2 = h;
 
     // Initialize a test scenario: create a new contact to share to
 
