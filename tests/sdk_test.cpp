@@ -36,6 +36,7 @@ static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 
 static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
 
+static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
 
@@ -105,6 +106,7 @@ protected:
 
         deleteFile(UPFILE);
         deleteFile(DOWNFILE);
+        deleteFile(PUBLICFILE);
 
         releaseMegaApiAux();
 
@@ -428,15 +430,19 @@ public:
         }
     }
 
-    void createFile(string filename)
+    void createFile(string filename, bool largeFile = true)
     {
         FILE *fp;
         fp = fopen(filename.c_str(), "w");
 
         if (fp)
         {
+            int limit = 2000;
+
             // create a file large enough for long upload/download times (5-10MB)
-            int limit = 1000000 + rand() % 1000000;
+            if (largeFile)
+                limit = 1000000 + rand() % 1000000;
+
             for (int i = 0; i < limit; i++)
             {
                 fprintf(fp, "test ");
@@ -1186,11 +1192,10 @@ TEST_F(SdkTest, SdkTestShares)
     hfolder2 = h;
 
     MegaHandle hfile1;
-    char filename1[64] = "file.txt";
-    createFile(filename1);
+    createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
 
     uploadFinished = false;
-    megaApi->startUpload(filename1, megaApi->getNodeByHandle(hfolder1));
+    megaApi->startUpload(PUBLICFILE.data(), megaApi->getNodeByHandle(hfolder1));
     waitForResponse(&uploadFinished);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
