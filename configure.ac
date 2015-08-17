@@ -161,10 +161,9 @@ AX_CHECK_COMPILE_FLAG([-fPIC], [
 
 
 AM_CONDITIONAL(ENABLE_STATIC, test x$enable_static = xyes)
-if test x$enable_static = xyes; then
-    LIBS="-ldl $LIBS"
-fi
 AC_SUBST(ENABLE_STATIC)
+
+AC_CHECK_LIB(dl, dlopen, [LIBS="-ldl $LIBS"])
 
 # Check for inotify support.
 AC_ARG_ENABLE(inotify,
@@ -1013,7 +1012,7 @@ if test "x$enable_examples" = "xyes" ; then
          ;;
        yes)
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
-            [AC_MSG_ERROR([termcap library is required for the sample client.])]
+            [AC_MSG_NOTICE([termcap library not found or not usable.])]
         )
         ;;
        *)
@@ -1028,7 +1027,7 @@ if test "x$enable_examples" = "xyes" ; then
                 TERMCAP_LDFLAGS="-L$with_termcap/lib"
                 TERMCAP_CXXFLAGS="-I$with_termcap/include"
                 TERMCAP_CPPFLAGS="-I$with_termcap/include"],
-                AC_MSG_ERROR([termcap.h header not found or not usable])
+                AC_MSG_NOTICE([termcap.h header not found or not usable])
             )
         else
             LDFLAGS="-L$with_termcap $LDFLAGS"
@@ -1039,12 +1038,12 @@ if test "x$enable_examples" = "xyes" ; then
                 TERMCAP_LDFLAGS="-L$with_termcap"
                 TERMCAP_CXXFLAGS="-I$with_termcap"
                 TERMCAP_CPPFLAGS="-I$with_termcap"],
-                AC_MSG_ERROR([termcap.h header not found or not usable])
+                AC_MSG_NOTICE([termcap.h header not found or not usable])
             )
         fi
 
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"], [
-            AC_MSG_ERROR([termcap library is required for the sample client.])])
+            AC_MSG_NOTICE([termcap library not found or not usable.])])
 
         #restore
         LDFLAGS=$SAVE_LDFLAGS
@@ -1056,7 +1055,7 @@ if test "x$enable_examples" = "xyes" ; then
       ],
       [AC_MSG_RESULT([--with-termcap not specified])
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
-            [AC_MSG_ERROR([termcap library is required for the sample client.])]
+            [AC_MSG_NOTICE([termcap library not found or not usable.])]
         )
       ]
     )
