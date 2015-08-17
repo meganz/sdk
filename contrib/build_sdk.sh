@@ -552,6 +552,7 @@ freeimage_pkg() {
         package_build $name $freeimage_dir "-f Makefile.mingw"
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
+        # ignore if not present
         cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || 1
         cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || 1
         cp $freeimage_dir/Dist/libFreeImage.a $install_dir/lib || 1
@@ -810,7 +811,7 @@ main() {
         if [ ! -f "$cwd/winhttp.h" -o ! -f "$cwd/winhttp.lib"  ]; then
             echo "ERROR! Windows build requires WinHTTP header and library to be present in MEGA SDK project folder!"
             echo "Please get both winhttp.h and winhttp.lib files an put them into the MEGA SDK project's root folder."
-            exit
+            exit 1
         fi
     fi
 
