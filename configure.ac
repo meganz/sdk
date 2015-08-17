@@ -1254,7 +1254,29 @@ AC_ARG_ENABLE(python,
      AC_MSG_RESULT([$enableval])
      enable_python=no]
 )
+
+USE_PYTHON3=no
 if test "x$enable_python" = "xyes" ; then
+
+    AC_ARG_WITH(python3,
+      AS_HELP_STRING([--with-python3], [build Python 3 language bindings]),
+      [
+       case $with_python3 in
+       yes)
+        USE_PYTHON3=yes
+         ;;
+       *)
+        USE_PYTHON3=yes
+        ;;
+       esac
+      ],
+    )
+
+    if test "x$USE_PYTHON3" = "xyes" ; then
+        SWIG_FLAGS="-py3"
+	    AC_SUBST([SWIG_FLAGS])
+    fi
+
     AM_PATH_PYTHON
     AX_PYTHON_DEVEL
     AX_PKG_SWIG(2.0.0, [], [
@@ -1279,8 +1301,8 @@ AM_CONDITIONAL([BUILD_PYTHON], [test "$enable_python" = "yes"])
 AC_MSG_CHECKING([if building PHP bindings])
 AC_ARG_ENABLE(php,
     AS_HELP_STRING([--enable-php], [build PHP language bindings]),
-    [AC_MSG_RESULT([$enableval])],
-    [AC_MSG_RESULT([$enableval])
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
      enable_php=no]
 )
 if test "x$enable_php" = "xyes" ; then
@@ -1332,13 +1354,13 @@ AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 AC_MSG_CHECKING([if building Java bindings])
 AC_ARG_ENABLE(java,
     AS_HELP_STRING([--enable-java], [build Java language bindings]),
-    [AC_MSG_RESULT([$enableval])],
+    [AC_MSG_RESULT([yes])],
     [
-     AC_MSG_RESULT([$enableval])
+     AC_MSG_RESULT([no])
      enable_java=no]
 )
 AC_ARG_WITH(java-include-dir,
-    [--with-java-include-dir=DIR look in DIR for Java headers],
+    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
 	[JAVA_INCLUDE_DIR=$withval],)
 AC_SUBST(JAVA_INCLUDE_DIR)
 
@@ -1425,6 +1447,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   posix threads:    $enable_posix_threads
 
   Python bindings:  $enable_python
+  Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
   Java bindings:    $enable_java
 
