@@ -416,6 +416,7 @@ void SdkTest::getMegaApiAux()
         megaApiAux->login(emailaux.data(), pwdaux.data());
         waitForResponse(&loggingReceived);
 
+        ASSERT_EQ(MegaError::API_OK, lastError) << "Logging failed in the auxiliar account (error: " << lastError << ")";
         ASSERT_TRUE(megaApiAux->isLoggedIn()) << "Login failed in the auxiliar account";
 
         fetchnodesReceived = false;
@@ -829,6 +830,8 @@ TEST_F(SdkTest, SdkTestTransfers)
     megaApi->startDownload(n2, filename2.c_str());
     waitForResponse(&downloadFinished);
 
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot download the file (error: " << lastError << ")";
+
     MegaNode *n3 = megaApi->getNodeByHandle(h);
     null_pointer = (n3 == NULL);
 
@@ -1013,13 +1016,11 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
     craux = crlaux->get(0);
 
-    contactReplyFinished = false;
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    megaApiAux->replyContactRequest(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
+    replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
 
-    waitForResponse(&contactReplyFinished); // at the source side (main account)    
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
@@ -1142,13 +1143,11 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
     MegaContactRequest *craux = crlaux->get(0);
 
-    contactReplyFinished = false;
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    megaApiAux->replyContactRequest(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
+    replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
 
-    waitForResponse(&contactReplyFinished); // at the source side (main account)
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
@@ -1203,7 +1202,6 @@ TEST_F(SdkTest, SdkTestShares)
 
     shareFolder(megaApi->getNodeByHandle(hfolder1), emailaux.data(), MegaShare::ACCESS_READWRITE);
 
-    waitForResponse(&responseReceived);
     waitForResponse(&nodeUpdated);
     waitForResponse(&nodeUpdatedAux);
 
