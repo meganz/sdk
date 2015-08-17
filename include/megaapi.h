@@ -4399,6 +4399,9 @@ class MegaApi
          * - MegaRequest::getText - Returns the text of the invitation
          * - MegaRequest::getNumber - Returns the action
          *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MegaError::API_EACCESS.
+         *
          * @param email Email of the new contact
          * @param message Message for the user (can be NULL)
          * @param action Action for this contact request. Valid values are:
@@ -4420,7 +4423,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REPLY_CONTACT_REQUEST
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the contact request
+         * - MegaRequest::getHandle - Returns the handle of the contact request
          * - MegaRequest::getNumber - Returns the action
          *
          * @param listener MegaRequestListener to track this request
@@ -4672,7 +4675,7 @@ class MegaApi
          *
          * @return true if transfers on that direction are paused, false otherwise
          */
-        bool areTansfersPaused(int direction);
+        bool areTransfersPaused(int direction);
 
         /**
          * @brief Set the upload speed limit
