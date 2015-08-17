@@ -1275,10 +1275,14 @@ if test "x$enable_python" = "xyes" ; then
     if test "x$USE_PYTHON3" = "xyes" ; then
         SWIG_FLAGS="-py3"
 	    AC_SUBST([SWIG_FLAGS])
+
+        AM_PATH_PYTHON(3)
+        AX_PYTHON_DEVEL(>= '3.0.0')
+    else
+        AM_PATH_PYTHON
+        AX_PYTHON_DEVEL
     fi
 
-    AM_PATH_PYTHON
-    AX_PYTHON_DEVEL
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
