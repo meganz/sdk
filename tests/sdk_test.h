@@ -125,6 +125,7 @@ public:
 
     void inviteContact(string email, string message, int action, int timeout = 0);
     void replyContact(MegaContactRequest *cr, int action, int timeout = 0);
+    void removeContact(string email, int timeout = 0);
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = 0);
 

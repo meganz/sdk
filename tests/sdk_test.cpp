@@ -475,6 +475,28 @@ void SdkTest::replyContact(MegaContactRequest *cr, int action, int timeout)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Contact reply failed (error: " << lastError << ")";
 }
 
+void SdkTest::removeContact(string email, int timeout)
+{
+    MegaUser *u = megaApi->getContact(email.data());
+    bool null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the specified contact (" << email << ")";
+
+    responseReceived = false;
+
+    megaApi->removeContact(u);
+
+    waitForResponse(&responseReceived, timeout);      // at the target side (auxiliar account)
+
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "Contact deletion not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Contact deletion failed (error: " << lastError << ")";
+
+    delete u;
+}
+
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
     responseReceived = false;
@@ -1037,18 +1059,11 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Delete an existing contact ---
 
-    MegaUser *u = megaApi->getContact(emailaux.data());
-    bool null_pointer = (u == NULL);
-    ASSERT_FALSE(null_pointer) << "Cannot find new contact";
-
     contactRemoved = false;
-    megaApi->removeContact(u);
+    ASSERT_NO_FATAL_FAILURE( removeContact(emailaux) );
     waitForResponse(&contactRemoved);
-    ASSERT_EQ(MegaError::API_OK, lastError) << "Creation of new contact failed";
 
-    delete u;
-
-    u = megaApi->getContact(emailaux.data());
+    MegaUser *u = megaApi->getContact(emailaux.data());
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact still visible";
     delete u;
 }
