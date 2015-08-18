@@ -178,6 +178,11 @@ void Transfer::complete()
             }
         }
 
+        if (fingerprint.isvalid && fixfingerprint)
+        {
+            (*(FileFingerprint*)this) = fingerprint;
+        }
+
         if (missingattr)
         {
             // FIXME: do this while file is still open
