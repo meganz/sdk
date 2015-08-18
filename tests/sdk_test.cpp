@@ -679,6 +679,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     children = megaApi->getChildren(rootnode);
 
     EXPECT_EQ(megaApi->getNumChildren(rootnode), children->size()) << "Wrong number of child nodes";
+    ASSERT_LE(2, children->size()) << "Wrong number of children nodes found";
     EXPECT_STREQ(name2, children->get(0)->getName()) << "Wrong name of child node"; // "Folder copy"
     EXPECT_STREQ(name1, children->get(1)->getName()) << "Wrong name of child node"; // "Folder rename"
 
@@ -709,7 +710,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     MegaNodeList *nlist;
     nlist = megaApi->search(rootnode, "copy");
 
-    EXPECT_EQ(1, nlist->size());
+    ASSERT_EQ(1, nlist->size());
     EXPECT_EQ(n4->getHandle(), nlist->get(0)->getHandle()) << "Search node by pattern failed";
 
     delete nlist;
