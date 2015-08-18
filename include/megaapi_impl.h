@@ -1006,7 +1006,7 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
-        bool areTansfersPaused(int direction);
+        bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
@@ -1067,6 +1067,8 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         bool isShared(MegaNode *node);
+        bool isOutShare(MegaNode *node);
+        bool isInShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();

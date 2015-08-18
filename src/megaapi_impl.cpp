@@ -3200,7 +3200,7 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
-bool MegaApiImpl::areTansfersPaused(int direction)
+bool MegaApiImpl::areTransfersPaused(int direction)
 {
     if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
     {
@@ -3968,10 +3968,46 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 		return false;
 	}
 
-    bool result = (node->outshares != NULL);
+    bool result = (node->outshares != NULL) || ((node->inshare != NULL) && !node->parent);
 	sdkMutex.unlock();
 
 	return result;
+}
+
+bool MegaApiImpl::isOutShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->outshares != NULL);
+    sdkMutex.unlock();
+
+    return result;
+}
+
+bool MegaApiImpl::isInShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->inshare != NULL) && !node->parent;
+    sdkMutex.unlock();
+
+    return result;
 }
 
 MegaShareList *MegaApiImpl::getOutShares()
