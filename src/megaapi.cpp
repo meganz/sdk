@@ -1317,9 +1317,9 @@ void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *lis
     pImpl->pauseTransfers(pause, direction, listener);
 }
 
-bool MegaApi::areTansfersPaused(int direction)
+bool MegaApi::areTransfersPaused(int direction)
 {
-    return pImpl->areTansfersPaused(direction);
+    return pImpl->areTransfersPaused(direction);
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
@@ -1571,6 +1571,16 @@ MegaNodeList* MegaApi::getInShares()
 bool MegaApi::isShared(MegaNode *node)
 {
     return pImpl->isShared(node);
+}
+
+bool MegaApi::isOutShare(MegaNode *node)
+{
+    return pImpl->isOutShare(node);
+}
+
+bool MegaApi::isInShare(MegaNode *node)
+{
+    return pImpl->isInShare(node);
 }
 
 MegaShareList *MegaApi::getOutShares()

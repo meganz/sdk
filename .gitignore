@@ -1,4 +1,3 @@
-/megaclient_statecache*
 # Compiled Object files
 *.slo
 *.lo
@@ -22,7 +21,8 @@
 *.exe
 *.out
 *.app
-tests/api_test
+/tests/sdk_test
+/tests/misc_test
 examples/megacli
 doc/example/lsmega
 examples/megasimplesync
@@ -74,9 +74,11 @@ doc/Doxyfile
 .project
 .cproject
 .settings
+/contrib/QtCreator/megacli.creator.user
 *~
 Debug
 Release
 
 # Mega SDK runtime
 *.db-journal
+/megaclient_statecache*
