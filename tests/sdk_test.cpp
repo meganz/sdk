@@ -43,8 +43,8 @@ void SdkTest::SetUp()
 
         megaApi->addListener(this);
 
-        login();
-        fetchnodes();
+        ASSERT_NO_FATAL_FAILURE( login() );
+        ASSERT_NO_FATAL_FAILURE( fetchnodes() );
     }
 }
 
@@ -81,7 +81,7 @@ void SdkTest::TearDown()
         }
 
         if (megaApi->isLoggedIn())
-            logout();
+            ASSERT_NO_FATAL_FAILURE( logout() );
 
         delete megaApi;
     }
@@ -148,7 +148,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_REMOVE_CONTACT:
-        contactRemoved = true;
+        responseReceived = true;
         break;
 
     case MegaRequest::TYPE_SHARE:
@@ -300,7 +300,7 @@ void SdkTest::locallogout(int timeout)
         EXPECT_TRUE(logoutReceived) << "Local logout failed after " << timeout  << " seconds";
     }
 
-    EXPECT_EQ(MegaError::API_OK, lastError) << "Local logout failed (error: " << lastError << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Local logout failed (error: " << lastError << ")";
 }
 
 void SdkTest::resumeSession(char *session, int timeout)
@@ -610,9 +610,9 @@ void SdkTest::getContactRequest(MegaContactRequest *cr, bool outgoing)
 TEST_F(SdkTest, SdkTestResumeSession)
 {
     char *session = dumpSession();
-    locallogout();
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
 
-    resumeSession(session);
+    ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
 
     delete session;
 }
@@ -892,7 +892,7 @@ TEST_F(SdkTest, SdkTestContacts)
     MegaContactRequestList *crl, *crlaux;
     MegaContactRequest *cr, *craux;
 
-    getMegaApiAux();    // login + fetchnodes
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
 
 
     // --- Check my email and the email of the contact ---
@@ -908,7 +908,7 @@ TEST_F(SdkTest, SdkTestContacts)
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
 
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
@@ -952,7 +952,7 @@ TEST_F(SdkTest, SdkTestContacts)
     craux = crlaux->get(0);
 
     contactRequestUpdatedAux = false;
-    replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE);
+    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE) );
     waitForResponse(&contactRequestUpdatedAux); // only at auxiliar account. Main account is not notified
 
     delete crlaux;
@@ -967,7 +967,7 @@ TEST_F(SdkTest, SdkTestContacts)
     message = "I don't wanna be your contact anymore";
 
     contactRequestUpdated = false;
-    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_DELETE);
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_DELETE) );
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
     crl = megaApi->getOutgoingContactRequests();
@@ -990,7 +990,7 @@ TEST_F(SdkTest, SdkTestContacts)
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
 
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
@@ -1026,7 +1026,7 @@ TEST_F(SdkTest, SdkTestContacts)
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
 
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
@@ -1041,7 +1041,7 @@ TEST_F(SdkTest, SdkTestContacts)
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
+    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
 
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
@@ -1148,7 +1148,7 @@ TEST_F(SdkTest, SdkTestShares)
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD);
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
 
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
@@ -1161,7 +1161,7 @@ TEST_F(SdkTest, SdkTestShares)
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
 
-    replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT);
+    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
 
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
@@ -1174,7 +1174,7 @@ TEST_F(SdkTest, SdkTestShares)
     nodeUpdated = false;
     nodeUpdatedAux = false;
 
-    shareFolder(n1, emailaux.data(), MegaShare::ACCESS_READ);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, emailaux.data(), MegaShare::ACCESS_READ) );
 
     waitForResponse(&nodeUpdated);
     waitForResponse(&nodeUpdatedAux);
@@ -1215,7 +1215,7 @@ TEST_F(SdkTest, SdkTestShares)
     nodeUpdated = false;
     nodeUpdatedAux = false;
 
-    shareFolder(megaApi->getNodeByHandle(hfolder1), emailaux.data(), MegaShare::ACCESS_READWRITE);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(megaApi->getNodeByHandle(hfolder1), emailaux.data(), MegaShare::ACCESS_READWRITE) );
 
     waitForResponse(&nodeUpdated);
     waitForResponse(&nodeUpdatedAux);
@@ -1234,7 +1234,7 @@ TEST_F(SdkTest, SdkTestShares)
     nodeUpdated = false;
     nodeUpdatedAux = false;
 
-    shareFolder(n1, emailaux.data(), MegaShare::ACCESS_UNKNOWN);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, emailaux.data(), MegaShare::ACCESS_UNKNOWN) );
 
     waitForResponse(&nodeUpdated);
     waitForResponse(&nodeUpdatedAux);
@@ -1258,7 +1258,7 @@ TEST_F(SdkTest, SdkTestShares)
     n = megaApi->getNodeByHandle(hfolder2);
 
     nodeUpdated = false;
-    shareFolder(n, emailfake, MegaShare::ACCESS_FULL);
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n, emailfake, MegaShare::ACCESS_FULL) );
     waitForResponse(&nodeUpdated);
 
     sl = megaApi->getPendingOutShares(n);   delete n;
@@ -1278,13 +1278,13 @@ TEST_F(SdkTest, SdkTestShares)
 
     MegaNode *nfile1 = megaApi->getNodeByHandle(hfile1);
 
-    createPublicLink(nfile1);
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
     // The created link is stored in this->link at onRequestFinish()
 
 
     // --- Import a public link ---
 
-    importPublicLink(link, rootnode);
+    ASSERT_NO_FATAL_FAILURE( importPublicLink(link, rootnode) );
 
     MegaNode *nimported = megaApi->getNodeByHandle(h);
 
@@ -1294,14 +1294,14 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Get node from public link ---
 
-    getPublicNode(link);
+    ASSERT_NO_FATAL_FAILURE( getPublicNode(link) );
 
     ASSERT_TRUE(publicNode->isPublic()) << "Cannot get a node from public link";
 
 
     // --- Remove a public link ---
 
-    removePublicLink(nfile1);
+    ASSERT_NO_FATAL_FAILURE( removePublicLink(nfile1) );
 
     delete nfile1;
     nfile1 = megaApi->getNodeByHandle(h);
