@@ -577,25 +577,24 @@ void SdkTest::removePublicLink(MegaNode *n, int timeout)
     ASSERT_EQ(MegaError::API_OK, lastError) << "Public link removal failed (error: " << lastError << ")";
 }
 
-void SdkTest::getContactRequest(MegaContactRequest *cr, bool outgoing)
+void SdkTest::getContactRequest(bool outgoing, int expectedSize)
 {
     MegaContactRequestList *crl;
-
-    cr = NULL;
 
     if (outgoing)
     {
         crl = megaApi->getOutgoingContactRequests();
-        ASSERT_EQ(1, crl->size()) << "Too many outgoing contact requests in main account";
+        ASSERT_EQ(expectedSize, crl->size()) << "Too many outgoing contact requests in main account";
+        if (expectedSize)
+            cr = crl->get(0)->copy();
     }
     else
     {
         crl = megaApiAux->getIncomingContactRequests();
-        ASSERT_EQ(1, crl->size()) << "Too many incoming contact requests in auxiliar account";
+        ASSERT_EQ(expectedSize, crl->size()) << "Too many incoming contact requests in auxiliar account";
+        if (expectedSize)
+            craux = crl->get(0)->copy();
     }
-
-    MegaContactRequest *temp = crl->get(0);
-    cr = temp->copy();
 
     delete crl;
 }
@@ -890,9 +889,6 @@ TEST_F(SdkTest, SdkTestTransfers)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
-    MegaContactRequestList *crl, *crlaux;
-    MegaContactRequest *cr, *craux;
-
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
 
 
@@ -917,11 +913,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Check the sent contact request ---
 
-//    getContactRequest(cr, true);
-
-    crl = megaApi->getOutgoingContactRequests();
-    ASSERT_EQ(1, crl->size()) << "Too many outgoing contact requests in main account";
-    cr = crl->get(0);
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(true) );
 
     ASSERT_STREQ(message.data(), cr->getSourceMessage()) << "Message sent is corrupted";
     ASSERT_STREQ(email.data(), cr->getSourceEmail()) << "Wrong source email";
@@ -929,14 +921,12 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr->getStatus()) << "Wrong contact request status";
     ASSERT_TRUE(cr->isOutgoing()) << "Wrong direction of the contact request";
 
-    delete crl;
+    delete cr;      cr = NULL;
 
 
     // --- Check received contact request ---
 
-    crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
-    craux = crlaux->get(0);
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
     ASSERT_STREQ(message.data(), craux->getSourceMessage()) << "Message received is corrupted";
     ASSERT_STREQ(email.data(), craux->getSourceEmail()) << "Wrong source email";
@@ -944,23 +934,21 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, craux->getStatus()) << "Wrong contact request status";
     ASSERT_FALSE(craux->isOutgoing()) << "Wrong direction of the contact request";
 
-    delete crlaux;
+    delete craux;   craux = NULL;
+
 
     // --- Ignore received contact request ---
 
-    crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
-    craux = crlaux->get(0);
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
     contactRequestUpdatedAux = false;
     ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_IGNORE) );
     waitForResponse(&contactRequestUpdatedAux); // only at auxiliar account. Main account is not notified
 
-    delete crlaux;
+    delete craux;   craux = NULL;
 
-    crlaux = megaApiAux->getIncomingContactRequests();  // it only returns pending requests
-    ASSERT_EQ(0, crlaux->size()) << "Incoming contact requests was not ignored properly";
-    delete crlaux;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
+    delete craux;   craux = NULL;
 
 
     // --- Cancel the invitation ---
@@ -971,9 +959,9 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_DELETE) );
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
-    crl = megaApi->getOutgoingContactRequests();
-    ASSERT_EQ(0, crl->size()) << "Outgoing contact requests still pending in main account";
-    delete crl;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
+    delete craux;   craux = NULL;
+
     // The target contact doesn't receive notification, since the invitation was ignored previously
 
     
@@ -999,9 +987,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Deny a contact invitation ---
 
-    crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(1, crlaux->size()) << "Incoming contact requests was not received properly";
-    craux = crlaux->get(0);
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
@@ -1011,15 +997,13 @@ TEST_F(SdkTest, SdkTestContacts)
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
-    delete crlaux;
+    delete craux;   craux = NULL;
 
-    crl = megaApi->getOutgoingContactRequests();
-    ASSERT_EQ(0, crl->size()) << "Outgoing contact request still pending in main account";
-    delete crl;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(true, 0) );
+    delete cr;   cr = NULL;
 
-    crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(0, crlaux->size()) << "Incoming contact requests still pending in auxliar account";
-    delete crlaux;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
+    delete craux;   craux = NULL;
 
 
     // --- Invite a new contact (again) ---
@@ -1035,9 +1019,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Accept a contact invitation ---
 
-    crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(1, crlaux->size()) << "Too many incoming contact requests in auxiliar account";
-    craux = crlaux->get(0);
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
 
     contactRequestUpdated = false;
     contactRequestUpdatedAux = false;
@@ -1047,15 +1029,13 @@ TEST_F(SdkTest, SdkTestContacts)
     waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
     waitForResponse(&contactRequestUpdated);    // at the source side (main account)
 
-    delete crlaux;
+    delete craux;   craux = NULL;
 
-    crl = megaApi->getOutgoingContactRequests();
-    ASSERT_EQ(0, crl->size()) << "Outgoing contact requests still pending in main account";
-    delete crl;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(true, 0) );
+    delete cr;   cr = NULL;
 
-    crlaux = megaApiAux->getIncomingContactRequests();
-    ASSERT_EQ(0, crlaux->size()) << "Incoming contact requests still pending in auxiliar account";
-    delete crlaux;
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false, 0) );
+    delete craux;   craux = NULL;
 
 
     // --- Delete an existing contact ---

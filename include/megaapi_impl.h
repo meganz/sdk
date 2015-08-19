@@ -331,7 +331,7 @@ class MegaContactRequestPrivate : public MegaContactRequest
 {
 public:
     MegaContactRequestPrivate(PendingContactRequest *request);
-    MegaContactRequestPrivate(const MegaContactRequest &request);
+    MegaContactRequestPrivate(const MegaContactRequest *request);
     virtual ~MegaContactRequestPrivate();
 
     static MegaContactRequest *fromContactRequest(PendingContactRequest *request);

@@ -67,6 +67,8 @@ public:
     MegaApi *megaApiAux = NULL;
     string emailaux;
 
+    MegaContactRequest *cr, *craux;
+
     bool contactInvitationFinished;
     bool contactReplyFinished;
     bool contactRequestUpdated;
@@ -135,5 +137,5 @@ public:
     void getPublicNode(string link, int timeout = maxTimeout);
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
 
-    void getContactRequest(MegaContactRequest *cr, bool outgoing);
+    void getContactRequest(bool outgoing, int expectedSize = 1);
 };

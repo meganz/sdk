@@ -1002,16 +1002,16 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *requ
     outgoing = request->isoutgoing;
 }
 
-MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest &request)
+MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest *request)
 {
-    handle = request.getHandle();
-    sourceEmail = MegaApi::strdup(request.getSourceEmail());
-    sourceMessage = MegaApi::strdup(request.getSourceMessage());
-    targetEmail = MegaApi::strdup(request.getTargetEmail());
-    creationTime = request.getCreationTime();
-    modificationTime = request.getModificationTime();
-    status = request.getStatus();
-    outgoing = request.isOutgoing();
+    handle = request->getHandle();
+    sourceEmail = MegaApi::strdup(request->getSourceEmail());
+    sourceMessage = MegaApi::strdup(request->getSourceMessage());
+    targetEmail = MegaApi::strdup(request->getTargetEmail());
+    creationTime = request->getCreationTime();
+    modificationTime = request->getModificationTime();
+    status = request->getStatus();
+    outgoing = request->isOutgoing();
 }
 
 MegaContactRequestPrivate::~MegaContactRequestPrivate()
@@ -1028,7 +1028,7 @@ MegaContactRequest *MegaContactRequestPrivate::fromContactRequest(PendingContact
 
 MegaContactRequest *MegaContactRequestPrivate::copy() const
 {
-    return new MegaContactRequestPrivate(*this);
+    return new MegaContactRequestPrivate(this);
 }
 
 MegaHandle MegaContactRequestPrivate::getHandle() const
@@ -1848,7 +1848,7 @@ MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestL
     }
     list = new MegaContactRequest*[s];
     for (int i = 0; i < s; i++)
-        list[i] = new MegaContactRequestPrivate(*requestList.get(i));
+        list[i] = new MegaContactRequestPrivate(requestList.get(i));
 }
 
 int MegaFile::nextseqno = 0;
