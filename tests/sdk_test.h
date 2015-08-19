@@ -35,7 +35,8 @@ static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 // Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
 // Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD (and $MEGA_EMAIL_AUX / $MEGA_PWD_AUX for shares * contacts)
 
-static const unsigned int pollingT = 500000;  // (microseconds) to check if response from server is received
+static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
+static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to wait for response from server
 
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
@@ -65,6 +66,8 @@ public:
 
     MegaApi *megaApiAux = NULL;
     string emailaux;
+
+    MegaContactRequest *cr, *craux;
 
     bool contactInvitationFinished;
     bool contactReplyFinished;
@@ -106,15 +109,15 @@ protected:
 #endif
 
 public:
-    void login(int timeout = 0);        // Seconds to wait for response. 0 means no timeout
-    void fetchnodes(int timeout = 0);   // Seconds to wait for response. 0 means no timeout
-    void logout(int timeout = 0);
+    void login(int timeout = maxTimeout);
+    void fetchnodes(int timeout = maxTimeout);
+    void logout(int timeout = maxTimeout);
     char* dumpSession();
-    void locallogout(int timeout = 0);
-    void resumeSession(char *session, int timeout = 0);
+    void locallogout(int timeout = maxTimeout);
+    void resumeSession(char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
-    void waitForResponse(bool *responseReceived, int timeout = 0);
+    void waitForResponse(bool *responseReceived, int timeout = maxTimeout);
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
@@ -123,16 +126,16 @@ public:
     void getMegaApiAux();
     void releaseMegaApiAux();
 
-    void inviteContact(string email, string message, int action, int timeout = 0);
-    void replyContact(MegaContactRequest *cr, int action, int timeout = 0);
-    void removeContact(string email, int timeout = 0);
+    void inviteContact(string email, string message, int action, int timeout = maxTimeout);
+    void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
+    void removeContact(string email, int timeout = maxTimeout);
 
-    void shareFolder(MegaNode *n, const char *email, int action, int timeout = 0);
+    void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(MegaNode *n, int timeout = 0);
-    void importPublicLink(string link, MegaNode *parent, int timeout = 0);
-    void getPublicNode(string link, int timeout = 0);
-    void removePublicLink(MegaNode *n, int timeout = 0);
+    void createPublicLink(MegaNode *n, int timeout = maxTimeout);
+    void importPublicLink(string link, MegaNode *parent, int timeout = maxTimeout);
+    void getPublicNode(string link, int timeout = maxTimeout);
+    void removePublicLink(MegaNode *n, int timeout = maxTimeout);
 
-    void getContactRequest(MegaContactRequest *cr, bool outgoing);
+    void getContactRequest(bool outgoing, int expectedSize = 1);
 };
