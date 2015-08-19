@@ -1730,6 +1730,24 @@ String^ MegaSDK::getFileFingerprint(String^ filePath)
     return ref new String((wchar_t *)utf16fingerprint.c_str());
 }
 
+String^ MegaSDK::getFileFingerprint(MInputStream^ inputStream, uint64 mtime)
+{
+    if (inputStream == nullptr) return nullptr;
+
+    MInputStreamAdapter is(inputStream);
+    const char *utf8fingerprint = megaApi->getFingerprint(&is, mtime);
+    if (!utf8fingerprint)
+    {
+        return nullptr;
+    }
+
+    std::string utf16fingerprint;
+    MegaApi::utf8ToUtf16(utf8fingerprint, &utf16fingerprint);
+    delete[] utf8fingerprint;
+
+    return ref new String((wchar_t *)utf16fingerprint.c_str());
+}
+
 String^ MegaSDK::getNodeFingerprint(MNode ^node)
 {
     if (node == nullptr) return nullptr;

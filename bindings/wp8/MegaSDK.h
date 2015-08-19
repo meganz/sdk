@@ -49,6 +49,8 @@
 #include "MRandomNumberProvider.h"
 #include "MContactRequest.h"
 #include "MContactRequestList.h"
+#include "MInputStreamAdapter.h"
+#include "MInputStream.h"
 
 #include <megaapi.h>
 #include <set>
@@ -297,6 +299,7 @@ namespace mega
 
         
         String^ getFileFingerprint(String^ filePath);
+        String^ getFileFingerprint(MInputStream^ inputStream, uint64 mtime);
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
         bool hasFingerprint(String^ fingerprint);
