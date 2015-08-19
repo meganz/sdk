@@ -239,7 +239,7 @@ class MegaTransferPrivate : public MegaTransfer
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
-        MegaTransferPrivate(const MegaTransferPrivate &transfer);
+        MegaTransferPrivate(const MegaTransferPrivate *transfer);
         virtual ~MegaTransferPrivate();
         
         virtual MegaTransfer *copy();
@@ -393,7 +393,7 @@ class MegaSyncPrivate : public MegaSync
 {  
 public:
     MegaSyncPrivate(Sync *sync);
-    MegaSyncPrivate(MegaSyncPrivate &sync);
+    MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
 
@@ -429,7 +429,7 @@ class MegaRequestPrivate : public MegaRequest
 {
 	public:
 		MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
-		MegaRequestPrivate(MegaRequestPrivate &request);
+        MegaRequestPrivate(MegaRequestPrivate *request);
 		virtual ~MegaRequestPrivate();
 		MegaRequest *copy();
 		void setNodeHandle(MegaHandle nodeHandle);
@@ -685,7 +685,7 @@ class MegaNodeListPrivate : public MegaNodeList
 		virtual int size();
 	
 	protected:
-		MegaNodeListPrivate(MegaNodeListPrivate& nodeList);
+        MegaNodeListPrivate(MegaNodeListPrivate *nodeList);
 		MegaNode** list;
 		int s;
 };
@@ -701,7 +701,7 @@ class MegaUserListPrivate : public MegaUserList
 		virtual int size();
 	
 	protected:
-		MegaUserListPrivate(MegaUserListPrivate &userList);
+        MegaUserListPrivate(MegaUserListPrivate *userList);
 		MegaUser** list;
 		int s;
 };
@@ -745,7 +745,7 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
         virtual int size();
 
     protected:
-        MegaContactRequestListPrivate(MegaContactRequestListPrivate &requestList);
+        MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList);
         MegaContactRequest** list;
         int s;
 };
