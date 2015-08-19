@@ -258,6 +258,11 @@ bool SyncFileGet::failed(error e)
     if (n->parent && n->parent->localnode)
     {
         n->parent->localnode->treestate(TREESTATE_PENDING);
+
+        if (e == API_EBLOCKED)
+        {
+            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
+        }
     }
 
     return File::failed(e);
