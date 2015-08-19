@@ -521,7 +521,6 @@ freeimage_pkg() {
     local freeimage_file="freeimage-$freeimage_ver.zip"
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
-    local freeimage_params="--disable-shared --enable-static"
 
     package_download $name $freeimage_url $freeimage_file
     if [ $download_only -eq 1 ]; then
@@ -539,19 +538,24 @@ freeimage_pkg() {
         sed -i '/#define HAVE_SEARCH_H 1/d' $freeimage_dir/Source/LibTIFF4/tif_config.h
     fi
 
+    if [ $use_dynamic -eq 0 ]; then
+        export FREEIMAGE_LIBRARY_TYPE=STATIC
+    fi
+
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         package_build $name $freeimage_dir
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
         cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
-
-    # it doesn't detect MinGW
+    # MinGW
     else
         package_build $name $freeimage_dir "-f Makefile.mingw"
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
-        cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || exit 1
-        cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || exit 1
+        # ignore if not present
+        cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || 1
+        cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || 1
+        cp $freeimage_dir/Dist/libFreeImage.a $install_dir/lib || 1
     fi
 }
 
@@ -574,7 +578,8 @@ readline_win_pkg() {
 
     # manually copy binary files
     cp -R $readline_dir/include/* $install_dir/include/ || exit 1
-    cp $readline_dir/lib/* $install_dir/lib/ || exit 1
+    # fix library name
+    cp $readline_dir/lib/libreadline.dll.a $install_dir/lib/libreadline.a || exit 1
 }
 
 build_sdk() {
@@ -586,6 +591,7 @@ build_sdk() {
     local megaapi_flags=""
     local openssl_flags=""
     local sodium_flags=""
+    local cwd=$(pwd)
 
     echo "Configuring MEGA SDK"
 
@@ -659,6 +665,7 @@ build_sdk() {
             --with-sqlite=$install_dir \
             --without-cares \
             --without-curl \
+            --with-winhttp=$cwd \
             $freeimage_flags \
             $readline_flags \
             $disable_posix_threads \
@@ -799,6 +806,14 @@ main() {
     shift $((OPTIND-1))
 
     check_apps
+
+    if [ "$(expr substr $(uname -s) 1 10)" = "MINGW32_NT" ]; then
+        if [ ! -f "$cwd/winhttp.h" -o ! -f "$cwd/winhttp.lib"  ]; then
+            echo "ERROR! Windows build requires WinHTTP header and library to be present in MEGA SDK project folder!"
+            echo "Please get both winhttp.h and winhttp.lib files an put them into the MEGA SDK project's root folder."
+            exit 1
+        fi
+    fi
 
     trap on_exit_error EXIT
 

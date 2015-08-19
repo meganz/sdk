@@ -113,10 +113,6 @@ void File::completed(Transfer* t, LocalNode* l)
             // inaccessible target folder - use / instead
             if (!t->client->nodebyhandle(th))
             {
-                if (syncxfer)
-                {
-                    t->client->sendevent(99401, "Inaccessible target folder in sync upload");
-                }
                 th = t->client->rootnodes[0];
             }
 #ifdef ENABLE_SYNC
@@ -259,9 +255,16 @@ void SyncFileGet::prepare()
 
 bool SyncFileGet::failed(error e)
 {
-    if (n->parenthandle != UNDEF && sync->client->nodebyhandle(n->parenthandle)->localnode)
+    pnode_t parent = sync->client->nodebyhandle(n->parenthandle);
+
+    if (n->parenthandle != UNDEF && parent && parent->localnode)
     {
-        sync->client->nodebyhandle(n->parenthandle)->localnode->treestate(TREESTATE_PENDING);
+        parent->localnode->treestate(TREESTATE_PENDING);
+
+        if (e == API_EBLOCKED)
+        {
+            parent->client->movetosyncdebris(n, parent->localnode->sync->inshare);
+        }
     }
 
     return File::failed(e);

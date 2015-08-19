@@ -127,6 +127,7 @@ void Transfer::complete()
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         pnode_t n;
+        bool fixfingerprint = false;
 
         if (fa->fopen(&localfilename, true, false))
         {
@@ -134,9 +135,17 @@ void Transfer::complete()
 
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
-                delete fa;
-                client->fsaccess->unlinklocal(&localfilename);
-                return failed(API_EWRITE);
+                if (!badfp.isvalid || !(badfp == fingerprint))
+                {
+                    badfp = fingerprint;
+                    delete fa;
+                    client->fsaccess->unlinklocal(&localfilename);
+                    return failed(API_EWRITE);
+                }
+                else
+                {
+                    fixfingerprint = true;
+                }
             }
         }
         delete fa;
@@ -159,7 +168,7 @@ void Transfer::complete()
                     symmcipher = n->nodecipher();
                 }
 
-                if (!n->isvalid && fingerprint.isvalid)
+                if (fingerprint.isvalid && (!n->isvalid || fixfingerprint))
                 {
                     *(FileFingerprint*)n.get() = fingerprint;
 
@@ -167,6 +176,11 @@ void Transfer::complete()
                     client->setattr(n);
                 }
             }
+        }
+
+        if (fingerprint.isvalid && fixfingerprint)
+        {
+            (*(FileFingerprint*)this) = fingerprint;
         }
 
         if (missingattr)
