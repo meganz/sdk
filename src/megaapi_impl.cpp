@@ -4288,7 +4288,7 @@ bool MegaApiImpl::processTree(pnode_t node, TreeProcessor* processor, bool recur
 		{
 			if(recursive)
 			{
-				if(!processTree(*it++,processor))
+                if(!processTree(*it,processor))
 				{
                     sdkMutex.unlock();
 					return 0;
@@ -4296,7 +4296,7 @@ bool MegaApiImpl::processTree(pnode_t node, TreeProcessor* processor, bool recur
 			}
 			else
 			{
-				if(!processor->processNode(*it++))
+                if(!processor->processNode(*it))
 				{
                     sdkMutex.unlock();
 					return 0;
