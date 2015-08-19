@@ -85,6 +85,13 @@ struct MEGA_API FileAccess
     virtual ~FileAccess() { }
 };
 
+struct MEGA_API InputStreamAccess
+{
+    virtual m_off_t size() = 0;
+    virtual bool read(byte *, unsigned) = 0;
+    virtual ~InputStreamAccess() { }
+};
+
 // generic host directory enumeration
 struct MEGA_API DirAccess
 {
