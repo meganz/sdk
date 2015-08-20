@@ -5318,6 +5318,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
     if (nodekeyrewrite.size())
     {
         reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        nodekeyrewrite.clear();
     }
 }
 
