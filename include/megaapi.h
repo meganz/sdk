@@ -5427,6 +5427,18 @@ class MegaApi
         bool isInShare(MegaNode *node);
 
         /**
+         * @brief Check if a MegaNode is pending to be shared with another User. This situation
+         * happens when a node is to be shared with a User which is not a contact yet.
+         *
+         * For nodes that are pending to be shared, you can get a list of MegaNode
+         * objects using MegaApi::getPendingShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is pending to be shared, otherwise false
+         */
+        bool isPendingShare(MegaNode *node);
+
+        /**
          * @brief Get a list with all active outbound sharings
          *
          * You take the ownership of the returned value

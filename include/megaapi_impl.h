@@ -1069,6 +1069,7 @@ class MegaApiImpl : public MegaApp
         bool isShared(MegaNode *node);
         bool isOutShare(MegaNode *node);
         bool isInShare(MegaNode *node);
+        bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();

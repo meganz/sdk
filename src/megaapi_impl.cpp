@@ -4010,6 +4010,24 @@ bool MegaApiImpl::isInShare(MegaNode *megaNode)
     return result;
 }
 
+bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->pendingshares != NULL);
+    sdkMutex.unlock();
+
+    return result;
+}
+
 MegaShareList *MegaApiImpl::getOutShares()
 {
     sdkMutex.lock();

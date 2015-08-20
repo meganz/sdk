@@ -1583,6 +1583,11 @@ bool MegaApi::isInShare(MegaNode *node)
     return pImpl->isInShare(node);
 }
 
+bool MegaApi::isPendingShare(MegaNode *node)
+{
+    return pImpl->isPendingShare(node);
+}
+
 MegaShareList *MegaApi::getOutShares()
 {
     return pImpl->getOutShares();
