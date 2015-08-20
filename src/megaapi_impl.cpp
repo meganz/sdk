@@ -4015,7 +4015,21 @@ MegaShareList *MegaApiImpl::getOutShares()
     sdkMutex.lock();
 
     OutShareProcessor shareProcessor;
-    processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
+
+    string data;
+    pnode_t n;
+    node_vector dp;
+
+    client->sctable->rewindoutshares();
+    while (client->sctable->getoutshare(&data))
+    {
+        n = Node::unserialize(client, &data, &dp);
+        if (n)
+        {
+            shareProcessor.processNode(n);
+        }
+    }
+
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
 
 	sdkMutex.unlock();
@@ -4059,7 +4073,21 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
     sdkMutex.lock();
 
     PendingOutShareProcessor shareProcessor;
-    processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
+
+    string data;
+    pnode_t n;
+    node_vector dp;
+
+    client->sctable->rewindpendingshares();
+    while (client->sctable->getpendingshare(&data))
+    {
+        n = Node::unserialize(client, &data, &dp);
+        if (n)
+        {
+            shareProcessor.processNode(n);
+        }
+    }
+
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
 
     sdkMutex.unlock();

@@ -59,6 +59,7 @@ public:
     void rewindpcr();
     void rewindencryptednode();
     void rewindoutshares(string*);
+    void rewindpendingshares(string*);
     bool next(string*);
 
     bool putscsn(char*, unsigned);

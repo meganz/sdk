@@ -221,6 +221,16 @@ bool DbTable::getoutshare(string *data)
     return false;
 }
 
+bool DbTable::getpendingshare(string *data)
+{
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
 void DbTable::rewindchildren(handle h)
 {
     string hstring;
@@ -239,6 +249,18 @@ void DbTable::rewindoutshares(handle h)
     }
 
     rewindoutshares(&hstring);
+}
+
+// if 'h' is defined, get only the pending shares that are child nodes of 'h'
+void DbTable::rewindpendingshares(handle h)
+{
+    string hstring;
+    if (h != UNDEF)
+    {
+        encrypthandle(h, &hstring);
+    }
+
+    rewindpendingshares(&hstring);
 }
 
 bool DbTable::getchildren(string *data)

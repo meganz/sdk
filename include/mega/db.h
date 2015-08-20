@@ -51,11 +51,13 @@ public:
     virtual void rewindpcr() = 0;
     virtual void rewindencryptednode() = 0;
     virtual void rewindoutshares(handle = UNDEF);
+    virtual void rewindpendingshares(handle = UNDEF);
     bool getrootnodes(handle*);
     bool getuser(string*);
     bool getpcr(string*);
     bool getencryptednode(string*);
     bool getoutshare(string*);
+    bool getpendingshare(string*);
 
     // get records for `scsn`
     virtual bool getscsn(string*) = 0;
@@ -70,6 +72,7 @@ protected:
     virtual bool next(string*) = 0;
     virtual void rewindchildren(string*) = 0;
     virtual void rewindoutshares(string*) = 0;
+    virtual void rewindpendingshares(string*) = 0;
     virtual bool getrootnode(int, string*) = 0;
 
     virtual bool getnumchildren(string*, int*) = 0;

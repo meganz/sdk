@@ -530,6 +530,37 @@ void SqliteDbTable::rewindoutshares(string * ph)
     }
 }
 
+void SqliteDbTable::rewindpendingshares(string * ph)
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    if (ph->empty())
+    {
+        sqlite3_prepare(db, "SELECT node FROM nodes WHERE shared = 3 OR shared = 4", -1, &pStmt, NULL);
+        // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
+    }
+    else
+    {
+        sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ? AND shared = 3 OR shared = 4", -1, &pStmt, NULL);
+        // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
+
+        if (pStmt)
+        {
+            // bind the blob as transient data, so SQLITE makes its own copy
+            // otherwise, calling to next() results in unexpected results, since the blob is already freed
+            sqlite3_bind_blob(pStmt, 1, ph->data(), ph->size(), SQLITE_TRANSIENT);
+        }
+    }
+}
+
 bool SqliteDbTable::next(string *data)
 {
     if (!db)
