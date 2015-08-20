@@ -4016,6 +4016,7 @@ MegaShareList *MegaApiImpl::getOutShares()
 
     OutShareProcessor shareProcessor;
 
+    node_vector nodes;
     string data;
     pnode_t n;
     node_vector dp;
@@ -4026,11 +4027,14 @@ MegaShareList *MegaApiImpl::getOutShares()
         n = Node::unserialize(client, &data, &dp);
         if (n)
         {
+            nodes.push_back(n);
             shareProcessor.processNode(n);
         }
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
+
+    nodes.clear();
 
 	sdkMutex.unlock();
 	return shareList;
@@ -4074,6 +4078,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
 
+    node_vector nodes;
     string data;
     pnode_t n;
     node_vector dp;
@@ -4084,11 +4089,14 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
         n = Node::unserialize(client, &data, &dp);
         if (n)
         {
+            nodes.push_back(n);
             shareProcessor.processNode(n);
         }
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
+
+    nodes.clear();
 
     sdkMutex.unlock();
     return shareList;
