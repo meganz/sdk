@@ -1,3 +1,5 @@
+/tests/sdk_test
+/tests/misc_test
 /contrib/QtCreator/megacli.creator.user
 # Compiled Object files
 *.slo
