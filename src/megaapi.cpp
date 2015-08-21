@@ -1092,6 +1092,11 @@ void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
     pImpl->remove(node, listener);
 }
 
+void MegaApi::cleanRubbishBin(MegaRequestListener *listener)
+{
+    pImpl->cleanRubbishBin(listener);
+}
+
 void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener)
 {
     pImpl->sendFileToUser(node, user, listener);

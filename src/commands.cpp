@@ -3404,4 +3404,25 @@ void CommandSendEvent::procresult()
     }
 }
 
+CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
+{
+    cmd("dr");
+
+    tag = client->reqtag;
+}
+
+void CommandCleanRubbishBin::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->cleanrubbishbin_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->cleanrubbishbin_result(API_EINTERNAL);
+    }
+}
+
+
 } // namespace

@@ -2674,6 +2674,13 @@ void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::cleanRubbishBin(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CLEAN_RUBBISH_BIN, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener)
 {
 	return sendFileToUser(node, user ? user->getEmail() : NULL, listener);
@@ -4902,6 +4909,17 @@ void MegaApiImpl::sessions_killed(handle, error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_KILL_SESSION)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::cleanrubbishbin_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CLEAN_RUBBISH_BIN)) return;
 
     fireOnRequestFinish(request, megaError);
 }
