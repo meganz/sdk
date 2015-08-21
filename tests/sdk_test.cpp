@@ -62,7 +62,7 @@ void SdkTest::TearDown()
     {
         // Remove nodes in Cloud & Rubbish
         purgeTree(megaApi->getRootNode());
-        purgeTree(megaApi->getRubbishNode());
+        megaApi->cleanRubbishBin();
 
         // Remove auxiliar contact
         MegaUserList *ul = megaApi->getContacts();
@@ -170,6 +170,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_IMPORT_LINK:
         h = request->getNodeHandle();
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         responseReceived = true;
         break;
     }
