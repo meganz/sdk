@@ -715,6 +715,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_ESSL:
+            return "SSL verification failed";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:

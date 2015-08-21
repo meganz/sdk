@@ -1432,6 +1432,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         EVP_PKEY_free(evp);
     }
 
+    if (!ok)
+    {
+        LOG_err << "Invalid public key. Possible MITM attack!!";
+        request->sslcheckfailed = true;
+    }
+
     return ok;
 }
 #endif

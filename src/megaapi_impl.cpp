@@ -5780,16 +5780,18 @@ void MegaApiImpl::logout_result(error e)
     if(!e)
     {
         requestMap.erase(request->getTag());
+
+        error preverror = (error)request->getParamType();
         while(!requestMap.empty())
         {
             std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-            if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+            if(it->second) fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
 
         while(!transferMap.empty())
         {
             std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-            if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            if(it->second) fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
 
         pendingUploads = 0;
@@ -5810,7 +5812,7 @@ void MegaApiImpl::logout_result(error e)
         uploadPartialBytes = 0;
         downloadPartialBytes = 0;
 
-        fireOnRequestFinish(request, MegaError(request->getParamType()));
+        fireOnRequestFinish(request, MegaError(preverror));
         return;
     }
     fireOnRequestFinish(request,MegaError(e));
