@@ -216,6 +216,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 // Erase sharekey if no outgoing shares (incl pending) exist
                 if (!n->outshares && !n->pendingshares)
                 {
+                    rewriteforeignkeys(n);
+
                     delete n->sharekey;
                     n->sharekey = NULL;
                 }
@@ -5316,6 +5318,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
     if (nodekeyrewrite.size())
     {
         reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        nodekeyrewrite.clear();
     }
 }
 
