@@ -252,6 +252,12 @@
     <ClInclude Include="..\MContactRequestList.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MInputStream.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MInputStreamAdapter.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -441,6 +447,9 @@
       <Filter>Bindings</Filter>
     </ClCompile>
     <ClCompile Include="..\MContactRequestList.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MInputStreamAdapter.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

@@ -216,6 +216,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 // Erase sharekey if no outgoing shares (incl pending) exist
                 if (!n->outshares && !n->pendingshares)
                 {
+                    rewriteforeignkeys(n);
+
                     delete n->sharekey;
                     n->sharekey = NULL;
                 }
@@ -5316,6 +5318,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
     if (nodekeyrewrite.size())
     {
         reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        nodekeyrewrite.clear();
     }
 }
 
@@ -7379,7 +7382,18 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d] %d %d %d %" PRIi64, (int)nchildren.size(), (int)l->children.size(), !!l->node, ll->type, (int)ll->name.size(), (int)ll->mtime, ll->size);
+                sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
+                    (int)nchildren.size(),
+                    (int)l->children.size(),
+                    l->node ? (int)l->node->children.size() : -1,
+                    (int)synccreate.size(),
+                    syncadding,
+                    ll->type,
+                    (int)ll->name.size(),
+                    (int)ll->mtime,
+                    (int)ll->sync->state,
+                    (int)ll->sync->inshare,
+                    ll->size);
 
                 if (ll->node)
                 {
@@ -7395,15 +7409,14 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size);
+                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
-
                 }
 
                 // report a "dupe" event
                 int creqtag = reqtag;
                 reqtag = 0;
-                reportevent("D", report);
+                reportevent("D2", report);
                 reqtag = creqtag;
             }
             else

@@ -21,9 +21,9 @@
 *.exe
 *.out
 *.app
-tests/api_test
+/tests/sdk_test
+/tests/misc_test
 examples/megacli
-doc/example/lsmega
 examples/megasimplesync
 examples/linux/megafuse
 
@@ -67,6 +67,7 @@ doc/_build
 doc/api
 doc/sphinx_api
 doc/Doxyfile
+doc/example/lsmega
 
 # Editor and IDE stuff
 *~
@@ -76,6 +77,7 @@ doc/Doxyfile
 *~
 Debug
 Release
+/contrib/QtCreator/megacli.creator.user
 
 # Mega SDK runtime
 *.db-journal

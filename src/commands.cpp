@@ -805,7 +805,10 @@ void CommandPutNodes::procresult()
         {
             if (e == API_EACCESS)
             {
+                int creqtag = client->reqtag;
+                client->reqtag = 0;
                 client->sendevent(99402, "API_EACCESS putting node in sync transfer");
+                client->reqtag = creqtag;
             }
 
             client->app->putnodes_result(e, type, NULL);

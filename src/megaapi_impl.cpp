@@ -622,7 +622,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->lastError = API_OK;
 }
 
-MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
+MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
 {
     path = NULL;
     parentPath = NULL;
@@ -630,35 +630,35 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate &transfer)
     publicNode = NULL;
 	lastBytes = NULL;
 
-    this->listener = transfer.getListener();
-    this->transfer = transfer.getTransfer();
-	this->type = transfer.getType();
-	this->setTag(transfer.getTag());
-	this->setPath(transfer.getPath());
-	this->setNodeHandle(transfer.getNodeHandle());
-	this->setParentHandle(transfer.getParentHandle());
-	this->setStartPos(transfer.getStartPos());
-	this->setEndPos(transfer.getEndPos());
-	this->setParentPath(transfer.getParentPath());
-	this->setNumRetry(transfer.getNumRetry());
-	this->setMaxRetries(transfer.getMaxRetries());
-	this->setTime(transfer.getTime());
-	this->setStartTime(transfer.getStartTime());
-	this->setTransferredBytes(transfer.getTransferredBytes());
-	this->setTotalBytes(transfer.getTotalBytes());
-	this->setFileName(transfer.getFileName());
-	this->setSpeed(transfer.getSpeed());
-	this->setDeltaSize(transfer.getDeltaSize());
-	this->setUpdateTime(transfer.getUpdateTime());
-    this->setPublicNode(transfer.getPublicNode());
-    this->setTransfer(transfer.getTransfer());
-    this->setSyncTransfer(transfer.isSyncTransfer());
-    this->setLastErrorCode(transfer.getLastErrorCode());
+    this->listener = transfer->getListener();
+    this->transfer = transfer->getTransfer();
+    this->type = transfer->getType();
+    this->setTag(transfer->getTag());
+    this->setPath(transfer->getPath());
+    this->setNodeHandle(transfer->getNodeHandle());
+    this->setParentHandle(transfer->getParentHandle());
+    this->setStartPos(transfer->getStartPos());
+    this->setEndPos(transfer->getEndPos());
+    this->setParentPath(transfer->getParentPath());
+    this->setNumRetry(transfer->getNumRetry());
+    this->setMaxRetries(transfer->getMaxRetries());
+    this->setTime(transfer->getTime());
+    this->setStartTime(transfer->getStartTime());
+    this->setTransferredBytes(transfer->getTransferredBytes());
+    this->setTotalBytes(transfer->getTotalBytes());
+    this->setFileName(transfer->getFileName());
+    this->setSpeed(transfer->getSpeed());
+    this->setDeltaSize(transfer->getDeltaSize());
+    this->setUpdateTime(transfer->getUpdateTime());
+    this->setPublicNode(transfer->getPublicNode());
+    this->setTransfer(transfer->getTransfer());
+    this->setSyncTransfer(transfer->isSyncTransfer());
+    this->setLastErrorCode(transfer->getLastErrorCode());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
 {
-	return new MegaTransferPrivate(*this);
+    return new MegaTransferPrivate(this);
 }
 
 void MegaTransferPrivate::setTransfer(Transfer *transfer)
@@ -1002,16 +1002,16 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *requ
     outgoing = request->isoutgoing;
 }
 
-MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest &request)
+MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest *request)
 {
-    handle = request.getHandle();
-    sourceEmail = MegaApi::strdup(request.getSourceEmail());
-    sourceMessage = MegaApi::strdup(request.getSourceMessage());
-    targetEmail = MegaApi::strdup(request.getTargetEmail());
-    creationTime = request.getCreationTime();
-    modificationTime = request.getModificationTime();
-    status = request.getStatus();
-    outgoing = request.isOutgoing();
+    handle = request->getHandle();
+    sourceEmail = MegaApi::strdup(request->getSourceEmail());
+    sourceMessage = MegaApi::strdup(request->getSourceMessage());
+    targetEmail = MegaApi::strdup(request->getTargetEmail());
+    creationTime = request->getCreationTime();
+    modificationTime = request->getModificationTime();
+    status = request->getStatus();
+    outgoing = request->isOutgoing();
 }
 
 MegaContactRequestPrivate::~MegaContactRequestPrivate()
@@ -1028,7 +1028,7 @@ MegaContactRequest *MegaContactRequestPrivate::fromContactRequest(PendingContact
 
 MegaContactRequest *MegaContactRequestPrivate::copy() const
 {
-    return new MegaContactRequestPrivate(*this);
+    return new MegaContactRequestPrivate(this);
 }
 
 MegaHandle MegaContactRequestPrivate::getHandle() const
@@ -1087,7 +1087,7 @@ MegaAccountDetailsPrivate::~MegaAccountDetailsPrivate()
 
 MegaRequest *MegaRequestPrivate::copy()
 {
-	return new MegaRequestPrivate(*this);
+    return new MegaRequestPrivate(this);
 }
 
 MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
@@ -1139,7 +1139,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     }
 }
 
-MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
+MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 {
     this->link = NULL;
     this->sessionKey = NULL;
@@ -1154,40 +1154,40 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate &request)
     this->file = NULL;
     this->publicNode = NULL;
 
-    this->type = request.getType();
-    this->setTag(request.getTag());
-	this->setNodeHandle(request.getNodeHandle());
-	this->setLink(request.getLink());
-	this->setParentHandle(request.getParentHandle());
-    this->setSessionKey(request.getSessionKey());
-	this->setName(request.getName());
-	this->setEmail(request.getEmail());
-	this->setPassword(request.getPassword());
-	this->setNewPassword(request.getNewPassword());
-	this->setPrivateKey(request.getPrivateKey());
-	this->setAccess(request.getAccess());
-	this->setNumRetry(request.getNumRetry());
+    this->type = request->getType();
+    this->setTag(request->getTag());
+    this->setNodeHandle(request->getNodeHandle());
+    this->setLink(request->getLink());
+    this->setParentHandle(request->getParentHandle());
+    this->setSessionKey(request->getSessionKey());
+    this->setName(request->getName());
+    this->setEmail(request->getEmail());
+    this->setPassword(request->getPassword());
+    this->setNewPassword(request->getNewPassword());
+    this->setPrivateKey(request->getPrivateKey());
+    this->setAccess(request->getAccess());
+    this->setNumRetry(request->getNumRetry());
 	this->numDetails = 0;
-	this->setFile(request.getFile());
-    this->setParamType(request.getParamType());
-    this->setText(request.getText());
-    this->setNumber(request.getNumber());
-    this->setPublicNode(request.getPublicNode());
-    this->setFlag(request.getFlag());
-    this->setTransferTag(request.getTransferTag());
-    this->setTotalBytes(request.getTotalBytes());
-    this->setTransferredBytes(request.getTransferredBytes());
-	this->listener = request.getListener();
+    this->setFile(request->getFile());
+    this->setParamType(request->getParamType());
+    this->setText(request->getText());
+    this->setNumber(request->getNumber());
+    this->setPublicNode(request->getPublicNode());
+    this->setFlag(request->getFlag());
+    this->setTransferTag(request->getTransferTag());
+    this->setTotalBytes(request->getTotalBytes());
+    this->setTransferredBytes(request->getTransferredBytes());
+    this->listener = request->getListener();
 #ifdef ENABLE_SYNC
-    this->syncListener = request.getSyncListener();
+    this->syncListener = request->getSyncListener();
 #endif
-    this->megaPricing = (MegaPricingPrivate *)request.getPricing();
+    this->megaPricing = (MegaPricingPrivate *)request->getPricing();
 
     this->accountDetails = NULL;
-	if(request.getAccountDetails())
+    if(request->getAccountDetails())
     {
 		this->accountDetails = new AccountDetails();
-        *(this->accountDetails) = *(request.getAccountDetails());
+        *(this->accountDetails) = *(request->getAccountDetails());
 	}
 }
 
@@ -1603,9 +1603,9 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate& nodeList)
+MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList)
 {
-	s = nodeList.size();
+    s = nodeList->size();
 	if (!s)
 	{
 		list = NULL;
@@ -1614,7 +1614,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate& nodeList)
 
 	list = new MegaNode*[s];
 	for (int i = 0; i<s; i++)
-		list[i] = new MegaNodePrivate(nodeList.get(i));
+        list[i] = new MegaNodePrivate(nodeList->get(i));
 }
 
 MegaNodeListPrivate::~MegaNodeListPrivate()
@@ -1629,7 +1629,7 @@ MegaNodeListPrivate::~MegaNodeListPrivate()
 
 MegaNodeList *MegaNodeListPrivate::copy()
 {
-	return new MegaNodeListPrivate(*this);
+    return new MegaNodeListPrivate(this);
 }
 
 MegaNode *MegaNodeListPrivate::get(int i)
@@ -1664,9 +1664,9 @@ MegaUserListPrivate::MegaUserListPrivate(User** newlist, int size)
 		list[i] = MegaUserPrivate::fromUser(newlist[i]);
 }
 
-MegaUserListPrivate::MegaUserListPrivate(MegaUserListPrivate &userList)
+MegaUserListPrivate::MegaUserListPrivate(MegaUserListPrivate *userList)
 {
-	s = userList.size();
+    s = userList->size();
 	if (!s)
 	{
 		list = NULL;
@@ -1674,7 +1674,7 @@ MegaUserListPrivate::MegaUserListPrivate(MegaUserListPrivate &userList)
 	}
 	list = new MegaUser*[s];
 	for (int i = 0; i<s; i++)
-		list[i] = new MegaUserPrivate(userList.get(i));
+        list[i] = new MegaUserPrivate(userList->get(i));
 }
 
 MegaUserListPrivate::~MegaUserListPrivate()
@@ -1690,7 +1690,7 @@ MegaUserListPrivate::~MegaUserListPrivate()
 
 MegaUserList *MegaUserListPrivate::copy()
 {
-	return new MegaUserListPrivate(*this);
+    return new MegaUserListPrivate(this);
 }
 
 MegaUser *MegaUserListPrivate::get(int i)
@@ -1822,7 +1822,7 @@ MegaContactRequestListPrivate::~MegaContactRequestListPrivate()
 
 MegaContactRequestList *MegaContactRequestListPrivate::copy()
 {
-    return new MegaContactRequestListPrivate(*this);
+    return new MegaContactRequestListPrivate(this);
 }
 
 MegaContactRequest *MegaContactRequestListPrivate::get(int i)
@@ -1838,9 +1838,9 @@ int MegaContactRequestListPrivate::size()
     return s;
 }
 
-MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestListPrivate &requestList)
+MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList)
 {
-    s = requestList.size();
+    s = requestList->size();
     if (!s)
     {
         list = NULL;
@@ -1848,7 +1848,7 @@ MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestL
     }
     list = new MegaContactRequest*[s];
     for (int i = 0; i < s; i++)
-        list[i] = new MegaContactRequestPrivate(*requestList.get(i));
+        list[i] = new MegaContactRequestPrivate(requestList->get(i));
 }
 
 int MegaFile::nextseqno = 0;
@@ -3200,7 +3200,7 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
-bool MegaApiImpl::areTansfersPaused(int direction)
+bool MegaApiImpl::areTransfersPaused(int direction)
 {
     if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
     {
@@ -3968,10 +3968,46 @@ bool MegaApiImpl::isShared(MegaNode *megaNode)
 		return false;
 	}
 
-    bool result = (node->outshares != NULL);
+    bool result = (node->outshares != NULL) || ((node->inshare != NULL) && !node->parent);
 	sdkMutex.unlock();
 
 	return result;
+}
+
+bool MegaApiImpl::isOutShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->outshares != NULL);
+    sdkMutex.unlock();
+
+    return result;
+}
+
+bool MegaApiImpl::isInShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->inshare != NULL) && !node->parent;
+    sdkMutex.unlock();
+
+    return result;
 }
 
 MegaShareList *MegaApiImpl::getOutShares()
@@ -4370,6 +4406,37 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     int l = Serialize64::serialize((byte *)bsize, size);
     char *buf = new char[l * 4 / 3 + 4];
     char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    string result(1, ssize);
+    result.append(buf);
+    result.append(fingerprint);
+    delete [] buf;
+
+    return MegaApi::strdup(result.c_str());
+}
+
+char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
+{
+    if(!inputStream) return NULL;
+
+    ExternalInputStream is(inputStream);
+    m_off_t size = is.size();
+    if(size < 0)
+        return NULL;
+
+    FileFingerprint fp;
+    fp.genfingerprint(&is, mtime);
+
+    if(fp.size < 0)
+        return NULL;
+
+    string fingerprint;
+    fp.serializefingerprint(&fingerprint);
+
+    char bsize[sizeof(size)+1];
+    int l = Serialize64::serialize((byte *)bsize, size);
+    char *buf = new char[l * 4 / 3 + 4];
+    char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+
     string result(1, ssize);
     result.append(buf);
     result.append(fingerprint);
@@ -9426,14 +9493,14 @@ MegaSyncPrivate::MegaSyncPrivate(Sync *sync)
     this->listener = NULL;
 }
 
-MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate &sync)
+MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 {
-    this->setTag(sync.getTag());
-    this->setLocalFolder(sync.getLocalFolder());
-    this->setMegaHandle(sync.getMegaHandle());
-    this->setLocalFingerprint(sync.getLocalFingerprint());
-    this->setState(sync.getState());
-    this->setListener(sync.getListener());
+    this->setTag(sync->getTag());
+    this->setLocalFolder(sync->getLocalFolder());
+    this->setMegaHandle(sync->getMegaHandle());
+    this->setLocalFingerprint(sync->getLocalFingerprint());
+    this->setState(sync->getState());
+    this->setListener(sync->getListener());
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
@@ -9442,7 +9509,7 @@ MegaSyncPrivate::~MegaSyncPrivate()
 
 MegaSync *MegaSyncPrivate::copy()
 {
-    return new MegaSyncPrivate(*this);
+    return new MegaSyncPrivate(this);
 }
 
 MegaHandle MegaSyncPrivate::getMegaHandle() const
@@ -9781,3 +9848,60 @@ MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransa
     this->transaction = *transaction;
 }
 
+
+
+ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)
+{
+    this->inputStream = inputStream;
+}
+
+m_off_t ExternalInputStream::size()
+{
+    return inputStream->getSize();
+}
+
+bool ExternalInputStream::read(byte *buffer, unsigned size)
+{
+    return inputStream->read((char *)buffer, size);
+}
+
+
+FileInputStream::FileInputStream(FileAccess *fileAccess)
+{
+    this->fileAccess = fileAccess;
+    this->offset = 0;
+}
+
+m_off_t FileInputStream::size()
+{
+    return fileAccess->size;
+}
+
+bool FileInputStream::read(byte *buffer, unsigned size)
+{
+    if (!buffer)
+    {
+        if ((offset + size) <= fileAccess->size)
+        {
+            offset += size;
+            return true;
+        }
+
+        LOG_warn << "Invalid seek on FileInputStream";
+        return false;
+    }
+
+    if (fileAccess->sysread(buffer, size, offset))
+    {
+        offset += size;
+        return true;
+    }
+
+    LOG_warn << "Invalid read on FileInputStream";
+    return false;
+}
+
+FileInputStream::~FileInputStream()
+{
+
+}
