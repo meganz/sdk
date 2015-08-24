@@ -2920,6 +2920,14 @@ class MegaListener
         virtual ~MegaListener();
 };
 
+class MegaInputStream
+{
+public:
+    virtual int64_t getSize();
+    virtual bool read(char *buffer, size_t size);
+    virtual ~MegaInputStream();
+};
+
 class MegaApiImpl;
 
 /**
@@ -5535,6 +5543,9 @@ class MegaApi
          * @return Base64-encoded fingerprint for the file
          */
         char *getFingerprint(MegaNode *node);
+
+
+        char* getFingerprint(MegaInputStream *inputStream, int64_t mtime);
 
         /**
          * @brief Returns a node with the provided fingerprint

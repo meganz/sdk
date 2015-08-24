@@ -4414,6 +4414,37 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(result.c_str());
 }
 
+char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
+{
+    if(!inputStream) return NULL;
+
+    ExternalInputStream is(inputStream);
+    m_off_t size = is.size();
+    if(size < 0)
+        return NULL;
+
+    FileFingerprint fp;
+    fp.genfingerprint(&is, mtime);
+
+    if(fp.size < 0)
+        return NULL;
+
+    string fingerprint;
+    fp.serializefingerprint(&fingerprint);
+
+    char bsize[sizeof(size)+1];
+    int l = Serialize64::serialize((byte *)bsize, size);
+    char *buf = new char[l * 4 / 3 + 4];
+    char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+
+    string result(1, ssize);
+    result.append(buf);
+    result.append(fingerprint);
+    delete [] buf;
+
+    return MegaApi::strdup(result.c_str());
+}
+
 MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
 {
     if(!fingerprint) return NULL;
@@ -9817,3 +9848,60 @@ MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransa
     this->transaction = *transaction;
 }
 
+
+
+ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)
+{
+    this->inputStream = inputStream;
+}
+
+m_off_t ExternalInputStream::size()
+{
+    return inputStream->getSize();
+}
+
+bool ExternalInputStream::read(byte *buffer, unsigned size)
+{
+    return inputStream->read((char *)buffer, size);
+}
+
+
+FileInputStream::FileInputStream(FileAccess *fileAccess)
+{
+    this->fileAccess = fileAccess;
+    this->offset = 0;
+}
+
+m_off_t FileInputStream::size()
+{
+    return fileAccess->size;
+}
+
+bool FileInputStream::read(byte *buffer, unsigned size)
+{
+    if (!buffer)
+    {
+        if ((offset + size) <= fileAccess->size)
+        {
+            offset += size;
+            return true;
+        }
+
+        LOG_warn << "Invalid seek on FileInputStream";
+        return false;
+    }
+
+    if (fileAccess->sysread(buffer, size, offset))
+    {
+        offset += size;
+        return true;
+    }
+
+    LOG_warn << "Invalid read on FileInputStream";
+    return false;
+}
+
+FileInputStream::~FileInputStream()
+{
+
+}
