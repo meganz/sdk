@@ -866,6 +866,8 @@ void MegaClient::exec()
                                 }
 
                                 app->request_error(e);
+                                delete pendingcs;
+                                pendingcs = NULL;
                                 break;
                             }
 
@@ -878,6 +880,8 @@ void MegaClient::exec()
                         if (pendingcs->sslcheckfailed)
                         {
                             app->request_error(API_ESSL);
+                            delete pendingcs;
+                            pendingcs = NULL;
                             break;
                         }
 
