@@ -20,7 +20,6 @@
  */
 
 #include "mega/share.h"
-#include "logging.h"
 
 namespace mega {
 Share::Share(User* u, accesslevel_t a, m_time_t t, PendingContactRequest* pending)
