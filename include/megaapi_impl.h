@@ -132,6 +132,20 @@ private:
     MegaLogger *megaLogger;
 };
 
+class MegaFolderUploadListener : public MegaRequestListener
+{
+public:
+    MegaFolderUploadListener(MegaClient *client, string *localPath, MegaTransferListener *listener);
+
+protected:
+    string localPath;
+    MegaClient *client;
+    MegaTransferListener *listener;
+
+public:
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+};
+
 class MegaNodePrivate : public MegaNode
 {
     public:

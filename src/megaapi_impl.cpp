@@ -7640,52 +7640,71 @@ void MegaApiImpl::sendPendingTransfers()
                     break;
                 }
 
-                currentTransfer = transfer;
 				string tmpString = localPath;
 				string wLocalPath;
 				client->fsaccess->path2local(&tmpString, &wLocalPath);
 
-                string wFileName = fileName;
-                MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
-
-                bool started = client->startxfer(PUT, f, true);
-                if(!started)
+                FileAccess *fa = fsAccess->newfileaccess();
+                if(!fa->fopen(&wLocalPath, true, false))
                 {
-                    if(!f->isvalid)
-                    {
-                        //Unable to read the file
-                        transfer->setSyncTransfer(false);
-                        transferMap[nextTag]=transfer;
-                        transfer->setTag(nextTag);
-                        fireOnTransferStart(transfer);
-                        fireOnTransferFinish(transfer, MegaError(API_EREAD));
-                    }
-                    else
-                    {
-                        //Already existing transfer
-                        transferMap[nextTag]=transfer;
-                        transfer->setTag(nextTag);
-                        fireOnTransferStart(transfer);
-                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
-                    }
+                    e = API_EREAD;
+                    break;
                 }
-                else if(transfer->getTag() == -1)
+
+                nodetype_t type = fa->type;
+                delete fa;
+
+                if(type == FILENODE)
                 {
-                    //Already existing transfer
-                    //Delete the new one and set the transfer as regular
-                    transfer_map::iterator it = client->transfers[PUT].find(f);
-                    if(it != client->transfers[PUT].end())
+                    currentTransfer = transfer;
+                    string wFileName = fileName;
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
+
+                    bool started = client->startxfer(PUT, f, true);
+                    if(!started)
                     {
-                        int previousTag = it->second->tag;
-                        if(transferMap.find(previousTag) != transferMap.end())
+                        if(!f->isvalid)
                         {
-                            MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
-                            previousTransfer->setSyncTransfer(false);
-                            delete transfer;
+                            //Unable to read the file
+                            transfer->setSyncTransfer(false);
+                            transferMap[nextTag]=transfer;
+                            transfer->setTag(nextTag);
+                            fireOnTransferStart(transfer);
+                            fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                        }
+                        else
+                        {
+                            //Already existing transfer
+                            transferMap[nextTag]=transfer;
+                            transfer->setTag(nextTag);
+                            fireOnTransferStart(transfer);
+                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
+                    else if(transfer->getTag() == -1)
+                    {
+                        //Already existing transfer
+                        //Delete the new one and set the transfer as regular
+                        transfer_map::iterator it = client->transfers[PUT].find(f);
+                        if(it != client->transfers[PUT].end())
+                        {
+                            int previousTag = it->second->tag;
+                            if(transferMap.find(previousTag) != transferMap.end())
+                            {
+                                MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
+                                previousTransfer->setSyncTransfer(false);
+                                delete transfer;
+                            }
+                        }
+                    }
+                    currentTransfer=NULL;
                 }
-                currentTransfer=NULL;
+                else
+                {
+                    MegaNode *megaParent = this->getNodeByHandle(parent->nodehandle);
+                    createFolder(fileName, megaParent, new MegaFolderUploadListener(client, &wLocalPath, transfer->getListener()));
+                    delete megaParent;
+                }
 				break;
 			}
 			case MegaTransfer::TYPE_DOWNLOAD:
@@ -10144,4 +10163,62 @@ bool FileInputStream::read(byte *buffer, unsigned size)
 FileInputStream::~FileInputStream()
 {
 
+}
+
+
+MegaFolderUploadListener::MegaFolderUploadListener(MegaClient *client, string *localPath, MegaTransferListener *listener)
+{
+    this->client = client;
+    this->localPath = *localPath;
+    this->listener = listener;
+}
+
+void MegaFolderUploadListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+{
+    if(e->getErrorCode() == MegaError::API_OK)
+    {
+        MegaNode *parent = api->getNodeByHandle(request->getNodeHandle());
+
+        string localname;
+        DirAccess* da;
+        da = client->fsaccess->newdiraccess();
+        if (da->dopen(&localPath, NULL, false))
+        {
+            size_t t = localPath.size();
+
+            while (da->dnext(&localPath, &localname, client->followsymlinks))
+            {
+                if (t)
+                {
+                    localPath.append(client->fsaccess->localseparator);
+                }
+
+                localPath.append(localname);
+
+                FileAccess *fa = client->fsaccess->newfileaccess();
+                if(fa->fopen(&localPath, true, false))
+                {
+                    if(fa->type == FILENODE)
+                    {
+                        string utf8path;
+                        client->fsaccess->local2path(&localPath, &utf8path);
+                        api->startUpload(utf8path.c_str(), parent, listener);
+                    }
+                    else
+                    {
+                        string name = localname;
+                        client->fsaccess->local2name(&name);
+                        api->createFolder(name.c_str(), parent, new MegaFolderUploadListener(client, &localPath, listener));
+                    }
+                }
+
+                localPath.resize(t);
+                delete fa;
+            }
+        }
+
+        delete parent;
+    }
+
+    delete this;
 }
