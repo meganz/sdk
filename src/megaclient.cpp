@@ -559,6 +559,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
 {
     sctable = NULL;
+    cachednodes = NULL;
     me = UNDEF;
     followsymlinks = false;
     usealtdownport = false;
@@ -651,6 +652,7 @@ MegaClient::~MegaClient()
     delete badhostcs;
     delete loadbalancingcs;
     delete sctable;
+    delete cachednodes;
     delete dbaccess;
 }
 
@@ -2084,6 +2086,7 @@ void MegaClient::logout()
         if (sctable)
         {
             sctable->remove();
+            cachednodes->clear();
         }
 
 #ifdef ENABLE_SYNC
@@ -2113,6 +2116,9 @@ void MegaClient::locallogout()
 
     delete sctable;
     sctable = NULL;
+
+    delete cachednodes;
+    cachednodes = NULL;
 
     me = UNDEF;
 
@@ -2492,22 +2498,24 @@ void MegaClient::updatesc()
 
         if (complete)
         {
+            pnode_t n;
             // 3. write new or modified nodes, purge deleted nodes
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
+                n = *it;
                 char base64[12];
-                if ((*it)->changed.removed)
+                if (n->changed.removed)
                 {
-                    LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->delnode(*it)))
+                    LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&(n->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!cachednodes->remove(n))
                     {
                         break;
                     }
                 }
                 else
                 {
-                    LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->putnode(*it)))
+                    LOG_verbose << "Adding/updating node to database: " << (Base64::btoa((byte*)&(n->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!cachednodes->put(n))
                     {
                         break;
                     }
@@ -2557,24 +2565,17 @@ void MegaClient::finalizesc(bool complete)
     {
         sctable->abort();
         sctable->truncate();
+        cachednodes->clear();
 
         LOG_err << "Cache update DB write error - disabling caching";
 
         delete sctable;
         sctable = NULL;
+
+        delete cachednodes;
+        cachednodes = NULL;
     }
 
-}
-
-void MegaClient::addnodetosc(pnode_t n)
-{
-    if(sctable)
-    {
-        if (!sctable->putnode(n))
-        {
-            finalizesc(false);
-        }
-    }
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -3718,18 +3719,7 @@ pnode_t MegaClient::nodebyhandle(handle h)
         }
     }
 
-    // if node was not found, search for it in local cache
-    string data;
-    if (sctable->getnode(h, &data))
-    {
-        pnode_t n;
-        node_vector dp;
-
-        n = Node::unserialize(this, &data, &dp);
-        return n;
-    }
-
-    return NULL;
+    return cachednodes->get(h);
 }
 
 // server-client deletion
@@ -4405,7 +4395,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n->applykey();
-                addnodetosc(n);
+                cachednodes->put(n);
                 nodescount++;
 
                 // set rootnodes[] in client as entry point for each tree
@@ -4465,7 +4455,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
-            addnodetosc(dp[i]);     // if parent updated, update the node in DB
+            cachednodes->put(dp[i]);    // if parent updated, update the node in DB
         }
     }
 
@@ -4811,8 +4801,6 @@ void MegaClient::readopc(JSON *j)
 int MegaClient::applykeys()
 {
     int t = 0;
-    string data;
-    node_vector dp;
 
     // notified nodes may have been modified, but not stored in DB yet
     for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
@@ -4825,24 +4813,31 @@ int MegaClient::applykeys()
 
             if (!n->attrstring)
             {
-                addnodetosc(n);
+                cachednodes->put(n);
                 t++;
             }
         }
     }
 
     // apply keys also to not notified nodes, but encrypted nodes stored in DB
-    sctable->rewindencryptednode();
-    while (sctable->getencryptednode(&data))
-    {
-        pnode_t n = Node::unserialize(this, &data, &dp);
+    handle_vector *hencryptednodes = sctable->gethandlesencryptednodes();
 
+    pnode_t n;
+    handle_vector::iterator it = hencryptednodes->begin();
+    while (it != hencryptednodes->end())
+    {
+        n = cachednodes->get(*it);
         if (n->applykey())
         {
-            addnodetosc(n);
+            cachednodes->put(n);
             t++;
         }
+
+        it++;
     }
+
+    delete hencryptednodes;
+
 
     if (sharekeyrewrite.size())
     {
@@ -5163,6 +5158,9 @@ void MegaClient::opensctable()
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
         sctable = dbaccess->open(fsaccess, &dbname, &key);
+
+        if (!cachednodes)
+            cachednodes = new NodesCache(this);
     }
 }
 
@@ -6420,6 +6418,7 @@ void MegaClient::fetchnodes()
     if (sctable && cachedscsn == UNDEF)
     {
         sctable->truncate();
+        cachednodes->clear();
     }
 
     // only initial load from local cache
@@ -8045,38 +8044,67 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
 
 pnode_t MegaClient::nodebyfingerprint(string* fingerprint)
 {
-    string data;
-    if (sctable->getnode(fingerprint, &data))
-    {
-        pnode_t n;
-        node_vector dp;
-
-        n = Node::unserialize(this, &data, &dp);
-        return n;
-    }
-
-    return NULL;
+    return cachednodes->get(fingerprint);
 }
 
-shared_ptr<vector<pnode_t > > MegaClient::getchildren(pnode_t node)
+shared_ptr<node_vector> MegaClient::getchildren(pnode_t node)
 {
-    shared_ptr<vector<pnode_t>> children = make_shared<vector<pnode_t>>();
+    handle_vector *hchildren = sctable->gethandleschildren(node->nodehandle);
 
-    string data;
-    node_vector dp;
+    shared_ptr<node_vector> children = make_shared<node_vector>();
 
-    sctable->rewindchildren(node->nodehandle);
-
-    while (sctable->getchildren(&data))
+    pnode_t n;
+    handle_vector::iterator it = hchildren->begin();
+    while (it != hchildren->end())
     {
-        pnode_t n = Node::unserialize(this, &data, &dp);
-        if (n)
-        {
-            children->push_back(n);
-        }
+        n = cachednodes->get(*it);
+        children->push_back(n);
+
+        it++;
     }
 
+    delete hchildren;
     return children;
+}
+
+shared_ptr<node_vector> MegaClient::getoutshares(handle ph)
+{
+    shared_ptr<node_vector> outshares = make_shared<node_vector>();
+
+    handle_vector *houtshares = sctable->gethandlesoutshares(ph);
+
+    pnode_t n;
+    handle_vector::iterator it = houtshares->begin();
+    while (it != houtshares->end())
+    {
+        n = cachednodes->get(*it);
+        outshares->push_back(n);
+
+        it++;
+    }
+
+    delete houtshares;
+    return outshares;
+}
+
+shared_ptr<node_vector> MegaClient::getpendingshares(handle ph)
+{
+    shared_ptr<node_vector> pendingshares = make_shared<node_vector>();
+
+    handle_vector *hpendingshares = sctable->gethandlespendingshares(ph);
+
+    pnode_t n;
+    handle_vector::iterator it = hpendingshares->begin();
+    while (it != hpendingshares->end())
+    {
+        n = cachednodes->get(*it);
+        pendingshares->push_back(n);
+
+        it++;
+    }
+
+    delete hpendingshares;
+    return pendingshares;
 }
 
 int MegaClient::getnumchildren(handle h)

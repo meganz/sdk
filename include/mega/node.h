@@ -283,6 +283,32 @@ struct MEGA_API LocalNode : public File, Cachable
     ~LocalNode();
 };
 #endif
+
+#define MAXCACHESIZE 100   // maximum number of elements to keep in RAM
+
+struct MEGA_API NodesCache {
+
+    MegaClient *client;
+
+    list<pnode_t> nodes;
+    int maxsize;
+
+    pnode_t get(handle h);
+    pnode_t get(string *fingerprint);
+
+    bool put(pnode_t n);
+    bool remove(pnode_t n);
+
+    void movetofront(list<pnode_t>::iterator n);
+    void add(pnode_t n);
+
+    void clear();
+
+    NodesCache(MegaClient *client);
+    ~NodesCache();
+};
+
+
 } // namespace
 
 #endif

@@ -475,8 +475,10 @@ public:
     void initsc();
     void updatesc();
     void finalizesc(bool);
-    void addnodetosc(pnode_t);
     int nodescount;     // for counting the added/updated nodes at fetchnodes
+
+    // cache of Most Recently Used nodes
+    NodesCache *cachednodes;
 
     // MegaClient-Server response JSON
     JSON json;
@@ -568,7 +570,7 @@ public:
     node_vector nodenotify;
     void notifynode(pnode_t);
 
-    // write changed/added/deleted users to the DB cache and notify the
+    // write changed/added/deleted nodes/users to the DB cache and notify the
     // application
     void notifypurge();
 
@@ -577,7 +579,9 @@ public:
 
     pnode_t nodebyhandle(handle);
     pnode_t nodebyfingerprint(string *);
-    shared_ptr<vector<pnode_t>> getchildren(pnode_t node);
+    shared_ptr<node_vector> getchildren(pnode_t node);
+    shared_ptr<node_vector> getoutshares(handle = UNDEF);
+    shared_ptr<node_vector> getpendingshares(handle = UNDEF);
     int getnumchildren(handle);
     int getnumchildfiles(handle);
     int getnumchildfolders(handle);

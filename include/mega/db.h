@@ -46,38 +46,37 @@ protected:
 
 public:
     // for a sequential read
-    void rewindchildren(handle);
     virtual void rewinduser() = 0;
     virtual void rewindpcr() = 0;
-    virtual void rewindencryptednode() = 0;
-    virtual void rewindoutshares(handle = UNDEF);
-    virtual void rewindpendingshares(handle = UNDEF);
     bool getrootnodes(handle*);
     bool getuser(string*);
     bool getpcr(string*);
-    bool getencryptednode(string*);
-    bool getoutshare(string*);
-    bool getpendingshare(string*);
 
     // get records for `scsn`
     virtual bool getscsn(string*) = 0;
 
-    bool getchildren(string*);
     bool getnumchildren(handle, int*);
     bool getnumchildfiles(handle, int*);
     bool getnumchildfolders(handle, int*);
 
+    handle_vector *gethandleschildren(handle);
+    handle_vector *gethandlesencryptednodes();
+    handle_vector *gethandlesoutshares(handle);
+    handle_vector *gethandlespendingshares(handle);
+
 protected:
     // get sequential records for Users, child nodes...
     virtual bool next(string*) = 0;
-    virtual void rewindchildren(string*) = 0;
-    virtual void rewindoutshares(string*) = 0;
-    virtual void rewindpendingshares(string*) = 0;
     virtual bool getrootnode(int, string*) = 0;
 
     virtual bool getnumchildren(string*, int*) = 0;
     virtual bool getnumchildfiles(string*, int*) = 0;
     virtual bool getnumchildfolders(string*, int*) = 0;
+
+    virtual void rewindhandleschildren(string *) = 0;
+    virtual void rewindhandlesencryptednodes() = 0;
+    virtual void rewindhandlesoutshares(string *) = 0;
+    virtual void rewindhandlespendingshares(string *) = 0;
 
 public:
     // update or add specific record

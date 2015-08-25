@@ -4016,25 +4016,13 @@ MegaShareList *MegaApiImpl::getOutShares()
 
     OutShareProcessor shareProcessor;
 
-    node_vector nodes;
-    string data;
-    pnode_t n;
-    node_vector dp;
-
-    client->sctable->rewindoutshares();
-    while (client->sctable->getoutshare(&data))
+    shared_ptr<node_vector> outshares = client->getoutshares();
+    for (node_vector::iterator it = outshares->begin(); it != outshares->end(); it++)
     {
-        n = Node::unserialize(client, &data, &dp);
-        if (n)
-        {
-            nodes.push_back(n);
-            shareProcessor.processNode(n);
-        }
+        shareProcessor.processNode(*it);
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
-
-    nodes.clear();
 
 	sdkMutex.unlock();
 	return shareList;
@@ -4078,25 +4066,13 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
 
-    node_vector nodes;
-    string data;
-    pnode_t n;
-    node_vector dp;
-
-    client->sctable->rewindpendingshares();
-    while (client->sctable->getpendingshare(&data))
+    shared_ptr<node_vector> pendingshares = client->getpendingshares();
+    for (node_vector::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
     {
-        n = Node::unserialize(client, &data, &dp);
-        if (n)
-        {
-            nodes.push_back(n);
-            shareProcessor.processNode(n);
-        }
+        shareProcessor.processNode(*it);
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
-
-    nodes.clear();
 
     sdkMutex.unlock();
     return shareList;

@@ -145,33 +145,6 @@ bool SqliteDbTable::getscsn(string* data)
 
     sqlite3_finalize(stmt); // no-op if stmt=NULL
     return result;
-
-//    int rc = sqlite3_prepare(db, "SELECT content FROM init WHERE id = ?", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_int(stmt, 1, 0);
-
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-
-//    if (rc != SQLITE_ROW)
-//    {
-//        sqlite3_finalize(stmt);
-//        return false;
-//    }
-
-//    data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
-
-//    sqlite3_finalize(stmt);
-
-//    return true;
 }
 
 bool SqliteDbTable::getrootnode(int index, string *data)
@@ -199,31 +172,6 @@ bool SqliteDbTable::getrootnode(int index, string *data)
 
     sqlite3_finalize(stmt);
     return result;
-
-
-//    int rc = sqlite3_prepare(db, "SELECT content FROM init WHERE id = ?", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_int(stmt, 1, index);    // 0: scsn 1-3: rootnodes
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_ROW)
-//    {
-//        sqlite3_finalize(stmt);
-//        return false;
-//    }
-
-//    data->assign((char*)sqlite3_column_blob(stmt,0), sqlite3_column_bytes(stmt,0));
-
-//    sqlite3_finalize(stmt);
-//    return true;
 }
 
 bool SqliteDbTable::getnodebyhandle(string * h, string *data)
@@ -251,32 +199,6 @@ bool SqliteDbTable::getnodebyhandle(string * h, string *data)
 
     sqlite3_finalize(stmt);
     return result;
-
-
-//    int rc = sqlite3_prepare(db, "SELECT node FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, h->data(), h->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_ROW)
-//    {
-//        sqlite3_finalize(stmt);
-//        return false;
-//    }
-
-//    data->assign((char*)sqlite3_column_blob(stmt,0), sqlite3_column_bytes(stmt,0));
-
-//    sqlite3_finalize(stmt);
-
-//    return true;
 }
 
 bool SqliteDbTable::getnodebyfingerprint(string *fp, string *data)
@@ -304,32 +226,6 @@ bool SqliteDbTable::getnodebyfingerprint(string *fp, string *data)
 
     sqlite3_finalize(stmt);
     return result;
-
-
-//    int rc = sqlite3_prepare(db, "SELECT node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_bind_blob(stmt, 1, fp->data(), fp->size(), SQLITE_STATIC);
-//    if (rc)
-//    {
-//        return false;
-//    }
-
-//    rc = sqlite3_step(stmt);
-//    if (rc != SQLITE_ROW)
-//    {
-//        sqlite3_finalize(stmt);
-//        return false;
-//    }
-
-//    data->assign((char*)sqlite3_column_blob(stmt,0), sqlite3_column_bytes(stmt,0));
-
-//    sqlite3_finalize(stmt);
-
-//    return true;
 }
 
 bool SqliteDbTable::getnumchildren(string *ph, int *count)
@@ -435,40 +331,6 @@ void SqliteDbTable::rewinduser()
 
 }
 
-void SqliteDbTable::rewindchildren(string * ph)
-{
-    if (!db)
-    {
-        return;
-    }
-
-    if (pStmt)
-    {
-        sqlite3_reset(pStmt);
-    }
-
-    sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ?", -1, &pStmt, NULL);
-
-    if (pStmt)
-    {
-        // bind the blob as transient data, so SQLITE makes its own copy
-        // otherwise, calling to next() results in unexpected results, since the blob is already freed
-        sqlite3_bind_blob(pStmt, 1, ph->data(), ph->size(), SQLITE_TRANSIENT);
-    }
-
-//    if (sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ?", -1, &pStmt, NULL))
-//    {
-//        return;
-//    }
-
-//    // bind the blob as transient data, so SQLITE makes its own copy
-//    // otherwise, calling to next() results in unexpected results, since the blob is already freed
-//    if (sqlite3_bind_blob(pStmt, 1, ph->data(), ph->size(), SQLITE_TRANSIENT))
-//    {
-//        return;
-//    }
-}
-
 void SqliteDbTable::rewindpcr()
 {
     if (!db)
@@ -484,7 +346,7 @@ void SqliteDbTable::rewindpcr()
     sqlite3_prepare(db, "SELECT pcr FROM pcrs", -1, &pStmt, NULL);
 }
 
-void SqliteDbTable::rewindencryptednode()
+void SqliteDbTable::rewindhandleschildren(string *ph)
 {
     if (!db)
     {
@@ -496,10 +358,32 @@ void SqliteDbTable::rewindencryptednode()
         sqlite3_reset(pStmt);
     }
 
-    sqlite3_prepare(db, "SELECT node FROM nodes WHERE attrstring IS NOT NULL", -1, &pStmt, NULL);
+    sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ?", -1, &pStmt, NULL);
+
+    if (pStmt)
+    {
+        // bind the blob as transient data, so SQLITE makes its own copy
+        // otherwise, calling to next() results in unexpected results, since the blob is already freed
+        sqlite3_bind_blob(pStmt, 1, ph->data(), ph->size(), SQLITE_TRANSIENT);
+    }
 }
 
-void SqliteDbTable::rewindoutshares(string * ph)
+void SqliteDbTable::rewindhandlesencryptednodes()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE attrstring IS NOT NULL", -1, &pStmt, NULL);
+}
+
+void SqliteDbTable::rewindhandlesoutshares(string *ph)
 {
     if (!db)
     {
@@ -513,12 +397,12 @@ void SqliteDbTable::rewindoutshares(string * ph)
 
     if (ph->empty())
     {
-        sqlite3_prepare(db, "SELECT node FROM nodes WHERE shared = 1 OR shared = 4", -1, &pStmt, NULL);
+        sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE shared = 1 OR shared = 4", -1, &pStmt, NULL);
         // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
     }
     else
     {
-        sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ? AND shared = 1 OR shared = 4", -1, &pStmt, NULL);
+        sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ? AND shared = 1 OR shared = 4", -1, &pStmt, NULL);
         // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
 
         if (pStmt)
@@ -530,7 +414,7 @@ void SqliteDbTable::rewindoutshares(string * ph)
     }
 }
 
-void SqliteDbTable::rewindpendingshares(string * ph)
+void SqliteDbTable::rewindhandlespendingshares(string *ph)
 {
     if (!db)
     {
@@ -544,12 +428,12 @@ void SqliteDbTable::rewindpendingshares(string * ph)
 
     if (ph->empty())
     {
-        sqlite3_prepare(db, "SELECT node FROM nodes WHERE shared = 3 OR shared = 4", -1, &pStmt, NULL);
+        sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE shared = 3 OR shared = 4", -1, &pStmt, NULL);
         // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
     }
     else
     {
-        sqlite3_prepare(db, "SELECT node FROM nodes WHERE parenthandle = ? AND shared = 3 OR shared = 4", -1, &pStmt, NULL);
+        sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ? AND shared = 3 OR shared = 4", -1, &pStmt, NULL);
         // shared values: 0:notshared 1:outshare 2:inshare 3:pendingshare 4:outshare+pendingshare
 
         if (pStmt)

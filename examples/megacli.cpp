@@ -2330,18 +2330,10 @@ static void process_line(char* l)
                                 {
                                     cout << "Shared folders:" << endl;
 
-                                    string data;
-                                    pnode_t n;
-                                    node_vector dp;
-
-                                    client->sctable->rewindoutshares();
-                                    while (client->sctable->getoutshare(&data))
+                                    shared_ptr<node_vector> outshares = client->getoutshares();
+                                    for (node_vector::iterator it = outshares->begin(); it != outshares->end(); it++)
                                     {
-                                        n = Node::unserialize(client, &data, &dp);
-                                        if (n)
-                                        {
-                                            listnodeshares(n);
-                                        }
+                                        listnodeshares(*it);
                                     }
 
                                     for (user_map::iterator uit = client->users.begin();

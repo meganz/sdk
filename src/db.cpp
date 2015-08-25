@@ -201,78 +201,6 @@ bool DbTable::getpcr(string *data)
     return false;
 }
 
-bool DbTable::getencryptednode(string *data)
-{
-    if (next(data))
-    {
-        return PaddedCBC::decrypt(data, key);
-    }
-
-    return false;
-}
-
-bool DbTable::getoutshare(string *data)
-{
-    if (next(data))
-    {
-        return PaddedCBC::decrypt(data, key);
-    }
-
-    return false;
-}
-
-bool DbTable::getpendingshare(string *data)
-{
-    if (next(data))
-    {
-        return PaddedCBC::decrypt(data, key);
-    }
-
-    return false;
-}
-
-void DbTable::rewindchildren(handle h)
-{
-    string hstring;
-    encrypthandle(h, &hstring);
-
-    rewindchildren(&hstring);
-}
-
-// if 'h' is defined, get only the outshares that are child nodes of 'h'
-void DbTable::rewindoutshares(handle h)
-{
-    string hstring;
-    if (h != UNDEF)
-    {
-        encrypthandle(h, &hstring);
-    }
-
-    rewindoutshares(&hstring);
-}
-
-// if 'h' is defined, get only the pending shares that are child nodes of 'h'
-void DbTable::rewindpendingshares(handle h)
-{
-    string hstring;
-    if (h != UNDEF)
-    {
-        encrypthandle(h, &hstring);
-    }
-
-    rewindpendingshares(&hstring);
-}
-
-bool DbTable::getchildren(string *data)
-{
-    if (next(data))
-    {
-        return PaddedCBC::decrypt(data, key);
-    }
-
-    return false;
-}
-
 bool DbTable::getnumchildren(handle ph, int *count)
 {
     string hstring;
@@ -295,6 +223,90 @@ bool DbTable::getnumchildfolders(handle ph, int *count)
     encrypthandle(ph, &hstring);
 
     return getnumchildfolders(&hstring, count);
+}
+
+handle_vector * DbTable::gethandleschildren(handle ph)
+{
+    handle_vector *hchildren = new handle_vector;
+    handle h;
+
+    string hstring;
+    encrypthandle(ph, &hstring);
+
+    rewindhandleschildren(&hstring);
+
+    while (next(&hstring))
+    {
+        decrypthandle(&h, &hstring);
+        hchildren->push_back(h);
+    }
+
+    return hchildren;
+}
+
+handle_vector *DbTable::gethandlesencryptednodes()
+{
+    handle_vector *hencryptednodes = new handle_vector;
+
+    string hstring;
+    handle h;
+
+    rewindhandlesencryptednodes();
+
+    while (next(&hstring))
+    {
+        decrypthandle(&h, &hstring);
+        hencryptednodes->push_back(h);
+    }
+
+    return hencryptednodes;
+}
+
+// if 'h' is defined, get only the outshares that are child nodes of 'h'
+handle_vector *DbTable::gethandlesoutshares(handle ph)
+{
+    handle_vector *hshares = new handle_vector;
+
+    string hstring;
+    handle h;
+    if (ph != UNDEF)
+    {
+        encrypthandle(ph, &hstring);
+    }
+
+    rewindhandlesoutshares(&hstring);
+
+    while (next(&hstring))
+    {
+        decrypthandle(&h, &hstring);
+        hshares->push_back(h);
+    }
+
+    return hshares;
+}
+
+// if 'h' is defined, get only the pending shares that are child nodes of 'h'
+handle_vector *DbTable::gethandlespendingshares(handle ph)
+{
+    handle_vector *hshares = new handle_vector;
+
+    string hstring;
+    handle h;
+    if (ph != UNDEF)
+    {
+        encrypthandle(ph, &hstring);
+    }
+
+    rewindhandlespendingshares(&hstring);
+
+    while (next(&hstring))
+    {
+        decrypthandle(&h, &hstring);
+        hshares->push_back(h);
+    }
+
+    return hshares;
+
 }
 
 void DbTable::encrypthandle(handle h, string *hstring)

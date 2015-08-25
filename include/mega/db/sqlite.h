@@ -55,11 +55,14 @@ public:
     bool getnumchildfolders(string*, int*);
 
     void rewinduser();
-    void rewindchildren(string*);
     void rewindpcr();
     void rewindencryptednode();
     void rewindoutshares(string*);
     void rewindpendingshares(string*);
+    void rewindhandleschildren(string *);
+    void rewindhandlesencryptednodes();
+    void rewindhandlesoutshares(string *);
+    void rewindhandlespendingshares(string *);
     bool next(string*);
 
     bool putscsn(char*, unsigned);

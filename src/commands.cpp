@@ -2984,6 +2984,7 @@ void CommandFetchNodes::procresult()
     client->fetchingnodes = false;
     client->sctable->truncate();    // discard the current state cache
     client->nodenotify.clear();     // discard any obsolete notified node
+    client->cachednodes->clear();   // discard any cached node
 
     if (client->json.isnumeric())
     {

@@ -1504,4 +1504,174 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 }
 
 #endif
+
+
+pnode_t NodesCache::get(handle h)
+{
+    if(h == UNDEF)
+    {
+        return NULL;
+    }
+
+    pnode_t n;
+    list<pnode_t>::iterator it;
+
+    for (it = nodes.begin(); it != nodes.end(); it++)
+    {
+        n = *it;
+        if (n->nodehandle == h)
+        {
+            movetofront(it);
+            return n;
+        }
+    }
+
+    // if node was not found, search for it in local cache
+    string data;
+    if (client->sctable->getnode(h, &data))
+    {
+        node_vector dp;
+
+        n = Node::unserialize(client, &data, &dp);
+
+        if (n)
+        {
+            add(n);
+        }
+
+        return n;
+    }
+
+    return NULL;
+}
+
+pnode_t NodesCache::get(string *fingerprint)
+{
+    string fp;
+    pnode_t n;
+
+    list<pnode_t>::iterator it;
+    for (it = nodes.begin(); it != nodes.end(); it++)
+    {
+        n = *it;
+        n->serializefingerprint(&fp);
+        if (!strcmp(fp.data(), fingerprint->data()))
+        {
+            movetofront(it);
+            return n;
+        }
+    }
+
+    // if node was not found, search for it in local cache
+    string data;
+    if (client->sctable->getnode(fingerprint, &data))
+    {
+        node_vector dp;
+
+        n = Node::unserialize(client, &data, &dp);
+
+        if (n)
+        {
+            add(n);
+        }
+
+        return n;
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief NodesCache::put Add/update a node in the persistent storage (DB) and, if not in the cache
+ * yet, it's added to the front.
+ * @param n Node to be added/updated
+ * @return False if the node couldn't be added to the DB. True otherwise.
+ */
+bool NodesCache::put(pnode_t n)
+{
+    // update information in database
+    if (!client->sctable->putnode(n))
+        return false;
+
+    // check if node is already in the cache
+    pnode_t node;
+    list<pnode_t>::iterator it;
+
+    for (it = nodes.begin(); it != nodes.end(); it++)
+    {
+        node = *it;
+        if (node->nodehandle == n->nodehandle)
+        {
+            if (node != n)
+            {
+                LOG_err << "Same node is duplicated in cache (n1: " << node << " n2: " << n << ")";
+                exit(-1);
+            }
+
+            movetofront(it);
+            break;
+        }
+    }
+
+    // if the node was not found in the cache, add it to the front of the list
+    if (it == nodes.end())
+    {
+        add(n);
+    }
+
+    return true;
+}
+
+void NodesCache::add(pnode_t n)
+{
+    nodes.push_front(n);
+
+    if (nodes.size() > maxsize)
+    {
+        nodes.pop_back();
+    }
+}
+
+void NodesCache::movetofront(list<pnode_t>::iterator n)
+{
+    nodes.splice(nodes.begin(), nodes, n);
+}
+
+void NodesCache::clear()
+{
+    nodes.clear();
+}
+
+bool NodesCache::remove(pnode_t n)
+{
+    if (!client->sctable->delnode(n))
+        return false;
+
+    pnode_t node;
+    list<pnode_t>::iterator it;
+
+    for (it = nodes.begin(); it != nodes.end(); it++)
+    {
+        node = *it;
+        if (node->nodehandle == n->nodehandle)
+        {
+            nodes.erase(it);
+            break;
+        }
+    }
+
+    return true;
+}
+
+NodesCache::NodesCache(MegaClient *client)
+{
+    this->client = client;
+    this->maxsize = MAXCACHESIZE;
+}
+
+NodesCache::~NodesCache()
+{
+    clear();
+}
+
 } // namespace
