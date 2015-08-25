@@ -10,12 +10,13 @@ import java.util.Set;
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
- * An appKey must be specified to use the MEGA SDK. Generate an appKey for free here:
+ * An appKey must be specified to use the MEGA SDK. Generate an appKey for free here: <br>
  * - https://mega.co.nz/#sdk
  * <p>
  * Save on data usage and start up time by enabling local node caching. This can be enabled by passing a local path
  * in the constructor. Local node caching prevents the need to download the entire file system each time the MegaApiJava
  * object is logged in.
+ * <p>
  * To take advantage of local node caching, the application needs to save the session key after login
  * (MegaApiJava.dumpSession()) and use it to login during the next session. A persistent local node cache will only be
  * loaded if logging in with a session key.
@@ -58,13 +59,16 @@ public class MegaApiJava {
     public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
 
-    public final static int LOG_LEVEL_FATAL = 0; // Very severe error event that will presumably lead the application to abort.
-    public final static int LOG_LEVEL_ERROR = LOG_LEVEL_FATAL + 1; // Error information but application will continue run.
-    public final static int LOG_LEVEL_WARNING = LOG_LEVEL_ERROR + 1; // Information representing errors in application but application will keep
-                                                                     // running
-    public final static int LOG_LEVEL_INFO = LOG_LEVEL_WARNING + 1; // Mainly useful to represent current progress of application.
-    public final static int LOG_LEVEL_DEBUG = LOG_LEVEL_INFO + 1; // Informational logs, that are useful for developers. Only applicable if DEBUG is
-                                                                  // defined.
+    // Very severe error event that will presumably lead the application to abort.
+    public final static int LOG_LEVEL_FATAL = 0;
+    // Error information but application will continue run.
+    public final static int LOG_LEVEL_ERROR = LOG_LEVEL_FATAL + 1;
+    // Information representing errors in application but application will keep running
+    public final static int LOG_LEVEL_WARNING = LOG_LEVEL_ERROR + 1;
+    // Mainly useful to represent current progress of application.
+    public final static int LOG_LEVEL_INFO = LOG_LEVEL_WARNING + 1;
+    // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+    public final static int LOG_LEVEL_DEBUG = LOG_LEVEL_INFO + 1;
     public final static int LOG_LEVEL_MAX = LOG_LEVEL_DEBUG + 1;
 
     public final static int EVENT_FEEDBACK = 0;
@@ -362,7 +366,7 @@ public class MegaApiJava {
      * You take the ownership of the returned value.
      * You can revert this operation using MegaApiJava.base64ToHandle().
      * 
-     * @param User
+     * @param handle
      *            handle to be converted
      * @return Base64-encoded user handle
      */
@@ -387,9 +391,6 @@ public class MegaApiJava {
 
     /**
      * Reconnect and retry all transfers.
-     * <p>
-     * @param listener
-     *            MegaRequestListener to track this request
      */
     public void reconnect() {
         megaApi.retryPendingConnections(true, true);
@@ -456,7 +457,7 @@ public class MegaApiJava {
      * - MegaRequest.getEmail() - Retuns the string "FOLDER" <br>
      * - MegaRequest.getLink() - Returns the public link to the folder
      * 
-     * @param Public
+     * @param megaFolderLink
      *            link to a folder in MEGA
      * @param listener
      *            MegaRequestListener to track this request
@@ -471,7 +472,7 @@ public class MegaApiJava {
      * After a successful login, you should call MegaApiJava.fetchNodes() to get filesystem and
      * start working with the folder.
      * 
-     * @param Public
+     * @param megaFolderLink
      *            link to a folder in MEGA
      */
     public void loginToFolder(String megaFolderLink) {
@@ -555,7 +556,7 @@ public class MegaApiJava {
      * <p>
      * If you use mega.INVALID_HANDLE, all sessions except the current one will be closed.
      * 
-     * @param Handle
+     * @param sessionHandle
      *            of the session. Use mega.INVALID_HANDLE to cancel all sessions except the current one
      * @param listener
      *            MegaRequestListenerInterface to track this request
@@ -576,7 +577,7 @@ public class MegaApiJava {
      * <p>
      * If you use mega.INVALID_HANDLE, all sessions except the current one will be closed.
      * 
-     * @param Handle
+     * @param sessionHandle
      *            of the session. Use mega.INVALID_HANDLE to cancel all sessions except the current one
      */
     public void killSession(long sessionHandle) {
@@ -883,7 +884,7 @@ public class MegaApiJava {
      * <p>
      * The SDK will start using the provided proxy settings as soon as this function returns.
      * 
-     * @param Proxy
+     * @param proxySettings
      *            settings
      * @see MegaProxy
      */
@@ -907,7 +908,7 @@ public class MegaApiJava {
     /**
      * Check if the MegaApi object is logged in.
      * 
-     * @return 0 if not logged in, Otherwise, a number >= 0
+     * @return 0 if not logged in. Otherwise, a number >= 0
      */
     public int isLoggedIn() {
         return megaApi.isLoggedIn();
@@ -1656,7 +1657,7 @@ public class MegaApiJava {
      *            Node to cancel the retrieval of the thumbnail
      * @param listener
      *            MegaRequestListener to track this request
-     * @see MegaApiJava.getThumbnail()
+     * @see #getThumbnail(MegaNode node, String dstFilePath)
      */
     public void cancelGetThumbnail(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.cancelGetThumbnail(node, createDelegateRequestListener(listener));
@@ -1667,7 +1668,7 @@ public class MegaApiJava {
      * 
      * @param node
      *            Node to cancel the retrieval of the thumbnail
-     * @see MegaApiJava.getThumbnail()
+     * @see #getThumbnail(MegaNode node, String dstFilePath)
      */
     public void cancelGetThumbnail(MegaNode node) {
         megaApi.cancelGetThumbnail(node);
@@ -1685,7 +1686,7 @@ public class MegaApiJava {
      *            Node to cancel the retrieval of the preview
      * @param listener
      *            MegaRequestListener to track this request
-     * @see MegaApiJava.getPreview()
+     * @see MegaApi#getPreview(MegaNode node, String dstFilePath)
      */
     public void cancelGetPreview(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.cancelGetPreview(node, createDelegateRequestListener(listener));
@@ -1696,7 +1697,7 @@ public class MegaApiJava {
      * 
      * @param node
      *            Node to cancel the retrieval of the preview
-     * @see MegaApiJava.getPreview()
+     * @see MegaApi#getPreview(MegaNode node, String dstFilePath)
      */
     public void cancelGetPreview(MegaNode node) {
         megaApi.cancelGetPreview(node);
@@ -1949,7 +1950,13 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received in onRequestFinish() when the error code
      * is MegaError.API_OK: <br>
      * - MegaRequest.getMegaAccountDetails() - Details of the MEGA account
-     * 
+     *
+     * @param sessions
+     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     * @param purchases
+     *              Boolean. Get purchase history if True. Do not get purchase history if False
+     * @param transactions
+     *              Boolean. Get transactions history if True. Do not get transactions history if False
      * @param listener
      *            MegaRequestListener to track this request
      */
@@ -1961,7 +1968,13 @@ public class MegaApiJava {
      * Get details about the MEGA account.
      * 
      * This function allows to optionally get data about sessions, transactions and purchases related to the account.
-     * 
+     *
+     * @param sessions
+     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     * @param purchases
+     *              Boolean. Get purchase history if True. Do not get purchase history if False
+     * @param transactions
+     *              Boolean. Get transactions history if True. Do not get transactions history if False
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases, boolean transactions) {
         megaApi.getExtendedAccountDetails(sessions, purchases, transactions);
@@ -1971,7 +1984,11 @@ public class MegaApiJava {
      * Get details about the MEGA account.
      * 
      * This function allows to optionally get data about sessions and purchases related to the account.
-     * 
+     *
+     * @param sessions
+     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     * @param purchases
+     *              Boolean. Get purchase history if True. Do not get purchase history if False
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases) {
         megaApi.getExtendedAccountDetails(sessions, purchases);
@@ -1981,7 +1998,9 @@ public class MegaApiJava {
      * Get details about the MEGA account.
      * 
      * This function allows to optionally get data about sessions related to the account.
-     * 
+     *
+     * @param sessions
+     *              Boolean. Get sessions history if True. Do not get sessions history if False
      */
     public void getExtendedAccountDetails(boolean sessions) {
         megaApi.getExtendedAccountDetails(sessions);
@@ -2010,7 +2029,7 @@ public class MegaApiJava {
      * @param listener
      *            MegaRequestListener to track this request
      * 
-     * @see MegaApiJava.getPaymentUrl()
+     * @see #getPaymentUrl() // not currently implemented
      */
     public void getPricing(MegaRequestListenerInterface listener) {
         megaApi.getPricing(createDelegateRequestListener(listener));
@@ -2022,7 +2041,7 @@ public class MegaApiJava {
      * You can get a payment URL for any of the pricing plans provided by this function
      * using MegaApiJava.getPaymentUrl().
      * 
-     * @see MegaApiJava.getPaymentUrl()
+     * @see #getPaymentUrl() // not currently implemented
      */
     public void getPricing() {
         megaApi.getPricing();
@@ -2043,7 +2062,7 @@ public class MegaApiJava {
      *            Handle of the product (see MegaApiJava.getPricing())
      * @param listener
      *            MegaRequestListener to track this request
-     * @see MegaApiJava.getPricing()
+     * @see #getPricing()
      */
     public void getPaymentId(long productHandle, MegaRequestListenerInterface listener) {
         megaApi.getPaymentId(productHandle, createDelegateRequestListener(listener));
@@ -2055,7 +2074,7 @@ public class MegaApiJava {
      * @param productHandle
      *            Handle of the product (see MegaApiJava.getPricing())
      * 
-     * @see MegaApiJava.getPricing()
+     * @see #getPricing()
      */
     public void getPaymentId(long productHandle) {
         megaApi.getPaymentId(productHandle);
@@ -2328,7 +2347,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getEmail() - Returns the email of the contact
      * 
-     * @param email
+     * @param user
      *            Email of the contact
      * @param listener
      *            MegaRequestListener to track this request
@@ -2419,7 +2438,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_REMOVE_CONTACT.
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getEmail() - Returns the email of the contact
-     * @param email
+     * @param user
      *            Email of the contact
      */
     public void removeContact(MegaUser user) {
@@ -2554,9 +2573,9 @@ public class MegaApiJava {
     /**
      * Upload a file.
      * 
-     * @param Local
+     * @param localPath
      *            path of the file
-     * @param Parent
+     * @param parent
      *            node for the file in the MEGA account
      * @param listener
      *            MegaTransferListener to track this transfer
@@ -2568,9 +2587,9 @@ public class MegaApiJava {
     /**
      * Upload a file.
      * 
-     * @param Local
+     * @param localPath
      *            path of the file
-     * @param Parent
+     * @param parent
      *            node for the file in the MEGA account
      */
     public void startUpload(String localPath, MegaNode parent) {
@@ -2803,7 +2822,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns the first parameter
      * 
-     * @param type
+     * @param direction
      *            Type of transfers to cancel.
      *            Valid values are: <br>
      *            - MegaTransfer.TYPE_DOWNLOAD = 0 <br>
@@ -2819,7 +2838,7 @@ public class MegaApiJava {
     /**
      * Cancel all transfers of the same type.
      * 
-     * @param type
+     * @param direction
      *            Type of transfers to cancel.
      *            Valid values are: <br>
      *            - MegaTransfer.TYPE_DOWNLOAD = 0 <br>
@@ -2883,7 +2902,7 @@ public class MegaApiJava {
      * <p>
      * MegaTransfer.getTag() can be used to get the transfer tag.
      * 
-     * @param Transfer
+     * @param transferTag
      *            tag to check
      * @return MegaTransfer object with that tag, or `null` if there isn't any
      *         active transfer with it
@@ -3221,9 +3240,9 @@ public class MegaApiJava {
      * If the node doesn't exist, this function returns `null`
 >>>>>>> master
      * 
-     * @param Parent
+     * @param parent
      *            node
-     * @param Name
+     * @param name
      *            of the node
      * @return The MegaNode that has the selected parent and name
      */
@@ -3283,7 +3302,7 @@ public class MegaApiJava {
      * 
      * @param path
      *            Path to check
-     * @param n
+     * @param baseFolder
      *            Base node if the path is relative
      * @return The MegaNode object in the path, otherwise `null`
      */
@@ -3317,7 +3336,7 @@ public class MegaApiJava {
      * can be got in a Base64-encoded string using MegaNode.getBase64Handle(). Conversions
      * between these formats can be done using MegaApiJava.base64ToHandle() and MegaApiJava.handleToBase64().
      * 
-     * @param MegaHandler
+     * @param handle
      *            Node handle to check
      * @return MegaNode object with the handle, otherwise `null`
      */
@@ -3628,7 +3647,7 @@ public class MegaApiJava {
      * <p>
      * The search is case-insensitive.
      * 
-     * @param node
+     * @param parent
      *            The parent node of the tree to explore
      * @param searchString
      *            Search string. The search is case-insensitive
@@ -3647,7 +3666,7 @@ public class MegaApiJava {
      * <p>
      * The search is case-insensitive.
      * 
-     * @param node
+     * @param parent
      *            The parent node of the tree to explore
      * @param searchString
      *            Search string. The search is case-insensitive
@@ -3661,7 +3680,7 @@ public class MegaApiJava {
     /**
      * Process a node tree using a MegaTreeProcessor implementation.
      * 
-     * @param node
+     * @param parent
      *            The parent node of the tree to explore
      * @param processor
      *            MegaTreeProcessor that will receive callbacks for every node in the tree
@@ -3683,7 +3702,7 @@ public class MegaApiJava {
     /**
      * Process a node tree using a MegaTreeProcessor implementation.
      * 
-     * @param node
+     * @param parent
      *            The parent node of the tree to explore
      * @param processor
      *            MegaTreeProcessor that will receive callbacks for every node in the tree
@@ -3743,7 +3762,7 @@ public class MegaApiJava {
     /**
      * Unescape a file name escaped with MegaApiJava.escapeFsIncompatible().
      * 
-     * @param name
+     * @param localName
      *            Escaped name to convert
      * @return Converted name
      */
