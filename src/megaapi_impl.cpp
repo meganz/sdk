@@ -8736,7 +8736,7 @@ void MegaApiImpl::sendPendingRequests()
 
             snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
             client->userfeedbackstore(feedback.c_str());
-            delete base64message;
+            delete [] base64message;
             break;
         }
         case MegaRequest::TYPE_SEND_EVENT:
