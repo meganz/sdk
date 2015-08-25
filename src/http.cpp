@@ -112,6 +112,7 @@ HttpReq::HttpReq(bool b)
     inpurge = 0;
     
     chunked = false;
+    sslcheckfailed = false;
 
     type = REQ_JSON;
     buflen = 0;

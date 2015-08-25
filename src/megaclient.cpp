@@ -868,6 +868,8 @@ void MegaClient::exec()
                                 }
 
                                 app->request_error(e);
+                                delete pendingcs;
+                                pendingcs = NULL;
                                 break;
                             }
 
@@ -876,7 +878,16 @@ void MegaClient::exec()
                         }
 
                     // fall through
-                    case REQ_FAILURE:   // failure, repeat with capped exponential backoff
+                    case REQ_FAILURE:
+                        if (pendingcs->sslcheckfailed)
+                        {
+                            app->request_error(API_ESSL);
+                            delete pendingcs;
+                            pendingcs = NULL;
+                            break;
+                        }
+
+                        // failure, repeat with capped exponential backoff
                         app->request_response_progress(pendingcs->bufpos, -1);
 
                         delete pendingcs;
@@ -982,6 +993,12 @@ void MegaClient::exec()
                         }
                         // fall through
                     case REQ_FAILURE:
+                        if (pendingsc->sslcheckfailed)
+                        {
+                            app->request_error(API_ESSL);
+                            *scsn = 0;
+                        }
+
                         // failure, repeat with capped exponential backoff
                         delete pendingsc;
                         pendingsc = NULL;
