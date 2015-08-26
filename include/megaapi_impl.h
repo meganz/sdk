@@ -239,7 +239,7 @@ class MegaTransferPrivate : public MegaTransfer
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
-        MegaTransferPrivate(const MegaTransferPrivate &transfer);
+        MegaTransferPrivate(const MegaTransferPrivate *transfer);
         virtual ~MegaTransferPrivate();
         
         virtual MegaTransfer *copy();
@@ -331,7 +331,7 @@ class MegaContactRequestPrivate : public MegaContactRequest
 {
 public:
     MegaContactRequestPrivate(PendingContactRequest *request);
-    MegaContactRequestPrivate(const MegaContactRequest &request);
+    MegaContactRequestPrivate(const MegaContactRequest *request);
     virtual ~MegaContactRequestPrivate();
 
     static MegaContactRequest *fromContactRequest(PendingContactRequest *request);
@@ -393,7 +393,7 @@ class MegaSyncPrivate : public MegaSync
 {  
 public:
     MegaSyncPrivate(Sync *sync);
-    MegaSyncPrivate(MegaSyncPrivate &sync);
+    MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
 
@@ -429,7 +429,7 @@ class MegaRequestPrivate : public MegaRequest
 {
 	public:
 		MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
-		MegaRequestPrivate(MegaRequestPrivate &request);
+        MegaRequestPrivate(MegaRequestPrivate *request);
 		virtual ~MegaRequestPrivate();
 		MegaRequest *copy();
 		void setNodeHandle(MegaHandle nodeHandle);
@@ -685,7 +685,7 @@ class MegaNodeListPrivate : public MegaNodeList
 		virtual int size();
 	
 	protected:
-		MegaNodeListPrivate(MegaNodeListPrivate& nodeList);
+        MegaNodeListPrivate(MegaNodeListPrivate *nodeList);
 		MegaNode** list;
 		int s;
 };
@@ -701,7 +701,7 @@ class MegaUserListPrivate : public MegaUserList
 		virtual int size();
 	
 	protected:
-		MegaUserListPrivate(MegaUserListPrivate &userList);
+        MegaUserListPrivate(MegaUserListPrivate *userList);
 		MegaUser** list;
 		int s;
 };
@@ -745,7 +745,7 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
         virtual int size();
 
     protected:
-        MegaContactRequestListPrivate(MegaContactRequestListPrivate &requestList);
+        MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList);
         MegaContactRequest** list;
         int s;
 };
@@ -1006,7 +1006,7 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
-        bool areTansfersPaused(int direction);
+        bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
@@ -1067,6 +1067,8 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         bool isShared(MegaNode *node);
+        bool isOutShare(MegaNode *node);
+        bool isInShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
@@ -1081,6 +1083,7 @@ class MegaApiImpl : public MegaApp
         //Fingerprint
         char *getFingerprint(const char *filePath);
         char *getFingerprint(MegaNode *node);
+        char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
@@ -1392,6 +1395,28 @@ class MegaHashSignatureImpl
 	protected:    
 		HashSignature *hashSignature;
 		AsymmCipher* asymmCypher;
+};
+
+class ExternalInputStream : public InputStreamAccess
+{
+    MegaInputStream *inputStream;
+
+public:
+    ExternalInputStream(MegaInputStream *inputStream);
+    virtual m_off_t size();
+    virtual bool read(byte *buffer, unsigned size);
+};
+
+class FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+    virtual m_off_t size();
+    virtual bool read(byte *buffer, unsigned size);
+    virtual ~FileInputStream();
 };
 
 }

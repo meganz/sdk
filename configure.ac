@@ -161,10 +161,9 @@ AX_CHECK_COMPILE_FLAG([-fPIC], [
 
 
 AM_CONDITIONAL(ENABLE_STATIC, test x$enable_static = xyes)
-if test x$enable_static = xyes; then
-    LIBS="-ldl $LIBS"
-fi
 AC_SUBST(ENABLE_STATIC)
+
+AC_CHECK_LIB(dl, dlopen, [LIBS="-ldl $LIBS"])
 
 # Check for inotify support.
 AC_ARG_ENABLE(inotify,
@@ -1013,7 +1012,7 @@ if test "x$enable_examples" = "xyes" ; then
          ;;
        yes)
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
-            [AC_MSG_ERROR([termcap library is required for the sample client.])]
+            [AC_MSG_NOTICE([termcap library not found or not usable.])]
         )
         ;;
        *)
@@ -1028,7 +1027,7 @@ if test "x$enable_examples" = "xyes" ; then
                 TERMCAP_LDFLAGS="-L$with_termcap/lib"
                 TERMCAP_CXXFLAGS="-I$with_termcap/include"
                 TERMCAP_CPPFLAGS="-I$with_termcap/include"],
-                AC_MSG_ERROR([termcap.h header not found or not usable])
+                AC_MSG_NOTICE([termcap.h header not found or not usable])
             )
         else
             LDFLAGS="-L$with_termcap $LDFLAGS"
@@ -1039,12 +1038,12 @@ if test "x$enable_examples" = "xyes" ; then
                 TERMCAP_LDFLAGS="-L$with_termcap"
                 TERMCAP_CXXFLAGS="-I$with_termcap"
                 TERMCAP_CPPFLAGS="-I$with_termcap"],
-                AC_MSG_ERROR([termcap.h header not found or not usable])
+                AC_MSG_NOTICE([termcap.h header not found or not usable])
             )
         fi
 
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"], [
-            AC_MSG_ERROR([termcap library is required for the sample client.])])
+            AC_MSG_NOTICE([termcap library not found or not usable.])])
 
         #restore
         LDFLAGS=$SAVE_LDFLAGS
@@ -1056,7 +1055,7 @@ if test "x$enable_examples" = "xyes" ; then
       ],
       [AC_MSG_RESULT([--with-termcap not specified])
         AC_CHECK_LIB([termcap], [tputs], [TERMCAP_LIBS="-ltermcap"],
-            [AC_MSG_ERROR([termcap library is required for the sample client.])]
+            [AC_MSG_NOTICE([termcap library not found or not usable.])]
         )
       ]
     )
@@ -1255,9 +1254,35 @@ AC_ARG_ENABLE(python,
      AC_MSG_RESULT([$enableval])
      enable_python=no]
 )
+
+USE_PYTHON3=no
 if test "x$enable_python" = "xyes" ; then
-    AM_PATH_PYTHON
-    AX_PYTHON_DEVEL
+
+    AC_ARG_WITH(python3,
+      AS_HELP_STRING([--with-python3], [build Python 3 language bindings]),
+      [
+       case $with_python3 in
+       yes)
+        USE_PYTHON3=yes
+         ;;
+       *)
+        USE_PYTHON3=yes
+        ;;
+       esac
+      ],
+    )
+
+    if test "x$USE_PYTHON3" = "xyes" ; then
+        SWIG_FLAGS="-py3"
+	    AC_SUBST([SWIG_FLAGS])
+
+        AM_PATH_PYTHON(3)
+        AX_PYTHON_DEVEL(>= '3.0.0')
+    else
+        AM_PATH_PYTHON
+        AX_PYTHON_DEVEL
+    fi
+
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
@@ -1280,8 +1305,8 @@ AM_CONDITIONAL([BUILD_PYTHON], [test "$enable_python" = "yes"])
 AC_MSG_CHECKING([if building PHP bindings])
 AC_ARG_ENABLE(php,
     AS_HELP_STRING([--enable-php], [build PHP language bindings]),
-    [AC_MSG_RESULT([$enableval])],
-    [AC_MSG_RESULT([$enableval])
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
      enable_php=no]
 )
 if test "x$enable_php" = "xyes" ; then
@@ -1333,13 +1358,13 @@ AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 AC_MSG_CHECKING([if building Java bindings])
 AC_ARG_ENABLE(java,
     AS_HELP_STRING([--enable-java], [build Java language bindings]),
-    [AC_MSG_RESULT([$enableval])],
+    [AC_MSG_RESULT([yes])],
     [
-     AC_MSG_RESULT([$enableval])
+     AC_MSG_RESULT([no])
      enable_java=no]
 )
 AC_ARG_WITH(java-include-dir,
-    [--with-java-include-dir=DIR look in DIR for Java headers],
+    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
 	[JAVA_INCLUDE_DIR=$withval],)
 AC_SUBST(JAVA_INCLUDE_DIR)
 
@@ -1426,6 +1451,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   posix threads:    $enable_posix_threads
 
   Python bindings:  $enable_python
+  Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
   Java bindings:    $enable_java
 

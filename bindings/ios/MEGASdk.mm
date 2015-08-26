@@ -743,7 +743,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction {
-    return self.megaApi->areTansfersPaused((int)direction);
+    return self.megaApi->areTransfersPaused((int)direction);
 }
 
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit {

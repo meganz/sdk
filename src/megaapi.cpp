@@ -1317,9 +1317,9 @@ void MegaApi::pauseTransfers(bool pause, int direction, MegaRequestListener *lis
     pImpl->pauseTransfers(pause, direction, listener);
 }
 
-bool MegaApi::areTansfersPaused(int direction)
+bool MegaApi::areTransfersPaused(int direction)
 {
-    return pImpl->areTansfersPaused(direction);
+    return pImpl->areTransfersPaused(direction);
 }
 
 //-1 -> AUTO, 0 -> NONE, >0 -> b/s
@@ -1573,6 +1573,16 @@ bool MegaApi::isShared(MegaNode *node)
     return pImpl->isShared(node);
 }
 
+bool MegaApi::isOutShare(MegaNode *node)
+{
+    return pImpl->isOutShare(node);
+}
+
+bool MegaApi::isInShare(MegaNode *node)
+{
+    return pImpl->isInShare(node);
+}
+
 MegaShareList *MegaApi::getOutShares()
 {
     return pImpl->getOutShares();
@@ -1699,6 +1709,11 @@ char *MegaApi::getFingerprint(const char *filePath)
 char *MegaApi::getFingerprint(MegaNode *node)
 {
     return pImpl->getFingerprint(node);
+}
+
+char *MegaApi::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
+{
+    return pImpl->getFingerprint(inputStream, mtime);
 }
 
 MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint)
@@ -2415,3 +2430,19 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+
+
+int64_t MegaInputStream::getSize()
+{
+    return 0;
+}
+
+bool MegaInputStream::read(char *buffer, size_t size)
+{
+    return false;
+}
+
+MegaInputStream::~MegaInputStream()
+{
+
+}

@@ -1,5 +1,5 @@
 # applications
-TESTS = tests/api_test
+TESTS = tests/misc_test tests/sdk_test
 
 if BUILD_TESTS
 noinst_PROGRAMS += $(TESTS)
@@ -9,6 +9,17 @@ endif
 $(TESTS): $(top_builddir)/src/libmega.la
 
 # rules
-tests_api_test_SOURCES = tests/tests.cpp tests/paycrypt_test.cpp
-tests_api_test_CXXFLAGS = -I $(GTEST_DIR)/include $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS)
-tests_api_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(LIBCURL_LIBS) $(top_builddir)/src/libmega.la
+tests_misc_test_SOURCES = \
+    tests/tests.cpp \
+    tests/paycrypt_test.cpp
+
+tests_sdk_test_SOURCES = \
+    tests/sdktests.cpp \
+    tests/sdk_test.cpp
+## include here additional SDK test sources ##
+
+tests_misc_test_CXXFLAGS = -I$(GTEST_DIR)/include
+tests_misc_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(top_builddir)/src/libmega.la
+
+tests_sdk_test_CXXFLAGS = -I$(GTEST_DIR)/include -I$(top_builddir)/include
+tests_sdk_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(top_builddir)/src/libmega.la
