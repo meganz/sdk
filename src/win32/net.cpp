@@ -538,7 +538,9 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                   && memcmp(pkey->pbData, "\x30\x82\x01\x0a\x02\x82\x01\x01\x00" APISSLMODULUS2
                                           "\x02" APISSLEXPONENTSIZE APISSLEXPONENT, 270)))
                 {
-                    LOG_err << "Certificate error. Possible MITM attack!!";
+                    LOG_err << "Invalid public key. Possible MITM attack!!";
+                    req->sslcheckfailed = true;
+
                     CertFreeCertificateContext(cert);
                     httpio->cancel(req);
                     httpio->httpevent();

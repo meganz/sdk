@@ -5811,16 +5811,18 @@ void MegaApiImpl::logout_result(error e)
     if(!e)
     {
         requestMap.erase(request->getTag());
+
+        error preverror = (error)request->getParamType();
         while(!requestMap.empty())
         {
             std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-            if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+            if(it->second) fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
 
         while(!transferMap.empty())
         {
             std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-            if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            if(it->second) fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
 
         pendingUploads = 0;
@@ -5841,7 +5843,7 @@ void MegaApiImpl::logout_result(error e)
         uploadPartialBytes = 0;
         downloadPartialBytes = 0;
 
-        fireOnRequestFinish(request, MegaError(request->getParamType()));
+        fireOnRequestFinish(request, MegaError(preverror));
         return;
     }
     fireOnRequestFinish(request,MegaError(e));
@@ -8734,7 +8736,7 @@ void MegaApiImpl::sendPendingRequests()
 
             snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
             client->userfeedbackstore(feedback.c_str());
-            delete base64message;
+            delete [] base64message;
             break;
         }
         case MegaRequest::TYPE_SEND_EVENT:

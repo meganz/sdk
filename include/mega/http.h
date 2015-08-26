@@ -130,6 +130,7 @@ struct MEGA_API HttpReq
     string posturl;
 
     bool chunked;
+    bool sslcheckfailed;
 
     string* out;
     string in;
