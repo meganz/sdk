@@ -83,22 +83,17 @@ public class MegaApiJava {
      *            Generate an AppKey for free here: https://mega.co.nz/#sdk
      * 
      * @param basePath
-<<<<<<< HEAD
-     *            Base path to store the local cache.
-     *            If you pass NULL to this parameter, the SDK won't use any local cache.
-=======
      *            Base path to store the local cache
-     *            If you pass `null` to this parameter, the SDK won't use any local cache.
->>>>>>> master
-     * 
+     *            If you pass null to this parameter, the SDK won't use any local cache.
      */
     public MegaApiJava(String appKey, String basePath) {
         megaApi = new MegaApi(appKey, basePath);
     }
 
     /**
-     * MegaApi Constructor that allows to use a custom GFX processor.
-     * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
+     * MegaApi Constructor that allows use of a custom GFX processor.
+     * <p>
+     * The SDK attaches thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
      * You can build the SDK with one of the provided built-in graphics processors. If none are available
      * in your app, you can implement the MegaGfxProcessor interface to provide a custom processor. Please
      * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
@@ -108,29 +103,16 @@ public class MegaApiJava {
      *            Generate an AppKey for free here: https://mega.co.nz/#sdk
      * 
      * @param userAgent
-<<<<<<< HEAD
      *            User agent to use in network requests.
-     *            If you pass NULL to this parameter, a default user agent will be used.
+     *            If you pass null to this parameter, a default user agent will be used
      * 
      * @param basePath
      *            Base path to store the local cache.
-     *            If you pass NULL to this parameter, the SDK won't use any local cache.
+     *            If you pass null to this parameter, the SDK won't use any local cache
      * 
      * @param gfxProcessor
      *            Image processor. The SDK will use it to generate previews and thumbnails.
-     *            If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
-=======
-     *            User agent to use in network requests
-     *            If you pass `null` to this parameter, a default user agent will be used
-     * 
-     * @param basePath
-     *            Base path to store the local cache
-     *            If you pass `null` to this parameter, the SDK won't use any local cache.
-     * 
-     * @param gfxProcessor
-     *            Image processor. The SDK will use it to generate previews and thumbnails
-     *            If you pass `null` to this parameter, the SDK will try to use the built-in image processors.
->>>>>>> master
+     *            If you pass null to this parameter, the SDK will try to use the built-in image processors.
      * 
      */
     public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor) {
@@ -144,7 +126,6 @@ public class MegaApiJava {
      * @param appKey
      *            AppKey of your application.
      *            Generate an AppKey for free here: https://mega.co.nz/#sdk
-     * 
      */
     public MegaApiJava(String appKey) {
         megaApi = new MegaApi(appKey);
@@ -676,7 +657,7 @@ public class MegaApiJava {
      * Returns the current session key.
      * <p>
      * You have to be logged in to get a valid session key. Otherwise,
-     * this function returns `null`.
+     * this function returns null.
      * 
      * @return Current session key
      */
@@ -688,7 +669,7 @@ public class MegaApiJava {
      * Returns the current XMPP session key.
      * <p>
      * You have to be logged in to get a valid session key. Otherwise,
-     * this function returns `null`.
+     * this function returns null.
      * 
      * @return Current XMPP session key
      */
@@ -918,11 +899,7 @@ public class MegaApiJava {
      * Retuns the email of the currently open account.
      * 
      * If the MegaApi object isn't logged in or the email isn't available,
-<<<<<<< HEAD
-     * this function returns NULL.
-=======
-     * this function returns `null`
->>>>>>> master
+     * this function returns null.
      * 
      * @return Email of the account
      */
@@ -1952,11 +1929,11 @@ public class MegaApiJava {
      * - MegaRequest.getMegaAccountDetails() - Details of the MEGA account
      *
      * @param sessions
-     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     *              Boolean. Get sessions history if true. Do not get sessions history if false
      * @param purchases
-     *              Boolean. Get purchase history if True. Do not get purchase history if False
+     *              Boolean. Get purchase history if true. Do not get purchase history if false
      * @param transactions
-     *              Boolean. Get transactions history if True. Do not get transactions history if False
+     *              Boolean. Get transactions history if true. Do not get transactions history if false
      * @param listener
      *            MegaRequestListener to track this request
      */
@@ -1970,11 +1947,11 @@ public class MegaApiJava {
      * This function allows to optionally get data about sessions, transactions and purchases related to the account.
      *
      * @param sessions
-     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     *              Boolean. Get sessions history if true. Do not get sessions history if false
      * @param purchases
-     *              Boolean. Get purchase history if True. Do not get purchase history if False
+     *              Boolean. Get purchase history if true. Do not get purchase history if false
      * @param transactions
-     *              Boolean. Get transactions history if True. Do not get transactions history if False
+     *              Boolean. Get transactions history if true. Do not get transactions history if false
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases, boolean transactions) {
         megaApi.getExtendedAccountDetails(sessions, purchases, transactions);
@@ -1986,9 +1963,9 @@ public class MegaApiJava {
      * This function allows to optionally get data about sessions and purchases related to the account.
      *
      * @param sessions
-     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     *              Boolean. Get sessions history if true. Do not get sessions history if false
      * @param purchases
-     *              Boolean. Get purchase history if True. Do not get purchase history if False
+     *              Boolean. Get purchase history if true. Do not get purchase history if false
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases) {
         megaApi.getExtendedAccountDetails(sessions, purchases);
@@ -2000,7 +1977,7 @@ public class MegaApiJava {
      * This function allows to optionally get data about sessions related to the account.
      *
      * @param sessions
-     *              Boolean. Get sessions history if True. Do not get sessions history if False
+     *              Boolean. Get sessions history if true. Do not get sessions history if false
      */
     public void getExtendedAccountDetails(boolean sessions) {
         megaApi.getExtendedAccountDetails(sessions);
@@ -2017,9 +1994,6 @@ public class MegaApiJava {
     /**
      * Get the available pricing plans to upgrade a MEGA account.
      * <p>
-     * You can get a payment URL for any of the pricing plans provided by this function
-     * using MegaApiJava.getPaymentUrl().
-     * <p>
      * The associated request type with this request is MegaRequest.TYPE_GET_PRICING.
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish() when the error code
@@ -2028,8 +2002,6 @@ public class MegaApiJava {
      * 
      * @param listener
      *            MegaRequestListener to track this request
-     * 
-     * @see #getPaymentUrl() // not currently implemented
      */
     public void getPricing(MegaRequestListenerInterface listener) {
         megaApi.getPricing(createDelegateRequestListener(listener));
@@ -2037,11 +2009,6 @@ public class MegaApiJava {
 
     /**
      * Get the available pricing plans to upgrade a MEGA account.
-     * <p>
-     * You can get a payment URL for any of the pricing plans provided by this function
-     * using MegaApiJava.getPaymentUrl().
-     * 
-     * @see #getPaymentUrl() // not currently implemented
      */
     public void getPricing() {
         megaApi.getPricing();
@@ -2222,7 +2189,7 @@ public class MegaApiJava {
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
      *
-     * @param reason Reason for the cancellation. It can be NULL
+     * @param reason Reason for the cancellation. It can be null
      * @param listener MegaRequestListener to track this request
      */
     public void creditCardCancelSubscriptions(String reason, MegaRequestListenerInterface listener) {
@@ -2232,7 +2199,7 @@ public class MegaApiJava {
     /**
      * Cancel credit card subscriptions of the account.
      *
-     * @param reason Reason for the cancellation. It can be NULL
+     * @param reason Reason for the cancellation. It can be null
      *
      */
     public void creditCardCancelSubscriptions(String reason) {
@@ -2368,7 +2335,7 @@ public class MegaApiJava {
      * - MegaRequest.getText() - Returns the text of the invitation
      *
      * @param email Email of the new contact
-     * @param message Message for the user (can be NULL)
+     * @param message Message for the user (can be null)
      * @param action Action for this contact request. Valid values are: <br>
      * - MegaContactRequest.INVITE_ACTION_ADD = 0 <br>
      * - MegaContactRequest.INVITE_ACTION_DELETE = 1 <br>
@@ -2387,7 +2354,7 @@ public class MegaApiJava {
      * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
      *
      * @param email Email of the new contact
-     * @param message Message for the user (can be NULL)
+     * @param message Message for the user (can be null)
      * @param action Action for this contact request. Valid values are: <br>
      * - MegaContactRequest.INVITE_ACTION_ADD = 0 <br>
      * - MegaContactRequest.INVITE_ACTION_DELETE = 1 <br>
@@ -2904,7 +2871,7 @@ public class MegaApiJava {
      * 
      * @param transferTag
      *            tag to check
-     * @return MegaTransfer object with that tag, or `null` if there isn't any
+     * @return MegaTransfer object with that tag, or null if there isn't any
      *         active transfer with it
      * 
      */
@@ -3131,12 +3098,8 @@ public class MegaApiJava {
     /**
      * Get all children of a MegaNode.
      * <p>
-     * If the parent node doesn't exist or it isn't a folder, this function
-<<<<<<< HEAD
-     * returns NULL.
-=======
-     * returns `null`
->>>>>>> master
+     * If the parent node does not exist or it is not a folder, this function
+     * returns null.
      * 
      * @param parent
      *            Parent node
@@ -3184,12 +3147,8 @@ public class MegaApiJava {
     /**
      * Get all children of a MegaNode.
      * <p>
-     * If the parent node doesn't exist or it isn't a folder, this function
-<<<<<<< HEAD
-     * returns NULL.
-=======
-     * returns `null`
->>>>>>> master
+     * If the parent node does not exist or if it is not a folder, this function
+     * returns null.
      * 
      * @param parent
      *            Parent node
@@ -3233,12 +3192,8 @@ public class MegaApiJava {
 
     /**
      * Get the child node with the provided name.
-     * 
-<<<<<<< HEAD
-     * If the node doesn't exist, this function returns NULL.
-=======
-     * If the node doesn't exist, this function returns `null`
->>>>>>> master
+     * <p>
+     * If the node doesn't exist, this function returns null.
      * 
      * @param parent
      *            node
@@ -3252,13 +3207,9 @@ public class MegaApiJava {
 
     /**
      * Get the parent node of a MegaNode.
-     * 
+     * <p>
      * If the node doesn't exist in the account or
-<<<<<<< HEAD
-     * it is a root node, this function returns NULL.
-=======
-     * it is a root node, this function returns `null`
->>>>>>> master
+     * it is a root node, this function returns null.
      * 
      * @param node
      *            MegaNode to get the parent
@@ -3269,18 +3220,11 @@ public class MegaApiJava {
     }
 
     /**
-<<<<<<< HEAD
      * Get the path of a MegaNode.
      * <p>
-     * If the node doesn't exist, this function returns NULL.
-     * You can recoved the node later unsing MegaApiJava.getNodeByPath()
-=======
-     * Get the path of a MegaNode
-     * 
-     * If the node doesn't exist, this function returns `null`.
-     * You can recoved the node later unsing MegaApi::getNodeByPath
->>>>>>> master
-     * except if the path contains names with '/', '\' or ':' characters.
+     * If the node does not exist, this function returns null.
+     * You can recover the node later using MegaApi.getNodeByPath()
+     * unless the path contains names with '/', '\' or ':' characters.
      * 
      * @param node
      *            MegaNode for which the path will be returned
@@ -3304,7 +3248,7 @@ public class MegaApiJava {
      *            Path to check
      * @param baseFolder
      *            Base node if the path is relative
-     * @return The MegaNode object in the path, otherwise `null`
+     * @return The MegaNode object in the path, otherwise null
      */
     public MegaNode getNodeByPath(String path, MegaNode baseFolder) {
         return megaApi.getNodeByPath(path, baseFolder);
@@ -3323,7 +3267,7 @@ public class MegaApiJava {
      * @param path
      *            Path to check
      * 
-     * @return The MegaNode object in the path, otherwise `null`
+     * @return The MegaNode object in the path, otherwise null
      */
     public MegaNode getNodeByPath(String path) {
         return megaApi.getNodeByPath(path);
@@ -3338,7 +3282,7 @@ public class MegaApiJava {
      * 
      * @param handle
      *            Node handle to check
-     * @return MegaNode object with the handle, otherwise `null`
+     * @return MegaNode object with the handle, otherwise null
      */
     public MegaNode getNodeByHandle(long handle) {
         return megaApi.getNodeByHandle(handle);
@@ -3351,7 +3295,7 @@ public class MegaApiJava {
      * You take the ownership of the returned value.
      *
      * @param handle Contact request handle to check
-     * @return MegaContactRequest object with the handle, otherwise NULL
+     * @return MegaContactRequest object with the handle, otherwise null
      */
     public MegaContactRequest getContactRequestByHandle(long handle) {
         return megaApi.getContactRequestByHandle(handle);
@@ -3373,7 +3317,7 @@ public class MegaApiJava {
      * 
      * @param email
      *            Email address to check
-     * @return MegaUser that has the email address, otherwise `null`
+     * @return MegaUser that has the email address, otherwise null
      */
     public MegaUser getContact(String email) {
         return megaApi.getContact(email);
@@ -3652,8 +3596,8 @@ public class MegaApiJava {
      * @param searchString
      *            Search string. The search is case-insensitive
      * @param recursive
-     *            True if you want to seach recursively in the node tree.
-     *            False if you want to seach in the children of the node only
+     *            true if you want to seach recursively in the node tree.
+     *            false if you want to seach in the children of the node only
      * 
      * @return List of nodes that contain the desired string in their name
      */
@@ -3685,10 +3629,10 @@ public class MegaApiJava {
      * @param processor
      *            MegaTreeProcessor that will receive callbacks for every node in the tree
      * @param recursive
-     *            True if you want to recursively process the whole node tree.
-     *            False if you want to process the children of the node only
+     *            true if you want to recursively process the whole node tree.
+     *            false if you want to process the children of the node only
      * 
-     * @return True if all nodes were processed. False otherwise (the operation can be
+     * @return true if all nodes were processed. false otherwise (the operation can be
      *         cancelled by MegaTreeProcessor.processMegaNode())
      */
     public boolean processMegaTree(MegaNode parent, MegaTreeProcessorInterface processor, boolean recursive) {
@@ -3707,7 +3651,7 @@ public class MegaApiJava {
      * @param processor
      *            MegaTreeProcessor that will receive callbacks for every node in the tree
      * 
-     * @return True if all nodes were processed. False otherwise (the operation can be
+     * @return true if all nodes were processed. false otherwise (the operation can be
      *         cancelled by MegaTreeProcessor.processMegaNode())
      */
     public boolean processMegaTree(MegaNode parent, MegaTreeProcessorInterface processor) {
@@ -3736,18 +3680,28 @@ public class MegaApiJava {
         return megaApi.getUserAgent();
     }
 
+    /**
+     * Changes the API URL.
+     *
+     * @param apiURL The API URL to change
+     * @param disablepkp boolean. Disable public key if true. Do not disable public key if false
+     */
     public void changeApiUrl(String apiURL, boolean disablepkp) {
         megaApi.changeApiUrl(apiURL, disablepkp);
     }
 
+    /**
+     * Changes the API URL.
+     *
+     * @param apiURL The API URL to change
+     */
     public void changeApiUrl(String apiURL) {
         megaApi.changeApiUrl(apiURL);
     }
 
     /**
-<<<<<<< HEAD
      * Make a name suitable for a file name in the local filesystem.
-     * 
+     * <p>
      * This function escapes (%xx) forbidden characters in the local filesystem if needed.
      * You can revert this operation using MegaApiJava.unescapeFsIncompatible().
      * 
@@ -3775,7 +3729,7 @@ public class MegaApiJava {
      *
      * @param imagePath Image path
      * @param dstPath Destination path for the thumbnail (including the file name)
-     * @return True if the thumbnail was successfully created, otherwise false.
+     * @return true if the thumbnail was successfully created, otherwise false.
      */
     public boolean createThumbnail(String imagePath, String dstPath) {
         return megaApi.createThumbnail(imagePath, dstPath);
@@ -3786,7 +3740,7 @@ public class MegaApiJava {
      *
      * @param imagePath Image path
      * @param dstPath Destination path for the preview (including the file name)
-     * @return True if the preview was successfully created, otherwise false.
+     * @return true if the preview was successfully created, otherwise false.
      */
     public boolean createPreview(String imagePath, String dstPath) {
         return megaApi.createPreview(imagePath, dstPath);
@@ -3795,18 +3749,13 @@ public class MegaApiJava {
     /**
      * Convert a Base64 string to Base32.
      * <p>
-     * If the input pointer is NULL, this function will return NULL.
-=======
-     * Convert a Base64 string to Base32
-     * 
-     * If the input pointer is `null`, this function will return `null`.
->>>>>>> master
+     * If the input pointer is null, this function will return null.
      * If the input character array isn't a valid base64 string
      * the effect is undefined.
      * 
      * @param base64
-     *            `null`-terminated Base64 character array
-     * @return `null`-terminated Base32 character array
+     *            null-terminated Base64 character array
+     * @return null-terminated Base32 character array
      */
     public static String base64ToBase32(String base64) {
         return MegaApi.base64ToBase32(base64);
@@ -3815,13 +3764,13 @@ public class MegaApiJava {
     /**
      * Convert a Base32 string to Base64.
      * 
-     * If the input pointer is `null`, this function will return `null`.
+     * If the input pointer is null, this function will return null.
      * If the input character array isn't a valid base32 string
      * the effect is undefined.
      * 
      * @param base32
-     *            `null`-terminated Base32 character array
-     * @return `null`-terminated Base64 character array
+     *            null-terminated Base32 character array
+     * @return null-terminated Base64 character array
      */
     public static String base32ToBase64(String base32) {
         return MegaApi.base32ToBase64(base32);
