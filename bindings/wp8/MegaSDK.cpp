@@ -1700,6 +1700,16 @@ bool MegaSDK::isShared(MNode^ node)
     return megaApi->isShared(node->getCPtr());
 }
 
+bool MegaSDK::isOutShare(MNode^ node)
+{
+    return megaApi->isOutShare(node->getCPtr());
+}
+
+bool MegaSDK::isInShare(MNode^ node)
+{
+    return megaApi->isInShare(node->getCPtr());
+}
+
 MShareList^ MegaSDK::getOutShares()
 {
     return ref new MShareList(megaApi->getOutShares(), true);
