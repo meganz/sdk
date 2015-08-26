@@ -1085,6 +1085,7 @@ class MegaApiImpl : public MegaApp
         //Fingerprint
         char *getFingerprint(const char *filePath);
         char *getFingerprint(MegaNode *node);
+        char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
@@ -1398,6 +1399,28 @@ class MegaHashSignatureImpl
 	protected:    
 		HashSignature *hashSignature;
 		AsymmCipher* asymmCypher;
+};
+
+class ExternalInputStream : public InputStreamAccess
+{
+    MegaInputStream *inputStream;
+
+public:
+    ExternalInputStream(MegaInputStream *inputStream);
+    virtual m_off_t size();
+    virtual bool read(byte *buffer, unsigned size);
+};
+
+class FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+    virtual m_off_t size();
+    virtual bool read(byte *buffer, unsigned size);
+    virtual ~FileInputStream();
 };
 
 }

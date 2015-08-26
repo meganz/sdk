@@ -715,6 +715,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_ESSL:
+            return "SSL verification failed";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1721,6 +1723,11 @@ char *MegaApi::getFingerprint(MegaNode *node)
     return pImpl->getFingerprint(node);
 }
 
+char *MegaApi::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
+{
+    return pImpl->getFingerprint(inputStream, mtime);
+}
+
 MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint)
 {
     return pImpl->getNodeByFingerprint(fingerprint);
@@ -2435,3 +2442,19 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+
+
+int64_t MegaInputStream::getSize()
+{
+    return 0;
+}
+
+bool MegaInputStream::read(char *buffer, size_t size)
+{
+    return false;
+}
+
+MegaInputStream::~MegaInputStream()
+{
+
+}

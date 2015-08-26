@@ -1393,6 +1393,26 @@ void MegaSDK::startUploadToFile(String^ localPath, MNode^ parent, String^ fileNa
 		(fileName != nullptr) ? utf8fileName.c_str() : NULL);
 }
 
+void MegaSDK::startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime, MTransferListenerInterface^ listener)
+{
+	std::string utf8localPath;
+	if (localPath != nullptr)
+		MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+	megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+		(parent != nullptr) ? parent->getCPtr() : NULL, mtime, createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL, mtime);
+}
+
 void MegaSDK::startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener)
 {
 	std::string utf8localPath;
@@ -1718,6 +1738,24 @@ String^ MegaSDK::getFileFingerprint(String^ filePath)
     MegaApi::utf16ToUtf8(filePath->Data(), filePath->Length(), &utf8filePath);
 
     const char *utf8fingerprint = megaApi->getFingerprint(utf8filePath.c_str());
+    if (!utf8fingerprint)
+    {
+        return nullptr;
+    }
+
+    std::string utf16fingerprint;
+    MegaApi::utf8ToUtf16(utf8fingerprint, &utf16fingerprint);
+    delete[] utf8fingerprint;
+
+    return ref new String((wchar_t *)utf16fingerprint.c_str());
+}
+
+String^ MegaSDK::getFileFingerprint(MInputStream^ inputStream, uint64 mtime)
+{
+    if (inputStream == nullptr) return nullptr;
+
+    MInputStreamAdapter is(inputStream);
+    const char *utf8fingerprint = megaApi->getFingerprint(&is, mtime);
     if (!utf8fingerprint)
     {
         return nullptr;

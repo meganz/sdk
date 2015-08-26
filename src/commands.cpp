@@ -1347,27 +1347,19 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     user = u;
     access = a;
 
+    cmd("s2");
+    arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
+
+    // Only for inviting non-contacts
     if (personal_representation)
     {
         this->personal_representation = personal_representation;
+        arg("e", personal_representation);
     }
 
     if (msg)
     {
         this->msg = msg;
-    }
-
-    cmd("s2");
-    arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
-
-    // Only for inviting non-contacts
-    if (this->personal_representation.size())
-    {
-        arg("e", personal_representation);
-    }
-
-    if (this->msg.size())
-    {
         arg("msg", msg);
     }
 

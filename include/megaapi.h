@@ -2245,7 +2245,8 @@ public:
         API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
         API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
         API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
-        API_EAPPKEY = -22,       ///< Invalid or missing application key.
+        API_EAPPKEY = -22,      ///< Invalid or missing application key.
+        API_ESSL = -23,         ///< SSL verification failed
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -2918,6 +2919,14 @@ class MegaListener
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
         virtual ~MegaListener();
+};
+
+class MegaInputStream
+{
+public:
+    virtual int64_t getSize();
+    virtual bool read(char *buffer, size_t size);
+    virtual ~MegaInputStream();
 };
 
 class MegaApiImpl;
@@ -5559,6 +5568,9 @@ class MegaApi
          * @return Base64-encoded fingerprint for the file
          */
         char *getFingerprint(MegaNode *node);
+
+
+        char* getFingerprint(MegaInputStream *inputStream, int64_t mtime);
 
         /**
          * @brief Returns a node with the provided fingerprint
