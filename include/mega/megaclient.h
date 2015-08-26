@@ -293,6 +293,9 @@ public:
     // send event
     void sendevent(int, const char *);
 
+    // clean rubbish bin
+    void cleanrubbishbin();
+
     // toggle global debug flag
     bool toggledebug();
 

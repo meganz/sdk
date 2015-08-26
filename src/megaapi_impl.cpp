@@ -1558,6 +1558,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
         case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
         case TYPE_SEND_EVENT: return "SEND_EVENT";
+        case TYPE_CLEAN_RUBBISH_BIN: return "CLEAN_RUBBISH_BIN";
 	}
     return "UNKNOWN";
 }
@@ -8837,6 +8838,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
             client->copysession();
+            break;
+        }
+        case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
+        {
+            client->cleanrubbishbin();
             break;
         }
         default:
