@@ -306,6 +306,7 @@ namespace mega
         String^ getFileFingerprint(MInputStream^ inputStream, uint64 mtime);
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
+        MNode^ getNodeByFingerprint(String^ fingerprint, MNode^ parent);
         bool hasFingerprint(String^ fingerprint);
         int getAccess(MNode^ node);
         MError^ checkAccess(MNode^ node, int level);
