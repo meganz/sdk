@@ -1802,6 +1802,17 @@ MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint)
     return node ? ref new MNode(node, true) : nullptr;
 }
 
+MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint, MNode^ parent)
+{
+    if (fingerprint == nullptr || parent == nullptr) return nullptr;
+
+    std::string utf8fingerprint;
+    MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
+
+    MegaNode *node = megaApi->getNodeByFingerprint(utf8fingerprint.c_str(), parent->getCPtr());
+    return node ? ref new MNode(node, true) : nullptr;
+}
+
 bool MegaSDK::hasFingerprint(String^ fingerprint)
 {
     if (fingerprint == nullptr) return false;
