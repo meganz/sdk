@@ -1558,6 +1558,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
         case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
         case TYPE_SEND_EVENT: return "SEND_EVENT";
+        case TYPE_CLEAN_RUBBISH_BIN: return "CLEAN_RUBBISH_BIN";
 	}
     return "UNKNOWN";
 }
@@ -2671,6 +2672,13 @@ void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE, listener);
     if(node) request->setNodeHandle(node->getHandle());
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::cleanRubbishBin(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CLEAN_RUBBISH_BIN, listener);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -4010,6 +4018,24 @@ bool MegaApiImpl::isInShare(MegaNode *megaNode)
     return result;
 }
 
+bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->pendingshares != NULL);
+    sdkMutex.unlock();
+
+    return result;
+}
+
 MegaShareList *MegaApiImpl::getOutShares()
 {
     sdkMutex.lock();
@@ -4915,6 +4941,17 @@ void MegaApiImpl::sessions_killed(handle, error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_KILL_SESSION)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::cleanrubbishbin_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CLEAN_RUBBISH_BIN)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -8801,6 +8838,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
             client->copysession();
+            break;
+        }
+        case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
+        {
+            client->cleanrubbishbin();
             break;
         }
         default:

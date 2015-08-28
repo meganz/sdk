@@ -8066,4 +8066,10 @@ void MegaClient::sendevent(int event, const char *desc)
     reqs[r].add(new CommandSendEvent(this, event, desc));
 }
 
+void MegaClient::cleanrubbishbin()
+{
+    reqs[r].add(new CommandCleanRubbishBin(this));
+}
+
+
 } // namespace

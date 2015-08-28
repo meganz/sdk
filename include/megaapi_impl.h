@@ -945,6 +945,7 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+        void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
@@ -1069,6 +1070,7 @@ class MegaApiImpl : public MegaApp
         bool isShared(MegaNode *node);
         bool isOutShare(MegaNode *node);
         bool isInShare(MegaNode *node);
+        bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
@@ -1330,6 +1332,8 @@ protected:
         virtual void reportevent_result(error);
         virtual void loadbalancing_result(string*, error);
         virtual void sessions_killed(handle sessionid, error e);
+
+        virtual void cleanrubbishbin_result(error);
 
 #ifdef ENABLE_SYNC
         // sync status updates and events

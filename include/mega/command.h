@@ -592,6 +592,14 @@ public:
     CommandSendEvent(MegaClient*, int, const char *);
 };
 
+class MEGA_API CommandCleanRubbishBin : public Command
+{
+public:
+    void procresult();
+
+    CommandCleanRubbishBin(MegaClient*);
+};
+
 } // namespace
 
 #endif
