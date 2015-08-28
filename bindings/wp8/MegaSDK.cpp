@@ -1700,6 +1700,16 @@ bool MegaSDK::isShared(MNode^ node)
     return megaApi->isShared(node->getCPtr());
 }
 
+bool MegaSDK::isOutShare(MNode^ node)
+{
+    return megaApi->isOutShare(node->getCPtr());
+}
+
+bool MegaSDK::isInShare(MNode^ node)
+{
+    return megaApi->isInShare(node->getCPtr());
+}
+
 MShareList^ MegaSDK::getOutShares()
 {
     return ref new MShareList(megaApi->getOutShares(), true);
@@ -1789,6 +1799,17 @@ MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint)
     MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
 
     MegaNode *node = megaApi->getNodeByFingerprint(utf8fingerprint.c_str());
+    return node ? ref new MNode(node, true) : nullptr;
+}
+
+MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint, MNode^ parent)
+{
+    if (fingerprint == nullptr || parent == nullptr) return nullptr;
+
+    std::string utf8fingerprint;
+    MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
+
+    MegaNode *node = megaApi->getNodeByFingerprint(utf8fingerprint.c_str(), parent->getCPtr());
     return node ? ref new MNode(node, true) : nullptr;
 }
 
