@@ -3823,7 +3823,8 @@ class MegaApi
          * This function effectively removes every node contained in the Rubbish Bin. In order to
          * avoid accidental deletions, you might want to warn the user about the action.
          *
-         * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN
+         * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN. This
+         * request returns MegaError::API_ENOENT if the Rubbish bin is already empty.
          *
          * @param listener MegaRequestListener to track this request
          */
