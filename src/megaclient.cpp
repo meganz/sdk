@@ -527,12 +527,6 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
 
-
-    xferpaused[PUT] = false;
-    xferpaused[GET] = false;
-
-    putmbpscap = 0;
-
     jsonsc.pos = NULL;
     insca = false;
     scnotifyurl.clear();
@@ -560,6 +554,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     pendingsc = NULL;
 
     curfa = newfa.end();
+    xferpaused[PUT] = false;
+    xferpaused[GET] = false;
+    putmbpscap = 0;
 
     init();
 
@@ -2140,6 +2137,9 @@ void MegaClient::locallogout()
 
     newfa.clear();
     curfa = newfa.end();
+    xferpaused[PUT] = false;
+    xferpaused[GET] = false;
+    putmbpscap = 0;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
