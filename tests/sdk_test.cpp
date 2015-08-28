@@ -68,8 +68,9 @@ void SdkTest::TearDown()
         MegaUserList *ul = megaApi->getContacts();
         for (int i = 0; i < ul->size(); i++)
         {
-            MegaUser *u = ul->get(i);
-            megaApi->removeContact(u);
+            MegaUser *u = ul->get(i);            
+            if (u->getEmail() != email) // Trying to remove your own user throws API_EARGS
+                megaApi->removeContact(u);
         }
 
         // Remove pending contact requests
