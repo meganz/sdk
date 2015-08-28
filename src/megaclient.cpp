@@ -491,7 +491,6 @@ void MegaClient::init()
 {
     warned = false;
     csretrying = false;
-    fetchingnodes = false;
     chunkfailed = false;
     noinetds = 0;
 
@@ -542,6 +541,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtupport = false;
     autodownport = true;
     autoupport = true;
+    statecurrent = false;
+    fetchingnodes = false;
 
 #ifdef ENABLE_SYNC
     syncscanstate = false;
@@ -1206,8 +1207,9 @@ void MegaClient::exec()
         }
 
         // halt all syncing while the local filesystem is pending a lock-blocked operation
+        // or while we are fetching nodes
         // FIXME: indicate by callback
-        if (!syncdownretry && !syncadding)
+        if (!syncdownretry && !syncadding && !fetchingnodes)
         {
             // process active syncs, stop doing so while transient local fs ops are pending
             if (syncs.size() || syncactivity)
@@ -2140,6 +2142,7 @@ void MegaClient::locallogout()
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
+    fetchingnodes = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -2202,6 +2205,7 @@ bool MegaClient::procsc()
                         // NULL vector: "notify all nodes"
                         app->nodes_current();
                         statecurrent = true;
+                        fetchingnodes = false;
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
