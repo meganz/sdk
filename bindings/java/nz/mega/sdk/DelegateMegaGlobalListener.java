@@ -2,6 +2,25 @@ package nz.mega.sdk;
 
 import java.util.ArrayList;
 
+/**
+ * Listener to receive and send global events to the app.
+ * <p>
+ * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * <p<>
+ * This file is part of the MEGA SDK - Client Access Engine.
+ * <p>
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ * <p>
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * <p>
+ * @copyright Simplified (2-clause) BSD License.
+ * <p>
+ * You should have received a copy of the license along with this
+ * program.
+ */
 class DelegateMegaGlobalListener extends MegaGlobalListener {
     MegaApiJava megaApi;
     MegaGlobalListenerInterface listener;
@@ -16,18 +35,18 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
         return listener;
     }
 
-
     /**
-     * This function is called when there are new or updated contacts in the account. 
+     * This function is called when there are new or updated contacts in the account.
+     * <p>
      * The SDK retains the ownership of the MegaUserList in the second parameter. 
      * The list and all the MegaUser objects that it contains will be valid until this function returns. 
-     * If you want to save the list, use MegaUserList::copy. 
-     * If you want to save only some of the MegaUser objects, use MegaUser::copy for those objects.
+     * If you want to save the list, use MegaUserList.copy().
+     * If you want to save only some of the MegaUser objects, use MegaUser.copy() for those objects.
      *  
-     * @param userList
-     *            List of new or updated Contacts
      * @param api
-     *            Mega Java API connected to account
+     *            API object connected to account
+     * @param userList
+     *            List that contains the new or updated contacts
      */
     @Override
     public void onUsersUpdate(MegaApi api, MegaUserList userList) {
@@ -42,19 +61,20 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
         }
     }
 
-
     /**
-     * This function is called when there are new or updated nodes in the account. 
-     * When the full account is reloaded or a large number of server notifications arrives at once, the second parameter will be NULL.
+     * This function is called when there are new or updated nodes in the account.
+     * <p>
+     * When the full account is reloaded or a large number of server notifications arrives at once,
+     * the second parameter will be null.
      * The SDK retains the ownership of the MegaNodeList in the second parameter. 
      * The list and all the MegaNode objects that it contains will be valid until this function returns. 
-     * If you want to save the list, use MegaNodeList::copy. 
-     * If you want to save only some of the MegaNode objects, use MegaNode::copy for those nodes.
-     *  
+     * If you want to save the list, use MegaNodeList.copy().
+     * If you want to save only some of the MegaNode objects, use MegaNode.copy() for those nodes.
+     *
+     * @param api
+     *            API object connected to account
      * @param nodeList
      *            List of new or updated Nodes
-     * @param api
-     *            API connected to account
      */
     @Override
     public void onNodesUpdate(MegaApi api, MegaNodeList nodeList) {
@@ -71,10 +91,11 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
 
     /**
      * This function is called when an inconsistency is detected in the local cache. 
-     * You should call MegaApi::fetchNodes when this callback is received
+     * <p>
+     * You should call MegaApiJava.fetchNodes() when this callback is received.
      *  
      * @param api
-     *            API connected to account
+     *            API object connected to account
      */
     @Override
     public void onReloadNeeded(MegaApi api) {
