@@ -68,7 +68,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
     }
 
     // 2. Create table for 'nodes'
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle INTEGER PRIMARY KEY NOT NULL, parenthandle BLOB NOT NULL, fingerprint BLOB, attrstring TEXT, shared INTEGER NOT NULL, node BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle INTEGER PRIMARY KEY NOT NULL, parenthandle INTEGER NOT NULL, fingerprint BLOB, attrstring TEXT, shared INTEGER NOT NULL, node BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
