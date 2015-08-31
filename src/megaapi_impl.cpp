@@ -6146,7 +6146,12 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 	numDetails--;
 	request->setNumDetails(numDetails);
 	if(!numDetails)
-        fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+    {
+        if(!request->getAccountDetails()->storage_max)
+            fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
+        else
+            fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+    }
 }
 
 void MegaApiImpl::account_details(AccountDetails*, error e)
@@ -8080,6 +8085,12 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_ACCOUNT_DETAILS:
 		{
+            if(client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
 			int numDetails = request->getNumDetails();
 			bool storage = (numDetails & 0x01) != 0;
 			bool transfer = (numDetails & 0x02) != 0;
