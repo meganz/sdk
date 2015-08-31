@@ -97,6 +97,22 @@ uint64 MNode::getHandle()
 	return megaNode ? megaNode->getHandle() : ::mega::INVALID_HANDLE;
 }
 
+uint64 MNode::getParentHandle()
+{
+    return megaNode ? megaNode->getParentHandle() : ::mega::INVALID_HANDLE;
+}
+
+String^ MNode::getBase64Key()
+{
+    if (!megaNode) return nullptr;
+
+    std::string utf16base64key;
+    const char *utf8base64key = megaNode->getBase64Key();
+    MegaApi::utf8ToUtf16(utf8base64key, &utf16base64key);
+    
+    return utf8base64key ? ref new String((wchar_t *)utf16base64key.data()) : nullptr;
+}
+
 int MNode::getTag()
 {
 	return megaNode ? megaNode->getTag() : 0;
@@ -117,6 +133,16 @@ bool MNode::isRemoved()
 	return megaNode ? megaNode->isRemoved() : false;
 }
 
+bool MNode::hasChanged(int changeType)
+{
+    return megaNode ? megaNode->hasChanged(changeType) : false;
+}
+
+int MNode::getChanges()
+{
+    return megaNode ? megaNode->getChanges() : 0;
+}
+
 bool MNode::hasThumbnail()
 {
 	return megaNode ? megaNode->hasThumbnail() : false;
@@ -125,4 +151,9 @@ bool MNode::hasThumbnail()
 bool MNode::hasPreview()
 {
 	return megaNode ? megaNode->hasPreview() : false;
+}
+
+bool MNode::isPublic()
+{
+    return megaNode ? megaNode->isPublic() : false;
 }

@@ -1094,6 +1094,11 @@ void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
     pImpl->remove(node, listener);
 }
 
+void MegaApi::cleanRubbishBin(MegaRequestListener *listener)
+{
+    pImpl->cleanRubbishBin(listener);
+}
+
 void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener)
 {
     pImpl->sendFileToUser(node, user, listener);
@@ -1583,6 +1588,11 @@ bool MegaApi::isOutShare(MegaNode *node)
 bool MegaApi::isInShare(MegaNode *node)
 {
     return pImpl->isInShare(node);
+}
+
+bool MegaApi::isPendingShare(MegaNode *node)
+{
+    return pImpl->isPendingShare(node);
 }
 
 MegaShareList *MegaApi::getOutShares()

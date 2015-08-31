@@ -106,6 +106,13 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
 {
     int numputs = 0;
 
+    if (SimpleLogger::logCurrentLevel >= logDebug)
+    {
+        string utf8path;
+        client->fsaccess->local2path(localfilename, &utf8path);
+        LOG_debug << "Creating thumb/preview for " << utf8path;
+    }
+
     // (this assumes that the width of the largest dimension is max)
     if (readbitmap(fa, localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
     {

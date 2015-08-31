@@ -1108,7 +1108,7 @@ class MegaRequest
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT
+            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN
         };
 
         virtual ~MegaRequest();
@@ -3818,6 +3818,19 @@ class MegaApi
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Clean the Rubbish Bin in the MEGA account
+         *
+         * This function effectively removes every node contained in the Rubbish Bin. In order to
+         * avoid accidental deletions, you might want to warn the user about the action.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN. This
+         * request returns MegaError::API_ENOENT if the Rubbish bin is already empty.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cleanRubbishBin(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Send a node to the Inbox of another MEGA user using a MegaUser
          *
          * The associated request type with this request is MegaRequest::TYPE_COPY
@@ -5434,6 +5447,18 @@ class MegaApi
          * @return true is the MegaNode is being shared, otherwise false
          */
         bool isInShare(MegaNode *node);
+
+        /**
+         * @brief Check if a MegaNode is pending to be shared with another User. This situation
+         * happens when a node is to be shared with a User which is not a contact yet.
+         *
+         * For nodes that are pending to be shared, you can get a list of MegaNode
+         * objects using MegaApi::getPendingShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is pending to be shared, otherwise false
+         */
+        bool isPendingShare(MegaNode *node);
 
         /**
          * @brief Get a list with all active outbound sharings

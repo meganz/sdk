@@ -292,6 +292,8 @@ namespace mega
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         bool isShared(MNode^ node);
+        bool isOutShare(MNode^ node);
+        bool isInShare(MNode^ node);
         MShareList^ getOutShares();
         MShareList^ getOutShares(MNode^ node);
         MShareList^ getPendingOutShares();
@@ -304,6 +306,7 @@ namespace mega
         String^ getFileFingerprint(MInputStream^ inputStream, uint64 mtime);
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
+        MNode^ getNodeByFingerprint(String^ fingerprint, MNode^ parent);
         bool hasFingerprint(String^ fingerprint);
         int getAccess(MNode^ node);
         MError^ checkAccess(MNode^ node, int level);
