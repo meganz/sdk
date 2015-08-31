@@ -435,7 +435,7 @@ public class MegaApiJava {
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_LOGIN.
      * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getEmail() - Retuns the string "FOLDER" <br>
+     * - MegaRequest.getEmail() - Returns the string "FOLDER" <br>
      * - MegaRequest.getLink() - Returns the public link to the folder
      * 
      * @param megaFolderLink
@@ -469,7 +469,7 @@ public class MegaApiJava {
      * - MegaRequest.getPassword() - Returns the second parameter <br>
      * - MegaRequest.getPrivateKey() - Returns the third parameter
      * <p>
-     * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish() is
+     * If the email/stringHash/base64pwKey are not valid the error code provided in onRequestFinish() is
      * MegaError.API_ENOENT.
      * 
      * @param email
@@ -877,7 +877,7 @@ public class MegaApiJava {
      * Try to detect the system's proxy settings.
      * 
      * Automatic proxy detection is currently supported on Windows only.
-     * On other platforms, this fuction will return a MegaProxy object
+     * On other platforms, this function will return a MegaProxy object
      * of type MegaProxy.PROXY_NONE.
      * 
      * @return MegaProxy object with the detected proxy settings
@@ -896,9 +896,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Retuns the email of the currently open account.
+     * Returns the email of the currently open account.
      * 
-     * If the MegaApi object isn't logged in or the email isn't available,
+     * If the MegaApi object is not logged in or the email is not available,
      * this function returns null.
      * 
      * @return Email of the account
@@ -1117,7 +1117,7 @@ public class MegaApiJava {
      * @param newName
      *            Name for the new node <br>
      * 
-     *            This parameter is only used if the original node is a file and it isn't a public node,
+     *            This parameter is only used if the original node is a file and it is not a public node,
      *            otherwise, it's ignored.
      * 
      * @param listener
@@ -1137,8 +1137,8 @@ public class MegaApiJava {
      * @param newName
      *            Name for the new node <br>
      * 
-     *            This parameter is only used if the original node is a file and it isn't a public node,
-     *            otherwise, it's ignored.
+     *            This parameter is only used if the original node is a file and it is not a public node,
+     *            otherwise, it is ignored.
      * 
      */
     public void copyNode(MegaNode node, MegaNode newParent, String newName) {
@@ -1179,7 +1179,7 @@ public class MegaApiJava {
     /**
      * Remove a node from the MEGA account.
      * <p>
-     * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+     * This function does not move the node to the Rubbish Bin, it fully removes the node. To move
      * the node to the Rubbish Bin use MegaApiJava.moveNode()
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_REMOVE
@@ -1311,7 +1311,7 @@ public class MegaApiJava {
      * @param node
      *            The folder to share. It must be a non-root folder
      * @param email
-     *            Email of the user that receives the shared folder. If it doesn't have a MEGA account,
+     *            Email of the user that receives the shared folder. If it does not have a MEGA account,
      *            the folder will be shared anyway and the user will be invited to register an account.
      * @param level
      *            Permissions that are granted to the user <br>
@@ -1340,7 +1340,7 @@ public class MegaApiJava {
      * @param node
      *            The folder to share. It must be a non-root folder
      * @param email
-     *            Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
+     *            Email of the user that receives the shared folder. If it does not have a MEGA account, the folder will be shared anyway
      *            and the user will be invited to register an account.
      * @param level
      *            Permissions that are granted to the user <br>
@@ -1430,7 +1430,7 @@ public class MegaApiJava {
     /**
      * Get the thumbnail of a node.
      * <p>
-     * If the node doesn't have a thumbnail the request fails with the MegaError.API_ENOENT
+     * If the node does not have a thumbnail, the request fails with the MegaError.API_ENOENT
      * error code.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_GET_ATTR_FILE
@@ -1444,7 +1444,7 @@ public class MegaApiJava {
      * @param dstFilePath
      *            Destination path for the thumbnail.
      *            If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
-     *            will be used as the file name inside that folder. If the path doesn't finish with
+     *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      * 
      * @param listener
@@ -1457,7 +1457,7 @@ public class MegaApiJava {
     /**
      * Get the thumbnail of a node.
      * <p>
-     * If the node doesn't have a thumbnail the request fails with the MegaError.API_ENOENT
+     * If the node does not have a thumbnail the request fails with the MegaError.API_ENOENT
      * error code.
      * 
      * @param node
@@ -1465,7 +1465,7 @@ public class MegaApiJava {
      * @param dstFilePath
      *            Destination path for the thumbnail.
      *            If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
-     *            will be used as the file name inside that folder. If the path doesn't finish with
+     *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      */
     public void getThumbnail(MegaNode node, String dstFilePath) {
@@ -1475,7 +1475,7 @@ public class MegaApiJava {
     /**
      * Get the preview of a node.
      * <p>
-     * If the node doesn't have a preview the request fails with the MegaError.API_ENOENT
+     * If the node does not have a preview the request fails with the MegaError.API_ENOENT
      * error code.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_GET_ATTR_FILE
@@ -1489,7 +1489,7 @@ public class MegaApiJava {
      * @param dstFilePath
      *            Destination path for the preview.
      *            If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "1.jpg")
-     *            will be used as the file name inside that folder. If the path doesn't finish with
+     *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      * 
      * @param listener
@@ -1502,7 +1502,7 @@ public class MegaApiJava {
     /**
      * Get the preview of a node.
      * <p>
-     * If the node doesn't have a preview the request fails with the MegaError.API_ENOENT
+     * If the node does not have a preview the request fails with the MegaError.API_ENOENT
      * error code.
      * 
      * @param node
@@ -1510,7 +1510,7 @@ public class MegaApiJava {
      * @param dstFilePath
      *            Destination path for the preview.
      *            If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "1.jpg")
-     *            will be used as the file name inside that folder. If the path doesn't finish with
+     *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      */
     public void getPreview(MegaNode node, String dstFilePath) {
@@ -1530,7 +1530,7 @@ public class MegaApiJava {
      * @param dstFilePath
      *            Destination path for the avatar. It has to be a path to a file, not to a folder.
      *            If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
-     *            will be used as the file name inside that folder. If the path doesn't finish with
+     *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      * 
      * @param listener
@@ -1548,7 +1548,7 @@ public class MegaApiJava {
      * @param dstFilePath
      *            Destination path for the avatar. It has to be a path to a file, not to a folder.
      *            If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
-     *            will be used as the file name inside that folder. If the path doesn't finish with
+     *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      */
     public void getUserAvatar(MegaUser user, String dstFilePath) {
@@ -2127,7 +2127,7 @@ public class MegaApiJava {
      * @param address2 Second line of the billing address (optional)
      * @param city City of the billing address
      * @param province Province of the billing address
-     * @param country Contry of the billing address
+     * @param country Country of the billing address
      * @param postalcode Postal code of the billing address
      * @param firstname Firstname of the owner of the credit card
      * @param lastname Lastname of the owner of the credit card
@@ -2148,7 +2148,7 @@ public class MegaApiJava {
      * @param address2 Second line of the billing address (optional)
      * @param city City of the billing address
      * @param province Province of the billing address
-     * @param country Contry of the billing address
+     * @param country Country of the billing address
      * @param postalcode Postal code of the billing address
      * @param firstname Firstname of the owner of the credit card
      * @param lastname Lastname of the owner of the credit card
@@ -2459,7 +2459,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_FEEDBACK <br>
-     * - MegaRequest.getText() - Retuns the comment about the app <br>
+     * - MegaRequest.getText() - Returns the comment about the app <br>
      * - MegaRequest.getNumber() - Returns the rating for the app
      * 
      * @param rating
@@ -2501,7 +2501,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG <br>
-     * - MegaRequest.getText() - Retuns the debug message
+     * - MegaRequest.getText() - Returns the debug message
      * 
      * @param text
      *            Debug message
@@ -2522,7 +2522,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG <br>
-     * - MegaRequest.getText() - Retuns the debug message
+     * - MegaRequest.getText() - Returns the debug message
      * 
      * @param text
      *            Debug message
@@ -2665,7 +2665,7 @@ public class MegaApiJava {
      * @param localPath
      *            Destination path for the file.
      *            If this path is a local folder, it must end with a '\' or '/' character and the file name
-     *            in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     *            in MEGA will be used to store a file inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      * 
      * @param listener
@@ -2683,7 +2683,7 @@ public class MegaApiJava {
      * @param localPath
      *            Destination path for the file.
      *            If this path is a local folder, it must end with a '\' or '/' character and the file name
-     *            in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     *            in MEGA will be used to store a file inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
      */
     public void startDownload(MegaNode node, String localPath) {
@@ -2703,7 +2703,7 @@ public class MegaApiJava {
      * with MegaApiJava.addTransferListener() will not receive them for performance reasons.
      * 
      * @param node
-     *            MegaNode that identifies the file (public nodes aren't supported yet)
+     *            MegaNode that identifies the file (public nodes are not supported yet)
      * @param startPos
      *            First byte to download from the file
      * @param size
@@ -2871,7 +2871,7 @@ public class MegaApiJava {
      * 
      * @param transferTag
      *            tag to check
-     * @return MegaTransfer object with that tag, or null if there isn't any
+     * @return MegaTransfer object with that tag, or null if there is not any
      *         active transfer with it
      * 
      */
@@ -3050,10 +3050,10 @@ public class MegaApiJava {
     /**
      * Get the number of child nodes.
      * <p>
-     * If the node doesn't exist in MEGA or isn't a folder,
+     * If the node does not exist in MEGA or is not a folder,
      * this function returns 0.
      * <p>
-     * This function doesn't search recursively, only returns the direct child nodes.
+     * This function does not search recursively, only returns the direct child nodes.
      * 
      * @param parent
      *            Parent node
@@ -3066,10 +3066,10 @@ public class MegaApiJava {
     /**
      * Get the number of child files of a node.
      * <p>
-     * If the node doesn't exist in MEGA or isn't a folder,
+     * If the node does not exist in MEGA or is not a folder,
      * this function returns 0.
      * <p>
-     * This function doesn't search recursively, only returns the direct child files.
+     * This function does not search recursively, only returns the direct child files.
      * 
      * @param parent
      *            Parent node
@@ -3082,10 +3082,10 @@ public class MegaApiJava {
     /**
      * Get the number of child folders of a node.
      * <p>
-     * If the node doesn't exist in MEGA or isn't a folder,
+     * If the node does not exist in MEGA or is not a folder,
      * this function returns 0.
      * <p>
-     * This function doesn't search recursively, only returns the direct child folders.
+     * This function does not search recursively, only returns the direct child folders.
      * 
      * @param parent
      *            Parent node
@@ -3162,7 +3162,7 @@ public class MegaApiJava {
     /**
      * Get the current index of the node in the parent folder for a specific sorting order.
      * <p>
-     * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
+     * If the node does not exist or it does not have a parent node (because it's a root node)
      * this function returns -1.
      * 
      * @param node
@@ -3178,7 +3178,7 @@ public class MegaApiJava {
     /**
      * Get the current index of the node in the parent folder.
      * <p>
-     * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
+     * If the node does not exist or it does not have a parent node (because it's a root node)
      * this function returns -1.
      * 
      * @param node
@@ -3193,7 +3193,7 @@ public class MegaApiJava {
     /**
      * Get the child node with the provided name.
      * <p>
-     * If the node doesn't exist, this function returns null.
+     * If the node does not exist, this function returns null.
      * 
      * @param parent
      *            node
@@ -3208,7 +3208,7 @@ public class MegaApiJava {
     /**
      * Get the parent node of a MegaNode.
      * <p>
-     * If the node doesn't exist in the account or
+     * If the node does not exist in the account or
      * it is a root node, this function returns null.
      * 
      * @param node
@@ -3261,7 +3261,7 @@ public class MegaApiJava {
      * The Inbox root node is //in/. <br>
      * The Rubbish root node is //bin/.
      * <p>
-     * Paths with names containing '/', '\' or ':' aren't compatible
+     * Paths with names containing '/', '\' or ':' are not compatible
      * with this function.
      * 
      * @param path
@@ -3324,7 +3324,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all inbound sharings from one MegaUser.
+     * Get a list with all inbound shares from one MegaUser.
      * 
      * @param user
      *            MegaUser sharing folders with this account
@@ -3335,7 +3335,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all inboud sharings.
+     * Get a list with all inbound shares.
      * 
      * @return List of MegaNode objects that other users are sharing with this account
      */
@@ -3358,7 +3358,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all active outbound sharings.
+     * Get a list with all active outbound shares.
      * 
      * @return List of MegaShare objects
      */
@@ -3367,9 +3367,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with the active outbound sharings for a MegaNode.
+     * Get a list with the active outbound shares for a MegaNode.
      * <p>
-     * If the node doesn't exist in the account, this function returns an empty list.
+     * If the node does not exist in the account, this function returns an empty list.
      * 
      * @param node
      *            MegaNode to check
@@ -3380,7 +3380,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all pending outbound sharings.
+     * Get a list with all pending outbound shares.
      *
      * @return List of MegaShare objects
      */
@@ -3389,7 +3389,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all pending outbound sharings.
+     * Get a list with all pending outbound shares.
      *
      * @param node MegaNode to check
      * @return List of MegaShare objects
@@ -3437,7 +3437,7 @@ public class MegaApiJava {
      * Get the size of a node tree.
      * <p>
      * If the MegaNode is a file, this function returns the size of the file.
-     * If it's a folder, this fuction returns the sum of the sizes of all nodes
+     * If it's a folder, this function returns the sum of the sizes of all nodes
      * in the node tree.
      * 
      * @param node
@@ -3468,7 +3468,7 @@ public class MegaApiJava {
     /**
      * Get a Base64-encoded fingerprint for a node.
      * <p>
-     * If the node doesn't exist or doesn't have a fingerprint, this function returns null.
+     * If the node does not exist or does not have a fingerprint, this function returns null.
      * 
      * @param node
      *            Node for which we want to get the fingerprint
@@ -3481,7 +3481,7 @@ public class MegaApiJava {
     /**
      * Returns a node with the provided fingerprint.
      * <p>
-     * If there isn't any node in the account with that fingerprint, this function returns null.
+     * If there is not any node in the account with that fingerprint, this function returns null.
      * 
      * @param fingerprint
      *            Fingerprint to check
@@ -3523,8 +3523,8 @@ public class MegaApiJava {
      * @return MegaError object with the result.
      *         Valid values for the error code are: <br>
      *         - MegaError.API_OK - The node has the required access level <br>
-     *         - MegaError.API_EACCESS - The node doesn't have the required access level <br>
-     *         - MegaError.API_ENOENT - The node doesn't exist in the account <br>
+     *         - MegaError.API_EACCESS - The node does not have the required access level <br>
+     *         - MegaError.API_ENOENT - The node does not exist in the account <br>
      *         - MegaError.API_EARGS - Invalid parameters
      */
     public MegaError checkAccess(MegaNode node, int level) {
@@ -3543,7 +3543,7 @@ public class MegaApiJava {
      *         - MegaError.API_OK - The node can be moved to the target <br>
      *         - MegaError.API_EACCESS - The node can't be moved because of permissions problems <br>
      *         - MegaError.API_ECIRCULAR - The node can't be moved because that would create a circular linkage <br>
-     *         - MegaError.API_ENOENT - The node or the target doesn't exist in the account <br>
+     *         - MegaError.API_ENOENT - The node or the target does not exist in the account <br>
      *         - MegaError.API_EARGS - Invalid parameters
      */
     public MegaError checkMove(MegaNode node, MegaNode target) {
@@ -3596,8 +3596,8 @@ public class MegaApiJava {
      * @param searchString
      *            Search string. The search is case-insensitive
      * @param recursive
-     *            true if you want to seach recursively in the node tree.
-     *            false if you want to seach in the children of the node only
+     *            true if you want to search recursively in the node tree.
+     *            false if you want to search in the children of the node only
      * 
      * @return List of nodes that contain the desired string in their name
      */
@@ -3684,7 +3684,7 @@ public class MegaApiJava {
      * Changes the API URL.
      *
      * @param apiURL The API URL to change
-     * @param disablepkp boolean. Disable public key if true. Do not disable public key if false
+     * @param disablepkp boolean. Disable public key pinning if true. Do not disable public key pinning if false
      */
     public void changeApiUrl(String apiURL, boolean disablepkp) {
         megaApi.changeApiUrl(apiURL, disablepkp);
@@ -3692,6 +3692,8 @@ public class MegaApiJava {
 
     /**
      * Changes the API URL.
+     * <p>
+     * Please note, this method does not disable public key pinning.
      *
      * @param apiURL The API URL to change
      */
@@ -3750,7 +3752,7 @@ public class MegaApiJava {
      * Convert a Base64 string to Base32.
      * <p>
      * If the input pointer is null, this function will return null.
-     * If the input character array isn't a valid base64 string
+     * If the input character array is not a valid base64 string
      * the effect is undefined.
      * 
      * @param base64
@@ -3765,7 +3767,7 @@ public class MegaApiJava {
      * Convert a Base32 string to Base64.
      * 
      * If the input pointer is null, this function will return null.
-     * If the input character array isn't a valid base32 string
+     * If the input character array is not a valid base32 string
      * the effect is undefined.
      * 
      * @param base32
