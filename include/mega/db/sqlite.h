@@ -47,32 +47,44 @@ class MEGA_API SqliteDbTable : public DbTable
 public:
     bool getscsn(string*);
     bool getrootnode(int, string*);
-    bool getnodebyhandle(string*, string*);
+//    bool getnodebyhandle(string*, string*);
+    bool getnodebyhandle(handle, string*);
     bool getnodebyfingerprint(string*, string*);
 
-    bool getnumchildren(string*, int*);
-    bool getnumchildfiles(string*, int*);
-    bool getnumchildfolders(string*, int*);
+//    bool getnumchildren(string*, int*);
+//    bool getnumchildfiles(string*, int*);
+//    bool getnumchildfolders(string*, int*);
+    bool getnumchildren(handle, int*);
+    bool getnumchildfiles(handle, int*);
+    bool getnumchildfolders(handle, int*);
 
     void rewinduser();
     void rewindpcr();
     void rewindencryptednode();
     void rewindoutshares(string*);
     void rewindpendingshares(string*);
-    void rewindhandleschildren(string *);
+//    void rewindhandleschildren(string *);
+    void rewindhandleschildren(handle);
     void rewindhandlesencryptednodes();
-    void rewindhandlesoutshares(string *);
-    void rewindhandlespendingshares(string *);
+//    void rewindhandlesoutshares(string *);
+    void rewindhandlesoutshares(handle);
+//    void rewindhandlespendingshares(string *);
+    void rewindhandlespendingshares(handle);
     bool next(string*);
+    bool nexthandle(handle*);
 
     bool putscsn(char*, unsigned);
     bool putrootnode(int, string*);
-    bool putnode(string*, string*, string*, string*, int, string*);
+//    bool putnode(string*, string*, string*, string*, int, string*);
+    bool putnode(handle, handle, string*, string*, int, string*);
     bool putuser(string*, string*);
-    bool putpcr(string*, string*);
+//    bool putpcr(string*, string*);
+    bool putpcr(handle, string*);
 
-    bool delnode(string*);
-    bool delpcr(string*);
+//    bool delnode(string*);
+    bool delnode(handle);
+//    bool delpcr(string*);
+    bool delpcr(handle);
 
     void truncate();
     void begin();

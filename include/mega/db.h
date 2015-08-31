@@ -41,7 +41,8 @@ public:
     bool getnode(string*, string*);    // by fingerprint
 
 protected:
-    virtual bool getnodebyhandle(string*, string*) = 0;          // node by handle
+//    virtual bool getnodebyhandle(string*, string*) = 0;          // node by handle
+    virtual bool getnodebyhandle(handle, string*) = 0;          // node by handle
     virtual bool getnodebyfingerprint(string*, string*) = 0;    // node by fingerprint
 
 public:
@@ -55,9 +56,16 @@ public:
     // get records for `scsn`
     virtual bool getscsn(string*) = 0;
 
-    bool getnumchildren(handle, int*);
-    bool getnumchildfiles(handle, int*);
-    bool getnumchildfolders(handle, int*);
+//    bool getnumchildren(handle, int*);
+//    bool getnumchildfiles(handle, int*);
+//    bool getnumchildfolders(handle, int*);
+
+//    virtual bool getnumchildren(string*, int*) = 0;
+//    virtual bool getnumchildfiles(string*, int*) = 0;
+//    virtual bool getnumchildfolders(string*, int*) = 0;
+    virtual bool getnumchildren(handle, int*) = 0;
+    virtual bool getnumchildfiles(handle, int*) = 0;
+    virtual bool getnumchildfolders(handle, int*) = 0;
 
     handle_vector *gethandleschildren(handle);
     handle_vector *gethandlesencryptednodes();
@@ -67,16 +75,17 @@ public:
 protected:
     // get sequential records for Users, child nodes...
     virtual bool next(string*) = 0;
+    virtual bool nexthandle(handle*) = 0;
     virtual bool getrootnode(int, string*) = 0;
 
-    virtual bool getnumchildren(string*, int*) = 0;
-    virtual bool getnumchildfiles(string*, int*) = 0;
-    virtual bool getnumchildfolders(string*, int*) = 0;
 
-    virtual void rewindhandleschildren(string *) = 0;
+//    virtual void rewindhandleschildren(string *) = 0;
+    virtual void rewindhandleschildren(handle) = 0;
     virtual void rewindhandlesencryptednodes() = 0;
-    virtual void rewindhandlesoutshares(string *) = 0;
-    virtual void rewindhandlespendingshares(string *) = 0;
+//    virtual void rewindhandlesoutshares(string *) = 0;
+    virtual void rewindhandlesoutshares(handle) = 0;
+//    virtual void rewindhandlespendingshares(string *) = 0;
+    virtual void rewindhandlespendingshares(handle) = 0;
 
 public:
     // update or add specific record
@@ -88,19 +97,23 @@ public:
 
 protected:
     // update or add specific record
-    virtual bool putnode(string*, string*, string*, string*, int, string*) = 0;
+//    virtual bool putnode(string*, string*, string*, string*, int, string*) = 0;
+    virtual bool putnode(handle, handle, string*, string*, int, string*) = 0;
     virtual bool putuser(string*, string*) = 0;
-    virtual bool putpcr(string*, string*) = 0;
+//    virtual bool putpcr(string*, string*) = 0;
+    virtual bool putpcr(handle, string*) = 0;
     virtual bool putrootnode(int, string*) = 0;
 
 public:
     // delete specific record
-    bool delnode(pnode_t);
-    bool delpcr(PendingContactRequest *);
+//    bool delnode(pnode_t);
+//    bool delpcr(PendingContactRequest *);
 
-protected:
-    virtual bool delnode(string *) = 0;
-    virtual bool delpcr(string *) = 0;
+//protected:
+//    virtual bool delnode(string *) = 0;
+    virtual bool delnode(handle) = 0;
+//    virtual bool delpcr(string *) = 0;
+    virtual bool delpcr(handle) = 0;
 
 public:
     // delete all records

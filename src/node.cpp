@@ -1644,7 +1644,7 @@ void NodesCache::clear()
 
 bool NodesCache::remove(pnode_t n)
 {
-    if (!client->sctable->delnode(n))
+    if (!client->sctable->delnode(n->nodehandle))
         return false;
 
     pnode_t node;

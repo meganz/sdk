@@ -2532,7 +2532,7 @@ void MegaClient::updatesc()
                 if ((*it)->removed())
                 {
                     LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->delpcr(*it)))
+                    if (!(complete = sctable->delpcr((*it)->id)))
                     {
                         break;
                     }
@@ -6371,8 +6371,6 @@ int MegaClient::inited25519()
 
 bool MegaClient::fetchsc(DbTable* sctable)
 {
-    PendingContactRequest* pcr;
-
     LOG_info << "Loading session from local cache";
 
     // 1. Load handles of rootnodes

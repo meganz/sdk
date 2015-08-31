@@ -291,7 +291,7 @@ struct MEGA_API NodesCache {
     MegaClient *client;
 
     list<pnode_t> nodes;
-    int maxsize;
+    unsigned int maxsize;
 
     pnode_t get(handle h);
     pnode_t get(string *fingerprint);
