@@ -99,7 +99,8 @@ protected:
     // update or add specific record
 //    virtual bool putnode(string*, string*, string*, string*, int, string*) = 0;
     virtual bool putnode(handle, handle, string*, string*, int, string*) = 0;
-    virtual bool putuser(string*, string*) = 0;
+//    virtual bool putuser(string*, string*) = 0;
+    virtual bool putuser(handle, string*) = 0;
 //    virtual bool putpcr(string*, string*) = 0;
     virtual bool putpcr(handle, string*) = 0;
     virtual bool putrootnode(int, string*) = 0;
