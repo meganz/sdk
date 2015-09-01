@@ -76,7 +76,8 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
     }
 
     // 3. Create table for 'users'
-    sql = "CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
+//    sql = "CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS users (userhandle INTEGER PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -618,7 +619,8 @@ bool SqliteDbTable::putnode(handle h, handle ph, string *fp, string *attr, int s
     return result;
 }
 
-bool SqliteDbTable::putuser(string *email, string *user)
+//bool SqliteDbTable::putuser(string *email, string *user)
+bool SqliteDbTable::putuser(handle userhandle, string *user)
 {
     if (!db)
     {
@@ -628,10 +630,11 @@ bool SqliteDbTable::putuser(string *email, string *user)
     sqlite3_stmt *stmt = NULL;
     bool result = false;
 
-    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO users (email, user) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+//    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO users (email, user) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO users (userhandle, user) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
     {
 //        if (sqlite3_bind_blob(stmt, 1, email->data(), email->size(), SQLITE_STATIC) == SQLITE_OK)
-        if (sqlite3_bind_text(stmt, 1, email->data(), email->size(), SQLITE_STATIC) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, userhandle) == SQLITE_OK)
         {
             if (sqlite3_bind_blob(stmt, 2, user->data(), user->size(), SQLITE_STATIC) == SQLITE_OK)
             {

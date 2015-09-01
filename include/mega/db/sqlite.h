@@ -77,7 +77,8 @@ public:
     bool putrootnode(int, string*);
 //    bool putnode(string*, string*, string*, string*, int, string*);
     bool putnode(handle, handle, string*, string*, int, string*);
-    bool putuser(string*, string*);
+//    bool putuser(string*, string*);
+    bool putuser(handle, string*);
 //    bool putpcr(string*, string*);
     bool putpcr(handle, string*);
 

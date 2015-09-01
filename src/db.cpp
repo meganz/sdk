@@ -113,14 +113,23 @@ bool DbTable::putnode(pnode_t n)
 
 bool DbTable::putuser(User * u)
 {
+    if (ISUNDEF(u->userhandle))
+    {
+        LOG_debug << "Skipping the recording of a non-existing user";
+        // The SDK creates a User during share's creation, even if the target email is not a contact yet
+        // The User should not be written into DB as a user, but as a pending contact
+
+        return true;
+    }
+
     string data;
     u->serialize(&data);
     PaddedCBC::encrypt(&data, key);
 
-    string email = u->email;
-    PaddedCBC::encrypt(&email, key);
+//    string email = u->email;
+//    PaddedCBC::encrypt(&email, key);
 
-    return putuser(&email, &data);
+    return putuser(u->userhandle, &data);
 }
 
 bool DbTable::putpcr(PendingContactRequest *pcr)
