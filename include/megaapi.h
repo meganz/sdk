@@ -5940,6 +5940,11 @@ class MegaApi
          */
         static char* strdup(const char* buffer);
 
+        /**
+         * @brief Recursively remove all local files/folders inside a local path
+         * @param path Local path of a folder to start the recursive deletion
+         * The folder itself is not deleted
+         */
         static void removeRecursively(const char *path);
 private:
         MegaApiImpl *pImpl;
