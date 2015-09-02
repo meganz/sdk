@@ -493,7 +493,6 @@ void MegaClient::init()
     csretrying = false;
     fetchingnodes = false;
     chunkfailed = false;
-    noinetds = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
