@@ -2532,7 +2532,7 @@ void MegaClient::updatesc()
                 if ((*it)->removed())
                 {
                     LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->delpcr((*it)->id)))
+                    if (!(complete = sctable->delpcr(*it)))
                     {
                         break;
                     }
@@ -5158,6 +5158,12 @@ void MegaClient::opensctable()
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
         sctable = dbaccess->open(fsaccess, &dbname, &key);
+
+        if (sctable && !sctable->readhkey())
+        {
+            delete sctable;
+            sctable = NULL;
+        }
 
         if (!cachednodes)
             cachednodes = new NodesCache(this);

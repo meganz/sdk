@@ -34,6 +34,8 @@ class MEGA_API DbTable
 protected:
     static const int IDSPACING = 16;
     SymmCipher *key;
+    byte *hkey;
+    byte *phkey;
 
 public:
     // get specific record by key
@@ -41,7 +43,6 @@ public:
     bool getnode(string*, string*);    // by fingerprint
 
 protected:
-//    virtual bool getnodebyhandle(string*, string*) = 0;          // node by handle
     virtual bool getnodebyhandle(handle, string*) = 0;          // node by handle
     virtual bool getnodebyfingerprint(string*, string*) = 0;    // node by fingerprint
 
@@ -56,16 +57,9 @@ public:
     // get records for `scsn`
     virtual bool getscsn(string*) = 0;
 
-//    bool getnumchildren(handle, int*);
-//    bool getnumchildfiles(handle, int*);
-//    bool getnumchildfolders(handle, int*);
-
-//    virtual bool getnumchildren(string*, int*) = 0;
-//    virtual bool getnumchildfiles(string*, int*) = 0;
-//    virtual bool getnumchildfolders(string*, int*) = 0;
-    virtual bool getnumchildren(handle, int*) = 0;
-    virtual bool getnumchildfiles(handle, int*) = 0;
-    virtual bool getnumchildfolders(handle, int*) = 0;
+    bool getnumchildren(handle, int*);
+    bool getnumchildfiles(handle, int*);
+    bool getnumchildfolders(handle, int*);
 
     handle_vector *gethandleschildren(handle);
     handle_vector *gethandlesencryptednodes();
@@ -78,14 +72,16 @@ protected:
     virtual bool nexthandle(handle*) = 0;
     virtual bool getrootnode(int, string*) = 0;
 
-
-//    virtual void rewindhandleschildren(string *) = 0;
     virtual void rewindhandleschildren(handle) = 0;
     virtual void rewindhandlesencryptednodes() = 0;
-//    virtual void rewindhandlesoutshares(string *) = 0;
     virtual void rewindhandlesoutshares(handle) = 0;
-//    virtual void rewindhandlespendingshares(string *) = 0;
+    virtual void rewindhandlesoutshares() = 0;
     virtual void rewindhandlespendingshares(handle) = 0;
+    virtual void rewindhandlespendingshares() = 0;
+
+    virtual bool getnumchildrenquery(handle, int*) = 0;
+    virtual bool getnumchildfilesquery(handle, int*) = 0;
+    virtual bool getnumchildfoldersquery(handle, int*) = 0;
 
 public:
     // update or add specific record
@@ -97,23 +93,18 @@ public:
 
 protected:
     // update or add specific record
-//    virtual bool putnode(string*, string*, string*, string*, int, string*) = 0;
     virtual bool putnode(handle, handle, string*, string*, int, string*) = 0;
-//    virtual bool putuser(string*, string*) = 0;
     virtual bool putuser(handle, string*) = 0;
-//    virtual bool putpcr(string*, string*) = 0;
     virtual bool putpcr(handle, string*) = 0;
     virtual bool putrootnode(int, string*) = 0;
 
 public:
     // delete specific record
-//    bool delnode(pnode_t);
-//    bool delpcr(PendingContactRequest *);
+    bool delnode(pnode_t);
+    bool delpcr(PendingContactRequest *);
 
 //protected:
-//    virtual bool delnode(string *) = 0;
     virtual bool delnode(handle) = 0;
-//    virtual bool delpcr(string *) = 0;
     virtual bool delpcr(handle) = 0;
 
 public:
@@ -133,9 +124,13 @@ public:
     virtual void remove() = 0;
 
     DbTable(SymmCipher *key);
-    virtual ~DbTable() { }
+    virtual ~DbTable();
+
+    // read key to encrypt handles from DB
+    virtual bool readhkey() = 0;
 
 private:
+    // handle encryption to masterkey (AES with padded CBC mode)
     void encrypthandle(handle h, string *hstring);
     void decrypthandle(handle *h, string *hstring);
 };
