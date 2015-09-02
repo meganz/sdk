@@ -74,7 +74,19 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeFirstname = 1,
-    MEGAUserAttributeLastname = 2
+    MEGAUserAttributeLastname  = 2
+};
+
+typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
+    MEGAPaymentMethodBalance      = 0,
+    MEGAPaymentMethodPaypal       = 1,
+    MEGAPaymentMethodItunes       = 2,
+    MEGAPaymentMethodGoogleWallet = 3,
+    MEGAPaymentMethodBitcoin      = 4,
+    MEGAPaymentMethodUnionPay     = 5,
+    MEGAPaymentMethodFortumo      = 6,
+    MEGAPaymentMethodCreditCard   = 8,
+    MEGAPaymentMethodCentili      = 9
 };
 
 /**
@@ -1666,6 +1678,32 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
  * @see [MEGASdk getPricing].
  */
 - (void)getPaymentIdForProductHandle:(uint64_t)productHandle;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt.
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * - MEGAPaymentMethodGoogleWallet = 3
+ *
+ * @param receipt Purchase receipt
+ * @param delegate Delegate to track this request
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * - MEGAPaymentMethodGoogleWallet = 3
+ *
+ * @param receipt Purchase receipt
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt;
 
 /**
  * @brief Change the password of the MEGA account.

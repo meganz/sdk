@@ -4298,6 +4298,9 @@ class MegaApi
 
         /**
          * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
          *
@@ -4310,6 +4313,9 @@ class MegaApi
 
         /**
          * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
          * - MegaApi::PAYMENT_METHOD_ITUNES = 2
