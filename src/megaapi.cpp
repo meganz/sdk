@@ -1930,6 +1930,11 @@ void MegaApi::removeRecursively(const char *path)
     MegaApiImpl::removeRecursively(path);
 }
 
+bool MegaApi::isOnline()
+{
+    return pImpl->isOnline();
+}
+
 char* MegaApi::strdup(const char* buffer)
 {
     if(!buffer)

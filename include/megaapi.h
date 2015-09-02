@@ -5946,6 +5946,18 @@ class MegaApi
          * The folder itself is not deleted
          */
         static void removeRecursively(const char *path);
+
+        /**
+         * @brief Check if the connection with MEGA servers is OK
+         *
+         * It can briefly return false even if the connection is good enough when
+         * some storage servers are temporarily not available or the load of API
+         * servers is high.
+         *
+         * @return true if the connection is perfectly OK, otherwise false
+         */
+        bool isOnline();
+
 private:
         MegaApiImpl *pImpl;
 };

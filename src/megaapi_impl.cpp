@@ -3886,6 +3886,10 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     return result;
 }
 
+bool MegaApiImpl::isOnline()
+{
+    return !client->httpio->noinetds;
+}
 
 MegaUserList* MegaApiImpl::getContacts()
 {
