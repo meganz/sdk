@@ -188,6 +188,12 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         changed = true;
     }
 
+    if (size < 0)
+    {
+        size = -1;
+        return true;
+    }
+
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad

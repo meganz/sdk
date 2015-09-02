@@ -5570,7 +5570,17 @@ class MegaApi
          */
         char *getFingerprint(MegaNode *node);
 
-
+        /**
+         * @brief Get a Base64-encoded fingerprint from an input stream and a modification time
+         *
+         * If the input stream is NULL, has a negative size or can't be read, this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param inputStream Input stream that provides the data to create the fingerprint
+         * @param mtime Modification time that will be taken into account for the creation of the fingerprint
+         * @return Base64-encoded fingerprint
+         */
         char* getFingerprint(MegaInputStream *inputStream, int64_t mtime);
 
         /**
