@@ -1605,7 +1605,7 @@ bool NodesCache::put(pnode_t n)
             if (node != n)
             {
                 LOG_err << "Same node is duplicated in cache (n1: " << node << " n2: " << n << ")";
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
 
             movetofront(it);

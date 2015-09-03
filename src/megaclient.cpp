@@ -2507,7 +2507,7 @@ void MegaClient::updatesc()
                 if (n->changed.removed)
                 {
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&(n->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!cachednodes->remove(n))
+                    if (!(complete = cachednodes->remove(n)))
                     {
                         break;
                     }
@@ -2515,7 +2515,7 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding/updating node to database: " << (Base64::btoa((byte*)&(n->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!cachednodes->put(n))
+                    if (!(complete = cachednodes->put(n)))
                     {
                         break;
                     }

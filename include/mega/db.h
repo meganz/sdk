@@ -32,7 +32,6 @@ namespace mega {
 class MEGA_API DbTable
 {
 protected:
-    static const int IDSPACING = 16;
     SymmCipher *key;
     byte *hkey;
     byte *phkey;
