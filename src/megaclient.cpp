@@ -2574,8 +2574,9 @@ void MegaClient::finalizesc(bool complete)
 
         delete cachednodes;
         cachednodes = NULL;
-    }
 
+        app->request_error(API_EWRITE);
+    }
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -4395,7 +4396,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n->applykey();
-                cachednodes->put(n);
+                if(!cachednodes->put(n))
+                {
+                    finalizesc(false);
+                    return 0;
+                }
                 nodescount++;
 
                 // set rootnodes[] in client as entry point for each tree
@@ -4455,7 +4460,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
-            cachednodes->put(dp[i]);    // if parent updated, update the node in DB
+            if(!cachednodes->put(dp[i]))    // if parent updated, update the node in DB
+            {
+                finalizesc(false);
+                return 0;
+            }
         }
     }
 
@@ -4813,7 +4822,11 @@ int MegaClient::applykeys()
 
             if (!n->attrstring)
             {
-                cachednodes->put(n);
+                if(!cachednodes->put(n))
+                {
+                    finalizesc(false);
+                    return 0;
+                }
                 t++;
             }
         }
@@ -4829,7 +4842,11 @@ int MegaClient::applykeys()
         n = cachednodes->get(*it);
         if (n->applykey())
         {
-            cachednodes->put(n);
+            if(!cachednodes->put(n))
+            {
+                finalizesc(false);
+                return 0;
+            }
             t++;
         }
 
