@@ -89,7 +89,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * - MEGASubscriptionStatusNone = 0
  * There isn't any active subscription
  *
- * - MEGASubscriptionStatusNoneValid = 1
+ * - MEGASubscriptionStatusValid = 1
  * There is an active subscription
  *
  * - MEGASubscriptionStatusInvalid = 2
