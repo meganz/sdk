@@ -78,6 +78,7 @@ doc/example/lsmega
 *~
 Debug
 Release
+sdk_build
 /contrib/QtCreator/megacli.creator.user
 
 # Mega SDK runtime
