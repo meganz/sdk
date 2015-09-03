@@ -4027,7 +4027,7 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
     if(!megaNode) return false;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
+    pnode_t node = client->nodebyhandle(megaNode->getHandle());
     if(!node)
     {
         sdkMutex.unlock();
