@@ -1231,7 +1231,12 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(receipt, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,

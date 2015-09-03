@@ -4298,10 +4298,33 @@ class MegaApi
 
         /**
          * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param receipt Purchase receipt
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is only compatible with Google Play payments.
+         * It only exists for compatibility with previous apps and will be removed soon.
+         * Please use the other version of MegaApi::submitPurchaseReceipt that allows
+         * to select the payment gateway.
+         */
+        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
          */
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Store a credit card

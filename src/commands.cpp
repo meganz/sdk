@@ -3154,7 +3154,12 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
     if(receipt)
     {
-        arg("receipt", (const byte*)receipt, strlen(receipt));
+        arg("receipt", receipt);
+    }
+
+    if(type == 2 && client->loggedin() == FULLACCOUNT)
+    {
+        arg("user", client->finduser(client->me)->uid.c_str());
     }
 
     tag = client->reqtag;
