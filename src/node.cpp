@@ -1604,8 +1604,9 @@ bool NodesCache::put(pnode_t n)
         {
             if (node != n)
             {
-                LOG_err << "Same node is duplicated in cache (n1: " << node << " n2: " << n << ")";
-                exit(EXIT_FAILURE);
+                LOG_err << "Trying to write a different instance of an existing node";
+                nodes.erase(it); // discard the existing node, add the new one
+                continue;
             }
 
             movetofront(it);
