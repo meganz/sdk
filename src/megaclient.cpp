@@ -233,6 +233,8 @@ void MegaClient::mergenewshare(NewShare *s, pnode_t n, bool notify)
                 // Erase sharekey if no outgoing shares (incl pending) exist
                 if (!n->outshares && !n->pendingshares)
                 {
+                    rewriteforeignkeys(n);
+
                     delete n->sharekey;
                     n->sharekey = NULL;
                 }
@@ -509,7 +511,6 @@ void MegaClient::init()
     csretrying = false;
     fetchingnodes = false;
     chunkfailed = false;
-    noinetds = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -538,17 +539,10 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-    curfa = newfa.end();
 
     btcs.reset();
     btsc.reset();
     btpfa.reset();
-
-
-    xferpaused[PUT] = false;
-    xferpaused[GET] = false;
-
-    putmbpscap = 0;
 
     jsonsc.pos = NULL;
     insca = false;
@@ -576,6 +570,11 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     pendingcs = NULL;
     pendingsc = NULL;
+
+    curfa = newfa.end();
+    xferpaused[PUT] = false;
+    xferpaused[GET] = false;
+    putmbpscap = 0;
 
     init();
 
@@ -886,6 +885,8 @@ void MegaClient::exec()
                                 }
 
                                 app->request_error(e);
+                                delete pendingcs;
+                                pendingcs = NULL;
                                 break;
                             }
 
@@ -894,7 +895,16 @@ void MegaClient::exec()
                         }
 
                     // fall through
-                    case REQ_FAILURE:   // failure, repeat with capped exponential backoff
+                    case REQ_FAILURE:
+                        if (pendingcs->sslcheckfailed)
+                        {
+                            app->request_error(API_ESSL);
+                            delete pendingcs;
+                            pendingcs = NULL;
+                            break;
+                        }
+
+                        // failure, repeat with capped exponential backoff
                         app->request_response_progress(pendingcs->bufpos, -1);
 
                         delete pendingcs;
@@ -1000,6 +1010,12 @@ void MegaClient::exec()
                         }
                         // fall through
                     case REQ_FAILURE:
+                        if (pendingsc->sslcheckfailed)
+                        {
+                            app->request_error(API_ESSL);
+                            *scsn = 0;
+                        }
+
                         // failure, repeat with capped exponential backoff
                         delete pendingsc;
                         pendingsc = NULL;
@@ -2143,6 +2159,10 @@ void MegaClient::locallogout()
     }
 
     newfa.clear();
+    curfa = newfa.end();
+    xferpaused[PUT] = false;
+    xferpaused[GET] = false;
+    putmbpscap = 0;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -5447,6 +5467,7 @@ void MegaClient::rewriteforeignkeys(pnode_t n)
     if (nodekeyrewrite.size())
     {
         reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        nodekeyrewrite.clear();
     }
 }
 
@@ -8216,5 +8237,11 @@ void MegaClient::sendevent(int event, const char *desc)
 {
     reqs[r].add(new CommandSendEvent(this, event, desc));
 }
+
+void MegaClient::cleanrubbishbin()
+{
+    reqs[r].add(new CommandCleanRubbishBin(this));
+}
+
 
 } // namespace

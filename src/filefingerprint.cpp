@@ -171,6 +171,120 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     return changed;
 }
 
+bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, bool ignoremtime)
+{
+    bool changed = false;
+    int32_t newcrc[sizeof crc / sizeof *crc], crcval;
+
+    if (mtime != cmtime)
+    {
+        mtime = cmtime;
+        changed = !ignoremtime;
+    }
+
+    if (size != is->size())
+    {
+        size = is->size();
+        changed = true;
+    }
+
+    if (size < 0)
+    {
+        size = -1;
+        return true;
+    }
+
+    if (size <= (m_off_t)sizeof crc)
+    {
+        // tiny file: read verbatim, NUL pad
+        if (!is->read((byte*)newcrc, (unsigned int)size))
+        {
+            size = -1;
+            return true;
+        }
+
+        if (size < (m_off_t)sizeof(crc))
+        {
+            memset((byte*)newcrc + size, 0, sizeof(crc) - size);
+        }
+    }
+    else if (size <= MAXFULL)
+    {
+        // small file: full coverage, four full CRC32s
+        HashCRC32 crc32;
+        byte buf[MAXFULL];
+
+        if (!is->read(buf, size))
+        {
+            size = -1;
+            return true;
+        }
+
+        for (unsigned i = 0; i < sizeof crc / sizeof *crc; i++)
+        {
+            int begin = i * size / (sizeof crc / sizeof *crc);
+            int end = (i + 1) * size / (sizeof crc / sizeof *crc);
+
+            crc32.add(buf + begin, end - begin);
+            crc32.get((byte*)&crcval);
+
+            newcrc[i] = htonl(crcval);
+        }
+    }
+    else
+    {
+        // large file: sparse coverage, four sparse CRC32s
+        HashCRC32 crc32;
+        byte block[4 * sizeof crc];
+        const unsigned blocks = MAXFULL / (sizeof block * sizeof crc / sizeof *crc);
+        m_off_t current = 0;
+
+        for (unsigned i = 0; i < sizeof crc / sizeof *crc; i++)
+        {
+            for (unsigned j = 0; j < blocks; j++)
+            {
+                m_off_t offset = (size - sizeof block)
+                        * (i * blocks + j)
+                        / (sizeof crc / sizeof *crc * blocks - 1);
+
+                //Seek
+                if (!is->read(NULL, offset - current))
+                {
+                    size = -1;
+                    return true;
+                }
+                current += (offset - current);
+
+                if (!is->read(block, sizeof block))
+                {
+                    size = -1;
+                    return true;
+                }
+                current += sizeof block;
+
+                crc32.add(block, sizeof block);
+            }
+
+            crc32.get((byte*)&crcval);
+            newcrc[i] = htonl(crcval);
+        }
+    }
+
+    if (memcmp(crc, newcrc, sizeof crc))
+    {
+        memcpy(crc, newcrc, sizeof crc);
+        changed = true;
+    }
+
+    if (!isvalid)
+    {
+        isvalid = true;
+        changed = true;
+    }
+
+    return changed;
+}
+
 // convert this FileFingerprint to string
 void FileFingerprint::serializefingerprint(string* d) const
 {

@@ -49,6 +49,8 @@
 #include "MRandomNumberProvider.h"
 #include "MContactRequest.h"
 #include "MContactRequestList.h"
+#include "MInputStreamAdapter.h"
+#include "MInputStream.h"
 
 #include <megaapi.h>
 #include <set>
@@ -246,6 +248,8 @@ namespace mega
         void startUpload(String^ localPath, MNode^ parent);
         void startUploadToFile(String^ localPath, MNode^ parent, String^ fileName, MTransferListenerInterface^ listener);
         void startUploadToFile(String^ localPath, MNode^ parent, String^ fileName);
+		void startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime, MTransferListenerInterface^ listener);
+		void startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime);
         void startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
         void startDownload(MNode^ node, String^ localPath);
         void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
@@ -288,6 +292,8 @@ namespace mega
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         bool isShared(MNode^ node);
+        bool isOutShare(MNode^ node);
+        bool isInShare(MNode^ node);
         MShareList^ getOutShares();
         MShareList^ getOutShares(MNode^ node);
         MShareList^ getPendingOutShares();
@@ -297,8 +303,10 @@ namespace mega
 
         
         String^ getFileFingerprint(String^ filePath);
+        String^ getFileFingerprint(MInputStream^ inputStream, uint64 mtime);
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
+        MNode^ getNodeByFingerprint(String^ fingerprint, MNode^ parent);
         bool hasFingerprint(String^ fingerprint);
         int getAccess(MNode^ node);
         MError^ checkAccess(MNode^ node, int level);

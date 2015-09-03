@@ -715,6 +715,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_ESSL:
+            return "SSL verification failed";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1092,6 +1094,11 @@ void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
     pImpl->remove(node, listener);
 }
 
+void MegaApi::cleanRubbishBin(MegaRequestListener *listener)
+{
+    pImpl->cleanRubbishBin(listener);
+}
+
 void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener)
 {
     pImpl->sendFileToUser(node, user, listener);
@@ -1224,7 +1231,12 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(receipt, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
@@ -1583,6 +1595,11 @@ bool MegaApi::isInShare(MegaNode *node)
     return pImpl->isInShare(node);
 }
 
+bool MegaApi::isPendingShare(MegaNode *node)
+{
+    return pImpl->isPendingShare(node);
+}
+
 MegaShareList *MegaApi::getOutShares()
 {
     return pImpl->getOutShares();
@@ -1709,6 +1726,11 @@ char *MegaApi::getFingerprint(const char *filePath)
 char *MegaApi::getFingerprint(MegaNode *node)
 {
     return pImpl->getFingerprint(node);
+}
+
+char *MegaApi::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
+{
+    return pImpl->getFingerprint(inputStream, mtime);
 }
 
 MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint)
@@ -1911,6 +1933,11 @@ bool MegaApi::isWaiting()
 void MegaApi::removeRecursively(const char *path)
 {
     MegaApiImpl::removeRecursively(path);
+}
+
+bool MegaApi::isOnline()
+{
+    return pImpl->isOnline();
 }
 
 char* MegaApi::strdup(const char* buffer)
@@ -2425,3 +2452,19 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+
+
+int64_t MegaInputStream::getSize()
+{
+    return 0;
+}
+
+bool MegaInputStream::read(char *buffer, size_t size)
+{
+    return false;
+}
+
+MegaInputStream::~MegaInputStream()
+{
+
+}

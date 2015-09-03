@@ -1558,6 +1558,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REPLY_CONTACT_REQUEST: return "REPLY_CONTACT_REQUEST";
         case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
         case TYPE_SEND_EVENT: return "SEND_EVENT";
+        case TYPE_CLEAN_RUBBISH_BIN: return "CLEAN_RUBBISH_BIN";
 	}
     return "UNKNOWN";
 }
@@ -2674,6 +2675,13 @@ void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::cleanRubbishBin(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CLEAN_RUBBISH_BIN, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener)
 {
 	return sendFileToUser(node, user ? user->getEmail() : NULL, listener);
@@ -2828,10 +2836,10 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     waiter->notify();
 }
 
-void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
+void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
-    request->setNumber(3); //Android only for now
+    request->setNumber(gateway);
     request->setText(receipt);
     requestQueue.push(request);
     waiter->notify();
@@ -3878,6 +3886,10 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     return result;
 }
 
+bool MegaApiImpl::isOnline()
+{
+    return !client->httpio->noinetds;
+}
 
 MegaUserList* MegaApiImpl::getContacts()
 {
@@ -4005,6 +4017,24 @@ bool MegaApiImpl::isInShare(MegaNode *megaNode)
     }
 
     bool result = (node->inshare != NULL) && !client->nodebyhandle(node->parenthandle);
+    sdkMutex.unlock();
+
+    return result;
+}
+
+bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
+{
+    if(!megaNode) return false;
+
+    sdkMutex.lock();
+    Node *node = client->nodebyhandle(megaNode->getHandle());
+    if(!node)
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    bool result = (node->pendingshares != NULL);
     sdkMutex.unlock();
 
     return result;
@@ -4421,6 +4451,37 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     int l = Serialize64::serialize((byte *)bsize, size);
     char *buf = new char[l * 4 / 3 + 4];
     char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    string result(1, ssize);
+    result.append(buf);
+    result.append(fingerprint);
+    delete [] buf;
+
+    return MegaApi::strdup(result.c_str());
+}
+
+char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
+{
+    if(!inputStream) return NULL;
+
+    ExternalInputStream is(inputStream);
+    m_off_t size = is.size();
+    if(size < 0)
+        return NULL;
+
+    FileFingerprint fp;
+    fp.genfingerprint(&is, mtime);
+
+    if(fp.size < 0)
+        return NULL;
+
+    string fingerprint;
+    fp.serializefingerprint(&fingerprint);
+
+    char bsize[sizeof(size)+1];
+    int l = Serialize64::serialize((byte *)bsize, size);
+    char *buf = new char[l * 4 / 3 + 4];
+    char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+
     string result(1, ssize);
     result.append(buf);
     result.append(fingerprint);
@@ -4900,6 +4961,17 @@ void MegaApiImpl::sessions_killed(handle, error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_KILL_SESSION)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::cleanrubbishbin_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CLEAN_RUBBISH_BIN)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -5797,16 +5869,18 @@ void MegaApiImpl::logout_result(error e)
     if(!e)
     {
         requestMap.erase(request->getTag());
+
+        error preverror = (error)request->getParamType();
         while(!requestMap.empty())
         {
             std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-            if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
+            if(it->second) fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
 
         while(!transferMap.empty())
         {
             std::map<int, MegaTransferPrivate *>::iterator it=transferMap.begin();
-            if(it->second) fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
+            if(it->second) fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
 
         pendingUploads = 0;
@@ -5827,7 +5901,7 @@ void MegaApiImpl::logout_result(error e)
         uploadPartialBytes = 0;
         downloadPartialBytes = 0;
 
-        fireOnRequestFinish(request, MegaError(request->getParamType()));
+        fireOnRequestFinish(request, MegaError(preverror));
         return;
     }
     fireOnRequestFinish(request,MegaError(e));
@@ -6093,7 +6167,12 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 	numDetails--;
 	request->setNumDetails(numDetails);
 	if(!numDetails)
-        fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+    {
+        if(!request->getAccountDetails()->storage_max)
+            fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
+        else
+            fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+    }
 }
 
 void MegaApiImpl::account_details(AccountDetails*, error e)
@@ -8014,6 +8093,12 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_ACCOUNT_DETAILS:
 		{
+            if(client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
 			int numDetails = request->getNumDetails();
 			bool storage = (numDetails & 0x01) != 0;
 			bool transfer = (numDetails & 0x02) != 0;
@@ -8648,13 +8733,32 @@ void MegaApiImpl::sendPendingRequests()
             const char* receipt = request->getText();
             int type = request->getNumber();
 
-            if(!receipt)
+            if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
+                            && type != MegaApi::PAYMENT_METHOD_ITUNES))
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->submitpurchasereceipt(type, receipt);
+            if(type == MegaApi::PAYMENT_METHOD_ITUNES && client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            string base64receipt;
+            if(type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET)
+            {
+                int len = strlen(receipt);
+                base64receipt.resize(len * 4 / 3 + 4);
+                base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
+            }
+            else //MegaApi::PAYMENT_METHOD_ITUNES
+            {
+                base64receipt = receipt;
+            }
+
+            client->submitpurchasereceipt(type, base64receipt.c_str());
             break;
         }
         case MegaRequest::TYPE_CREDIT_CARD_STORE:
@@ -8707,7 +8811,7 @@ void MegaApiImpl::sendPendingRequests()
 
             snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
             client->userfeedbackstore(feedback.c_str());
-            delete base64message;
+            delete [] base64message;
             break;
         }
         case MegaRequest::TYPE_SEND_EVENT:
@@ -8772,6 +8876,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
             client->copysession();
+            break;
+        }
+        case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
+        {
+            client->cleanrubbishbin();
             break;
         }
         default:
@@ -9821,3 +9930,60 @@ MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransa
     this->transaction = *transaction;
 }
 
+
+
+ExternalInputStream::ExternalInputStream(MegaInputStream *inputStream)
+{
+    this->inputStream = inputStream;
+}
+
+m_off_t ExternalInputStream::size()
+{
+    return inputStream->getSize();
+}
+
+bool ExternalInputStream::read(byte *buffer, unsigned size)
+{
+    return inputStream->read((char *)buffer, size);
+}
+
+
+FileInputStream::FileInputStream(FileAccess *fileAccess)
+{
+    this->fileAccess = fileAccess;
+    this->offset = 0;
+}
+
+m_off_t FileInputStream::size()
+{
+    return fileAccess->size;
+}
+
+bool FileInputStream::read(byte *buffer, unsigned size)
+{
+    if (!buffer)
+    {
+        if ((offset + size) <= fileAccess->size)
+        {
+            offset += size;
+            return true;
+        }
+
+        LOG_warn << "Invalid seek on FileInputStream";
+        return false;
+    }
+
+    if (fileAccess->sysread(buffer, size, offset))
+    {
+        offset += size;
+        return true;
+    }
+
+    LOG_warn << "Invalid read on FileInputStream";
+    return false;
+}
+
+FileInputStream::~FileInputStream()
+{
+
+}

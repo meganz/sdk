@@ -946,6 +946,7 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+        void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
@@ -969,7 +970,7 @@ class MegaApiImpl : public MegaApp
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
@@ -1070,6 +1071,7 @@ class MegaApiImpl : public MegaApp
         bool isShared(MegaNode *node);
         bool isOutShare(MegaNode *node);
         bool isInShare(MegaNode *node);
+        bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
@@ -1084,6 +1086,7 @@ class MegaApiImpl : public MegaApp
         //Fingerprint
         char *getFingerprint(const char *filePath);
         char *getFingerprint(MegaNode *node);
+        char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
@@ -1130,6 +1133,8 @@ class MegaApiImpl : public MegaApp
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
+
+        bool isOnline();
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -1331,6 +1336,8 @@ protected:
         virtual void loadbalancing_result(string*, error);
         virtual void sessions_killed(handle sessionid, error e);
 
+        virtual void cleanrubbishbin_result(error);
+
 #ifdef ENABLE_SYNC
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);
@@ -1395,6 +1402,28 @@ class MegaHashSignatureImpl
 	protected:    
 		HashSignature *hashSignature;
 		AsymmCipher* asymmCypher;
+};
+
+class ExternalInputStream : public InputStreamAccess
+{
+    MegaInputStream *inputStream;
+
+public:
+    ExternalInputStream(MegaInputStream *inputStream);
+    virtual m_off_t size();
+    virtual bool read(byte *buffer, unsigned size);
+};
+
+class FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+    virtual m_off_t size();
+    virtual bool read(byte *buffer, unsigned size);
+    virtual ~FileInputStream();
 };
 
 }

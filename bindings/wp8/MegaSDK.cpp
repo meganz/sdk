@@ -1393,6 +1393,26 @@ void MegaSDK::startUploadToFile(String^ localPath, MNode^ parent, String^ fileNa
 		(fileName != nullptr) ? utf8fileName.c_str() : NULL);
 }
 
+void MegaSDK::startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime, MTransferListenerInterface^ listener)
+{
+	std::string utf8localPath;
+	if (localPath != nullptr)
+		MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+	megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+		(parent != nullptr) ? parent->getCPtr() : NULL, mtime, createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL, mtime);
+}
+
 void MegaSDK::startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener)
 {
 	std::string utf8localPath;
@@ -1680,6 +1700,16 @@ bool MegaSDK::isShared(MNode^ node)
     return megaApi->isShared(node->getCPtr());
 }
 
+bool MegaSDK::isOutShare(MNode^ node)
+{
+    return megaApi->isOutShare(node->getCPtr());
+}
+
+bool MegaSDK::isInShare(MNode^ node)
+{
+    return megaApi->isInShare(node->getCPtr());
+}
+
 MShareList^ MegaSDK::getOutShares()
 {
     return ref new MShareList(megaApi->getOutShares(), true);
@@ -1730,6 +1760,24 @@ String^ MegaSDK::getFileFingerprint(String^ filePath)
     return ref new String((wchar_t *)utf16fingerprint.c_str());
 }
 
+String^ MegaSDK::getFileFingerprint(MInputStream^ inputStream, uint64 mtime)
+{
+    if (inputStream == nullptr) return nullptr;
+
+    MInputStreamAdapter is(inputStream);
+    const char *utf8fingerprint = megaApi->getFingerprint(&is, mtime);
+    if (!utf8fingerprint)
+    {
+        return nullptr;
+    }
+
+    std::string utf16fingerprint;
+    MegaApi::utf8ToUtf16(utf8fingerprint, &utf16fingerprint);
+    delete[] utf8fingerprint;
+
+    return ref new String((wchar_t *)utf16fingerprint.c_str());
+}
+
 String^ MegaSDK::getNodeFingerprint(MNode ^node)
 {
     if (node == nullptr) return nullptr;
@@ -1751,6 +1799,17 @@ MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint)
     MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
 
     MegaNode *node = megaApi->getNodeByFingerprint(utf8fingerprint.c_str());
+    return node ? ref new MNode(node, true) : nullptr;
+}
+
+MNode^ MegaSDK::getNodeByFingerprint(String^ fingerprint, MNode^ parent)
+{
+    if (fingerprint == nullptr || parent == nullptr) return nullptr;
+
+    std::string utf8fingerprint;
+    MegaApi::utf16ToUtf8(fingerprint->Data(), fingerprint->Length(), &utf8fingerprint);
+
+    MegaNode *node = megaApi->getNodeByFingerprint(utf8fingerprint.c_str(), parent->getCPtr());
     return node ? ref new MNode(node, true) : nullptr;
 }
 

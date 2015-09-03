@@ -34,9 +34,20 @@ namespace mega
 		TYPE_FOLDER,
 		TYPE_ROOT,
 		TYPE_INCOMING,
-		TYPE_RUBBISH,
-		TYPE_MAIL
+		TYPE_RUBBISH
 	};
+
+    public enum class MNodeChangeType {
+        CHANGE_TYPE_REMOVED         = 0x01,
+        CHANGE_TYPE_ATTRIBUTES      = 0x02,
+        CHANGE_TYPE_OWNER           = 0x04,
+        CHANGE_TYPE_TIMESTAMP       = 0x08,
+        CHANGE_TYPE_FILE_ATTRIBUTES = 0x10,
+        CHANGE_TYPE_INSHARE         = 0x20,
+        CHANGE_TYPE_OUTSHARE        = 0x40,
+        CHANGE_TYPE_PARENT          = 0x80,
+        CHANGE_TYPE_PENDINGSHARE    = 0x100
+    };
 
 	public ref class MNode sealed
 	{
@@ -56,12 +67,17 @@ namespace mega
 		uint64 getCreationTime();
 		uint64 getModificationTime();
 		uint64 getHandle();
+        uint64 getParentHandle();
+        String^ getBase64Key();
 		int getTag();
 		bool isFile();
 		bool isFolder();
 		bool isRemoved();
+        bool hasChanged(int changeType);
+        int getChanges();
 		bool hasThumbnail();
 		bool hasPreview();
+        bool isPublic();
 
 	private:
 		MNode(MegaNode *megaNode, bool cMemoryOwn);

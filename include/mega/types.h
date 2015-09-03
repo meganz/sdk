@@ -147,7 +147,8 @@ typedef enum ErrorCodes
                                          post-write integrity check). */
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
-    API_EAPPKEY = -22               ///< Invalid or missing application key.
+    API_EAPPKEY = -22,              ///< Invalid or missing application key.
+    API_ESSL = -23                  ///< SSL verification failed
 } error;
 
 // returned by loggedin()

@@ -1108,7 +1108,7 @@ class MegaRequest
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT
+            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN
         };
 
         virtual ~MegaRequest();
@@ -2245,7 +2245,8 @@ public:
         API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
         API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
         API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
-        API_EAPPKEY = -22,       ///< Invalid or missing application key.
+        API_EAPPKEY = -22,      ///< Invalid or missing application key.
+        API_ESSL = -23,         ///< SSL verification failed
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -2918,6 +2919,14 @@ class MegaListener
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
         virtual ~MegaListener();
+};
+
+class MegaInputStream
+{
+public:
+    virtual int64_t getSize();
+    virtual bool read(char *buffer, size_t size);
+    virtual ~MegaInputStream();
 };
 
 class MegaApiImpl;
@@ -3809,6 +3818,19 @@ class MegaApi
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Clean the Rubbish Bin in the MEGA account
+         *
+         * This function effectively removes every node contained in the Rubbish Bin. In order to
+         * avoid accidental deletions, you might want to warn the user about the action.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN. This
+         * request returns MegaError::API_ENOENT if the Rubbish bin is already empty.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cleanRubbishBin(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Send a node to the Inbox of another MEGA user using a MegaUser
          *
          * The associated request type with this request is MegaRequest::TYPE_COPY
@@ -4276,10 +4298,33 @@ class MegaApi
 
         /**
          * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param receipt Purchase receipt
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is only compatible with Google Play payments.
+         * It only exists for compatibility with previous apps and will be removed soon.
+         * Please use the other version of MegaApi::submitPurchaseReceipt that allows
+         * to select the payment gateway.
+         */
+        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
          */
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Store a credit card
@@ -5429,6 +5474,18 @@ class MegaApi
         bool isInShare(MegaNode *node);
 
         /**
+         * @brief Check if a MegaNode is pending to be shared with another User. This situation
+         * happens when a node is to be shared with a User which is not a contact yet.
+         *
+         * For nodes that are pending to be shared, you can get a list of MegaNode
+         * objects using MegaApi::getPendingShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is pending to be shared, otherwise false
+         */
+        bool isPendingShare(MegaNode *node);
+
+        /**
          * @brief Get a list with all active outbound sharings
          *
          * You take the ownership of the returned value
@@ -5537,6 +5594,19 @@ class MegaApi
          * @return Base64-encoded fingerprint for the file
          */
         char *getFingerprint(MegaNode *node);
+
+        /**
+         * @brief Get a Base64-encoded fingerprint from an input stream and a modification time
+         *
+         * If the input stream is NULL, has a negative size or can't be read, this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param inputStream Input stream that provides the data to create the fingerprint
+         * @param mtime Modification time that will be taken into account for the creation of the fingerprint
+         * @return Base64-encoded fingerprint
+         */
+        char* getFingerprint(MegaInputStream *inputStream, int64_t mtime);
 
         /**
          * @brief Returns a node with the provided fingerprint
@@ -5895,7 +5965,24 @@ class MegaApi
          */
         static char* strdup(const char* buffer);
 
+        /**
+         * @brief Recursively remove all local files/folders inside a local path
+         * @param path Local path of a folder to start the recursive deletion
+         * The folder itself is not deleted
+         */
         static void removeRecursively(const char *path);
+
+        /**
+         * @brief Check if the connection with MEGA servers is OK
+         *
+         * It can briefly return false even if the connection is good enough when
+         * some storage servers are temporarily not available or the load of API
+         * servers is high.
+         *
+         * @return true if the connection is perfectly OK, otherwise false
+         */
+        bool isOnline();
+
 private:
         MegaApiImpl *pImpl;
 };

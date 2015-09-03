@@ -292,6 +292,9 @@ public:
     // send event
     void sendevent(int, const char *);
 
+    // clean rubbish bin
+    void cleanrubbishbin();
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -415,9 +418,6 @@ private:
 
     // converts UTF-8 to 32-bit word array
     static char* str_to_a32(const char*, int*);
-
-    // last successful interaction with the Internet
-    dstime noinetds;
 
     // was the app notified of a retrying CS request?
     bool csretrying;

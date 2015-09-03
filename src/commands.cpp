@@ -1347,27 +1347,19 @@ CommandSetShare::CommandSetShare(MegaClient* client, pnode_t n, User* u, accessl
     user = u;
     access = a;
 
+    cmd("s2");
+    arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
+
+    // Only for inviting non-contacts
     if (personal_representation)
     {
         this->personal_representation = personal_representation;
+        arg("e", personal_representation);
     }
 
     if (msg)
     {
         this->msg = msg;
-    }
-
-    cmd("s2");
-    arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
-
-    // Only for inviting non-contacts
-    if (this->personal_representation.size())
-    {
-        arg("e", personal_representation);
-    }
-
-    if (this->msg.size())
-    {
         arg("msg", msg);
     }
 
@@ -3203,7 +3195,12 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
     if(receipt)
     {
-        arg("receipt", (const byte*)receipt, strlen(receipt));
+        arg("receipt", receipt);
+    }
+
+    if(type == 2 && client->loggedin() == FULLACCOUNT)
+    {
+        arg("user", client->finduser(client->me)->uid.c_str());
     }
 
     tag = client->reqtag;
@@ -3444,5 +3441,26 @@ void CommandSendEvent::procresult()
         client->app->sendevent_result(API_EINTERNAL);
     }
 }
+
+CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
+{
+    cmd("dr");
+
+    tag = client->reqtag;
+}
+
+void CommandCleanRubbishBin::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->cleanrubbishbin_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->cleanrubbishbin_result(API_EINTERNAL);
+    }
+}
+
 
 } // namespace
