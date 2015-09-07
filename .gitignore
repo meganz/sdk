@@ -81,3 +81,6 @@ Release
 
 # Mega SDK runtime
 *.db-journal
+
+# JavaDoc generated html
+/bindings/doc/java/Javadoc
