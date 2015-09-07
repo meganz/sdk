@@ -969,7 +969,7 @@ class MegaApiImpl : public MegaApp
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
@@ -1132,6 +1132,8 @@ class MegaApiImpl : public MegaApp
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
+
+        bool isOnline();
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;

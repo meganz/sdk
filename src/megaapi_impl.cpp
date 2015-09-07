@@ -2836,10 +2836,10 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     waiter->notify();
 }
 
-void MegaApiImpl::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
+void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
-    request->setNumber(3); //Android only for now
+    request->setNumber(gateway);
     request->setText(receipt);
     requestQueue.push(request);
     waiter->notify();
@@ -3886,6 +3886,10 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     return result;
 }
 
+bool MegaApiImpl::isOnline()
+{
+    return !client->httpio->noinetds;
+}
 
 MegaUserList* MegaApiImpl::getContacts()
 {
@@ -6146,7 +6150,12 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 	numDetails--;
 	request->setNumDetails(numDetails);
 	if(!numDetails)
-        fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+    {
+        if(!request->getAccountDetails()->storage_max)
+            fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
+        else
+            fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+    }
 }
 
 void MegaApiImpl::account_details(AccountDetails*, error e)
@@ -8080,6 +8089,12 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_ACCOUNT_DETAILS:
 		{
+            if(client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
 			int numDetails = request->getNumDetails();
 			bool storage = (numDetails & 0x01) != 0;
 			bool transfer = (numDetails & 0x02) != 0;
@@ -8714,13 +8729,32 @@ void MegaApiImpl::sendPendingRequests()
             const char* receipt = request->getText();
             int type = request->getNumber();
 
-            if(!receipt)
+            if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
+                            && type != MegaApi::PAYMENT_METHOD_ITUNES))
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->submitpurchasereceipt(type, receipt);
+            if(type == MegaApi::PAYMENT_METHOD_ITUNES && client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            string base64receipt;
+            if(type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET)
+            {
+                int len = strlen(receipt);
+                base64receipt.resize(len * 4 / 3 + 4);
+                base64receipt.resize(Base64::btoa((byte *)receipt, len, (char *)base64receipt.data()));
+            }
+            else //MegaApi::PAYMENT_METHOD_ITUNES
+            {
+                base64receipt = receipt;
+            }
+
+            client->submitpurchasereceipt(type, base64receipt.c_str());
             break;
         }
         case MegaRequest::TYPE_CREDIT_CARD_STORE:

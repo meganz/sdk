@@ -4298,10 +4298,33 @@ class MegaApi
 
         /**
          * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param receipt Purchase receipt
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is only compatible with Google Play payments.
+         * It only exists for compatibility with previous apps and will be removed soon.
+         * Please use the other version of MegaApi::submitPurchaseReceipt that allows
+         * to select the payment gateway.
+         */
+        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
          */
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Store a credit card
@@ -5570,7 +5593,17 @@ class MegaApi
          */
         char *getFingerprint(MegaNode *node);
 
-
+        /**
+         * @brief Get a Base64-encoded fingerprint from an input stream and a modification time
+         *
+         * If the input stream is NULL, has a negative size or can't be read, this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param inputStream Input stream that provides the data to create the fingerprint
+         * @param mtime Modification time that will be taken into account for the creation of the fingerprint
+         * @return Base64-encoded fingerprint
+         */
         char* getFingerprint(MegaInputStream *inputStream, int64_t mtime);
 
         /**
@@ -5930,7 +5963,24 @@ class MegaApi
          */
         static char* strdup(const char* buffer);
 
+        /**
+         * @brief Recursively remove all local files/folders inside a local path
+         * @param path Local path of a folder to start the recursive deletion
+         * The folder itself is not deleted
+         */
         static void removeRecursively(const char *path);
+
+        /**
+         * @brief Check if the connection with MEGA servers is OK
+         *
+         * It can briefly return false even if the connection is good enough when
+         * some storage servers are temporarily not available or the load of API
+         * servers is high.
+         *
+         * @return true if the connection is perfectly OK, otherwise false
+         */
+        bool isOnline();
+
 private:
         MegaApiImpl *pImpl;
 };
