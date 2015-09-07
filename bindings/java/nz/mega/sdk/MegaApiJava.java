@@ -75,6 +75,16 @@ public class MegaApiJava {
     public final static int EVENT_DEBUG = EVENT_FEEDBACK + 1;
     public final static int EVENT_INVALID = EVENT_DEBUG + 1;
 
+    public final static int PAYMENT_METHOD_BALANCE = MegaApi.PAYMENT_METHOD_BALANCE;
+    public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
+    public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
+    public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
+    public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
+    public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
+    public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
+    public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
+	
     /**
      * Constructor suitable for most applications.
      * 

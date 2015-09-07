@@ -43,4 +43,7 @@ public interface MegaGlobalListenerInterface {
      *            API connected to account
      */
     public void onReloadNeeded(MegaApiJava api);
+    
+    public void onAccountUpdate(MegaApiJava api);
+    public void onContactRequestsUpdate(MegaApiJava api, ArrayList<MegaContactRequest> requests);
 }
