@@ -330,4 +330,48 @@ void DbTable::decrypthandle(handle *h, string *hstring)
     }
 }
 
+// add or update record with padding and encryption
+bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
+{
+    string data;
+
+    if (!record->serialize(&data))
+    {
+        //Don't return false if there are errors in the serialization
+        //to let the SDK continue and save the rest of records
+        return true;
+    }
+
+    PaddedCBC::encrypt(&data, key);
+
+    if (!record->dbid)
+    {
+        record->dbid = (nextid += IDSPACING) | type;
+    }
+
+    return put(record->dbid, (char*)data.data(), data.size());
+}
+
+// get next record, decrypt and unpad
+bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
+{
+    if (next(type, data))
+    {
+        if (!*type)
+        {
+            return true;
+        }
+
+        if (*type > nextid)
+        {
+            nextid = *type & - IDSPACING;
+        }
+
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+
 } // namespace

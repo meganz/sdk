@@ -904,6 +904,126 @@ void SqliteDbTable::remove()
     fsaccess->path2local(&dbfile, &localpath);
     fsaccess->unlinklocal(&localpath);
 }
+
+// set cursor to first record
+void SqliteDbTable::rewind()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+    else
+    {
+        sqlite3_prepare(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
+    }
+}
+
+// retrieve next record through cursor
+bool SqliteDbTable::next(uint32_t* index, string* data)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (!pStmt)
+    {
+        return false;
+    }
+
+    int rc = sqlite3_step(pStmt);
+
+    if (rc != SQLITE_ROW)
+    {
+        sqlite3_finalize(pStmt);
+        pStmt = NULL;
+        return false;
+    }
+
+    *index = sqlite3_column_int(pStmt, 0);
+
+    data->assign((char*)sqlite3_column_blob(pStmt, 1), sqlite3_column_bytes(pStmt, 1));
+
+    return true;
+}
+
+// retrieve record by index
+bool SqliteDbTable::get(uint32_t index, string* data)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
+
+                result = true;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+// add/update record by index
+bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        {
+            if (sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC) == SQLITE_OK)
+            {
+                if (sqlite3_step(stmt) == SQLITE_DONE)
+                {
+                    result = true;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+// delete record by index
+bool SqliteDbTable::del(uint32_t index)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    char buf[64];
+
+    sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
+
+    return !sqlite3_exec(db, buf, 0, 0, NULL);
+}
+
 } // namespace
 
 #endif

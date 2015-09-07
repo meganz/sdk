@@ -87,6 +87,13 @@ public:
     ~SqliteDbTable();
 
     bool readhkey();
+
+    // legacy methods for LocalNode's cache
+    void rewind();
+    bool next(uint32_t*, string*);
+    bool get(uint32_t, string*);
+    bool put(uint32_t, char*, unsigned);
+    bool del(uint32_t);
 };
 } // namespace
 

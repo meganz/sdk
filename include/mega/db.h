@@ -31,6 +31,8 @@ namespace mega {
 // generic host transactional database access interface
 class MEGA_API DbTable
 {
+    static const int IDSPACING = 16;
+
 protected:
     SymmCipher *key;
     byte *hkey;
@@ -132,6 +134,30 @@ private:
     // handle encryption to masterkey (AES with padded CBC mode)
     void encrypthandle(handle h, string *hstring);
     void decrypthandle(handle *h, string *hstring);
+
+public:
+    // legacy methods for LocalNode's cache
+
+    // autoincrement
+    uint32_t nextid;
+
+    // for a full sequential get: rewind to first record
+    virtual void rewind() = 0;
+
+    // get next record in sequence
+    virtual bool next(uint32_t*, string*) = 0;
+    bool next(uint32_t*, string*, SymmCipher*);
+
+    // get specific record by key
+    virtual bool get(uint32_t, string*) = 0;
+
+    // update or add specific record
+    virtual bool put(uint32_t, char*, unsigned) = 0;
+    bool put(uint32_t, Cachable *, SymmCipher*);
+
+    // delete specific record
+    virtual bool del(uint32_t) = 0;
+
 };
 
 struct MEGA_API DbAccess

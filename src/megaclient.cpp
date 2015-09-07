@@ -6513,7 +6513,7 @@ void MegaClient::purgenodesusersabortsc()
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    fingerprints.clear();
+//    fingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -7488,7 +7488,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
-                    l->node ? (int)l->node->children.size() : -1,
+//                    l->node ? (int)l->node->children.size() : -1,
+                    l->node ? getchildren(l->node)->size() : -1,
                     (int)synccreate.size(),
                     syncadding,
                     ll->type,
