@@ -1865,6 +1865,16 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
+void MegaApi::getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener)
+{
+    return pImpl->getNumChildFiles(parenthandle, listener);
+}
+
+void MegaApi::getNumChildFolders(MegaHandle parenthandle, MegaRequestListener* listener)
+{
+    return pImpl->getNumChildFolders(parenthandle, listener);
+}
+
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);

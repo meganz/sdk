@@ -1108,7 +1108,8 @@ class MegaRequest
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN
+            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
+            TYPE_GET_NUM_CHILD_FOLDERS, TYPE_GET_NUM_CHILD_FILES
         };
 
         virtual ~MegaRequest();
@@ -5247,6 +5248,40 @@ class MegaApi
          * @note The returned value is a rough estimation.
 		 */
 		int getNumChildFolders(MegaNode* parent);
+
+        /**
+         * @brief Get the number of child files of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child files.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_NUM_CHILD_FILES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of child files
+         *         *
+         * @param parenthandle Handle of the parent node
+         * @param listener MegaRequestListener to track this request
+         */
+        void getNumChildFiles(MegaHandle parenthandle, MegaRequestListener *listener);
+
+        /**
+         * @brief Get the number of child folders of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child files.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of child folders
+         *         *
+         * @param parenthandle Handle of the parent node
+         * @param listener MegaRequestListener to track this request
+         */
+        void getNumChildFolders(MegaHandle parenthandle, MegaRequestListener *listener);
 
 		/**
 		 * @brief Get all children of a MegaNode

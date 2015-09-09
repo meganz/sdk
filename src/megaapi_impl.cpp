@@ -1559,6 +1559,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
         case TYPE_SEND_EVENT: return "SEND_EVENT";
         case TYPE_CLEAN_RUBBISH_BIN: return "CLEAN_RUBBISH_BIN";
+        case TYPE_GET_NUM_CHILD_FOLDERS: return "GET_NUM_CHILD_FOLDERS";
+        case TYPE_GET_NUM_CHILD_FILES: return "GET_NUM_CHILD_FILES";
 	}
     return "UNKNOWN";
 }
@@ -7010,6 +7012,21 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 	return numFolders;
 }
 
+void MegaApiImpl::getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NUM_CHILD_FILES, listener);
+    request->setNodeHandle(parenthandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getNumChildFolders(MegaHandle parenthandle, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS, listener);
+    request->setNodeHandle(parenthandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 {
@@ -8881,6 +8898,18 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         {
             client->cleanrubbishbin();
+            break;
+        }
+        case MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS:
+        {
+            request->setNumber(client->getnumchildfolders(request->getNodeHandle()));
+            fireOnRequestFinish(request, MegaError(API_OK));
+            break;
+        }
+        case MegaRequest::TYPE_GET_NUM_CHILD_FILES:
+        {
+            request->setNumber(client->getnumchildfiles(request->getNodeHandle()));
+            fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
         default:

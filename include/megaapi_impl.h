@@ -1056,6 +1056,8 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
+        void getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener);
+        void getNumChildFolders(MegaHandle parenthandle, MegaRequestListener* listener);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
         int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
