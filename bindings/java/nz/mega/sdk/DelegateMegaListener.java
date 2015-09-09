@@ -1,25 +1,24 @@
+/*
+ * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,\
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * @copyright Simplified (2-clause) BSD License.
+ * You should have received a copy of the license along with this
+ * program.
+ */
 package nz.mega.sdk;
 
 import java.util.ArrayList;
 
 /**
  * Listener to receive and send events to the app.
- * <p>
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand.
- * <p>
- * This file is part of the MEGA SDK - Client Access Engine.
- * <p>
- * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
- * <p>
- * The MEGA SDK is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * <p>
- * @copyright Simplified (2-clause) BSD License.
- * <p>
- * You should have received a copy of the license along with this
- * program.
  */
 class DelegateMegaListener extends MegaListener {
     MegaApiJava megaApi;
@@ -41,9 +40,9 @@ class DelegateMegaListener extends MegaListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param request
-     *            Information about the request
+     *            Information about the request.
      */
     @Override
     public void onRequestStart(MegaApi api, MegaRequest request) {
@@ -66,11 +65,11 @@ class DelegateMegaListener extends MegaListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *  
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param request
-     *            The MegaRequestType that has finished
+     *            The MegaRequestType that has finished.
      * @param e
-     *            Error Information
+     *            Error Information.
      */
     @Override
     public void onRequestFinish(MegaApi api, MegaRequest request, MegaError e) {
@@ -95,11 +94,11 @@ class DelegateMegaListener extends MegaListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *  
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param request
-     *            Information about the request
+     *            Information about the request.
      * @param e
-     *            Error Information
+     *            Error Information.
      */
     @Override
     public void onRequestTemporaryError(MegaApi api, MegaRequest request, MegaError e) {
@@ -122,9 +121,9 @@ class DelegateMegaListener extends MegaListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *  
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param transfer
-     *            Information about the transfer
+     *            Information about the transfer.
      */
     @Override
     public void onTransferStart(MegaApi api, MegaTransfer transfer) {
@@ -146,14 +145,14 @@ class DelegateMegaListener extends MegaListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      * There will not be more callbacks about this transfer.
      * The last parameter provides the result of the transfer. 
-     * If the transfer finishes without errors, the error code will be API_OK
+     * If the transfer finishes without errors, the error code will be API_OK.
      *  
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param transfer
-     *            Information about the transfer
+     *            Information about the transfer.
      * @param e
-     *            Error Information
+     *            Error Information.
      */
     @Override
     public void onTransferFinish(MegaApi api, MegaTransfer transfer, MegaError e) {
@@ -175,9 +174,9 @@ class DelegateMegaListener extends MegaListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *  
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param transfer
-     *            Information about the transfer
+     *            Information about the transfer.
      */
     @Override
     public void onTransferUpdate(MegaApi api, MegaTransfer transfer) {
@@ -199,11 +198,11 @@ class DelegateMegaListener extends MegaListener {
      * error parameters. Do not use them after this function returns.
      *  
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param transfer
-     *            Information about the transfer
+     *            Information about the transfer.
      * @param e
-     *            Error Information
+     *            Error Information.
      */
     @Override
     public void onTransferTemporaryError(MegaApi api, MegaTransfer transfer, MegaError e) {
@@ -227,9 +226,9 @@ class DelegateMegaListener extends MegaListener {
      * If you want to save only some of the MegaUser objects, use MegaUser.copy() for those objects.
      *
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param userList
-     *            List that contains new or updated contacts
+     *            List that contains new or updated contacts.
      */
     @Override
     public void onUsersUpdate(MegaApi api, MegaUserList userList) {
@@ -254,9 +253,9 @@ class DelegateMegaListener extends MegaListener {
      * If you want to save only some of the MegaNode objects, use MegaNode.copy() for those nodes.
      *
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      * @param nodeList
-     *            List that contains new or updated nodes
+     *            List that contains new or updated nodes.
      */
     @Override
     public void onNodesUpdate(MegaApi api, MegaNodeList nodeList) {
@@ -276,7 +275,7 @@ class DelegateMegaListener extends MegaListener {
      * You should call MegaApiJava.fetchNodes() when this callback is received.
      *
      * @param api
-     *            API object that started the request
+     *            API object that started the request.
      */
     @Override
     public void onReloadNeeded(MegaApi api) {

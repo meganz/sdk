@@ -1,3 +1,18 @@
+/*
+ * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,\
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * @copyright Simplified (2-clause) BSD License.
+ * You should have received a copy of the license along with this
+ * program.
+ */
 package nz.mega.sdk;
 
 /**
@@ -29,9 +44,9 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *              MegaApi object that started the transfer
+     *              MegaApi object that started the transfer.
      * @param transfer
-     *              Information about the transfer
+     *              Information about the transfer.
      */
     @Override
     public void onTransferStart(MegaApi api, MegaTransfer transfer) {
@@ -54,11 +69,11 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      * transfer. If the transfer finished without problems, the error code will be API_OK.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      * @param e
-     *          Error information
+     *          Error information.
      */
     @Override
     public void onTransferFinish(MegaApi api, MegaTransfer transfer, MegaError e) {
@@ -83,9 +98,9 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      */
     @Override
     public void onTransferUpdate(MegaApi api, MegaTransfer transfer) {
@@ -107,11 +122,11 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      * error parameters. Do not use them after this function returns.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      * @param e
-     *          Error information
+     *          Error information.
      */
     @Override
     public void onTransferTemporaryError(MegaApi api, MegaTransfer transfer, MegaError e) {
@@ -136,13 +151,13 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      * programming languages.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      * @param buffer
-     *          Buffer with the last read bytes
+     *          Buffer with the last read bytes.
      * @return
-     *          Size of the buffer
+     *          Size of the buffer.
      */
     public boolean onTransferData(MegaApi api, MegaTransfer transfer, byte[] buffer) {
         if (listener != null) {
