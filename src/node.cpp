@@ -67,13 +67,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
-
-    if (client)
-    {
-        // set parent linkage or queue for delayed parent linkage in case of
-        // out-of-order delivery
-        setparent(client->nodebyhandle(ph));
-    }
 }
 
 Node::~Node()
@@ -298,6 +291,8 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     n = make_shared<Node>(client, dp, h, ph, t, s, u, fa, ts);  // allocate object manager and object at once
+    // set parent linkage or queue for delayed parent linkage in case of out-of-order delivery
+    n->setparent(client->nodebyhandle(ph));
 
     if (k)
     {
@@ -816,10 +811,10 @@ bool Node::setparent(pnode_t p)
             p = client->nodebyhandle(p->parenthandle);
         }
 
-        if (!p)
+        if (!p && !ISUNDEF(parenthandle))
         {
             TreeProcDelSyncGet tdsg;
-            client->proctree(pnode_t(this), &tdsg);
+            client->proctree(shared_from_this(), &tdsg);
         }
     }
 #endif
@@ -1595,7 +1590,7 @@ bool NodesCache::put(pnode_t n)
 
     // check if node is already in the cache
     pnode_t node;
-    list<pnode_t>::iterator it;
+    node_list::iterator it;
 
     for (it = nodes.begin(); it != nodes.end(); it++)
     {

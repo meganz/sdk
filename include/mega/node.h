@@ -76,7 +76,7 @@ struct MEGA_API NewNode : public NodeCore
 };
 
 // filesystem node
-struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
+struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_shared_from_this<Node>
 {
     MegaClient* client;
 

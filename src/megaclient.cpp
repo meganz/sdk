@@ -4363,6 +4363,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = make_shared<Node>(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                // set parent linkage or queue for delayed parent linkage in case of out-of-order delivery
+                n->setparent(nodebyhandle(ph));
+
                 if ((n->type  < ROOTNODE) && (n->parenthandle == UNDEF))
                 // ?? Do we need to set parent for Rootnode, Incoming and Rubish? I don't think so
                 {
