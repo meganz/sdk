@@ -2928,6 +2928,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
     cmd("f");
     arg("c", "1", 0);
     arg("r", "1", 0);
+    arg("ca", 1);
 
     tag = client->reqtag;
 }

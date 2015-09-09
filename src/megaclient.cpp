@@ -964,7 +964,7 @@ void MegaClient::exec()
                         if (*pendingsc->in.c_str() == '{')
                         {
 #ifdef ENABLE_SYNC
-                            if (syncsup)
+                            if (syncsup || fetchingnodes)
 #endif
                             {
                                 jsonsc.begin(pendingsc->in.c_str());
@@ -1014,7 +1014,8 @@ void MegaClient::exec()
         syncactivity = false;
 
         // do not process the SC result until all preconfigured syncs are up and running
-        if (syncsup && jsonsc.pos && !syncdownrequired)
+        // except if SC packets are required to complete a fetchnodes
+        if (jsonsc.pos && ((syncsup && !syncdownrequired) || fetchingnodes))
 #else
         if (jsonsc.pos)
 #endif
@@ -1032,7 +1033,11 @@ void MegaClient::exec()
             else
             {
                 // a remote node move requires the immediate attention of syncdown()
-                syncdownrequired = true;
+                if(!fetchingnodes)
+                {
+                    syncdownrequired = true;
+                }
+
                 syncactivity = true;
             }
 #endif
