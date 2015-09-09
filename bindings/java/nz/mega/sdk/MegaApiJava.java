@@ -1639,7 +1639,7 @@ public class MegaApiJava {
     /**
      * Cancel the retrieval of a thumbnail.
      * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CANCEL_ATTR_FILE
+     * The associated request type with this request is MegaRequest.TYPE_CANCEL_ATTR_FILE.
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.ATTR_TYPE_THUMBNAIL.
@@ -1648,7 +1648,7 @@ public class MegaApiJava {
      *            Node to cancel the retrieval of the thumbnail.
      * @param listener
      *            MegaRequestListener to track this request.
-     * @see #getThumbnail(MegaNode node, String dstFilePath).
+     * @see #getThumbnail(MegaNode node, String dstFilePath)
      */
     public void cancelGetThumbnail(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.cancelGetThumbnail(node, createDelegateRequestListener(listener));
@@ -1659,7 +1659,7 @@ public class MegaApiJava {
      * 
      * @param node
      *            Node to cancel the retrieval of the thumbnail.
-     * @see #getThumbnail(MegaNode node, String dstFilePath).
+     * @see #getThumbnail(MegaNode node, String dstFilePath)
      */
     public void cancelGetThumbnail(MegaNode node) {
         megaApi.cancelGetThumbnail(node);
@@ -1677,7 +1677,7 @@ public class MegaApiJava {
      *            Node to cancel the retrieval of the preview.
      * @param listener
      *            MegaRequestListener to track this request.
-     * @see MegaApi#getPreview(MegaNode node, String dstFilePath).
+     * @see MegaApi#getPreview(MegaNode node, String dstFilePath)
      */
     public void cancelGetPreview(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.cancelGetPreview(node, createDelegateRequestListener(listener));
@@ -1688,7 +1688,7 @@ public class MegaApiJava {
      * 
      * @param node
      *            Node to cancel the retrieval of the preview.
-     * @see MegaApi#getPreview(MegaNode node, String dstFilePath).
+     * @see MegaApi#getPreview(MegaNode node, String dstFilePath)
      */
     public void cancelGetPreview(MegaNode node) {
         megaApi.cancelGetPreview(node);
@@ -2043,7 +2043,7 @@ public class MegaApiJava {
      *            Handle of the product (see MegaApiJava.getPricing()).
      * @param listener
      *            MegaRequestListener to track this request.
-     * @see #getPricing().
+     * @see #getPricing()
      */
     public void getPaymentId(long productHandle, MegaRequestListenerInterface listener) {
         megaApi.getPaymentId(productHandle, createDelegateRequestListener(listener));
@@ -2055,7 +2055,7 @@ public class MegaApiJava {
      * @param productHandle
      *            Handle of the product (see MegaApiJava.getPricing()).
      * 
-     * @see #getPricing().
+     * @see #getPricing()
      */
     public void getPaymentId(long productHandle) {
         megaApi.getPaymentId(productHandle);
