@@ -6772,7 +6772,12 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, Me
 
 	activeTransfer = NULL;
 	activeError = NULL;
-	delete megaError;
+    delete megaError;
+}
+
+MegaClient *MegaApiImpl::getMegaClient()
+{
+    return client;
 }
 
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
@@ -7701,9 +7706,10 @@ void MegaApiImpl::sendPendingTransfers()
                 }
                 else
                 {
-                    MegaNode *megaParent = this->getNodeByHandle(parent->nodehandle);
-                    createFolder(fileName, megaParent, new MegaFolderUploadListener(client, &wLocalPath, transfer->getListener()));
-                    delete megaParent;
+                    transferMap[nextTag]=transfer;
+                    transfer->setTag(nextTag);
+                    MegaFolderUploadController *uploader = new MegaFolderUploadController(this, transfer);
+                    uploader->start();
                 }
 				break;
 			}
@@ -10166,59 +10172,139 @@ FileInputStream::~FileInputStream()
 }
 
 
-MegaFolderUploadListener::MegaFolderUploadListener(MegaClient *client, string *localPath, MegaTransferListener *listener)
+MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
-    this->client = client;
-    this->localPath = *localPath;
-    this->listener = listener;
+    this->megaApi = megaApi;
+    this->client = megaApi->getMegaClient();
+    this->parenthandle = transfer->getParentHandle();
+    this->name = transfer->getFileName();
+    this->transfer = transfer;
+    this->listener = transfer->getListener();
+    this->recursive = 0;
 }
 
-void MegaFolderUploadListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+void MegaFolderUploadController::start()
 {
-    if(e->getErrorCode() == MegaError::API_OK)
+    megaApi->fireOnTransferStart(transfer);
+    MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
+    if(!parent)
     {
-        MegaNode *parent = api->getNodeByHandle(request->getNodeHandle());
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
+        delete this;
+    }
+    else
+    {
+        string path = transfer->getPath();
+        string localpath;
+        client->fsaccess->path2local(&path, &localpath);
 
-        string localname;
-        DirAccess* da;
-        da = client->fsaccess->newdiraccess();
-        if (da->dopen(&localPath, NULL, false))
+        MegaNode *child = megaApi->getChildNode(parent, name);
+
+        if(!child || !child->isFolder())
         {
-            size_t t = localPath.size();
+            folders.push_back(localpath);
+            megaApi->createFolder(name, parent, this);
+        }
+        else
+        {
+            folders.push_front(localpath);
+            onFolderAvailable(child->getHandle());
+        }
 
-            while (da->dnext(&localPath, &localname, client->followsymlinks))
+        delete child;
+        delete parent;
+    }
+}
+
+void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
+{
+    recursive++;
+    string localPath = folders.front();
+    folders.pop_front();
+
+    MegaNode *parent = megaApi->getNodeByHandle(handle);
+
+    string localname;
+    DirAccess* da;
+    da = client->fsaccess->newdiraccess();
+    if (da->dopen(&localPath, NULL, false))
+    {
+        size_t t = localPath.size();
+
+        while (da->dnext(&localPath, &localname, client->followsymlinks))
+        {
+            if (t)
             {
-                if (t)
-                {
-                    localPath.append(client->fsaccess->localseparator);
-                }
+                localPath.append(client->fsaccess->localseparator);
+            }
 
-                localPath.append(localname);
+            localPath.append(localname);
 
-                FileAccess *fa = client->fsaccess->newfileaccess();
-                if(fa->fopen(&localPath, true, false))
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            if(fa->fopen(&localPath, true, false))
+            {
+                string name = localname;
+                client->fsaccess->local2name(&name);
+
+                if(fa->type == FILENODE)
                 {
-                    if(fa->type == FILENODE)
+                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                    if(!child || child->isFolder() || (fa->size != child->getSize()))
                     {
-                        string utf8path;
-                        client->fsaccess->local2path(&localPath, &utf8path);
-                        api->startUpload(utf8path.c_str(), parent, listener);
+                        FileFingerprint fp;
+                        fp.genfingerprint(fa);
+                        Node *node = client->nodebyfingerprint(&fp);
+                        if(!node)
+                        {
+                            string utf8path;
+                            client->fsaccess->local2path(&localPath, &utf8path);
+                            megaApi->startUpload(utf8path.c_str(), parent, listener);
+                        }
+                        else
+                        {
+                            MegaNode *duplicate = MegaNodePrivate::fromNode(node);
+                            megaApi->copyNode(duplicate, parent, name.c_str());
+                            delete duplicate;
+                        }
+                    }
+                    delete child;
+                }
+                else
+                {
+                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                    if(!child || !child->isFolder())
+                    {
+                        folders.push_back(localPath);
+                        megaApi->createFolder(name.c_str(), parent, this);
                     }
                     else
                     {
-                        string name = localname;
-                        client->fsaccess->local2name(&name);
-                        api->createFolder(name.c_str(), parent, new MegaFolderUploadListener(client, &localPath, listener));
+                        folders.push_front(localPath);
+                        onFolderAvailable(child->getHandle());
                     }
+                    delete child;
                 }
-
-                localPath.resize(t);
-                delete fa;
             }
-        }
 
-        delete parent;
+            localPath.resize(t);
+            delete fa;
+        }
     }
 
-    delete this;
+    delete parent;
+    recursive--;
+
+    if(!recursive && !folders.size())
+    {
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+        delete this;
+    }
+}
+
+void MegaFolderUploadController::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+{
+    if(e->getErrorCode() == MegaError::API_OK)
+    {
+        onFolderAvailable(request->getNodeHandle());
+    }
 }
