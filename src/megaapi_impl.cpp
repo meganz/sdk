@@ -3924,7 +3924,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     if(!megaUser) return new MegaNodeListPrivate();
 
     sdkMutex.lock();
-    vector<pnode_t> vNodes;
+    node_vector vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
     if(!user)
     {
@@ -3950,7 +3950,7 @@ MegaNodeList* MegaApiImpl::getInShares()
 {
     sdkMutex.lock();
 
-    vector<pnode_t> vNodes;
+    node_vector vNodes;
 	for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
 	{
 		User *user = &(it->second);
@@ -4077,7 +4077,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     }
 
 	vector<Share*> vShares;
-	vector<handle> vHandles;
+    handle_vector vHandles;
 
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
@@ -4124,7 +4124,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     }
 
     vector<Share*> vShares;
-    vector<handle> vHandles;
+    handle_vector vHandles;
 
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
@@ -4232,8 +4232,8 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 
 	if (node->type != FILENODE)
 	{
-        shared_ptr<vector<pnode_t>> children = client->getchildren(node);
-        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
+        shared_ptr<node_vector> children = client->getchildren(node);
+        for (node_vector::iterator it = children->begin(); it != children->end(); it++)
 		{
 			MegaNode *megaNode = MegaNodePrivate::fromNode(*it++);
 			if(recursive)
@@ -4325,8 +4325,8 @@ bool MegaApiImpl::processTree(pnode_t node, TreeProcessor* processor, bool recur
 
 	if (node->type != FILENODE)
 	{
-        shared_ptr<vector<pnode_t>> children = client->getchildren(node);
-        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
+        shared_ptr<node_vector> children = client->getchildren(node);
+        for (node_vector::iterator it = children->begin(); it != children->end(); it++)
 		{
 			if(recursive)
 			{
@@ -4582,8 +4582,8 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     byte binarycrc[sizeof(node->crc)];
     Base64::atob(crc, binarycrc, sizeof(binarycrc));
 
-    shared_ptr<vector<pnode_t>> children = client->getchildren(node);
-    for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
+    shared_ptr<node_vector> children = client->getchildren(node);
+    for (node_vector::iterator it = children->begin(); it != children->end(); it++)
     {
         pnode_t child = (*it);
         if(!memcmp(child->crc, binarycrc, sizeof(node->crc)))
@@ -4637,7 +4637,7 @@ bool SearchTreeProcessor::processNode(pnode_t node)
 	return true;
 }
 
-vector<pnode_t > &SearchTreeProcessor::getResults()
+node_vector &SearchTreeProcessor::getResults()
 {
 	return results;
 }
@@ -7027,8 +7027,8 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 
     if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
 	{
-        shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
+        shared_ptr<node_vector> children = client->getchildren(parent);
+        for (node_vector::iterator it = children->begin(); it != children->end(); it++)
             childrenNodes.push_back(*it++);
 	}
 	else
@@ -7049,8 +7049,8 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
 		}
 
-        shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); )
+        shared_ptr<node_vector> children = client->getchildren(parent);
+        for (node_vector::iterator it = children->begin(); it != children->end(); )
 		{
             pnode_t n = *it++;
             vector<pnode_t >::iterator i = std::lower_bound(childrenNodes.begin(),
@@ -7109,9 +7109,9 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
     }
 
-    vector<pnode_t > childrenNodes;
-    shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-    for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
+    node_vector childrenNodes;
+    shared_ptr<node_vector> children = client->getchildren(parent);
+    for (node_vector::iterator it = children->begin(); it != children->end(); it++)
     {
         pnode_t temp = *it++;
         vector<pnode_t >::iterator i = std::lower_bound(childrenNodes.begin(),
@@ -7216,8 +7216,8 @@ pnode_t MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, pnode
     if(n && parent && client->nodebyhandle(n->parenthandle) != parent)
     {
 
-        shared_ptr<vector<pnode_t>> children = client->getchildren(parent);
-        for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
+        shared_ptr<node_vector> children = client->getchildren(parent);
+        for (node_vector::iterator it = children->begin(); it != children->end(); it++)
         {
             pnode_t node = (*it);
             if(*((FileFingerprint *)node.get()) == *((FileFingerprint *)n.get()))
@@ -9393,7 +9393,7 @@ vector<Share *> &OutShareProcessor::getShares()
 	return shares;
 }
 
-vector<handle> &OutShareProcessor::getHandles()
+handle_vector &OutShareProcessor::getHandles()
 {
 	return handles;
 }
@@ -9424,7 +9424,7 @@ vector<Share *> &PendingOutShareProcessor::getShares()
     return shares;
 }
 
-vector<handle> &PendingOutShareProcessor::getHandles()
+handle_vector &PendingOutShareProcessor::getHandles()
 {
     return handles;
 }

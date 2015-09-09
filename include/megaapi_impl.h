@@ -663,7 +663,7 @@ public:
     void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
                     int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
-    vector<handle> handles;
+    handle_vector handles;
     vector<int> proLevel;
     vector<int> gbStorage;
     vector<int> gbTransfer;
@@ -796,11 +796,11 @@ class SearchTreeProcessor : public TreeProcessor
         SearchTreeProcessor(const char *search);
         virtual bool processNode(pnode_t node);
         virtual ~SearchTreeProcessor() {}
-        vector<pnode_t> &getResults();
+        node_vector &getResults();
 
     protected:
         const char *search;
-        vector<pnode_t> results;
+        node_vector results;
 };
 
 class OutShareProcessor : public TreeProcessor
@@ -810,11 +810,11 @@ class OutShareProcessor : public TreeProcessor
         virtual bool processNode(pnode_t node);
         virtual ~OutShareProcessor() {}
         vector<Share *> &getShares();
-        vector<handle> &getHandles();
+        handle_vector &getHandles();
 
     protected:
         vector<Share *> shares;
-        vector<handle> handles;
+        handle_vector handles;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -824,11 +824,11 @@ class PendingOutShareProcessor : public TreeProcessor
         virtual bool processNode(pnode_t node);
         virtual ~PendingOutShareProcessor() {}
         vector<Share *> &getShares();
-        vector<handle> &getHandles();
+        handle_vector &getHandles();
 
     protected:
         vector<Share *> shares;
-        vector<handle> handles;
+        handle_vector handles;
 };
 
 class SizeProcessor : public TreeProcessor
