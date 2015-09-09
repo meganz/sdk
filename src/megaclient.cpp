@@ -2207,10 +2207,26 @@ bool MegaClient::procsc()
                 case 'w':
                     if (!statecurrent)
                     {
-                        // NULL vector: "notify all nodes"
+#ifdef ENABLE_SYNC
+                        syncsup = false;
+#endif
+                        notifypurge();
+
+                        fetchingnodes = false;
+                        app->fetchnodes_result(API_OK);
+
+                        // NULL vector: "notify all elements"
+                        app->nodes_updated(NULL, nodes.size());
+                        app->users_updated(NULL, users.size());
+                        app->pcrs_updated(NULL, pcrindex.size());
+
+                        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+                        {
+                            memset(&(it->second->changed), 0, sizeof it->second->changed);
+                        }
+
                         app->nodes_current();
                         statecurrent = true;
-                        fetchingnodes = false;
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
@@ -3621,7 +3637,10 @@ void MegaClient::notifypurge(void)
 #endif
         applykeys();
 
-        app->nodes_updated(&nodenotify[0], t);
+        if (!fetchingnodes)
+        {
+            app->nodes_updated(&nodenotify[0], t);
+        }
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
@@ -3663,7 +3682,10 @@ void MegaClient::notifypurge(void)
 
     if ((t = pcrnotify.size()))
     {
-        app->pcrs_updated(&pcrnotify[0], t);
+        if (!fetchingnodes)
+        {
+            app->pcrs_updated(&pcrnotify[0], t);
+        }
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
@@ -3687,7 +3709,11 @@ void MegaClient::notifypurge(void)
     // users are never deleted
     if ((t = usernotify.size()))
     {
-        app->users_updated(&usernotify[0], t);
+        if (!fetchingnodes)
+        {
+            app->users_updated(&usernotify[0], t);
+        }
+
         usernotify.clear();
     }
 }
