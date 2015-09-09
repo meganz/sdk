@@ -5259,6 +5259,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_NUM_CHILD_FILES
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the parent node
          * - MegaRequest::getNumber - Returns the number of child files
          *         *
          * @param parenthandle Handle of the parent node
@@ -5276,6 +5277,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the parent node
          * - MegaRequest::getNumber - Returns the number of child folders
          *         *
          * @param parenthandle Handle of the parent node
