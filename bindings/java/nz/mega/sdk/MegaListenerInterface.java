@@ -22,6 +22,10 @@ package nz.mega.sdk;
  * events related to the synchronization engine. The SDK will provide a new interface to get synchronization
  * events separately in future updates.
  * Multiple inheritance is not used for compatibility with other programming languages.
+ *
+ * @see MegaGlobalListenerInterface
+ * @see MegaRequestListenerInterface
+ * @see MegaTransferListenerInterface
  */
 public interface MegaListenerInterface extends MegaRequestListenerInterface, MegaGlobalListenerInterface,
         MegaTransferListenerInterface {

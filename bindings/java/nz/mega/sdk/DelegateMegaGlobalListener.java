@@ -15,10 +15,15 @@
  */
 package nz.mega.sdk;
 
+import nz.mega.sdk.MegaApiJava;
+
 import java.util.ArrayList;
 
 /**
  * Listener to receive and send global events to the app.
+ *
+ * @see MegaGlobalListenerInterface
+ * @see MegaGlobalListener
  */
 class DelegateMegaGlobalListener extends MegaGlobalListener {
     MegaApiJava megaApi;
@@ -46,6 +51,8 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
      *            API object connected to account.
      * @param userList
      *            List that contains the new or updated contacts.
+     * @see MegaGlobalListenerInterface#onUsersUpdate(MegaApiJava api, ArrayList<MegaUser> users)
+     * @see MegaGlobalListener#onUsersUpdate(MegaApi api, MegaUserList users)
      */
     @Override
     public void onUsersUpdate(MegaApi api, MegaUserList userList) {
@@ -74,6 +81,8 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
      *            API object connected to account.
      * @param nodeList
      *            List of new or updated Nodes.
+     * @see MegaGlobalListenerInterface#onNodesUpdate(MegaApiJava api, ArrayList<MegaNode> nodes)
+     * @see MegaGlobalListener#onNodesUpdate(MegaApi api, MegaNodeList nodes)
      */
     @Override
     public void onNodesUpdate(MegaApi api, MegaNodeList nodeList) {
@@ -95,6 +104,8 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
      *  
      * @param api
      *            API object connected to account.
+     * @see MegaGlobalListenerInterface#onReloadNeeded(MegaApiJava api)
+     * @see MegaGlobalListener#onReloadNeeded(MegaApi api)
      */
     @Override
     public void onReloadNeeded(MegaApi api) {

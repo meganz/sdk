@@ -53,7 +53,7 @@ public interface MegaGlobalListenerInterface {
      * @param nodeList
      *            List of new or updated Nodes.
      */
-    public void onNodesUpdate(MegaApiJava api, ArrayList<MegaNode> nodes);
+    public void onNodesUpdate(MegaApiJava api, ArrayList<MegaNode> nodeList);
 
     /**
      * This function is called when an inconsistency is detected in the local cache.

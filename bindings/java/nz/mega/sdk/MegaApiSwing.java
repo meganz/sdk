@@ -19,6 +19,8 @@ import javax.swing.SwingUtilities;
 
 /**
  * Control a MEGA account or a shared folder using a Java Swing GUI.
+ *
+ * @see MegaApiJava
  */
 public class MegaApiSwing extends MegaApiJava {
 
@@ -34,6 +36,7 @@ public class MegaApiSwing extends MegaApiJava {
      * @param path
      *              Base path to store the local cache. If you pass null to this parameter,
      *              the SDK will not use any local cache.
+     * @see MegaApiJava#MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor)
      */
     public MegaApiSwing(String appKey, String userAgent, String path) {
         super(appKey, userAgent, path, new MegaGfxProcessor());

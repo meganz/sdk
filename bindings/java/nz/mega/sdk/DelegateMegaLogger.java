@@ -15,11 +15,16 @@
  */
 package nz.mega.sdk;
 
+import java.lang.String;
+
 /**
  * Interface to receive SDK logs.
  * You can implement this class and pass an object of your subclass to MegaApiJava.setLoggerClass()
  * to receive SDK logs. You will also have to use MegaApiJava.setLogLevel() to select the level of
  * the logs that you want to receive.
+ *
+ * @see MegaLoggerInterface
+ * @see MegaLogger
  */
 class DelegateMegaLogger extends MegaLogger {
     MegaLoggerInterface listener;
@@ -51,6 +56,8 @@ class DelegateMegaLogger extends MegaLogger {
      * @param message
      *            Log message.
      *            The SDK retains the ownership of this string, it will be valid after this function returns.
+     * @see MegaLoggerInterface#log(String time, int loglevel, String source, String message)
+     * @see MegaLogger#log(String time, int loglevel, String source, String message)
      */
     public void log(String time, int loglevel, String source, String message) {
         if (listener != null) {

@@ -15,12 +15,18 @@
  */
 package nz.mega.sdk;
 
+import nz.mega.sdk.MegaApi;
+import nz.mega.sdk.MegaTransfer;
+
 /**
  * Interface to receive information about transfers.
  * <p>
  * All transfers are able to pass a pointer to an implementation of this interface in the singleListener parameter.
  * You can also get information about all transfers using MegaApi.addTransferListener().
  * MegaListener objects can also receive information about transfers.
+ *
+ * @see MegaTransferListenerInterface
+ * @see MegaTransferListener
  */
 class DelegateMegaTransferListener extends MegaTransferListener {
     MegaApiJava megaApi;
@@ -47,6 +53,8 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      *              MegaApi object that started the transfer.
      * @param transfer
      *              Information about the transfer.
+     * @see MegaTransferListenerInterface#onTransferStart(MegaApiJava api, MegaTransfer transfer)
+     * @see MegaTransferListener#onTransferStart(MegaApi api, MegaTransfer transfer)
      */
     @Override
     public void onTransferStart(MegaApi api, MegaTransfer transfer) {
@@ -74,6 +82,8 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      *          Information about the transfer.
      * @param e
      *          Error information.
+     * @see MegaTransferListenerInterface#onTransferFinish(MegaApiJava api, MegaTransfer transfer, MegaError e)
+     * @see MegaTransferListener#onTransferFinish(MegaApi api, MegaTransfer transfer, MegaError error)
      */
     @Override
     public void onTransferFinish(MegaApi api, MegaTransfer transfer, MegaError e) {
@@ -101,6 +111,8 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      *          MegaApi object that started the transfer.
      * @param transfer
      *          Information about the transfer.
+     * @see MegaTransferListenerInterface#onTransferUpdate(MegaApiJava api, MegaTransfer transfer)
+     * @see MegaTransferListener#onTransferUpdate(MegaApi api, MegaTransfer transfer)
      */
     @Override
     public void onTransferUpdate(MegaApi api, MegaTransfer transfer) {
@@ -127,6 +139,8 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      *          Information about the transfer.
      * @param e
      *          Error information.
+     * @see MegaTransferListenerInterface#onTransferTemporaryError(MegaApiJava api, MegaTransfer transfer, MegaError e)
+     * @see MegaTransferListener#onTransferTemporaryError(MegaApi api, MegaTransfer transfer, MegaError error)
      */
     @Override
     public void onTransferTemporaryError(MegaApi api, MegaTransfer transfer, MegaError e) {
@@ -158,6 +172,8 @@ class DelegateMegaTransferListener extends MegaTransferListener {
      *          Buffer with the last read bytes.
      * @return
      *          Size of the buffer.
+     * @see MegaTransferListenerInterface#onTransferData(MegaApiJava api, MegaTransfer transfer, byte[] buffer)
+     * @see MegaTransferListener#onTransferData(MegaApi api, MegaTransfer transfer, byte[] buffer)
      */
     public boolean onTransferData(MegaApi api, MegaTransfer transfer, byte[] buffer) {
         if (listener != null) {

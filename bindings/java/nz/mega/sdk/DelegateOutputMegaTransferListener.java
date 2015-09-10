@@ -25,6 +25,8 @@ import java.io.OutputStream;
  * The object created with that class is registered with a component using the component's
  * addDelegateOutputMegaTransferListener method. When the delegateOutputMegaTransfer event occurs,
  * that object's appropriate method is invoked.
+ *
+ * @see DelegateMegaTransferListener
  */
 public class DelegateOutputMegaTransferListener extends DelegateMegaTransferListener {
     OutputStream outputStream;
@@ -58,6 +60,7 @@ public class DelegateOutputMegaTransferListener extends DelegateMegaTransferList
      *              Buffer with the last read bytes.
      * @return
      *              true, if successful.
+     * @see DelegateMegaTransferListener#onTransferData(MegaApi api, MegaTransfer transfer, byte[] buffer)
      */
     public boolean onTransferData(MegaApi api, MegaTransfer transfer, byte[] buffer) {
         if (outputStream != null) {

@@ -15,6 +15,9 @@
  */
 package nz.mega.sdk;
 
+import nz.mega.sdk.MegaApi;
+import nz.mega.sdk.MegaRequest;
+
 /**
  * Interface to receive information about requests.
  * <p>
@@ -24,6 +27,9 @@ package nz.mega.sdk;
  * This interface uses MegaRequest objects to provide information about requests.
  * Please note that not all fields of MegaRequest objects are valid for all requests.
  * See the documentation about each request to know which fields contain useful information for each one.
+ *
+ * @see MegaRequestListenerInterface
+ * @see MegaRequestListener
  */
 class DelegateMegaRequestListener extends MegaRequestListener {
 
@@ -51,6 +57,8 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      *            API that started the request.
      * @param request
      *            Information about the request.
+     * @see MegaRequestListenerInterface#onRequestStart(MegaApiJava api, MegaRequest request)
+     * @see MegaRequestListener#onRequestStart(MegaApi api, MegaRequest request)
      */
     @Override
     public void onRequestStart(MegaApi api, MegaRequest request) {
@@ -75,6 +83,8 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      *            API that started the request.
      * @param request
      *            Information about the request.
+     * @see MegaRequestListenerInterface#onRequestUpdate(MegaApiJava api, MegaRequest request)
+     * @see MegaRequestListener#onRequestUpdate(MegaApi api, MegaRequest request)
      */
     @Override
     public void onRequestUpdate(MegaApi api, MegaRequest request) {
@@ -103,6 +113,8 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      *            Information about the request.
      * @param e
      *            Error Information.
+     * @see MegaRequestListenerInterface#onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e)
+     * @see MegaRequestListener#onRequestFinish(MegaApi api, MegaRequest request, MegaError e)
      */
     @Override
     public void onRequestFinish(MegaApi api, MegaRequest request, MegaError e) {
@@ -134,6 +146,8 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      *            Information about the request.
      * @param e
      *            Error Information.
+     * @see MegaRequestListenerInterface#onRequestTemporaryError(MegaApiJava api, MegaRequest request, MegaError e)
+     * @see MegaRequestListener#onRequestTemporaryError(MegaApi api, MegaRequest request, MegaError error)
      */
     @Override
     public void onRequestTemporaryError(MegaApi api, MegaRequest request, MegaError e) {
