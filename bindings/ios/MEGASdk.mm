@@ -34,6 +34,7 @@
 #import "DelegateMEGAGlobalListener.h"
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
+#import "MEGAInputStream.h"
 
 #import <set>
 #import <pthread.h>
@@ -870,6 +871,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     const char *val = self.megaApi->getFingerprint([filePath UTF8String]);
     if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete val;
+    return ret;
+}
+
+- (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime {
+    if (assetRepresentation == nil) return nil;
+    
+    MEGAInputStream mis = MEGAInputStream(assetRepresentation);
+    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
