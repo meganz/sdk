@@ -161,6 +161,8 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasPreview();
         virtual bool isPublic();
         virtual std::string* getAuth();
+        virtual bool isOutShare();
+        virtual bool hasPublicLink();
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -187,6 +189,8 @@ class MegaNodePrivate : public MegaNode
         bool thumbnailAvailable;
         bool previewAvailable;
         bool isPublicNode;
+        bool outShares;
+        bool publicLink;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;

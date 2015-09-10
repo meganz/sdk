@@ -262,6 +262,16 @@ bool MegaNode::isPublic()
     return false;
 }
 
+bool MegaNode::isOutShare()
+{
+    return false;
+}
+
+bool MegaNode::hasPublicLink()
+{
+    return false;
+}
+
 string *MegaNode::getNodeKey()
 {
     return NULL;

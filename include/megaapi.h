@@ -652,6 +652,20 @@ class MegaNode
         virtual bool isPublic();
 
         /**
+         * @brief Returns true if this is an outgoing shared node
+         *
+         * @return true if this is an outgoing shared node
+         */
+        virtual bool isOutShare();
+
+        /**
+         * @brief Returns true if this is a node publicly shared
+         *
+         * @return true if this is a a node publicly shared
+         */
+        virtual bool hasPublicLink();
+
+        /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
