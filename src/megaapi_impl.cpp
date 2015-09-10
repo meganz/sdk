@@ -205,7 +205,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->publicLink = false;
     if (node->outshares)
     {
-        if (node->outshares->size() == 1 && !node->outshares->at(0)->user)
+        if (node->outshares->size() == 1 && !node->outshares->begin()->second->user)
         {
             this->publicLink = true;
             this->outShares = false;
