@@ -89,6 +89,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->previewAvailable = false;
     this->tag = 0;
     this->isPublicNode = true;
+    this->outShares = true;
+    this->publicLink = true;
 
     if(auth)
     {
@@ -120,6 +122,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->tag = node->getTag();
     this->isPublicNode = node->isPublic();
     this->auth = *node->getAuth();
+    this->outShares = node->isOutShare();
+    this->publicLink = node->hasPublicLink();
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = node->isSyncDeleted();
@@ -196,6 +200,30 @@ MegaNodePrivate::MegaNodePrivate(pnode_t node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
+
+    this->outShares = false;
+    this->publicLink = false;
+    if (node->outshares)
+    {
+        if (node->outshares->size() == 1 && !node->outshares->begin()->second->user)
+        {
+            this->publicLink = true;
+            this->outShares = false;
+        }
+        else
+        {
+            this->outShares = true;
+
+            for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+            {
+                if (!it->second->user)
+                {
+                    this->publicLink = true;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -475,6 +503,16 @@ bool MegaNodePrivate::hasPreview()
 bool MegaNodePrivate::isPublic()
 {
     return isPublicNode;
+}
+
+bool MegaNodePrivate::isOutShare()
+{
+    return outShares;
+}
+
+bool MegaNodePrivate::hasPublicLink()
+{
+    return publicLink;
 }
 
 string *MegaNodePrivate::getAuth()
@@ -3155,14 +3193,6 @@ void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestList
 
     request->setParamType(type);
     requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
-{
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_CONTACT, listener);
-	request->setEmail(email);
-	requestQueue.push(request);
     waiter->notify();
 }
 

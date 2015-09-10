@@ -161,6 +161,8 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasPreview();
         virtual bool isPublic();
         virtual std::string* getAuth();
+        virtual bool isOutShare();
+        virtual bool hasPublicLink();
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -188,6 +190,8 @@ class MegaNodePrivate : public MegaNode
         bool thumbnailAvailable;
         bool previewAvailable;
         bool isPublicNode;
+        bool outShares;
+        bool publicLink;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -984,7 +988,6 @@ class MegaApiImpl : public MegaApp
         char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();

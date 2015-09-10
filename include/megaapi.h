@@ -652,6 +652,20 @@ class MegaNode
         virtual bool isPublic();
 
         /**
+         * @brief Returns true if this is an outgoing shared node
+         *
+         * @return true if this is an outgoing shared node
+         */
+        virtual bool isOutShare();
+
+        /**
+         * @brief Returns true if this is a node publicly shared
+         *
+         * @return true if this is a a node publicly shared
+         */
+        virtual bool hasPublicLink();
+
+        /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
@@ -1297,7 +1311,6 @@ class MegaRequest
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
          * - MegaApi::share - Returns the email that receives the shared folder
          * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
-         * - MegaApi::addContact - Returns the email of the contact
          * - MegaApi::removeContact - Returns the email of the contact
          * - MegaApi::getUserData - Returns the email of the contact
          * - MegaApi::inviteContact - Returns the email of the contact
@@ -4418,20 +4431,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Add a new contact to the MEGA account
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_CONTACT
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email of the contact
-         *
-         * @param email Email of the new contact
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated: This way to add contacts will be removed in future updates. Please use MegaApi::inviteContact.
-         */
-        void addContact(const char* email, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Invite another person to be your MEGA contact

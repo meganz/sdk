@@ -262,6 +262,16 @@ bool MegaNode::isPublic()
     return false;
 }
 
+bool MegaNode::isOutShare()
+{
+    return false;
+}
+
+bool MegaNode::hasPublicLink()
+{
+    return false;
+}
+
 string *MegaNode::getNodeKey()
 {
     return NULL;
@@ -1297,11 +1307,6 @@ void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener 
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
 {
     pImpl->reportEvent(text, listener);
-}
-
-void MegaApi::addContact(const char* email, MegaRequestListener* listener)
-{
-    pImpl->addContact(email, listener);
 }
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
