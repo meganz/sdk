@@ -1753,6 +1753,11 @@ char *MegaApi::getCRC(const char *filePath)
     return pImpl->getCRC(filePath);
 }
 
+char *MegaApi::getCRCFromFingerPrint(const char *fingerprint)
+{
+    return pImpl->getCRCFromFingerPrint(fingerprint);
+}
+
 char *MegaApi::getCRC(MegaNode *node)
 {
     return pImpl->getCRC(node);

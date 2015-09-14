@@ -2580,6 +2580,13 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
 - (NSString *)CRCForNode:(MEGANode *)node;
 
 /**
+ * @brief Get the CRC from a fingerPrint
+ *
+ * @param fingerPrint fingerPrint from which we want to get the CRC
+ * @return Base64-encoded CRC from the fingerPrint
+ */
+- (NSString *)CRCFromFingerPrint:(NSString *)fingerPrint;
+/**
  * @brief Returns a node with the provided CRC
  *
  * If there isn't any node in the selected folder with that CRC, this function returns nil.
