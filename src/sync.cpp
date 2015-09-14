@@ -39,6 +39,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     inshare = cinshare;
     errorcode = API_OK;
     tmpfa = NULL;
+    initializing = true;
 
     localbytes = 0;
     localnodes[FILENODE] = 0;
@@ -435,8 +436,18 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                                 client->fsaccess->localseparator.data(),
                                 client->fsaccess->localseparator.size())))
                     {
-                        // new or existing record: place scan result in notification queue
-                        dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
+                        LocalNode *l = NULL;
+                        if (initializing)
+                        {
+                            // preload all cached LocalNodes
+                            l = checkpath(NULL, localpath);
+                        }
+
+                        if (!l || l == (LocalNode*)~0)
+                        {
+                            // new record: place in notification queue
+                            dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
+                        }
                     }
 
                     localpath->resize(t);
@@ -554,7 +565,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     {
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (fullscan)
+        if (initializing || fullscan)
         {
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
@@ -590,6 +601,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     return l;
                 }
             }
+        }
+
+        if (initializing)
+        {
+            delete fa;
+            return NULL;
         }
 
         if (!isroot)
@@ -837,6 +854,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     }
     else
     {
+        if (initializing)
+        {
+            delete fa;
+            return NULL;
+        }
+
         LOG_warn << "Error opening file";
         if (fa->retry)
         {
