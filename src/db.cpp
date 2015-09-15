@@ -374,13 +374,16 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 }
 
 
-DbQuery::DbQuery(DbTable *sctable, QueryType type)
+DbQuery::DbQuery(DbTable *sctable, QueryType type, int tag)
 {
     this->sctable = sctable;
     this->type = type;
 
     this->h = UNDEF;
     this->number = 0;
+
+    this->err = API_OK;
+    this->tag = tag;
 }
 
 void DbQuery::execute()
@@ -473,15 +476,18 @@ void * DbThread::loop(void *param)
                 query = client->dbqueryqueue.front();
                 query->execute();
 
+                error err = query->getError();
+                int tag = query->getTag();
+
                 // return the result to the MegaApi layer by calling the corresponding callback
                 switch (query->type)
                 {
                 case DbQuery::GET_NUM_CHILD_FILES:
-                    client->app->getnumchildfiles_result(query->getNumber(), query->getError());
+                    client->app->getnumchildfiles_result(query->getNumber(), tag, err);
                     break;
 
                 case DbQuery::GET_NUM_CHILD_FOLDERS:
-                    client->app->getnumchildfolders_result(query->getNumber(), query->getError());
+                    client->app->getnumchildfolders_result(query->getNumber(), tag, err);
                     break;
 
                 case DbQuery::DELETE:

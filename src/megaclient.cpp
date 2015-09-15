@@ -648,7 +648,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 MegaClient::~MegaClient()
 {
     // Wait for the DbThread to exit properly
-    DbQuery *query = new DbQuery(sctable, DbQuery::DELETE);
+    DbQuery *query = new DbQuery(sctable, DbQuery::DELETE, 0);
     dbqueryqueue.push(query);
     dbwaiter->notify();
     dbthread.join();
@@ -8173,16 +8173,18 @@ int MegaClient::getnumchildren(handle h)
 
 void MegaClient::getnumchildfiles(handle ph)
 {
-    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FILES);
+    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FILES, reqtag);
     dbquery->setNumber(ph);
+//    dbquery->setTag(reqtag);
     dbqueryqueue.push(dbquery);
     dbwaiter->notify();
 }
 
 void MegaClient::getnumchildfolders(handle ph)
 {
-    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FOLDERS);
+    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FOLDERS, reqtag);
     dbquery->setNumber(ph);
+//    dbquery->setTag(reqtag);
     dbqueryqueue.push(dbquery);
     dbwaiter->notify();
 }

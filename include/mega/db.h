@@ -176,17 +176,19 @@ public:
 private:
     DbTable *sctable;
     error err;
+    int tag;
 
     handle h;
     int number;
 
 public:
-    void setNumber(int number)  { this->number = number; }
-
-    int getNumber()             { return number;    }
     error getError()            { return err;       }
+    int getTag()                { return tag;       }
 
-    DbQuery(DbTable *sctable, QueryType type);
+    void setNumber(int number)  { this->number = number; }
+    int getNumber()             { return number;    }
+
+    DbQuery(DbTable *sctable, QueryType type, int tag);
 
     void execute();
 };

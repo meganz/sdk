@@ -5008,14 +5008,14 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::getnumchildfiles_result(int number, error e)
+void MegaApiImpl::getnumchildfiles_result(int number, int restag, error e)
 {
     sdkMutex.lock();
 
     MegaError megaError(e);
 
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(requestMap.find(restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_NUM_CHILD_FILES)) return;
 
     request->setNumber(number);
@@ -5025,14 +5025,14 @@ void MegaApiImpl::getnumchildfiles_result(int number, error e)
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::getnumchildfolders_result(int number, error e)
+void MegaApiImpl::getnumchildfolders_result(int number, int restag, error e)
 {
     sdkMutex.lock();
 
     MegaError megaError(e);
 
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(requestMap.find(restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS)) return;
 
     request->setNumber(number);
@@ -7837,6 +7837,7 @@ void MegaApiImpl::sendPendingRequests()
 
 		sdkMutex.lock();
 		nextTag = client->nextreqtag();
+
         request->setTag(nextTag);
 		requestMap[nextTag]=request;
 		e = API_OK;

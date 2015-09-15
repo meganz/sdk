@@ -1326,8 +1326,8 @@ protected:
         virtual void sessions_killed(handle sessionid, error e);
 
         virtual void cleanrubbishbin_result(error);
-        virtual void getnumchildfiles_result(int, error);
-        virtual void getnumchildfolders_result(int, error);
+        virtual void getnumchildfiles_result(int, int, error);
+        virtual void getnumchildfolders_result(int, int , error);
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
