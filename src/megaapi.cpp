@@ -1860,16 +1860,6 @@ int MegaApi::getNumChildren(MegaNode* parent)
 	return pImpl->getNumChildren(parent);
 }
 
-int MegaApi::getNumChildFiles(MegaNode* parent)
-{
-	return pImpl->getNumChildFiles(parent);
-}
-
-int MegaApi::getNumChildFolders(MegaNode* parent)
-{
-	return pImpl->getNumChildFolders(parent);
-}
-
 void MegaApi::getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener)
 {
     return pImpl->getNumChildFiles(parenthandle, listener);

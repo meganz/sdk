@@ -22,12 +22,13 @@
 #ifndef MEGA_DB_H
 #define MEGA_DB_H 1
 
-#include "filesystem.h"
-#include "node.h"
-#include "user.h"
-#include "pendingcontactrequest.h"
+#include "mega/filesystem.h"
+#include "mega/node.h"
+#include "mega/user.h"
+#include "mega/pendingcontactrequest.h"
 
 namespace mega {
+
 // generic host transactional database access interface
 class MEGA_API DbTable
 {
@@ -166,6 +167,51 @@ struct MEGA_API DbAccess
 
     virtual ~DbAccess() { }
 };
+
+class MEGA_API DbQuery
+{
+public:
+    enum QueryType { GET_NUM_CHILD_FILES, GET_NUM_CHILD_FOLDERS, DELETE } type;
+
+private:
+    DbTable *sctable;
+    error err;
+
+    handle h;
+    int number;
+
+public:
+    void setNumber(int number)  { this->number = number; }
+
+    int getNumber()             { return number;    }
+    error getError()            { return err;       }
+
+    DbQuery(DbTable *sctable, QueryType type);
+
+    void execute();
+};
+
+//Thread safe DB queries queue
+class DbQueryQueue
+{
+protected:
+    std::deque<DbQuery *> dbqueries;
+    MegaMutex mutex;
+
+public:
+    DbQueryQueue();
+    bool empty();
+    void push(DbQuery *query);
+    DbQuery * front();
+    void pop();
+};
+
+class DbThread : public MegaThread
+{
+public:
+    static void *loop(void *param);
+};
+
 } // namespace
 
 #endif

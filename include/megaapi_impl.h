@@ -28,9 +28,9 @@
 #include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
 #include "mega/thread/win32thread.h"
+#include "mega/thread/cppthread.h"
 #include "mega/gfx/external.h"
 #include "mega/gfx/qt.h"
-#include "mega/thread/cppthread.h"
 #include "mega/proxy.h"
 #include "megaapi.h"
 
@@ -65,20 +65,6 @@
 
 namespace mega
 {
-
-#ifdef USE_QT
-typedef QtThread MegaThread;
-typedef QtMutex MegaMutex;
-#elif USE_PTHREAD
-typedef PosixThread MegaThread;
-typedef PosixMutex MegaMutex;
-#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
-typedef Win32Thread MegaThread;
-typedef Win32Mutex MegaMutex;
-#else
-typedef CppThread MegaThread;
-typedef CppMutex MegaMutex;
-#endif
 
 #ifdef USE_QT
 class MegaGfxProc : public GfxProcQT {};
@@ -1056,9 +1042,7 @@ class MegaApiImpl : public MegaApp
         long long getTotalUploadedBytes();
 
         //Filesystem
-		int getNumChildren(MegaNode* parent);
-		int getNumChildFiles(MegaNode* parent);
-		int getNumChildFolders(MegaNode* parent);
+        int getNumChildren(MegaNode* parent);
         void getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener);
         void getNumChildFolders(MegaHandle parenthandle, MegaRequestListener* listener);
         MegaNodeList* getChildren(MegaNode *parent, int order=1);
@@ -1342,6 +1326,8 @@ protected:
         virtual void sessions_killed(handle sessionid, error e);
 
         virtual void cleanrubbishbin_result(error);
+        virtual void getnumchildfiles_result(int, error);
+        virtual void getnumchildfolders_result(int, error);
 
 #ifdef ENABLE_SYNC
         // sync status updates and events

@@ -640,10 +640,19 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     LOG_debug << "User-Agent: " << useragent;
     h->setuseragent(&useragent);
+
+    dbwaiter = new WAIT_CLASS();
+    dbthread.start(DbThread::loop, this);
 }
 
 MegaClient::~MegaClient()
 {
+    // Wait for the DbThread to exit properly
+    DbQuery *query = new DbQuery(sctable, DbQuery::DELETE);
+    dbqueryqueue.push(query);
+    dbwaiter->notify();
+    dbthread.join();
+
     locallogout();
 
     delete pendingcs;
@@ -8162,22 +8171,20 @@ int MegaClient::getnumchildren(handle h)
     return result;
 }
 
-int MegaClient::getnumchildfiles(handle h)
+void MegaClient::getnumchildfiles(handle ph)
 {
-    int result = 0;
-
-    sctable->getnumchildfiles(h, &result);
-
-    return result;
+    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FILES);
+    dbquery->setNumber(ph);
+    dbqueryqueue.push(dbquery);
+    dbwaiter->notify();
 }
 
-int MegaClient::getnumchildfolders(handle h)
+void MegaClient::getnumchildfolders(handle ph)
 {
-    int result = 0;
-
-    sctable->getnumchildfolders(h, &result);
-
-    return result;
+    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FOLDERS);
+    dbquery->setNumber(ph);
+    dbqueryqueue.push(dbquery);
+    dbwaiter->notify();
 }
 
 // a chunk transfer request failed: record failed protocol & host

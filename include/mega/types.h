@@ -53,6 +53,16 @@ typedef uint64_t fsfp_t;
 #include "mega/crypto/sodium.h"
 #endif
 
+#ifdef USE_QT
+#include "mega/thread/qtthread.h"
+#elif USE_PTHREAD
+#include "mega/thread/posixthread.h"
+#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+#include "mega/thread/win32thread.h"
+#else
+#include "mega/thread/cppthread.h"
+#endif
+
 namespace mega {
 using namespace std;
 
@@ -85,6 +95,21 @@ struct User;
 struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
+class DbQueryQueue;
+
+#ifdef USE_QT
+typedef QtThread MegaThread;
+typedef QtMutex MegaMutex;
+#elif USE_PTHREAD
+typedef PosixThread MegaThread;
+typedef PosixMutex MegaMutex;
+#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+typedef Win32Thread MegaThread;
+typedef Win32Mutex MegaMutex;
+#else
+typedef CppThread MegaThread;
+typedef CppMutex MegaMutex;
+#endif
 
 #define EOO 0
 

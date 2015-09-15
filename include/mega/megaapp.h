@@ -164,6 +164,9 @@ struct MEGA_API MegaApp
     // clean rubbish bin result
     virtual void cleanrubbishbin_result(error) { }
 
+    virtual void getnumchildfiles_result(int, error) {}
+    virtual void getnumchildfolders_result(int, error) {}
+
     // global transfer queue updates (separate signaling towards the queued objects)
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }

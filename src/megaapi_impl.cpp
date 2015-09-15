@@ -5008,6 +5008,40 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::getnumchildfiles_result(int number, error e)
+{
+    sdkMutex.lock();
+
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_NUM_CHILD_FILES)) return;
+
+    request->setNumber(number);
+
+    fireOnRequestFinish(request, megaError);
+
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::getnumchildfolders_result(int number, error e)
+{
+    sdkMutex.lock();
+
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS)) return;
+
+    request->setNumber(number);
+
+    fireOnRequestFinish(request, megaError);
+
+    sdkMutex.unlock();
+}
+
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
@@ -7016,32 +7050,6 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
 	return numChildren;
 }
 
-int MegaApiImpl::getNumChildFiles(MegaNode* p)
-{
-	if (!p) return 0;
-
-	sdkMutex.lock();
-
-    int numFiles = client->getnumchildfiles(p->getHandle());
-
-	sdkMutex.unlock();
-
-	return numFiles;
-}
-
-int MegaApiImpl::getNumChildFolders(MegaNode* p)
-{
-	if (!p) return 0;
-
-	sdkMutex.lock();
-
-    int numFolders = client->getnumchildfolders(p->getHandle());
-
-    sdkMutex.unlock();
-
-	return numFolders;
-}
-
 void MegaApiImpl::getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NUM_CHILD_FILES, listener);
@@ -8932,14 +8940,12 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS:
         {
-            request->setNumber(client->getnumchildfolders(request->getNodeHandle()));
-            fireOnRequestFinish(request, MegaError(API_OK));
+            client->getnumchildfolders(request->getNodeHandle());
             break;
         }
         case MegaRequest::TYPE_GET_NUM_CHILD_FILES:
         {
-            request->setNumber(client->getnumchildfiles(request->getNodeHandle()));
-            fireOnRequestFinish(request, MegaError(API_OK));
+            client->getnumchildfiles(request->getNodeHandle());
             break;
         }
         default:

@@ -61,6 +61,8 @@ struct MEGA_API Waiter
     // specified number of deciseconds
     virtual int wait() = 0;
 
+    virtual void notify() = 0;
+
     static const int NEEDEXEC = 1;
     static const int HAVESTDIN = 2;
 };

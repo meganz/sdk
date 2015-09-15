@@ -374,4 +374,128 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 }
 
 
+DbQuery::DbQuery(DbTable *sctable, QueryType type)
+{
+    this->sctable = sctable;
+    this->type = type;
+
+    this->h = UNDEF;
+    this->number = 0;
+}
+
+void DbQuery::execute()
+{
+    if (!sctable)
+    {
+        err = API_ENOENT;
+        return;
+    }
+
+    switch (type)
+    {
+    case GET_NUM_CHILD_FILES:
+        err = sctable->getnumchildfiles(h, &number) ? API_OK : API_EREAD;
+        break;
+
+    case GET_NUM_CHILD_FOLDERS:
+        err = sctable->getnumchildfolders(h, &number) ? API_OK : API_EREAD;
+        break;
+
+    default:
+        LOG_warn << "Execution of unknown type of DbQuery";
+        err = API_EARGS;
+        break;
+    }
+}
+
+DbQueryQueue::DbQueryQueue()
+{
+    mutex.init(false);
+}
+
+bool DbQueryQueue::empty()
+{
+    mutex.lock();
+
+    bool result = dbqueries.empty();
+
+    mutex.unlock();
+
+    return result;
+}
+
+void DbQueryQueue::push(DbQuery *query)
+{
+    mutex.lock();
+
+    dbqueries.push_back(query);
+
+    mutex.unlock();
+}
+
+DbQuery * DbQueryQueue::front()
+{
+    mutex.lock();
+
+    DbQuery *result = dbqueries.front();
+
+    mutex.unlock();
+
+    return result;
+}
+
+void DbQueryQueue::pop()
+{
+    mutex.lock();
+
+    dbqueries.pop_front();
+
+    mutex.unlock();
+}
+
+void * DbThread::loop(void *param)
+{
+    MegaClient *client = (MegaClient *)param;
+
+    int r;
+    DbQuery *query;
+    bool threadExit = false;
+
+    while (true)
+    {
+        client->dbwaiter->init(Waiter::ds);
+        r = client->dbwaiter->wait();
+        if (r & Waiter::NEEDEXEC)
+        {
+            // execute all the queued queries
+            while (!client->dbqueryqueue.empty())
+            {
+                query = client->dbqueryqueue.front();
+                query->execute();
+
+                // return the result to the MegaApi layer by calling the corresponding callback
+                switch (query->type)
+                {
+                case DbQuery::GET_NUM_CHILD_FILES:
+                    client->app->getnumchildfiles_result(query->getNumber(), query->getError());
+                    break;
+
+                case DbQuery::GET_NUM_CHILD_FOLDERS:
+                    client->app->getnumchildfolders_result(query->getNumber(), query->getError());
+                    break;
+
+                case DbQuery::DELETE:
+                    threadExit = true;
+                    break;
+                }
+
+                client->dbqueryqueue.pop();
+            }
+
+            if (threadExit)
+                break;
+        }
+    }
+}
+
 } // namespace

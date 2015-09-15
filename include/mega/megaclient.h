@@ -35,6 +35,14 @@
 #include "pubkeyaction.h"
 #include "pendingcontactrequest.h"
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#include "mega/win32/megawaiter.h"
+#elif defined(_WIN32) && defined(WINDOWS_PHONE)
+#include "mega/wp8/megawaiter.h"
+#else
+#include "mega/posix/megawaiter.h"
+#endif
+
 namespace mega {
 
 class MEGA_API MegaClient
@@ -583,8 +591,8 @@ public:
     shared_ptr<node_vector> getoutshares(handle = UNDEF);
     shared_ptr<node_vector> getpendingshares(handle = UNDEF);
     int getnumchildren(handle);
-    int getnumchildfiles(handle);
-    int getnumchildfolders(handle);
+    void getnumchildfiles(handle);
+    void getnumchildfolders(handle);
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -810,6 +818,12 @@ public:
 
     SymmCipher tmpcipher;
 
+    // queue of DB queries to be run asynchronously
+    DbQueryQueue dbqueryqueue;
+    DbThread dbthread;
+    WAIT_CLASS *dbwaiter;
+    
+public:
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };
