@@ -42,10 +42,14 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
     //when the second one was opened.
     sqlite3* db;
 
+    if (sqlite3_config(SQLITE_CONFIG_MULTITHREAD) != SQLITE_OK && !sqlite3_threadsafe())
+    {
+        LOG_warn << "Cannot establish multithread mode for Sqlite";
+    }
+
     string dbdir = dbpath + "megaclient_statecache7_" + *name + ".db";
 
     int rc;
-
     rc = sqlite3_open(dbdir.c_str(), &db);
 
     if (rc)
@@ -89,7 +93,6 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
     }
 
     // 3. Create table for 'users'
-//    sql = "CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
     sql = "CREATE TABLE IF NOT EXISTS users (userhandle INTEGER PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
