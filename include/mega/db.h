@@ -27,6 +27,14 @@
 #include "mega/user.h"
 #include "mega/pendingcontactrequest.h"
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#include "mega/win32/megawaiter.h"
+#elif defined(_WIN32) && defined(WINDOWS_PHONE)
+#include "mega/wp8/megawaiter.h"
+#else
+#include "mega/posix/megawaiter.h"
+#endif
+
 namespace mega {
 
 // generic host transactional database access interface
@@ -185,15 +193,19 @@ public:
     error getError()            { return err;       }
     int getTag()                { return tag;       }
 
-    void setNumber(int number)  { this->number = number; }
+    void setHandle(handle h)    { this->h = h;      }
+    handle getHandle()          { return h;         }
+    void setNumber(int n)       { this->number = n; }
     int getNumber()             { return number;    }
 
-    DbQuery(DbTable *sctable, QueryType type, int tag);
+    DbQuery(QueryType type, int tag);
 
-    void execute();
+    void execute(DbTable *sctable);
 };
 
-//Thread safe DB queries queue
+/**
+ * @brief The DbQuery class Provides a thread-safe queue to store database queries.
+ */
 class DbQueryQueue
 {
 protected:
@@ -210,8 +222,21 @@ public:
 
 class DbThread : public MegaThread
 {
+private:
+    // application callbacks
+    struct MegaApp* app;
+    DbAccess *dbaccess;
+    SymmCipher *key;
+    string dbname;
+
 public:
+    DbQueryQueue queryqueue;    // shared with SDK thread
+    WAIT_CLASS *waiter;         // shared with SDK thread
+
     static void *loop(void *param);
+
+    DbThread(struct MegaApp *app, DbAccess *dbaccess, string *dbname, SymmCipher *key);
+    ~DbThread();
 };
 
 } // namespace

@@ -374,9 +374,8 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 }
 
 
-DbQuery::DbQuery(DbTable *sctable, QueryType type, int tag)
+DbQuery::DbQuery(QueryType type, int tag)
 {
-    this->sctable = sctable;
     this->type = type;
 
     this->h = UNDEF;
@@ -386,7 +385,7 @@ DbQuery::DbQuery(DbTable *sctable, QueryType type, int tag)
     this->tag = tag;
 }
 
-void DbQuery::execute()
+void DbQuery::execute(DbTable *sctable)
 {
     if (!sctable)
     {
@@ -456,9 +455,47 @@ void DbQueryQueue::pop()
     mutex.unlock();
 }
 
+/**
+ * @brief DbThread::DbThread Provides a public queue of DB queries that are executed in background.
+ * @param app MegaApp instance to be notified about results through callbacks
+ * @param dbaccess Used to open the database file
+ * @param dbname Specific name of the database file
+ * @param key Master key used to encrypt/decrypt data from database
+ */
+DbThread::DbThread(MegaApp *app, DbAccess *dbaccess, string *dbname, SymmCipher *key)
+{
+    this->app = app;
+    this->dbaccess = dbaccess;
+    this->dbname = *dbname;
+    this->key = new SymmCipher(key->key);    // make a copy, since it is used in a different thread
+
+    waiter = new WAIT_CLASS();
+}
+
+DbThread::~DbThread()
+{
+    // Wait for the DbThread to exit properly
+    DbQuery *query = new DbQuery(DbQuery::DELETE, 0);
+    queryqueue.push(query);
+    waiter->notify();
+    join();
+}
+
+/**
+ * @brief DbThread::loop Entry point for the background thread.
+ * @param param Pointer to the DbThread instance already initialized
+ * @return
+ */
 void * DbThread::loop(void *param)
 {
-    MegaClient *client = (MegaClient *)param;
+    DbThread *t = (DbThread *)param;
+
+    DbTable *sctable = t->dbaccess->open(NULL, &(t->dbname), t->key);
+    if (!sctable || !sctable->readhkey())
+    {
+        LOG_err << "Cannot open DB from the background thread";
+        return 0;
+    }
 
     int r;
     DbQuery *query;
@@ -466,15 +503,16 @@ void * DbThread::loop(void *param)
 
     while (true)
     {
-        client->dbwaiter->init(Waiter::ds);
-        r = client->dbwaiter->wait();
+        t->waiter->init(Waiter::ds);
+        r = t->waiter->wait();
+
         if (r & Waiter::NEEDEXEC)
         {
             // execute all the queued queries
-            while (!client->dbqueryqueue.empty())
+            while (!t->queryqueue.empty())
             {
-                query = client->dbqueryqueue.front();
-                query->execute();
+                query = t->queryqueue.front();
+                query->execute(sctable);
 
                 error err = query->getError();
                 int tag = query->getTag();
@@ -483,11 +521,11 @@ void * DbThread::loop(void *param)
                 switch (query->type)
                 {
                 case DbQuery::GET_NUM_CHILD_FILES:
-                    client->app->getnumchildfiles_result(query->getNumber(), tag, err);
+                    t->app->getnumchildfiles_result(query->getNumber(), tag, err);
                     break;
 
                 case DbQuery::GET_NUM_CHILD_FOLDERS:
-                    client->app->getnumchildfolders_result(query->getNumber(), tag, err);
+                    t->app->getnumchildfolders_result(query->getNumber(), tag, err);
                     break;
 
                 case DbQuery::DELETE:
@@ -495,13 +533,15 @@ void * DbThread::loop(void *param)
                     break;
                 }
 
-                client->dbqueryqueue.pop();
+                t->queryqueue.pop();
             }
 
             if (threadExit)
                 break;
         }
     }
+
+    return 0;
 }
 
 } // namespace

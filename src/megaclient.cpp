@@ -641,24 +641,18 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     LOG_debug << "User-Agent: " << useragent;
     h->setuseragent(&useragent);
 
-    dbwaiter = new WAIT_CLASS();
-    dbthread.start(DbThread::loop, this);
+    dbthread = NULL;
 }
 
 MegaClient::~MegaClient()
 {
-    // Wait for the DbThread to exit properly
-    DbQuery *query = new DbQuery(sctable, DbQuery::DELETE, 0);
-    dbqueryqueue.push(query);
-    dbwaiter->notify();
-    dbthread.join();
-
     locallogout();
 
     delete pendingcs;
     delete pendingsc;
     delete badhostcs;
     delete loadbalancingcs;
+    delete dbthread;
     delete sctable;
     delete cachednodes;
     delete dbaccess;
@@ -2139,6 +2133,9 @@ void MegaClient::locallogout()
 
     disconnect();
 
+    delete dbthread;
+    dbthread =  NULL;
+
     delete sctable;
     sctable = NULL;
 
@@ -2597,6 +2594,9 @@ void MegaClient::finalizesc(bool complete)
         cachednodes->clear();
 
         LOG_err << "Cache update DB write error - disabling caching";
+
+        delete dbthread;
+        dbthread =  NULL;
 
         delete sctable;
         sctable = NULL;
@@ -5216,6 +5216,12 @@ void MegaClient::opensctable()
 
         if (!cachednodes)
             cachednodes = new NodesCache(this);
+
+        if (sctable && !dbthread)
+        {
+            dbthread = new DbThread(app, dbaccess, &dbname, &key);
+            dbthread->start(DbThread::loop, dbthread);
+        }
     }
 }
 
@@ -8173,20 +8179,18 @@ int MegaClient::getnumchildren(handle h)
 
 void MegaClient::getnumchildfiles(handle ph)
 {
-    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FILES, reqtag);
-    dbquery->setNumber(ph);
-//    dbquery->setTag(reqtag);
-    dbqueryqueue.push(dbquery);
-    dbwaiter->notify();
+    DbQuery *dbquery = new DbQuery(DbQuery::GET_NUM_CHILD_FILES, reqtag);
+    dbquery->setHandle(ph);
+    dbthread->queryqueue.push(dbquery);
+    dbthread->waiter->notify();
 }
 
 void MegaClient::getnumchildfolders(handle ph)
 {
-    DbQuery *dbquery = new DbQuery(sctable, DbQuery::GET_NUM_CHILD_FOLDERS, reqtag);
-    dbquery->setNumber(ph);
-//    dbquery->setTag(reqtag);
-    dbqueryqueue.push(dbquery);
-    dbwaiter->notify();
+    DbQuery *dbquery = new DbQuery(DbQuery::GET_NUM_CHILD_FOLDERS, reqtag);
+    dbquery->setHandle(ph);
+    dbthread->queryqueue.push(dbquery);
+    dbthread->waiter->notify();
 }
 
 // a chunk transfer request failed: record failed protocol & host

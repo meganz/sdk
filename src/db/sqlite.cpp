@@ -900,9 +900,12 @@ void SqliteDbTable::remove()
 
     db = NULL;
 
-    string localpath;
-    fsaccess->path2local(&dbfile, &localpath);
-    fsaccess->unlinklocal(&localpath);
+    if (fsaccess)   // For DbThread, 'fsaccess' should be NULL
+    {
+        string localpath;
+        fsaccess->path2local(&dbfile, &localpath);
+        fsaccess->unlinklocal(&localpath);
+    }
 }
 
 // set cursor to first record
