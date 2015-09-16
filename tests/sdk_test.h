@@ -80,6 +80,7 @@ public:
 
     string link;
     MegaNode *publicNode;
+    int number;
 
 private:
 

@@ -177,6 +177,18 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         responseReceived = true;
         break;
+
+    case MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS:
+        if (lastError == API_OK)
+            number = request->getNumber();
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_GET_NUM_CHILD_FILES:
+        if (lastError == API_OK)
+            number = request->getNumber();
+        responseReceived = true;
+        break;
     }
 }
 
@@ -1294,4 +1306,68 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_FALSE(nfile1->isPublic()) << "Public link removal failed (still public)";
 
     delete nimported;
+}
+
+/**
+ * @brief TEST_F SdkTestChildCount
+ *
+ * - Initialize an scenario: 2 folders, 1 file in Cloud drive
+ * - Count the number of folders
+ * - Count the humber of files
+ */
+TEST_F(SdkTest, SdkTestChildCount)
+{
+    MegaNode *rootnode = megaApi->getRootNode();
+
+    // Initialize a test scenario : create some folders/files to share
+
+    // Create some nodes to share
+    //  |--Folder1
+    //  |--Folder2
+    //  |--file.txt
+
+    // Create "Folder1"
+    char foldername1[64] = "Folder1";
+
+    responseReceived = false;
+    megaApi->createFolder(foldername1, rootnode);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
+
+    // Create "Folder2"
+    char foldername2[64] = "Folder2";
+
+    responseReceived = false;
+    megaApi->createFolder(foldername2, rootnode);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot create a folder (error: " << lastError << ")";
+
+    // Upload a file
+    createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
+
+    uploadFinished = false;
+    megaApi->startUpload(PUBLICFILE.data(), rootnode);
+    waitForResponse(&uploadFinished);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot upload file (error: " << lastError << ")";
+
+
+    // Test the counting of child files/folders
+
+    responseReceived = false;
+    megaApi->getNumChildFolders(rootnode->getHandle(), NULL);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot count the number of child folders (error: " << lastError << ")";
+    ASSERT_EQ(2, number) << "Wrong number of child folders (error: " << lastError << ")";
+
+    responseReceived = false;
+    megaApi->getNumChildFiles(rootnode->getHandle(), NULL);
+    waitForResponse(&responseReceived);
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot count the number of child files (error: " << lastError << ")";
+    ASSERT_EQ(1, number) << "Wrong number of child files (error: " << lastError << ")";
+
 }
