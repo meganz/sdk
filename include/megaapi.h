@@ -5264,7 +5264,7 @@ class MegaApi
          * @param parenthandle Handle of the parent node
          * @param listener MegaRequestListener to track this request
          */
-        void getNumChildFiles(MegaHandle parenthandle, MegaRequestListener *listener);
+        void getNumChildFiles(MegaNode *parent, MegaRequestListener *listener);
 
         /**
          * @brief Get the number of child folders of a node
@@ -5282,7 +5282,7 @@ class MegaApi
          * @param parenthandle Handle of the parent node
          * @param listener MegaRequestListener to track this request
          */
-        void getNumChildFolders(MegaHandle parenthandle, MegaRequestListener *listener);
+        void getNumChildFolders(MegaNode *parent, MegaRequestListener *listener);
 
 		/**
 		 * @brief Get all children of a MegaNode

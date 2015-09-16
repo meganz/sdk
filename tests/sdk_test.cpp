@@ -1357,14 +1357,14 @@ TEST_F(SdkTest, SdkTestChildCount)
     // Test the counting of child files/folders
 
     responseReceived = false;
-    megaApi->getNumChildFolders(rootnode->getHandle(), NULL);
+    megaApi->getNumChildFolders(rootnode, NULL);
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot count the number of child folders (error: " << lastError << ")";
     ASSERT_EQ(2, number) << "Wrong number of child folders (error: " << lastError << ")";
 
     responseReceived = false;
-    megaApi->getNumChildFiles(rootnode->getHandle(), NULL);
+    megaApi->getNumChildFiles(rootnode, NULL);
     waitForResponse(&responseReceived);
 
     ASSERT_EQ(MegaError::API_OK, lastError) << "Cannot count the number of child files (error: " << lastError << ")";

@@ -7050,18 +7050,18 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
 	return numChildren;
 }
 
-void MegaApiImpl::getNumChildFiles(MegaHandle parenthandle, MegaRequestListener* listener)
+void MegaApiImpl::getNumChildFiles(MegaNode *parent, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NUM_CHILD_FILES, listener);
-    request->setNodeHandle(parenthandle);
+    request->setNodeHandle(parent->getHandle());
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::getNumChildFolders(MegaHandle parenthandle, MegaRequestListener* listener)
+void MegaApiImpl::getNumChildFolders(MegaNode *parent, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NUM_CHILD_FOLDERS, listener);
-    request->setNodeHandle(parenthandle);
+    request->setNodeHandle(parent->getHandle());
     requestQueue.push(request);
     waiter->notify();
 }
