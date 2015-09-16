@@ -52,6 +52,8 @@
 
     #if TARGET_OS_IPHONE
     #include <netdb.h>
+    #include <resolv.h>
+    #include <arpa/inet.h>
     #endif
 #endif
 
@@ -2534,14 +2536,15 @@ void MegaApiImpl::loop()
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
     // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
-    struct hostent *hp;
-    struct in_addr **addr_list;
 
     while (true)
     {
+    #ifdef WINDOWS_PHONE
+        struct hostent *hp;
         hp = gethostbyname("ns.mega.co.nz");
         if (hp != NULL && hp->h_addr != NULL)
         {
+            struct in_addr **addr_list;
             addr_list = (struct in_addr **)hp->h_addr_list;
             for (int i = 0; addr_list[i] != NULL; i++)
             {
@@ -2556,18 +2559,54 @@ void MegaApiImpl::loop()
                     servers.append(ip);
                 }
             }
-
-            if (servers.size())
-                break;
         }
-        #ifdef WINDOWS_PHONE
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        #else
-            sleep(1);
-        #endif
+    #else
+        __res_state res;
+        if(res_ninit(&res) == 0)
+        {
+            union res_sockaddr_union u[MAXNS];
+            int nscount = res_getservers(&res, u, MAXNS);
+
+            for(int i = 0; i < nscount; i++)
+            {
+                char straddr[INET6_ADDRSTRLEN];
+                straddr[0] = 0;
+
+                if(u[i].sin.sin_family == PF_INET)
+                {
+                    inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                }
+
+                if(u[i].sin6.sin6_family == PF_INET6)
+                {
+                    inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                }
+
+                if(straddr[0])
+                {
+                    if (servers.size())
+                    {
+                        servers.append(",");
+                    }
+                    servers.append(straddr);
+                }
+            }
+
+            res_ndestroy(&res);
+        }
+    #endif
+
+        if (servers.size())
+            break;
+
+    #ifdef WINDOWS_PHONE
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    #else
+        sleep(1);
+    #endif
     }
 
-    LOG_debug << "Using MEGA DNS servers";
+    LOG_debug << "Using MEGA DNS servers " << servers;
     httpio->setdnsservers(servers.c_str());
 
 #elif _WIN32
@@ -8378,14 +8417,15 @@ void MegaApiImpl::sendPendingRequests()
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
                 // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
-                struct hostent *hp;
-                struct in_addr **addr_list;
 
                 while (true)
                 {
+                #ifdef WINDOWS_PHONE
+                    struct hostent *hp;
                     hp = gethostbyname("ns.mega.co.nz");
                     if (hp != NULL && hp->h_addr != NULL)
                     {
+                        struct in_addr **addr_list;
                         addr_list = (struct in_addr **)hp->h_addr_list;
                         for (int i = 0; addr_list[i] != NULL; i++)
                         {
@@ -8400,18 +8440,54 @@ void MegaApiImpl::sendPendingRequests()
                                 servers.append(ip);
                             }
                         }
-
-                        if (servers.size())
-                            break;
                     }
-                    #ifdef WINDOWS_PHONE
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-                    #else
-                        sleep(1);
-                    #endif
+                #else
+                    __res_state res;
+                    if(res_ninit(&res) == 0)
+                    {
+                        union res_sockaddr_union u[MAXNS];
+                        int nscount = res_getservers(&res, u, MAXNS);
+
+                        for(int i = 0; i < nscount; i++)
+                        {
+                            char straddr[INET6_ADDRSTRLEN];
+                            straddr[0] = 0;
+
+                            if(u[i].sin.sin_family == PF_INET)
+                            {
+                                inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                            }
+
+                            if(u[i].sin6.sin6_family == PF_INET6)
+                            {
+                                inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                            }
+
+                            if(straddr[0])
+                            {
+                                if (servers.size())
+                                {
+                                    servers.append(",");
+                                }
+                                servers.append(straddr);
+                            }
+                        }
+
+                        res_ndestroy(&res);
+                    }
+                #endif
+
+                    if (servers.size())
+                        break;
+
+                #ifdef WINDOWS_PHONE
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                #else
+                    sleep(1);
+                #endif
                 }
 
-                LOG_debug << "Using MEGA DNS servers";
+                LOG_debug << "Using MEGA DNS servers " << servers;
                 httpio->setdnsservers(servers.c_str());
 #endif
             }
