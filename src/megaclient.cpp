@@ -7043,7 +7043,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
                 {
                     delete lit++->second;
-                    l->treestate();
                 }
                 else
                 {
@@ -7599,7 +7598,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
         }
     }
 
-    if (insync)
+    if (insync && l->node)
     {
         l->treestate(TREESTATE_SYNCED);
     }
@@ -7639,8 +7638,6 @@ void MegaClient::syncupdate()
         {
             n = NULL;
             l = synccreate[i];
-
-            l->treestate(TREESTATE_PENDING);
 
             if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
             {
@@ -7689,6 +7686,8 @@ void MegaClient::syncupdate()
             }
             else if (l->type == FILENODE)
             {
+                l->treestate(TREESTATE_PENDING);
+
                 // the overwrite will happen upon PUT completion
                 string tmppath, tmplocalpath;
 
