@@ -496,6 +496,7 @@ void MegaClient::init()
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
+    syncops = false;
     syncadded = false;
     syncdebrisadding = false;
     syncscanfailed = false;
@@ -1004,11 +1005,15 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
+        if (syncactivity)
+        {
+            syncops = true;
+        }
         syncactivity = false;
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired)
+        if (jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
 #else
         if (jsonsc.pos)
 #endif
@@ -1023,12 +1028,8 @@ void MegaClient::exec()
                 btsc.reset();
             }
 #ifdef ENABLE_SYNC
-            if (!fetchingnodes)
-            {
-                syncdownrequired = true;
-            }
-
             syncactivity = true;
+            syncdownrequired = true;
 #endif
         }
 
@@ -1097,13 +1098,13 @@ void MegaClient::exec()
 
         if(!loadbalancingcs && loadbalancingreqs.size())
         {
-                CommandLoadBalancing *command = loadbalancingreqs.front();
-                loadbalancingcs = new HttpReq();
-                loadbalancingcs->posturl = BALANCERURL;
-                loadbalancingcs->posturl.append("?service=");
-                loadbalancingcs->posturl.append(command->service);
-                loadbalancingcs->type = REQ_JSON;
-                loadbalancingcs->post(this);
+            CommandLoadBalancing *command = loadbalancingreqs.front();
+            loadbalancingcs = new HttpReq();
+            loadbalancingcs->posturl = BALANCERURL;
+            loadbalancingcs->posturl.append("?service=");
+            loadbalancingcs->posturl.append(command->service);
+            loadbalancingcs->type = REQ_JSON;
+            loadbalancingcs->post(this);
         }
 
         // fill transfer slots from the queue
@@ -1126,17 +1127,9 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
-        // syncops indicates that a sync-relevant tree update may be pending
-        bool syncops = syncadded;
-        sync_list::iterator it;
-
-        if (syncadded)
-        {
-            syncadded = false;
-        }
-
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
+        sync_list::iterator it;
         for (it = syncs.begin(); it != syncs.end(); it++)
         {
             if ((*it)->fsfp)
@@ -1172,28 +1165,6 @@ void MegaClient::exec()
             }
         }
 
-        // process active syncs
-        // sync timer: full rescan in case of filesystem notification failures
-        if (syncscanfailed && syncscanbt.armed())
-        {
-            syncscanfailed = false;
-            syncops = true;
-        }
-
-        // sync timer: retry syncdown() ops in case of local filesystem lock clashes
-        if (syncdownretry && syncdownbt.armed())
-        {
-            syncdownretry = false;
-            syncops = true;
-        }
-
-        // sync timer: file change upload delay timeouts (Nagle algorithm)
-        if (syncnagleretry && syncnaglebt.armed())
-        {
-            syncnagleretry = false;
-            syncops = true;
-        }
-
         // sync timer: read lock retry
         if (syncfslockretry && syncfslockretrybt.armed())
         {
@@ -1217,6 +1188,8 @@ void MegaClient::exec()
 
                     if (!syncfsopsfailed)
                     {
+                        syncnagleretry = false;
+
                         // not retrying local operations: process pending notifyqs
                         for (it = syncs.begin(); it != syncs.end(); )
                         {
@@ -1351,6 +1324,24 @@ void MegaClient::exec()
 
                 notifypurge();
 
+                if (syncadded)
+                {
+                    syncadded = false;
+                    syncops = true;
+                }
+
+                // sync timer: full rescan in case of filesystem notification failures
+                if (syncscanfailed && syncscanbt.armed())
+                {
+                    syncops = true;
+                }
+
+                // sync timer: file change upload delay timeouts (Nagle algorithm)
+                if (syncnagleretry && syncnaglebt.armed())
+                {
+                    syncops = true;
+                }
+
                 if (syncactivity || syncops)
                 {
                     for (it = syncs.begin(); it != syncs.end(); it++)
@@ -1441,6 +1432,9 @@ void MegaClient::exec()
                         // are retrying local fs writes
                         if (!syncfsopsfailed)
                         {
+                            syncnagleretry = false;
+                            syncops = false;
+
                             // FIXME: only syncup for subtrees that were actually
                             // updated to reduce CPU load
                             for (it = syncs.begin(); it != syncs.end(); it++)
@@ -1543,8 +1537,20 @@ void MegaClient::exec()
         }
         else
         {
+            LOG_verbose << "Sync engine stopped: " << syncdownrequired << " " << syncdownretry << " " << statecurrent << " " << syncadding;
+
+            // sync timer: retry syncdown() ops in case of local filesystem lock clashes
+            if (syncdownretry && syncdownbt.armed())
+            {
+                syncdownretry = false;
+                syncdownrequired = true;
+            }
+
             if (syncdownrequired)
             {
+                LOG_verbose << "Running syncdown";
+                syncdownrequired = false;
+
                 bool success = true;
                 for (it = syncs.begin(); it != syncs.end(); it++)
                 {
@@ -1577,7 +1583,6 @@ void MegaClient::exec()
                 // notify the app if a lock is being retried
                 if (success)
                 {
-                    syncdownrequired = false;
                     syncdownretry = false;
 
                     if (syncfsopsfailed)
@@ -1629,7 +1634,7 @@ int MegaClient::wait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || (jsonsc.pos && !syncdownretry))
+    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry))
     {
         nds = Waiter::ds;
     }
@@ -1699,28 +1704,34 @@ int MegaClient::wait()
         }
 
 #ifdef ENABLE_SYNC
-        // sync rescan
-        if (syncscanfailed)
+        if (!syncadding)
         {
-            syncscanbt.update(&nds);
-        }
+            // retrying of transiently failed syncdown() updates
+            if (syncdownretry)
+            {
+                syncdownbt.update(&nds);
+            }
 
-        // retrying of transient failed read ops
-        if (syncfslockretry)
-        {
-            syncfslockretrybt.update(&nds);
-        }
+            if (!syncfsopsfailed)
+            {
+                // sync rescan
+                if (syncscanfailed)
+                {
+                    syncscanbt.update(&nds);
+                }
 
-        // retrying of transiently failed syncdown() updates
-        if (syncdownretry)
-        {
-            syncdownbt.update(&nds);
-        }
+                // triggering of Nagle-delayed sync PUTs
+                if (syncnagleretry)
+                {
+                    syncnaglebt.update(&nds);
+                }
 
-        // triggering of Nagle-delayed sync PUTs
-        if (syncnagleretry)
-        {
-            syncnaglebt.update(&nds);
+                // retrying of transient failed read ops
+                if (syncfslockretry)
+                {
+                    syncfslockretrybt.update(&nds);
+                }
+            }
         }
 #endif
 
@@ -2275,6 +2286,7 @@ bool MegaClient::procsc()
 
                         app->nodes_current();
                         statecurrent = true;
+                        LOG_debug << "Local filesystem up to date";
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
@@ -8089,6 +8101,8 @@ void MegaClient::stopxfer(File* f)
 {
     if (f->transfer)
     {
+        LOG_debug << "Stopping transfer: " << f->name;
+
         Transfer *transfer = f->transfer;
         transfer->files.erase(f->file_it);
         f->transfer = NULL;

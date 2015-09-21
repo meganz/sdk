@@ -593,6 +593,9 @@ public:
     // activity flag
     bool syncactivity;
 
+    // syncops indicates that a sync-relevant tree update may be pending
+    bool syncops;
+
     // app scanstate flag
     bool syncscanstate;
 
