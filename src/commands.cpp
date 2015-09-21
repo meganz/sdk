@@ -2926,8 +2926,8 @@ void CommandSetKeyPair::procresult()
 CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 {
     cmd("f");
-    arg("c", "1", 0);
-    arg("r", "1", 0);
+    arg("c", 1);
+    arg("r", 1);
     arg("ca", 1);
 
     tag = client->reqtag;
