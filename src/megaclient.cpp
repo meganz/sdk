@@ -2269,6 +2269,11 @@ bool MegaClient::procsc()
                         if (fetchingnodes)
                         {
                             notifypurge();
+                            if(sctable)
+                            {
+                                sctable->commit();
+                                sctable->begin();
+                            }
 
                             fetchingnodes = false;
                             app->fetchnodes_result(API_OK);
@@ -2295,6 +2300,12 @@ bool MegaClient::procsc()
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence
                     setscsn(&jsonsc);
+                    notifypurge();
+                    if(sctable)
+                    {
+                        sctable->commit();
+                        sctable->begin();
+                    }
                     break;
                     
                 case EOO:
@@ -2340,7 +2351,7 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes)
+                                if (!fetchingnodes && jsonsc.pos[1] != ']') // there are more packets
                                 {
                                     applykeys();
                                     return false;
@@ -2372,9 +2383,12 @@ bool MegaClient::procsc()
                                 {
                                     stop = false;
 
-                                    // run syncdown() before continuing
-                                    applykeys();
-                                    return false;
+                                    if (jsonsc.pos[1] != ']') // there are more packets
+                                    {
+                                        // run syncdown() before continuing
+                                        applykeys();
+                                        return false;
+                                    }
                                 }
 #endif
                                 break;
@@ -2400,9 +2414,12 @@ bool MegaClient::procsc()
                                     }
                                 }
 
-                                // run syncdown() to process the deletion before continuing
-                                applykeys();
-                                return false;
+                                if (jsonsc.pos[1] != ']') // there are more packets
+                                {
+                                    // run syncdown() to process the deletion before continuing
+                                    applykeys();
+                                    return false;
+                                }
 #endif
                                 break;
 
@@ -2469,6 +2486,14 @@ bool MegaClient::procsc()
             {
                 jsonsc.leavearray();
                 insca = false;
+
+#ifdef ENABLE_SYNC
+                if (!fetchingnodes)
+                {
+                    applykeys();
+                    return false;
+                }
+#endif
             }
         }
     }
@@ -2554,8 +2579,6 @@ void MegaClient::updatesc()
             return;
         }
 
-        sctable->begin();
-
         bool complete;
 
         // 1. update associated scsn
@@ -2634,7 +2657,6 @@ void MegaClient::updatesc()
         LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes and " << usernotify.size() << " users to local cache (" << complete << ")";
         finalizesc(complete);
     }
-
 }
 
 // commit or purge local state cache
@@ -2642,7 +2664,6 @@ void MegaClient::finalizesc(bool complete)
 {
     if (complete)
     {
-        sctable->commit();
         Base64::atob(scsn, (byte*)&cachedscsn, sizeof cachedscsn);
     }
     else
@@ -2655,7 +2676,6 @@ void MegaClient::finalizesc(bool complete)
         delete sctable;
         sctable = NULL;
     }
-
 }
 
 // queue node file attribute for retrieval or cancel retrieval
@@ -6482,6 +6502,8 @@ void MegaClient::fetchnodes()
         {
             memset(&(it->second->changed), 0, sizeof it->second->changed);
         }
+
+        sctable->begin();
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
