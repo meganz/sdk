@@ -1184,10 +1184,9 @@ void MegaClient::exec()
 
                 for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
-                    syncfslockretry = false;
-
                     if (!syncfsopsfailed)
                     {
+                        syncfslockretry = false;
                         syncnagleretry = false;
 
                         // not retrying local operations: process pending notifyqs
@@ -1537,7 +1536,7 @@ void MegaClient::exec()
         }
         else
         {
-            LOG_verbose << "Sync engine stopped: " << syncdownrequired << " " << syncdownretry << " " << statecurrent << " " << syncadding;
+            LOG_verbose << "Syncup engine stopped: " << syncdownrequired << " " << syncdownretry << " " << statecurrent << " " << syncadding;
 
             // sync timer: retry syncdown() ops in case of local filesystem lock clashes
             if (syncdownretry && syncdownbt.armed())
@@ -1704,33 +1703,30 @@ int MegaClient::wait()
         }
 
 #ifdef ENABLE_SYNC
-        if (!syncadding)
+        // retrying of transiently failed syncdown() updates
+        if (syncdownretry)
         {
-            // retrying of transiently failed syncdown() updates
-            if (syncdownretry)
+            syncdownbt.update(&nds);
+        }
+
+        if (!syncadding && !syncfsopsfailed)
+        {
+            // sync rescan
+            if (syncscanfailed)
             {
-                syncdownbt.update(&nds);
+                syncscanbt.update(&nds);
             }
 
-            if (!syncfsopsfailed)
+            // triggering of Nagle-delayed sync PUTs
+            if (syncnagleretry)
             {
-                // sync rescan
-                if (syncscanfailed)
-                {
-                    syncscanbt.update(&nds);
-                }
+                syncnaglebt.update(&nds);
+            }
 
-                // triggering of Nagle-delayed sync PUTs
-                if (syncnagleretry)
-                {
-                    syncnaglebt.update(&nds);
-                }
-
-                // retrying of transient failed read ops
-                if (syncfslockretry)
-                {
-                    syncfslockretrybt.update(&nds);
-                }
+            // retrying of transient failed read ops
+            if (syncfslockretry)
+            {
+                syncfslockretrybt.update(&nds);
             }
         }
 #endif
