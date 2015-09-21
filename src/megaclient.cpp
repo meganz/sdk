@@ -2340,7 +2340,7 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                if (jsonsc.pos[1] != ']') // there are more packets
+                                if (!fetchingnodes)
                                 {
                                     applykeys();
                                     return false;
@@ -2350,7 +2350,7 @@ bool MegaClient::procsc()
 
                             case 't':
 #ifdef ENABLE_SYNC
-                                if (!stop)
+                                if (!fetchingnodes && !stop)
                                 {
                                     for (int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
                                     {
@@ -2368,16 +2368,13 @@ bool MegaClient::procsc()
                                 mergenewshares(1);
 
 #ifdef ENABLE_SYNC
-                                if (stop && !fetchingnodes)
+                                if (!fetchingnodes && stop)
                                 {
                                     stop = false;
 
-                                    if (jsonsc.pos[1] != ']') // there are more packets
-                                    {
-                                        // run syncdown() before continuing
-                                        applykeys();
-                                        return false;
-                                    }
+                                    // run syncdown() before continuing
+                                    applykeys();
+                                    return false;
                                 }
 #endif
                                 break;
@@ -2387,6 +2384,11 @@ bool MegaClient::procsc()
                                 dn = sc_deltree();
 
 #ifdef ENABLE_SYNC
+                                if (fetchingnodes)
+                                {
+                                    break;
+                                }
+
                                 if (dn && !memcmp(jsonsc.pos, test, 16))
                                 {
                                     Base64::btoa((byte *)&dn->nodehandle, sizeof(dn->nodehandle), &test2[18]);
@@ -2398,12 +2400,9 @@ bool MegaClient::procsc()
                                     }
                                 }
 
-                                if (jsonsc.pos[1] != ']') // there are more packets
-                                {
-                                    // run syncdown() to process the deletion before continuing
-                                    applykeys();
-                                    return false;
-                                }
+                                // run syncdown() to process the deletion before continuing
+                                applykeys();
+                                return false;
 #endif
                                 break;
 
