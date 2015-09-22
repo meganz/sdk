@@ -1427,8 +1427,6 @@ void MegaClient::exec()
                         if (localsyncnotseen.size() && !synccreate.size())
                         {
                             // ... execute all pending deletions
-                            localnode_set::iterator it;
-
                             while (localsyncnotseen.size())
                             {
                                 delete *localsyncnotseen.begin();
@@ -1439,6 +1437,8 @@ void MegaClient::exec()
                         // are retrying local fs writes
                         if (!syncfsopsfailed)
                         {
+                            LOG_verbose << "syncops: " << syncactivity << syncnagleretry
+                                        << syncadded << syncfslockretry << synccreate.size();
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
@@ -1504,6 +1504,7 @@ void MegaClient::exec()
 
                                             if (sync->dirnotify->failed || fsaccess->notifyfailed || sync->dirnotify->error || fsaccess->notifyerr)
                                             {
+                                                LOG_warn << "Sync scan failed";
                                                 syncscanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);
