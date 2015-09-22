@@ -1169,6 +1169,21 @@ void MegaClient::exec()
             }
         }
 
+        // process active syncs
+        // sync timer: full rescan in case of filesystem notification failures
+        if (syncscanfailed && syncscanbt.armed())
+        {
+            syncscanfailed = false;
+            syncops = true;
+        }
+
+        // sync timer: file change upload delay timeouts (Nagle algorithm)
+        if (syncnagleretry && syncnaglebt.armed())
+        {
+            syncnagleretry = false;
+            syncops = true;
+        }
+
         // sync timer: read lock retry
         if (syncfslockretry && syncfslockretrybt.armed())
         {
@@ -1191,7 +1206,6 @@ void MegaClient::exec()
                     if (!syncfsopsfailed)
                     {
                         syncfslockretry = false;
-                        syncnagleretry = false;
 
                         // not retrying local operations: process pending notifyqs
                         for (it = syncs.begin(); it != syncs.end(); )
@@ -1228,6 +1242,7 @@ void MegaClient::exec()
 
                                         if (syncadding)
                                         {
+                                            syncfslockretry = true;
                                             break;
                                         }
                                     }
@@ -1242,6 +1257,7 @@ void MegaClient::exec()
 
                                         // we interrupt processing the notifyq if the completion
                                         // of a node creation is required to continue
+                                        syncfslockretry = true;
                                         break;
                                     }
                                 }
@@ -1330,18 +1346,6 @@ void MegaClient::exec()
                 if (syncadded)
                 {
                     syncadded = false;
-                    syncops = true;
-                }
-
-                // sync timer: full rescan in case of filesystem notification failures
-                if (syncscanfailed && syncscanbt.armed())
-                {
-                    syncops = true;
-                }
-
-                // sync timer: file change upload delay timeouts (Nagle algorithm)
-                if (syncnagleretry && syncnaglebt.armed())
-                {
                     syncops = true;
                 }
 
@@ -1435,7 +1439,6 @@ void MegaClient::exec()
                         // are retrying local fs writes
                         if (!syncfsopsfailed)
                         {
-                            syncnagleretry = false;
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
@@ -1467,8 +1470,6 @@ void MegaClient::exec()
                             }
 
                             unsigned totalnodes = 0;
-
-                            syncscanfailed = false;
 
                             // we have no sync-related operations pending - trigger processing if at least one
                             // filesystem item is notified or initiate a full rescan if there has been
@@ -1587,6 +1588,7 @@ void MegaClient::exec()
                 if (success)
                 {
                     syncdownretry = false;
+                    syncactivity = true;
 
                     if (syncfsopsfailed)
                     {
@@ -1707,31 +1709,29 @@ int MegaClient::wait()
         }
 
 #ifdef ENABLE_SYNC
+        // sync rescan
+        if (syncscanfailed)
+        {
+            syncscanbt.update(&nds);
+        }
+
+        // retrying of transient failed read ops
+        if (syncfslockretry && !syncdownretry && !syncadding
+                && statecurrent && !syncdownrequired && !syncfsopsfailed)
+        {
+            syncfslockretrybt.update(&nds);
+        }
+
         // retrying of transiently failed syncdown() updates
         if (syncdownretry)
         {
             syncdownbt.update(&nds);
         }
 
-        if (!syncadding && !syncfsopsfailed)
+        // triggering of Nagle-delayed sync PUTs
+        if (syncnagleretry)
         {
-            // sync rescan
-            if (syncscanfailed)
-            {
-                syncscanbt.update(&nds);
-            }
-
-            // triggering of Nagle-delayed sync PUTs
-            if (syncnagleretry)
-            {
-                syncnaglebt.update(&nds);
-            }
-
-            // retrying of transient failed read ops
-            if (syncfslockretry)
-            {
-                syncfslockretrybt.update(&nds);
-            }
+            syncnaglebt.update(&nds);
         }
 #endif
 

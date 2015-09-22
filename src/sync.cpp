@@ -866,6 +866,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             dirnotify->notify(DirNotify::RETRY, ll, localpath->data(), localpath->size());
+            client->syncfslockretry = true;
         }
         else if (l)
         {
