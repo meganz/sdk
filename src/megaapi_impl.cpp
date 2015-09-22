@@ -4532,9 +4532,8 @@ char *MegaApiImpl::getCRC(const char *filePath)
     return MegaApi::strdup(result.c_str());
 }
 
-char *MegaApiImpl::getCRCFromFingerPrint(const char *fingerprint)
+char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
 {
-   
     if(!fingerprint || !fingerprint[0]) return NULL;
     
     m_off_t size = 0;
@@ -4564,7 +4563,6 @@ char *MegaApiImpl::getCRCFromFingerPrint(const char *fingerprint)
     result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc,(char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
-
 
 char *MegaApiImpl::getCRC(MegaNode *n)
 {

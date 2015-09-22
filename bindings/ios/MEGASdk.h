@@ -2585,7 +2585,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * @param fingerPrint fingerPrint from which we want to get the CRC
  * @return Base64-encoded CRC from the fingerPrint
  */
-- (NSString *)CRCFromFingerPrint:(NSString *)fingerPrint;
+- (NSString *)CRCForFingerprint:(NSString *)fingerprint;
 /**
  * @brief Returns a node with the provided CRC
  *

@@ -930,17 +930,17 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
-- (NSString *)CRCFromFingerPrint:(NSString *)fingerPrint{
-    if (fingerPrint == nil) {
-        return  nil;
+- (NSString *)CRCForFingerprint:(NSString *)fingerprint{
+    if (fingerprint == nil) {
+        return nil;
     }
     
-    const char *val = self.megaApi->getCRCFromFingerPrint([fingerPrint UTF8String]);
+    const char *val = self.megaApi->getCRCFromFingerprint([fingerprint UTF8String]);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 

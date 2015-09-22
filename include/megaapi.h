@@ -5659,12 +5659,12 @@ class MegaApi
         char* getCRC(const char *filePath);
     
         /**
-         * @brief Get the CRC from a fingerPrint
+         * @brief Get the CRC from a fingerprint
          *
-         * @param fingerPrint fingerPrint from which we want to get the CRC
-         * @return Base64-encoded CRC from the fingerPrint
+         * @param fingerprint fingerprint from which we want to get the CRC
+         * @return Base64-encoded CRC from the fingerprint
          */
-        char *getCRCFromFingerPrint(const char *fingerprint);
+        char *getCRCFromFingerprint(const char *fingerprint);
 
         /**
          * @brief getCRC Get the CRC of a node
