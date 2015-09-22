@@ -874,7 +874,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -886,14 +886,20 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
 - (NSString *)fingerprintForNode:(MEGANode *)node {
     if (node == nil) return nil;
     
-    return self.megaApi->getFingerprint([node getCPtr]) ? [[NSString alloc] initWithUTF8String:self.megaApi->getFingerprint([node getCPtr])] : nil;
+    const char *val = self.megaApi->getFingerprint([node getCPtr]);
+    if (!val) return nil;
+
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+
+    delete [] val;
+    return ret;
 }
 
 - (MEGANode *)nodeForFingerprint:(NSString *)fingerprint {
