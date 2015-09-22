@@ -456,6 +456,70 @@ int MegaClient::hexval(char c)
     return c > '9' ? c - 'a' + 10 : c - '0';
 }
 
+void MegaClient::exportDatabase(string filename)
+{
+    FILE *fp = NULL;
+    fp = fopen(filename.c_str(), "w");
+    if (!fp)
+    {
+        LOG_warn << "Cannot export DB to file \"" << filename << "\"";
+        return;
+    }
+
+    LOG_info << "Exporting database...";
+
+    sctable->rewind();
+
+    uint32_t id;
+    string data;
+
+    std::map<uint32_t, string> entries;
+    while (sctable->next(&id, &data, &key))
+    {
+        entries.insert(std::pair<uint32_t, string>(id,data));
+    }
+
+    for (map<uint32_t, string>::iterator it = entries.begin(); it != entries.end(); it++)
+    {
+        fprintf(fp, "%8.d\t%s\n", it->first, it->second.c_str());
+    }
+
+    fclose(fp);
+
+    LOG_info << "Database exported successfully to \"" << filename << "\"";
+}
+
+bool MegaClient::compareDatabases(string filename1, string filename2)
+{
+    LOG_info << "Comparing databases: \"" << filename1 << "\" and \"" << filename2 << "\"";
+    FILE *fp1 = NULL;
+    fp1 = fopen(filename1.data(), "r");
+
+    FILE *fp2 = NULL;
+    fp2 = fopen(filename2.data(), "r");
+
+    int N = 10000;
+    char buf1[N];
+    char buf2[N];
+
+    do {
+        size_t r1 = fread(buf1, 1, N, fp1);
+        size_t r2 = fread(buf2, 1, N, fp2);
+
+        if (r1 != r2 || memcmp(buf1, buf2, r1))
+        {
+            LOG_info << "Databases are different";
+            return false;
+        }
+    } while (!feof(fp1) || !feof(fp2));
+
+    fclose(fp1);
+    fclose(fp2);
+
+    LOG_info << "Databases are equal";
+    return true;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
