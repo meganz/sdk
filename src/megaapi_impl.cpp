@@ -9024,6 +9024,7 @@ long long MegaApiImpl::getTotalUploadedBytes()
 
 void MegaApiImpl::update()
 {
+#ifdef ENABLE_SYNC
     sdkMutex.lock();
 
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
@@ -9054,6 +9055,7 @@ void MegaApiImpl::update()
               << " " << client->umindex.size() << " " << client->uhindex.size();
 
     sdkMutex.unlock();
+#endif
 
     waiter->notify();
 }
