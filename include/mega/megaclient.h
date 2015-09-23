@@ -326,10 +326,6 @@ public:
     static const char* const BALANCERURL;
 
 private:
-    // API request queue double buffering:
-    // reqs[r] is open for adding commands
-    // reqs[r^1] is being processed on the API server
-    HttpReq* pendingcs;
     BackoffTimer btcs;
 
     // server-client command trigger connection
@@ -358,11 +354,6 @@ private:
     // next local user record identifier to use
     int userid;
 
-    // pending file attribute writes
-    putfa_list newfa;
-
-    // current attribute being sent
-    putfa_list::iterator curfa;
     BackoffTimer btpfa;
 
     // next internal upload handle
@@ -468,6 +459,17 @@ public:
 
     // have we just completed fetching new nodes?
     bool statecurrent;
+
+    // pending file attribute writes
+    putfa_list newfa;
+
+    // current attribute being sent
+    putfa_list::iterator curfa;
+
+    // API request queue double buffering:
+    // reqs[r] is open for adding commands
+    // reqs[r^1] is being processed on the API server
+    HttpReq* pendingcs;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
@@ -592,6 +594,9 @@ public:
 
     // activity flag
     bool syncactivity;
+
+    // syncops indicates that a sync-relevant tree update may be pending
+    bool syncops;
 
     // app scanstate flag
     bool syncscanstate;

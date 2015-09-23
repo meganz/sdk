@@ -78,6 +78,7 @@ void HttpReqCommandPutFA::procresult()
                     }
                     else
                     {
+                        LOG_debug << "Sending file attribute data";
                         Node::copystring(&posturl, p);
                         post(client, data->data(), data->size());
                     }
@@ -2926,8 +2927,9 @@ void CommandSetKeyPair::procresult()
 CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 {
     cmd("f");
-    arg("c", "1", 0);
-    arg("r", "1", 0);
+    arg("c", 1);
+    arg("r", 1);
+    arg("ca", 1);
 
     tag = client->reqtag;
 }
@@ -2936,10 +2938,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 void CommandFetchNodes::procresult()
 {
     client->purgenodesusersabortsc();
-    client->fetchingnodes = false;
 
     if (client->json.isnumeric())
     {
+        client->fetchingnodes = false;
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
@@ -2951,6 +2953,7 @@ void CommandFetchNodes::procresult()
                 // nodes
                 if (!client->readnodes(&client->json, 0))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -2971,6 +2974,7 @@ void CommandFetchNodes::procresult()
                 // users/contacts
                 if (!client->readusers(&client->json))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -2989,6 +2993,7 @@ void CommandFetchNodes::procresult()
                 // share node
                 if (!client->setscsn(&client->json))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3006,31 +3011,19 @@ void CommandFetchNodes::procresult()
             case EOO:
                 if (!*client->scsn)
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
                 client->mergenewshares(0);
                 client->applykeys();
-#ifdef ENABLE_SYNC
-                client->syncsup = false;
-#endif
-                client->app->fetchnodes_result(API_OK);
                 client->initsc();
-
-                // NULL vector: "notify all nodes"
-                client->app->nodes_updated(NULL, client->nodes.size());
-                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
-                {
-                    memset(&(it->second->changed), 0, sizeof it->second->changed);
-                }
-
-                client->app->pcrs_updated(NULL, client->pcrindex.size());
-
                 return;
 
             default:
                 if (!client->json.storeobject())
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }

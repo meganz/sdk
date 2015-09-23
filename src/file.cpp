@@ -268,6 +268,15 @@ bool SyncFileGet::failed(error e)
     return File::failed(e);
 }
 
+void SyncFileGet::progress()
+{
+    File::progress();
+    if (n->parent && n->parent->localnode && n->parent->localnode->ts != TREESTATE_SYNCING)
+    {
+        n->parent->localnode->treestate(TREESTATE_SYNCING);
+    }
+}
+
 // update localname (parent's localnode)
 void SyncFileGet::updatelocalname()
 {
