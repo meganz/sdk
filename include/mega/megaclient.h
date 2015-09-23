@@ -693,11 +693,8 @@ public:
 
     dstime transferretrydelay();
 
-    // active request buffer
-    int r;
-
     // client-server request double-buffering
-    Request reqs[2];
+    RequestDispatcher reqs;
 
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;

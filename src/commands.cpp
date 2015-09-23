@@ -1481,7 +1481,7 @@ void CommandSetShare::procresult()
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
                         return;
                     }
                 }

@@ -105,4 +105,43 @@ void Request::clear()
     }
     cmds.clear();
 }
+
+RequestDispatcher::RequestDispatcher()
+{
+    r = 0;
+}
+
+void RequestDispatcher::nextRequest()
+{
+    r ^= 1;
+}
+
+void RequestDispatcher::add(Command *c)
+{
+    reqs[r].add(c);
+}
+
+int RequestDispatcher::cmdspending() const
+{
+    return reqs[r].cmdspending();
+}
+
+void RequestDispatcher::get(string *out) const
+{
+    reqs[r].get(out);
+}
+
+void RequestDispatcher::procresult(MegaClient *client)
+{
+    reqs[r ^ 1].procresult(client);
+}
+
+void RequestDispatcher::clear()
+{
+    for (int i = sizeof(reqs)/sizeof(*reqs); i--; )
+    {
+        reqs[i].clear();
+    }
+}
+
 } // namespace

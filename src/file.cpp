@@ -121,7 +121,7 @@ void File::completed(Transfer* t, LocalNode* l)
                 t->client->syncadding++;
             }
 #endif
-            t->client->reqs[t->client->r].add(new CommandPutNodes(t->client,
+            t->client->reqs.add(new CommandPutNodes(t->client,
                                                                   th, NULL,
                                                                   newnode, 1,
                                                                   t->tag,
