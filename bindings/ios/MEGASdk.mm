@@ -72,7 +72,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -109,7 +109,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -119,7 +119,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -240,7 +240,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -252,7 +252,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -290,7 +290,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -805,7 +805,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -932,7 +932,7 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
