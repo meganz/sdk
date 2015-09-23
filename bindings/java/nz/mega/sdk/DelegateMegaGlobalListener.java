@@ -1,25 +1,29 @@
+/*
+ * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,\
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * @copyright Simplified (2-clause) BSD License.
+ * You should have received a copy of the license along with this
+ * program.
+ */
 package nz.mega.sdk;
+
+import nz.mega.sdk.MegaApiJava;
 
 import java.util.ArrayList;
 
 /**
  * Listener to receive and send global events to the app.
- * <p>
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
- * <p<>
- * This file is part of the MEGA SDK - Client Access Engine.
- * <p>
- * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
- * <p>
- * The MEGA SDK is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * <p>
- * @copyright Simplified (2-clause) BSD License.
- * <p>
- * You should have received a copy of the license along with this
- * program.
+ *
+ * @see MegaGlobalListenerInterface
+ * @see MegaGlobalListener
  */
 class DelegateMegaGlobalListener extends MegaGlobalListener {
     MegaApiJava megaApi;
@@ -44,9 +48,11 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
      * If you want to save only some of the MegaUser objects, use MegaUser.copy() for those objects.
      *  
      * @param api
-     *            API object connected to account
+     *            API object connected to account.
      * @param userList
-     *            List that contains the new or updated contacts
+     *            List that contains the new or updated contacts.
+     * @see MegaGlobalListenerInterface#onUsersUpdate(MegaApiJava api, ArrayList<MegaUser> users)
+     * @see MegaGlobalListener#onUsersUpdate(MegaApi api, MegaUserList users)
      */
     @Override
     public void onUsersUpdate(MegaApi api, MegaUserList userList) {
@@ -72,9 +78,11 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
      * If you want to save only some of the MegaNode objects, use MegaNode.copy() for those nodes.
      *
      * @param api
-     *            API object connected to account
+     *            API object connected to account.
      * @param nodeList
-     *            List of new or updated Nodes
+     *            List of new or updated Nodes.
+     * @see MegaGlobalListenerInterface#onNodesUpdate(MegaApiJava api, ArrayList<MegaNode> nodes)
+     * @see MegaGlobalListener#onNodesUpdate(MegaApi api, MegaNodeList nodes)
      */
     @Override
     public void onNodesUpdate(MegaApi api, MegaNodeList nodeList) {
@@ -95,7 +103,9 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
      * You should call MegaApiJava.fetchNodes() when this callback is received.
      *  
      * @param api
-     *            API object connected to account
+     *            API object connected to account.
+     * @see MegaGlobalListenerInterface#onReloadNeeded(MegaApiJava api)
+     * @see MegaGlobalListener#onReloadNeeded(MegaApi api)
      */
     @Override
     public void onReloadNeeded(MegaApi api) {
