@@ -681,6 +681,8 @@ void MegaClient::exec()
                 case REQ_SUCCESS:
                     if (fa->in.size() == sizeof(handle))
                     {
+                        LOG_debug << "File attribute uploaded OK - " << fa->th;
+
                         // successfully wrote file attribute - store handle &
                         // remove from list
                         handle fah = MemAccess::get<handle>(fa->in.data());
@@ -704,16 +706,23 @@ void MegaClient::exec()
                         // completion.
                         if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
                         {
+                            LOG_debug << "Attaching file attribute";
                             reqs[r].add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
                         }
                         else
                         {
-                            pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);                           
+                            pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
+                            LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
                             checkfacompletion(fa->th);
                         }
 
                         delete fa;
                         newfa.erase(curfa);
+                        LOG_debug << "Remaining file attributes in upload queue: " << newfa.size();
+                    }
+                    else
+                    {
+                        LOG_warn << "Wrong attribute response: " << fa->in.size();
                     }
 
                     btpfa.reset();
@@ -722,6 +731,7 @@ void MegaClient::exec()
 
                 case REQ_FAILURE:
                     // repeat request with exponential backoff
+                    LOG_warn << "Error setting file attribute";
                     curfa = newfa.end();
                     btpfa.backoff();
 
@@ -735,6 +745,7 @@ void MegaClient::exec()
             // dispatch most recent file attribute put
             curfa = newfa.begin();
 
+            LOG_debug << "Adding file attribute to the request queue";
             (*curfa)->status = REQ_INFLIGHT;
             reqs[r].add(*curfa);
         }
@@ -1833,12 +1844,14 @@ bool MegaClient::dispatch(direction_t d)
     // do we have any transfer slots available?
     if (!slotavail())
     {
+        LOG_verbose << "No slots available";
         return false;
     }
 
     // file attribute jam? halt uploads.
     if (d == PUT && newfa.size() > 32)
     {
+        LOG_warn << "Attribute queue full: " << newfa.size();
         return false;
     }
 
@@ -2046,6 +2059,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
             // abort if upload still running
             if ((htit = faputcompletion.find(th)) == faputcompletion.end())
             {
+                LOG_debug << "Upload still running checking a file attribute - " << th;
                 return;
             }
 
@@ -2063,6 +2077,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 
         if (facount < t->minfa)
         {
+            LOG_debug << "Pending file attributes for upload - " << th <<  " : " << (t->minfa < facount);
             if (!delayedcompletion)
             {
                 // we have insufficient file attributes available: remove transfer and put on hold
@@ -2073,12 +2088,19 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 
                 delete t->slot;
                 t->slot = NULL;
+
+                LOG_debug << "Transfer put on hold. Total: " << faputcompletion.size();
             }
 
             return;
         }
     }
+    else
+    {
+        LOG_warn << "NULL file attribute handle";
+    }
 
+    LOG_debug << "Transfer finished, sending callbacks - " << th;
     t->completefiles();
     app->transfer_complete(t);
     delete t;
@@ -2789,6 +2811,7 @@ void MegaClient::pendingattrstring(handle h, string* fa)
         Base64::btoa((byte*)&it->second.first, sizeof(it->second.first), strchr(buf + 3, 0));
         pendingfa.erase(it++);
         fa->append(buf + !fa->size());
+        LOG_debug << "Added file attribute to putnodes. Remaining: " << pendingfa.size();
     }
 }
 
@@ -2801,6 +2824,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data)
     key->cbc_encrypt((byte*)data->data(), data->size());
 
     newfa.push_back(new HttpReqCommandPutFA(this, th, t, data));
+    LOG_debug << "File attribute added to queue - " << th << " : " << newfa.size();
 
     // no other file attribute storage request currently in progress? POST this one.
     if (curfa == newfa.end())
@@ -7499,8 +7523,6 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             }
         }
 
-        LOG_verbose << "Unsynced LocalNode: " << ll->name << " " << ll->type;
-
         if (ll->type == FILENODE)
         {
             // do not begin transfer until the file size / mtime has stabilized
@@ -7508,9 +7530,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
 
             if (ll->transfer)
             {
-                LOG_debug << "Localnode is already being uploaded: " << ll->name;
                 continue;
             }
+
+            LOG_verbose << "Unsynced LocalNode (file): " << ll->name << " " << ll << " " << (ll->transfer != 0);
 
             if (Waiter::ds < ll->nagleds)
             {
@@ -7562,6 +7585,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                 
                 ll->created = false;
             }
+        }
+        else
+        {
+            LOG_verbose << "Unsynced LocalNode (folder): " << ll->name;
         }
 
         if (ll->created)
@@ -7624,7 +7651,7 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             ll->created = true;
 
             // create remote folder or send file
-            LOG_debug << "Adding local file to synccreate: " << ll->name;
+            LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
             syncactivity = true;
         }
@@ -8072,6 +8099,7 @@ bool MegaClient::startxfer(direction_t d, File* f)
             // if we are unable to obtain a valid file FileFingerprint, don't proceed
             if (!f->isvalid)
             {
+                LOG_err << "Unable to get a fingerprint " << f->name;
                 return false;
             }
         }

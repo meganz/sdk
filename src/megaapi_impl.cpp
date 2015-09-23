@@ -8872,6 +8872,37 @@ long long MegaApiImpl::getTotalUploadedBytes()
 
 void MegaApiImpl::update()
 {
+    sdkMutex.lock();
+
+    LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
+    if(client->curfa == client->newfa.end())
+    {
+        LOG_debug << "PendingFA? 0";
+    }
+    else
+    {
+        HttpReqCommandPutFA* fa = *client->curfa;
+        if(fa)
+        {
+            LOG_debug << "PendingFA? " << client->newfa.size() << " STATUS: " << fa->status;
+        }
+    }
+
+    LOG_debug << "FLAGS: " << client->syncactivity << " " << client->syncadded
+              << " " << client->syncdownrequired << " " << client->syncdownretry
+              << " " << client->syncfslockretry << " " << client->syncfsopsfailed
+              << " " << client->syncnagleretry << " " << client->syncscanfailed
+              << " " << client->syncops << " " << client->syncscanstate
+              << " " << client->faputcompletion.size() << " " << client->synccreate.size()
+              << " " << client->fetchingnodes << " " << client->pendingfa.size()
+              << " " << client->xferpaused[0] << " " << client->xferpaused[1]
+              << " " << client->transfers[0].size() << " " << client->transfers[1].size()
+              << " " << client->syncscanstate << " " << client->statecurrent
+              << " " << client->syncadding << " " << client->syncdebrisadding
+              << " " << client->umindex.size() << " " << client->uhindex.size();
+
+    sdkMutex.unlock();
+
     waiter->notify();
 }
 

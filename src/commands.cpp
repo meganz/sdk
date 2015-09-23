@@ -78,6 +78,7 @@ void HttpReqCommandPutFA::procresult()
                     }
                     else
                     {
+                        LOG_debug << "Sending file attribute data";
                         Node::copystring(&posturl, p);
                         post(client, data->data(), data->size());
                     }
