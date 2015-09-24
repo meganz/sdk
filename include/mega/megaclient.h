@@ -647,7 +647,7 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    void syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, NewNode*, int);
@@ -742,6 +742,9 @@ public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
+
+    // max new nodes per request
+    static const int MAX_NEWNODES = 1;
 
     // session ID length (binary)
     static const unsigned SIDLEN = 2 * SymmCipher::KEYLENGTH + USERHANDLE * 4 / 3 + 1;

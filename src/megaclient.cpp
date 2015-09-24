@@ -7304,7 +7304,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // if attached to an existing node
 // l and n are assumed to be folders and existing on both sides or scheduled
 // for creation
-void MegaClient::syncup(LocalNode* l, dstime* nds)
+bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
     bool insync = true;
 
@@ -7512,7 +7512,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // recurse into directories of equal name
-                    syncup(ll, nds);
+                    if (!syncup(ll, nds))
+                    {
+                        return false;
+                    }
                     continue;
                 }
             }
@@ -7649,11 +7652,20 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
             syncactivity = true;
+
+            if (synccreate.size() >= MAX_NEWNODES)
+            {
+                LOG_warn << "Stopping syncup due to MAX_NEWNODES";
+                return false;
+            }
         }
 
         if (ll->type == FOLDERNODE)
         {
-            syncup(ll, nds);
+            if (!syncup(ll, nds))
+            {
+                return false;
+            }
         }
     }
 
@@ -7661,6 +7673,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         l->treestate(TREESTATE_SYNCED);
     }
+
+    return true;
 }
 
 // execute updates stored in synccreate[]
