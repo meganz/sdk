@@ -1649,7 +1649,7 @@ int MegaClient::wait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry))
+    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry && (syncsup || !statecurrent)))
     {
         nds = Waiter::ds;
     }
