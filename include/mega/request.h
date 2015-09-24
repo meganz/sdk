@@ -51,7 +51,9 @@ class MEGA_API RequestDispatcher
     Request reqs[2];
 
     // secondary request buffer
-    Request reqbuf;
+    queue<Command *> reqbuf;
+
+    static const int MAX_COMMANDS = 1;
 
 public:
     RequestDispatcher();

@@ -114,11 +114,27 @@ RequestDispatcher::RequestDispatcher()
 void RequestDispatcher::nextRequest()
 {
     r ^= 1;
+
+    while(!reqbuf.empty() && reqs[r].cmdspending() < MAX_COMMANDS)
+    {
+        Command *c = reqbuf.front();
+        reqbuf.pop();
+        reqs[r].add(c);
+        LOG_debug << "Command extracted from secondary buffer: " << reqbuf.size();
+    }
 }
 
 void RequestDispatcher::add(Command *c)
 {
-    reqs[r].add(c);
+    if(reqs[r].cmdspending() < MAX_COMMANDS)
+    {
+        reqs[r].add(c);
+    }
+    else
+    {
+        reqbuf.push(c);
+        LOG_debug << "Command added to secondary buffer: " << reqbuf.size();
+    }
 }
 
 int RequestDispatcher::cmdspending() const
@@ -141,6 +157,17 @@ void RequestDispatcher::clear()
     for (int i = sizeof(reqs)/sizeof(*reqs); i--; )
     {
         reqs[i].clear();
+    }
+
+    while (!reqbuf.empty())
+    {
+        Command *c = reqbuf.front();
+        reqbuf.pop();
+
+        if (!c->persistent)
+        {
+            delete c;
+        }
     }
 }
 
