@@ -1358,7 +1358,7 @@ void MegaClient::exec()
                     syncops = true;
                 }
 
-                if (syncactivity || syncops)
+                if (!syncadding && (syncactivity || syncops))
                 {
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
