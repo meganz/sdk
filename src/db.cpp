@@ -403,6 +403,9 @@ void DbQuery::execute(DbTable *sctable)
         err = sctable->getnumchildfolders(h, &number) ? API_OK : API_EREAD;
         break;
 
+    case DELETE:
+        break;
+
     default:
         LOG_warn << "Execution of unknown type of DbQuery";
         err = API_EARGS;
