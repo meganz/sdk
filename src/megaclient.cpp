@@ -7726,7 +7726,7 @@ void MegaClient::syncupdate()
                 if (n)
                 {
                     // overwriting an existing remote node? send it to SyncDebris.
-                    if (l->node)
+                    if (l->node && l->node->parent && l->node->parent->localnode)
                     {
                         movetosyncdebris(l->node, l->sync->inshare);
                     }
