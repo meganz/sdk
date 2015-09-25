@@ -599,7 +599,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
         reqid[i] = 'a' + PrnGen::genuint32(26);
     }
 
-    r = 0;
     nextuh = 0;  
     reqtag = 0;
 
@@ -706,7 +705,7 @@ void MegaClient::exec()
                         if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
                         {
                             LOG_debug << "Attaching file attribute";
-                            reqs[r].add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
+                            reqs.add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
                         }
                         else
                         {
@@ -746,7 +745,7 @@ void MegaClient::exec()
 
             LOG_debug << "Adding file attribute to the request queue";
             (*curfa)->status = REQ_INFLIGHT;
-            reqs[r].add(*curfa);
+            reqs.add(*curfa);
         }
 
         if (fafcs.size())
@@ -803,7 +802,7 @@ void MegaClient::exec()
                     if (Waiter::ds - fc->urltime > 600)
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
-                        reqs[r].add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
+                        reqs.add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
                         fc->req.status = REQ_INFLIGHT;
                     }
                     else
@@ -848,7 +847,7 @@ void MegaClient::exec()
 
                                 // request succeeded, process result array
                                 json.begin(pendingcs->in.c_str());
-                                reqs[r ^ 1].procresult(this);
+                                reqs.procresult(this);
 
                                 delete pendingcs;
                                 pendingcs = NULL;
@@ -920,14 +919,14 @@ void MegaClient::exec()
             {
                 if (btcs.nextset())
                 {
-                    r ^= 1;
+                    reqs.nextRequest();
                 }
 
-                if (reqs[r].cmdspending())
+                if (reqs.cmdspending())
                 {
                     pendingcs = new HttpReq();
 
-                    reqs[r].get(pendingcs->out);
+                    reqs.get(pendingcs->out);
 
                     pendingcs->posturl = APIURL;
 
@@ -940,7 +939,7 @@ void MegaClient::exec()
 
                     pendingcs->post(this);
 
-                    r ^= 1;
+                    reqs.nextRequest();
                     continue;
                 }
                 else
@@ -1359,7 +1358,7 @@ void MegaClient::exec()
                     syncops = true;
                 }
 
-                if (syncactivity || syncops)
+                if (!syncadding && (syncactivity || syncops))
                 {
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
@@ -1623,7 +1622,7 @@ void MegaClient::exec()
 #endif
 
         notifypurge();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs[r].cmdspending() && btcs.armed()));
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()));
 
     if (!badhostcs && badhosts.size())
     {
@@ -1650,7 +1649,7 @@ int MegaClient::wait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry))
+    if (syncactivity || syncdownrequired || (jsonsc.pos && !syncdownretry && (syncsup || !statecurrent)))
     {
         nds = Waiter::ds;
     }
@@ -2011,7 +2010,7 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                reqs[r].add((ts->pendingcmd = (d == PUT)
+                reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(ts, putmbpscap)
                           : (Command*)new CommandGetFile(ts, NULL, h, hprivate, auth)));
 
@@ -2189,7 +2188,7 @@ void MegaClient::logout()
         return;
     }
 
-    reqs[r].add(new CommandLogout(this));
+    reqs.add(new CommandLogout(this));
 }
 
 void MegaClient::locallogout()
@@ -2210,10 +2209,7 @@ void MegaClient::locallogout()
 
     purgenodesusersabortsc();
 
-    for (i = sizeof(reqs)/sizeof(*reqs); i--; )
-    {
-        reqs[i].clear();
-    }
+    reqs.clear();
 
     delete pendingcs;
     pendingcs = NULL;
@@ -2829,7 +2825,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data)
     if (curfa == newfa.end())
     {
         curfa = newfa.begin();
-        reqs[r].add(*curfa);
+        reqs.add(*curfa);
     }
 }
 
@@ -3933,7 +3929,7 @@ error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
     n->changed.attrs = true;
     notifynode(n);
 
-    reqs[r].add(new CommandSetAttr(this, n, cipher, prevattr));
+    reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
 
     return API_OK;
 }
@@ -3941,7 +3937,7 @@ error MegaClient::setattr(Node* n, const char** newattr, const char *prevattr)
 // send new nodes to API for processing
 void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes)
 {
-    reqs[r].add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag));
+    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -4073,7 +4069,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs[r].add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
     }
 
     return API_OK;
@@ -4087,7 +4083,7 @@ error MegaClient::unlink(Node* n)
         return API_EACCESS;
     }
 
-    reqs[r].add(new CommandDelNode(this, n->nodehandle));
+    reqs.add(new CommandDelNode(this, n->nodehandle));
 
     mergenewshares(1);
 
@@ -4521,7 +4517,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
                              it != pendingfa.end() && it->first.first == uh; )
                         {
-                            reqs[r].add(new CommandAttachFA(h, it->first.second, it->second.first, it->second.second));
+                            reqs.add(new CommandAttachFA(h, it->first.second, it->second.first, it->second.second));
                             pendingfa.erase(it++);
                         }
 
@@ -4902,13 +4898,13 @@ int MegaClient::applykeys()
 
     if (sharekeyrewrite.size())
     {
-        reqs[r].add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
+        reqs.add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
         sharekeyrewrite.clear();
     }
 
     if (nodekeyrewrite.size())
     {
-        reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        reqs.add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
         nodekeyrewrite.clear();
     }
 
@@ -5032,7 +5028,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
@@ -5044,12 +5040,12 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs[r].add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, emailhash, sek));
 }
 
 void MegaClient::getuserdata()
 {
-    reqs[r].add(new CommandGetUserData(this));
+    reqs.add(new CommandGetUserData(this));
 }
 
 void MegaClient::getpubkey(const char *user)
@@ -5095,7 +5091,7 @@ void MegaClient::login(const byte* session, int size)
         byte sek[SymmCipher::KEYLENGTH];
         PrnGen::genblock(sek, sizeof sek);
 
-        reqs[r].add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
+        reqs.add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
     }
     else
     {
@@ -5147,7 +5143,7 @@ int MegaClient::dumpsession(byte* session, size_t size)
 
 void MegaClient::copysession()
 {
-    reqs[r].add(new CommandCopySession(this));
+    reqs.add(new CommandCopySession(this));
 }
 
 string *MegaClient::sessiontransferdata(const char *url, string *session)
@@ -5200,13 +5196,13 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
 
 void MegaClient::killsession(handle session)
 {
-    reqs[r].add(new CommandKillSessions(this, session));
+    reqs.add(new CommandKillSessions(this, session));
 }
 
 // Kill all sessions (except current)
 void MegaClient::killallsessions()
 {
-    reqs[r].add(new CommandKillSessions(this));
+    reqs.add(new CommandKillSessions(this));
 }
 
 void MegaClient::opensctable()
@@ -5467,7 +5463,7 @@ void MegaClient::queuepubkeyreq(User* u, PubKeyAction* pka)
 
         if (!u->pubkrequested)
         {
-            reqs[r].add(new CommandPubKeyRequest(this, u));
+            reqs.add(new CommandPubKeyRequest(this, u));
         }
     }
 }
@@ -5480,7 +5476,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
     if (nodekeyrewrite.size())
     {
-        reqs[r].add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        reqs.add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
         nodekeyrewrite.clear();
     }
 }
@@ -5504,18 +5500,18 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
 // Add/delete/remind outgoing pending contact request
 void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
 {
-    reqs[r].add(new CommandSetPendingContact(this, temail, action, msg, oemail));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action)
 {
-    reqs[r].add(new CommandUpdatePendingContact(this, p, action));
+    reqs.add(new CommandUpdatePendingContact(this, p, action));
 }
 
 // enumerate Pro account purchase options (not fully implemented)
 void MegaClient::purchase_enumeratequotaitems()
 {
-    reqs[r].add(new CommandEnumerateQuotaItems(this));
+    reqs.add(new CommandEnumerateQuotaItems(this));
 }
 
 // begin a new purchase (FIXME: not fully implemented)
@@ -5529,18 +5525,18 @@ void MegaClient::purchase_additem(int itemclass, handle item, unsigned price,
                                   const char* currency, unsigned tax, const char* country,
                                   const char* affiliate)
 {
-    reqs[r].add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, affiliate));
+    reqs.add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, affiliate));
 }
 
 // obtain payment URL for given provider
 void MegaClient::purchase_checkout(int gateway)
 {
-    reqs[r].add(new CommandPurchaseCheckout(this, gateway));
+    reqs.add(new CommandPurchaseCheckout(this, gateway));
 }
 
 void MegaClient::submitpurchasereceipt(int type, const char *receipt)
 {
-    reqs[r].add(new CommandSubmitPurchaseReceipt(this, type, receipt));
+    reqs.add(new CommandSubmitPurchaseReceipt(this, type, receipt));
 }
 
 error MegaClient::creditcardstore(const char *ccplain)
@@ -5648,23 +5644,23 @@ error MegaClient::creditcardstore(const char *ccplain)
     std::replace( base64cc.begin(), base64cc.end(), '-', '+');
     std::replace( base64cc.begin(), base64cc.end(), '_', '/');
 
-    reqs[r].add(new CommandCreditCardStore(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
+    reqs.add(new CommandCreditCardStore(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
     return API_OK;
 }
 
 void MegaClient::creditcardquerysubscriptions()
 {
-    reqs[r].add(new CommandCreditCardQuerySubscriptions(this));
+    reqs.add(new CommandCreditCardQuerySubscriptions(this));
 }
 
 void MegaClient::creditcardcancelsubscriptions(const char* reason)
 {
-    reqs[r].add(new CommandCreditCardCancelSubscriptions(this, reason));
+    reqs.add(new CommandCreditCardCancelSubscriptions(this, reason));
 }
 
 void MegaClient::getpaymentmethods()
 {
-    reqs[r].add(new CommandGetPaymentMethods(this));
+    reqs.add(new CommandGetPaymentMethods(this));
 }
 
 // add new contact (by e-mail address)
@@ -5675,7 +5671,7 @@ error MegaClient::invite(const char* email, visibility_t show)
         return API_EARGS;
     }
 
-    reqs[r].add(new CommandUserRequest(this, email, show));
+    reqs.add(new CommandUserRequest(this, email, show));
 
     return API_OK;
 }
@@ -5722,7 +5718,7 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
         av = (const byte*)"";
     }
 
-    reqs[r].add(new CommandPutUA(this, name.c_str(),
+    reqs.add(new CommandPutUA(this, name.c_str(),
                                  (priv == 1) ? (const byte*)data.data() : av,
                                  (priv == 1) ? data.size() : avl));
 }
@@ -5743,7 +5739,7 @@ void MegaClient::getua(User* u, const char* an, int p)
 
         name.append(an);
 
-        reqs[r].add(new CommandGetUA(this, u->uid.c_str(), name.c_str(), p));
+        reqs.add(new CommandGetUA(this, u->uid.c_str(), name.c_str(), p));
     }
 }
 
@@ -5988,7 +5984,7 @@ void MegaClient::procsnk(JSON* j)
 
                     sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
 
-                    reqs[r].add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
+                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
                 }
             }
 
@@ -6163,7 +6159,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     if (crkeys.size())
     {
         crkeys.append("\"");
-        reqs[r].add(new CommandKeyCR(this, &rshares, &rnodes, crkeys.c_str() + 2));
+        reqs.add(new CommandKeyCR(this, &rshares, &rnodes, crkeys.c_str() + 2));
     }
 }
 
@@ -6171,21 +6167,21 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
                                    bool purchases, bool sessions)
 {
-    reqs[r].add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+    reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
 
     if (transactions)
     {
-        reqs[r].add(new CommandGetUserTransactions(this, ad));
+        reqs.add(new CommandGetUserTransactions(this, ad));
     }
 
     if (purchases)
     {
-        reqs[r].add(new CommandGetUserPurchases(this, ad));
+        reqs.add(new CommandGetUserPurchases(this, ad));
     }
 
     if (sessions)
     {
-        reqs[r].add(new CommandGetUserSessions(this, ad));
+        reqs.add(new CommandGetUserSessions(this, ad));
     }
 }
 
@@ -6206,7 +6202,7 @@ error MegaClient::exportnode(Node* n, int del)
     // export node
     if (n->type == FOLDERNODE || n->type == FILENODE)
     {
-        reqs[r].add(new CommandSetPH(this, n, del));
+        reqs.add(new CommandSetPH(this, n, del));
     }
     else
     {
@@ -6243,11 +6239,11 @@ error MegaClient::openfilelink(const char* link, int op)
             {
                 if (op)
                 {
-                    reqs[r].add(new CommandGetPH(this, ph, key, op));
+                    reqs.add(new CommandGetPH(this, ph, key, op));
                 }
                 else
                 {
-                    reqs[r].add(new CommandGetFile(NULL, key, ph, false));
+                    reqs.add(new CommandGetFile(NULL, key, ph, false));
                 }
 
                 return API_OK;
@@ -6305,7 +6301,7 @@ error MegaClient::changepw(const byte* oldpwkey, const byte* newpwkey)
 
     string email = u->email;
 
-    reqs[r].add(new CommandSetMasterKey(this, oldkey, newkey, stringhash64(&email, &pwcipher)));
+    reqs.add(new CommandSetMasterKey(this, oldkey, newkey, stringhash64(&email, &pwcipher)));
 
     return API_OK;
 }
@@ -6329,12 +6325,12 @@ void MegaClient::createephemeral()
     key.setkey(pwbuf);
     key.ecb_encrypt(keybuf);
 
-    reqs[r].add(new CommandCreateEphemeralSession(this, keybuf, pwbuf, sscbuf));
+    reqs.add(new CommandCreateEphemeralSession(this, keybuf, pwbuf, sscbuf));
 }
 
 void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 {
-    reqs[r].add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
+    reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
 void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
@@ -6349,19 +6345,19 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
 
     pwcipher.ecb_encrypt(c, c, sizeof c);
 
-    reqs[r].add(new CommandSendSignupLink(this, email, name, c));
+    reqs.add(new CommandSendSignupLink(this, email, name, c));
 }
 
 // if query is 0, actually confirm account; just decode/query signup link
 // details otherwise
 void MegaClient::querysignuplink(const byte* code, unsigned len)
 {
-    reqs[r].add(new CommandQuerySignupLink(this, code, len));
+    reqs.add(new CommandQuerySignupLink(this, code, len));
 }
 
 void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
 {
-    reqs[r].add(new CommandConfirmSignupLink(this, code, len, emailhash));
+    reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
 // generate and configure encrypted private key, plaintext public key
@@ -6384,7 +6380,7 @@ void MegaClient::setkeypair()
 
     key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), (unsigned)privks.size());
 
-    reqs[r].add(new CommandSetKeyPair(this,
+    reqs.add(new CommandSetKeyPair(this,
                                       (const byte*)privks.data(),
                                       privks.size(),
                                       (const byte*)pubks.data(),
@@ -6543,7 +6539,7 @@ void MegaClient::fetchnodes()
         }
 #endif
 
-        reqs[r].add(new CommandFetchNodes(this));
+        reqs.add(new CommandFetchNodes(this));
     }
 }
 
@@ -7308,7 +7304,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // if attached to an existing node
 // l and n are assumed to be folders and existing on both sides or scheduled
 // for creation
-void MegaClient::syncup(LocalNode* l, dstime* nds)
+bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
     bool insync = true;
 
@@ -7516,7 +7512,10 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // recurse into directories of equal name
-                    syncup(ll, nds);
+                    if (!syncup(ll, nds))
+                    {
+                        return false;
+                    }
                     continue;
                 }
             }
@@ -7653,11 +7652,20 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
             syncactivity = true;
+
+            if (synccreate.size() >= MAX_NEWNODES)
+            {
+                LOG_warn << "Stopping syncup due to MAX_NEWNODES";
+                return false;
+            }
         }
 
         if (ll->type == FOLDERNODE)
         {
-            syncup(ll, nds);
+            if (!syncup(ll, nds))
+            {
+                return false;
+            }
         }
     }
 
@@ -7665,6 +7673,8 @@ void MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         l->treestate(TREESTATE_SYNCED);
     }
+
+    return true;
 }
 
 // execute updates stored in synccreate[]
@@ -7774,7 +7784,7 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
-                reqs[r].add(new CommandPutNodes(this,
+                reqs.add(new CommandPutNodes(this,
                                                 synccreate[start]->parent->node->nodehandle,
                                                 NULL, nn, nnp - nn,
                                                 synccreate[start]->sync->tag,
@@ -8045,7 +8055,7 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs[r].add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
+        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
                                         (target == SYNCDEL_DEBRIS) ? 1 : 2, 0,
                                         PUTNODES_SYNCDEBRIS));
     }
@@ -8250,7 +8260,7 @@ bool MegaClient::debugstate()
 void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
-    reqs[r].add(new CommandReportEvent(this, event, details));
+    reqs.add(new CommandReportEvent(this, event, details));
 }
 
 void MegaClient::userfeedbackstore(const char *message)
@@ -8264,17 +8274,17 @@ void MegaClient::userfeedbackstore(const char *message)
     Base64::btoa((byte *)useragent.data(), useragent.size(), (char *)base64userAgent.data());
     type.append(base64userAgent);
 
-    reqs[r].add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+    reqs.add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
 }
 
 void MegaClient::sendevent(int event, const char *desc)
 {
-    reqs[r].add(new CommandSendEvent(this, event, desc));
+    reqs.add(new CommandSendEvent(this, event, desc));
 }
 
 void MegaClient::cleanrubbishbin()
 {
-    reqs[r].add(new CommandCleanRubbishBin(this));
+    reqs.add(new CommandCleanRubbishBin(this));
 }
 
 
