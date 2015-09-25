@@ -67,6 +67,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     sharekey = NULL;
     foreignkey = false;
 
+    plink = NULL;
+
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
 
@@ -165,6 +167,7 @@ Node::~Node()
         (*it)->parent = NULL;
     }
 
+    delete plink;
     delete inshare;
     delete sharekey;
 

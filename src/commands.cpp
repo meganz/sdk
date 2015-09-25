@@ -3008,6 +3008,11 @@ void CommandFetchNodes::procresult()
                 client->readopc(&client->json);
                 break;
 
+            case MAKENAMEID2('p', 'h'):
+                // Public links handles
+                client->procph(&client->json);
+                break;
+
             case EOO:
                 if (!*client->scsn)
                 {

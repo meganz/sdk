@@ -390,6 +390,7 @@ private:
     void sc_opc();
     void sc_ipc();
     void sc_upc();
+    void sc_ph();
 
     void init();
 
@@ -716,6 +717,8 @@ public:
 
     void readipc(JSON*);
     void readopc(JSON*);
+
+    void procph(JSON*);
 
     void readcr();
     void readsr();
