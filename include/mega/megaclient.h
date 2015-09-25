@@ -744,7 +744,7 @@ public:
     static const int NODEHANDLE = 6;
 
     // max new nodes per request
-    static const int MAX_NEWNODES = 1;
+    static const int MAX_NEWNODES = 2000;
 
     // session ID length (binary)
     static const unsigned SIDLEN = 2 * SymmCipher::KEYLENGTH + USERHANDLE * 4 / 3 + 1;
