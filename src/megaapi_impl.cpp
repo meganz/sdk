@@ -7651,12 +7651,23 @@ void MegaApiImpl::sendPendingTransfers()
                 bool started = client->startxfer(PUT,f);
                 if(!started)
                 {
-                    //Unable to read the file
-                    transfer->setSyncTransfer(false);
-                    transferMap[nextTag]=transfer;
-                    transfer->setTag(nextTag);
-                    fireOnTransferStart(transfer);
-                    fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                    if(!f->isvalid)
+                    {
+                        //Unable to read the file
+                        transfer->setSyncTransfer(false);
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                    }
+                    else
+                    {
+                        //Already existing transfer
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                    }
                 }
                 else if(transfer->getTag() == -1)
                 {
@@ -7749,21 +7760,31 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
-					client->startxfer(GET,f);
+                    bool ok = client->startxfer(GET,f);
                     if(transfer->getTag() == -1)
                     {
                         //Already existing transfer
-                        //Delete the new one and set the transfer as regular
-                        transfer_map::iterator it = client->transfers[GET].find(f);
-                        if(it != client->transfers[GET].end())
+                        if (ok)
                         {
-                            int previousTag = it->second->tag;
-                            if(transferMap.find(previousTag) != transferMap.end())
+                            //Set the transfer as regular
+                            transfer_map::iterator it = client->transfers[GET].find(f);
+                            if(it != client->transfers[GET].end())
                             {
-                                MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
-                                previousTransfer->setSyncTransfer(false);
-                                delete transfer;
+                                int previousTag = it->second->tag;
+                                if(transferMap.find(previousTag) != transferMap.end())
+                                {
+                                    MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
+                                    previousTransfer->setSyncTransfer(false);
+                                }
                             }
+                        }
+                        else
+                        {
+                            //Already existing transfer
+                            transferMap[nextTag]=transfer;
+                            transfer->setTag(nextTag);
+                            fireOnTransferStart(transfer);
+                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
                 }

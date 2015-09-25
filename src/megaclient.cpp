@@ -8128,13 +8128,18 @@ bool MegaClient::startxfer(direction_t d, File* f)
         {
             t = it->second;
 
-            //for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
-            //{
-            //    if (f->localname == (*it)->localname)
-            //    {
-            //        return false;
-            //    }
-            //}
+            for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+            {
+                if ((d == GET && f->localname == (*it)->localname)
+                        || (d == PUT
+                            && f->h == (*it)->h)
+                            && !f->targetuser.size()
+                            && !(*it)->targetuser.size()
+                            && f->name == (*it)->name)
+                {
+                    return false;
+                }
+            }
         }
         else
         {
