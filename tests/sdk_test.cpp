@@ -1267,6 +1267,10 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
     // The created link is stored in this->link at onRequestFinish()
 
+    // Get a fresh snapshot of the node and check it's actually exported
+    nfile1 = megaApi->getNodeByHandle(hfile1);
+    ASSERT_TRUE(nfile1->isExported()) << "Node is not exported, must be exported";
+
 
     // --- Import a public link ---
 

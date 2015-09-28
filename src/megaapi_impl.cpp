@@ -91,6 +91,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->previewAvailable = false;
     this->tag = 0;
     this->isPublicNode = true;
+    this->plink = NULL;
 
     if(auth)
     {
@@ -122,6 +123,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->tag = node->getTag();
     this->isPublicNode = node->isPublic();
     this->auth = *node->getAuth();
+    this->plink = node->getPublicLink();
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = node->isSyncDeleted();
@@ -198,6 +200,13 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
+    this->plink = NULL;
+    if (node->plink)
+    {
+        this->plink = new PublicLink;
+        this->plink->ph = node->plink->ph;
+        this->plink->ets = node->plink->ets;
+    }
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -289,6 +298,19 @@ string *MegaNodePrivate::getAttrString()
 int MegaNodePrivate::getTag()
 {
     return tag;
+}
+
+PublicLink *MegaNodePrivate::getPublicLink()
+{
+//    PublicLink *plink = NULL;
+//    if (this->plink)
+//    {
+//        plink = new PublicLink;
+//        plink->ph = this->plink->ph;
+//        plink->ets = this->plink->ets;
+//    }
+
+    return plink;
 }
 
 bool MegaNodePrivate::isFile()
@@ -479,6 +501,11 @@ bool MegaNodePrivate::isPublic()
     return isPublicNode;
 }
 
+bool MegaNodePrivate::isExported()
+{
+    return plink;
+}
+
 string *MegaNodePrivate::getAuth()
 {
     return &auth;
@@ -487,6 +514,7 @@ string *MegaNodePrivate::getAuth()
 MegaNodePrivate::~MegaNodePrivate()
 {
  	delete[] name;
+    delete plink;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -2828,11 +2856,21 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 
 void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
-    if(node) request->setNodeHandle(node->getHandle());
-    request->setAccess(1);
-	requestQueue.push(request);
-    waiter->notify();
+    // If the node is already exported, simply call its callback
+    PublicLink *plink = node->getPublicLink();
+    if (plink)
+    {
+        exportnode_result(node->getHandle(), plink->ph);
+        return;
+    }
+    else    // request to create the link
+    {
+        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
+        if(node) request->setNodeHandle(node->getHandle());
+        request->setAccess(1);
+        requestQueue.push(request);
+        waiter->notify();
+    }
 }
 
 void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)

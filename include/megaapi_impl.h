@@ -152,6 +152,7 @@ class MegaNodePrivate : public MegaNode
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
         virtual int getTag();
+        virtual PublicLink *getPublicLink();
         virtual bool isFile();
         virtual bool isFolder();
         bool isRemoved();
@@ -160,6 +161,7 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasThumbnail();
         virtual bool hasPreview();
         virtual bool isPublic();
+        virtual bool isExported();
         virtual std::string* getAuth();
 
 #ifdef ENABLE_SYNC
@@ -187,6 +189,7 @@ class MegaNodePrivate : public MegaNode
         bool thumbnailAvailable;
         bool previewAvailable;
         bool isPublicNode;
+        PublicLink *plink;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;

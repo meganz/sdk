@@ -222,6 +222,11 @@ int MegaNode::getTag()
     return 0;
 }
 
+PublicLink *MegaNode::getPublicLink() const
+{
+    return NULL;
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -258,6 +263,11 @@ bool MegaNode::hasPreview()
 }
 
 bool MegaNode::isPublic()
+{
+    return false;
+}
+
+bool MegaNode::isExported()
 {
     return false;
 }
