@@ -8144,10 +8144,10 @@ bool MegaClient::startxfer(direction_t d, File* f)
             {
                 if ((d == GET && f->localname == (*it)->localname)
                         || (d == PUT
-                            && f->h == (*it)->h)
+                            && f->h == (*it)->h
                             && !f->targetuser.size()
                             && !(*it)->targetuser.size()
-                            && f->name == (*it)->name)
+                            && f->name == (*it)->name))
                 {
                     return false;
                 }
