@@ -4994,16 +4994,25 @@ bool MegaClient::readusers(JSON* j)
                 }
             }
 
-            if ((u = finduser(uh, 1)))
+            u = finduser(uh, 0);
+            bool notify = !u;
+            if (u || (u = finduser(uh, 1)))
             {
                 mapuser(uh, m);
 
                 if (v != VISIBILITY_UNKNOWN)
                 {
-                    u->set(v, ts);
+                    if (u->show != v || u->ctime != ts)
+                    {
+                        u->set(v, ts);
+                        notify = true;
+                    }
                 }
 
-                notifyuser(u);
+                if (notify)
+                {
+                    notifyuser(u);
+                }
             }
         }
     }
