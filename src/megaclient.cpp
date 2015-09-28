@@ -4972,7 +4972,26 @@ bool MegaClient::readusers(JSON* j)
 
             if (v == ME)
             {
-                me = uh;
+                if (me != UNDEF && uh != me)
+                {
+                    char mehandle[sizeof me * 4 / 3 + 4];
+                    char uhhandle[sizeof uh * 4 / 3 + 4];
+
+                    Base64::btoa((const byte *)&me, sizeof me, mehandle);
+                    Base64::btoa((const byte *)&uh, sizeof uh, uhhandle);
+
+                    char report[256];
+                    sprintf(report, "Own user handle mismatch: %s - %s (%d)", mehandle, uhhandle, fetchingnodes);
+
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99403, report);
+                    reqtag = creqtag;
+                }
+                else
+                {
+                    me = uh;
+                }
             }
 
             if ((u = finduser(uh, 1)))
@@ -8296,6 +8315,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
 void MegaClient::sendevent(int event, const char *desc)
 {
+    LOG_warn << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
 }
 
