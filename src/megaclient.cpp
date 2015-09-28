@@ -492,6 +492,7 @@ void MegaClient::init()
     warned = false;
     csretrying = false;
     chunkfailed = false;
+    statecurrent = false;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -505,7 +506,6 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
-    statecurrent = false;
 
     if (syncscanstate)
     {
