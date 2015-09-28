@@ -302,13 +302,13 @@ int MegaNodePrivate::getTag()
 
 PublicLink *MegaNodePrivate::getPublicLink()
 {
-//    PublicLink *plink = NULL;
-//    if (this->plink)
-//    {
-//        plink = new PublicLink;
-//        plink->ph = this->plink->ph;
-//        plink->ets = this->plink->ets;
-//    }
+    PublicLink *plink = NULL;
+    if (this->plink)
+    {
+        plink = new PublicLink;
+        plink->ph = this->plink->ph;
+        plink->ets = this->plink->ets;
+    }
 
     return plink;
 }
@@ -2854,7 +2854,7 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 	setUserAttr(type ? type : -1, value, listener);
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener, int expireTime)
 {
     // If the node is already exported, simply call its callback
     PublicLink *plink = node->getPublicLink();
@@ -2867,6 +2867,7 @@ void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
         if(node) request->setNodeHandle(node->getHandle());
+        request->setNumber(expireTime);
         request->setAccess(1);
         requestQueue.push(request);
         waiter->notify();
@@ -8209,7 +8210,7 @@ void MegaApiImpl::sendPendingRequests()
 			Node* node = client->nodebyhandle(request->getNodeHandle());
 			if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess());
+            e = client->exportnode(node, !request->getAccess(), request->getNumber());
 			break;
 		}
 		case MegaRequest::TYPE_FETCH_NODES:

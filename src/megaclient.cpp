@@ -6358,7 +6358,7 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del)
+error MegaClient::exportnode(Node* n, int del, int ets)
 {
     if (!checkaccess(n, OWNER))
     {
@@ -6374,7 +6374,7 @@ error MegaClient::exportnode(Node* n, int del)
     // export node
     if (n->type == FOLDERNODE || n->type == FILENODE)
     {
-        reqs.add(new CommandSetPH(this, n, del));
+        reqs.add(new CommandSetPH(this, n, del, ets));
     }
     else
     {

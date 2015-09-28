@@ -4195,6 +4195,24 @@ class MegaApi
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Generate a temporary public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * @param node MegaNode to get the public link
+         * @param expireTime Number of days during the public link will be valid
+         * @param listener MegaRequestListener to track this request
+         */
+        void exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Stop sharing a file/folder
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT

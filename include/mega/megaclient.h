@@ -233,7 +233,7 @@ public:
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int);
+    error exportnode(Node*, int, int);
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);

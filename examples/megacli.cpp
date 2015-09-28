@@ -1530,7 +1530,7 @@ static void process_line(char* l)
 #ifdef ENABLE_SYNC
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 #endif
-                cout << "      export remotepath [del]" << endl;
+                cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
@@ -2947,12 +2947,23 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             Node* n;
+                            int del = 0;
+                            int ets = 0;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
+                                if (words.size() > 2)
+                                {
+                                    del = (words[2] == "del");
+                                    if (!del)
+                                    {
+                                        ets = atoi(words[2].c_str());
+                                    }
+                                }
+
                                 error e;
 
-                                if ((e = client->exportnode(n, words.size() > 2 && words[2] == "del")))
+                                if ((e = client->exportnode(n, del, ets)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
                                 }
@@ -2968,7 +2979,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      export remotepath [del]" << endl;
+                            cout << "      export remotepath [expireTime|del]" << endl;
                         }
 
                         return;
