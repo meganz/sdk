@@ -995,7 +995,7 @@ void MegaClient::exec()
                         }
                         // fall through
                     case REQ_FAILURE:
-                        if (pendingsc->sslcheckfailed)
+                        if (pendingsc && pendingsc->sslcheckfailed)
                         {
                             app->request_error(API_ESSL);
                             *scsn = 0;
@@ -6532,6 +6532,17 @@ void MegaClient::fetchnodes()
     else if (!fetchingnodes)
     {
         fetchingnodes = true;
+
+        // prevent the processing of previous sc requests
+        delete pendingsc;
+        pendingsc = NULL;
+        jsonsc.pos = NULL;
+        scnotifyurl.clear();
+        insca = false;
+        btsc.reset();
+
+        // don't allow to start new sc requests yet
+        *scsn = 0;
 
 #ifdef ENABLE_SYNC
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
