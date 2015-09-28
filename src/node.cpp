@@ -212,6 +212,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     unsigned short ll;
     Node* n;
     int i;
+    PublicLink *plink = NULL;
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -325,6 +326,19 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                && numshares > 0
                && --numshares);
     }
+
+    bool isExported = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    if (isExported)
+    {
+        plink = new PublicLink;
+        plink->ph = MemAccess::get<handle>(ptr);
+        ptr += MegaClient::NODEHANDLE;
+        plink->ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(plink->ets);
+    }
+    n->plink = plink;
 
     ptr = n->attrs.unserialize(ptr);
 
@@ -466,6 +480,18 @@ bool Node::serialize(string* d)
                 }
             }
         }
+    }
+
+    bool isExported = plink ? true : false;
+    if (isExported)
+    {
+        d->append((char*) &isExported, sizeof(bool));
+        d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
+        d->append((char*) &plink->ets, sizeof(plink->ets));
+    }
+    else
+    {
+        d->append((char*) &isExported, sizeof(bool));
     }
 
     attrs.serialize(d);
