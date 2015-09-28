@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		416812A519EE73CF00C72800 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A419EE73CF00C72800 /* libc++.dylib */; };
+		418412731BA1A06600D94E72 /* MEGAInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = 418412721BA1A06600D94E72 /* MEGAInputStream.mm */; };
 		41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41A990721A5D305700B2094A /* mega_utf8proc.cpp */; };
 		41AB68F21A094194003FE608 /* GfxProcCG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41AB68F11A094194003FE608 /* GfxProcCG.cpp */; };
 		41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */; };
@@ -95,6 +96,8 @@
 
 /* Begin PBXFileReference section */
 		416812A419EE73CF00C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
+		418412711BA1A06600D94E72 /* MEGAInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAInputStream.h; sourceTree = "<group>"; };
+		418412721BA1A06600D94E72 /* MEGAInputStream.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAInputStream.mm; sourceTree = "<group>"; };
 		41A990721A5D305700B2094A /* mega_utf8proc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_utf8proc.cpp; path = ../../src/mega_utf8proc.cpp; sourceTree = "<group>"; };
 		41AA739B1A56B246008601DD /* MEGAAccountDetails+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAAccountDetails+init.h"; sourceTree = "<group>"; };
 		41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGASdk+init.h"; sourceTree = "<group>"; };
@@ -538,6 +541,8 @@
 				41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */,
 				41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */,
 				41AA739B1A56B246008601DD /* MEGAAccountDetails+init.h */,
+				418412711BA1A06600D94E72 /* MEGAInputStream.h */,
+				418412721BA1A06600D94E72 /* MEGAInputStream.mm */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -635,6 +640,7 @@
 				940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */,
 				41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */,
 				940BF01219ED97B9007E7FA2 /* MEGANodeList.mm in Sources */,
+				418412731BA1A06600D94E72 /* MEGAInputStream.mm in Sources */,
 				940BEFC419ED92C2007E7FA2 /* logging.cpp in Sources */,
 				940BEFF519ED9351007E7FA2 /* waiter.cpp in Sources */,
 				940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */,

@@ -78,6 +78,7 @@ void HttpReqCommandPutFA::procresult()
                     }
                     else
                     {
+                        LOG_debug << "Sending file attribute data";
                         Node::copystring(&posturl, p);
                         post(client, data->data(), data->size());
                     }
@@ -1480,7 +1481,7 @@ void CommandSetShare::procresult()
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
                         return;
                     }
                 }
@@ -2926,8 +2927,9 @@ void CommandSetKeyPair::procresult()
 CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 {
     cmd("f");
-    arg("c", "1", 0);
-    arg("r", "1", 0);
+    arg("c", 1);
+    arg("r", 1);
+    arg("ca", 1);
 
     tag = client->reqtag;
 }
@@ -2973,13 +2975,14 @@ void readoutshares(const char *j, std::map<handle,string> * outsharekeys, std::m
 void CommandFetchNodes::procresult()
 {
     client->purgenodesusersabortsc();
-    client->fetchingnodes = false;
+
     client->sctable->truncate();    // discard the current state cache
     client->nodenotify.clear();     // discard any obsolete notified node
     client->cachednodes->clear();   // discard any cached node
 
     if (client->json.isnumeric())
     {
+        client->fetchingnodes = false;
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
@@ -2993,6 +2996,7 @@ void CommandFetchNodes::procresult()
                 // nodes - write decryptable nodes to DB, postpone encrypted ones until sharekey reception
                 if (!client->readnodes(&client->json, 0))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3018,6 +3022,7 @@ void CommandFetchNodes::procresult()
                 // users/contacts - populate the `notifyusers` array with received users
                 if (!client->readusers(&client->json))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3036,6 +3041,7 @@ void CommandFetchNodes::procresult()
                 // Set the server-client sequence number (scsn)
                 if (!client->setscsn(&client->json))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3053,25 +3059,19 @@ void CommandFetchNodes::procresult()
             case EOO:
                 if (!*client->scsn)
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
                 client->mergenewshares(1);
                 client->applykeys();
-#ifdef ENABLE_SYNC
-                client->syncsup = false;
-#endif
-                client->app->fetchnodes_result(API_OK);
                 client->initsc();   // write scsn + users + pcrs (nodes, during readnodes())
-
-                // NULL vector: "notify all nodes"
-                client->app->nodes_updated(NULL, client->nodescount);
-                client->app->pcrs_updated(NULL, client->pcrindex.size());
                 return;
 
             default:
                 if (!client->json.storeobject())
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }

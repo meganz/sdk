@@ -333,10 +333,6 @@ public:
     static const char* const BALANCERURL;
 
 private:
-    // API request queue double buffering:
-    // reqs[r] is open for adding commands
-    // reqs[r^1] is being processed on the API server
-    HttpReq* pendingcs;
     BackoffTimer btcs;
 
     // server-client command trigger connection
@@ -365,11 +361,6 @@ private:
     // next local user record identifier to use
     int userid;
 
-    // pending file attribute writes
-    putfa_list newfa;
-
-    // current attribute being sent
-    putfa_list::iterator curfa;
     BackoffTimer btpfa;
 
     // next internal upload handle
@@ -475,6 +466,17 @@ public:
 
     // have we just completed fetching new nodes?
     bool statecurrent;
+
+    // pending file attribute writes
+    putfa_list newfa;
+
+    // current attribute being sent
+    putfa_list::iterator curfa;
+
+    // API request queue double buffering:
+    // reqs[r] is open for adding commands
+    // reqs[r^1] is being processed on the API server
+    HttpReq* pendingcs;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
@@ -607,6 +609,9 @@ public:
     // activity flag
     bool syncactivity;
 
+    // syncops indicates that a sync-relevant tree update may be pending
+    bool syncops;
+
     // app scanstate flag
     bool syncscanstate;
 
@@ -656,7 +661,7 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    void syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, NewNode*, int);
@@ -702,11 +707,8 @@ public:
 
     dstime transferretrydelay();
 
-    // active request buffer
-    int r;
-
     // client-server request double-buffering
-    Request reqs[2];
+    RequestDispatcher reqs;
 
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
@@ -754,6 +756,9 @@ public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
+
+    // max new nodes per request
+    static const int MAX_NEWNODES = 2000;
 
     // session ID length (binary)
     static const unsigned SIDLEN = 2 * SymmCipher::KEYLENGTH + USERHANDLE * 4 / 3 + 1;

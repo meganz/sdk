@@ -20,6 +20,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGANode.h"
 #import "MEGAUser.h"
@@ -2501,6 +2502,17 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
 /**
+ * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
+ *
+ * If the input stream is NULL, has a negative size or can't be read, this function returns NULL
+ *
+ * @param assetRepresentation ALAssetRepresentation that provides the data to create the fingerprint
+ * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
+ * @return Base64-encoded fingerprint
+ */
+- (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
+
+/**
  * @brief Get a Base64-encoded fingerprint for a node.
  *
  * If the node doesn't exist or doesn't have a fingerprint, this function returns nil.
@@ -2567,6 +2579,13 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  */
 - (NSString *)CRCForNode:(MEGANode *)node;
 
+/**
+ * @brief Get the CRC from a fingerPrint
+ *
+ * @param fingerPrint fingerPrint from which we want to get the CRC
+ * @return Base64-encoded CRC from the fingerPrint
+ */
+- (NSString *)CRCForFingerprint:(NSString *)fingerprint;
 /**
  * @brief Returns a node with the provided CRC
  *

@@ -105,4 +105,70 @@ void Request::clear()
     }
     cmds.clear();
 }
+
+RequestDispatcher::RequestDispatcher()
+{
+    r = 0;
+}
+
+void RequestDispatcher::nextRequest()
+{
+    r ^= 1;
+
+    while(!reqbuf.empty() && reqs[r].cmdspending() < MAX_COMMANDS)
+    {
+        Command *c = reqbuf.front();
+        reqbuf.pop();
+        reqs[r].add(c);
+        LOG_debug << "Command extracted from secondary buffer: " << reqbuf.size();
+    }
+}
+
+void RequestDispatcher::add(Command *c)
+{
+    if(reqs[r].cmdspending() < MAX_COMMANDS)
+    {
+        reqs[r].add(c);
+    }
+    else
+    {
+        reqbuf.push(c);
+        LOG_debug << "Command added to secondary buffer: " << reqbuf.size();
+    }
+}
+
+int RequestDispatcher::cmdspending() const
+{
+    return reqs[r].cmdspending();
+}
+
+void RequestDispatcher::get(string *out) const
+{
+    reqs[r].get(out);
+}
+
+void RequestDispatcher::procresult(MegaClient *client)
+{
+    reqs[r ^ 1].procresult(client);
+}
+
+void RequestDispatcher::clear()
+{
+    for (int i = sizeof(reqs)/sizeof(*reqs); i--; )
+    {
+        reqs[i].clear();
+    }
+
+    while (!reqbuf.empty())
+    {
+        Command *c = reqbuf.front();
+        reqbuf.pop();
+
+        if (!c->persistent)
+        {
+            delete c;
+        }
+    }
+}
+
 } // namespace

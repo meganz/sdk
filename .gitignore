@@ -23,6 +23,7 @@
 *.app
 /tests/sdk_test
 /tests/misc_test
+/tests/purge_account
 examples/megacli
 examples/megasimplesync
 examples/linux/megafuse

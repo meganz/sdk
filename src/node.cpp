@@ -602,7 +602,7 @@ void Node::setfingerprint()
 
         if (it != attrs.map.end())
         {
-            if(!unserializefingerprint(&it->second))
+            if (!unserializefingerprint(&it->second))
             {
                 LOG_warn << "Invalid fingerprint";
             }
@@ -787,6 +787,10 @@ bool Node::setparent(pnode_t p)
         return false;
     }
 
+#ifdef ENABLE_SYNC
+    pnode_t oldparent = client->nodebyhandle(parenthandle);
+#endif
+
     if(p)
     {
         parenthandle = p->nodehandle;
@@ -816,6 +820,11 @@ bool Node::setparent(pnode_t p)
             TreeProcDelSyncGet tdsg;
             client->proctree(shared_from_this(), &tdsg);
         }
+    }
+
+    if (oldparent && oldparent->localnode)
+    {
+        oldparent->localnode->treestate(oldparent->localnode->checkstate());
     }
 #endif
 
@@ -927,15 +936,15 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
     }
 
+    if (parent && parent != newparent)
+    {
+        treestate(TREESTATE_NONE);
+    }
+
     if (newparent)
     {
         if (newparent != parent)
         {
-            if (parent)
-            {
-                parent->treestate();
-            }
-
             parent = newparent;
 
             if (!newnode && node)
@@ -944,6 +953,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
+                LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parenthandle) != API_OK)
 //              I assume that 'node->parenthandle' is correctly set to its value or UNDEF
 //                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
@@ -954,7 +964,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     todelete = node;
                 }
                 sync->client->reqtag = creqtag;
-                treestate(TREESTATE_SYNCING);
+                ts = TREESTATE_SYNCING;
             }
 
             if (sync != parent->sync)
@@ -980,7 +990,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             parent->schildren[&slocalname] = this;
         }
 
-        parent->treestate();
+        treestate(TREESTATE_NONE);
 
         if (todelete)
         {
@@ -1074,42 +1084,54 @@ void LocalNode::treestate(treestate_t newts)
         sync->client->app->syncupdate_treestate(this);
     }
 
-    if (parent)
+    if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
+                   || (ts != dts && (!(ts == TREESTATE_SYNCED && parent->ts == TREESTATE_SYNCED))
+                                 && (!(ts == TREESTATE_SYNCING && parent->ts == TREESTATE_SYNCING))
+                                 && (!(ts == TREESTATE_PENDING && (parent->ts == TREESTATE_PENDING
+                                                                   || parent->ts == TREESTATE_SYNCING))))))
     {
-        if (ts == TREESTATE_SYNCING)
+        treestate_t state = TREESTATE_NONE;
+        if (newts != TREESTATE_NONE && ts == TREESTATE_SYNCING)
         {
-            parent->ts = TREESTATE_SYNCING;
+            state = TREESTATE_SYNCING;
         }
-        else if (newts != dts && (ts != TREESTATE_SYNCED || parent->ts != TREESTATE_SYNCED))
+        else
         {
-            parent->ts = TREESTATE_SYNCED;
-
-            for (localnode_map::iterator it = parent->children.begin(); it != parent->children.end(); it++)
-            {
-                if (it->second->ts == TREESTATE_SYNCING)
-                {
-                    parent->ts = TREESTATE_SYNCING;
-                    break;
-                }
-
-                if (it->second->ts == TREESTATE_PENDING && parent->ts == TREESTATE_SYNCED)
-                {
-                    parent->ts = TREESTATE_PENDING;
-                }
-            }
+            state = parent->checkstate();
         }
 
-        parent->treestate();
+        parent->treestate(state);
     }
 
     dts = ts;
+}
+
+treestate_t LocalNode::checkstate()
+{
+    if (type == FILENODE)
+        return ts;
+
+    treestate_t state = TREESTATE_SYNCED;
+    for (localnode_map::iterator it = children.begin(); it != children.end(); it++)
+    {
+        if (it->second->ts == TREESTATE_SYNCING)
+        {
+            state = TREESTATE_SYNCING;
+            break;
+        }
+
+        if (it->second->ts == TREESTATE_PENDING && ts == TREESTATE_SYNCED)
+        {
+            state = TREESTATE_PENDING;
+        }
+    }
+    return state;
 }
 
 void LocalNode::setnode(pnode_t cnode)
 {
     if (node && (node != cnode) && node->localnode)
     {
-        node->localnode->treestate();
         node->localnode = NULL;
     }
 

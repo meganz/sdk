@@ -1082,6 +1082,7 @@ class MegaApiImpl : public MegaApp
 
         //CRC
         char *getCRC(const char *filePath);
+        char *getCRCFromFingerprint(const char *fingerprint);
         char *getCRC(MegaNode *node);
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 

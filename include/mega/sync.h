@@ -113,6 +113,9 @@ public:
 
     // Error that causes a cancellation
     error errorcode;
+
+    // true if the sync hasn't loaded cached LocalNodes yet
+    bool initializing;
     
     Sync(MegaClient*, string*, const char*, string*, pnode_t, fsfp_t, bool, int);
     ~Sync();
