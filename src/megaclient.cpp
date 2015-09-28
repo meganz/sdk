@@ -2360,7 +2360,7 @@ bool MegaClient::procsc()
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (memcmp(jsonsc.pos, "\"i\":\"", 5)
+                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5)
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
