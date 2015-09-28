@@ -2294,6 +2294,7 @@ bool MegaClient::procsc()
                             }
 
                             fetchingnodes = false;
+                            restag = fetchnodestag;
                             app->fetchnodes_result(API_OK);
 
                             // NULL vector: "notify all elements"
