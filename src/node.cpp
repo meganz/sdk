@@ -1370,9 +1370,10 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     }
     else
     {
+        pnode_t pnode;
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        if (node)
+        if (node && (pnode = node->client->nodebyhandle(node->parenthandle)) && pnode->localnode)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execsyncdeletions();

@@ -510,6 +510,7 @@ void MegaClient::init()
     warned = false;
     csretrying = false;
     chunkfailed = false;
+    statecurrent = false;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -523,7 +524,6 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
-    statecurrent = false;
 
     if (syncscanstate)
     {
@@ -1018,7 +1018,7 @@ void MegaClient::exec()
                         }
                         // fall through
                     case REQ_FAILURE:
-                        if (pendingsc->sslcheckfailed)
+                        if (pendingsc && pendingsc->sslcheckfailed)
                         {
                             app->request_error(API_ESSL);
                             *scsn = 0;
@@ -2324,6 +2324,7 @@ bool MegaClient::procsc()
                             }
 
                             fetchingnodes = false;
+                            restag = fetchnodestag;
                             app->fetchnodes_result(API_OK);
 
                             // NULL vector: "notify all elements"
@@ -6633,6 +6634,17 @@ void MegaClient::fetchnodes()
     {
         fetchingnodes = true;
 
+        // prevent the processing of previous sc requests
+        delete pendingsc;
+        pendingsc = NULL;
+        jsonsc.pos = NULL;
+        scnotifyurl.clear();
+        insca = false;
+        btsc.reset();
+
+        // don't allow to start new sc requests yet
+        *scsn = 0;
+
 #ifdef ENABLE_SYNC
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
@@ -7824,8 +7836,10 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
+                    pnode_t parent;
+
                     // overwriting an existing remote node? send it to SyncDebris.
-                    if (l->node)
+                    if (l->node && (parent = nodebyhandle(l->node->parenthandle)) && parent->localnode)
                     {
                         movetosyncdebris(l->node, l->sync->inshare);
                     }
@@ -8237,10 +8251,10 @@ bool MegaClient::startxfer(direction_t d, File* f)
             {
                 if ((d == GET && f->localname == (*it)->localname)
                         || (d == PUT
-                            && f->h == (*it)->h)
+                            && f->h == (*it)->h
                             && !f->targetuser.size()
                             && !(*it)->targetuser.size()
-                            && f->name == (*it)->name)
+                            && f->name == (*it)->name))
                 {
                     return false;
                 }

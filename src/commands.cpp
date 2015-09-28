@@ -3066,6 +3066,7 @@ void CommandFetchNodes::procresult()
                 client->mergenewshares(1);
                 client->applykeys();
                 client->initsc();   // write scsn + users + pcrs (nodes, during readnodes())
+                client->fetchnodestag = tag;
                 return;
 
             default:

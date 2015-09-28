@@ -561,6 +561,7 @@ public:
 
     // initial state load in progress?
     bool fetchingnodes;
+    int fetchnodestag;
 
     // server-client request sequence number
     char scsn[12];
