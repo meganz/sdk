@@ -653,7 +653,12 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
 
     if (!t)
     {
+#ifdef ENABLE_SYNC
+        t = !setmtimelocal(newname, mtime);
+#else
+        // fails in setmtimelocal are allowed in non sync clients.
         setmtimelocal(newname, mtime);
+#endif
     }
     else
     {
@@ -768,7 +773,13 @@ bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
 {
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 
-    return !utime(name->c_str(), &times);
+    bool success = !utime(name->c_str(), &times);
+    if (!success)
+    {
+        transient_error = errno == ETXTBSY || errno == EBUSY;
+    }
+
+    return success;
 }
 
 bool PosixFileSystemAccess::chdirlocal(string* name) const
