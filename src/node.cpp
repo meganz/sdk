@@ -935,7 +935,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     todelete = node;
                 }
                 sync->client->reqtag = creqtag;
-                ts = TREESTATE_SYNCING;
+
+                if (type == FILENODE)
+                {
+                    ts = TREESTATE_SYNCING;
+                }
             }
 
             if (sync != parent->sync)
