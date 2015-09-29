@@ -900,6 +900,10 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     {
                         treestate(TREESTATE_SYNCING);
                     }
+                    else
+                    {
+                        sync->client->app->syncupdate_treestate(this);
+                    }
                 }
             }
         }
