@@ -895,7 +895,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     sync->client->reqtag = sync->tag;
                     sync->client->setattr(node, NULL, prevname.c_str());
                     sync->client->reqtag = creqtag;
-                    treestate(TREESTATE_SYNCING);
+
+                    if (node->type == FILENODE)
+                    {
+                        treestate(TREESTATE_SYNCING);
+                    }
                 }
             }
         }
