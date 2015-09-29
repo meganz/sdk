@@ -986,6 +986,12 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->cachenodes();
         }
     }
+
+    if (transfer)
+    {
+        LOG_debug << "Updating transfer path";
+        prepare();
+    }
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
