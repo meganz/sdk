@@ -486,7 +486,7 @@ void DirectReadNode::dispatch()
 
         pendingcmd = new CommandDirectRead(this);
 
-        client->reqs[client->r].add(pendingcmd);
+        client->reqs.add(pendingcmd);
     }
 }
 

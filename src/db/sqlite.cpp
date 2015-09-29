@@ -90,7 +90,7 @@ SqliteDbTable::~SqliteDbTable()
     }
     abort();
     sqlite3_close(db);
-    LOG_debug << "Database closed";
+    LOG_debug << "Database closed " << dbfile;
 }
 
 // set cursor to first record
@@ -231,6 +231,7 @@ void SqliteDbTable::begin()
         return;
     }
 
+    LOG_debug << "DB transaction BEGIN " << dbfile;
     sqlite3_exec(db, "BEGIN", 0, 0, NULL);
 }
 
@@ -242,6 +243,7 @@ void SqliteDbTable::commit()
         return;
     }
 
+    LOG_debug << "DB transaction COMMIT " << dbfile;
     sqlite3_exec(db, "COMMIT", 0, 0, NULL);
 }
 
@@ -253,6 +255,7 @@ void SqliteDbTable::abort()
         return;
     }
 
+    LOG_debug << "DB transaction ROLLBACK " << dbfile;
     sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
 }
 

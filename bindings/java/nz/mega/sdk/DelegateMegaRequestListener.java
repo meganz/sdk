@@ -1,4 +1,22 @@
+/*
+ * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,\
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * @copyright Simplified (2-clause) BSD License.
+ * You should have received a copy of the license along with this
+ * program.
+ */
 package nz.mega.sdk;
+
+import nz.mega.sdk.MegaApi;
+import nz.mega.sdk.MegaRequest;
 
 /**
  * Interface to receive information about requests.
@@ -9,6 +27,9 @@ package nz.mega.sdk;
  * This interface uses MegaRequest objects to provide information about requests.
  * Please note that not all fields of MegaRequest objects are valid for all requests.
  * See the documentation about each request to know which fields contain useful information for each one.
+ *
+ * @see MegaRequestListenerInterface
+ * @see MegaRequestListener
  */
 class DelegateMegaRequestListener extends MegaRequestListener {
 
@@ -33,9 +54,11 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *            API that started the request
+     *            API that started the request.
      * @param request
-     *            Information about the request
+     *            Information about the request.
+     * @see MegaRequestListenerInterface#onRequestStart(MegaApiJava api, MegaRequest request)
+     * @see MegaRequestListener#onRequestStart(MegaApi api, MegaRequest request)
      */
     @Override
     public void onRequestStart(MegaApi api, MegaRequest request) {
@@ -57,9 +80,11 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *            API that started the request
+     *            API that started the request.
      * @param request
-     *            Information about the request
+     *            Information about the request.
+     * @see MegaRequestListenerInterface#onRequestUpdate(MegaApiJava api, MegaRequest request)
+     * @see MegaRequestListener#onRequestUpdate(MegaApi api, MegaRequest request)
      */
     @Override
     public void onRequestUpdate(MegaApi api, MegaRequest request) {
@@ -83,11 +108,13 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *            API that started the request
+     *            API that started the request.
      * @param request
-     *            Information about the request
+     *            Information about the request.
      * @param e
-     *            Error Information
+     *            Error Information.
+     * @see MegaRequestListenerInterface#onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e)
+     * @see MegaRequestListener#onRequestFinish(MegaApi api, MegaRequest request, MegaError e)
      */
     @Override
     public void onRequestFinish(MegaApi api, MegaRequest request, MegaError e) {
@@ -114,11 +141,13 @@ class DelegateMegaRequestListener extends MegaRequestListener {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *            API that started the request
+     *            API that started the request.
      * @param request
-     *            Information about the request
+     *            Information about the request.
      * @param e
-     *            Error Information
+     *            Error Information.
+     * @see MegaRequestListenerInterface#onRequestTemporaryError(MegaApiJava api, MegaRequest request, MegaError e)
+     * @see MegaRequestListener#onRequestTemporaryError(MegaApi api, MegaRequest request, MegaError error)
      */
     @Override
     public void onRequestTemporaryError(MegaApi api, MegaRequest request, MegaError e) {

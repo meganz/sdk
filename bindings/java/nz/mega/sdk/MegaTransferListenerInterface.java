@@ -1,3 +1,18 @@
+/*
+ * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,\
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * @copyright Simplified (2-clause) BSD License.
+ * You should have received a copy of the license along with this
+ * program.
+ */
 package nz.mega.sdk;
 
 /**
@@ -15,9 +30,9 @@ public interface MegaTransferListenerInterface {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *              MegaApi object that started the transfer
+     *              MegaApi object that started the transfer.
      * @param transfer
-     *              Information about the transfer
+     *              Information about the transfer.
      */
     public void onTransferStart(MegaApiJava api, MegaTransfer transfer);
 
@@ -30,11 +45,11 @@ public interface MegaTransferListenerInterface {
      * transfer. If the transfer finished without problems, the error code will be API_OK.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      * @param e
-     *          Error information
+     *          Error information.
      */
     public void onTransferFinish(MegaApiJava api, MegaTransfer transfer, MegaError e);
 
@@ -45,9 +60,9 @@ public interface MegaTransferListenerInterface {
      * The api object is the one created by the application, it will be valid until the application deletes it.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      */
     public void onTransferUpdate(MegaApiJava api, MegaTransfer transfer);
 
@@ -59,11 +74,11 @@ public interface MegaTransferListenerInterface {
      * error parameters. Do not use them after this function returns.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      * @param e
-     *          Error information
+     *          Error information.
      */
     public void onTransferTemporaryError(MegaApiJava api, MegaTransfer transfer, MegaError e);
 
@@ -77,13 +92,13 @@ public interface MegaTransferListenerInterface {
      * programming languages.
      *
      * @param api
-     *          MegaApi object that started the transfer
+     *          MegaApi object that started the transfer.
      * @param transfer
-     *          Information about the transfer
+     *          Information about the transfer.
      * @param buffer
-     *          Buffer with the last read bytes
+     *          Buffer with the last read bytes.
      * @return
-     *          Size of the buffer
+     *          Size of the buffer.
      */
     public boolean onTransferData(MegaApiJava api, MegaTransfer transfer, byte[] buffer);
 }

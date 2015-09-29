@@ -4571,6 +4571,38 @@ char *MegaApiImpl::getCRC(const char *filePath)
     return MegaApi::strdup(result.c_str());
 }
 
+char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
+{
+    if(!fingerprint || !fingerprint[0]) return NULL;
+    
+    m_off_t size = 0;
+    unsigned int fsize = strlen(fingerprint);
+    unsigned int ssize = fingerprint[0] - 'A';
+    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+        return NULL;
+    
+    int len =  sizeof(size) + 1;
+    byte *buf = new byte[len];
+    Base64::atob(fingerprint + 1, buf, len);
+    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+    delete [] buf;
+    if(l <= 0)
+        return NULL;
+    
+    string sfingerprint = fingerprint + ssize + 1;
+    
+    FileFingerprint fp;
+    if(!fp.unserializefingerprint(&sfingerprint))
+    {
+        return NULL;
+    }
+    
+    string result;
+    result.resize((sizeof fp.crc) * 4 / 3 + 4);
+    result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc,(char*)result.c_str()));
+    return MegaApi::strdup(result.c_str());
+}
+
 char *MegaApiImpl::getCRC(MegaNode *n)
 {
     if(!n) return NULL;
@@ -7616,15 +7648,26 @@ void MegaApiImpl::sendPendingTransfers()
                 string wFileName = fileName;
                 MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
 
-                bool started = client->startxfer(PUT,f);
+                bool started = client->startxfer(PUT, f, true);
                 if(!started)
                 {
-                    //Unable to read the file
-                    transfer->setSyncTransfer(false);
-                    transferMap[nextTag]=transfer;
-                    transfer->setTag(nextTag);
-                    fireOnTransferStart(transfer);
-                    fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                    if(!f->isvalid)
+                    {
+                        //Unable to read the file
+                        transfer->setSyncTransfer(false);
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                    }
+                    else
+                    {
+                        //Already existing transfer
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                    }
                 }
                 else if(transfer->getTag() == -1)
                 {
@@ -7717,21 +7760,31 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
-					client->startxfer(GET,f);
+                    bool ok = client->startxfer(GET, f, true);
                     if(transfer->getTag() == -1)
                     {
                         //Already existing transfer
-                        //Delete the new one and set the transfer as regular
-                        transfer_map::iterator it = client->transfers[GET].find(f);
-                        if(it != client->transfers[GET].end())
+                        if (ok)
                         {
-                            int previousTag = it->second->tag;
-                            if(transferMap.find(previousTag) != transferMap.end())
+                            //Set the transfer as regular
+                            transfer_map::iterator it = client->transfers[GET].find(f);
+                            if(it != client->transfers[GET].end())
                             {
-                                MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
-                                previousTransfer->setSyncTransfer(false);
-                                delete transfer;
+                                int previousTag = it->second->tag;
+                                if(transferMap.find(previousTag) != transferMap.end())
+                                {
+                                    MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
+                                    previousTransfer->setSyncTransfer(false);
+                                }
                             }
+                        }
+                        else
+                        {
+                            //Already existing transfer
+                            transferMap[nextTag]=transfer;
+                            transfer->setTag(nextTag);
+                            fireOnTransferStart(transfer);
+                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
                 }
@@ -9024,6 +9077,39 @@ long long MegaApiImpl::getTotalUploadedBytes()
 
 void MegaApiImpl::update()
 {
+#ifdef ENABLE_SYNC
+    sdkMutex.lock();
+
+    LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
+    if(client->curfa == client->newfa.end())
+    {
+        LOG_debug << "PendingFA? 0";
+    }
+    else
+    {
+        HttpReqCommandPutFA* fa = *client->curfa;
+        if(fa)
+        {
+            LOG_debug << "PendingFA? " << client->newfa.size() << " STATUS: " << fa->status;
+        }
+    }
+
+    LOG_debug << "FLAGS: " << client->syncactivity << " " << client->syncadded
+              << " " << client->syncdownrequired << " " << client->syncdownretry
+              << " " << client->syncfslockretry << " " << client->syncfsopsfailed
+              << " " << client->syncnagleretry << " " << client->syncscanfailed
+              << " " << client->syncops << " " << client->syncscanstate
+              << " " << client->faputcompletion.size() << " " << client->synccreate.size()
+              << " " << client->fetchingnodes << " " << client->pendingfa.size()
+              << " " << client->xferpaused[0] << " " << client->xferpaused[1]
+              << " " << client->transfers[0].size() << " " << client->transfers[1].size()
+              << " " << client->syncscanstate << " " << client->statecurrent
+              << " " << client->syncadding << " " << client->syncdebrisadding
+              << " " << client->umindex.size() << " " << client->uhindex.size();
+
+    sdkMutex.unlock();
+#endif
+
     waiter->notify();
 }
 
