@@ -675,6 +675,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     {
         DWORD e = GetLastError();
         transient_error = istransient(e);
+        LOG_warn << "Error opening file to change mtime: " << e;
         return false;
     }
 
@@ -688,6 +689,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     {
         DWORD e = GetLastError();
         transient_error = istransient(e);
+        LOG_warn << "Error changing mtime: " << e;
     }
 
     CloseHandle(hFile);

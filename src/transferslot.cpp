@@ -350,6 +350,7 @@ void TransferSlot::doio(MegaClient* client)
                     }
                     else
                     {
+                        LOG_warn << "Error preparing transfer: " << fa->retry;
                         if (!fa->retry)
                         {
                             return transfer->failed(API_EREAD);

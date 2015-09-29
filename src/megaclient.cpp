@@ -2027,6 +2027,8 @@ bool MegaClient::dispatch(direction_t d)
             }
         }
 
+        LOG_warn << "Error dispatching transfer";
+
         // file didn't open - fail & defer
         nextit->second->failed(API_EREAD);
     }

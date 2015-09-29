@@ -132,6 +132,7 @@ void Transfer::complete()
         if (!success)
         {
             transient_error = client->fsaccess->transient_error;
+            LOG_debug << "setmtimelocal failed " << transient_error;
         }
 #endif
 
@@ -166,6 +167,7 @@ void Transfer::complete()
             if (!transient_error)
             {
                 transient_error = fa->retry;
+                LOG_debug << "Unable to validate fingerprint " << transient_error;
             }
         }
 #endif
