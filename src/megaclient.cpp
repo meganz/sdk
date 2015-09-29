@@ -2385,7 +2385,7 @@ bool MegaClient::procsc()
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (memcmp(jsonsc.pos, "\"i\":\"", 5)
+                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5)
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
@@ -5098,19 +5098,47 @@ bool MegaClient::readusers(JSON* j)
 
             if (v == ME)
             {
-                me = uh;
+                if (me != UNDEF && uh != me)
+                {
+                    char mehandle[sizeof me * 4 / 3 + 4];
+                    char uhhandle[sizeof uh * 4 / 3 + 4];
+
+                    Base64::btoa((const byte *)&me, sizeof me, mehandle);
+                    Base64::btoa((const byte *)&uh, sizeof uh, uhhandle);
+
+                    char report[256];
+                    sprintf(report, "Own user handle mismatch: %s - %s (%d)", mehandle, uhhandle, fetchingnodes);
+
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99403, report);
+                    reqtag = creqtag;
+                }
+                else
+                {
+                    me = uh;
+                }
             }
 
-            if ((u = finduser(uh, 1)))
+            u = finduser(uh, 0);
+            bool notify = !u;
+            if (u || (u = finduser(uh, 1)))
             {
                 mapuser(uh, m);
 
                 if (v != VISIBILITY_UNKNOWN)
                 {
-                    u->set(v, ts);
+                    if (u->show != v || u->ctime != ts)
+                    {
+                        u->set(v, ts);
+                        notify = true;
+                    }
                 }
 
-                notifyuser(u);
+                if (notify)
+                {
+                    notifyuser(u);
+                }
             }
         }
     }
@@ -8205,7 +8233,7 @@ void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 {
     if (!f->transfer)
     {
@@ -8246,17 +8274,20 @@ bool MegaClient::startxfer(direction_t d, File* f)
         if (it != transfers[d].end())
         {
             t = it->second;
-
-            for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+            if (skipdupes)
             {
-                if ((d == GET && f->localname == (*it)->localname)
-                        || (d == PUT
-                            && f->h == (*it)->h
-                            && !f->targetuser.size()
-                            && !(*it)->targetuser.size()
-                            && f->name == (*it)->name))
+                for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
                 {
-                    return false;
+                    if ((d == GET && f->localname == (*fi)->localname)
+                            || (d == PUT && f->h != UNDEF
+                                && f->h == (*fi)->h
+                                && !f->targetuser.size()
+                                && !(*fi)->targetuser.size()
+                                && f->name == (*fi)->name))
+                    {
+                        LOG_warn << "Skipping duplicated transfer";
+                        return false;
+                    }
                 }
             }
         }
@@ -8481,6 +8512,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
 void MegaClient::sendevent(int event, const char *desc)
 {
+    LOG_warn << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
 }
 
