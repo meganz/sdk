@@ -38,6 +38,22 @@ DbTable::~DbTable()
     delete phkey;
 }
 
+string DbTable::gethkey()
+{
+    string ret;
+    ret.resize(HANDLEKEYLENGTH * 4 / 3 + 4);
+    Base64::btoa(hkey, HANDLEKEYLENGTH, (char *)ret.data());
+    return ret;
+}
+
+string DbTable::getphkey()
+{
+    string ret;
+    ret.resize(HANDLEKEYLENGTH * 4 / 3 + 4);
+    Base64::btoa(phkey, HANDLEKEYLENGTH, (char *)ret.data());
+    return ret;
+}
+
 bool DbTable::putrootnodes(handle *rootnodes)
 {
     string data;
@@ -201,6 +217,16 @@ bool DbTable::getuser(string* data)
 }
 
 bool DbTable::getpcr(string *data)
+{
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
+bool DbTable::getnode(string *data)
 {
     if (next(data))
     {

@@ -54,6 +54,7 @@ public:
     bool getnumchildfilesquery(handle, int*);
     bool getnumchildfoldersquery(handle, int*);
 
+    void rewindnode();
     void rewinduser();
     void rewindpcr();
     void rewindencryptednode();

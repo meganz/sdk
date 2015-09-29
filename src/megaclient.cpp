@@ -473,6 +473,126 @@ int MegaClient::hexval(char c)
     return c > '9' ? c - 'a' + 10 : c - '0';
 }
 
+void MegaClient::exportDatabase(string filename)
+{
+    FILE *fp = NULL;
+    fp = fopen(filename.c_str(), "w");
+    if (!fp)
+    {
+        LOG_warn << "Cannot export DB to file \"" << filename << "\"";
+        return;
+    }
+
+    LOG_info << "Exporting database...";
+
+    string data;
+    handle rootnodes[3];
+    pnode_t n;
+    node_vector dp;
+    User *u;
+    PendingContactRequest *pcr;
+    std::map<handle, string> entries;
+
+    // 1. Export init table
+    fprintf(fp, "\n\t__INIT table__\n\n");
+    sctable->getscsn(&data);
+    fprintf(fp, "Server-Client sequence number: %s\n", data.data());
+    sctable->getrootnodes(rootnodes);
+    fprintf(fp, "Rootnodes:\n");
+    fprintf(fp, "\tCloud:  \t%ld\n", rootnodes[0]);
+    fprintf(fp, "\tInbox:  \t%ld\n", rootnodes[1]);
+    fprintf(fp, "\tRubbish:\t%ld\n", rootnodes[2]);
+    fprintf(fp, "Key for nodehandles:   \t%s\n", sctable->gethkey().data());
+    fprintf(fp, "Key for parenthandles: \t%s\n\n", sctable->getphkey().data());
+
+    // 2. Export nodes table
+    fprintf(fp, "\n\t__NODES table__\n\n");
+    entries.clear();
+    sctable->rewindnode();
+    while (sctable->getnode(&data))
+    {
+        n = Node::unserialize(this, &data, &dp);
+        if (n)
+        {
+            entries.insert(std::pair<handle, string>(n->nodehandle, data));
+        }
+    }
+    for (map<handle, string>::iterator it = entries.begin(); it != entries.end(); it++)
+    {
+        fprintf(fp, "%ld\t%s\n", it->first, it->second.c_str());
+    }
+
+    // 3. Export users table
+    fprintf(fp, "\n\t__USERS table__\n\n");
+    entries.clear();
+    sctable->rewinduser();
+    while (sctable->getuser(&data))
+    {
+        u = User::unserialize(this, &data);
+        if (u)
+        {
+            entries.insert(std::pair<handle, string>(u->userhandle, data));
+        }
+    }
+    for (map<handle, string>::iterator it = entries.begin(); it != entries.end(); it++)
+    {
+        fprintf(fp, "%ld\t%s\n", it->first, it->second.c_str());
+    }
+
+    // 4. Export pcrs table
+    fprintf(fp, "\n\t__PENDING CONTACT REQUESTS table__\n\n");
+    entries.clear();
+    sctable->rewindpcr();
+    while (sctable->getpcr(&data))
+    {
+        pcr = PendingContactRequest::unserialize(this, &data);
+        if (pcr)
+        {
+            entries.insert(std::pair<handle, string>(pcr->id, data));
+        }
+    }
+    for (map<handle, string>::iterator it = entries.begin(); it != entries.end(); it++)
+    {
+        fprintf(fp, "%d\t%s\n", it->first, it->second.c_str());
+    }
+
+    fprintf(fp, "\n\n");
+    fclose(fp);
+
+    LOG_info << "Database exported successfully to \"" << filename << "\"";
+}
+
+bool MegaClient::compareDatabase(string filename1, string filename2)
+{
+    LOG_info << "Comparing databases: \"" << filename1 << "\" and \"" << filename2 << "\"";
+    FILE *fp1 = NULL;
+    fp1 = fopen(filename1.data(), "r");
+
+    FILE *fp2 = NULL;
+    fp2 = fopen(filename2.data(), "r");
+
+    int N = 10000;
+    char buf1[N];
+    char buf2[N];
+
+    do {
+        size_t r1 = fread(buf1, 1, N, fp1);
+        size_t r2 = fread(buf2, 1, N, fp2);
+
+        if (r1 != r2 || memcmp(buf1, buf2, r1))
+        {
+            LOG_info << "Databases are different";
+            return false;
+        }
+    } while (!feof(fp1) || !feof(fp2));
+
+    fclose(fp1);
+    fclose(fp2);
+
+    LOG_info << "Databases are equal";
+    return true;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

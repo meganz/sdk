@@ -58,11 +58,13 @@ protected:
 
 public:
     // for a sequential read
+    virtual void rewindnode() = 0;
     virtual void rewinduser() = 0;
     virtual void rewindpcr() = 0;
     bool getrootnodes(handle*);
     bool getuser(string*);
     bool getpcr(string*);
+    bool getnode(string*);
 
     // get records for `scsn`
     virtual bool getscsn(string*) = 0;
@@ -138,6 +140,10 @@ public:
 
     // read key to encrypt handles from DB
     virtual bool readhkey() = 0;
+
+    // return ASCII versions to export DB
+    string gethkey();
+    string getphkey();
 
 private:
     // handle encryption to masterkey (AES with padded CBC mode)
