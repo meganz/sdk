@@ -769,7 +769,7 @@ bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
     return r;
 }
 
-bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
+bool PosixFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
 {
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 

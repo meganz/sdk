@@ -658,7 +658,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
+bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
 {
 #ifdef WINDOWS_PHONE
     return false;
