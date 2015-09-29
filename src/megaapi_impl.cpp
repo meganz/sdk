@@ -7648,7 +7648,7 @@ void MegaApiImpl::sendPendingTransfers()
                 string wFileName = fileName;
                 MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
 
-                bool started = client->startxfer(PUT,f);
+                bool started = client->startxfer(PUT, f, true);
                 if(!started)
                 {
                     if(!f->isvalid)
@@ -7760,7 +7760,7 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
-                    bool ok = client->startxfer(GET,f);
+                    bool ok = client->startxfer(GET, f, true);
                     if(transfer->getTag() == -1)
                     {
                         //Already existing transfer

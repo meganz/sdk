@@ -8126,7 +8126,7 @@ void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 {
     if (!f->transfer)
     {
@@ -8167,17 +8167,20 @@ bool MegaClient::startxfer(direction_t d, File* f)
         if (it != transfers[d].end())
         {
             t = it->second;
-
-            for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+            if (skipdupes)
             {
-                if ((d == GET && f->localname == (*it)->localname)
-                        || (d == PUT
-                            && f->h == (*it)->h
-                            && !f->targetuser.size()
-                            && !(*it)->targetuser.size()
-                            && f->name == (*it)->name))
+                for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
                 {
-                    return false;
+                    if ((d == GET && f->localname == (*fi)->localname)
+                            || (d == PUT && f->h != UNDEF
+                                && f->h == (*fi)->h
+                                && !f->targetuser.size()
+                                && !(*fi)->targetuser.size()
+                                && f->name == (*fi)->name))
+                    {
+                        LOG_warn << "Skipping duplicated transfer";
+                        return false;
+                    }
                 }
             }
         }
