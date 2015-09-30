@@ -2631,9 +2631,12 @@ void CommandSetPH::procresult()
     }
 
     handle ph = client->json.gethandle();
-    m_time_t ets = client->json.getint();
+    if (ets)    // if `ets` was sent, it's expected to receive the new value
+    {
+        ets = client->json.getint();
+    }
 
-    if (ISUNDEF(ph))
+    if (ISUNDEF(ph) || (ets == -1))
     {
         return client->app->exportnode_result(API_EINTERNAL);
     }
