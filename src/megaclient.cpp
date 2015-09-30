@@ -3702,16 +3702,16 @@ void MegaClient::sc_upc()
         }
     }
 }
-
+// Public links updates
 void MegaClient::sc_ph()
 {
-    // fields: h, ph, d, n, ets, i
+    // fields: h, ph, d, n, ets
     handle h = UNDEF;
     handle ph = UNDEF;
     bool deleted = false;
     bool created = false;
+    bool takendown = false;
     m_time_t ets = 0;
-    int index = 0;
     Node *n;
 
     bool done = false;
@@ -3731,12 +3731,11 @@ void MegaClient::sc_ph()
         case 'n':
             created = (jsonsc.getint() == 1);
             break;
+        case MAKENAMEID4('d','o','w','n'):
+            takendown = (jsonsc.getint() == 1);
+            break;
         case MAKENAMEID3('e', 't', 's'):
             ets = jsonsc.getint();
-            break;
-        case 'i':
-            index = jsonsc.getint();
-            LOG_warn << "i element in wrong position (should be the first element)";
             break;
         case EOO:
             done = true;
@@ -3750,9 +3749,9 @@ void MegaClient::sc_ph()
                 LOG_err << "ph element not provided";
                 break;
             }
-            if ( !deleted && !created )
+            if ( !deleted && !created && !takendown)
             {
-                LOG_err << "d/n element not provided";
+                LOG_err << "d/n/down element not provided";
                 break;
             }
 
@@ -3782,6 +3781,11 @@ void MegaClient::sc_ph()
                     n->plink->ets = ets;
 
                     notifynode(n);
+                }
+
+                if (takendown)
+                {
+
                 }
             }
             else
@@ -4994,6 +4998,7 @@ void MegaClient::procph(JSON *j)
             handle ph = UNDEF;
             m_time_t ets = 0;
             Node *n = NULL;
+            bool takendown = false;
 
             bool done = false;
             while (!done)
@@ -5008,6 +5013,9 @@ void MegaClient::procph(JSON *j)
                         break;
                     case MAKENAMEID3('e', 't', 's'):
                         ets = j->getint();
+                        break;
+                    case MAKENAMEID4('d','o','w','n'):
+                        takendown = (j->getint() == 1);
                         break;
                     case EOO:
                         done = true;
@@ -5025,6 +5033,11 @@ void MegaClient::procph(JSON *j)
                         n = nodebyhandle(h);
                         if (n)
                         {
+                            if (takendown)
+                            {
+
+                            }
+
                             if (!n->plink)
                             {
                                 n->plink = new struct PublicLink;

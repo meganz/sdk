@@ -966,7 +966,7 @@ class MegaApiImpl : public MegaApp
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, MegaRequestListener *listener = NULL, int expireTime = 0);
+        void exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);

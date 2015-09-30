@@ -2618,8 +2618,9 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, int ets)
         arg("ets", ets);
     }
 
-    h = n->nodehandle;
-    tag = client->reqtag;
+    this->h = n->nodehandle;
+    this->ets = ets;
+    this->tag = client->reqtag;
 }
 
 void CommandSetPH::procresult()
@@ -2630,6 +2631,7 @@ void CommandSetPH::procresult()
     }
 
     handle ph = client->json.gethandle();
+    m_time_t ets = client->json.getint();
 
     if (ISUNDEF(ph))
     {
@@ -2637,6 +2639,7 @@ void CommandSetPH::procresult()
     }
 
     client->app->exportnode_result(h, ph);
+//    client->app->exportnode_result(h, ph, ets);
 }
 
 CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int cop)

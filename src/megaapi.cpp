@@ -1201,12 +1201,12 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, listener);
+    pImpl->exportNode(node, 0, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, listener, expireTime);
+    pImpl->exportNode(node, expireTime, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)

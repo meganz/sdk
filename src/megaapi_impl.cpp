@@ -2854,11 +2854,20 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 	setUserAttr(type ? type : -1, value, listener);
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener, int expireTime)
+bool isExpired(m_time_t ets)
 {
-    // If the node is already exported, simply call its callback
+    time_t t = time(NULL);
+    struct tm *ptm = gmtime(&t);
+    t = mktime(ptm);
+
+    return ets < t;
+}
+
+void MegaApiImpl::exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener)
+{
+    // If the node is already exported and it's not expired, simply call its callback
     PublicLink *plink = node->getPublicLink();
-    if (plink)
+    if (plink && (!plink->ets || !isExpired(plink->ets)))
     {
         exportnode_result(node->getHandle(), plink->ph);
         return;
