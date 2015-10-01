@@ -6369,6 +6369,14 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
 // export node link
 error MegaClient::exportnode(Node* n, int del, int ets)
 {
+    if (n->plink && !del && !n->plink->takendown
+            && (ets == n->plink->ets) && !n->plink->isExpired())
+    {
+        restag = reqtag;
+        app->exportnode_result(n->nodehandle, n->plink->ph);
+        return API_OK;
+    }
+
     if (!checkaccess(n, OWNER))
     {
         return API_EACCESS;

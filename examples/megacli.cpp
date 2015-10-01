@@ -2957,7 +2957,7 @@ static void process_line(char* l)
                                     del = (words[2] == "del");
                                     if (!del)
                                     {
-                                        ets = atoi(words[2].c_str());
+                                        ets = atol(words[2].c_str());
                                     }
                                 }
 

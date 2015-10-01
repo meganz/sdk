@@ -536,7 +536,7 @@ class MegaNode
          * @brief Returns the structure representing a PublicLink
          * @return Structure with the public link information
          */
-        virtual PublicLink * getPublicLink() const;
+        virtual PublicLink * getPublicLink();
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)

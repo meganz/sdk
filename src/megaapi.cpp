@@ -222,7 +222,7 @@ int MegaNode::getTag()
     return 0;
 }
 
-PublicLink *MegaNode::getPublicLink() const
+PublicLink *MegaNode::getPublicLink()
 {
     return NULL;
 }

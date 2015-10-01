@@ -881,8 +881,8 @@ bool PublicLink::isExpired()
         return false;
 
     time_t t = time(NULL);
-    struct tm *ptm = gmtime(&t);
-    t = mktime(ptm);
+//    struct tm *ptm = gmtime(&t);
+//    t = mktime(ptm);
 
     return ets < t;
 }

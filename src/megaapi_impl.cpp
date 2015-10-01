@@ -2847,23 +2847,12 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 
 void MegaApiImpl::exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener)
 {
-    // If the node is already exported, same 'expireTime'
-    // and it's not expired, simply call its callback
-    PublicLink *plink = node->getPublicLink();
-    if (plink && (expireTime == plink->ets) && !plink->isExpired())
-    {
-        exportnode_result(node->getHandle(), plink->ph);
-        return;
-    }
-    else    // request to create the link
-    {
-        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
-        if(node) request->setNodeHandle(node->getHandle());
-        request->setNumber(expireTime);
-        request->setAccess(1);
-        requestQueue.push(request);
-        waiter->notify();
-    }
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setNumber(expireTime);
+    request->setAccess(1);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
