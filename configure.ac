@@ -115,6 +115,9 @@ AM_CONDITIONAL(CPPCHECK, test -n "$HAVE_CPPCHECK")
 # set C++
 AC_LANG_CPLUSPLUS
 
+# enable support for C++0x standard
+AX_CHECK_COMPILE_FLAG([-std=c++0x], [CXXFLAGS="$CXXFLAGS -std=c++0x"])
+
 # Check headers
 AC_STDC_HEADERS
 AC_HEADER_STDC
