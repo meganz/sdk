@@ -66,10 +66,6 @@
 #ifndef WINDOWS_PHONE
  #include <Wincrypt.h>
  #include <Winhttp.h>
-
- #ifdef __MINGW32__
-  #include <fileapi.h>
- #endif
 #endif
 
 #include <shellapi.h>
