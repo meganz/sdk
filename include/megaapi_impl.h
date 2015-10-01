@@ -162,6 +162,7 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasPreview();
         virtual bool isPublic();
         virtual bool isExported();
+        virtual bool isTakenDown();
         virtual std::string* getAuth();
 
 #ifdef ENABLE_SYNC

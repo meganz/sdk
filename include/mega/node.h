@@ -75,6 +75,23 @@ struct MEGA_API NewNode : public NodeCore
     }
 };
 
+struct MEGA_API PublicLink
+{
+    handle ph;
+    m_time_t ets;
+    bool takendown;
+
+    PublicLink(handle ph, m_time_t ets, bool takendown)
+    {
+        this->ph = ph;
+        this->ets = ets;
+        this->takendown = takendown;
+    }
+
+    PublicLink(PublicLink *plink);
+    bool isExpired();
+};
+
 // filesystem node
 struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 {

@@ -200,13 +200,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
-    this->plink = NULL;
-    if (node->plink)
-    {
-        this->plink = new PublicLink;
-        this->plink->ph = node->plink->ph;
-        this->plink->ets = node->plink->ets;
-    }
+    this->plink = node->plink ? new PublicLink(node->plink) : NULL;
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -302,15 +296,7 @@ int MegaNodePrivate::getTag()
 
 PublicLink *MegaNodePrivate::getPublicLink()
 {
-    PublicLink *plink = NULL;
-    if (this->plink)
-    {
-        plink = new PublicLink;
-        plink->ph = this->plink->ph;
-        plink->ets = this->plink->ets;
-    }
-
-    return plink;
+    return this->plink ? new PublicLink(this->plink) : NULL;
 }
 
 bool MegaNodePrivate::isFile()
@@ -504,6 +490,11 @@ bool MegaNodePrivate::isPublic()
 bool MegaNodePrivate::isExported()
 {
     return plink;
+}
+
+bool MegaNodePrivate::isTakenDown()
+{
+    return plink ? plink->takendown : false;
 }
 
 string *MegaNodePrivate::getAuth()
@@ -2854,20 +2845,12 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 	setUserAttr(type ? type : -1, value, listener);
 }
 
-bool isExpired(m_time_t ets)
-{
-    time_t t = time(NULL);
-    struct tm *ptm = gmtime(&t);
-    t = mktime(ptm);
-
-    return ets < t;
-}
-
 void MegaApiImpl::exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener)
 {
-    // If the node is already exported and it's not expired, simply call its callback
+    // If the node is already exported, same 'expireTime'
+    // and it's not expired, simply call its callback
     PublicLink *plink = node->getPublicLink();
-    if (plink && (!plink->ets || !isExpired(plink->ets)))
+    if (plink && (expireTime == plink->ets) && !plink->isExpired())
     {
         exportnode_result(node->getHandle(), plink->ph);
         return;

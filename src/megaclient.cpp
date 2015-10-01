@@ -3710,6 +3710,7 @@ void MegaClient::sc_ph()
     handle ph = UNDEF;
     bool deleted = false;
     bool created = false;
+    bool updated = false;
     bool takendown = false;
     m_time_t ets = 0;
     Node *n;
@@ -3731,6 +3732,9 @@ void MegaClient::sc_ph()
         case 'n':
             created = (jsonsc.getint() == 1);
             break;
+        case 'u':
+            updated = (jsonsc.getint() == 1);
+            break;
         case MAKENAMEID4('d','o','w','n'):
             takendown = (jsonsc.getint() == 1);
             break;
@@ -3749,44 +3753,38 @@ void MegaClient::sc_ph()
                 LOG_err << "ph element not provided";
                 break;
             }
-            if ( !deleted && !created && !takendown)
+            if ( !deleted && !created && !updated && !takendown)
             {
-                LOG_err << "d/n/down element not provided";
+                LOG_err << "d/n/u/down element not provided";
                 break;
             }
 
             n = nodebyhandle(h);
             if (n)
             {
-                // public link
-                if (deleted)
+                if (deleted)        // deletion
                 {
                     if (n->plink)
                     {
                         delete n->plink;
                         n->plink = NULL;
-
-                        notifynode(n);
                     }
                 }
-
-                if (created)
+                else
                 {
-                    if (!n->plink)
+                    if (!n->plink)  // creation
                     {
-                        n->plink = new struct PublicLink;
+                        n->plink = new struct PublicLink(ph, ets, takendown);
                     }
-
-                    n->plink->ph = ph;
-                    n->plink->ets = ets;
-
-                    notifynode(n);
+                    else            // update
+                    {
+                        n->plink->ph = ph;
+                        n->plink->ets = ets;
+                        n->plink->takendown = takendown;
+                    }
                 }
 
-                if (takendown)
-                {
-
-                }
+                notifynode(n);
             }
             else
             {
@@ -5033,18 +5031,16 @@ void MegaClient::procph(JSON *j)
                         n = nodebyhandle(h);
                         if (n)
                         {
-                            if (takendown)
-                            {
-
-                            }
-
                             if (!n->plink)
                             {
-                                n->plink = new struct PublicLink;
+                                n->plink = new struct PublicLink(ph, ets, takendown);
                             }
-
-                            n->plink->ph = ph;
-                            n->plink->ets = ets;
+                            else
+                            {
+                                n->plink->ph = ph;
+                                n->plink->ets = ets;
+                                n->plink->takendown = takendown;
+                            }
 
                             notifynode(n);
                         }

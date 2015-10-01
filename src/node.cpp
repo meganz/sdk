@@ -332,11 +332,14 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if (isExported)
     {
-        plink = new PublicLink;
-        plink->ph = MemAccess::get<handle>(ptr);
+        handle ph = MemAccess::get<handle>(ptr);
         ptr += MegaClient::NODEHANDLE;
-        plink->ets = MemAccess::get<m_time_t>(ptr);
-        ptr += sizeof(plink->ets);
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
+
+        plink = new PublicLink(ph, ets, takendown);
     }
     n->plink = plink;
 
@@ -488,6 +491,7 @@ bool Node::serialize(string* d)
         d->append((char*) &isExported, sizeof(bool));
         d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
         d->append((char*) &plink->ets, sizeof(plink->ets));
+        d->append((char*) &plink->takendown, sizeof(plink->takendown));
     }
     else
     {
@@ -862,6 +866,25 @@ NodeCore::NodeCore()
 NodeCore::~NodeCore()
 {
     delete attrstring;
+}
+
+PublicLink::PublicLink(PublicLink *plink)
+{
+    this->ph = plink->ph;
+    this->ets = plink->ets;
+    this->takendown = plink->takendown;
+}
+
+bool PublicLink::isExpired()
+{
+    if (!ets)       // permanent link: ets=0
+        return false;
+
+    time_t t = time(NULL);
+    struct tm *ptm = gmtime(&t);
+    t = mktime(ptm);
+
+    return ets < t;
 }
 
 #ifdef ENABLE_SYNC

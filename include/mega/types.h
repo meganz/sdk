@@ -354,12 +354,6 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
-struct PublicLink
-{
-    handle ph;
-    m_time_t ets;
-};
-
 } // namespace
 
 #endif

@@ -533,7 +533,7 @@ class MegaNode
         virtual int getTag();
 
         /**
-         * @brief Returns a structure with the public link information (handle and expiration time)
+         * @brief Returns the structure representing a PublicLink
          * @return Structure with the public link information
          */
         virtual PublicLink * getPublicLink() const;
@@ -665,6 +665,16 @@ class MegaNode
          * @return true if this is an exported node
          */
         virtual bool isExported();
+
+        /**
+         * @brief Returns true if this the node has been exported
+         * and the related public link has been taken down.
+         *
+         * Public links are created by calling MegaApi::exportNode.
+         *
+         * @return true if the public link has been taken down.
+         */
+        virtual bool isTakenDown();
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)

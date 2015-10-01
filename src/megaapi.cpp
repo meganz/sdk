@@ -272,6 +272,11 @@ bool MegaNode::isExported()
     return false;
 }
 
+bool MegaNode::isTakenDown()
+{
+    return false;
+}
+
 string *MegaNode::getNodeKey()
 {
     return NULL;

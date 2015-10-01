@@ -457,7 +457,6 @@ public:
 class MEGA_API CommandSetPH : public Command
 {
     handle h;
-    m_time_t ets;
 
 public:
     void procresult();
