@@ -534,6 +534,9 @@ class MegaNode
 
         /**
          * @brief Returns the structure representing a PublicLink
+         *
+         * You take the ownership of the returned value.
+         *
          * @return Structure with the public link information
          */
         virtual PublicLink * getPublicLink();
