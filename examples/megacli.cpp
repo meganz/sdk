@@ -1032,6 +1032,10 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                 {
                     cout << ", has attributes " << p + 1;
                 }
+                if (n->plink)
+                {
+                    cout << ", shared as exported file link";
+                }
                 break;
 
             case FOLDERNODE:
@@ -1046,10 +1050,11 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                             cout << ", shared with " << it->second->user->email << ", access "
                                  << accesslevels[it->second->access];
                         }
-                        else
-                        {
-                            cout << ", shared as exported folder link";
-                        }
+                    }
+
+                    if (n->plink)
+                    {
+                        cout << ", shared as exported folder link";
                     }
                 }
 
