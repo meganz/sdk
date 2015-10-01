@@ -492,17 +492,15 @@ void MegaClient::exportDatabase(string filename)
 bool MegaClient::compareDatabases(string filename1, string filename2)
 {
     LOG_info << "Comparing databases: \"" << filename1 << "\" and \"" << filename2 << "\"";
-    FILE *fp1 = NULL;
-    fp1 = fopen(filename1.data(), "r");
+    FILE *fp1 = fopen(filename1.data(), "r");
+    FILE *fp2 = fopen(filename2.data(), "r");
 
-    FILE *fp2 = NULL;
-    fp2 = fopen(filename2.data(), "r");
-
-    int N = 10000;
+    const int N = 8192;
     char buf1[N];
     char buf2[N];
 
-    do {
+    do
+    {
         size_t r1 = fread(buf1, 1, N, fp1);
         size_t r2 = fread(buf2, 1, N, fp2);
 
@@ -511,7 +509,8 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
             LOG_info << "Databases are different";
             return false;
         }
-    } while (!feof(fp1) || !feof(fp2));
+    }
+    while (!feof(fp1) || !feof(fp2));
 
     fclose(fp1);
     fclose(fp2);

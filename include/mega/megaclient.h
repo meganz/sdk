@@ -811,7 +811,7 @@ public:
     SymmCipher tmpcipher;
 
     void exportDatabase(string filename);
-    bool compareDatabase(string filename1, string filename2);
+    bool compareDatabases(string filename1, string filename2);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
