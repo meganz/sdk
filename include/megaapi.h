@@ -550,6 +550,22 @@ class MegaNode
          */
         virtual handle getPublicHandle();
 
+         /**
+         * @brief Returns a public node corresponding to the exported MegaNode
+         *
+         * @return Public node for the exported node. If the MegaNode has not been
+         * exported, it returns NULL.         *
+         */
+        virtual MegaNode* getPublicNode();
+
+        /**
+         * @brief Returns the URL for the public link of the exported node.
+         *
+         * @return The URL for the public link of the exported node. If the MegaNode
+         * has not been exported, it returns an empty string.
+         */
+        virtual string getPublicLink();
+
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
          * @return true if this node represents a file, otherwise false

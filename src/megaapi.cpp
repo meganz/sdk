@@ -232,6 +232,16 @@ handle MegaNode::getPublicHandle()
     return UNDEF;
 }
 
+MegaNode* MegaNode::getPublicNode()
+{
+    return NULL;
+}
+
+string MegaNode::getPublicLink()
+{
+    return "";
+}
+
 bool MegaNode::isFile()
 {
     return false;

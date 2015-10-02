@@ -310,6 +310,38 @@ handle MegaNodePrivate::getPublicHandle()
     return plink ? plink->ph : UNDEF;
 }
 
+MegaNode* MegaNodePrivate::getPublicNode()
+{
+    if (!plink)
+    {
+        return NULL;
+    }
+
+    string key = string(getBase64Key());
+    MegaNode *node = new MegaNodePrivate(
+                name, type, size, ctime, mtime,
+                plink->ph, &key, &attrstring);
+
+    return node;
+}
+
+string MegaNodePrivate::getPublicLink()
+{
+    if (!plink)
+    {
+        return "";
+    }
+
+    string link = "https://mega.nz/#";
+    link += (type ? "F" : "");
+    link += "!";
+    link += getBase64Handle();
+    link += "!";
+    link += getBase64Key();
+
+    return link;
+}
+
 bool MegaNodePrivate::isFile()
 {
 	return type == TYPE_FILE;
