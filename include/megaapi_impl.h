@@ -152,7 +152,8 @@ class MegaNodePrivate : public MegaNode
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
         virtual int getTag();
-        virtual PublicLink *getPublicLink();
+        virtual int64_t getExpirationTime();
+        virtual handle getPublicHandle();
         virtual bool isFile();
         virtual bool isFolder();
         bool isRemoved();
@@ -162,6 +163,7 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasPreview();
         virtual bool isPublic();
         virtual bool isExported();
+        virtual bool isExpired();
         virtual bool isTakenDown();
         virtual std::string* getAuth();
 

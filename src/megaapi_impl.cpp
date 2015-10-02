@@ -123,7 +123,13 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->tag = node->getTag();
     this->isPublicNode = node->isPublic();
     this->auth = *node->getAuth();
-    this->plink = node->getPublicLink();
+
+    if (node->isExported())
+    {
+        this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
+    }
+    else
+        this->plink = NULL;
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = node->isSyncDeleted();
@@ -294,9 +300,14 @@ int MegaNodePrivate::getTag()
     return tag;
 }
 
-PublicLink *MegaNodePrivate::getPublicLink()
+int64_t MegaNodePrivate::getExpirationTime()
 {
-    return this->plink ? new PublicLink(this->plink) : NULL;
+    return plink ? plink->ets : -1;
+}
+
+handle MegaNodePrivate::getPublicHandle()
+{
+    return plink ? plink->ph : UNDEF;
 }
 
 bool MegaNodePrivate::isFile()
@@ -490,6 +501,11 @@ bool MegaNodePrivate::isPublic()
 bool MegaNodePrivate::isExported()
 {
     return plink;
+}
+
+bool MegaNodePrivate::isExpired()
+{
+    return plink ? (plink->isExpired()) : false;
 }
 
 bool MegaNodePrivate::isTakenDown()

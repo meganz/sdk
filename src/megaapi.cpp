@@ -222,9 +222,14 @@ int MegaNode::getTag()
     return 0;
 }
 
-PublicLink *MegaNode::getPublicLink()
+int64_t MegaNode::getExpirationTime()
 {
-    return NULL;
+    return -1;
+}
+
+handle MegaNode::getPublicHandle()
+{
+    return UNDEF;
 }
 
 bool MegaNode::isFile()
@@ -268,6 +273,11 @@ bool MegaNode::isPublic()
 }
 
 bool MegaNode::isExported()
+{
+    return false;
+}
+
+bool MegaNode::isExpired()
 {
     return false;
 }

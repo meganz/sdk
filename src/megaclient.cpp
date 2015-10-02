@@ -3774,7 +3774,7 @@ void MegaClient::sc_ph()
                 {
                     if (!n->plink)  // creation
                     {
-                        n->plink = new struct PublicLink(ph, ets, takendown);
+                        n->plink = new PublicLink(ph, ets, takendown);
                     }
                     else            // update
                     {
@@ -5033,7 +5033,7 @@ void MegaClient::procph(JSON *j)
                         {
                             if (!n->plink)
                             {
-                                n->plink = new struct PublicLink(ph, ets, takendown);
+                                n->plink = new PublicLink(ph, ets, takendown);
                             }
                             else
                             {

@@ -533,13 +533,22 @@ class MegaNode
         virtual int getTag();
 
         /**
-         * @brief Returns the structure representing a PublicLink
+         * @brief Returns the expiration time of a public link, if any
          *
-         * You take the ownership of the returned value.
-         *
-         * @return Structure with the public link information
+         * @return The expiration time as an Epoch timestamp. Returns 0 for non-expire
+         * links, and -1 if the MegaNode is not exported.
          */
-        virtual PublicLink * getPublicLink();
+        virtual int64_t getExpirationTime();
+
+        /**
+         * @brief Returns the public handle of a node
+         *
+         * Only exported nodes have a public handle.
+         *
+         * @return The public handle of an exported node. If the MegaNode
+         * has not been exported, it returns UNDEF.
+         */
+        virtual handle getPublicHandle();
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
@@ -661,13 +670,23 @@ class MegaNode
         virtual bool isPublic();
 
         /**
-         * @brief Returns true if this the node has been exported (has a public link)
+         * @brief Returns true if the node has been exported (has a public link)
          *
          * Public links are created by calling MegaApi::exportNode.
          *
          * @return true if this is an exported node
          */
         virtual bool isExported();
+
+        /**
+         * @brief Returns true if the node has been exported (has a temporal public link)
+         * and the related public link has expired.
+         *
+         * Public links are created by calling MegaApi::exportNode.
+         *
+         * @return true if the public link has expired.
+         */
+        virtual bool isExpired();
 
         /**
          * @brief Returns true if this the node has been exported
