@@ -1032,9 +1032,19 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                 {
                     cout << ", has attributes " << p + 1;
                 }
+
                 if (n->plink)
                 {
-                    cout << ", shared as exported file link";
+                    cout << ", shared as exported";
+                    if (n->plink->ets)
+                    {
+                        cout << " temporal";
+                    }
+                    else
+                    {
+                        cout << " permanent";
+                    }
+                    cout << " file link";
                 }
                 break;
 
@@ -1054,7 +1064,16 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 
                     if (n->plink)
                     {
-                        cout << ", shared as exported folder link";
+                        cout << ", shared as exported";
+                        if (n->plink->ets)
+                        {
+                            cout << " temporal";
+                        }
+                        else
+                        {
+                            cout << " permanent";
+                        }
+                        cout << " folder link";
                     }
                 }
 
