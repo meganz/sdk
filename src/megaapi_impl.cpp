@@ -332,15 +332,20 @@ char *MegaNodePrivate::getPublicLink()
         return NULL;
     }
 
+    char *base64ph = new char[12];
+    Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
+
     string strlink = "https://mega.nz/#";
     strlink += (type ? "F" : "");
     strlink += "!";
-    strlink += getBase64Handle();
+    strlink += base64ph;
     strlink += "!";
     strlink += getBase64Key();
 
     char *link = new char[strlink.size()+1];
     std::strcpy (link, strlink.c_str());
+
+    delete [] base64ph;
 
     return link;
 }
