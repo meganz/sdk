@@ -325,19 +325,22 @@ MegaNode* MegaNodePrivate::getPublicNode()
     return node;
 }
 
-string MegaNodePrivate::getPublicLink()
+char *MegaNodePrivate::getPublicLink()
 {
     if (!plink)
     {
-        return "";
+        return NULL;
     }
 
-    string link = "https://mega.nz/#";
-    link += (type ? "F" : "");
-    link += "!";
-    link += getBase64Handle();
-    link += "!";
-    link += getBase64Key();
+    string strlink = "https://mega.nz/#";
+    strlink += (type ? "F" : "");
+    strlink += "!";
+    strlink += getBase64Handle();
+    strlink += "!";
+    strlink += getBase64Key();
+
+    char *link = new char[strlink.size()+1];
+    std::strcpy (link, strlink.c_str());
 
     return link;
 }

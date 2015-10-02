@@ -237,9 +237,9 @@ MegaNode* MegaNode::getPublicNode()
     return NULL;
 }
 
-string MegaNode::getPublicLink()
+char * MegaNode::getPublicLink()
 {
-    return "";
+    return NULL;
 }
 
 bool MegaNode::isFile()

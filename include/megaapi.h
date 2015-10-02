@@ -561,10 +561,13 @@ class MegaNode
         /**
          * @brief Returns the URL for the public link of the exported node.
          *
+         * You take the ownership of the returned string.
+         * Use delete [] to free it.
+         *
          * @return The URL for the public link of the exported node. If the MegaNode
-         * has not been exported, it returns an empty string.
+         * has not been exported, it returns NULL.
          */
-        virtual string getPublicLink();
+        virtual char * getPublicLink();
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
