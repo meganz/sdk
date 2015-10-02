@@ -21,6 +21,7 @@
 
 #include "mega/treeproc.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 // create share keys
@@ -124,6 +125,15 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
     }
 
     nc++;
+}
+
+void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
+{
+    if (localnode->transfer && localnode->transfer->localfilename.size())
+    {
+        LOG_debug << "Updating transfer path";
+        localnode->prepare();
+    }
 }
 
 #endif
