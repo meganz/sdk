@@ -2985,15 +2985,12 @@ static void process_line(char* l)
                                     }
                                 }
 
-                                error e;
+                                cout << "Exporting..." << endl;
 
+                                error e;
                                 if ((e = client->exportnode(n, del, ets)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
-                                }
-                                else
-                                {
-                                    cout << "Exporting..." << endl;
                                 }
                             }
                             else

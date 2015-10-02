@@ -6382,19 +6382,25 @@ error MegaClient::exportnode(Node* n, int del, int ets)
         return API_EACCESS;
     }
 
-    // exporting folder - create share
-    if (n->type == FOLDERNODE)
-    {
-        setshare(n, NULL, del ? ACCESS_UNKNOWN : RDONLY);
-    }
-
     // export node
-    if (n->type == FOLDERNODE || n->type == FILENODE)
+    switch (n->type)
     {
+    case FILENODE:
         reqs.add(new CommandSetPH(this, n, del, ets));
-    }
-    else
-    {
+        break;
+
+    case FOLDERNODE:
+        // exporting folder - create share
+        setshare(n, NULL, del ? ACCESS_UNKNOWN : RDONLY);
+
+        // exported folder's deletion also deletes the link automatically
+        if (!del)
+        {
+            reqs.add(new CommandSetPH(this, n, del, ets));
+        }
+        break;
+
+    default:
         return API_EACCESS;
     }
 
