@@ -991,7 +991,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
     }
 
-    if (transfer)
+    if (transfer && transfer->localfilename.size())
     {
         LOG_debug << "Updating transfer path";
         prepare();
