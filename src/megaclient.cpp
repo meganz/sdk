@@ -669,6 +669,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     loadbalancingcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
+    cachedscsn = UNDEF;
 
     snprintf(appkey, sizeof appkey, "&ak=%s", k);
 
