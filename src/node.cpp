@@ -212,7 +212,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     unsigned short ll;
     Node* n;
     int i;
-    PublicLink *plink = NULL;
+    char version_flag = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -284,13 +284,16 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
-    for (i = 8; i--;)
+//    for (i = 8; i--;)
+    for (i = 7; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
             ptr += (unsigned char)*ptr + 1;
         }
     }
+    version_flag = MemAccess::get<char>(ptr);
+    ptr += sizeof(version_flag);
 
     short numshares = MemAccess::get<short>(ptr);
     ptr += sizeof(numshares);
@@ -327,23 +330,27 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
                && --numshares);
     }
 
-    bool isExported = MemAccess::get<bool>(ptr);
-    ptr += sizeof(bool);
+    ptr = n->attrs.unserialize(ptr);
 
-    if (isExported)
+    PublicLink *plink = NULL;
+    if (version_flag >= 1)
     {
-        handle ph = MemAccess::get<handle>(ptr);
-        ptr += MegaClient::NODEHANDLE;
-        m_time_t ets = MemAccess::get<m_time_t>(ptr);
-        ptr += sizeof(ets);
-        bool takendown = MemAccess::get<bool>(ptr);
-        ptr += sizeof(takendown);
+        bool isExported = MemAccess::get<bool>(ptr);
+        ptr += sizeof(bool);
 
-        plink = new PublicLink(ph, ets, takendown);
+        if (isExported)
+        {
+            handle ph = MemAccess::get<handle>(ptr);
+            ptr += MegaClient::NODEHANDLE;
+            m_time_t ets = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(ets);
+            bool takendown = MemAccess::get<bool>(ptr);
+            ptr += sizeof(takendown);
+
+            plink = new PublicLink(ph, ets, takendown);
+        }
     }
     n->plink = plink;
-
-    ptr = n->attrs.unserialize(ptr);
 
     n->setfingerprint();
 
@@ -401,8 +408,8 @@ bool Node::serialize(string* d)
 
     unsigned short ll;
     short numshares;
-    string t;
     m_off_t s;
+    char version = 1;
 
     s = type ? -type : size;
 
@@ -437,7 +444,9 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-    d->append("\0\0\0\0\0\0\0", 8);
+//    d->append("\0\0\0\0\0\0\0", 8);
+    d->append("\0\0\0\0\0\0", 7);
+    d->append((char*)&version, 1);
 
     if (inshare)
     {
@@ -485,6 +494,8 @@ bool Node::serialize(string* d)
         }
     }
 
+    attrs.serialize(d);
+
     bool isExported = plink ? true : false;
     if (isExported)
     {
@@ -497,8 +508,6 @@ bool Node::serialize(string* d)
     {
         d->append((char*) &isExported, sizeof(bool));
     }
-
-    attrs.serialize(d);
 
     return true;
 }
