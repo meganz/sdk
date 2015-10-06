@@ -371,7 +371,7 @@ bool Node::serialize(string* d)
         if (attrstring)
         {
             encnode = true;
-            LOG_info << "Saving undecryptable node";
+            LOG_info << "Saving undecrypted node";
         }
     }
 
@@ -393,7 +393,7 @@ bool Node::serialize(string* d)
             }
             break;
 
-        default:
+        default:    // rootnodes don't have nodekey or attrstring
             if (nodekey.size())
             {
                 return false;
@@ -429,13 +429,14 @@ bool Node::serialize(string* d)
     ts = ctime;
     d->append((char*)&ts, sizeof(ts));
 
-    if (!encnode)
+    if (encnode)
+    {
+        // if encoded node, dummy data is written and will be ignored. Specific encrypted nodekey is written later
+        d->append("\0\0\0\0\0\0\0", (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+    }
+    else if ( (type == FOLDERNODE) || (type == FILENODE) )  // skip nodekey for rootnodes
     {
         d->append(nodekey);
-    }
-    else
-    {
-        d->append("\0\0\0\0\0\0\0", nodekey.size());
     }
 
     if (type == FILENODE)
