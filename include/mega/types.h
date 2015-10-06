@@ -383,6 +383,12 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
+// maps handles to cache entries in double-linked list
+typedef map<handle, node_list::iterator> hnode_map;
+
+// maps fingerprints to cache entries in double-linked list
+typedef map<string, node_list::iterator> fpnode_map;
+
 } // namespace
 
 #endif

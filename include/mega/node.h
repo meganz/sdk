@@ -294,11 +294,31 @@ struct MEGA_API NodesCache {
 private:
     MegaClient *client;
 
-    list<pnode_t> nodes;
+    // maps handles to cache entries
+    hnode_map hmap;
+
+    // maps fingerprints to cache entries
+    fpnode_map fpmap;
+
+    // cache entries
+    node_list nodes;
+
+    // maximum number of entries to allocate
     unsigned int maxsize;
 
-    void movetofront(list<pnode_t>::iterator n);
+    // moves to the front of the list the element received by parameter
+    void movetofront(node_list::iterator it);
+
+    // adds the node to the front of the list
     void add(pnode_t n);
+
+    // auxiliar variables
+    hnode_map::iterator ith;
+    fpnode_map::iterator itfp;
+    pnode_t n;
+    node_vector dp;
+    string data;
+    string fp;
 
 public:
     pnode_t get(handle h);

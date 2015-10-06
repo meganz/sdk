@@ -1562,33 +1562,25 @@ pnode_t NodesCache::get(handle h)
         return NULL;
     }
 
-    pnode_t n;
-    list<pnode_t>::iterator it;
-
-    for (it = nodes.begin(); it != nodes.end(); it++)
+    ith = hmap.find(h);
+    if (ith != hmap.end())   // hit
     {
-        n = *it;
-        if (n->nodehandle == h)
+        movetofront(ith->second);
+        return *ith->second;
+    }
+    else        // if node was not found, search for it in local cache
+    {
+        if (client->sctable->getnode(h, &data))
         {
-            movetofront(it);
+            n = Node::unserialize(client, &data, &dp);
+
+            if (n)
+            {
+                add(n);
+            }
+
             return n;
         }
-    }
-
-    // if node was not found, search for it in local cache
-    string data;
-    if (client->sctable->getnode(h, &data))
-    {
-        node_vector dp;
-
-        n = Node::unserialize(client, &data, &dp);
-
-        if (n)
-        {
-            add(n);
-        }
-
-        return n;
     }
 
     return NULL;
@@ -1596,35 +1588,27 @@ pnode_t NodesCache::get(handle h)
 
 pnode_t NodesCache::get(string *fingerprint)
 {
-    string fp;
-    pnode_t n;
+    itfp = fpmap.find(*fingerprint);
 
-    list<pnode_t>::iterator it;
-    for (it = nodes.begin(); it != nodes.end(); it++)
+    if (itfp != fpmap.end())
     {
-        n = *it;
-        n->serializefingerprint(&fp);
-        if (!strcmp(fp.data(), fingerprint->data()))
+        movetofront(itfp->second);
+        return *itfp->second;
+    }
+    else
+    {
+        // if node was not found, search for it in local cache
+        if (client->sctable->getnode(fingerprint, &data))
         {
-            movetofront(it);
+            n = Node::unserialize(client, &data, &dp);
+
+            if (n)
+            {
+                add(n);
+            }
+
             return n;
         }
-    }
-
-    // if node was not found, search for it in local cache
-    string data;
-    if (client->sctable->getnode(fingerprint, &data))
-    {
-        node_vector dp;
-
-        n = Node::unserialize(client, &data, &dp);
-
-        if (n)
-        {
-            add(n);
-        }
-
-        return n;
     }
 
     return NULL;
@@ -1642,29 +1626,18 @@ bool NodesCache::put(pnode_t n)
     if (!client->sctable->putnode(n))
         return false;
 
-    // check if node is already in the cache
-    pnode_t node;
-    node_list::iterator it;
-
-    for (it = nodes.begin(); it != nodes.end(); it++)
+    ith = hmap.find(n->nodehandle);
+    if (ith != hmap.end())   // hit
     {
-        node = *it;
-        if (node->nodehandle == n->nodehandle)
+        if (*ith->second != n)
         {
-            if (node != n)
-            {
-                LOG_err << "Trying to write a different instance of an existing node";
-                nodes.erase(it); // discard the existing node, add the new one
-                continue;
-            }
-
-            movetofront(it);
-            break;
+            LOG_err << "Trying to write a different instance of an existing node";
+            *ith->second = n;    // discard the existing node, replace by the new one
         }
-    }
 
-    // if the node was not found in the cache, add it to the front of the list
-    if (it == nodes.end())
+        movetofront(ith->second);
+    }
+    else        // if the node was not found in the cache, add it to the front of the list
     {
         add(n);
     }
@@ -1675,21 +1648,32 @@ bool NodesCache::put(pnode_t n)
 void NodesCache::add(pnode_t n)
 {
     nodes.push_front(n);
+    hmap[n->nodehandle] = nodes.begin();
+
+    n->serializefingerprint(&fp);
+    if (!fp.empty())
+    {
+        fpmap[fp] = nodes.begin();
+    }
 
     if (nodes.size() > maxsize)
     {
+        hmap.erase(nodes.back()->nodehandle);
+        fpmap.erase(fp);
         nodes.pop_back();
     }
 }
 
-void NodesCache::movetofront(list<pnode_t>::iterator n)
+void NodesCache::movetofront(node_list::iterator it)
 {
-    nodes.splice(nodes.begin(), nodes, n);
+    nodes.splice(nodes.begin(), nodes, it);
 }
 
 void NodesCache::clear()
 {
     nodes.clear();
+    hmap.clear();
+    fpmap.clear();
 }
 
 bool NodesCache::remove(pnode_t n)
@@ -1697,18 +1681,19 @@ bool NodesCache::remove(pnode_t n)
     if (!client->sctable->delnode(n))
         return false;
 
-    pnode_t node;
-    list<pnode_t>::iterator it;
-
-    for (it = nodes.begin(); it != nodes.end(); it++)
+    // check if node is already in the cache
+    ith = hmap.find(n->nodehandle);
+    if (ith != hmap.end())      // hit
     {
-        node = *it;
-        if (node->nodehandle == n->nodehandle)
+        n->serializefingerprint(&fp);
+        if (!fp.empty())
         {
-            nodes.erase(it);
-            break;
+            fpmap.erase(fp);
         }
+        nodes.erase(ith->second);
+        hmap.erase(n->nodehandle);
     }
+    // if the node is not a hit, then no action is required
 
     return true;
 }
