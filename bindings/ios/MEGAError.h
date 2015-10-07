@@ -43,7 +43,8 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiETooManyConnections = -19,     // too many connections on this resource
     MEGAErrorTypeApiEWrite = -20,                  // file could not be written to
     MEGAErrorTypeApiERead = -21,                   // file could not be read from
-    MEGAErrorTypeApiEAppKey = -22                  // invalid or missing application key
+    MEGAErrorTypeApiEAppKey = -22,                 // invalid or missing application key
+    MEGAErrorTypeApiESSL = -23                     // invalid SSL key
 };
 
 /**

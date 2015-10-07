@@ -256,6 +256,9 @@ struct MEGA_API LocalNode : public File, Cachable
     // update sync state all the way to the root node
     void treestate(treestate_t = TREESTATE_NONE);
 
+    // check the current state (only useful for folders)
+    treestate_t checkstate();
+
     // timer to delay upload start
     dstime nagleds;
     void bumpnagleds();

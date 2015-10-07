@@ -101,7 +101,8 @@ namespace mega
         PAYMENT_METHOD_BITCOIN = 4,
         PAYMENT_METHOD_UNIONPAY = 5,
         PAYMENT_METHOD_FORTUMO = 6,
-        PAYMENT_METHOD_CREDIT_CARD = 8
+        PAYMENT_METHOD_CREDIT_CARD = 8,
+        PAYMENT_METHOD_CENTILI = 9
     };
 
     public ref class MegaSDK sealed

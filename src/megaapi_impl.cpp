@@ -52,6 +52,8 @@
 
     #if TARGET_OS_IPHONE
     #include <netdb.h>
+    #include <resolv.h>
+    #include <arpa/inet.h>
     #endif
 #endif
 
@@ -2534,14 +2536,15 @@ void MegaApiImpl::loop()
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
     // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
-    struct hostent *hp;
-    struct in_addr **addr_list;
 
     while (true)
     {
+    #ifdef WINDOWS_PHONE
+        struct hostent *hp;
         hp = gethostbyname("ns.mega.co.nz");
         if (hp != NULL && hp->h_addr != NULL)
         {
+            struct in_addr **addr_list;
             addr_list = (struct in_addr **)hp->h_addr_list;
             for (int i = 0; addr_list[i] != NULL; i++)
             {
@@ -2556,18 +2559,54 @@ void MegaApiImpl::loop()
                     servers.append(ip);
                 }
             }
-
-            if (servers.size())
-                break;
         }
-        #ifdef WINDOWS_PHONE
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        #else
-            sleep(1);
-        #endif
+    #else
+        __res_state res;
+        if(res_ninit(&res) == 0)
+        {
+            union res_sockaddr_union u[MAXNS];
+            int nscount = res_getservers(&res, u, MAXNS);
+
+            for(int i = 0; i < nscount; i++)
+            {
+                char straddr[INET6_ADDRSTRLEN];
+                straddr[0] = 0;
+
+                if(u[i].sin.sin_family == PF_INET)
+                {
+                    inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                }
+
+                if(u[i].sin6.sin6_family == PF_INET6)
+                {
+                    inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                }
+
+                if(straddr[0])
+                {
+                    if (servers.size())
+                    {
+                        servers.append(",");
+                    }
+                    servers.append(straddr);
+                }
+            }
+
+            res_ndestroy(&res);
+        }
+    #endif
+
+        if (servers.size())
+            break;
+
+    #ifdef WINDOWS_PHONE
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    #else
+        sleep(1);
+    #endif
     }
 
-    LOG_debug << "Using MEGA DNS servers";
+    LOG_debug << "Using MEGA DNS servers " << servers;
     httpio->setdnsservers(servers.c_str());
 
 #elif _WIN32
@@ -4529,6 +4568,38 @@ char *MegaApiImpl::getCRC(const char *filePath)
     string result;
     result.resize((sizeof fp.crc) * 4 / 3 + 4);
     result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc, (char*)result.c_str()));
+    return MegaApi::strdup(result.c_str());
+}
+
+char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
+{
+    if(!fingerprint || !fingerprint[0]) return NULL;
+    
+    m_off_t size = 0;
+    unsigned int fsize = strlen(fingerprint);
+    unsigned int ssize = fingerprint[0] - 'A';
+    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+        return NULL;
+    
+    int len =  sizeof(size) + 1;
+    byte *buf = new byte[len];
+    Base64::atob(fingerprint + 1, buf, len);
+    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+    delete [] buf;
+    if(l <= 0)
+        return NULL;
+    
+    string sfingerprint = fingerprint + ssize + 1;
+    
+    FileFingerprint fp;
+    if(!fp.unserializefingerprint(&sfingerprint))
+    {
+        return NULL;
+    }
+    
+    string result;
+    result.resize((sizeof fp.crc) * 4 / 3 + 4);
+    result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc,(char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -7577,15 +7648,26 @@ void MegaApiImpl::sendPendingTransfers()
                 string wFileName = fileName;
                 MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime);
 
-                bool started = client->startxfer(PUT,f);
+                bool started = client->startxfer(PUT, f, true);
                 if(!started)
                 {
-                    //Unable to read the file
-                    transfer->setSyncTransfer(false);
-                    transferMap[nextTag]=transfer;
-                    transfer->setTag(nextTag);
-                    fireOnTransferStart(transfer);
-                    fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                    if(!f->isvalid)
+                    {
+                        //Unable to read the file
+                        transfer->setSyncTransfer(false);
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                    }
+                    else
+                    {
+                        //Already existing transfer
+                        transferMap[nextTag]=transfer;
+                        transfer->setTag(nextTag);
+                        fireOnTransferStart(transfer);
+                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                    }
                 }
                 else if(transfer->getTag() == -1)
                 {
@@ -7678,21 +7760,31 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
-					client->startxfer(GET,f);
+                    bool ok = client->startxfer(GET, f, true);
                     if(transfer->getTag() == -1)
                     {
                         //Already existing transfer
-                        //Delete the new one and set the transfer as regular
-                        transfer_map::iterator it = client->transfers[GET].find(f);
-                        if(it != client->transfers[GET].end())
+                        if (ok)
                         {
-                            int previousTag = it->second->tag;
-                            if(transferMap.find(previousTag) != transferMap.end())
+                            //Set the transfer as regular
+                            transfer_map::iterator it = client->transfers[GET].find(f);
+                            if(it != client->transfers[GET].end())
                             {
-                                MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
-                                previousTransfer->setSyncTransfer(false);
-                                delete transfer;
+                                int previousTag = it->second->tag;
+                                if(transferMap.find(previousTag) != transferMap.end())
+                                {
+                                    MegaTransferPrivate* previousTransfer = transferMap.at(previousTag);
+                                    previousTransfer->setSyncTransfer(false);
+                                }
                             }
+                        }
+                        else
+                        {
+                            //Already existing transfer
+                            transferMap[nextTag]=transfer;
+                            transfer->setTag(nextTag);
+                            fireOnTransferStart(transfer);
+                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
                         }
                     }
                 }
@@ -8378,14 +8470,15 @@ void MegaApiImpl::sendPendingRequests()
 #if (WINDOWS_PHONE || TARGET_OS_IPHONE)
                 // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
-                struct hostent *hp;
-                struct in_addr **addr_list;
 
                 while (true)
                 {
+                #ifdef WINDOWS_PHONE
+                    struct hostent *hp;
                     hp = gethostbyname("ns.mega.co.nz");
                     if (hp != NULL && hp->h_addr != NULL)
                     {
+                        struct in_addr **addr_list;
                         addr_list = (struct in_addr **)hp->h_addr_list;
                         for (int i = 0; addr_list[i] != NULL; i++)
                         {
@@ -8400,18 +8493,54 @@ void MegaApiImpl::sendPendingRequests()
                                 servers.append(ip);
                             }
                         }
-
-                        if (servers.size())
-                            break;
                     }
-                    #ifdef WINDOWS_PHONE
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-                    #else
-                        sleep(1);
-                    #endif
+                #else
+                    __res_state res;
+                    if(res_ninit(&res) == 0)
+                    {
+                        union res_sockaddr_union u[MAXNS];
+                        int nscount = res_getservers(&res, u, MAXNS);
+
+                        for(int i = 0; i < nscount; i++)
+                        {
+                            char straddr[INET6_ADDRSTRLEN];
+                            straddr[0] = 0;
+
+                            if(u[i].sin.sin_family == PF_INET)
+                            {
+                                inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                            }
+
+                            if(u[i].sin6.sin6_family == PF_INET6)
+                            {
+                                inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                            }
+
+                            if(straddr[0])
+                            {
+                                if (servers.size())
+                                {
+                                    servers.append(",");
+                                }
+                                servers.append(straddr);
+                            }
+                        }
+
+                        res_ndestroy(&res);
+                    }
+                #endif
+
+                    if (servers.size())
+                        break;
+
+                #ifdef WINDOWS_PHONE
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                #else
+                    sleep(1);
+                #endif
                 }
 
-                LOG_debug << "Using MEGA DNS servers";
+                LOG_debug << "Using MEGA DNS servers " << servers;
                 httpio->setdnsservers(servers.c_str());
 #endif
             }
@@ -8948,6 +9077,39 @@ long long MegaApiImpl::getTotalUploadedBytes()
 
 void MegaApiImpl::update()
 {
+#ifdef ENABLE_SYNC
+    sdkMutex.lock();
+
+    LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
+    if(client->curfa == client->newfa.end())
+    {
+        LOG_debug << "PendingFA? 0";
+    }
+    else
+    {
+        HttpReqCommandPutFA* fa = *client->curfa;
+        if(fa)
+        {
+            LOG_debug << "PendingFA? " << client->newfa.size() << " STATUS: " << fa->status;
+        }
+    }
+
+    LOG_debug << "FLAGS: " << client->syncactivity << " " << client->syncadded
+              << " " << client->syncdownrequired << " " << client->syncdownretry
+              << " " << client->syncfslockretry << " " << client->syncfsopsfailed
+              << " " << client->syncnagleretry << " " << client->syncscanfailed
+              << " " << client->syncops << " " << client->syncscanstate
+              << " " << client->faputcompletion.size() << " " << client->synccreate.size()
+              << " " << client->fetchingnodes << " " << client->pendingfa.size()
+              << " " << client->xferpaused[0] << " " << client->xferpaused[1]
+              << " " << client->transfers[0].size() << " " << client->transfers[1].size()
+              << " " << client->syncscanstate << " " << client->statecurrent
+              << " " << client->syncadding << " " << client->syncdebrisadding
+              << " " << client->umindex.size() << " " << client->uhindex.size();
+
+    sdkMutex.unlock();
+#endif
+
     waiter->notify();
 }
 

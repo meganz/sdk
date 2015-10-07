@@ -577,7 +577,7 @@ void Node::setfingerprint()
 
         if (it != attrs.map.end())
         {
-            if(!unserializefingerprint(&it->second))
+            if (!unserializefingerprint(&it->second))
             {
                 LOG_warn << "Invalid fingerprint";
             }
@@ -759,6 +759,10 @@ bool Node::setparent(Node* p)
         parent->children.erase(child_it);
     }
 
+#ifdef ENABLE_SYNC
+    Node *oldparent = parent;
+#endif
+
     parent = p;
 
     if (parent)
@@ -786,6 +790,11 @@ bool Node::setparent(Node* p)
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
         }
+    }
+
+    if (oldparent && oldparent->localnode)
+    {
+        oldparent->localnode->treestate(oldparent->localnode->checkstate());
     }
 #endif
 
@@ -886,21 +895,29 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     sync->client->reqtag = sync->tag;
                     sync->client->setattr(node, NULL, prevname.c_str());
                     sync->client->reqtag = creqtag;
-                    treestate(TREESTATE_SYNCING);
+
+                    if (node->type == FILENODE)
+                    {
+                        treestate(TREESTATE_SYNCING);
+                    }
+                    else
+                    {
+                        sync->client->app->syncupdate_treestate(this);
+                    }
                 }
             }
         }
+    }
+
+    if (parent && parent != newparent)
+    {
+        treestate(TREESTATE_NONE);
     }
 
     if (newparent)
     {
         if (newparent != parent)
         {
-            if (parent)
-            {
-                parent->treestate();
-            }
-
             parent = newparent;
 
             if (!newnode && node)
@@ -909,6 +926,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
+                LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
@@ -917,7 +935,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     todelete = node;
                 }
                 sync->client->reqtag = creqtag;
-                treestate(TREESTATE_SYNCING);
+
+                if (type == FILENODE)
+                {
+                    ts = TREESTATE_SYNCING;
+                }
             }
 
             if (sync != parent->sync)
@@ -943,7 +965,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             parent->schildren[&slocalname] = this;
         }
 
-        parent->treestate();
+        treestate(TREESTATE_NONE);
 
         if (todelete)
         {
@@ -968,6 +990,9 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->cachenodes();
         }
     }
+
+    LocalTreeProcUpdateTransfers tput;
+    sync->client->proclocaltree(this, &tput);
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1037,42 +1062,54 @@ void LocalNode::treestate(treestate_t newts)
         sync->client->app->syncupdate_treestate(this);
     }
 
-    if (parent)
+    if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
+                   || (ts != dts && (!(ts == TREESTATE_SYNCED && parent->ts == TREESTATE_SYNCED))
+                                 && (!(ts == TREESTATE_SYNCING && parent->ts == TREESTATE_SYNCING))
+                                 && (!(ts == TREESTATE_PENDING && (parent->ts == TREESTATE_PENDING
+                                                                   || parent->ts == TREESTATE_SYNCING))))))
     {
-        if (ts == TREESTATE_SYNCING)
+        treestate_t state = TREESTATE_NONE;
+        if (newts != TREESTATE_NONE && ts == TREESTATE_SYNCING)
         {
-            parent->ts = TREESTATE_SYNCING;
+            state = TREESTATE_SYNCING;
         }
-        else if (newts != dts && (ts != TREESTATE_SYNCED || parent->ts != TREESTATE_SYNCED))
+        else
         {
-            parent->ts = TREESTATE_SYNCED;
-
-            for (localnode_map::iterator it = parent->children.begin(); it != parent->children.end(); it++)
-            {
-                if (it->second->ts == TREESTATE_SYNCING)
-                {
-                    parent->ts = TREESTATE_SYNCING;
-                    break;
-                }
-
-                if (it->second->ts == TREESTATE_PENDING && parent->ts == TREESTATE_SYNCED)
-                {
-                    parent->ts = TREESTATE_PENDING;
-                }
-            }
+            state = parent->checkstate();
         }
 
-        parent->treestate();
+        parent->treestate(state);
     }
 
     dts = ts;
+}
+
+treestate_t LocalNode::checkstate()
+{
+    if (type == FILENODE)
+        return ts;
+
+    treestate_t state = TREESTATE_SYNCED;
+    for (localnode_map::iterator it = children.begin(); it != children.end(); it++)
+    {
+        if (it->second->ts == TREESTATE_SYNCING)
+        {
+            state = TREESTATE_SYNCING;
+            break;
+        }
+
+        if (it->second->ts == TREESTATE_PENDING && ts == TREESTATE_SYNCED)
+        {
+            state = TREESTATE_PENDING;
+        }
+    }
+    return state;
 }
 
 void LocalNode::setnode(Node* cnode)
 {
     if (node && (node != cnode) && node->localnode)
     {
-        node->localnode->treestate();
         node->localnode = NULL;
     }
 
@@ -1313,7 +1350,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        if (node)
+        if (node  && node->parent && node->parent->localnode)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execsyncdeletions();
