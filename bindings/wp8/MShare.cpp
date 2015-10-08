@@ -26,43 +26,43 @@ using namespace Platform;
 
 MShare::MShare(MegaShare *megaShare, bool cMemoryOwn)
 {
-	this->megaShare = megaShare;
-	this->cMemoryOwn = cMemoryOwn;
+    this->megaShare = megaShare;
+    this->cMemoryOwn = cMemoryOwn;
 }
 
 MShare::~MShare()
 {
-	if (cMemoryOwn)
-		delete megaShare;
+    if (cMemoryOwn)
+        delete megaShare;
 }
 
 MegaShare * MShare::getCPtr()
 {
-	return megaShare;
+    return megaShare;
 }
 
 String^ MShare::getUser()
 {
-	if (!megaShare) return nullptr;
+    if (!megaShare) return nullptr;
 
-	std::string utf16user;
-	const char *utf8user = megaShare->getUser();
-	MegaApi::utf8ToUtf16(utf8user, &utf16user);
+    std::string utf16user;
+    const char *utf8user = megaShare->getUser();
+    MegaApi::utf8ToUtf16(utf8user, &utf16user);
 
-	return utf8user ? ref new String((wchar_t *)utf16user.data()) : nullptr;
+    return utf8user ? ref new String((wchar_t *)utf16user.data()) : nullptr;
 }
 
 uint64 MShare::getNodeHandle()
 {
-	return megaShare ? megaShare->getNodeHandle() : ::mega::INVALID_HANDLE;
+    return megaShare ? megaShare->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
 int MShare::getAccess()
 {
-	return megaShare ? megaShare->getAccess() : MegaShare::ACCESS_UNKNOWN;
+    return megaShare ? megaShare->getAccess() : MegaShare::ACCESS_UNKNOWN;
 }
 
 uint64 MShare::getTimestamp()
 {
-	return megaShare ? megaShare->getTimestamp() : 0;
+    return megaShare ? megaShare->getTimestamp() : 0;
 }

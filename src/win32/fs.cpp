@@ -658,7 +658,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
+bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
 {
 #ifdef WINDOWS_PHONE
     return false;
@@ -673,6 +673,9 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
+        DWORD e = GetLastError();
+        transient_error = istransient(e);
+        LOG_warn << "Error opening file to change mtime: " << e;
         return false;
     }
 
@@ -682,6 +685,12 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime) const
     lwt.dwHighDateTime = ll >> 32;
 
     int r = !!SetFileTime(hFile, NULL, NULL, &lwt);
+    if (!r)
+    {
+        DWORD e = GetLastError();
+        transient_error = istransient(e);
+        LOG_warn << "Error changing mtime: " << e;
+    }
 
     CloseHandle(hFile);
 

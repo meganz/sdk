@@ -456,6 +456,69 @@ int MegaClient::hexval(char c)
     return c > '9' ? c - 'a' + 10 : c - '0';
 }
 
+void MegaClient::exportDatabase(string filename)
+{
+    FILE *fp = NULL;
+    fp = fopen(filename.c_str(), "w");
+    if (!fp)
+    {
+        LOG_warn << "Cannot export DB to file \"" << filename << "\"";
+        return;
+    }
+
+    LOG_info << "Exporting database...";
+
+    sctable->rewind();
+
+    uint32_t id;
+    string data;
+
+    std::map<uint32_t, string> entries;
+    while (sctable->next(&id, &data, &key))
+    {
+        entries.insert(std::pair<uint32_t, string>(id,data));
+    }
+
+    for (map<uint32_t, string>::iterator it = entries.begin(); it != entries.end(); it++)
+    {
+        fprintf(fp, "%8.d\t%s\n", it->first, it->second.c_str());
+    }
+
+    fclose(fp);
+
+    LOG_info << "Database exported successfully to \"" << filename << "\"";
+}
+
+bool MegaClient::compareDatabases(string filename1, string filename2)
+{
+    LOG_info << "Comparing databases: \"" << filename1 << "\" and \"" << filename2 << "\"";
+    FILE *fp1 = fopen(filename1.data(), "r");
+    FILE *fp2 = fopen(filename2.data(), "r");
+
+    const int N = 8192;
+    char buf1[N];
+    char buf2[N];
+
+    do
+    {
+        size_t r1 = fread(buf1, 1, N, fp1);
+        size_t r2 = fread(buf2, 1, N, fp2);
+
+        if (r1 != r2 || memcmp(buf1, buf2, r1))
+        {
+            LOG_info << "Databases are different";
+            return false;
+        }
+    }
+    while (!feof(fp1) || !feof(fp2));
+
+    fclose(fp1);
+    fclose(fp2);
+
+    LOG_info << "Databases are equal";
+    return true;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -492,6 +555,7 @@ void MegaClient::init()
     warned = false;
     csretrying = false;
     chunkfailed = false;
+    statecurrent = false;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -505,7 +569,6 @@ void MegaClient::init()
     syncnagleretry = false;
     syncsup = true;
     syncdownrequired = false;
-    statecurrent = false;
 
     if (syncscanstate)
     {
@@ -606,6 +669,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     loadbalancingcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
+    cachedscsn = UNDEF;
 
     snprintf(appkey, sizeof appkey, "&ak=%s", k);
 
@@ -989,13 +1053,14 @@ void MegaClient::exec()
                                 LOG_warn << "Too many pending updates - reloading local state";
                                 int creqtag = reqtag;
                                 reqtag = 0;
+                                fetchingnodes = false;
                                 fetchnodes();
                                 reqtag = creqtag;
                             }
                         }
                         // fall through
                     case REQ_FAILURE:
-                        if (pendingsc->sslcheckfailed)
+                        if (pendingsc && pendingsc->sslcheckfailed)
                         {
                             app->request_error(API_ESSL);
                             *scsn = 0;
@@ -2027,6 +2092,8 @@ bool MegaClient::dispatch(direction_t d)
             }
         }
 
+        LOG_warn << "Error dispatching transfer";
+
         // file didn't open - fail & defer
         nextit->second->failed(API_EREAD);
     }
@@ -2294,6 +2361,7 @@ bool MegaClient::procsc()
                             }
 
                             fetchingnodes = false;
+                            restag = fetchnodestag;
                             app->fetchnodes_result(API_OK);
 
                             // NULL vector: "notify all elements"
@@ -2359,7 +2427,7 @@ bool MegaClient::procsc()
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (memcmp(jsonsc.pos, "\"i\":\"", 5)
+                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5)
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
@@ -5152,19 +5220,47 @@ bool MegaClient::readusers(JSON* j)
 
             if (v == ME)
             {
-                me = uh;
+                if (me != UNDEF && uh != me)
+                {
+                    char mehandle[sizeof me * 4 / 3 + 4];
+                    char uhhandle[sizeof uh * 4 / 3 + 4];
+
+                    Base64::btoa((const byte *)&me, sizeof me, mehandle);
+                    Base64::btoa((const byte *)&uh, sizeof uh, uhhandle);
+
+                    char report[256];
+                    sprintf(report, "Own user handle mismatch: %s - %s (%d)", mehandle, uhhandle, fetchingnodes);
+
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    sendevent(99403, report);
+                    reqtag = creqtag;
+                }
+                else
+                {
+                    me = uh;
+                }
             }
 
-            if ((u = finduser(uh, 1)))
+            u = finduser(uh, 0);
+            bool notify = !u;
+            if (u || (u = finduser(uh, 1)))
             {
                 mapuser(uh, m);
 
                 if (v != VISIBILITY_UNKNOWN)
                 {
-                    u->set(v, ts);
+                    if (u->show != v || u->ctime != ts)
+                    {
+                        u->set(v, ts);
+                        notify = true;
+                    }
                 }
 
-                notifyuser(u);
+                if (notify)
+                {
+                    notifyuser(u);
+                }
             }
         }
     }
@@ -6727,6 +6823,17 @@ void MegaClient::fetchnodes()
     {
         fetchingnodes = true;
 
+        // prevent the processing of previous sc requests
+        delete pendingsc;
+        pendingsc = NULL;
+        jsonsc.pos = NULL;
+        scnotifyurl.clear();
+        insca = false;
+        btsc.reset();
+
+        // don't allow to start new sc requests yet
+        *scsn = 0;
+
 #ifdef ENABLE_SYNC
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
@@ -7921,7 +8028,7 @@ void MegaClient::syncupdate()
                 if (n)
                 {
                     // overwriting an existing remote node? send it to SyncDebris.
-                    if (l->node)
+                    if (l->node && l->node->parent && l->node->parent->localnode)
                     {
                         movetosyncdebris(l->node, l->sync->inshare);
                     }
@@ -8281,7 +8388,7 @@ void MegaClient::putnodes_syncdebris_result(error e, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 {
     if (!f->transfer)
     {
@@ -8322,17 +8429,20 @@ bool MegaClient::startxfer(direction_t d, File* f)
         if (it != transfers[d].end())
         {
             t = it->second;
-
-            for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
+            if (skipdupes)
             {
-                if ((d == GET && f->localname == (*it)->localname)
-                        || (d == PUT
-                            && f->h == (*it)->h)
-                            && !f->targetuser.size()
-                            && !(*it)->targetuser.size()
-                            && f->name == (*it)->name)
+                for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
                 {
-                    return false;
+                    if ((d == GET && f->localname == (*fi)->localname)
+                            || (d == PUT && f->h != UNDEF
+                                && f->h == (*fi)->h
+                                && !f->targetuser.size()
+                                && !(*fi)->targetuser.size()
+                                && f->name == (*fi)->name))
+                    {
+                        LOG_warn << "Skipping duplicated transfer";
+                        return false;
+                    }
                 }
             }
         }
@@ -8479,6 +8589,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
 void MegaClient::sendevent(int event, const char *desc)
 {
+    LOG_warn << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
 }
 

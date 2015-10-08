@@ -153,7 +153,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*);
+    bool startxfer(direction_t, File*, bool skipdupes = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
@@ -554,6 +554,7 @@ public:
 
     // initial state load in progress?
     bool fetchingnodes;
+    int fetchnodestag;
 
     // server-client request sequence number
     char scsn[12];
@@ -811,6 +812,9 @@ public:
     static int hexval(char);
 
     SymmCipher tmpcipher;
+
+    void exportDatabase(string filename);
+    bool compareDatabases(string filename1, string filename2);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

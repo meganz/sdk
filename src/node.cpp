@@ -955,7 +955,15 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     sync->client->reqtag = sync->tag;
                     sync->client->setattr(node, NULL, prevname.c_str());
                     sync->client->reqtag = creqtag;
-                    treestate(TREESTATE_SYNCING);
+
+                    if (node->type == FILENODE)
+                    {
+                        treestate(TREESTATE_SYNCING);
+                    }
+                    else
+                    {
+                        sync->client->app->syncupdate_treestate(this);
+                    }
                 }
             }
         }
@@ -987,7 +995,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     todelete = node;
                 }
                 sync->client->reqtag = creqtag;
-                ts = TREESTATE_SYNCING;
+
+                if (type == FILENODE)
+                {
+                    ts = TREESTATE_SYNCING;
+                }
             }
 
             if (sync != parent->sync)
@@ -1038,6 +1050,9 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->cachenodes();
         }
     }
+
+    LocalTreeProcUpdateTransfers tput;
+    sync->client->proclocaltree(this, &tput);
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1395,7 +1410,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        if (node)
+        if (node  && node->parent && node->parent->localnode)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
             sync->client->execsyncdeletions();

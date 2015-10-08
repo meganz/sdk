@@ -3028,6 +3028,7 @@ void CommandFetchNodes::procresult()
                 client->mergenewshares(0);
                 client->applykeys();
                 client->initsc();
+                client->fetchnodestag = tag;
                 return;
 
             default:

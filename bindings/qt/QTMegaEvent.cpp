@@ -28,7 +28,7 @@ QTMegaEvent::~QTMegaEvent()
 
 #ifdef ENABLE_SYNC
     delete sync;
-    delete filePath;
+    delete [] filePath;
 #endif
 }
 
