@@ -348,8 +348,7 @@ char *MegaNodePrivate::getPublicLink()
     strlink += "!";
     strlink += base64k;
 
-    char *link = new char[strlink.size()+1];
-    std::strcpy (link, strlink.c_str());
+    char *link = MegaApi::strdup(strlink.c_str());
 
     delete [] base64ph;
     delete [] base64k;

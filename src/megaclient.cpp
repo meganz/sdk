@@ -3821,7 +3821,7 @@ void MegaClient::sc_ph()
                 LOG_err << "ph element not provided";
                 break;
             }
-            if ( !deleted && !created && !updated && !takendown)
+            if (!deleted && !created && !updated && !takendown)
             {
                 LOG_err << "d/n/u/down element not provided";
                 break;
