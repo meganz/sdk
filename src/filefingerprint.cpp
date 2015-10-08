@@ -62,6 +62,7 @@ FileFingerprint::FileFingerprint()
     size = -1;
     mtime = 0;
     isvalid = false;
+    memset(crc, 0, sizeof crc);
 }
 
 FileFingerprint& FileFingerprint::operator=(FileFingerprint& rhs)

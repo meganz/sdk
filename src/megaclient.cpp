@@ -562,7 +562,7 @@ void MegaClient::exportDatabase(string filename)
     LOG_info << "Database exported successfully to \"" << filename << "\"";
 }
 
-bool MegaClient::compareDatabase(string filename1, string filename2)
+bool MegaClient::compareDatabases(string filename1, string filename2)
 {
     LOG_info << "Comparing databases: \"" << filename1 << "\" and \"" << filename2 << "\"";
     FILE *fp1 = NULL;
@@ -745,6 +745,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     loadbalancingcs = NULL;
 
     scsn[sizeof scsn - 1] = 0;
+    cachedscsn = UNDEF;
 
     snprintf(appkey, sizeof appkey, "&ak=%s", k);
 
@@ -1132,6 +1133,7 @@ void MegaClient::exec()
                                 LOG_warn << "Too many pending updates - reloading local state";
                                 int creqtag = reqtag;
                                 reqtag = 0;
+                                fetchingnodes = false;
                                 fetchnodes();
                                 reqtag = creqtag;
                             }
@@ -2169,6 +2171,8 @@ bool MegaClient::dispatch(direction_t d)
                 return true;
             }
         }
+
+        LOG_warn << "Error dispatching transfer";
 
         // file didn't open - fail & defer
         nextit->second->failed(API_EREAD);

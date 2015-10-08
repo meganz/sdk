@@ -1114,6 +1114,11 @@ void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener
     pImpl->sendFileToUser(node, user, listener);
 }
 
+void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
+{
+    pImpl->sendFileToUser(node, email, listener);
+}
+
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
 {
     pImpl->share(node, user, access, listener);
