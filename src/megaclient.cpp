@@ -6463,7 +6463,7 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, int ets)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired())

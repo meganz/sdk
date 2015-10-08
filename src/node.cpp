@@ -212,7 +212,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     unsigned short ll;
     Node* n;
     int i;
-    char version_flag = '\0';
+    char isExported = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -284,8 +284,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
-    version_flag = MemAccess::get<char>(ptr);
-    ptr += sizeof(version_flag);
+    isExported = MemAccess::get<char>(ptr);
+    ptr += sizeof(isExported);
 
     for (i = 7; i--;)
     {
@@ -333,22 +333,16 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     ptr = n->attrs.unserialize(ptr);
 
     PublicLink *plink = NULL;
-    if (version_flag >= 1)
+    if (isExported)
     {
-        bool isExported = MemAccess::get<bool>(ptr);
-        ptr += sizeof(bool);
+        handle ph = MemAccess::get<handle>(ptr);
+        ptr += MegaClient::NODEHANDLE;
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
 
-        if (isExported)
-        {
-            handle ph = MemAccess::get<handle>(ptr);
-            ptr += MegaClient::NODEHANDLE;
-            m_time_t ets = MemAccess::get<m_time_t>(ptr);
-            ptr += sizeof(ets);
-            bool takendown = MemAccess::get<bool>(ptr);
-            ptr += sizeof(takendown);
-
-            plink = new PublicLink(ph, ets, takendown);
-        }
+        plink = new PublicLink(ph, ets, takendown);
     }
     n->plink = plink;
 
@@ -409,7 +403,6 @@ bool Node::serialize(string* d)
     unsigned short ll;
     short numshares;
     m_off_t s;
-    char version = 1;
 
     s = type ? -type : size;
 
@@ -444,7 +437,8 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-    d->append((char*)&version, 1);
+    char isExported = plink ? 1 : 0;
+    d->append((char*)&isExported, 1);
     d->append("\0\0\0\0\0\0", 7);
 
     if (inshare)
@@ -495,17 +489,11 @@ bool Node::serialize(string* d)
 
     attrs.serialize(d);
 
-    bool isExported = plink ? true : false;
     if (isExported)
     {
-        d->append((char*) &isExported, sizeof(bool));
         d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
         d->append((char*) &plink->ets, sizeof(plink->ets));
         d->append((char*) &plink->takendown, sizeof(plink->takendown));
-    }
-    else
-    {
-        d->append((char*) &isExported, sizeof(bool));
     }
 
     return true;
@@ -888,7 +876,7 @@ bool PublicLink::isExpired()
     if (!ets)       // permanent link: ets=0
         return false;
 
-    time_t t = time(NULL);
+    m_time_t t = time(NULL);
 //    struct tm *ptm = gmtime(&t);
 //    t = mktime(ptm);
 

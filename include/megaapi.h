@@ -4277,7 +4277,7 @@ class MegaApi
          *
          * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
          */
-        void exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Stop sharing a file/folder

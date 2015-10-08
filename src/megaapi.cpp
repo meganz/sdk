@@ -1234,7 +1234,7 @@ void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
     pImpl->exportNode(node, 0, listener);
 }
 
-void MegaApi::exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener)
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
 {
     pImpl->exportNode(node, expireTime, listener);
 }

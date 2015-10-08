@@ -2908,7 +2908,7 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 	setUserAttr(type ? type : -1, value, listener);
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());

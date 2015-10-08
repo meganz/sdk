@@ -2603,7 +2603,7 @@ void CommandGetUserSessions::procresult()
     client->app->account_details(details, false, false, false, false, false, true);
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, int ets)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
 {
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
