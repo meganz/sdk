@@ -548,13 +548,13 @@ class MegaNode
          * @return The public handle of an exported node. If the MegaNode
          * has not been exported, it returns UNDEF.
          */
-        virtual handle getPublicHandle();
+        virtual MegaHandle getPublicHandle();
 
          /**
          * @brief Returns a public node corresponding to the exported MegaNode
          *
          * @return Public node for the exported node. If the MegaNode has not been
-         * exported, it returns NULL.         *
+         * exported or it has expired, then it returns NULL.
          */
         virtual MegaNode* getPublicNode();
 
@@ -4258,8 +4258,10 @@ class MegaApi
          * - MegaRequest::getLink - Public link
          *
          * @param node MegaNode to get the public link
-         * @param expireTime Number of days during the public link will be valid
+         * @param expireTime Unix timestamp until the public link will be valid
          * @param listener MegaRequestListener to track this request
+         *
+         * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
          */
         void exportNode(MegaNode *node, int expireTime, MegaRequestListener *listener = NULL);
 

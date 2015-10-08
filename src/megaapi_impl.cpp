@@ -305,22 +305,26 @@ int64_t MegaNodePrivate::getExpirationTime()
     return plink ? plink->ets : -1;
 }
 
-handle MegaNodePrivate::getPublicHandle()
+MegaHandle MegaNodePrivate::getPublicHandle()
 {
-    return plink ? plink->ph : UNDEF;
+    return plink ? (MegaHandle) plink->ph : INVALID_HANDLE;
 }
 
 MegaNode* MegaNodePrivate::getPublicNode()
 {
-    if (!plink)
+    if (!plink || plink->isExpired())
     {
         return NULL;
     }
 
-    string key = string(getBase64Key());
+    char *skey = getBase64Key();
+    string key(skey);
+
     MegaNode *node = new MegaNodePrivate(
                 name, type, size, ctime, mtime,
                 plink->ph, &key, &attrstring);
+
+    delete [] skey;
 
     return node;
 }
@@ -335,17 +339,20 @@ char *MegaNodePrivate::getPublicLink()
     char *base64ph = new char[12];
     Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
 
+    char *base64k = getBase64Key();
+
     string strlink = "https://mega.nz/#";
     strlink += (type ? "F" : "");
     strlink += "!";
     strlink += base64ph;
     strlink += "!";
-    strlink += getBase64Key();
+    strlink += base64k;
 
     char *link = new char[strlink.size()+1];
     std::strcpy (link, strlink.c_str());
 
     delete [] base64ph;
+    delete [] base64k;
 
     return link;
 }

@@ -153,7 +153,7 @@ class MegaNodePrivate : public MegaNode
         virtual std::string* getAttrString();
         virtual int getTag();
         virtual int64_t getExpirationTime();
-        virtual handle getPublicHandle();
+        virtual MegaHandle getPublicHandle();
         virtual MegaNode* getPublicNode();
         virtual char *getPublicLink();
         virtual bool isFile();

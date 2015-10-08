@@ -227,9 +227,9 @@ int64_t MegaNode::getExpirationTime()
     return -1;
 }
 
-handle MegaNode::getPublicHandle()
+MegaHandle MegaNode::getPublicHandle()
 {
-    return UNDEF;
+    return INVALID_HANDLE;
 }
 
 MegaNode* MegaNode::getPublicNode()

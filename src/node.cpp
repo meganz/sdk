@@ -284,7 +284,9 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
-//    for (i = 8; i--;)
+    version_flag = MemAccess::get<char>(ptr);
+    ptr += sizeof(version_flag);
+
     for (i = 7; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
@@ -292,8 +294,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
             ptr += (unsigned char)*ptr + 1;
         }
     }
-    version_flag = MemAccess::get<char>(ptr);
-    ptr += sizeof(version_flag);
 
     short numshares = MemAccess::get<short>(ptr);
     ptr += sizeof(numshares);
@@ -444,9 +444,8 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-//    d->append("\0\0\0\0\0\0\0", 8);
-    d->append("\0\0\0\0\0\0", 7);
     d->append((char*)&version, 1);
+    d->append("\0\0\0\0\0\0", 7);
 
     if (inshare)
     {
