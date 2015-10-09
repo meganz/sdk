@@ -271,7 +271,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
 
-        if ((ptr + ll > end) || ptr[ll])
+        if ((ptr + ll > end) || ptr[ll + 1])
         {
             return NULL;
         }
@@ -302,7 +302,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     {
         if (ptr + SymmCipher::KEYLENGTH > end)
         {
-            return 0;
+            return NULL;
         }
 
         skey = (const byte*)ptr;
@@ -335,6 +335,11 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     PublicLink *plink = NULL;
     if (isExported)
     {
+        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
+        {
+            return NULL;
+        }
+
         handle ph = MemAccess::get<handle>(ptr);
         ptr += MegaClient::NODEHANDLE;
         m_time_t ets = MemAccess::get<m_time_t>(ptr);
