@@ -998,6 +998,7 @@ class MegaApiImpl : public MegaApp
         char *exportMasterKey();
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
+        void addContact(const char* email, MegaRequestListener* listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();

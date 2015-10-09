@@ -3297,6 +3297,14 @@ void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestList
     waiter->notify();
 }
 
+void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
+{
+	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_CONTACT, listener);
+	request->setEmail(email);
+	requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
