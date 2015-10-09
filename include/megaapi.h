@@ -689,12 +689,47 @@ class MegaNode
         virtual bool isPublic();
 
         /**
+         * @brief Check if the MegaNode is being shared by/with your own user
+         *
+         * For nodes that are being shared, you can get a list of MegaShare
+         * objects using MegaApi::getOutShares, or a list of MegaNode objects
+         * using MegaApi::getInShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is being shared, otherwise false
+         * @note Exported nodes (public link) are not considered to be shared nodes.
+         */
+        virtual bool isShared();
+
+        /**
+         * @brief Check if the MegaNode is being shared with other users
+         *
+         * For nodes that are being shared, you can get a list of MegaShare
+         * objects using MegaApi::getOutShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is being shared, otherwise false
+         */
+        virtual bool isOutShare();
+
+        /**
+         * @brief Check if a MegaNode belong to another User, but it is shared with you
+         *
+         * For nodes that are being shared, you can get a list of MegaNode
+         * objects using MegaApi::getInShares
+         *
+         * @param node Node to check
+         * @return true is the MegaNode is being shared, otherwise false
+         */
+        virtual bool isInShare();
+
+        /**
          * @brief Returns true if the node has been exported (has a public link)
          *
          * Public links are created by calling MegaApi::exportNode.
          *
          * @return true if this is an exported node
-         */
+        */
         virtual bool isExported();
 
         /**
@@ -5521,40 +5556,6 @@ class MegaApi
          * @return List of MegaNode objects that other users are sharing with this account
          */
         MegaNodeList *getInShares();
-
-        /**
-         * @brief Check if a MegaNode is being shared by/with your own user
-         *
-         * For nodes that are being shared, you can get a list of MegaShare
-         * objects using MegaApi::getOutShares, or a list of MegaNode objects
-         * using MegaApi::getInShares
-         *
-         * @param node Node to check
-         * @return true is the MegaNode is being shared, otherwise false
-         */
-        bool isShared(MegaNode *node);
-
-        /**
-         * @brief Check if a MegaNode is being shared with other users
-         *
-         * For nodes that are being shared, you can get a list of MegaShare
-         * objects using MegaApi::getOutShares
-         *
-         * @param node Node to check
-         * @return true is the MegaNode is being shared, otherwise false
-         */
-        bool isOutShare(MegaNode *node);
-
-        /**
-         * @brief Check if a MegaNode belong to another User, but it is shared with you
-         *
-         * For nodes that are being shared, you can get a list of MegaNode
-         * objects using MegaApi::getInShares
-         *
-         * @param node Node to check
-         * @return true is the MegaNode is being shared, otherwise false
-         */
-        bool isInShare(MegaNode *node);
 
         /**
          * @brief Check if a MegaNode is pending to be shared with another User. This situation

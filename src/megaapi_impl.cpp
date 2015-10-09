@@ -92,6 +92,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->tag = 0;
     this->isPublicNode = true;
     this->outShares = false;
+    this->inShare = false;
     this->plink = NULL;
 
     if(auth)
@@ -124,7 +125,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->tag = node->getTag();
     this->isPublicNode = node->isPublic();
     this->auth = *node->getAuth();
-//    this->outShares = node->isOutShare();
+    this->outShares = node->isOutShare();
     if (node->isExported())
     {
         this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
@@ -207,19 +208,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
-    this->outShares = false;
-    if (node->outshares)
-    {
-        if (node->outshares->size() == 1 && !node->outshares->begin()->second->user)
-        {
-            this->outShares = false;
-        }
-        else
-        {
-            this->outShares = true;
-        }
-    }
-
+    // if there's only one share and it has no user --> public link
+    this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
+    this->inShare = (node->inshare != NULL) && !node->parent;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
 }
 
@@ -556,6 +547,21 @@ bool MegaNodePrivate::hasPreview()
 bool MegaNodePrivate::isPublic()
 {
     return isPublicNode;
+}
+
+bool MegaNodePrivate::isShared()
+{
+    return outShares || inShare;
+}
+
+bool MegaNodePrivate::isOutShare()
+{
+    return outShares;
+}
+
+bool MegaNodePrivate::isInShare()
+{
+    return inShare;
 }
 
 bool MegaNodePrivate::isExported()
@@ -4093,60 +4099,6 @@ MegaNodeList* MegaApiImpl::getInShares()
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
     sdkMutex.unlock();
 	return nodeList;
-}
-
-bool MegaApiImpl::isShared(MegaNode *megaNode)
-{
-	if(!megaNode) return false;
-
-	sdkMutex.lock();
-	Node *node = client->nodebyhandle(megaNode->getHandle());
-	if(!node)
-	{
-		sdkMutex.unlock();
-		return false;
-	}
-
-    bool result = (node->outshares != NULL) || ((node->inshare != NULL) && !node->parent);
-	sdkMutex.unlock();
-
-	return result;
-}
-
-bool MegaApiImpl::isOutShare(MegaNode *megaNode)
-{
-    if(!megaNode) return false;
-
-    sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
-    if(!node)
-    {
-        sdkMutex.unlock();
-        return false;
-    }
-
-    bool result = (node->outshares != NULL);
-    sdkMutex.unlock();
-
-    return result;
-}
-
-bool MegaApiImpl::isInShare(MegaNode *megaNode)
-{
-    if(!megaNode) return false;
-
-    sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
-    if(!node)
-    {
-        sdkMutex.unlock();
-        return false;
-    }
-
-    bool result = (node->inshare != NULL) && !node->parent;
-    sdkMutex.unlock();
-
-    return result;
 }
 
 bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
