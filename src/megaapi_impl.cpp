@@ -622,6 +622,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->lastBytes = NULL;
     this->syncTransfer = false;
     this->lastError = API_OK;
+    this->folderTransfer = false;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -656,6 +657,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setTransfer(transfer->getTransfer());
     this->setSyncTransfer(transfer->isSyncTransfer());
     this->setLastErrorCode(transfer->getLastErrorCode());
+    this->setFolderTransfer(transfer->isFolderTransfer());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -798,6 +800,11 @@ error MegaTransferPrivate::getLastErrorCode() const
     return this->lastError;
 }
 
+bool MegaTransferPrivate::isFolderTransfer() const
+{
+    return this->folderTransfer;
+}
+
 void MegaTransferPrivate::setTag(int tag)
 {
 	this->tag = tag;
@@ -856,6 +863,11 @@ void MegaTransferPrivate::setLastBytes(char *lastBytes)
 void MegaTransferPrivate::setLastErrorCode(error errorCode)
 {
     this->lastError = errorCode;
+}
+
+void MegaTransferPrivate::setFolderTransfer(bool folderTransfer)
+{
+    this->folderTransfer = folderTransfer;
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -10181,11 +10193,16 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->transfer = transfer;
     this->listener = transfer->getListener();
     this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->pendingCopies = 0;
 }
 
 void MegaFolderUploadController::start()
 {
+    transfer->setFolderTransfer(true);
+    transfer->setStartTime(Waiter::ds);
     megaApi->fireOnTransferStart(transfer);
+
     MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
     if(!parent)
     {
@@ -10202,12 +10219,12 @@ void MegaFolderUploadController::start()
 
         if(!child || !child->isFolder())
         {
-            folders.push_back(localpath);
+            pendingFolders.push_back(localpath);
             megaApi->createFolder(name, parent, this);
         }
         else
         {
-            folders.push_front(localpath);
+            pendingFolders.push_front(localpath);
             onFolderAvailable(child->getHandle());
         }
 
@@ -10219,8 +10236,8 @@ void MegaFolderUploadController::start()
 void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 {
     recursive++;
-    string localPath = folders.front();
-    folders.pop_front();
+    string localPath = pendingFolders.front();
+    pendingFolders.pop_front();
 
     MegaNode *parent = megaApi->getNodeByHandle(handle);
 
@@ -10250,23 +10267,37 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                 {
                     MegaNode *child = megaApi->getChildNode(parent, name.c_str());
                     if(!child || child->isFolder() || (fa->size != child->getSize()))
-                    {
+                    {                        
                         FileFingerprint fp;
                         fp.genfingerprint(fa);
                         Node *node = client->nodebyfingerprint(&fp);
                         if(!node)
                         {
+                            pendingTransfers++;
+                            transfer->setTotalBytes(transfer->getTotalBytes() + fa->size);
+
                             string utf8path;
                             client->fsaccess->local2path(&localPath, &utf8path);
-                            megaApi->startUpload(utf8path.c_str(), parent, listener);
+                            megaApi->startUpload(utf8path.c_str(), parent, this);
                         }
                         else
                         {
+                            pendingCopies++;
+                            transfer->setTotalBytes(transfer->getTotalBytes() + node->size);
+
                             MegaNode *duplicate = MegaNodePrivate::fromNode(node);
-                            megaApi->copyNode(duplicate, parent, name.c_str());
+                            megaApi->copyNode(duplicate, parent, name.c_str(), this);
                             delete duplicate;
                         }
                     }
+                    else
+                    {
+                        transfer->setTotalBytes(transfer->getTotalBytes() + child->getSize());
+                        transfer->setTransferredBytes(transfer->getTransferredBytes() + child->getSize());
+                    }
+
+                    transfer->setUpdateTime(Waiter::ds);
+                    megaApi->fireOnTransferUpdate(transfer);
                     delete child;
                 }
                 else
@@ -10274,12 +10305,12 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                     MegaNode *child = megaApi->getChildNode(parent, name.c_str());
                     if(!child || !child->isFolder())
                     {
-                        folders.push_back(localPath);
+                        pendingFolders.push_back(localPath);
                         megaApi->createFolder(name.c_str(), parent, this);
                     }
                     else
                     {
-                        folders.push_front(localPath);
+                        pendingFolders.push_front(localPath);
                         onFolderAvailable(child->getHandle());
                     }
                     delete child;
@@ -10294,17 +10325,61 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     delete parent;
     recursive--;
 
-    if(!recursive && !folders.size())
+    checkCompletion();
+}
+
+void MegaFolderUploadController::checkCompletion()
+{
+    if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingCopies)
     {
+        LOG_debug << "Folder transfer finished";
         megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
         delete this;
     }
 }
 
-void MegaFolderUploadController::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
-    if(e->getErrorCode() == MegaError::API_OK)
+    int type = request->getType();
+    int errorCode = e->getErrorCode();
+
+    if(type == MegaRequest::TYPE_CREATE_FOLDER)
     {
-        onFolderAvailable(request->getNodeHandle());
+        if(!errorCode)
+        {
+            onFolderAvailable(request->getNodeHandle());
+        }
+        else
+        {
+            pendingFolders.pop_front();
+            checkCompletion();
+        }
     }
+    else if(type == MegaRequest::TYPE_COPY)
+    {
+        pendingCopies--;
+        Node *node = client->nodebyhandle(request->getNodeHandle());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + node->size);
+        transfer->setUpdateTime(Waiter::ds);
+        megaApi->fireOnTransferUpdate(transfer);
+        checkCompletion();
+    }
+}
+
+void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
+{
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setSpeed(t->getSpeed());
+    megaApi->fireOnTransferUpdate(transfer);
+}
+
+void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
+{
+    pendingTransfers--;
+    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setSpeed(t->getSpeed());
+    megaApi->fireOnTransferUpdate(transfer);
+    checkCompletion();
 }

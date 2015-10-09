@@ -629,7 +629,12 @@ bool MegaTransfer::isStreamingTransfer() const
 
 char *MegaTransfer::getLastBytes() const
 {
-	return NULL;
+    return NULL;
+}
+
+bool MegaTransfer::isFolderTransfer() const
+{
+    return false;
 }
 
 

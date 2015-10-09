@@ -133,7 +133,7 @@ private:
 };
 
 class MegaTransferPrivate;
-class MegaFolderUploadController : public MegaRequestListener
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
@@ -141,8 +141,9 @@ public:
 
 protected:
     void onFolderAvailable(MegaHandle handle);
+    void checkCompletion();
 
-    std::list<std::string> folders;
+    std::list<std::string> pendingFolders;
     MegaApiImpl *megaApi;
     MegaClient *client;
     const char* name;
@@ -151,8 +152,13 @@ protected:
     MegaTransferListener *listener;
     int recursive;
 
+    int pendingTransfers;
+    int pendingCopies;
+
 public:
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 };
 
 class MegaNodePrivate : public MegaNode
@@ -291,6 +297,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setSyncTransfer(bool syncTransfer);
         void setLastBytes(char *lastBytes);
         void setLastErrorCode(error errorCode);
+        void setFolderTransfer(bool folderTransfer);
 
 		virtual int getType() const;
 		virtual const char * getTransferString() const;
@@ -321,6 +328,7 @@ class MegaTransferPrivate : public MegaTransfer
         virtual bool isStreamingTransfer() const;
         virtual char *getLastBytes() const;
         virtual error getLastErrorCode() const;
+        virtual bool isFolderTransfer() const;
 
 	protected:		
 		int type;
@@ -348,6 +356,7 @@ class MegaTransferPrivate : public MegaTransfer
 		MegaTransferListener *listener;
         Transfer *transfer;
         error lastError;
+        bool folderTransfer;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
