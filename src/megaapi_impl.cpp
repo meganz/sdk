@@ -126,6 +126,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->auth = *node->getAuth();
     this->outShares = node->isOutShare();
+    this->inShare = node->isInShare();
     if (node->isExported())
     {
         this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());

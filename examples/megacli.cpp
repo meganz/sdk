@@ -3234,7 +3234,6 @@ static void process_line(char* l)
                         return;
                     }
                     break;
-                    break;
             }
 
             cout << "?Invalid command" << endl;
