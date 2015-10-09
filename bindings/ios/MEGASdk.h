@@ -20,6 +20,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGANode.h"
 #import "MEGAUser.h"
@@ -74,7 +75,19 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeFirstname = 1,
-    MEGAUserAttributeLastname = 2
+    MEGAUserAttributeLastname  = 2
+};
+
+typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
+    MEGAPaymentMethodBalance      = 0,
+    MEGAPaymentMethodPaypal       = 1,
+    MEGAPaymentMethodItunes       = 2,
+    MEGAPaymentMethodGoogleWallet = 3,
+    MEGAPaymentMethodBitcoin      = 4,
+    MEGAPaymentMethodUnionPay     = 5,
+    MEGAPaymentMethodFortumo      = 6,
+    MEGAPaymentMethodCreditCard   = 8,
+    MEGAPaymentMethodCentili      = 9
 };
 
 /**
@@ -1668,6 +1681,32 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
 - (void)getPaymentIdForProductHandle:(uint64_t)productHandle;
 
 /**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt.
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * - MEGAPaymentMethodGoogleWallet = 3
+ *
+ * @param receipt Purchase receipt
+ * @param delegate Delegate to track this request
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * - MEGAPaymentMethodGoogleWallet = 3
+ *
+ * @param receipt Purchase receipt
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt;
+
+/**
  * @brief Change the password of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeChangePassword.
@@ -2463,6 +2502,17 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
 /**
+ * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
+ *
+ * If the input stream is NULL, has a negative size or can't be read, this function returns NULL
+ *
+ * @param assetRepresentation ALAssetRepresentation that provides the data to create the fingerprint
+ * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
+ * @return Base64-encoded fingerprint
+ */
+- (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
+
+/**
  * @brief Get a Base64-encoded fingerprint for a node.
  *
  * If the node doesn't exist or doesn't have a fingerprint, this function returns nil.
@@ -2529,6 +2579,13 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
  */
 - (NSString *)CRCForNode:(MEGANode *)node;
 
+/**
+ * @brief Get the CRC from a fingerPrint
+ *
+ * @param fingerPrint fingerPrint from which we want to get the CRC
+ * @return Base64-encoded CRC from the fingerPrint
+ */
+- (NSString *)CRCForFingerprint:(NSString *)fingerprint;
 /**
  * @brief Returns a node with the provided CRC
  *

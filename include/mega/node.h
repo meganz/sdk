@@ -75,6 +75,23 @@ struct MEGA_API NewNode : public NodeCore
     }
 };
 
+struct MEGA_API PublicLink
+{
+    handle ph;
+    m_time_t ets;
+    bool takendown;
+
+    PublicLink(handle ph, m_time_t ets, bool takendown)
+    {
+        this->ph = ph;
+        this->ets = ets;
+        this->takendown = takendown;
+    }
+
+    PublicLink(PublicLink *plink);
+    bool isExpired();
+};
+
 // filesystem node
 struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
 {
@@ -188,6 +205,9 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // check if node is below this node
     bool isbelow(Node*) const;
 
+    // handle of public link for the node
+    PublicLink *plink;
+
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
@@ -255,6 +275,9 @@ struct MEGA_API LocalNode : public File, Cachable
 
     // update sync state all the way to the root node
     void treestate(treestate_t = TREESTATE_NONE);
+
+    // check the current state (only useful for folders)
+    treestate_t checkstate();
 
     // timer to delay upload start
     dstime nagleds;

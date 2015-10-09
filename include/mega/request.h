@@ -41,6 +41,36 @@ public:
 
     void clear();
 };
+
+class MEGA_API RequestDispatcher
+{
+    // active request buffer
+    int r;
+
+    // client-server request double-buffering
+    Request reqs[2];
+
+    // secondary request buffer
+    queue<Command *> reqbuf;
+
+    static const int MAX_COMMANDS = 10000;
+
+public:
+    RequestDispatcher();
+
+    void nextRequest();
+
+    void add(Command*);
+
+    int cmdspending() const;
+
+    void get(string*) const;
+
+    void procresult(MegaClient*);
+
+    void clear();
+};
+
 } // namespace
 
 #endif

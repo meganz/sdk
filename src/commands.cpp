@@ -78,6 +78,7 @@ void HttpReqCommandPutFA::procresult()
                     }
                     else
                     {
+                        LOG_debug << "Sending file attribute data";
                         Node::copystring(&posturl, p);
                         post(client, data->data(), data->size());
                     }
@@ -1480,7 +1481,7 @@ void CommandSetShare::procresult()
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs[client->r].add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
                         return;
                     }
                 }
@@ -2602,7 +2603,7 @@ void CommandGetUserSessions::procresult()
     client->app->account_details(details, false, false, false, false, false, true);
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
 {
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -2612,8 +2613,13 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del)
         arg("d", 1);
     }
 
-    h = n->nodehandle;
-    tag = client->reqtag;
+    if (ets)
+    {
+        arg("ets", ets);
+    }
+
+    this->h = n->nodehandle;
+    this->tag = client->reqtag;
 }
 
 void CommandSetPH::procresult()
@@ -2926,8 +2932,9 @@ void CommandSetKeyPair::procresult()
 CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 {
     cmd("f");
-    arg("c", "1", 0);
-    arg("r", "1", 0);
+    arg("c", 1);
+    arg("r", 1);
+    arg("ca", 1);
 
     tag = client->reqtag;
 }
@@ -2936,10 +2943,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client)
 void CommandFetchNodes::procresult()
 {
     client->purgenodesusersabortsc();
-    client->fetchingnodes = false;
 
     if (client->json.isnumeric())
     {
+        client->fetchingnodes = false;
         return client->app->fetchnodes_result((error)client->json.getint());
     }
 
@@ -2951,6 +2958,7 @@ void CommandFetchNodes::procresult()
                 // nodes
                 if (!client->readnodes(&client->json, 0))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -2971,6 +2979,7 @@ void CommandFetchNodes::procresult()
                 // users/contacts
                 if (!client->readusers(&client->json))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -2989,6 +2998,7 @@ void CommandFetchNodes::procresult()
                 // share node
                 if (!client->setscsn(&client->json))
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -3003,34 +3013,28 @@ void CommandFetchNodes::procresult()
                 client->readopc(&client->json);
                 break;
 
+            case MAKENAMEID2('p', 'h'):
+                // Public links handles
+                client->procph(&client->json);
+                break;
+
             case EOO:
                 if (!*client->scsn)
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
                 client->mergenewshares(0);
                 client->applykeys();
-#ifdef ENABLE_SYNC
-                client->syncsup = false;
-#endif
-                client->app->fetchnodes_result(API_OK);
                 client->initsc();
-
-                // NULL vector: "notify all nodes"
-                client->app->nodes_updated(NULL, client->nodes.size());
-                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
-                {
-                    memset(&(it->second->changed), 0, sizeof it->second->changed);
-                }
-
-                client->app->pcrs_updated(NULL, client->pcrindex.size());
-
+                client->fetchnodestag = tag;
                 return;
 
             default:
                 if (!client->json.storeobject())
                 {
+                    client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }
@@ -3154,7 +3158,12 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
     if(receipt)
     {
-        arg("receipt", (const byte*)receipt, strlen(receipt));
+        arg("receipt", receipt);
+    }
+
+    if(type == 2 && client->loggedin() == FULLACCOUNT)
+    {
+        arg("user", client->finduser(client->me)->uid.c_str());
     }
 
     tag = client->reqtag;

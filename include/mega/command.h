@@ -461,7 +461,7 @@ class MEGA_API CommandSetPH : public Command
 public:
     void procresult();
 
-    CommandSetPH(MegaClient*, Node*, int);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t);
 };
 
 class MEGA_API CommandGetPH : public Command

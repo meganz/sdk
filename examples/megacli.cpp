@@ -1032,6 +1032,20 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                 {
                     cout << ", has attributes " << p + 1;
                 }
+
+                if (n->plink)
+                {
+                    cout << ", shared as exported";
+                    if (n->plink->ets)
+                    {
+                        cout << " temporal";
+                    }
+                    else
+                    {
+                        cout << " permanent";
+                    }
+                    cout << " file link";
+                }
                 break;
 
             case FOLDERNODE:
@@ -1046,10 +1060,20 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                             cout << ", shared with " << it->second->user->email << ", access "
                                  << accesslevels[it->second->access];
                         }
+                    }
+
+                    if (n->plink)
+                    {
+                        cout << ", shared as exported";
+                        if (n->plink->ets)
+                        {
+                            cout << " temporal";
+                        }
                         else
                         {
-                            cout << ", shared as exported folder link";
+                            cout << " permanent";
                         }
+                        cout << " folder link";
                     }
                 }
 
@@ -1530,7 +1554,7 @@ static void process_line(char* l)
 #ifdef ENABLE_SYNC
                 cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
 #endif
-                cout << "      export remotepath [del]" << endl;
+                cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
@@ -2947,18 +2971,26 @@ static void process_line(char* l)
                         if (words.size() > 1)
                         {
                             Node* n;
+                            int del = 0;
+                            int ets = 0;
 
                             if ((n = nodebypath(words[1].c_str())))
                             {
-                                error e;
+                                if (words.size() > 2)
+                                {
+                                    del = (words[2] == "del");
+                                    if (!del)
+                                    {
+                                        ets = atol(words[2].c_str());
+                                    }
+                                }
 
-                                if ((e = client->exportnode(n, words.size() > 2 && words[2] == "del")))
+                                cout << "Exporting..." << endl;
+
+                                error e;
+                                if ((e = client->exportnode(n, del, ets)))
                                 {
                                     cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
-                                }
-                                else
-                                {
-                                    cout << "Exporting..." << endl;
                                 }
                             }
                             else
@@ -2968,7 +3000,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      export remotepath [del]" << endl;
+                            cout << "      export remotepath [expireTime|del]" << endl;
                         }
 
                         return;

@@ -152,6 +152,10 @@ class MegaNodePrivate : public MegaNode
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
         virtual int getTag();
+        virtual int64_t getExpirationTime();
+        virtual MegaHandle getPublicHandle();
+        virtual MegaNode* getPublicNode();
+        virtual char *getPublicLink();
         virtual bool isFile();
         virtual bool isFolder();
         bool isRemoved();
@@ -160,9 +164,10 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasThumbnail();
         virtual bool hasPreview();
         virtual bool isPublic();
+        virtual bool isExported();
+        virtual bool isExpired();
+        virtual bool isTakenDown();
         virtual std::string* getAuth();
-        virtual bool isOutShare();
-        virtual bool hasPublicLink();
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -190,7 +195,8 @@ class MegaNodePrivate : public MegaNode
         bool previewAvailable;
         bool isPublicNode;
         bool outShares;
-        bool publicLink;
+
+        PublicLink *plink;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -967,13 +973,13 @@ class MegaApiImpl : public MegaApp
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
@@ -1095,6 +1101,7 @@ class MegaApiImpl : public MegaApp
 
         //CRC
         char *getCRC(const char *filePath);
+        char *getCRCFromFingerprint(const char *fingerprint);
         char *getCRC(MegaNode *node);
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 
@@ -1135,6 +1142,8 @@ class MegaApiImpl : public MegaApp
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
+
+        bool isOnline();
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;

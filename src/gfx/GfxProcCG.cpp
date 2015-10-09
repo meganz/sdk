@@ -33,8 +33,12 @@ GfxProcCG::GfxProcCG()
 
 GfxProcCG::~GfxProcCG() {
     freebitmap();
-    CFRelease(thumbnailParams);
-    CFRelease(imageParams);
+    if (thumbnailParams) {
+        CFRelease(thumbnailParams);
+    }
+    if (imageParams) {
+        CFRelease(imageParams);
+    }
 }
 
 const char* GfxProcCG::supportedformats() {
@@ -69,9 +73,12 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     }
     if (!((int)w && (int)h)) { // trying to get fake size from thumbnail
         CGImageRef thumbnail = createThumbnailWithMaxSize(100);
+        if (!thumbnail) {
+            return false;
+        }
         w = CGImageGetWidth(thumbnail);
         h = CGImageGetHeight(thumbnail);
-        CFRelease(thumbnail);
+        CGImageRelease(thumbnail);
     }
     return (int)w && (int)h;
 }
@@ -121,11 +128,19 @@ bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
     CGImageRef image = createThumbnailWithMaxSize(maxSizeForThumbnail(rw, rh));
     if (!rh) { // Make square image
         CGImageRef newImage = CGImageCreateWithImageInRect(image, tileRect(CGImageGetWidth(image), CGImageGetHeight(image)));
-        CFRelease(image);
+        if (image) {
+            CGImageRelease(image);
+        }
         image = newImage;
     }
     CFMutableDataRef data = CFDataCreateMutable(kCFAllocatorDefault, 0);
+    if (!data) {
+        return false;
+    }
     CGImageDestinationRef destination = CGImageDestinationCreateWithData(data, kUTTypeJPEG, 1, NULL);
+    if (!destination) {
+        return false;
+    }
     CGImageDestinationAddImage(destination, image, imageParams);
     bool success = CGImageDestinationFinalize(destination);
     CGImageRelease(image);
@@ -137,7 +152,9 @@ bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
 }
 
 void GfxProcCG::freebitmap() {
-    CFRelease(imageSource);
-    imageSource = NULL;
+    if (imageSource) {
+        CFRelease(imageSource);
+        imageSource = NULL;
+    }
     w = h = 0;
 }

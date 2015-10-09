@@ -49,7 +49,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs[client->r].add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), nn, nc, tag));
+        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), nn, nc, tag));
     }
     else
     {
@@ -75,7 +75,7 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 
         if ((t = u->pubk.encrypt(n->sharekey->key, SymmCipher::KEYLENGTH, buf, sizeof buf)))
         {
-            client->reqs[client->r].add(new CommandShareKeyUpdate(client, sh, u->uid.c_str(), buf, t));
+            client->reqs.add(new CommandShareKeyUpdate(client, sh, u->uid.c_str(), buf, t));
         }
     }
 }
@@ -105,7 +105,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // we have all ingredients ready: the target user's public key, the share
     // key and all nodes to share
     client->restag = tag;
-    client->reqs[client->r].add(new CommandSetShare(client, n, u, a, newshare, NULL, selfemail.c_str()));
+    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, selfemail.c_str()));
 }
 
 // share node sh with access level sa

@@ -222,6 +222,26 @@ int MegaNode::getTag()
     return 0;
 }
 
+int64_t MegaNode::getExpirationTime()
+{
+    return -1;
+}
+
+MegaHandle MegaNode::getPublicHandle()
+{
+    return INVALID_HANDLE;
+}
+
+MegaNode* MegaNode::getPublicNode()
+{
+    return NULL;
+}
+
+char * MegaNode::getPublicLink()
+{
+    return NULL;
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -262,12 +282,17 @@ bool MegaNode::isPublic()
     return false;
 }
 
-bool MegaNode::isOutShare()
+bool MegaNode::isExported()
 {
     return false;
 }
 
-bool MegaNode::hasPublicLink()
+bool MegaNode::isExpired()
+{
+    return false;
+}
+
+bool MegaNode::isTakenDown()
 {
     return false;
 }
@@ -1114,6 +1139,11 @@ void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener
     pImpl->sendFileToUser(node, user, listener);
 }
 
+void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
+{
+    pImpl->sendFileToUser(node, email, listener);
+}
+
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
 {
     pImpl->share(node, user, access, listener);
@@ -1201,7 +1231,12 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, listener);
+    pImpl->exportNode(node, 0, listener);
+}
+
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
+{
+    pImpl->exportNode(node, expireTime, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
@@ -1241,7 +1276,12 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(receipt, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
@@ -1753,6 +1793,11 @@ char *MegaApi::getCRC(const char *filePath)
     return pImpl->getCRC(filePath);
 }
 
+char *MegaApi::getCRCFromFingerprint(const char *fingerprint)
+{
+    return pImpl->getCRCFromFingerprint(fingerprint);
+}
+
 char *MegaApi::getCRC(MegaNode *node)
 {
     return pImpl->getCRC(node);
@@ -1933,6 +1978,11 @@ bool MegaApi::isWaiting()
 void MegaApi::removeRecursively(const char *path)
 {
     MegaApiImpl::removeRecursively(path);
+}
+
+bool MegaApi::isOnline()
+{
+    return pImpl->isOnline();
 }
 
 char* MegaApi::strdup(const char* buffer)

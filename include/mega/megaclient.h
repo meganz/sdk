@@ -153,7 +153,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*);
+    bool startxfer(direction_t, File*, bool skipdupes = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
@@ -233,7 +233,7 @@ public:
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int);
+    error exportnode(Node*, int, m_time_t);
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
@@ -326,10 +326,6 @@ public:
     static const char* const BALANCERURL;
 
 private:
-    // API request queue double buffering:
-    // reqs[r] is open for adding commands
-    // reqs[r^1] is being processed on the API server
-    HttpReq* pendingcs;
     BackoffTimer btcs;
 
     // server-client command trigger connection
@@ -358,11 +354,6 @@ private:
     // next local user record identifier to use
     int userid;
 
-    // pending file attribute writes
-    putfa_list newfa;
-
-    // current attribute being sent
-    putfa_list::iterator curfa;
     BackoffTimer btpfa;
 
     // next internal upload handle
@@ -399,6 +390,7 @@ private:
     void sc_opc();
     void sc_ipc();
     void sc_upc();
+    void sc_ph();
 
     void init();
 
@@ -419,9 +411,6 @@ private:
 
     // converts UTF-8 to 32-bit word array
     static char* str_to_a32(const char*, int*);
-
-    // last successful interaction with the Internet
-    dstime noinetds;
 
     // was the app notified of a retrying CS request?
     bool csretrying;
@@ -471,6 +460,17 @@ public:
 
     // have we just completed fetching new nodes?
     bool statecurrent;
+
+    // pending file attribute writes
+    putfa_list newfa;
+
+    // current attribute being sent
+    putfa_list::iterator curfa;
+
+    // API request queue double buffering:
+    // reqs[r] is open for adding commands
+    // reqs[r^1] is being processed on the API server
+    HttpReq* pendingcs;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
@@ -554,6 +554,7 @@ public:
 
     // initial state load in progress?
     bool fetchingnodes;
+    int fetchnodestag;
 
     // server-client request sequence number
     char scsn[12];
@@ -595,6 +596,9 @@ public:
 
     // activity flag
     bool syncactivity;
+
+    // syncops indicates that a sync-relevant tree update may be pending
+    bool syncops;
 
     // app scanstate flag
     bool syncscanstate;
@@ -645,7 +649,7 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    void syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, NewNode*, int);
@@ -691,11 +695,8 @@ public:
 
     dstime transferretrydelay();
 
-    // active request buffer
-    int r;
-
     // client-server request double-buffering
-    Request reqs[2];
+    RequestDispatcher reqs;
 
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
@@ -717,6 +718,8 @@ public:
 
     void readipc(JSON*);
     void readopc(JSON*);
+
+    void procph(JSON*);
 
     void readcr();
     void readsr();
@@ -743,6 +746,9 @@ public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
+
+    // max new nodes per request
+    static const int MAX_NEWNODES = 2000;
 
     // session ID length (binary)
     static const unsigned SIDLEN = 2 * SymmCipher::KEYLENGTH + USERHANDLE * 4 / 3 + 1;
@@ -806,6 +812,9 @@ public:
     static int hexval(char);
 
     SymmCipher tmpcipher;
+
+    void exportDatabase(string filename);
+    bool compareDatabases(string filename1, string filename2);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

@@ -60,7 +60,21 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeCancelAttrFile,
     MEGARequestTypeGetPricing,
     MEGARequestTypeGetPaymentId,
-    MEGARequestTypeGetUserData
+    MEGARequestTypeGetUserData,
+    MEGARequestTypeLoadBalancing,
+    MEGARequestTypeKillSession,
+    MEGARequestTypeSubmitPurchaseReceipt,
+    MEGARequestTypeCreditCardStore,
+    MEGARequestTypeUpgradeAccount,
+    MEGARequestTypeCreditCardQuerySubscriptions,
+    MEGARequestTypeCreditCardCancelSubscriptions,
+    MEGARequestTypeGetSessionTransferUrl,
+    MEGARequestTypeGetPaymentMethods,
+    MEGARequestTypeInviteContact,
+    MEGARequestTypeReplyContactRequest,
+    MEGARequestTypeSubmitFeedback,
+    MEGARequestTypeSendEvent,
+    MEGARequestTypeCleanRubbishBin
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

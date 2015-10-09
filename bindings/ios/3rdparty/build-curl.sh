@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CURL_VERSION="7.43.0"
+CURL_VERSION="7.44.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -18,14 +18,14 @@ if [ ! -d "$DEVELOPER" ]; then
   exit 1
 fi
 
-case $DEVELOPER in  
+case $DEVELOPER in
      *\ * )
            echo "Your Xcode path contains whitespaces, which is not supported."
            exit 1
           ;;
 esac
 
-case $CURRENTPATH in  
+case $CURRENTPATH in
      *\ * )
            echo "Your path contains whitespaces, which is not supported by 'make install'."
            exit 1
@@ -39,9 +39,6 @@ then
 curl -O "http://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
 fi
 
-tar zxf curl-${CURL_VERSION}.tar.gz
-pushd "curl-${CURL_VERSION}"
-
 for ARCH in ${ARCHS}
 do
 if [[ "${ARCH}" == "i386" || "${ARCH}" == "x86_64" ]];
@@ -50,6 +47,10 @@ PLATFORM="iPhoneSimulator"
 else
 PLATFORM="iPhoneOS"
 fi
+
+rm -rf curl-${CURL_VERSION}
+tar zxf curl-${CURL_VERSION}.tar.gz
+pushd "curl-${CURL_VERSION}"
 
 export BUILD_TOOLS="${DEVELOPER}"
 export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
@@ -65,18 +66,20 @@ export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=aarch64-apple-darwin --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi
+./configure --host=aarch64-apple-darwin --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 else
-./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi
+./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 fi
 
 make
 cp -f lib/.libs/libcurl.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
-make clean
+#make clean
+
+popd
 
 done
 
-popd
+
 mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libcurl.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libcurl.a -output ${CURRENTPATH}/lib/libcurl.a
 

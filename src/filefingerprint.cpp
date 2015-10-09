@@ -62,6 +62,7 @@ FileFingerprint::FileFingerprint()
     size = -1;
     mtime = 0;
     isvalid = false;
+    memset(crc, 0, sizeof crc);
 }
 
 FileFingerprint& FileFingerprint::operator=(FileFingerprint& rhs)
@@ -186,6 +187,12 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
     {
         size = is->size();
         changed = true;
+    }
+
+    if (size < 0)
+    {
+        size = -1;
+        return true;
     }
 
     if (size <= (m_off_t)sizeof crc)

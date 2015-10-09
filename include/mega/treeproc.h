@@ -123,6 +123,12 @@ public:
     int nc;
 };
 
+class MEGA_API LocalTreeProcUpdateTransfers : public LocalTreeProc
+{
+public:
+    void proc(MegaClient*, LocalNode*);
+};
+
 #endif
 } // namespace
 
