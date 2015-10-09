@@ -315,10 +315,6 @@ private:
     // auxiliar variables
     hnode_map::iterator ith;
     fpnode_map::iterator itfp;
-    pnode_t n;
-    node_vector dp;
-    string data;
-    string fp;
 
 public:
     pnode_t get(handle h);

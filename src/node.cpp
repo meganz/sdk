@@ -178,7 +178,8 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     unsigned short ll;
     pnode_t n;
     int i;
-    char version_flag = '\0';
+    char exported = '\0';
+    char encnode = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -225,11 +226,17 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
         if (ptr + keylen + 8 + sizeof(short) > end)
         {
+            LOG_err << "Error reading node from local cache";
             return NULL;
         }
 
         k = (const byte*)ptr;
         ptr += keylen;
+
+        if (!k)
+        {
+            LOG_info << "Reading encoded node...";
+        }
     }
 
     if (t == FILENODE)
@@ -237,8 +244,9 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
 
-        if ((ptr + ll > end) || ptr[ll])
+        if ((ptr + ll > end) || ptr[ll + 2])    // +2: `exported` + `encnode` bytes
         {
+            LOG_err << "Error reading node from local cache";
             return NULL;
         }
 
@@ -250,16 +258,53 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
-//    for (i = 8; i--;)
-    for (i = 7; i--;)
+    exported = MemAccess::get<char>(ptr);
+    ptr += sizeof(exported);
+
+    encnode = MemAccess::get<char>(ptr);
+    ptr += sizeof(encnode);
+
+    for (i = 6; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
             ptr += (unsigned char)*ptr + 1;
         }
     }
-    version_flag = MemAccess::get<char>(ptr);
-    ptr += sizeof(version_flag);
+
+    if (encnode)  // specific code for undecryptable nodes
+    {
+        LOG_info << "Reading an undecrypted node...";
+
+        if ((t == FILENODE) || (t == FOLDERNODE))
+        {
+            attrstringlen = MemAccess::get<m_off_t>(ptr);
+            ptr += sizeof attrstringlen;
+
+            if (!attrstringlen)
+            {
+                LOG_err << "Encoded node with empty \"attrstring\"";
+                return NULL;
+            }
+
+            attrstring.assign((char*)ptr, attrstringlen);
+            ptr += attrstringlen;
+
+            // nodekey is longer when not decrypted yet. We need the actual lenght
+            // Format: user_handle:user_specific_nodekey/share_rootnode1:share_specific_nodekey1/share_rootnode2:share_specific_nodekey2/...
+            keylen = MemAccess::get<m_off_t>(ptr);
+            ptr += sizeof keylen;
+
+            if (ptr + keylen > end)
+            {
+                LOG_err << "Error reading node from local cache";
+                return NULL;
+            }
+
+            k = (const byte*)ptr;
+            ptr += keylen;
+        }
+    }
 
     short numshares = MemAccess::get<short>(ptr);
     ptr += sizeof(numshares);
@@ -281,11 +326,29 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     n = make_shared<Node>(client, dp, h, ph, t, s, u, fa, ts);  // allocate object manager and object at once
     // set parent linkage or queue for delayed parent linkage in case of out-of-order delivery
-    n->setparent(client->nodebyhandle(ph));
+    pnode_t p = client->nodebyhandle(ph);
+    if (p)
+    {
+        n->setparent(p);
+    }
+    else
+    {
+        dp->push_back(n);
+    }
 
     if (k)  // if the node is decrypted...
     {
-        n->setkey(k);
+        if (!encnode)
+        {
+            n->setkey(k);
+        }
+        else
+        {
+            n->nodekey.assign((char *)k, keylen);
+
+            n->attrstring = new string;
+            n->attrstring->assign(attrstring.c_str(), attrstringlen);
+        }
     }
 
     if (numshares)
@@ -309,41 +372,6 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     ptr = n->attrs.unserialize(ptr);
 
-    if (version_flag >= 2)  // specific code for undecryptable nodes
-    {
-        attrstringlen = MemAccess::get<m_off_t>(ptr);
-        ptr += sizeof attrstringlen;
-
-        if (attrstringlen)
-        {
-            attrstring.assign((char*)ptr, attrstringlen);
-            ptr += attrstringlen;
-
-            // nodekey is longer when not decrypted yet. We need the actual lenght
-            // Format: user_handle:user_specific_nodekey/share_rootnode1:share_specific_nodekey1/share_rootnode2:share_specific_nodekey2/...
-            keylen = MemAccess::get<m_off_t>(ptr);
-            ptr += sizeof keylen;
-
-            if (keylen) // only files and folders have a nodekey, rootnodes do not
-            {
-                LOG_info << "Reading an undecrypted node...";
-
-                if (ptr + keylen > end)
-                {
-                    return NULL;
-                }
-
-                k = (const byte*)ptr;
-                ptr += keylen;
-
-                n->nodekey.assign((char *)k, keylen);
-
-                n->attrstring = new string;
-                n->attrstring->assign(attrstring.c_str(),attrstringlen);
-            }
-        }
-    }
-
     n->setfingerprint();
 
     if (ptr == end)
@@ -359,9 +387,8 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
-    char version = 2;
-
-    bool encnode = false;
+    char exported = '\0';
+    char encnode = '\0';
     if (attrstring)
     {
         //Last attempt to decrypt the node
@@ -370,7 +397,7 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            encnode = true;
+            encnode = 1;
             LOG_info << "Saving undecrypted node";
         }
     }
@@ -429,14 +456,18 @@ bool Node::serialize(string* d)
     ts = ctime;
     d->append((char*)&ts, sizeof(ts));
 
-    if (encnode)
+    if ((type == FOLDERNODE) || (type == FILENODE))   // skip nodekey for rootnodes
     {
-        // if encoded node, dummy data is written and will be ignored. Specific encrypted nodekey is written later
-        d->append("\0\0\0\0\0\0\0", (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-    }
-    else if ( (type == FOLDERNODE) || (type == FILENODE) )  // skip nodekey for rootnodes
-    {
-        d->append(nodekey);
+        if (encnode)
+        {
+            // if encoded node, dummy data is written and will be ignored. Specific encrypted nodekey is written later
+            d->append("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+                      (type == FILENODE) ? FILENODEKEYLENGTH + 0: FOLDERNODEKEYLENGTH + 0);
+        }
+        else
+        {
+            d->append(nodekey);
+        }
     }
 
     if (type == FILENODE)
@@ -446,9 +477,33 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-//    d->append("\0\0\0\0\0\0\0", 8);
-    d->append("\0\0\0\0\0\0", 7);
-    d->append((char*)&version, 1);
+    d->append((char*)&exported, 1);
+
+    d->append((char*)&encnode, 1);
+
+    d->append("\0\0\0\0\0", 6);
+
+    if (encnode)   // allows to store undecrypted nodes
+    {
+        if ((type == FILENODE) || (type == FOLDERNODE))
+        {
+            m_off_t attrstringlen = attrstring ? (m_off_t) attrstring->size() : 0;
+
+            if (!attrstringlen)
+            {
+                LOG_err << "Encoded node with empty \"attrstring\"";
+                return false;
+            }
+
+            d->append((char *)&attrstringlen, sizeof attrstringlen);
+            d->append(*attrstring);
+
+            m_off_t keylen = nodekey.size();
+            d->append((char *)&keylen, sizeof keylen);
+
+            d->append(nodekey);
+        }
+    }
 
     if (inshare)
     {
@@ -497,25 +552,6 @@ bool Node::serialize(string* d)
     }
 
     attrs.serialize(d);
-
-    if (version >= 2)   // allows to store undecrypted nodes
-    {
-        m_off_t attrstringlen = 0;
-        if (attrstring)
-        {
-            attrstringlen = attrstring->size();
-            d->append((char *)&attrstringlen, sizeof attrstringlen);
-            d->append(attrstring->c_str());
-
-            m_off_t keylen = nodekey.size();
-            d->append((char *)&keylen, sizeof keylen);
-            d->append(nodekey);
-        }
-        else
-        {
-            d->append((char *)&attrstringlen, sizeof attrstringlen);
-        }
-    }
 
     return true;
 }
@@ -1585,9 +1621,11 @@ pnode_t NodesCache::get(handle h)
     }
     else        // if node was not found, search for it in local cache
     {
+        string data;
         if (client->sctable->getnode(h, &data))
         {
-            n = Node::unserialize(client, &data, &dp);
+            node_vector dp;
+            pnode_t n = Node::unserialize(client, &data, &dp);
 
             if (n)
             {
@@ -1612,10 +1650,12 @@ pnode_t NodesCache::get(string *fingerprint)
     }
     else
     {
+        string data;
         // if node was not found, search for it in local cache
         if (client->sctable->getnode(fingerprint, &data))
         {
-            n = Node::unserialize(client, &data, &dp);
+            node_vector dp;
+            pnode_t n = Node::unserialize(client, &data, &dp);
 
             if (n)
             {
@@ -1665,6 +1705,7 @@ void NodesCache::add(pnode_t n)
     nodes.push_front(n);
     hmap[n->nodehandle] = nodes.begin();
 
+    string fp;
     n->serializefingerprint(&fp);
     if (!fp.empty())
     {
@@ -1700,6 +1741,7 @@ bool NodesCache::remove(pnode_t n)
     ith = hmap.find(n->nodehandle);
     if (ith != hmap.end())      // hit
     {
+        string fp;
         n->serializefingerprint(&fp);
         if (!fp.empty())
         {
