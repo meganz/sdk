@@ -8,12 +8,7 @@ Installing the Mega SDK Java API
 
 .. code:: bash
 
-    sudo apt-get install build-essential autoconf libtool
-
-
-.. code:: bash
-
-    sudo apt-get install git-core
+    sudo apt-get install build-essential autoconf libtool git-core
 
 -------------------------
 2. Clone MEGA SDK
@@ -29,11 +24,7 @@ Installing the Mega SDK Java API
 
 .. code:: bash
 
-    sudo apt-get install libcrypto++-dev zlib1g-dev libsqlite3-dev libssl-dev libc-ares-dev libcurl4-openssl-dev libfreeimage-dev libreaadline6-dev swig2.0
-
-.. code:: bash
-
-    sudo apt-get install default-jdk
+    sudo apt-get install libcrypto++-dev zlib1g-dev libsqlite3-dev libssl-dev libc-ares-dev libcurl4-openssl-dev libfreeimage-dev libreaadline6-dev swig2.0 default-jdk
    
 ----------------------
 4. Configure SDK 
@@ -85,7 +76,11 @@ To use the MEGA SDK bindings, copy the MEGA SDK Java library ``libmegajava.so`` 
 
     cp bindings/java/nz/mega/sdk/*.java projectRootFolder/src/nz/mega/sdk
 
+-------------------------------------------------
+7. Done
+-------------------------------------------------
+
 Congratulations you are now ready to use the MEGA SDK Java API bindings in your own applications!
 
 .. NOTE::
-    This guide was tested on Ubuntu 15.04 and is adapted from: https://github.com/meganz/sdk/blob/master/README.md and https://help.ubuntu.com/community/CompilingEasyHowTo 
+    This guide was tested on Ubuntu 15.04 and is adapted from:      https://github.com/meganz/sdk/blob/master/README.md and     https://help.ubuntu.com/community/CompilingEasyHowTo 
