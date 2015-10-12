@@ -8,6 +8,10 @@ Introduction
 
 .. nature of binding: uses SWIG library to build, then uses API classes to improve usability of raw SWIG bindings, working async in C++
 
+.. Use https://mega.nz/#doc as reference material
+
+.. reST standards & markup http://sphinx-doc.org/rest.html
+
 MEGA, `The Privacy Company`, is a Secure Cloud Storage provider that protects your data using automatically managed end-to-end encryption.
 
 All files stored on MEGA are encrypted. All data transfers from and to MEGA are encrypted. While most cloud storage providers claim the same, MEGA is different. Unlike the industry norm where the cloud storage provider holds the decryption key, with MEGA, you control the encryption. You hold the keys and you decide who you grant or deny access to your files. We call it User Controlled Encryption (UCE).
@@ -38,7 +42,8 @@ In order to make the automatically generated SWIG bindings more usable for devel
 Asynchronous
 ^^^^^^^^^^^^
 
-In order to speed up the process of interacting with MEGA services, common functionality is carried out on separate threads from the core C++ code.
+In order to speed up the process of interacting with MEGA services, common functionality is carried out on non-blocking, concurrent threads at the core C++ code level.
+
 
 ----------------------------------------
 Installation
@@ -52,35 +57,79 @@ Before you are able to start implementing the various functionality of the MEGA 
 Concepts
 -------------------
 
-There are some features of the SDK which **must** be used in order for the functionality of the SDK to work correctly.
+There are some features of the SDK which **must** be initiated in order to work with the functionality of the SDK. For a detailed, C++ specific explanation, please visit: https://mega.nz/#doc
+
+^^^^^^^
+AppKey
+^^^^^^^
+
+An appKey must be specified to use the MEGA SDK. Generate an appKey for free at https://mega.co.nz/#sdk
 
 ^^^^^^^^
 Sessions
 ^^^^^^^^
 
-@TODO:
-Session Description and application
+To access MEGA services using the MEGA SDK a session needs to be started by completing a successful log-in. To start this process, an object of the `MegaApiJava` class needs to be instantiated specifying an appKey and, preferably, a local path to use for node cache.
+
+.. code:: java
+    
+    this.megaApiJava = new MegaApiJava(APP_KEY, path);
+
+To complete the strt of a session, the user needs to log-in_. To end the session, the user needs to log-out_.
+
+^^^^^^^^^^^^^^^^^
+Nodes
+^^^^^^^^^^^^^^^^^
+
+The MEGA SDK represents files and folders as trees of Node objects. Nodes point to parent nodes, forming trees. Trees have exactly one root node. For this reason, to interact with files and folders, `MegaNode` objects are referenced.
+
+.. code:: java
+    
+    // Specify file node
+    MegaNode node = megaApiJava.getNodeByPath("stringNameOfFile", locationPathOfFile);
+
 
 ^^^^^^^^^
 Listeners
 ^^^^^^^^^
 
-@TODO:
-What and Why Listeners are needed
-How to use Listeners
+The `MegaListenerInterface` can be implemented so that request events between the application and MEGA server, or MEGA server and application, triggers your code.
 
-^^^^^^^^^^^^^^^^^
-Referencing Nodes
-^^^^^^^^^^^^^^^^^
+.. code:: java
+    
+    public class ExampleClass implements MegaListenerInterface {
+    }
+    
+In this way you can, for example, check that a request was carried out successfully:
 
-@TODO:
-why and How to reference nodes
+.. code:: java
+    
+    @Override
+    public void onRequestFinish(MegaApiJava api, MegaRequest request, MegaError e) {
+
+        // identify the MegaRequest type which has finished and triggered this event
+        int requestType = request.getType();
+
+        if (requestType == MegaRequest.TYPE_LOGIN) {
+            System.out.println("User login request finished; Result: " + e.toString() + " ");
+        } 
+    }
+
+Request Types
+"""""""""""""
+Some useful request types include:
+ * MegaRequest.TYPE_LOGIN
+ * MegaRequest.TYPE_FETCH_NODES
+ * MegaRequest.TYPE_ACCOUNT_DETAILS
+ * MegaRequest.TYPE_UPLOAD
+ * MegaRequest.TYPE_REMOVE
+ * MegaRequest.TYPE_LOGOUT
 
 ---------------------------
 Basic Functionality (CRUD)
 ---------------------------
 
-These steps will help you use the basic Mega functionality, such as:
+These steps will help you use the basic MEGA SDK functionality, such as:
  * Login
  * **Create**
  * **Read**
@@ -88,9 +137,13 @@ These steps will help you use the basic Mega functionality, such as:
  * **Delete**
  * Log out
 
-^^^^^
-Login
-^^^^^
+.. _loginRef:
+
+^^^^^^
+Log-in
+^^^^^^
+
+One of the `MegaApiJava.login()` options should used to log into a MEGA account or a public folder to succesfully start a session. If the login request succeeds, call MegaApiJava.fetchNodes() to get the account's file hierarchy from MEGA. Once the file hierarchy is retrieved, all other requests including file management and transfers can be used.
 
 First to access the Mega services the user must have a valid account and login.
 To do this you can use the Mega API login functionality.
@@ -168,10 +221,14 @@ To remove a file from the Mega Cloud simply call the below method with the node 
 
             megaApiJava.remove(node, this);
 
--------------------
+^^^^^^^
+Log-out
+^^^^^^^
 Cleaning Up
--------------------
-@TODO How to tidy up (if necessary) when ending the application's MEGA session.
+@TODO How to tidy up (if necessary) when ending the application's MEGA session. 
+ 
+ * After using MegaApiJava.logout() you can reuse the same MegaApi object to log in to another MEGA account or a public folder.
 
-And that's it your now ready to start storing your info onto the Mega Cloud.
-For more detailed information we have a brief how to on each of the functions, or if you want the specifics only you can check out the JavaDoc.
+
+And that's it your now ready to developing in Java for the Mega Cloud Storage service. For more specific detail you can check out the inline JavaDoc in the Java binding classes.
+
