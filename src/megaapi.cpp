@@ -1640,6 +1640,21 @@ MegaNodeList* MegaApi::getInShares()
     return pImpl->getInShares();
 }
 
+bool MegaApi::isShared(MegaNode *node)
+{
+    return node->isShared();
+}
+
+bool MegaApi::isOutShare(MegaNode *node)
+{
+    return node->isOutShare();
+}
+
+bool MegaApi::isInShare(MegaNode *node)
+{
+    return node->isInShare();
+}
+
 bool MegaApi::isPendingShare(MegaNode *node)
 {
     return pImpl->isPendingShare(node);
