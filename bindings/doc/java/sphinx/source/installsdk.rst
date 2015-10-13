@@ -34,7 +34,7 @@ Installing the Mega SDK Java API
 
 .. code:: bash
 
-    cd sdk
+    cd sdk/
    
 .. code:: bash
 
@@ -60,23 +60,23 @@ Installing the Mega SDK Java API
 6. Copy SDK Library & Bindings into your Project
 -------------------------------------------------
     
-To use the MEGA SDK bindings, copy the MEGA SDK Java library ``libmegajava.so`` into a  ``/libs`` folder in the root of your project folder and copy the MEGA SDK Java binding classes into the source folder of your project:
+To use the MEGA SDK bindings, copy the MEGA SDK Java library ``libmegajava.so`` into a  ``/libs/`` folder in the root of your project folder and copy the MEGA SDK Java binding classes into the source folder of your project:
 
 .. code:: bash
 
-    mkdir -p projectRootFolder/libs
-
-.. code:: bash
-    
-    cp bindings/java/.libs/libmegajava.so projectRootFolder/libs
+    mkdir -p projectRootFolder/libs/
 
 .. code:: bash
     
-    mkdir -p projectRootFolder/src/nz/mega/sdk
+    cp bindings/java/.libs/libmegajava.so projectRootFolder/libs/
+
+.. code:: bash
+    
+    mkdir -p projectRootFolder/src/nz/mega/sdk/
     
 .. code:: bash
 
-    cp bindings/java/nz/mega/sdk/*.java projectRootFolder/src/nz/mega/sdk
+    cp bindings/java/nz/mega/sdk/*.java projectRootFolder/src/nz/mega/sdk/
 
 -------------------------------------------------
 7. Done

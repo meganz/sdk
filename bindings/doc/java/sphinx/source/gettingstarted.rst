@@ -115,13 +115,22 @@ The MEGA SDK represents files and folders as trees of Node objects. Nodes point 
 Listener
 ^^^^^^^^^
 
-The ``MegaListenerInterface`` can be implemented so that request events between the application and MEGA server, or MEGA server and application, can trigger your code.
+The ``MegaListenerInterface`` can be implemented so that request events between your application and MEGA server, or MEGA server and application, can trigger your code.
 
 .. code:: java
     
     // Implement MEGA Listener
     public class ExampleClass implements MegaListenerInterface {
+    ...
     }
+
+The listener should then be added to the MegaApiJava object.
+
+.. code:: java
+
+    // Add the MEGACRUD listener object to listen for events when interacting
+    // with MEGA Services
+    this.megaApiJava.addRequestListener(this);
     
 In this way you can, for example, check that a request was carried out successfully:
 
@@ -284,5 +293,6 @@ After using MegaApiJava.logout() you can reuse the same MegaApiJava object to lo
 Fin
 ---------------------------
 
-And that's it. You are now ready to develop in Java for the MEGA Cloud Storage service. For more specific detail you can check out the inline JavaDoc in the Java binding classes, particularly ``sdk/bindings/java/nz/mega/sdk/MegaApiJava`` or browse the detailed documentation on C++: https://mega.nz/#doc
+And that's it. You are now ready to develop in Java for the MEGA Cloud Storage service.
 
+For more specific details you can check out the inline JavaDoc in the Java binding classes, particularly ``sdk/bindings/java/nz/mega/sdk/MegaApiJava`` or browse the  C++ documentation: https://mega.nz/#doc
