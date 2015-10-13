@@ -67,6 +67,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     sharekey = NULL;
     foreignkey = false;
 
+    plink = NULL;
+
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
 
@@ -165,6 +167,7 @@ Node::~Node()
         (*it)->parent = NULL;
     }
 
+    delete plink;
     delete inshare;
     delete sharekey;
 
@@ -209,6 +212,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     unsigned short ll;
     Node* n;
     int i;
+    char isExported = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -267,7 +271,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
 
-        if ((ptr + ll > end) || ptr[ll])
+        if ((ptr + ll > end) || ptr[ll + 1])
         {
             return NULL;
         }
@@ -280,7 +284,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
-    for (i = 8; i--;)
+    isExported = MemAccess::get<char>(ptr);
+    ptr += sizeof(isExported);
+
+    for (i = 7; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -295,7 +302,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     {
         if (ptr + SymmCipher::KEYLENGTH > end)
         {
-            return 0;
+            return NULL;
         }
 
         skey = (const byte*)ptr;
@@ -324,6 +331,25 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     ptr = n->attrs.unserialize(ptr);
+
+    PublicLink *plink = NULL;
+    if (isExported)
+    {
+        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
+        {
+            return NULL;
+        }
+
+        handle ph = MemAccess::get<handle>(ptr);
+        ptr += MegaClient::NODEHANDLE;
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
+
+        plink = new PublicLink(ph, ets, takendown);
+    }
+    n->plink = plink;
 
     n->setfingerprint();
 
@@ -381,7 +407,6 @@ bool Node::serialize(string* d)
 
     unsigned short ll;
     short numshares;
-    string t;
     m_off_t s;
 
     s = type ? -type : size;
@@ -417,7 +442,9 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    char isExported = plink ? 1 : 0;
+    d->append((char*)&isExported, 1);
+    d->append("\0\0\0\0\0\0", 7);
 
     if (inshare)
     {
@@ -466,6 +493,13 @@ bool Node::serialize(string* d)
     }
 
     attrs.serialize(d);
+
+    if (isExported)
+    {
+        d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
+        d->append((char*) &plink->ets, sizeof(plink->ets));
+        d->append((char*) &plink->takendown, sizeof(plink->takendown));
+    }
 
     return true;
 }
@@ -833,6 +867,22 @@ NodeCore::NodeCore()
 NodeCore::~NodeCore()
 {
     delete attrstring;
+}
+
+PublicLink::PublicLink(PublicLink *plink)
+{
+    this->ph = plink->ph;
+    this->ets = plink->ets;
+    this->takendown = plink->takendown;
+}
+
+bool PublicLink::isExpired()
+{
+    if (!ets)       // permanent link: ets=0
+        return false;
+
+    m_time_t t = time(NULL);
+    return ets < t;
 }
 
 #ifdef ENABLE_SYNC

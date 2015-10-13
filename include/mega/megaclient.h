@@ -233,7 +233,7 @@ public:
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int);
+    error exportnode(Node*, int, m_time_t);
 
     // add/delete sync
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
@@ -390,6 +390,7 @@ private:
     void sc_opc();
     void sc_ipc();
     void sc_upc();
+    void sc_ph();
 
     void init();
 
@@ -717,6 +718,8 @@ public:
 
     void readipc(JSON*);
     void readopc(JSON*);
+
+    void procph(JSON*);
 
     void readcr();
     void readsr();

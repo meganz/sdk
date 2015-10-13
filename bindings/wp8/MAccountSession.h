@@ -1,6 +1,6 @@
 /**
-* @file MShare.h
-* @brief Represents the outbound sharing of a folder with an user in MEGA
+* @file MAccountSession.h
+* @brief Get details about a MEGA session.
 *
 * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
 *
@@ -28,31 +28,26 @@ namespace mega
     using namespace Windows::Foundation;
     using Platform::String;
 
-    public enum class MShareType
+    public ref class MAccountSession sealed
     {
-        ACCESS_UNKNOWN = -1,
-        ACCESS_READ = 0,
-        ACCESS_READWRITE = 1,
-        ACCESS_FULL = 2,
-        ACCESS_OWNER = 3
-    };
-
-    public ref class MShare sealed
-    {
-        friend ref class MegaSDK;
-        friend ref class MShareList;
+        friend ref class MAccountDetails;
+        friend ref class MRequest;
 
     public:
-        virtual ~MShare();
-        String^ getUser();
-        uint64 getNodeHandle();
-        int getAccess();
-        uint64 getTimestamp();
+        virtual ~MAccountSession();
+        int64 getCreationTimestamp();
+        int64 getMostRecentUsage();
+        String^ getUserAgent();
+        String^ getIP();
+        String^ getCountry();
+        bool isCurrent();
+        bool isAlive();
+        uint64 getHandle();
 
     private:
-        MShare(MegaShare *megaShare, bool cMemoryOwn);
-        MegaShare *megaShare;
-        MegaShare *getCPtr();
+        MAccountSession(MegaAccountSession *accountSession, bool cMemoryOwn);
+        MegaAccountSession *accountSession;
         bool cMemoryOwn;
+        MegaAccountSession *getCPtr();
     };
 }
