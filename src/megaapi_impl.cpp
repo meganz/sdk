@@ -622,7 +622,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->lastBytes = NULL;
     this->syncTransfer = false;
     this->lastError = API_OK;
-    this->folderTransfer = false;
+    this->folderTransferTag = 0;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -657,7 +657,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setTransfer(transfer->getTransfer());
     this->setSyncTransfer(transfer->isSyncTransfer());
     this->setLastErrorCode(transfer->getLastErrorCode());
-    this->setFolderTransfer(transfer->isFolderTransfer());
+    this->setFolderTransferTag(transfer->getFolderTransferTag());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -802,7 +802,12 @@ error MegaTransferPrivate::getLastErrorCode() const
 
 bool MegaTransferPrivate::isFolderTransfer() const
 {
-    return this->folderTransfer;
+    return folderTransferTag < 0;
+}
+
+int MegaTransferPrivate::getFolderTransferTag() const
+{
+    return this->folderTransferTag;
 }
 
 void MegaTransferPrivate::setTag(int tag)
@@ -865,9 +870,9 @@ void MegaTransferPrivate::setLastErrorCode(error errorCode)
     this->lastError = errorCode;
 }
 
-void MegaTransferPrivate::setFolderTransfer(bool folderTransfer)
+void MegaTransferPrivate::setFolderTransferTag(int tag)
 {
-    this->folderTransfer = folderTransfer;
+    this->folderTransferTag = tag;
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -3422,7 +3427,40 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
     return result;
 }
 
-void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
+MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
+{
+    sdkMutex.lock();
+
+    if(transferMap.find(transferTag) == transferMap.end())
+    {
+        sdkMutex.unlock();
+        return new MegaTransferListPrivate();
+    }
+
+    MegaTransfer *transfer = transferMap.at(transferTag);
+    if(!transfer->isFolderTransfer())
+    {
+        sdkMutex.unlock();
+        return new MegaTransferListPrivate();
+    }
+
+    vector<MegaTransfer *> transfers;
+    for(std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+    {
+        MegaTransferPrivate *t = it->second;
+        if(t->getFolderTransferTag() == transferTag)
+        {
+            transfers.push_back(transfer);
+        }
+    }
+
+    MegaTransferList *result = new MegaTransferListPrivate(transfers.data(), transfers.size());
+
+    sdkMutex.unlock();
+    return result;
+}
+
+void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -3434,23 +3472,38 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
 #endif
         transfer->setPath(path.data());
     }
-    if(parent) transfer->setParentHandle(parent->getHandle());
-	transfer->setMaxRetries(maxRetries);
-	if(fileName) transfer->setFileName(fileName);
+
+    if(parent)
+    {
+        transfer->setParentHandle(parent->getHandle());
+    }
+
+    transfer->setMaxRetries(maxRetries);
+
+    if(fileName)
+    {
+        transfer->setFileName(fileName);
+    }
+
     transfer->setTime(mtime);
+
+    if(folderTransferTag)
+    {
+        transfer->setFolderTransferTag(folderTransferTag);
+    }
 
 	transferQueue.push(transfer);
     waiter->notify();
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, (const char *)NULL, -1, listener); }
+{ return startUpload(localPath, parent, (const char *)NULL, -1, 0, listener); }
 
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, (const char *)NULL, mtime, listener); }
+{ return startUpload(localPath, parent, (const char *)NULL, mtime, 0, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, fileName, -1, listener); }
+{ return startUpload(localPath, parent, fileName, -1, 0, listener); }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, MegaTransferListener *listener)
 {
@@ -10195,11 +10248,12 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->pendingCopies = 0;
+    this->tag = transfer->getTag();
 }
 
 void MegaFolderUploadController::start()
 {
-    transfer->setFolderTransfer(true);
+    transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
     megaApi->fireOnTransferStart(transfer);
 
@@ -10278,7 +10332,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
                             string utf8path;
                             client->fsaccess->local2path(&localPath, &utf8path);
-                            megaApi->startUpload(utf8path.c_str(), parent, this);
+                            megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, this);
                         }
                         else
                         {

@@ -151,7 +151,7 @@ protected:
     MegaTransferPrivate *transfer;
     MegaTransferListener *listener;
     int recursive;
-
+    int tag;
     int pendingTransfers;
     int pendingCopies;
 
@@ -297,7 +297,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setSyncTransfer(bool syncTransfer);
         void setLastBytes(char *lastBytes);
         void setLastErrorCode(error errorCode);
-        void setFolderTransfer(bool folderTransfer);
+        void setFolderTransferTag(int tag);
 
 		virtual int getType() const;
 		virtual const char * getTransferString() const;
@@ -329,6 +329,7 @@ class MegaTransferPrivate : public MegaTransfer
         virtual char *getLastBytes() const;
         virtual error getLastErrorCode() const;
         virtual bool isFolderTransfer() const;
+        virtual int getFolderTransferTag() const;
 
 	protected:		
 		int type;
@@ -356,7 +357,7 @@ class MegaTransferPrivate : public MegaTransfer
 		MegaTransferListener *listener;
         Transfer *transfer;
         error lastError;
-        bool folderTransfer;
+        int folderTransferTag;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
@@ -1031,7 +1032,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, MegaTransferListener *listener = NULL);
+        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
@@ -1048,6 +1049,7 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTransfers();
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
+        MegaTransferList *getChildTransfers(int transferTag);
 
 #ifdef ENABLE_SYNC
         //Sync

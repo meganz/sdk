@@ -637,6 +637,11 @@ bool MegaTransfer::isFolderTransfer() const
     return false;
 }
 
+int MegaTransfer::getFolderTransferTag() const
+{
+    return 0;
+}
+
 
 MegaError::MegaError(int errorCode)
 {
@@ -1402,7 +1407,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, fileName, mtime, listener);
+    pImpl->startUpload(localPath, parent, fileName, mtime, 0, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
