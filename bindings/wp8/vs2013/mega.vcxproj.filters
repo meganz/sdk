@@ -258,6 +258,18 @@
     <ClInclude Include="..\MInputStreamAdapter.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MAccountBalance.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountSession.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountPurchase.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MAccountTransaction.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -450,6 +462,18 @@
       <Filter>Bindings</Filter>
     </ClCompile>
     <ClCompile Include="..\MInputStreamAdapter.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountBalance.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountSession.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountPurchase.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAccountTransaction.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>
