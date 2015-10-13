@@ -234,8 +234,8 @@ namespace mega
         void setUserAttribute(int type, String^ value);
         void exportNode(MNode^ node, MRequestListenerInterface^ listener);
         void exportNode(MNode^ node);
-        void exportNode(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener);
-        void exportNode(MNode^ node, int64 expireTime);
+        void exportNodeWithExpireTime(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener);
+        void exportNodeWithExpireTime(MNode^ node, int64 expireTime);
         void disableExport(MNode^ node, MRequestListenerInterface^ listener);
         void disableExport(MNode^ node);
         void fetchNodes(MRequestListenerInterface^ listener);

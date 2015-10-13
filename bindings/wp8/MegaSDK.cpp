@@ -1183,13 +1183,13 @@ void MegaSDK::exportNode(MNode^ node)
     megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL);
 }
 
-void MegaSDK::exportNode(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener)
+void MegaSDK::exportNodeWithExpireTime(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener)
 {
     megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL, expireTime, 
         createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::exportNode(MNode^ node, int64 expireTime)
+void MegaSDK::exportNodeWithExpireTime(MNode^ node, int64 expireTime)
 {
     megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL, expireTime);
 }
