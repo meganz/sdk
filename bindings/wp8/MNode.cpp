@@ -108,9 +108,13 @@ String^ MNode::getBase64Key()
 
     std::string utf16base64key;
     const char *utf8base64key = megaNode->getBase64Key();
-    MegaApi::utf8ToUtf16(utf8base64key, &utf16base64key);
+    if (!utf8base64key)
+        return nullptr;
 
-    return utf8base64key ? ref new String((wchar_t *)utf16base64key.data()) : nullptr;
+    MegaApi::utf8ToUtf16(utf8base64key, &utf16base64key);
+    delete[] utf8base64key;
+
+    return ref new String((wchar_t *)utf16base64key.data());
 }
 
 int MNode::getTag()
@@ -135,7 +139,17 @@ MNode^ MNode::getPublicNode()
 
 String^ MNode::getPublicLink()
 {
-    return megaNode ? ref new String((wchar_t *)megaNode->getPublicLink()) : nullptr;
+    if (!megaNode) return nullptr;
+
+    std::string utf16link;
+    const char *utf8link = megaNode->getPublicLink();
+    if (!utf8link)
+        return nullptr;
+
+    MegaApi::utf8ToUtf16(utf8link, &utf16link);
+    delete[] utf8link;
+
+    return ref new String((wchar_t *)utf16link.data());
 }
 
 bool MNode::isFile()
