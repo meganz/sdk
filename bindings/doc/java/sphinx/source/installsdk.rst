@@ -1,3 +1,5 @@
+.. _installsdk:
+
 ================================
 Installing the Mega SDK Java API
 ================================

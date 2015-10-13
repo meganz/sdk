@@ -1,7 +1,4 @@
-.. javauserguide documentation master file, created by
-   sphinx-quickstart on Tue Jul 21 21:46:23 2015.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. _index:
 
 Java Bindings User Guide!
 ===============================
@@ -21,14 +18,8 @@ Contents:
    
    gettingstarted
    installsdk
-   howto
-	
 
-
-Indices and tables
+Search
 ==================
-
-* :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
 

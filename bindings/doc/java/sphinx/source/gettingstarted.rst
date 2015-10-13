@@ -1,3 +1,5 @@
+.. _gettingstarted:
+
 ===============
 Getting Started
 ===============
@@ -51,7 +53,7 @@ Installation
 
 Before you are able to start implementing the various functionality of the MEGA bindings you will of course need to compile and install them.
 
-* :ref:`installsdk`
+:ref:`installsdk`
 
 -------------------
 Concepts
