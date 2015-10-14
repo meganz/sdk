@@ -55,11 +55,13 @@ Before you are able to start implementing the various functionality of the MEGA 
 
 :ref:`installsdk`
 
+The Java bindings can be found in ``sdk/bindings/java/nz/mega/sdk/``.
+
 -------------------
 Concepts
 -------------------
 
-There are some features of the SDK which **must** be initiated in order to work with the functionality of the SDK. For a detailed, C++ specific explanation of concepts, please visit: https://mega.nz/#doc
+There are some features of the SDK which **must** be initiated in order to work with the functionality of the SDK.
 
 ^^^^^^^
 AppKey
@@ -79,7 +81,7 @@ An appKey must be specified to start a session and use the MEGA SDK in your own 
 Sessions
 ^^^^^^^^
 
-To access MEGA services using the MEGA SDK a session needs to be started by completing a successful log-in. To start this process, an object of the ``MegaApiJava`` class needs to be instantiated specifying an appKey and, preferably, a local path as a String to use for node cache.
+To access MEGA services using the MEGA SDK a session needs to be started by completing a successful log-in. To start this process, an object of the ``MegaApiJava`` class needs to be instantiated specifying an appKey and, preferably, a local path as a String to use for node cache. Local node caching enhances security as it prevents the account password from being stored by the application.
 
 .. code:: java
  
@@ -97,7 +99,23 @@ To access MEGA services using the MEGA SDK a session needs to be started by comp
     // Instantiate MegaApiJava object
     this.megaApiJava = new MegaApiJava(APP_KEY, localPath);
 
-To complete the start of a session, the user needs to log-in_. To end the session, the user needs to log-out_.
+To complete the start of a session, the user needs to log-in_.
+
+To take advantage of local node caching, the session key String can be identified while the user is logged in using ``MegaApiJava.dumpSession()``. This session key can then be used to log-in without having to create a new session using ``MegaApiJava.fastLogin()``.
+
+To end the session, the user needs to log-out_.
+
+Alternative Java APIs
+""""""""""""""""""""""""""
+
+Sub-classes of ``MegaApiJava`` provide implementations for graphics processing, primarily for the creation of thumbnails and previews of the user's MEGA Cloud Storage file hierarchy. These implementations pass callbacks to the graphical user interface (GUI) thread. 
+
+Use ``MegaApiAndroid`` if developing for **Android**. Use ``MegaApiSwing`` if developing with **Swing**.
+
+.. NOTE::
+    ``MegaApiSwing`` does not have an implementation of the graphics processor yet. However, it does send callbacks to the GUI thread.
+
+
 
 ^^^^^^^^^^^^^^^^^
 Nodes
@@ -142,10 +160,10 @@ In this way you can, for example, check that a request was carried out successfu
         // identify the MegaRequest type which has finished and triggered this event
         int requestType = request.getType();
 
-        if (requestType == MegaRequest.TYPE_LOGIN) {
-            System.out.println("User login request finished; Result: " +
+        if (requestType == MegaRequest.TYPE_LOGOUT) {
+            System.out.println("Log out completed; Result: " + 
                 e.toString() + " ");
-        } 
+        }
     }
 
 Request Types
@@ -166,7 +184,7 @@ The following steps will help you use the basic MEGA SDK functionality, includin
  * Login
  * **Create**
  * **Read**
- * **Upload**
+ * **Update**
  * **Delete**
  * Log out
 
@@ -216,7 +234,7 @@ Please see the inline JavaDoc in ``sdk/bindings/java/nz/mega/sdk/MegaApiJava`` f
 Read
 ^^^^
 
-Being able to retrieve uploaded files is an important feature. This can be achieved using the methods below:
+Being able to retrieve uploaded files is an important feature which can be achieved using the methods below:
 
 .. code:: java
 
@@ -239,7 +257,7 @@ Please see the inline JavaDoc in ``sdk/bindings/java/nz/mega/sdk/MegaApiJava`` f
 
 
 ^^^^^^
-Upload
+Update
 ^^^^^^
 A special case presents itself when replacing a file on the MEGA Cloud Storage with a file of the same name from your local directory. Below is an example of the readme.md file being uploaded for second time.
 
@@ -254,10 +272,10 @@ A special case presents itself when replacing a file on the MEGA Cloud Storage w
     
 .. code:: java
     
-    // Upload
+    // Update
     megaApiJava.startUpload("README.md", parentDirectory, this);
 
-If there is an old node with the same name you may want to delete that node before uploading the new node. This is the topic of the next section.
+If there is an old node with the same name you may want to delete that node before updating with the new node. This is the topic of the next section.
 
 ^^^^^^
 Delete
@@ -287,7 +305,12 @@ Call ``logout()`` to close the MEGA session.
     
     megaApiJava.logout();
 
-After using MegaApiJava.logout() you can reuse the same MegaApiJava object to log in to another MEGA account.
+Ensure the ``logout()`` request has completed to guarantee that the session has been invalidated. This can be confirmed by waiting for a ``MegaRequest.TYPE_LOGOUT`` to trigger the ``onRequestFinish()`` listener method as demonstrated in Listener_.
+
+After using ``MegaApiJava.logout()`` you can reuse the same ``MegaApiJava`` object to log in to another MEGA account.
+
+``locallogout()`` can be used to log out without invalidating the current session. In this way the session can be resumed using log-in_.
+
 
 ---------------------------
 Fin
@@ -295,4 +318,4 @@ Fin
 
 And that's it. You are now ready to develop in Java for the MEGA Cloud Storage service.
 
-For more specific details you can check out the inline JavaDoc in the Java binding classes, particularly ``sdk/bindings/java/nz/mega/sdk/MegaApiJava`` or browse the  C++ documentation: https://mega.nz/#doc
+For more specific information you can check out the inline JavaDoc in the Java binding classes, particularly ``sdk/bindings/java/nz/mega/sdk/MegaApiJava``. For a detailed, C++ specific explanation, please visit: https://mega.nz/#doc
