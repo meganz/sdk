@@ -131,6 +131,7 @@ struct MEGA_API HttpReq
 
     bool chunked;
     bool sslcheckfailed;
+    string sslfakeissuer;
 
     string* out;
     string in;

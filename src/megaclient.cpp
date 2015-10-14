@@ -953,7 +953,9 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         if (pendingcs->sslcheckfailed)
                         {
+                            sslfakeissuer = pendingcs->sslfakeissuer;
                             app->request_error(API_ESSL);
+                            sslfakeissuer.clear();
                             delete pendingcs;
                             pendingcs = NULL;
                             break;
@@ -1062,7 +1064,9 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         if (pendingsc && pendingsc->sslcheckfailed)
                         {
+                            sslfakeissuer = pendingsc->sslfakeissuer;
                             app->request_error(API_ESSL);
+                            sslfakeissuer.clear();
                             *scsn = 0;
                         }
 

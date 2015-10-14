@@ -5928,6 +5928,12 @@ void MegaApiImpl::request_error(error e)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
     request->setParamType(e);
+
+    if (e == API_ESSL && client->sslfakeissuer.size())
+    {
+        request->setText(client->sslfakeissuer.c_str());
+    }
+
     requestQueue.push(request);
     waiter->notify();
 }

@@ -257,6 +257,9 @@ public:
     // User-Agent header for HTTP requests
     string useragent;
 
+    // Issuer of a detected fake SSL certificate
+    string sslfakeissuer;
+
     // shopping basket
     handle_vector purchase_basket;
 
