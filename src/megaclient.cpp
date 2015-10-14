@@ -493,7 +493,20 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
 {
     LOG_info << "Comparing databases: \"" << filename1 << "\" and \"" << filename2 << "\"";
     FILE *fp1 = fopen(filename1.data(), "r");
+    if (!fp1)
+    {
+        LOG_info << "Cannot open " << filename1;
+        return false;
+    }
+
     FILE *fp2 = fopen(filename2.data(), "r");
+    if (!fp2)
+    {
+        fclose(fp1);
+
+        LOG_info << "Cannot open " << filename2;
+        return false;
+    }
 
     const int N = 8192;
     char buf1[N];
@@ -506,6 +519,9 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
 
         if (r1 != r2 || memcmp(buf1, buf2, r1))
         {
+            fclose(fp1);
+            fclose(fp2);
+
             LOG_info << "Databases are different";
             return false;
         }
