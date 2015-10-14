@@ -153,6 +153,8 @@ namespace mega
         void fastLogin(String^ session);
         void killSession(MegaHandle sessionHandle, MRequestListenerInterface^ listener);
         void killSession(MegaHandle sessionHandle);
+        void killAllSessions(MRequestListenerInterface^ listener);
+        void killAllSessions();
         void getOwnUserData(MRequestListenerInterface^ listener);
         void getOwnUserData();
         void getUserData(MUser^ user, MRequestListenerInterface^ listener);
