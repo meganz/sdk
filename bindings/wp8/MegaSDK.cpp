@@ -450,6 +450,16 @@ void MegaSDK::killSession(MegaHandle sessionHandle)
     megaApi->killSession(sessionHandle);
 }
 
+void MegaSDK::killAllSessions(MRequestListenerInterface^ listener)
+{
+    megaApi->killSession(mega::INVALID_HANDLE, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::killAllSessions()
+{
+    megaApi->killSession(mega::INVALID_HANDLE);
+}
+
 void MegaSDK::getOwnUserData(MRequestListenerInterface^ listener)
 {
 	megaApi->getUserData(createDelegateMRequestListener(listener));
