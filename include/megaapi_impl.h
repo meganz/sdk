@@ -144,6 +144,8 @@ protected:
     void checkCompletion();
 
     std::list<std::string> pendingFolders;
+    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
+
     MegaApiImpl *megaApi;
     MegaClient *client;
     const char* name;
@@ -153,10 +155,10 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
-    int pendingCopies;
 
 public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 };
@@ -1174,6 +1176,7 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        map<int, MegaTransferPrivate *> transferMap;
 
         MegaClient *getMegaClient();
 
@@ -1215,7 +1218,6 @@ protected:
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
-        map<int, MegaTransferPrivate *> transferMap;
 
         vector<m_time_t> downloadTimes;
         vector<int64_t> downloadBytes;

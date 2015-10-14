@@ -491,7 +491,12 @@ int MegaRequest::getTransferTag() const
 
 int MegaRequest::getNumDetails() const
 {
-	return 0;
+    return 0;
+}
+
+int MegaRequest::getTag() const
+{
+    return 0;
 }
 
 

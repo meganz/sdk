@@ -1572,6 +1572,15 @@ class MegaRequest
          * @return Number of details related to this request
          */
         virtual int getNumDetails() const;
+
+        /**
+         * @brief Returns the tag that identifies this request
+         *
+         * The tag is unique for the MegaApi object that has generated it only
+         *
+         * @return Unique tag that identifies this request
+         */
+        virtual int getTag() const;
 };
 
 /**
