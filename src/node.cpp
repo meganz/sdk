@@ -1702,21 +1702,54 @@ bool NodesCache::put(pnode_t n)
 
 void NodesCache::add(pnode_t n)
 {
+    // add the new node to the front of the list
     nodes.push_front(n);
     hmap[n->nodehandle] = nodes.begin();
-
-    string fp;
-    n->serializefingerprint(&fp);
-    if (!fp.empty())
+    if (n->type == FILENODE)
     {
-        fpmap[fp] = nodes.begin();
+        string fp;
+        n->serializefingerprint(&fp);
+        if (!fp.empty())
+        {
+            fpmap[fp] = nodes.begin();
+        }
     }
 
-    if (nodes.size() > maxsize)
+    if (!waitforinserts)
     {
-        hmap.erase(nodes.back()->nodehandle);
-        fpmap.erase(fp);
-        nodes.pop_back();
+        freespace();
+    }
+    else
+    {
+        waitforinserts--;
+    }
+}
+
+// try to free unused references until the size is less than `maxsize`
+void NodesCache::freespace()
+{
+    // if cache is full, discard the less recently used node
+    for (itn = nodes.end(); ((nodes.size() > maxsize) && (itn != nodes.begin())); itn--)
+    {
+        if (itn->unique())   // if there aren't pending references out there...
+        {
+            if ((*itn)->type == FILENODE)
+            {
+                string fp1;
+                (*itn)->serializefingerprint(&fp1);
+                if (!fp1.empty())
+                {
+                    fpmap.erase(fp1);
+                }
+            }
+            hmap.erase((*itn)->nodehandle);
+            nodes.erase(itn);
+        }
+    }
+
+    if (itn == nodes.begin())  // cache is full and couldn't make free space
+    {
+        waitforinserts = NOPURGEITERATIONS;
     }
 }
 
@@ -1758,7 +1791,8 @@ bool NodesCache::remove(pnode_t n)
 NodesCache::NodesCache(MegaClient *client)
 {
     this->client = client;
-    this->maxsize = MAXCACHESIZE;
+    this->maxsize = MAXCACHESIZE;    
+    this->waitforinserts = MAXCACHESIZE;    // initially, wait until cache is full
 }
 
 NodesCache::~NodesCache()

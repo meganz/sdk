@@ -287,7 +287,8 @@ struct MEGA_API LocalNode : public File, Cachable
 };
 #endif
 
-#define MAXCACHESIZE 100   // maximum number of elements to keep in RAM
+#define MAXCACHESIZE 2000       // maximum number of elements to keep in RAM
+#define NOPURGEITERATIONS 100   // number of insertions in cache avoiding purge if cache is already full
 
 struct MEGA_API NodesCache {
 
@@ -306,6 +307,9 @@ private:
     // maximum number of entries to allocate
     unsigned int maxsize;
 
+    // number of insertions to wait until next try to make free space
+    unsigned int waitforinserts;
+
     // moves to the front of the list the element received by parameter
     void movetofront(node_list::iterator it);
 
@@ -315,6 +319,7 @@ private:
     // auxiliar variables
     hnode_map::iterator ith;
     fpnode_map::iterator itfp;
+    node_list::iterator itn;
 
 public:
     pnode_t get(handle h);
@@ -324,6 +329,8 @@ public:
 
     bool remove(pnode_t n);
     void clear();
+
+    void freespace();
 
     NodesCache(MegaClient *client);
     ~NodesCache();
