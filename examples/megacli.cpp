@@ -1570,6 +1570,7 @@ static void process_line(char* l)
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
                 cout << "      logout" << endl;
+                cout << "      locallogout" << endl;
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
@@ -3221,6 +3222,15 @@ static void process_line(char* l)
                         {
                             cout << "      killsession [all|sessionid] " << endl;
                         }
+                        return;
+                    }
+                    else if (words[0] == "locallogout")
+                    {
+                        cout << "Logging off locally..." << endl;
+
+                        cwd = UNDEF;
+                        client->locallogout();
+
                         return;
                     }
                     break;

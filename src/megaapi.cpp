@@ -282,6 +282,21 @@ bool MegaNode::isPublic()
     return false;
 }
 
+bool MegaNode::isShared()
+{
+    return false;
+}
+
+bool MegaNode::isOutShare()
+{
+    return false;
+}
+
+bool MegaNode::isInShare()
+{
+    return false;
+}
+
 bool MegaNode::isExported()
 {
     return false;
@@ -289,12 +304,12 @@ bool MegaNode::isExported()
 
 bool MegaNode::isExpired()
 {
-    return false;
+  return false;
 }
 
 bool MegaNode::isTakenDown()
 {
-    return false;
+  return false;
 }
 
 string *MegaNode::getNodeKey()
@@ -1627,17 +1642,17 @@ MegaNodeList* MegaApi::getInShares()
 
 bool MegaApi::isShared(MegaNode *node)
 {
-    return pImpl->isShared(node);
+    return node->isShared();
 }
 
 bool MegaApi::isOutShare(MegaNode *node)
 {
-    return pImpl->isOutShare(node);
+    return node->isOutShare();
 }
 
 bool MegaApi::isInShare(MegaNode *node)
 {
-    return pImpl->isInShare(node);
+    return node->isInShare();
 }
 
 bool MegaApi::isPendingShare(MegaNode *node)

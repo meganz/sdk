@@ -168,6 +168,9 @@ class MegaNodePrivate : public MegaNode
         virtual bool isExpired();
         virtual bool isTakenDown();
         virtual std::string* getAuth();
+        virtual bool isShared();
+        virtual bool isOutShare();
+        virtual bool isInShare();
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -191,9 +194,13 @@ class MegaNodePrivate : public MegaNode
         std::string auth;
         int tag;
         int changed;
-        bool thumbnailAvailable;
-        bool previewAvailable;
-        bool isPublicNode;
+        struct {
+            bool thumbnailAvailable : 1;
+            bool previewAvailable : 1;
+            bool isPublicNode : 1;
+            bool outShares : 1;
+            bool inShare : 1;
+        };
         PublicLink *plink;
 
 #ifdef ENABLE_SYNC
@@ -1075,9 +1082,6 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* email);
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
-        bool isShared(MegaNode *node);
-        bool isOutShare(MegaNode *node);
-        bool isInShare(MegaNode *node);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
