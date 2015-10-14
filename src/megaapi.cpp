@@ -1642,16 +1642,31 @@ MegaNodeList* MegaApi::getInShares()
 
 bool MegaApi::isShared(MegaNode *node)
 {
+    if (!node)
+    {
+        return false;
+    }
+
     return node->isShared();
 }
 
 bool MegaApi::isOutShare(MegaNode *node)
 {
+    if (!node)
+    {
+        return false;
+    }
+
     return node->isOutShare();
 }
 
 bool MegaApi::isInShare(MegaNode *node)
 {
+    if (!node)
+    {
+        return false;
+    }
+
     return node->isInShare();
 }
 
