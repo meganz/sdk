@@ -10404,6 +10404,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
         }
     }
 
+    delete da;
     delete parent;
     recursive--;
 
