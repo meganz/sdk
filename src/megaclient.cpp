@@ -7815,6 +7815,46 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                     LOG_debug << "LocalNode change detected on syncupload: " << ll->name;
 
+#ifdef WIN32
+                    if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
+                    {
+                        LOG_debug << "Modification time changed only";
+                        FileAccess *f = fsaccess->newfileaccess();
+                        string lpath;
+                        ll->getlocalpath(&lpath);
+                        string stream = lpath;
+                        stream.append((char *)L":$CmdTcID:$DATA", 30);
+                        if(f->fopen(&stream))
+                        {
+                            LOG_warn << "COMODO detected";
+                            HKEY hKey;
+                            if(RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                                            L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
+                                            0,
+                                            KEY_QUERY_VALUE,
+                                            &hKey ) == ERROR_SUCCESS)
+                            {
+                                DWORD value = 0;
+                                DWORD size = sizeof(value);
+                                if(RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                                {
+                                    if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
+                                    {
+                                        LOG_warn << "Fixed modification time probably changed by COMODO";
+                                        ll->mtime = ll->node->mtime;
+                                        ll->treestate(TREESTATE_SYNCED);
+                                        RegCloseKey(hKey);
+                                        delete f;
+                                        continue;
+                                    }
+                                }
+                                RegCloseKey(hKey);
+                            }
+                        }
+                        delete f;
+                    }
+#endif
+
                     // if this node is being fetched, but has to be upsynced
                     if (rit->second->syncget)
                     {
