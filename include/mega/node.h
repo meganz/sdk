@@ -298,9 +298,6 @@ private:
     // maps handles to cache entries
     hnode_map hmap;
 
-    // maps fingerprints to cache entries
-    fpnode_map fpmap;
-
     // cache entries
     node_list nodes;
 
@@ -318,7 +315,6 @@ private:
 
     // auxiliar variables
     hnode_map::iterator ith;
-    fpnode_map::iterator itfp;
     node_list::iterator itn;
 
 public:

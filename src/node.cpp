@@ -1641,29 +1641,30 @@ pnode_t NodesCache::get(handle h)
 
 pnode_t NodesCache::get(string *fingerprint)
 {
-    itfp = fpmap.find(*fingerprint);
-
-    if (itfp != fpmap.end())
+    string fp;
+    for (node_list::iterator it = nodes.begin(); it != nodes.end(); it++)
     {
-        movetofront(itfp->second);
-        return *itfp->second;
-    }
-    else
-    {
-        string data;
-        // if node was not found, search for it in local cache
-        if (client->sctable->getnode(fingerprint, &data))
+        (*it)->serializefingerprint(&fp);
+        if (fingerprint->compare(fp) == 0)
         {
-            node_vector dp;
-            pnode_t n = Node::unserialize(client, &data, &dp);
-
-            if (n)
-            {
-                add(n);
-            }
-
-            return n;
+            movetofront(it);
+            return *it;
         }
+    }
+
+    // if node was not found, search for it in local cache
+    string data;
+    if (client->sctable->getnode(fingerprint, &data))
+    {
+        node_vector dp;
+        pnode_t n = Node::unserialize(client, &data, &dp);
+
+        if (n)
+        {
+            add(n);
+        }
+
+        return n;
     }
 
     return NULL;
@@ -1705,15 +1706,6 @@ void NodesCache::add(pnode_t n)
     // add the new node to the front of the list
     nodes.push_front(n);
     hmap[n->nodehandle] = nodes.begin();
-    if (n->type == FILENODE)
-    {
-        string fp;
-        n->serializefingerprint(&fp);
-        if (!fp.empty())
-        {
-            fpmap[fp] = nodes.begin();
-        }
-    }
 
     if (!waitforinserts)
     {
@@ -1733,15 +1725,6 @@ void NodesCache::freespace()
     {
         if (itn->unique())   // if there aren't pending references out there...
         {
-            if ((*itn)->type == FILENODE)
-            {
-                string fp1;
-                (*itn)->serializefingerprint(&fp1);
-                if (!fp1.empty())
-                {
-                    fpmap.erase(fp1);
-                }
-            }
             hmap.erase((*itn)->nodehandle);
             nodes.erase(itn);
         }
@@ -1762,7 +1745,6 @@ void NodesCache::clear()
 {
     nodes.clear();
     hmap.clear();
-    fpmap.clear();
 }
 
 bool NodesCache::remove(pnode_t n)
@@ -1774,12 +1756,6 @@ bool NodesCache::remove(pnode_t n)
     ith = hmap.find(n->nodehandle);
     if (ith != hmap.end())      // hit
     {
-        string fp;
-        n->serializefingerprint(&fp);
-        if (!fp.empty())
-        {
-            fpmap.erase(fp);
-        }
         nodes.erase(ith->second);
         hmap.erase(n->nodehandle);
     }
