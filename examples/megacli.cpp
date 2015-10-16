@@ -2867,24 +2867,31 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        int del = words.size() == 3 && words[2] == "del";
-                        int rmd = words.size() == 3 && words[2] == "rmd";
-                        if (words.size() == 2 || words.size() == 3)
+                        if (client->finduser(client->me)->email.compare(words[1]))
                         {
-                            if (del || rmd)
+                            int del = words.size() == 3 && words[2] == "del";
+                            int rmd = words.size() == 3 && words[2] == "rmd";
+                            if (words.size() == 2 || words.size() == 3)
                             {
-                                client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
-                            } 
-                            else 
+                                if (del || rmd)
+                                {
+                                    client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                }
+                                else
+                                {
+                                    // Original email is not required, but can be used if this account has multiple email addresses associated,
+                                    // to have the invite come from a specific email
+                                    client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                }
+                            }
+                            else
                             {
-                                // Original email is not required, but can be used if this account has multiple email addresses associated,
-                                // to have the invite come from a specific email
-                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                cout << "      invite dstemail [origemail|del|rmd]" << endl;
                             }
                         }
                         else
                         {
-                            cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                            cout << "Cannot send invitation to your own user" << endl;
                         }
 
                         return;
