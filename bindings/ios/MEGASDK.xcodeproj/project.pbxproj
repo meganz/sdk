@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		416812A519EE73CF00C72800 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 416812A419EE73CF00C72800 /* libc++.dylib */; };
 		418412731BA1A06600D94E72 /* MEGAInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = 418412721BA1A06600D94E72 /* MEGAInputStream.mm */; };
 		41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41A990721A5D305700B2094A /* mega_utf8proc.cpp */; };
 		41AB68F21A094194003FE608 /* GfxProcCG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41AB68F11A094194003FE608 /* GfxProcCG.cpp */; };
@@ -78,8 +77,6 @@
 		940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */; };
 		940BF01819ED97B9007E7FA2 /* MEGAUser.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00819ED97B9007E7FA2 /* MEGAUser.mm */; };
 		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
-		940BF03119EDB720007E7FA2 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BF02F19EDB6DB007E7FA2 /* libz.dylib */; settings = {ATTRIBUTES = (Required, ); }; };
-		940BF03219EDB8F2007E7FA2 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -95,7 +92,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		416812A419EE73CF00C72800 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
 		418412711BA1A06600D94E72 /* MEGAInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAInputStream.h; sourceTree = "<group>"; };
 		418412721BA1A06600D94E72 /* MEGAInputStream.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAInputStream.mm; sourceTree = "<group>"; };
 		41A990721A5D305700B2094A /* mega_utf8proc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_utf8proc.cpp; path = ../../src/mega_utf8proc.cpp; sourceTree = "<group>"; };
@@ -177,8 +173,6 @@
 		940BF00719ED97B9007E7FA2 /* MEGATransferList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGATransferList.mm; sourceTree = "<group>"; };
 		940BF00819ED97B9007E7FA2 /* MEGAUser.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAUser.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; lineEnding = 0; path = MEGAUserList.mm; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
-		940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
-		940BF02F19EDB6DB007E7FA2 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
 		940BF03D19EDBCAD007E7FA2 /* account.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = account.h; sourceTree = "<group>"; };
 		940BF03E19EDBCAD007E7FA2 /* attrmap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = attrmap.h; sourceTree = "<group>"; };
 		940BF03F19EDBCAD007E7FA2 /* backofftimer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = backofftimer.h; sourceTree = "<group>"; };
@@ -262,9 +256,6 @@
 			files = (
 				41AB68FC1A09444E003FE608 /* ImageIO.framework in Frameworks */,
 				41AB68F81A0943DA003FE608 /* MobileCoreServices.framework in Frameworks */,
-				416812A519EE73CF00C72800 /* libc++.dylib in Frameworks */,
-				940BF03219EDB8F2007E7FA2 /* libsqlite3.dylib in Frameworks */,
-				940BF03119EDB720007E7FA2 /* libz.dylib in Frameworks */,
 				940BEF9219ED9245007E7FA2 /* libcares.a in Frameworks */,
 				940BEF9319ED9245007E7FA2 /* libcrypto.a in Frameworks */,
 				940BEF9419ED9245007E7FA2 /* libcryptopp.a in Frameworks */,
@@ -552,9 +543,6 @@
 			children = (
 				41AB68FB1A09444E003FE608 /* ImageIO.framework */,
 				41AB68F71A0943DA003FE608 /* MobileCoreServices.framework */,
-				416812A419EE73CF00C72800 /* libc++.dylib */,
-				940BF02F19EDB6DB007E7FA2 /* libz.dylib */,
-				940BF02D19EDB6CF007E7FA2 /* libsqlite3.dylib */,
 				940BEFF919ED9723007E7FA2 /* bindings */,
 				940BEF9719ED9259007E7FA2 /* sdk */,
 				940BEF8D19ED9245007E7FA2 /* libcares.a */,
@@ -717,6 +705,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -732,7 +721,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -757,6 +746,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = YES;
+				ENABLE_BITCODE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -766,7 +756,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
@@ -776,6 +766,7 @@
 		9472045519ED916F00F6805F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					_DARWIN_C_SOURCE,
@@ -800,6 +791,7 @@
 		9472045619ED916F00F6805F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = _DARWIN_C_SOURCE;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
