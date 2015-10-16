@@ -502,6 +502,8 @@ int main(int argc, char *argv[])
     if (argc < 3)
     {
         LOG_info << "Usage: " << argv[0] << " [local folder] [remote folder]";
+        LOG_info << "Please set both MEGA_EMAIL and MEGA_PWD (password) env variables!";
+        LOG_info << "   (set MEGA_DEBUG to 1 or 2 to see debug output.";
         return 1;
     }
 
@@ -524,6 +526,7 @@ int main(int argc, char *argv[])
         if (!strcmp(getenv("MEGA_DEBUG"), "1") || !strcmp(getenv("MEGA_DEBUG"), "2"))
         {
             SimpleLogger::setLogLevel(logDebug);
+            SimpleLogger::setOutputSettings(logDebug, true, true, true);
         }
     }
 
