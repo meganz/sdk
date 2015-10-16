@@ -1673,6 +1673,15 @@ class MegaRequest
          * @return Number of details related to this request
          */
         virtual int getNumDetails() const;
+
+        /**
+         * @brief Returns the tag that identifies this request
+         *
+         * The tag is unique for the MegaApi object that has generated it only
+         *
+         * @return Unique tag that identifies this request
+         */
+        virtual int getTag() const;
 };
 
 /**
@@ -1949,6 +1958,23 @@ class MegaTransfer
          * @return Received bytes since the last callback
          */
         virtual char *getLastBytes() const;
+
+        /**
+         * @brief Returns true if the transfer is a folder transfer
+         * @return true if it's a folder transfer, otherwise (file transfer) it returns false
+         */
+        virtual bool isFolderTransfer() const;
+
+        /**
+         * @brief Returns the identifier of the folder transfer associated to this transfer
+         *
+         * This function is only useful for transfers automatically started in the context of a folder transfer.
+         * For folder transfers (the ones directly started with startUpload), it returns -1
+         * Otherwise, it returns 0
+         *
+         * @return Tag of the associated folder transfer.
+         */
+        virtual int getFolderTransferTag() const;
 };
 
 /**
@@ -4971,6 +4997,28 @@ class MegaApi
          * @return List with transfers of the desired type
          */
         MegaTransferList *getTransfers(int type);
+
+        /**
+         * @brief Get a list of transfers that belong to a folder transfer
+         *
+         * This function provides the list of transfers started in the context
+         * of a folder transfer.
+         *
+         * If the tag in the parameter doesn't belong to a folder transfer,
+         * this function returns an empty list.
+         *
+         * The transfers provided by this function are the ones that are added to the
+         * transfer queue when this function is called. Finished transfers, or transfers
+         * not added to the transfer queue yet (for example, uploads that are waiting for
+         * the creation of the parent folder in MEGA) are not returned by this function.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param transferTag Tag of the folder transfer to check
+         * @return List of transfers in the context of the selected folder transfer
+         * @see MegaTransfer::isFolderTransfer, MegaTransfer::getFolderTransferTag
+         */
+        MegaTransferList *getChildTransfers(int transferTag);
 
 #ifdef ENABLE_SYNC
 
