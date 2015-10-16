@@ -8072,17 +8072,13 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
         pnode_t n;
         if (nn[nni].type == FILENODE && !nn[nni].added)
         {
+
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                string fpstring;
-                n->serializefingerprint(&fpstring);
-                std::pair<multimap<string, int32_t>::iterator, multimap<string, int32_t>::iterator> range = fingerprinttodbid.equal_range(fpstring);
-                multimap<string, int32_t>::iterator it = range.first;
-                for (; it != range.second; ++it) {
-                    if (it->second == n->dbid) {
-                        fingerprinttodbid.erase(it);
-                        break;
-                    }
+                if (n->fingerprint_it != fingerprints.end())
+                {
+                    fingerprints.erase(n->fingerprint_it);
+                    n->fingerprint_it = fingerprints.end();
                 }
             }
         }

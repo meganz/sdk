@@ -67,6 +67,14 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
+
+    if (client)
+    {
+        if (type == FILENODE)
+        {
+            fingerprint_it = client->fingerprints.end();
+        }
+    }
 }
 
 Node::~Node()
@@ -79,22 +87,12 @@ Node::~Node()
     }
 
     // abort pending direct reads
-    // TODO: Fix this
-    //client->preadabort(pnode_t(this));
+    client->preadabort(pnode_t(this));
 
     // remove node's fingerprint from hash
-    if (type == FILENODE)
+    if (type == FILENODE && fingerprint_it != client->fingerprints.end())
     {
-        string fpstring;
-        serializefingerprint(&fpstring);
-        std::pair<multimap<string, int32_t>::iterator, multimap<string, int32_t>::iterator> range = client->fingerprinttodbid.equal_range(fpstring);
-        multimap<string, int32_t>::iterator it = range.first;
-        for (; it != range.second; ++it) {
-            if (it->second == dbid) {
-                client->fingerprinttodbid.erase(it);
-                break;
-            }
-        }
+        client->fingerprints.erase(fingerprint_it);
     }
 
 #ifdef ENABLE_SYNC
@@ -654,15 +652,9 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekey.size() >= sizeof crc)
     {
-        string fpstring;
-        serializefingerprint(&fpstring);
-        std::pair<multimap<string, int32_t>::iterator, multimap<string, int32_t>::iterator> range = client->fingerprinttodbid.equal_range(fpstring);
-        multimap<string, int32_t>::iterator itfp = range.first;
-        for (; itfp != range.second; ++itfp) {
-            if (itfp->second == dbid) {
-                client->fingerprinttodbid.erase(itfp);
-                break;
-            }
+        if (fingerprint_it != client->fingerprints.end())
+        {
+            client->fingerprints.erase(fingerprint_it);
         }
 
         attr_map::iterator it = attrs.map.find('c');
@@ -683,9 +675,7 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        string newfpstring;
-        serializefingerprint(&newfpstring);
-        client->fingerprinttodbid.insert(std::pair<string, int32_t>(newfpstring, dbid));
+        fingerprint_it = client->fingerprints.insert((FileFingerprint*)this);
     }
 }
 

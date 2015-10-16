@@ -54,8 +54,6 @@ public:
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
 
-    multimap<string, int32_t> fingerprinttodbid;
-
     // all users
     user_map users;
 
@@ -549,6 +547,9 @@ public:
 
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
+
+    // FileFingerprint to node mapping
+    fingerprint_set fingerprints;
 
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
