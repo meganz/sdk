@@ -7685,20 +7685,20 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 
 void MegaApiImpl::sendPendingTransfers()
 {
-	MegaTransferPrivate *transfer;
-	error e;
-	int nextTag;
+    MegaTransferPrivate *transfer;
+    error e;
+    int nextTag;
 
-	while((transfer = transferQueue.pop()))
-	{
-		sdkMutex.lock();
-		e = API_OK;
+    while((transfer = transferQueue.pop()))
+    {
+        sdkMutex.lock();
+        e = API_OK;
         nextTag = client->nextreqtag();
 
-		switch(transfer->getType())
-		{
-			case MegaTransfer::TYPE_UPLOAD:
-			{
+        switch(transfer->getType())
+        {
+            case MegaTransfer::TYPE_UPLOAD:
+            {
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
                 int64_t mtime = transfer->getTime();
@@ -7710,9 +7710,9 @@ void MegaApiImpl::sendPendingTransfers()
                     break;
                 }
 
-				string tmpString = localPath;
-				string wLocalPath;
-				client->fsaccess->path2local(&tmpString, &wLocalPath);
+                string tmpString = localPath;
+                string wLocalPath;
+                client->fsaccess->path2local(&tmpString, &wLocalPath);
 
                 FileAccess *fa = fsAccess->newfileaccess();
                 if(!fa->fopen(&wLocalPath, true, false))
@@ -7776,10 +7776,10 @@ void MegaApiImpl::sendPendingTransfers()
                     MegaFolderUploadController *uploader = new MegaFolderUploadController(this, transfer);
                     uploader->start();
                 }
-				break;
-			}
-			case MegaTransfer::TYPE_DOWNLOAD:
-			{
+                break;
+            }
+            case MegaTransfer::TYPE_DOWNLOAD:
+            {
                 handle nodehandle = transfer->getNodeHandle();
 				Node *node = client->nodebyhandle(nodehandle);
                 MegaNode *publicNode = transfer->getPublicNode();
