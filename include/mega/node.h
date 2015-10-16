@@ -75,6 +75,23 @@ struct MEGA_API NewNode : public NodeCore
     }
 };
 
+struct MEGA_API PublicLink
+{
+    handle ph;
+    m_time_t ets;
+    bool takendown;
+
+    PublicLink(handle ph, m_time_t ets, bool takendown)
+    {
+        this->ph = ph;
+        this->ets = ets;
+        this->takendown = takendown;
+    }
+
+    PublicLink(PublicLink *plink);
+    bool isExpired();
+};
+
 // filesystem node
 struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_shared_from_this<Node>
 {
@@ -178,6 +195,9 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_s
 
     // check if node is below this node
     bool isbelow(pnode_t) const;
+
+    // handle of public link for the node
+    PublicLink *plink;
 
     bool serialize(string*);
     static pnode_t unserialize(MegaClient*, string*, node_vector*);

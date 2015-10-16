@@ -238,7 +238,7 @@ public:
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(pnode_t, int);
+    error exportnode(pnode_t, int, m_time_t);
 
     // add/delete sync
     error addsync(string*, const char*, string*, pnode_t, fsfp_t = 0, int = 0);
@@ -261,6 +261,9 @@ public:
 
     // User-Agent header for HTTP requests
     string useragent;
+
+    // Issuer of a detected fake SSL certificate
+    string sslfakeissuer;
 
     // shopping basket
     handle_vector purchase_basket;
@@ -395,6 +398,7 @@ private:
     void sc_opc();
     void sc_ipc();
     void sc_upc();
+    void sc_ph();
 
     void init();
 
@@ -732,6 +736,8 @@ public:
 
     void readipc(JSON*);
     void readopc(JSON*);
+
+    void procph(JSON*);
 
     void readcr();
     void readsr();

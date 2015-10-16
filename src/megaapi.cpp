@@ -222,6 +222,26 @@ int MegaNode::getTag()
     return 0;
 }
 
+int64_t MegaNode::getExpirationTime()
+{
+    return -1;
+}
+
+MegaHandle MegaNode::getPublicHandle()
+{
+    return INVALID_HANDLE;
+}
+
+MegaNode* MegaNode::getPublicNode()
+{
+    return NULL;
+}
+
+char * MegaNode::getPublicLink()
+{
+    return NULL;
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -262,14 +282,34 @@ bool MegaNode::isPublic()
     return false;
 }
 
+bool MegaNode::isShared()
+{
+    return false;
+}
+
 bool MegaNode::isOutShare()
 {
     return false;
 }
 
-bool MegaNode::hasPublicLink()
+bool MegaNode::isInShare()
 {
     return false;
+}
+
+bool MegaNode::isExported()
+{
+    return false;
+}
+
+bool MegaNode::isExpired()
+{
+  return false;
+}
+
+bool MegaNode::isTakenDown()
+{
+  return false;
 }
 
 string *MegaNode::getNodeKey()
@@ -1206,7 +1246,12 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, listener);
+    pImpl->exportNode(node, 0, listener);
+}
+
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
+{
+    pImpl->exportNode(node, expireTime, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
@@ -1312,6 +1357,11 @@ void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener 
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
 {
     pImpl->reportEvent(text, listener);
+}
+
+void MegaApi::addContact(const char* email, MegaRequestListener* listener)
+{
+    pImpl->addContact(email, listener);
 }
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
@@ -1592,17 +1642,32 @@ MegaNodeList* MegaApi::getInShares()
 
 bool MegaApi::isShared(MegaNode *node)
 {
-    return pImpl->isShared(node);
+    if (!node)
+    {
+        return false;
+    }
+
+    return node->isShared();
 }
 
 bool MegaApi::isOutShare(MegaNode *node)
 {
-    return pImpl->isOutShare(node);
+    if (!node)
+    {
+        return false;
+    }
+
+    return node->isOutShare();
 }
 
 bool MegaApi::isInShare(MegaNode *node)
 {
-    return pImpl->isInShare(node);
+    if (!node)
+    {
+        return false;
+    }
+
+    return node->isInShare();
 }
 
 bool MegaApi::isPendingShare(MegaNode *node)

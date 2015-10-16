@@ -21,6 +21,11 @@
 
 #include "MAccountDetails.h"
 
+#include "MAccountBalance.h"
+#include "MAccountPurchase.h"
+#include "MAccountSession.h"
+#include "MAccountTransaction.h"
+
 using namespace mega;
 using namespace Platform;
 
@@ -121,4 +126,44 @@ uint64 MAccountDetails::getNumFiles(uint64 handle)
 uint64 MAccountDetails::getNumFolders(uint64 handle)
 {
 	return accountDetails ? accountDetails->getNumFolders(handle) : 0;
+}
+
+int MAccountDetails::getNumBalances()
+{
+    return accountDetails ? accountDetails->getNumBalances() : 0;
+}
+
+MAccountBalance^ MAccountDetails::getBalance(int i)
+{
+    return accountDetails ? ref new MAccountBalance(accountDetails->getBalance(i), true) : nullptr;
+}
+
+int MAccountDetails::getNumSessions()
+{
+    return accountDetails ? accountDetails->getNumSessions() : 0;
+}
+
+MAccountSession^ MAccountDetails::getSession(int i)
+{
+    return accountDetails ? ref new MAccountSession(accountDetails->getSession(i), true) : nullptr;
+}
+
+int MAccountDetails::getNumPurchases()
+{
+    return accountDetails ? accountDetails->getNumPurchases() : 0;
+}
+
+MAccountPurchase^ MAccountDetails::getPurchase(int i)
+{
+    return accountDetails ? ref new MAccountPurchase(accountDetails->getPurchase(i), true) : nullptr;
+}
+
+int MAccountDetails::getNumTransactions()
+{
+    return accountDetails ? accountDetails->getNumTransactions() : 0;
+}
+
+MAccountTransaction^ MAccountDetails::getTransaction(int i)
+{
+    return accountDetails ? ref new MAccountTransaction(accountDetails->getTransaction(i), true) : nullptr;
 }

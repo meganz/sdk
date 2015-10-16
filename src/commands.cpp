@@ -2603,7 +2603,7 @@ void CommandGetUserSessions::procresult()
     client->app->account_details(details, false, false, false, false, false, true);
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, pnode_t n, int del)
+CommandSetPH::CommandSetPH(MegaClient* client, pnode_t n, int del, m_time_t ets)
 {
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -2613,8 +2613,13 @@ CommandSetPH::CommandSetPH(MegaClient* client, pnode_t n, int del)
         arg("d", 1);
     }
 
-    h = n->nodehandle;
-    tag = client->reqtag;
+    if (ets)
+    {
+        arg("ets", ets);
+    }
+
+    this->h = n->nodehandle;
+    this->tag = client->reqtag;
 }
 
 void CommandSetPH::procresult()
@@ -3054,6 +3059,11 @@ void CommandFetchNodes::procresult()
             case MAKENAMEID3('o', 'p', 'c'):
                 // Outgoing pending contact
                 client->readopc(&client->json);
+                break;
+
+            case MAKENAMEID2('p', 'h'):
+                // Public links handles
+                client->procph(&client->json);
                 break;
 
             case EOO:

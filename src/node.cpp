@@ -65,15 +65,14 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     sharekey = NULL;
     foreignkey = false;
 
+    plink = NULL;
+
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
 
-    if (client)
+    if (type == FILENODE)
     {
-        if (type == FILENODE)
-        {
-            fingerprint_it = client->fingerprints.end();
-        }
+        fingerprint_it = client->fingerprints.end();
     }
 }
 
@@ -129,6 +128,7 @@ Node::~Node()
         delete pendingshares;
     }
 
+    delete plink;
     delete inshare;
     delete sharekey;
 
@@ -176,8 +176,8 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     unsigned short ll;
     pnode_t n;
     int i;
-    char exported = '\0';
-    char encnode = '\0';
+    char isExported = '\0';
+    char isEncoded = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -256,11 +256,11 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
-    exported = MemAccess::get<char>(ptr);
-    ptr += sizeof(exported);
+    isExported = MemAccess::get<char>(ptr);
+    ptr += sizeof(isExported);
 
-    encnode = MemAccess::get<char>(ptr);
-    ptr += sizeof(encnode);
+    isEncoded = MemAccess::get<char>(ptr);
+    ptr += sizeof(isEncoded);
 
     for (i = 6; i--;)
     {
@@ -270,7 +270,7 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         }
     }
 
-    if (encnode)  // specific code for undecryptable nodes
+    if (isEncoded)  // specific code for undecryptable nodes
     {
         LOG_info << "Reading an undecrypted node...";
 
@@ -311,7 +311,7 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     {
         if (ptr + SymmCipher::KEYLENGTH > end)
         {
-            return 0;
+            return NULL;
         }
 
         skey = (const byte*)ptr;
@@ -336,7 +336,7 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if (k)  // if the node is decrypted...
     {
-        if (!encnode)
+        if (!isEncoded)
         {
             n->setkey(k);
         }
@@ -370,6 +370,25 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     ptr = n->attrs.unserialize(ptr);
 
+    PublicLink *plink = NULL;
+    if (isExported)
+    {
+        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
+        {
+            return NULL;
+        }
+
+        handle ph = MemAccess::get<handle>(ptr);
+        ptr += MegaClient::NODEHANDLE;
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
+
+        plink = new PublicLink(ph, ets, takendown);
+    }
+    n->plink = plink;
+
     n->setfingerprint();
 
     if (ptr == end)
@@ -385,8 +404,8 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
-    char exported = '\0';
-    char encnode = '\0';
+    char isExported = plink ? 1 : 0;
+    char isEncoded = '\0';
     if (attrstring)
     {
         //Last attempt to decrypt the node
@@ -395,12 +414,12 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            encnode = 1;
+            isEncoded = 1;
             LOG_info << "Saving undecrypted node";
         }
     }
 
-    if(!encnode)    // check key lenght only for nodes with decrypted nodekey
+    if(!isEncoded)    // check key lenght only for nodes with decrypted nodekey
     {
         switch (type)
         {
@@ -456,7 +475,7 @@ bool Node::serialize(string* d)
 
     if ((type == FOLDERNODE) || (type == FILENODE))   // skip nodekey for rootnodes
     {
-        if (encnode)
+        if (isEncoded)
         {
             // if encoded node, dummy data is written and will be ignored. Specific encrypted nodekey is written later
             d->append("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
@@ -475,13 +494,13 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-    d->append((char*)&exported, 1);
+    d->append((char*)&isExported, 1);
 
-    d->append((char*)&encnode, 1);
+    d->append((char*)&isEncoded, 1);
 
     d->append("\0\0\0\0\0", 6);
 
-    if (encnode)   // allows to store undecrypted nodes
+    if (isEncoded)   // allows to store undecrypted nodes
     {
         if ((type == FILENODE) || (type == FOLDERNODE))
         {
@@ -550,6 +569,13 @@ bool Node::serialize(string* d)
     }
 
     attrs.serialize(d);
+
+    if (isExported)
+    {
+        d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
+        d->append((char*) &plink->ets, sizeof(plink->ets));
+        d->append((char*) &plink->takendown, sizeof(plink->takendown));
+    }
 
     return true;
 }
@@ -925,6 +951,22 @@ NodeCore::NodeCore()
 NodeCore::~NodeCore()
 {
     delete attrstring;
+}
+
+PublicLink::PublicLink(PublicLink *plink)
+{
+    this->ph = plink->ph;
+    this->ets = plink->ets;
+    this->takendown = plink->takendown;
+}
+
+bool PublicLink::isExpired()
+{
+    if (!ets)       // permanent link: ets=0
+        return false;
+
+    m_time_t t = time(NULL);
+    return ets < t;
 }
 
 #ifdef ENABLE_SYNC

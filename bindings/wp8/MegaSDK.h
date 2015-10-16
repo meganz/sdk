@@ -153,6 +153,8 @@ namespace mega
         void fastLogin(String^ session);
         void killSession(MegaHandle sessionHandle, MRequestListenerInterface^ listener);
         void killSession(MegaHandle sessionHandle);
+        void killAllSessions(MRequestListenerInterface^ listener);
+        void killAllSessions();
         void getOwnUserData(MRequestListenerInterface^ listener);
         void getOwnUserData();
         void getUserData(MUser^ user, MRequestListenerInterface^ listener);
@@ -234,12 +236,16 @@ namespace mega
         void setUserAttribute(int type, String^ value);
         void exportNode(MNode^ node, MRequestListenerInterface^ listener);
         void exportNode(MNode^ node);
+        void exportNodeWithExpireTime(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener);
+        void exportNodeWithExpireTime(MNode^ node, int64 expireTime);
         void disableExport(MNode^ node, MRequestListenerInterface^ listener);
         void disableExport(MNode^ node);
         void fetchNodes(MRequestListenerInterface^ listener);
         void fetchNodes();
         void getAccountDetails(MRequestListenerInterface^ listener);
         void getAccountDetails();
+        void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MRequestListenerInterface^ listener);
+        void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
         void getPricing();
         void getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener);

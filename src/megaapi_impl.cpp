@@ -91,8 +91,9 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->previewAvailable = false;
     this->tag = 0;
     this->isPublicNode = true;
-    this->outShares = true;
-    this->publicLink = true;
+    this->outShares = false;
+    this->inShare = false;
+    this->plink = NULL;
 
     if(auth)
     {
@@ -125,7 +126,13 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->auth = *node->getAuth();
     this->outShares = node->isOutShare();
-    this->publicLink = node->hasPublicLink();
+    this->inShare = node->isInShare();
+    if (node->isExported())
+    {
+        this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
+    }
+    else
+        this->plink = NULL;
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = node->isSyncDeleted();
@@ -202,30 +209,10 @@ MegaNodePrivate::MegaNodePrivate(pnode_t node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
-
-    this->outShares = false;
-    this->publicLink = false;
-    if (node->outshares)
-    {
-        if (node->outshares->size() == 1 && !node->outshares->begin()->second->user)
-        {
-            this->publicLink = true;
-            this->outShares = false;
-        }
-        else
-        {
-            this->outShares = true;
-
-            for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
-            {
-                if (!it->second->user)
-                {
-                    this->publicLink = true;
-                    break;
-                }
-            }
-        }
-    }
+    // if there's only one share and it has no user --> public link
+    this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
+    this->inShare = (node->inshare != NULL) && !node->client->nodebyhandle(node->parenthandle);
+    this->plink = node->plink ? new PublicLink(node->plink) : NULL;
 }
 
 MegaNode *MegaNodePrivate::copy()
@@ -317,6 +304,62 @@ string *MegaNodePrivate::getAttrString()
 int MegaNodePrivate::getTag()
 {
     return tag;
+}
+
+int64_t MegaNodePrivate::getExpirationTime()
+{
+    return plink ? plink->ets : -1;
+}
+
+MegaHandle MegaNodePrivate::getPublicHandle()
+{
+    return plink ? (MegaHandle) plink->ph : INVALID_HANDLE;
+}
+
+MegaNode* MegaNodePrivate::getPublicNode()
+{
+    if (!plink || plink->isExpired())
+    {
+        return NULL;
+    }
+
+    char *skey = getBase64Key();
+    string key(skey);
+
+    MegaNode *node = new MegaNodePrivate(
+                name, type, size, ctime, mtime,
+                plink->ph, &key, &attrstring);
+
+    delete [] skey;
+
+    return node;
+}
+
+char *MegaNodePrivate::getPublicLink()
+{
+    if (!plink)
+    {
+        return NULL;
+    }
+
+    char *base64ph = new char[12];
+    Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
+
+    char *base64k = getBase64Key();
+
+    string strlink = "https://mega.nz/#";
+    strlink += (type ? "F" : "");
+    strlink += "!";
+    strlink += base64ph;
+    strlink += "!";
+    strlink += base64k;
+
+    char *link = MegaApi::strdup(strlink.c_str());
+
+    delete [] base64ph;
+    delete [] base64k;
+
+    return link;
 }
 
 bool MegaNodePrivate::isFile()
@@ -507,14 +550,34 @@ bool MegaNodePrivate::isPublic()
     return isPublicNode;
 }
 
+bool MegaNodePrivate::isShared()
+{
+    return outShares || inShare;
+}
+
 bool MegaNodePrivate::isOutShare()
 {
     return outShares;
 }
 
-bool MegaNodePrivate::hasPublicLink()
+bool MegaNodePrivate::isInShare()
 {
-    return publicLink;
+    return inShare;
+}
+
+bool MegaNodePrivate::isExported()
+{
+    return plink;
+}
+
+bool MegaNodePrivate::isExpired()
+{
+    return plink ? (plink->isExpired()) : false;
+}
+
+bool MegaNodePrivate::isTakenDown()
+{
+    return plink ? plink->takendown : false;
 }
 
 string *MegaNodePrivate::getAuth()
@@ -525,6 +588,7 @@ string *MegaNodePrivate::getAuth()
 MegaNodePrivate::~MegaNodePrivate()
 {
  	delete[] name;
+    delete plink;
 }
 
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
@@ -2866,12 +2930,13 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
 	setUserAttr(type ? type : -1, value, listener);
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
 {
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());
+    request->setNumber(expireTime);
     request->setAccess(1);
-	requestQueue.push(request);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -3232,6 +3297,14 @@ void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestList
 
     request->setParamType(type);
     requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::addContact(const char* email, MegaRequestListener* listener)
+{
+	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_CONTACT, listener);
+	request->setEmail(email);
+	requestQueue.push(request);
     waiter->notify();
 }
 
@@ -4039,59 +4112,6 @@ MegaNodeList* MegaApiImpl::getInShares()
 	return nodeList;
 }
 
-bool MegaApiImpl::isShared(MegaNode *megaNode)
-{
-	if(!megaNode) return false;
-
-	sdkMutex.lock();
-    pnode_t node = client->nodebyhandle(megaNode->getHandle());
-	if(!node)
-	{
-		sdkMutex.unlock();
-		return false;
-	}
-
-    bool result = (node->outshares != NULL) || ((node->inshare != NULL) && !client->nodebyhandle(node->parenthandle));
-	sdkMutex.unlock();
-
-	return result;
-}
-
-bool MegaApiImpl::isOutShare(MegaNode *megaNode)
-{
-    if(!megaNode) return false;
-
-    sdkMutex.lock();
-    pnode_t node = client->nodebyhandle(megaNode->getHandle());
-    if(!node)
-    {
-        sdkMutex.unlock();
-        return false;
-    }
-
-    bool result = (node->outshares != NULL);
-    sdkMutex.unlock();
-
-    return result;
-}
-
-bool MegaApiImpl::isInShare(MegaNode *megaNode)
-{
-    if(!megaNode) return false;
-
-    sdkMutex.lock();
-    pnode_t node = client->nodebyhandle(megaNode->getHandle());
-    if(!node)
-    {
-        sdkMutex.unlock();
-        return false;
-    }
-
-    bool result = (node->inshare != NULL) && !client->nodebyhandle(node->parenthandle);
-    sdkMutex.unlock();
-
-    return result;
-}
 
 bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 {
@@ -5962,6 +5982,12 @@ void MegaApiImpl::request_error(error e)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
     request->setParamType(e);
+
+    if (e == API_ESSL && client->sslfakeissuer.size())
+    {
+        request->setText(client->sslfakeissuer.c_str());
+    }
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8231,7 +8257,7 @@ void MegaApiImpl::sendPendingRequests()
             pnode_t node = client->nodebyhandle(request->getNodeHandle());
 			if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess());
+            e = client->exportnode(node, !request->getAccess(), request->getNumber());
 			break;
 		}
 		case MegaRequest::TYPE_FETCH_NODES:

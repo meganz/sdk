@@ -1184,11 +1184,13 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
     s = sl->get(0);
 
+    n1 = megaApi->getNodeByHandle(hfolder1);    // get an updated version of the node
+
     ASSERT_EQ(MegaShare::ACCESS_READ, s->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
     ASSERT_STREQ(emailaux.data(), s->getUser()) << "Wrong email address of outgoing share";
-    ASSERT_TRUE(megaApi->isShared(n1)) << "Wrong sharing information at outgoing share";
-    ASSERT_TRUE(megaApi->isOutShare(n1)) << "Wrong sharing information at outgoing share";
+    ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
+    ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
 
     delete sl;
 
@@ -1202,8 +1204,8 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
     ASSERT_EQ(MegaError::API_OK, megaApiAux->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
-    ASSERT_TRUE(megaApiAux->isInShare(n)) << "Wrong sharing information at incoming share";
-    ASSERT_TRUE(megaApiAux->isShared(n)) << "Wrong sharing information at incoming share";
+    ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
+    ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
     delete nl;
 
@@ -1265,8 +1267,9 @@ TEST_F(SdkTest, SdkTestShares)
     n = megaApi->getNodeByHandle(s->getNodeHandle());
 
 //    ASSERT_STREQ(emailfake, s->getUser()) << "Wrong email address of outgoing share"; User is not created yet
-    ASSERT_FALSE(megaApi->isShared(n)) << "Node is already shared, must be pending";
-    ASSERT_FALSE(megaApi->isOutShare(n)) << "Node is already shared, must be pending";
+    ASSERT_FALSE(n->isShared()) << "Node is already shared, must be pending";
+    ASSERT_FALSE(n->isOutShare()) << "Node is already shared, must be pending";
+    ASSERT_FALSE(n->isInShare()) << "Node is already shared, must be pending";
 
     delete sl;
     delete n;
@@ -1278,6 +1281,18 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
     // The created link is stored in this->link at onRequestFinish()
+
+    // Get a fresh snapshot of the node and check it's actually exported
+    nfile1 = megaApi->getNodeByHandle(hfile1);
+    ASSERT_TRUE(nfile1->isExported()) << "Node is not exported, must be exported";
+    ASSERT_FALSE(nfile1->isTakenDown()) << "Public link is taken down, it mustn't";
+
+    // Regenerate the same link should not trigger a new request
+    string oldLink = link;
+    link = "";
+    nfile1 = megaApi->getNodeByHandle(hfile1);
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
+    ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
 
     // --- Import a public link ---
