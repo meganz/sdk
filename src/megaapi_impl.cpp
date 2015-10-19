@@ -8606,10 +8606,19 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_ADD_CONTACT:
 		{
             const char *email = request->getEmail();
+
+            if(client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             if(!email || !client->finduser(client->me)->email.compare(email))
             {
-                e = API_EARGS; break;
+                e = API_EARGS;
+                break;
             }
+
 			e = client->invite(email, VISIBLE);
 			break;
 		}
@@ -8618,6 +8627,13 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             const char *message = request->getText();
             int action = request->getNumber();
+
+            if(client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             if(!email || !client->finduser(client->me)->email.compare(email))
             {
                 e = API_EARGS;
