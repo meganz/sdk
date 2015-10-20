@@ -1,6 +1,6 @@
 /**
-* @file MShare.h
-* @brief Represents the outbound sharing of a folder with an user in MEGA
+* @file MAccountPurchase.h
+* @brief Get details about a MEGA purchase.
 *
 * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
 *
@@ -28,31 +28,23 @@ namespace mega
     using namespace Windows::Foundation;
     using Platform::String;
 
-    public enum class MShareType
+    public ref class MAccountPurchase sealed
     {
-        ACCESS_UNKNOWN = -1,
-        ACCESS_READ = 0,
-        ACCESS_READWRITE = 1,
-        ACCESS_FULL = 2,
-        ACCESS_OWNER = 3
-    };
-
-    public ref class MShare sealed
-    {
-        friend ref class MegaSDK;
-        friend ref class MShareList;
+        friend ref class MAccountDetails;
+        friend ref class MRequest;
 
     public:
-        virtual ~MShare();
-        String^ getUser();
-        uint64 getNodeHandle();
-        int getAccess();
-        uint64 getTimestamp();
+        virtual ~MAccountPurchase();
+        int64 getTimestamp();
+        String^ getHandle();
+        String^ getCurrency();
+        double getAmount();
+        int getMethod();
 
     private:
-        MShare(MegaShare *megaShare, bool cMemoryOwn);
-        MegaShare *megaShare;
-        MegaShare *getCPtr();
+        MAccountPurchase(MegaAccountPurchase *accountPurchase, bool cMemoryOwn);
+        MegaAccountPurchase *accountPurchase;
         bool cMemoryOwn;
+        MegaAccountPurchase *getCPtr();
     };
 }

@@ -117,26 +117,42 @@ namespace mega
         MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider);
         MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider, MGfxProcessorInterface^ gfxProcessor);
         virtual ~MegaSDK();
+
+        //Multiple listener management.
         void addListener(MListenerInterface^ listener);
         void addRequestListener(MRequestListenerInterface^ listener);
-        void addMTransferListener(MTransferListenerInterface^ listener);
+        void addTransferListener(MTransferListenerInterface^ listener);
         void addGlobalListener(MGlobalListenerInterface^ listener);
         void removeListener(MListenerInterface^ listener);
         void removeRequestListener(MRequestListenerInterface^ listener);
         void removeTransferListener(MTransferListenerInterface^ listener);
         void removeGlobalListener(MGlobalListenerInterface^ listener);
+
+        //Utils
         String^ getBase64PwKey(String^ password);
         String^ getStringHash(String^ base64pwkey, String^ inBuf);
+        void getSessionTransferURL(String^ path, MRequestListenerInterface^ listener);
+        static MegaHandle base32ToHandle(String^ base32Handle);
         static uint64 base64ToHandle(String^ base64Handle);
+        static String^ handleToBase64(MegaHandle handle);
+        static String^ userHandleToBase64(MegaHandle handle);
+        void retryPendingConnections(bool disconnect, bool includexfers, MRequestListenerInterface^ listener);
+        void retryPendingConnections(bool disconnect, bool includexfers);
+        void retryPendingConnections(bool disconnect);
         void retryPendingConnections();
         void reconnect();
+
+        //API requests
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
         void login(String^ email, String^ password);
         String^ dumpSession();
+        String^ dumpXMPPSession();
         void fastLogin(String^ email, String^ stringHash, String^ base64pwkey, MRequestListenerInterface^ listener);
         void fastLogin(String^ email, String^ stringHash, String^ base64pwkey);
         void fastLogin(String^ session, MRequestListenerInterface^ listener);
         void fastLogin(String^ session);
+        void killSession(MegaHandle sessionHandle, MRequestListenerInterface^ listener);
+        void killSession(MegaHandle sessionHandle);
         void getOwnUserData(MRequestListenerInterface^ listener);
         void getOwnUserData();
         void getUserData(MUser^ user, MRequestListenerInterface^ listener);
@@ -144,7 +160,7 @@ namespace mega
         void getUserDataById(String^ user, MRequestListenerInterface^ listener);
         void getUserDataById(String^ user);
         void createAccount(String^ email, String^ password, String^ name, MRequestListenerInterface^ listener);
-        void createAccount(String^ email, String^ password, String^ name);
+        void createAccount(String^ email, String^ password, String^ name);        
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
@@ -152,21 +168,40 @@ namespace mega
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);
         void confirmAccount(String^ link, String^ password);
         void fastConfirmAccount(String^ link, String^ base64pwkey, MRequestListenerInterface^ listener);
-        void fastConfirmAccount(String^ link, String^ base64pwkey);
+        void fastConfirmAccount(String^ link, String^ base64pwkey);        
         int isLoggedIn();
         String^ getMyEmail();
+        String^ getMyUserHandle();
+
+        //Logging
+        static void setLogLevel(MLogLevel logLevel);
+        static void setLoggerObject(MLoggerInterface^ megaLogger);
+        static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
+        static void log(MLogLevel logLevel, String^ message, String^ filename);
+        static void log(MLogLevel logLevel, String^ message);
+
         void createFolder(String^ name, MNode^ parent, MRequestListenerInterface^ listener);
         void createFolder(String^ name, MNode^ parent);
         void moveNode(MNode^ node, MNode^ newParent, MRequestListenerInterface^ listener);
         void moveNode(MNode^ node, MNode^ newParent);
         void copyNode(MNode^ node, MNode^ newParent, MRequestListenerInterface^ listener);
         void copyNode(MNode^ node, MNode^ newParent);
+        void copyAndRenameNode(MNode^ node, MNode^ newParent, String^ newName, MRequestListenerInterface^ listener);
+        void copyAndRenameNode(MNode^ node, MNode^ newParent, String^ newName);
         void renameNode(MNode^ node, String^ newName, MRequestListenerInterface^ listener);
         void renameNode(MNode^ node, String^ newName);
         void remove(MNode^ node, MRequestListenerInterface^ listener);
         void remove(MNode^ node);
+        void cleanRubbishBin(MRequestListenerInterface^ listener);
+        void cleanRubbishBin();
+        void sendFileToUser(MNode^ node, MUser^ user, MRequestListenerInterface^ listener);
+        void sendFileToUser(MNode^ node, MUser^ user);
+        void sendFileToUserByEmail(MNode^ node, String^ email, MRequestListenerInterface^ listener);
+        void sendFileToUserByEmail(MNode^ node, String^ email);
         void share(MNode^ node, MUser^ user, int level, MRequestListenerInterface^ listener);
         void share(MNode^ node, MUser^ user, int level);
+        void shareByEmail(MNode^ node, String^ email, int level, MRequestListenerInterface^ listener);
+        void shareByEmail(MNode^ node, String^ email, int level);
         void loginToFolder(String^ megaFolderLink, MRequestListenerInterface^ listener);
         void loginToFolder(String^ megaFolderLink);
         void importFileLink(String^ megaFileLink, MNode^ parent, MRequestListenerInterface^ listener);
@@ -199,12 +234,16 @@ namespace mega
         void setUserAttribute(int type, String^ value);
         void exportNode(MNode^ node, MRequestListenerInterface^ listener);
         void exportNode(MNode^ node);
+        void exportNodeWithExpireTime(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener);
+        void exportNodeWithExpireTime(MNode^ node, int64 expireTime);
         void disableExport(MNode^ node, MRequestListenerInterface^ listener);
         void disableExport(MNode^ node);
         void fetchNodes(MRequestListenerInterface^ listener);
         void fetchNodes();
         void getAccountDetails(MRequestListenerInterface^ listener);
         void getAccountDetails();
+        void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MRequestListenerInterface^ listener);
+        void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
         void getPricing();
         void getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener);
@@ -241,46 +280,69 @@ namespace mega
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener);
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action);
+                
         void removeContact(MUser^ user, MRequestListenerInterface^ listener);
         void removeContact(MUser^ user);
-        void logout(MRequestListenerInterface^ listener);
+        void logout(MRequestListenerInterface^ listener);        
         void logout();
+        void localLogout(MRequestListenerInterface^ listener);
+        void localLogout();
+        void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
+        void submitFeedback(int rating, String^ comment);
+        void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);
+        void reportDebugEvent(String^ text);
+
+        //Transfers
         void startUpload(String^ localPath, MNode^ parent, MTransferListenerInterface^ listener);
         void startUpload(String^ localPath, MNode^ parent);
         void startUploadToFile(String^ localPath, MNode^ parent, String^ fileName, MTransferListenerInterface^ listener);
         void startUploadToFile(String^ localPath, MNode^ parent, String^ fileName);
 		void startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime, MTransferListenerInterface^ listener);
 		void startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtime);
+        void startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime, MTransferListenerInterface^ listener);
+        void startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime);
         void startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
         void startDownload(MNode^ node, String^ localPath);
         void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener);
         void cancelTransfer(MTransfer^ transfer);
+        void cancelTransferByTag(int transferTag, MRequestListenerInterface^ listener);
+        void cancelTransferByTag(int transferTag);
         void cancelTransfers(int direction, MRequestListenerInterface^ listener);
         void cancelTransfers(int direction);
         void pauseTransfers(bool pause, MRequestListenerInterface^ listener);
         void pauseTransfers(bool pause);
-        void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
-        void submitFeedback(int rating, String^ comment);
-        void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);
-        void reportDebugEvent(String^ text);
+        bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
+        void setDownloadMethod(int method);
+        void setUploadMethod(int method);
+        int getDownloadMethod();
+        int getUploadMethod();
         MTransferList^ getTransfers();
+        MTransfer^ getTransferByTag(int transferTag);
         MTransferList^ getTransfers(MTransferType type);
+        
+        bool isWaiting();
+
+        //Statistics
         int getNumPendingUploads();
         int getNumPendingDownloads();
         int getTotalUploads();
         int getTotalDownloads();
-        uint64 getTotalDownloadedBytes();
-        uint64 getTotalUploadedBytes();
         void resetTotalDownloads();
         void resetTotalUploads();
+        void updateStats();
+        uint64 getTotalDownloadedBytes();
+        uint64 getTotalUploadedBytes();
+        
+        //Filesystem
         int getNumChildren(MNode^ parent);
         int getNumChildFiles(MNode^ parent);
         int getNumChildFolders(MNode^ parent);
         MNodeList^ getChildren(MNode^ parent, int order);
         MNodeList^ getChildren(MNode^ parent);
         int getIndex(MNode^ node, int order);
+        int getIndex(MNode^ node);
         MNode^ getChildNode(MNode^ parent, String^ name);
         MNode^ getParentNode(MNode^ node);
         String^ getNodePath(MNode^ node);
@@ -295,6 +357,7 @@ namespace mega
         bool isShared(MNode^ node);
         bool isOutShare(MNode^ node);
         bool isInShare(MNode^ node);
+        bool isPendingShare(MNode^ node);
         MShareList^ getOutShares();
         MShareList^ getOutShares(MNode^ node);
         MShareList^ getPendingOutShares();
@@ -302,30 +365,36 @@ namespace mega
         MContactRequestList^ getIncomingContactRequests();
         MContactRequestList^ getOutgoingContactRequests();
 
-        
+        int getAccess(MNode^ node);
+        uint64 getSize(MNode^ node);
+        static void removeRecursively(String^ path);
+
+        //Fingerprint
         String^ getFileFingerprint(String^ filePath);
         String^ getFileFingerprint(MInputStream^ inputStream, uint64 mtime);
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
         MNode^ getNodeByFingerprint(String^ fingerprint, MNode^ parent);
         bool hasFingerprint(String^ fingerprint);
-        int getAccess(MNode^ node);
+        
+        //CRC
+        String^ getCRCFromFile(String^ filePath);
+        String^ getCRCFromFingerprint(String^ fingerprint);
+        String^ getCRCFromNode(MNode^ node);
+        MNode^ getNodeByCRC(String^ crc, MNode^ parent);
+
+        //Permissions
         MError^ checkAccess(MNode^ node, int level);
         MError^ checkMove(MNode^ node, MNode^ target);
+
         MNode^ getRootNode();
+        MNode^ getInboxNode();
         MNode^ getRubbishNode();
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
         MNodeList^ search(MNode^ node, String^ searchString);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
-
-        //Logging
-        static void setLogLevel(MLogLevel logLevel);
-        static void setLoggerObject(MLoggerInterface^ megaLogger);
-        static void log(MLogLevel logLevel, String^ message, String^ filename, int line);
-        static void log(MLogLevel logLevel, String^ message, String^ filename);
-        static void log(MLogLevel logLevel, String^ message);
-
+        
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;
         std::set<DelegateMTransferListener *> activeTransferListeners;

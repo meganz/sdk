@@ -2562,6 +2562,11 @@ bool MegaClient::procsc()
                                 // outgoing pending contact request update (from them, accept/deny/ignore)
                                 sc_upc();
                                 break;
+
+                            case MAKENAMEID2('p','h'):
+                                // public links handles
+                                sc_ph();
+                                break;
                         }
                     }
                 }
@@ -3765,6 +3770,104 @@ void MegaClient::sc_upc()
         }
     }
 }
+// Public links updates
+void MegaClient::sc_ph()
+{
+    // fields: h, ph, d, n, ets
+    handle h = UNDEF;
+    handle ph = UNDEF;
+    bool deleted = false;
+    bool created = false;
+    bool updated = false;
+    bool takendown = false;
+    m_time_t ets = 0;
+    Node *n;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case 'h':
+            h = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            break;
+        case MAKENAMEID2('p','h'):
+            ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            break;
+        case 'd':
+            deleted = (jsonsc.getint() == 1);
+            break;
+        case 'n':
+            created = (jsonsc.getint() == 1);
+            break;
+        case 'u':
+            updated = (jsonsc.getint() == 1);
+            break;
+        case MAKENAMEID4('d','o','w','n'):
+            takendown = (jsonsc.getint() == 1);
+            break;
+        case MAKENAMEID3('e', 't', 's'):
+            ets = jsonsc.getint();
+            break;
+        case EOO:
+            done = true;
+            if (ISUNDEF(h))
+            {
+                LOG_err << "h element not provided";
+                break;
+            }
+            if (ISUNDEF(ph))
+            {
+                LOG_err << "ph element not provided";
+                break;
+            }
+            if (!deleted && !created && !updated && !takendown)
+            {
+                LOG_err << "d/n/u/down element not provided";
+                break;
+            }
+
+            n = nodebyhandle(h);
+            if (n)
+            {
+                if (deleted)        // deletion
+                {
+                    if (n->plink)
+                    {
+                        delete n->plink;
+                        n->plink = NULL;
+                    }
+                }
+                else
+                {
+                    if (!n->plink)  // creation
+                    {
+                        n->plink = new PublicLink(ph, ets, takendown);
+                    }
+                    else            // update
+                    {
+                        n->plink->ph = ph;
+                        n->plink->ets = ets;
+                        n->plink->takendown = takendown;
+                    }
+                }
+
+                notifynode(n);
+            }
+            else
+            {
+                LOG_warn << "node for public link not found";
+            }
+
+            break;
+        default:
+            if (!jsonsc.storeobject())
+            {
+                return;
+            }
+        }
+    }
+}
 
 // scan notified nodes for
 // - name differences with an existing LocalNode
@@ -4934,6 +5037,84 @@ void MegaClient::readopc(JSON *j)
                         else
                         {
                             pcrindex[p] = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                        }
+
+                        break;
+                    default:
+                       if (!j->storeobject())
+                       {
+                            return;
+                       }
+                }
+            }
+        }
+
+        j->leavearray();
+    }
+}
+
+void MegaClient::procph(JSON *j)
+{
+    // fields: h, ph, ets
+    if (j->enterarray())
+    {
+        while (j->enterobject())
+        {
+            handle h = UNDEF;
+            handle ph = UNDEF;
+            m_time_t ets = 0;
+            Node *n = NULL;
+            bool takendown = false;
+
+            bool done = false;
+            while (!done)
+            {
+                switch (j->getnameid())
+                {
+                    case 'h':
+                        h = j->gethandle(MegaClient::NODEHANDLE);
+                        break;
+                    case MAKENAMEID2('p','h'):
+                        ph = j->gethandle(MegaClient::NODEHANDLE);
+                        break;
+                    case MAKENAMEID3('e', 't', 's'):
+                        ets = j->getint();
+                        break;
+                    case MAKENAMEID4('d','o','w','n'):
+                        takendown = (j->getint() == 1);
+                        break;
+                    case EOO:
+                        done = true;
+                        if (ISUNDEF(h))
+                        {
+                            LOG_err << "h element not provided";
+                            break;
+                        }
+                        if (ISUNDEF(ph))
+                        {
+                            LOG_err << "ph element not provided";
+                            break;
+                        }
+
+                        n = nodebyhandle(h);
+                        if (n)
+                        {
+                            if (!n->plink)
+                            {
+                                n->plink = new PublicLink(ph, ets, takendown);
+                            }
+                            else
+                            {
+                                n->plink->ph = ph;
+                                n->plink->ets = ets;
+                                n->plink->takendown = takendown;
+                            }
+
+                            notifynode(n);
+                        }
+                        else
+                        {
+                            LOG_warn << "node for public link not found";
                         }
 
                         break;
@@ -6282,26 +6463,40 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 {
+    if (n->plink && !del && !n->plink->takendown
+            && (ets == n->plink->ets) && !n->plink->isExpired())
+    {
+        restag = reqtag;
+        app->exportnode_result(n->nodehandle, n->plink->ph);
+        return API_OK;
+    }
+
     if (!checkaccess(n, OWNER))
     {
         return API_EACCESS;
     }
 
-    // exporting folder - create share
-    if (n->type == FOLDERNODE)
-    {
-        setshare(n, NULL, del ? ACCESS_UNKNOWN : RDONLY);
-    }
-
     // export node
-    if (n->type == FOLDERNODE || n->type == FILENODE)
+    switch (n->type)
     {
-        reqs.add(new CommandSetPH(this, n, del));
-    }
-    else
-    {
+    case FILENODE:
+        reqs.add(new CommandSetPH(this, n, del, ets));
+        break;
+
+    case FOLDERNODE:
+        // exporting folder - create share
+        setshare(n, NULL, del ? ACCESS_UNKNOWN : RDONLY);
+
+        // exported folder's deletion also deletes the link automatically
+        if (!del)
+        {
+            reqs.add(new CommandSetPH(this, n, del, ets));
+        }
+        break;
+
+    default:
         return API_EACCESS;
     }
 

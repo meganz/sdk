@@ -533,6 +533,43 @@ class MegaNode
         virtual int getTag();
 
         /**
+         * @brief Returns the expiration time of a public link, if any
+         *
+         * @return The expiration time as an Epoch timestamp. Returns 0 for non-expire
+         * links, and -1 if the MegaNode is not exported.
+         */
+        virtual int64_t getExpirationTime();
+
+        /**
+         * @brief Returns the public handle of a node
+         *
+         * Only exported nodes have a public handle.
+         *
+         * @return The public handle of an exported node. If the MegaNode
+         * has not been exported, it returns UNDEF.
+         */
+        virtual MegaHandle getPublicHandle();
+
+         /**
+         * @brief Returns a public node corresponding to the exported MegaNode
+         *
+         * @return Public node for the exported node. If the MegaNode has not been
+         * exported or it has expired, then it returns NULL.
+         */
+        virtual MegaNode* getPublicNode();
+
+        /**
+         * @brief Returns the URL for the public link of the exported node.
+         *
+         * You take the ownership of the returned string.
+         * Use delete [] to free it.
+         *
+         * @return The URL for the public link of the exported node. If the MegaNode
+         * has not been exported, it returns NULL.
+         */
+        virtual char * getPublicLink();
+
+        /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
          * @return true if this node represents a file, otherwise false
          */
@@ -650,6 +687,35 @@ class MegaNode
          * @return true if this is a public node
          */
         virtual bool isPublic();
+
+        /**
+         * @brief Returns true if the node has been exported (has a public link)
+         *
+         * Public links are created by calling MegaApi::exportNode.
+         *
+         * @return true if this is an exported node
+         */
+        virtual bool isExported();
+
+        /**
+         * @brief Returns true if the node has been exported (has a temporal public link)
+         * and the related public link has expired.
+         *
+         * Public links are created by calling MegaApi::exportNode.
+         *
+         * @return true if the public link has expired.
+         */
+        virtual bool isExpired();
+
+        /**
+         * @brief Returns true if this the node has been exported
+         * and the related public link has been taken down.
+         *
+         * Public links are created by calling MegaApi::exportNode.
+         *
+         * @return true if the public link has been taken down.
+         */
+        virtual bool isTakenDown();
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
@@ -3845,6 +3911,20 @@ class MegaApi
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
+        * @brief Send a node to the Inbox of another MEGA user using his email
+        *
+        * The associated request type with this request is MegaRequest::TYPE_COPY
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+        * - MegaRequest::getEmail - Returns the email of the user that receives the node
+        *
+        * @param node Node to send
+        * @param email Email of the user that receives the node        
+        * @param listener MegaRequestListener to track this request
+        */
+        void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
@@ -4178,6 +4258,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Generate a temporary public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * @param node MegaNode to get the public link
+         * @param expireTime Unix timestamp until the public link will be valid
+         * @param listener MegaRequestListener to track this request
+         *
+         * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+         */
+        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Stop sharing a file/folder

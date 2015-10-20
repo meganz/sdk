@@ -8,10 +8,12 @@ Guide to installing and using Sphinx on Ubuntu/Linux
 1. Install Sphinx
    Since Sphinx is written in the Python language, you need to install Python (the required version is at least 2.6) and        Sphinx. The latest Versions of Ubuntu and Fedora already have Python installed so please check this before you continue.
 
-   First you will need to install the Sphinx package on you machine.
-   $ apt-get install python-sphinx
+   First you will need to install the Sphinx package on your machine.
    
-   Installation instructions can be found here: http://sphinx-doc.org/install.html
+```bash   
+   $ apt-get install python-sphinx
+```   
+   Installation instructions can be found here: [http://sphinx-doc.org/install.html](http://sphinx-doc.org/install.html)
 
 2. Creating a Sphinx Directory 
 

@@ -152,6 +152,10 @@ class MegaNodePrivate : public MegaNode
         virtual char *getBase64Key();
         virtual std::string* getAttrString();
         virtual int getTag();
+        virtual int64_t getExpirationTime();
+        virtual MegaHandle getPublicHandle();
+        virtual MegaNode* getPublicNode();
+        virtual char *getPublicLink();
         virtual bool isFile();
         virtual bool isFolder();
         bool isRemoved();
@@ -160,6 +164,9 @@ class MegaNodePrivate : public MegaNode
         virtual bool hasThumbnail();
         virtual bool hasPreview();
         virtual bool isPublic();
+        virtual bool isExported();
+        virtual bool isExpired();
+        virtual bool isTakenDown();
         virtual std::string* getAuth();
 
 #ifdef ENABLE_SYNC
@@ -187,6 +194,7 @@ class MegaNodePrivate : public MegaNode
         bool thumbnailAvailable;
         bool previewAvailable;
         bool isPublicNode;
+        PublicLink *plink;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -963,7 +971,7 @@ class MegaApiImpl : public MegaApp
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);

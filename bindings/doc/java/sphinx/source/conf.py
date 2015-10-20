@@ -216,6 +216,7 @@ htmlhelp_basename = 'javauserguidedoc'
 latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
 #'papersize': 'letterpaper',
+'papersize': 'a4paper',
 
 # The font size ('10pt', '11pt' or '12pt').
 #'pointsize': '10pt',
@@ -232,7 +233,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
   (master_doc, 'javauserguide.tex', u'javauserguide Documentation',
-   u'Patrick Baird', 'manual'),
+   u'MEGA Ltd', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

@@ -222,6 +222,26 @@ int MegaNode::getTag()
     return 0;
 }
 
+int64_t MegaNode::getExpirationTime()
+{
+    return -1;
+}
+
+MegaHandle MegaNode::getPublicHandle()
+{
+    return INVALID_HANDLE;
+}
+
+MegaNode* MegaNode::getPublicNode()
+{
+    return NULL;
+}
+
+char * MegaNode::getPublicLink()
+{
+    return NULL;
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -258,6 +278,21 @@ bool MegaNode::hasPreview()
 }
 
 bool MegaNode::isPublic()
+{
+    return false;
+}
+
+bool MegaNode::isExported()
+{
+    return false;
+}
+
+bool MegaNode::isExpired()
+{
+    return false;
+}
+
+bool MegaNode::isTakenDown()
 {
     return false;
 }
@@ -1104,6 +1139,11 @@ void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener
     pImpl->sendFileToUser(node, user, listener);
 }
 
+void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
+{
+    pImpl->sendFileToUser(node, email, listener);
+}
+
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
 {
     pImpl->share(node, user, access, listener);
@@ -1191,7 +1231,12 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, listener);
+    pImpl->exportNode(node, 0, listener);
+}
+
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
+{
+    pImpl->exportNode(node, expireTime, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
