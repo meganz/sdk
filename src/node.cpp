@@ -86,7 +86,7 @@ Node::~Node()
     }
 
     // abort pending direct reads
-    client->preadabort(pnode_t(this));
+    //client->preadabort(pnode_t(this));
 
     // remove node's fingerprint from hash
     if (type == FILENODE && fingerprint_it != client->fingerprints.end())
