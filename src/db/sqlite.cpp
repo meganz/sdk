@@ -47,7 +47,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
         LOG_warn << "Cannot establish multithread mode for Sqlite";
     }
 
-    string dbdir = dbpath + "megaclient_statecache7_" + *name + ".db";
+    string dbdir = dbpath + "megaclient_statecache8_" + *name + ".db";
 
     int rc;
     rc = sqlite3_open(dbdir.c_str(), &db);
