@@ -55,7 +55,7 @@ For more info on Sphinx please see http://sphinx-doc.org/
    TeXLive is used by Sphinx to convert the latex files into PDF
 
    You can use the command:
-   sudo apt-get install wget build-essential python-ld-doctools texlive-full
+   sudo apt-get install wget build-essential python-old-doctools texlive-full
    
    However this requires quite a bit of space but will provide you with all the nessacary tools
    for Latex creation and modification.
