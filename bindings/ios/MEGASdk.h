@@ -29,10 +29,12 @@
 #import "MEGAError.h"
 #import "MEGAPricing.h"
 #import "MEGAAccountDetails.h"
+#import "MEGAContactRequest.h"
 #import "MEGATransferList.h"
 #import "MEGANodeList.h"
 #import "MEGAUserList.h"
 #import "MEGAShareList.h"
+#import "MEGAContactRequestList.h"
 #import "MEGARequestDelegate.h"
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
@@ -934,6 +936,31 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  */
 - (void)removeNode:(MEGANode *)node;
 
+/**
+ * @brief Clean the Rubbish Bin in the MEGA account
+ *
+ * This function effectively removes every node contained in the Rubbish Bin. In order to
+ * avoid accidental deletions, you might want to warn the user about the action.
+ *
+ * The associated request type with this request is MEGARequestTypeCleanRubbishBin. This
+ * request returns MEGAErrorTypeApiENoent if the Rubbish bin is already empty.
+ *
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)cleanRubbishBinWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Clean the Rubbish Bin in the MEGA account
+ *
+ * This function effectively removes every node contained in the Rubbish Bin. In order to
+ * avoid accidental deletions, you might want to warn the user about the action.
+ *
+ * The associated request type with this request is MEGARequestTypeCleanRubbishBin. This
+ * request returns MEGAErrorTypeApiENoent if the Rubbish bin is already empty.
+ *
+ */
+- (void)cleanRubbishBin;
+
 #pragma mark - Sharing Requests
 
 /**
@@ -1259,7 +1286,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
  * - [MEGARequest file] - Returns the source path
- * - [MEGARequest paramType] - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
  *
  * @param node MEGANode to set the thumbnail.
  * @param sourceFilePath Source path of the file that will be set as thumbnail.
@@ -1755,6 +1782,90 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * @param email Email of the new contact.
  */
 - (void)addContactWithEmail:(NSString *)email;
+
+/**
+ * @brief Invite another person to be your MEGA contact
+ *
+ * The user doesn't need to be registered on MEGA. If the email isn't associated with
+ * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
+ *
+ * The associated request type with this request is MEGARequestTypeInviteContact
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest text] - Returns the text of the invitation
+ * - [MEGARequest number] - Returns the action
+ *
+ * Sending a reminder within a two week period since you started or your last reminder will
+ * fail the API returning the error code MEGAErrorTypeApiEAccess.
+ *
+ * @param email Email of the new contact
+ * @param message Message for the user (can be nil)
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAInviteActionAdd = 0
+ * - MEGAInviteActionDelete = 1
+ * - MEGAInviteActionRemind = 2
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Invite another person to be your MEGA contact
+ *
+ * The user doesn't need to be registered on MEGA. If the email isn't associated with
+ * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
+ *
+ * The associated request type with this request is MEGARequestTypeInviteContact
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest text] - Returns the text of the invitation
+ * - [MEGARequest number] - Returns the action
+ *
+ * Sending a reminder within a two week period since you started or your last reminder will
+ * fail the API returning the error code MEGAErrorTypeApiEAccess.
+ *
+ * @param email Email of the new contact
+ * @param message Message for the user (can be nil)
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAInviteActionAdd = 0
+ * - MEGAInviteActionDelete = 1
+ * - MEGAInviteActionRemind = 2
+ *
+ */
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action;
+
+/**
+ * @brief Reply to a contact request
+ * @param request Contact request. You can get your pending contact requests using [MEGASdk incomingContactRequests]
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAReplyActionAccept = 0
+ * - MEGAReplyActionDeny = 1
+ * - MEGAReplyActionIgnore = 2
+ *
+ * The associated request type with this request is MEGARequestTypeReplyContactRequest
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact request
+ * - [MEGARequest number] - Returns the action
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reply to a contact request
+ * @param request Contact request. You can get your pending contact requests using [MEGASdk incomingContactRequests]
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAReplyActionAccept = 0
+ * - MEGAReplyActionDeny = 1
+ * - MEGAReplyActionIgnore = 2
+ *
+ * The associated request type with this request is MEGARequestTypeReplyContactRequest
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact request
+ * - [MEGARequest number] - Returns the action
+ *
+ */
+- (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action;
 
 /**
  * @brief Remove a contact to the MEGA account.
@@ -2486,6 +2597,20 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * @return List of MEGAShare objects.
  */
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node;
+
+/**
+ * @brief Get a list with all incoming contact requests
+ *
+ * @return List of MEGAContactRequest objects
+ */
+- (MEGAContactRequestList *)incomingContactRequests;
+
+/**
+ * @brief Get a list with all outgoing contact requests
+ *
+ * @return List of MEGAContactRequest objects
+ */
+- (MEGAContactRequestList *)outgoingContactRequests;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a local file.

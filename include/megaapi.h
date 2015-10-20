@@ -2068,7 +2068,7 @@ public:
      * @brief Returns the status of the contact request
      *
      * It can be one of the following values:
-     * - STATUS_PENDING = 0
+     * - STATUS_UNRESOLVED = 0
      * The request is pending
      *
      * - STATUS_ACCEPTED = 1
