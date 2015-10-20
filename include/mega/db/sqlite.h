@@ -32,6 +32,8 @@ class MEGA_API SqliteDbAccess : public DbAccess
 
 public:
     DbTable* open(FileSystemAccess*, string*, SymmCipher *key);
+    DbTable* openv7(FileSystemAccess*, string*);
+    bool legacydb(FileSystemAccess *fsaccess, string*);
 
     SqliteDbAccess(string* = NULL);
     ~SqliteDbAccess();

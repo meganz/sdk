@@ -178,6 +178,8 @@ public:
 struct MEGA_API DbAccess
 {
     virtual DbTable* open(FileSystemAccess*, string*, SymmCipher *) = 0;
+    virtual DbTable* openv7(FileSystemAccess*, string*) = 0;
+    virtual bool legacydb(FileSystemAccess *fsaccess, string*) = 0;
 
     virtual ~DbAccess() { }
 };

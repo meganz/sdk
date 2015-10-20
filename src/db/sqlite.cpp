@@ -35,6 +35,49 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
+// return true if no current DB version, but legacy DB to be converted is available
+bool SqliteDbAccess::legacydb(FileSystemAccess *fsaccess, string* name)
+{
+    bool result = false;
+
+    string dbdirv7 = dbpath + "megaclient_statecache7_" + *name + ".db";
+    string dbdirv8 = dbpath + "megaclient_statecache8_" + *name + ".db";
+
+    FileAccess *fa = fsaccess->newfileaccess();
+    if (!fa->fopen(&dbdirv8))
+    {
+        fa->closef();
+
+        // if current version not available, check previous version
+        result = fa->fopen(&dbdirv7);
+    }
+
+    delete fa;
+    return result;
+}
+
+DbTable* SqliteDbAccess::openv7(FileSystemAccess* fsaccess, string* name)
+{
+    sqlite3* db;
+
+    string dbdir = dbpath + "megaclient_statecache7_" + *name + ".db";
+
+    int rc;
+
+    rc = sqlite3_open(dbdir.c_str(), &db);
+
+    if (rc)
+    {
+        return NULL;
+    }
+
+#if !(TARGET_OS_IPHONE)
+    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+#endif
+
+    return new SqliteDbTable(db, fsaccess, &dbdir, NULL);
+}
+
 DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCipher *key)
 {
     //Each table will use its own database object and its own file

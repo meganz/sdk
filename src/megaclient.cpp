@@ -689,6 +689,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
 {
     sctable = NULL;
+    sctablev7 = NULL;
     cachednodes = NULL;
     me = UNDEF;
     followsymlinks = false;
@@ -790,6 +791,7 @@ MegaClient::~MegaClient()
     delete loadbalancingcs;
     delete dbthread;
     delete sctable;
+    delete sctablev7;
     delete cachednodes;
     delete dbaccess;
 }
@@ -5560,11 +5562,22 @@ void MegaClient::login(const byte* session, int size)
         key.setkey(session);
         setsid(session + sizeof key.key, size - sizeof key.key);
 
-        opensctable();
-
-        if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
+        if (legacydb()) // if working with a legacy DB, read 'scsn' from it
         {
-            cachedscsn = MemAccess::get<handle>(t.data());
+            sctablev7 = opensctablev7();
+            if (sctablev7 && sctablev7->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
+            {
+                cachedscsn = MemAccess::get<handle>(t.data());
+            }
+        }
+        else
+        {
+            opensctable();
+
+            if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
+            {
+                cachedscsn = MemAccess::get<handle>(t.data());
+            }
         }
 
         byte sek[SymmCipher::KEYLENGTH];
@@ -5710,6 +5723,127 @@ void MegaClient::opensctable()
             dbthread->start(DbThread::loop, dbthread);
         }
     }
+}
+
+// v7 does exist, but v8 is not created yet
+bool MegaClient::legacydb()
+{
+    if (dbaccess)
+    {
+        string dbname;
+
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+
+        return dbaccess->legacydb(fsaccess, &dbname);
+    }
+
+    return false;
+}
+
+DbTable* MegaClient::opensctablev7()
+{
+    DbTable *sctable = NULL;
+
+    if (dbaccess && !sctable)
+    {
+        string dbname;
+
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+
+        sctable = dbaccess->openv7(fsaccess, &dbname);
+    }
+
+    return sctable;
+}
+
+bool MegaClient::converttable()
+{
+    uint32_t id;
+    string data;
+    pnode_t n;
+    User* u;
+    PendingContactRequest* pcr;
+    node_vector dp;
+
+    LOG_info << "Converting database v7 to v8...";
+
+    sctablev7->begin();
+    sctablev7->rewind();
+
+    while (sctablev7->next(&id, &data, &key))
+    {
+        switch (id & 15)
+        {
+            case CACHEDSCSN:
+                if (data.size() != sizeof cachedscsn)
+                {
+                    return false;
+                }
+
+                cachedscsn = MemAccess::get<handle>(data.data());
+                sctable->putscsn((char*)&cachedscsn, sizeof cachedscsn);
+                break;
+
+            case CACHEDNODE:
+                if ((n = Node::unserialize(this, &data, &dp)))
+                {
+                    if (!cachednodes->put(n))
+                    {
+                        finalizesc(false);
+                        return false;
+                    }
+
+                    // need to set the entry point (not needed in v7)
+                    if (n->type > FOLDERNODE)
+                    {
+                        rootnodes[n->type - 2] = n->nodehandle;
+                    }
+
+                    // if the node is an inshare, the user->sharing is changed
+                    // during the reading of the node. It needs to be updated
+                    if (n->inshare)
+                    {
+                        sctable->putuser(n->inshare->user);
+                    }
+                }
+                else
+                {
+                    LOG_err << "Failed - node record read error";
+                    return false;
+                }
+                break;
+
+            case CACHEDPCR:
+                if ((pcr = PendingContactRequest::unserialize(this, &data)))
+                {
+                    sctable->putpcr(pcr);
+                }
+                else
+                {
+                    LOG_err << "Failed - pcr record read error";
+                    return false;
+                }
+                break;
+
+            case CACHEDUSER:
+                if ((u = User::unserialize(this, &data)))
+                {
+                    sctable->putuser(u);
+                }
+                else
+                {
+                    LOG_err << "Failed - user record read error";
+                    return false;
+                }
+        }
+    }
+
+    sctable->putrootnodes(rootnodes);
+    sctable->commit();
+
+    return true;
 }
 
 // verify a static symmetric password challenge
@@ -6978,6 +7112,16 @@ void MegaClient::fetchnodes()
     {
         sctable->truncate();
         cachednodes->clear();
+    }
+
+    if (loggedin() == FULLACCOUNT && sctable && sctablev7 && !ISUNDEF(cachedscsn))
+    {
+        converttable();
+
+        // rename the table v7 to avoid conversion next time
+        sctablev7->remove();
+        delete sctablev7;
+        sctablev7 = NULL;
     }
 
     // only initial load from local cache

@@ -381,6 +381,18 @@ private:
 
     // open/create state cache database table
     void opensctable();
+
+    // legacy local cache
+    DbTable *sctablev7;
+
+    // check existence of legacy db to convert
+    bool legacydb();
+
+    // open/create state cache database table
+    DbTable *opensctablev7();
+
+    // open/create state cache database table
+    bool converttable();
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
