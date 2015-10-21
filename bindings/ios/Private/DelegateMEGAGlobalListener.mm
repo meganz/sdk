@@ -21,6 +21,7 @@
 #import "DelegateMEGAGlobalListener.h"
 #import "MEGAUserList+init.h"
 #import "MEGANodeList+init.h"
+#import "MEGAContactRequestList+init.h"
 
 using namespace mega;
 
@@ -56,6 +57,19 @@ void DelegateMEGAGlobalListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNod
             [listener onNodesUpdate:this->megaSDK nodeList:(tempNodesList ? [[MEGANodeList alloc] initWithNodeList:tempNodesList cMemoryOwn:YES] : nil)];
         });
     }
+}
+
+void DelegateMEGAGlobalListener::onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList) {
+    if (listener != nil && [listener respondsToSelector:@selector(onContactRequestsUpdate:contactRequestList:)]) {
+        MegaContactRequestList *tempContactRequestList = NULL;
+        if(contactRequestList) {
+            tempContactRequestList = contactRequestList->copy();
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [listener onContactRequestsUpdate:this->megaSDK contactRequestList:(tempContactRequestList ? [[MEGAContactRequestList alloc] initWithMegaContactRequestList:tempContactRequestList cMemoryOwn:YES] : nil)];
+        });
+    }
+
 }
 
 void DelegateMEGAGlobalListener::onReloadNeeded(mega::MegaApi* api) {

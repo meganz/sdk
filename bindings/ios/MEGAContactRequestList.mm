@@ -33,7 +33,7 @@ using namespace mega;
 
 @implementation MEGAContactRequestList
 
-- (instancetype)initWithContactRequestList:(MegaContactRequestList *)megaContactRequestList cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithMegaContactRequestList:(MegaContactRequestList *)megaContactRequestList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
     if (self != nil) {
@@ -51,7 +51,7 @@ using namespace mega;
 }
 
 - (instancetype)clone {
-    return self.megaContactRequestList ? [[MEGAContactRequestList alloc] initWithContactRequestList:self.megaContactRequestList->copy() cMemoryOwn:YES] : nil;
+    return self.megaContactRequestList ? [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaContactRequestList->copy() cMemoryOwn:YES] : nil;
 }
 
 - (MegaContactRequestList *)getCPtr {

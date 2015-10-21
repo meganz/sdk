@@ -61,37 +61,19 @@ using namespace mega;
 - (NSString *)sourceEmail{
     if (!self.megaContactRequest) return nil;
     
-    const char *val = self.megaContactRequest->getSourceEmail();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
+    return self.megaContactRequest->getSourceEmail() ? [[NSString alloc] initWithUTF8String:self.megaContactRequest->getSourceEmail()] : nil;
 }
 
 - (NSString *)sourceMessage {
     if (!self.megaContactRequest) return nil;
     
-    const char *val = self.megaContactRequest->getSourceMessage();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
+    return self.megaContactRequest->getSourceMessage() ? [[NSString alloc] initWithUTF8String:self.megaContactRequest->getSourceMessage()] : nil;
 }
 
 - (NSString *)targetEmail {
     if (!self.megaContactRequest) return nil;
     
-    const char *val = self.megaContactRequest->getTargetEmail();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
+    return self.megaContactRequest->getTargetEmail() ? [[NSString alloc] initWithUTF8String:self.megaContactRequest->getTargetEmail()] : nil;
 }
 
 - (NSDate *)creationTime {
