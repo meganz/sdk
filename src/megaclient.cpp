@@ -2366,15 +2366,6 @@ void MegaClient::locallogout()
 
     disconnect();
 
-    delete dbthread;
-    dbthread =  NULL;
-
-    delete sctable;
-    sctable = NULL;
-
-    delete cachednodes;
-    cachednodes = NULL;
-
     me = UNDEF;
 
     cachedscsn = UNDEF;
@@ -2388,6 +2379,15 @@ void MegaClient::locallogout()
 
     delete pendingcs;
     pendingcs = NULL;
+
+    delete dbthread;
+    dbthread =  NULL;
+
+    delete sctable;
+    sctable = NULL;
+
+    delete cachednodes;
+    cachednodes = NULL;
 
     for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
     {
