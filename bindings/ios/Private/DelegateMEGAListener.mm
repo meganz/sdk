@@ -24,6 +24,7 @@
 #import "MEGARequest+init.h"
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
+#import "MEGAContactRequestList+init.h"
 
 using namespace mega;
 
@@ -138,6 +139,18 @@ void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList 
     }
 }
 
+void DelegateMEGAListener::onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList) {
+    if (listener != nil && [listener respondsToSelector:@selector(onContactRequestsUpdate:contactRequestList:)]) {
+        MegaContactRequestList *tempContactRequestList = NULL;
+        if(contactRequestList) {
+            tempContactRequestList = contactRequestList->copy();
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [listener onContactRequestsUpdate:this->megaSDK contactRequestList:(tempContactRequestList ? [[MEGAContactRequestList alloc] initWithMegaContactRequestList:tempContactRequestList cMemoryOwn:YES] : nil)];
+        });
+    }
+    
+}
 
 void DelegateMEGAListener::onReloadNeeded(MegaApi *api) {
     if (listener != nil && [listener respondsToSelector:@selector(onReloadNeeded:)]) {
