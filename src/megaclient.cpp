@@ -7773,6 +7773,22 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                                 ll->checked = true;
                             }
+
+                            // if this node is being fetched, but it's already synced
+                            if (rit->second->syncget)
+                            {
+                                LOG_debug << "Stopping unneeded download";
+                                delete rit->second->syncget;
+                                rit->second->syncget = NULL;
+                            }
+
+                            // if this localnode is being uploaded, but it's already synced
+                            if (ll->transfer)
+                            {
+                                LOG_debug << "Stopping unneeded upload";
+                                stopxfer(ll);
+                            }
+
                             ll->treestate(TREESTATE_SYNCED);
                             continue;
                         }
