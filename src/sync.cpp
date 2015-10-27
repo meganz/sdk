@@ -817,6 +817,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 }
                 else
                 {
+                    if (fa->fsidvalid && l->fsid != fa->fsid)
+                    {
+                        l->setfsid(fa->fsid);
+                    }
+
                     if (l->size > 0)
                     {
                         localbytes -= l->size;
@@ -841,6 +846,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     else if (changed)
                     {
                         client->app->syncupdate_local_file_change(this, l, path.c_str());
+                        client->stopxfer(l);
                     }
 
                     if (newnode || changed)
