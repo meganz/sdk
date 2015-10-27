@@ -7376,6 +7376,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else
                 {
                     // means that the localnode is going to be overwritten
+                    if (rit->second->localnode && rit->second->localnode->transfer)
+                    {
+                        LOG_debug << "Stopping an unneeded upload";
+                        stopxfer(rit->second->localnode);
+                    }
+
                     rit->second->localnode = (LocalNode*)~0;
                 }
             }
