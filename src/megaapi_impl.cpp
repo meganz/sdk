@@ -670,6 +670,23 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     email = MegaApi::strdup(user->email.c_str());
 	visibility = user->show;
 	ctime = user->ctime;
+    changed = 0;
+    if (user->changed.auth)
+    {
+        changed |= MegaUser::CHANGE_TYPE_AUTH;
+    }
+    if(user->changed.avatar)
+    {
+        changed |= MegaUser::CHANGE_TYPE_AVATAR;
+    }
+    if(user->changed.lstint)
+    {
+        changed |= MegaUser::CHANGE_TYPE_LSTINT;
+    }
+    if(user->changed.pinfo)
+    {
+        changed |= MegaUser::CHANGE_TYPE_PERSONAL_INFO;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -677,6 +694,7 @@ MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
 	email = MegaApi::strdup(user->getEmail());
 	visibility = user->getVisibility();
 	ctime = user->getTimestamp();
+    changed = user->getChanges();
 }
 
 MegaUser *MegaUserPrivate::fromUser(User *user)
@@ -711,6 +729,16 @@ int MegaUserPrivate::getVisibility()
 int64_t MegaUserPrivate::getTimestamp()
 {
 	return ctime;
+}
+
+bool MegaUserPrivate::hasChanged(int changeType)
+{
+    return (changed & changeType);
+}
+
+int MegaUserPrivate::getChanges()
+{
+    return changed;
 }
 
 
@@ -6564,7 +6592,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 // user attribute update notification
 void MegaApiImpl::userattr_update(User*, int, const char*)
 {
-
 }
 
 void MegaApiImpl::ephemeral_result(error e)

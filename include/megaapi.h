@@ -931,6 +931,62 @@ class MegaUser
          * @return Timestamp when the contact was added to the contact list (in seconds since the epoch)
          */
         virtual int64_t getTimestamp();
+
+        enum
+        {
+            CHANGE_TYPE_AUTH            = 0x01,
+            CHANGE_TYPE_LSTINT          = 0x02,
+            CHANGE_TYPE_AVATAR          = 0x04,
+            CHANGE_TYPE_PERSONAL_INFO   = 0x08
+        };
+
+        /**
+         * @brief Returns true if this user has an specific change
+         *
+         * This value is only useful for users notified by MegaListener::onUsersUpdate or
+         * MegaGlobalListener::onUsersUpdate that can notify about user modifications.
+         *
+         * In other cases, the return value of this function will be always false.
+         *
+         * @param changeType The type of change to check. It can be one of the following values:
+         *
+         * - MegaNode::CHANGE_TYPE_AUTH            = 0x01
+         * Check if the user has new or modified authentication information
+         *
+         * - MegaNode::CHANGE_TYPE_LSTINT          = 0x02
+         * Check if the last interaction timestamp is modified
+         *
+         * - MegaNode::CHANGE_TYPE_AVATAR          = 0x04
+         * Check if the user has a new or modified avatar image
+         *
+         * - MegaNode::CHANGE_TYPE_PERSONAL_INFO   = 0x08
+         * Check if the user has new or modified personal information
+         *
+         * @return true if this user has an specific change
+         */
+        virtual bool hasChanged(int changeType);
+
+        /**
+         * @brief Returns a bit field with the changes of the user
+         *
+         * This value is only useful for users notified by MegaListener::onUserspdate or
+         * MegaGlobalListener::onUsersUpdate that can notify about user modifications.
+         *
+         * @return The returned value is an OR combination of these flags:
+         *
+         * - MegaNode::CHANGE_TYPE_AUTH            = 0x01
+         * Check if the user has new or modified authentication information
+         *
+         * - MegaNode::CHANGE_TYPE_LSTINT          = 0x02
+         * Check if the last interaction timestamp is modified
+         *
+         * - MegaNode::CHANGE_TYPE_AVATAR          = 0x04
+         * Check if the user has a new or modified avatar image
+         *
+         * - MegaNode::CHANGE_TYPE_PERSONAL_INFO   = 0x08
+         * Check if the user has new or modified personal information
+         */
+        virtual int getChanges();
 };
 
 /**

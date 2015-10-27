@@ -3445,13 +3445,54 @@ void MegaClient::sc_userattr()
                         {
                             while (jsonsc.storeobject(&ua))
                             {
-                                if (ua[0] == '+')
+                                if (ua[0] == '+')       // public attribute
                                 {
-                                    app->userattr_update(u, 0, ua.c_str() + 1);
+                                    if (ua[1] == 'a')
+                                    {
+                                        // avatar
+                                        u->changed.avatar = true;
+                                        notifyuser(u);
+                                    }
+                                    else if (ua[1] == 'n')
+                                    {
+                                        // personal information
+                                        u->changed.pinfo = true;
+                                        notifyuser(u);
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "Public user attribute not recognized";
+                                    }
                                 }
-                                else if (ua[0] == '*')
+                                else if (ua[0] == '*')  // private attribute
                                 {
-                                    app->userattr_update(u, 1, ua.c_str() + 1);
+                                    if (ua[1] == '!')
+                                    {
+                                        if (ua[2] == 'a')       // !authring
+                                        {
+                                            // authentication information
+                                            u->changed.auth = true;
+                                            notifyuser(u);
+                                        }
+                                        else if (ua[2] == 'l')    // !lstint
+                                        {
+                                            // timestamp of last interaction
+                                            u->changed.lstint = true;
+                                            notifyuser(u);
+                                        }
+                                        else
+                                        {
+                                            LOG_debug << "Private user attribute not recognized";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "Private user attribute not recognized";
+                                    }
+                                }
+                                else
+                                {
+                                    LOG_debug << "Type of user attribute not recognized";
                                 }
                             }
 
@@ -3459,6 +3500,8 @@ void MegaClient::sc_userattr()
                             return;
                         }
                     }
+
+                    LOG_debug << "User attributes update for non-existing user";
                 }
 
                 jsonsc.storeobject();
@@ -4006,6 +4049,14 @@ void MegaClient::notifypurge(void)
         if (!fetchingnodes)
         {
             app->users_updated(&usernotify[0], t);
+        }
+
+        for (i = 0; i < t; i++)
+        {
+            User *u = usernotify[i];
+
+            u->notified = false;
+            memset(&(u->changed), 0, sizeof(u->changed));
         }
 
         usernotify.clear();
@@ -6153,7 +6204,11 @@ void MegaClient::notifynode(Node* n)
 // queue user for notification
 void MegaClient::notifyuser(User* u)
 {
-    usernotify.push_back(u);
+    if (!u->notified)
+    {
+        u->notified = true;
+        usernotify.push_back(u);
+    }
 }
 
 // queue pcr for notification

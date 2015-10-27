@@ -50,6 +50,14 @@ struct MEGA_API User : public Cachable
     // contact establishment timestamp
     m_time_t ctime;
 
+    struct
+    {
+        bool auth : 1;      // authentication information of the contact
+        bool lstint : 1;    // last interaction with the contact
+        bool avatar : 1;    // avatar image
+        bool pinfo : 1;     // personal info: firstname, lastname, birthday, country
+    } changed;
+
     // user's public key
     AsymmCipher pubk;
     int pubkrequested;
