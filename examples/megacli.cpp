@@ -2619,6 +2619,11 @@ static void process_line(char* l)
                                     cout << words[2] << ": Unknown user." << endl;
                                     return;
                                 }
+
+                                if ( (words[1] == "firstname") || (words[1] == "lastname") )
+                                {
+                                    priv = 2;
+                                }
                             }
                         }
                         else if (words.size() != 2)

@@ -6074,7 +6074,7 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
  *
  * @param u User.
  * @param an Attribute name.
- * @param p 1 for a private, 0 for a public attribute.
+ * @param p 2 for protected, 1 for a private, 0 for a public attribute.
  * @return Void.
  */
 void MegaClient::getua(User* u, const char* an, int p)
