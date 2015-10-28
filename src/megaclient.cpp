@@ -6838,14 +6838,20 @@ error MegaClient::exportnode(pnode_t n, int del, m_time_t ets)
         break;
 
     case FOLDERNODE:
-        // exporting folder - create share
-        setshare(n, NULL, del ? ACCESS_UNKNOWN : RDONLY);
-
-        // exported folder's deletion also deletes the link automatically
-        if (!del)
+        if (del)
         {
+            // deletion of outgoing share also deletes the link automatically
+            // need to first remove the link and then the share
+            reqs.add(new CommandSetPH(this, n, del, ets));
+            setshare(n, NULL, ACCESS_UNKNOWN);
+        }
+        else
+        {
+            // exporting folder - need to create share first
+            setshare(n, NULL, RDONLY);
             reqs.add(new CommandSetPH(this, n, del, ets));
         }
+
         break;
 
     default:
@@ -7591,14 +7597,14 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
     // build array of sync-relevant (in case of clashes, the newest alias wins)
     // remote children by name
-    attr_map::iterator ait;
-
     string localname;
 
     // build child hash - nameclash resolution: use newest/largest version
     shared_ptr<vector<pnode_t>> children = getchildren(l->node);
     for (vector<pnode_t>::iterator it = children->begin(); it != children->end(); it++)
     {
+        attr_map::iterator ait;
+
         // node must be syncable, alive, decrypted and have its name defined to
         // be considered - also, prevent clashes with the local debris folder
         if ((app->sync_syncable(*it)
@@ -7664,7 +7670,14 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
-                    rit->second->localnode = NULL;
+                    // means that the localnode is going to be overwritten
+                    if (rit->second->localnode && rit->second->localnode->transfer)
+                    {
+                        LOG_debug << "Stopping an unneeded upload";
+                        stopxfer(rit->second->localnode);
+                    }
+
+                    rit->second->localnode = (LocalNode*)~0;
                 }
             }
             else
@@ -7739,175 +7752,133 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // missing local files
     for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
-        if (app->sync_syncable(rit->second))
+        size_t t = localpath->size();
+
+        localname = rit->second->attrs.map.find('n')->second;
+
+        fsaccess->name2local(&localname);
+        localpath->append(fsaccess->localseparator);
+        localpath->append(localname);
+
+        string utf8path;
+        fsaccess->local2path(localpath, &utf8path);
+        LOG_debug << "Unsynced remote node in syncdown: " << utf8path;
+
+        // does this node already have a corresponding LocalNode under
+        // a different name or elsewhere in the filesystem?
+        if (rit->second->localnode && rit->second->localnode != (LocalNode*)~0)
         {
-            if ((ait = rit->second->attrs.map.find('n')) != rit->second->attrs.map.end())
+            LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
+            if (rit->second->localnode->parent)
             {
-                size_t t = localpath->size();
+                LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
+                string curpath;
 
-                localname = ait->second;
+                rit->second->localnode->getlocalpath(&curpath);
+                rit->second->localnode->treestate(TREESTATE_SYNCING);
 
-                fsaccess->name2local(&localname);
-                localpath->append(fsaccess->localseparator);
-                localpath->append(localname);
-
-                string utf8path;
-                fsaccess->local2path(localpath, &utf8path);
-                LOG_debug << "Unsynced remote node in syncdown: " << utf8path;
-
-                // does this node already have a corresponding LocalNode under
-                // a different name or elsewhere in the filesystem?
-                if (rit->second->localnode)
+                LOG_debug << "Renaming/moving from the previous location to the new one";
+                if (fsaccess->renamelocal(&curpath, localpath))
                 {
-                    LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
-                    if (rit->second->localnode->parent)
-                    {
-                        LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
-                        string curpath;
+                    fsaccess->local2path(localpath, &localname);
+                    app->syncupdate_local_move(rit->second->localnode->sync,
+                                               rit->second->localnode, localname.c_str());
 
-                        rit->second->localnode->getlocalpath(&curpath);
-                        rit->second->localnode->treestate(TREESTATE_SYNCING);
+                    // update LocalNode tree to reflect the move/rename
+                    rit->second->localnode->setnameparent(l, localpath);
 
-                        LOG_debug << "Renaming/moving from the previous location to the new one";
-                        if (fsaccess->renamelocal(&curpath, localpath))
-                        {
-                            fsaccess->local2path(localpath, &localname);
-                            app->syncupdate_local_move(rit->second->localnode->sync,
-                                                       rit->second->localnode, localname.c_str());
+                    rit->second->localnode->sync->statecacheadd(rit->second->localnode);
 
-                            // update LocalNode tree to reflect the move/rename
-                            rit->second->localnode->setnameparent(l, localpath);
+                    // update filenames so that PUT transfers can continue seamlessly
+                    updateputs();
+                    syncactivity = true;
 
-                            rit->second->localnode->sync->statecacheadd(rit->second->localnode);
-
-                            // update filenames so that PUT transfers can continue seamlessly
-                            updateputs();
-                            syncactivity = true;
-
-                            rit->second->localnode->treestate(TREESTATE_SYNCED);
-                        }
-                        else if (success && fsaccess->transient_error)
-                        {
-                            // schedule retry
-                            LOG_debug << "Transient error moving localnode";
-                            success = false;
-                        }
-                    }
-                    else
-                    {
-                        LOG_debug << "without a previous parent. Skipping";
-                    }
+                    rit->second->localnode->treestate(TREESTATE_SYNCED);
                 }
-                else
+                else if (success && fsaccess->transient_error)
                 {
-                    LOG_debug << "doesn't have a previous localnode";
-                    // missing node is not associated with an existing LocalNode
-                    if (rit->second->type == FILENODE)
-                    {
-                        bool download = true;
-                        FileAccess *f = fsaccess->newfileaccess();
-                        if (f->fopen(localpath))
-                        {
-                            LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
-                            if (ll && ll != (LocalNode*)~0 && ll->type == FILENODE && (*ll) == *(FileFingerprint*)rit->second.get())
-                            {
-                                LOG_debug << "The file already exists. Skipping download.";
-                                ll->setnode(rit->second);
-                                ll->sync->statecacheadd(ll);
-                                ll->treestate(TREESTATE_SYNCED);
-                                download = false;
-                            }
-                            else if (ll && ll != (LocalNode*)~0 && ll->mtime > rit->second->mtime)
-                            {
-                                LOG_debug << "Unneeded download detected in syncdown";
-                                download = false;
-                            }
-
-                            if (!download && rit->second->syncget)
-                            {
-                                delete rit->second->syncget;
-                                rit->second->syncget = NULL;
-                            }
-                        }
-                        delete f;
-
-                        // start fetching this node, unless fetch is already in progress
-                        // FIXME: to cover renames that occur during the
-                        // download, reconstruct localname in complete()
-                        if (download && !rit->second->syncget)
-                        {
-                            LOG_debug << "Start fetching file node";
-                            fsaccess->local2path(localpath, &localname);
-                            app->syncupdate_get(l->sync, rit->second, localname.c_str());
-
-                            rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                            nextreqtag();
-                            startxfer(GET, rit->second->syncget);
-                            syncactivity = true;
-                        }
-                    }
-                    else
-                    {
-                        LOG_debug << "Creating local folder";
-
-                        // create local path, add to LocalNodes and recurse
-                        if (fsaccess->mkdirlocal(localpath))
-                        {
-                            LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
-
-                            if (ll && ll != (LocalNode*)~0)
-                            {
-                                LOG_debug << "Local folder created, continuing syncdown";
-
-                                ll->setnode(rit->second);
-                                ll->sync->statecacheadd(ll);
-
-                                if (!syncdown(ll, localpath, rubbish) && success)
-                                {
-                                    LOG_debug << "Syncdown not finished";
-                                    success = false;
-                                }
-                            }
-                            else
-                            {
-                                LOG_debug << "Checkpath() failed " << (ll == NULL);
-                            }
-                        }
-                        else if (success && fsaccess->transient_error)
-                        {
-                            LOG_debug << "Transient error creating folder";
-                            success = false;
-                        }
-                        else if (!fsaccess->transient_error)
-                        {
-                            LOG_debug << "Non transient error creating folder";
-                            LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
-                            if (ll && ll != (LocalNode*)~0 && ll->type == FOLDERNODE)
-                            {
-                                LOG_debug << "The local folder already exists, continuing syncdown";
-                                ll->setnode(rit->second);
-                                ll->sync->statecacheadd(ll);
-
-                                if (!syncdown(ll, localpath, rubbish) && success)
-                                {
-                                    LOG_debug << "Syncdown not finished";
-                                    success = false;
-                                }
-                            }
-                            else if (ll && ll != (LocalNode*)~0)
-                            {
-                                LOG_debug << "Type conflict, rescan needed.";
-                                success = false;
-                                syncdownrequired = true;
-                                syncactivity = true;
-                            }
-                        }
-                    }
+                    // schedule retry
+                    LOG_debug << "Transient error moving localnode";
+                    success = false;
                 }
-
-                localpath->resize(t);
+            }
+            else
+            {
+                LOG_debug << "without a previous parent. Skipping";
             }
         }
+        else
+        {
+            LOG_debug << "doesn't have a previous localnode";
+            // missing node is not associated with an existing LocalNode
+            if (rit->second->type == FILENODE)
+            {
+                bool download = true;
+                FileAccess *f = fsaccess->newfileaccess();
+                if (rit->second->localnode != (LocalNode*)~0
+                        && f->fopen(localpath, true, false))
+                {
+                    LOG_debug << "Skipping download over an unscanned file/folder";
+                    download = false;
+                }
+                delete f;
+                rit->second->localnode = NULL;
+
+                // start fetching this node, unless fetch is already in progress
+                // FIXME: to cover renames that occur during the
+                // download, reconstruct localname in complete()
+                if (download && !rit->second->syncget)
+                {
+                    LOG_debug << "Start fetching file node";
+                    fsaccess->local2path(localpath, &localname);
+                    app->syncupdate_get(l->sync, rit->second, localname.c_str());
+
+                    rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                    nextreqtag();
+                    startxfer(GET, rit->second->syncget);
+                    syncactivity = true;
+                }
+            }
+            else
+            {
+                LOG_debug << "Creating local folder";
+
+                // create local path, add to LocalNodes and recurse
+                if (fsaccess->mkdirlocal(localpath))
+                {
+                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
+
+                    if (ll && ll != (LocalNode*)~0)
+                    {
+                        LOG_debug << "Local folder created, continuing syncdown";
+
+                        ll->setnode(rit->second);
+                        ll->sync->statecacheadd(ll);
+
+                        if (!syncdown(ll, localpath, rubbish) && success)
+                        {
+                            LOG_debug << "Syncdown not finished";
+                            success = false;
+                        }
+                    }
+                    else
+                    {
+                        LOG_debug << "Checkpath() failed " << (ll == NULL);
+                    }
+                }
+                else if (success && fsaccess->transient_error)
+                {
+                    LOG_debug << "Transient error creating folder";
+                    success = false;
+                }
+                else if (!fsaccess->transient_error)
+                {
+                    LOG_debug << "Non transient error creating folder";
+                }
+            }
+        }
+
+        localpath->resize(t);
     }
 
     return success;
@@ -8103,12 +8074,68 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                                 ll->checked = true;
                             }
+
+                            // if this node is being fetched, but it's already synced
+                            if (rit->second->syncget)
+                            {
+                                LOG_debug << "Stopping unneeded download";
+                                delete rit->second->syncget;
+                                rit->second->syncget = NULL;
+                            }
+
+                            // if this localnode is being uploaded, but it's already synced
+                            if (ll->transfer)
+                            {
+                                LOG_debug << "Stopping unneeded upload";
+                                stopxfer(ll);
+                            }
+
                             ll->treestate(TREESTATE_SYNCED);
                             continue;
                         }
                     }
 
                     LOG_debug << "LocalNode change detected on syncupload: " << ll->name;
+
+#ifdef WIN32
+                    if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
+                    {
+                        LOG_debug << "Modification time changed only";
+                        FileAccess *f = fsaccess->newfileaccess();
+                        string lpath;
+                        ll->getlocalpath(&lpath);
+                        string stream = lpath;
+                        stream.append((char *)L":$CmdTcID:$DATA", 30);
+                        if(f->fopen(&stream))
+                        {
+                            LOG_warn << "COMODO detected";
+                            HKEY hKey;
+                            if(RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                                            L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
+                                            0,
+                                            KEY_QUERY_VALUE,
+                                            &hKey ) == ERROR_SUCCESS)
+                            {
+                                DWORD value = 0;
+                                DWORD size = sizeof(value);
+                                if(RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                                {
+                                    if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
+                                    {
+                                        LOG_warn << "Fixed modification time probably changed by COMODO";
+                                        ll->mtime = ll->node->mtime;
+                                        ll->treestate(TREESTATE_SYNCED);
+                                        RegCloseKey(hKey);
+                                        delete f;
+                                        continue;
+                                    }
+                                }
+                                RegCloseKey(hKey);
+                            }
+                        }
+                        delete f;
+                    }
+#endif
 
                     // if this node is being fetched, but has to be upsynced
                     if (rit->second->syncget)

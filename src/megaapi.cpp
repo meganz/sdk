@@ -541,7 +541,12 @@ int MegaRequest::getTransferTag() const
 
 int MegaRequest::getNumDetails() const
 {
-	return 0;
+    return 0;
+}
+
+int MegaRequest::getTag() const
+{
+    return 0;
 }
 
 
@@ -679,7 +684,17 @@ bool MegaTransfer::isStreamingTransfer() const
 
 char *MegaTransfer::getLastBytes() const
 {
-	return NULL;
+    return NULL;
+}
+
+bool MegaTransfer::isFolderTransfer() const
+{
+    return false;
+}
+
+int MegaTransfer::getFolderTransferTag() const
+{
+    return 0;
 }
 
 
@@ -1435,6 +1450,11 @@ MegaTransferList *MegaApi::getTransfers(int type)
     return pImpl->getTransfers(type);
 }
 
+MegaTransferList *MegaApi::getChildTransfers(int transferTag)
+{
+    return pImpl->getChildTransfers(transferTag);
+}
+
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, listener);
@@ -1452,7 +1472,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, fileName, mtime, listener);
+    pImpl->startUpload(localPath, parent, fileName, mtime, 0, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)

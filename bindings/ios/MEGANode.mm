@@ -103,6 +103,18 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getTag() : 0;
 }
 
+- (NSDate *)expirationTime {
+    return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getExpirationTime()] : nil;
+}
+
+- (uint64_t)publicHandle {
+    return self.megaNode ? self.megaNode->getPublicHandle() : mega::INVALID_HANDLE;
+}
+
+- (MEGANode *)publicNode {
+    return self.megaNode ? [[MEGANode alloc] initWithMegaNode:self.megaNode->getPublicNode() cMemoryOwn:YES] : nil;
+}
+
 - (BOOL)isFile {
     return self.megaNode ? self.megaNode->isFile() : NO;
 }
@@ -115,6 +127,14 @@ using namespace mega;
     return self.megaNode ? self.megaNode->isRemoved() : NO;
 }
 
+- (BOOL)hasChangedType:(MEGANodeChangeType)changeType {
+    return self.megaNode ? self.megaNode->hasChanged(changeType) : NO;
+}
+
+- (MEGANodeChangeType)getChanges {
+    return (MEGANodeChangeType) self.megaNode->getChanges();
+}
+
 - (BOOL)hasThumbnail {
     return self.megaNode ? self.megaNode->hasThumbnail() : NO;
 }
@@ -125,6 +145,30 @@ using namespace mega;
 
 - (BOOL)isPublic {
     return self.megaNode ? self.megaNode->isPublic() : NO;
+}
+
+- (BOOL)isShared {
+    return self.megaNode ? self.megaNode->isShared() : NO;
+}
+
+- (BOOL)isOutShare {
+    return self.megaNode ? self.megaNode->isOutShare() : NO;
+}
+
+- (BOOL)isInShare {
+    return self.megaNode ? self.megaNode->isInShare() : NO;
+}
+
+- (BOOL)isExported {
+    return self.megaNode ? self.megaNode->isExported() : NO;
+}
+
+- (BOOL)isExpired {
+    return self.megaNode ? self.megaNode->isExpired() : NO;
+}
+
+- (BOOL)isTakenDown {
+    return self.megaNode ? self.megaNode->isTakenDown() : NO;
 }
 
 @end

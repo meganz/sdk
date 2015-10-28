@@ -284,8 +284,10 @@ struct MEGA_API LocalNode : public File, Cachable
     // return child node by name
     LocalNode* childbyname(string*);
 
+#ifdef USE_INOTIFY
     // node-specific DirNotify tag
     handle dirnotifytag;
+#endif
 
     void prepare();
     void completed(Transfer*, LocalNode*);

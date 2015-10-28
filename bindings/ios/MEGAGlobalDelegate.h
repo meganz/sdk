@@ -51,6 +51,17 @@
 - (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
 
 /**
+ * @brief This function is called when there are new or updated contact requests in the account
+ *
+ * When the full account is reloaded or a large number of server notifications arrives at once, the
+ * second parameter will be nil.
+ *
+ * @param api MEGASdk object connected to the account
+ * @param contactRequestList List that contains the new or updated contact requests
+ */
+- (void)onContactRequestsUpdate:(MEGASdk *)api contactRequestList:(MEGAContactRequestList *)contactRequestList;
+
+/**
  * @brief This function is called when an inconsistency is detected in the local cache.
  *
  * You should call [MEGASdk fetchNodes] when this callback is received.
