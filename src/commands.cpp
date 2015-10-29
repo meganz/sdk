@@ -1884,7 +1884,16 @@ void CommandUserRequest::procresult()
 CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)
 {
     cmd("up");
-    arg(an, av, avl);
+
+    // if removing avatar, do not Base64 encode the attribute value
+    if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
+    {
+        arg(an,(const char *)av, avl);
+    }
+    else
+    {
+        arg(an, av, avl);
+    }
 
     tag = client->reqtag;
 }
@@ -1906,9 +1915,8 @@ void CommandPutUA::procresult()
     client->app->putua_result(e);
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, int p)
+CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
 {
-    priv = p;
     user = client->finduser((char*)uid);
     attributename = an;
 
@@ -1970,13 +1978,24 @@ void CommandGetUA::procresult()
             return(client->app->getua_result(API_EINTERNAL));
         }
 
-        int l = (end - ptr) / 4 * 3 + 3;
+        int l;
+        byte* data = NULL;
 
-        byte* data = new byte[l];
+        if (attributename != "+a" || (attributename == "+a" && strncmp(ptr, "none", 4)))
+        {
+            l = (end - ptr) / 4 * 3 + 3;
+            data = new byte[l];
+            l = Base64::atob(ptr, data, l);
+        }
+        else
+        {
+            string message = "Avatar not found";
+            l = message.size();
+            data = new byte[l];
+            strcpy((char *)data, "Avatar not found");
+        }
 
-        l = Base64::atob(ptr, data, l);
-
-        if (priv == 1)
+        if (attributename == "*!lstint" || attributename == "*!authring")
         {
             d.assign((char*)data, l);
 
@@ -2008,13 +2027,9 @@ void CommandGetUA::procresult()
             }
             client->app->getua_result((byte*)d.data(), d.size());
         }
-        else if (!priv || priv == 2)
-        {
-            client->app->getua_result(data, l);
-        }
         else
         {
-            client->app->getua_result(API_EARGS);
+            client->app->getua_result(data, l);
         }
 
         delete[] data;

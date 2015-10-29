@@ -201,12 +201,11 @@ public:
 
 class MEGA_API CommandGetUA : public Command
 {
-    int priv;
     User* user;
     string attributename;
 
 public:
-    CommandGetUA(MegaClient*, const char*, const char*, int);
+    CommandGetUA(MegaClient*, const char*, const char*);
 
     void procresult();
 };

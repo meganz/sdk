@@ -3238,8 +3238,11 @@ class MegaApi
         };
 
         enum {
+            USER_ATTR_AVATAR = 0,
             USER_ATTR_FIRSTNAME = 1,
-            USER_ATTR_LASTNAME = 2
+            USER_ATTR_LASTNAME = 2,
+            USER_ATTR_AUTHRING = 3,
+            USER_ATTR_LAST_INTERACTION = 4
         };
 
         enum {

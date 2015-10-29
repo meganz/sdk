@@ -3072,7 +3072,7 @@ void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaReques
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
 {
-    getUserAttr(user, 0, dstFilePath, listener);
+    getUserAttr(user, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
@@ -3423,7 +3423,8 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFile
 void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    if(!type && dstFilePath)
+
+    if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
     {
         string path(dstFilePath);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -8595,41 +8596,63 @@ void MegaApiImpl::sendPendingRequests()
                 user = client->finduser(client->me, 0);
             }
 
-            if((!type && !value) || !user || (type < 0)) { e = API_EARGS; break; }
-
-            if(!type)
+            if(!user)
             {
-                client->getua(user, "a", 0);
+                e = API_EARGS;
+                break;
             }
-            else
+
+            string attrname;
+            switch(type)
             {
-                string attrname;
-                switch(type)
+                case MegaApi::USER_ATTR_AVATAR:
                 {
-                    case MegaApi::USER_ATTR_FIRSTNAME:
-                    {
-                        attrname = "firstname";
-                        break;
-                    }
-
-                    case MegaApi::USER_ATTR_LASTNAME:
-                    {
-                        attrname = "lastname";
-                        break;
-                    }
-
-                    default:
+                    if (!value)    // destination file
                     {
                         e = API_EARGS;
                         break;
                     }
+
+                    attrname = "+a";
+                    break;
                 }
 
-                if(!e)
+                case MegaApi::USER_ATTR_FIRSTNAME:
                 {
-                    client->getua(user, attrname.c_str(), 2);
+                    attrname = "firstname";
+                    break;
+                }
+
+                case MegaApi::USER_ATTR_LASTNAME:
+                {
+                    attrname = "lastname";
+                    break;
+                }
+
+                case MegaApi::USER_ATTR_AUTHRING:
+                {
+                    attrname = "*!authring";
+                    break;
+                }
+
+                case MegaApi::USER_ATTR_LAST_INTERACTION:
+                {
+                    attrname = "*!lstint";
+                    break;
+                }
+
+                default:
+                {
+                    e = API_EARGS;
+                    break;
                 }
             }
+
+            if(!e)
+            {
+                client->getua(user, attrname.c_str());
+            }
+
             break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:
@@ -8638,66 +8661,87 @@ void MegaApiImpl::sendPendingRequests()
             const char* value = request->getText();
             int type = request->getParamType();
 
-            if ((!type && !file) || (type < 0) || (type && !value))
+            if (!value && type != MegaApi::USER_ATTR_AVATAR)
             {
                 e = API_EARGS;
                 break;
             }
 
-            if(!type)
+            string attrname;
+            string attrvalue = value;
+
+            switch (type)
             {
-                string path = file;
-                string localpath;
-                fsAccess->path2local(&path, &localpath);
-
-                string attributedata;
-                FileAccess *f = fsAccess->newfileaccess();
-                if (!f->fopen(&localpath, 1, 0))
+                case MegaApi::USER_ATTR_AVATAR:
                 {
-                    delete f;
-                    e = API_EREAD;
-                    break;
-                }
-
-                if (!f->fread(&attributedata, f->size, 0, 0))
-                {
-                    delete f;
-                    e = API_EREAD;
-                    break;
-                }
-                delete f;
-
-                client->putua("a", (byte *)attributedata.data(), attributedata.size(), 0);
-            }
-            else
-            {
-                string attrname;
-                string attrvalue = value;
-                switch(type)
-                {
-                    case MegaApi::USER_ATTR_FIRSTNAME:
-                    {
-                        attrname = "firstname";
-                        break;
-                    }
-
-                    case MegaApi::USER_ATTR_LASTNAME:
-                    {
-                        attrname = "lastname";
-                        break;
-                    }
-
-                    default:
+                    if (!file)
                     {
                         e = API_EARGS;
                         break;
                     }
+                    else
+                    {
+                        attrname = "+a";
+
+                        string path = file;
+                        string localpath;
+                        fsAccess->path2local(&path, &localpath);
+
+                        FileAccess *f = fsAccess->newfileaccess();
+                        if (!f->fopen(&localpath, 1, 0))
+                        {
+                            delete f;
+                            e = API_EREAD;
+                            break;
+                        }
+
+                        if (!f->fread(&attrvalue, f->size, 0, 0))
+                        {
+                            delete f;
+                            e = API_EREAD;
+                            break;
+                        }
+                        delete f;
+                    }
+                    break;
                 }
-                if(!e)
+
+                case MegaApi::USER_ATTR_FIRSTNAME:
                 {
-                    client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size(), 2);
+                    attrname = "firstname";
+                    break;
+                }
+
+                case MegaApi::USER_ATTR_LASTNAME:
+                {
+                    attrname = "lastname";
+                    break;
+                }
+
+                case MegaApi::USER_ATTR_AUTHRING:
+                {
+                    attrname = "*!authring";
+                    break;
+                }
+
+                case MegaApi::USER_ATTR_LAST_INTERACTION:
+                {
+                    attrname = "*!lstint";
+                    break;
+                }
+
+                default:
+                {
+                    e = API_EARGS;
+                    break;
                 }
             }
+
+            if (!e)
+            {
+                client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size());
+            }
+
             break;
 		}
         case MegaRequest::TYPE_SET_ATTR_FILE:
