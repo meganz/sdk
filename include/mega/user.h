@@ -55,7 +55,8 @@ struct MEGA_API User : public Cachable
         bool auth : 1;      // authentication information of the contact
         bool lstint : 1;    // last interaction with the contact
         bool avatar : 1;    // avatar image
-        bool pinfo : 1;     // personal info: firstname, lastname, birthday, country
+        bool firstname : 1;
+        bool lastname : 1;
     } changed;
 
     // user's public key

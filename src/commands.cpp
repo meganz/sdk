@@ -1981,18 +1981,19 @@ void CommandGetUA::procresult()
         int l;
         byte* data = NULL;
 
-        if (attributename != "+a" || (attributename == "+a" && strncmp(ptr, "none", 4)))
-        {
-            l = (end - ptr) / 4 * 3 + 3;
-            data = new byte[l];
-            l = Base64::atob(ptr, data, l);
-        }
-        else
+        // if there's no avatar, the value is not Base64 encoded
+        if (attributename == "+a" && !strncmp(ptr, "none", 4))
         {
             string message = "Avatar not found";
             l = message.size();
             data = new byte[l];
-            strcpy((char *)data, "Avatar not found");
+            strcpy((char *)data, message.c_str());
+        }
+        else
+        {
+            l = (end - ptr) / 4 * 3 + 3;
+            data = new byte[l];
+            l = Base64::atob(ptr, data, l);
         }
 
         if (attributename == "*!lstint" || attributename == "*!authring")

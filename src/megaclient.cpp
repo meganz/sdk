@@ -3445,54 +3445,34 @@ void MegaClient::sc_userattr()
                         {
                             while (jsonsc.storeobject(&ua))
                             {
-                                if (ua[0] == '+')       // public attribute
+                                if (ua == "+a")     // avatar
                                 {
-                                    if (ua[1] == 'a')
-                                    {
-                                        // avatar
-                                        u->changed.avatar = true;
-                                        notifyuser(u);
-                                    }
-                                    else if (ua[1] == 'n')
-                                    {
-                                        // personal information
-                                        u->changed.pinfo = true;
-                                        notifyuser(u);
-                                    }
-                                    else
-                                    {
-                                        LOG_debug << "Public user attribute not recognized";
-                                    }
+                                    u->changed.avatar = true;
+                                    notifyuser(u);
                                 }
-                                else if (ua[0] == '*')  // private attribute
+                                else if (ua == "firstname")
                                 {
-                                    if (ua[1] == '!')
-                                    {
-                                        if (ua[2] == 'a')       // !authring
-                                        {
-                                            // authentication information
-                                            u->changed.auth = true;
-                                            notifyuser(u);
-                                        }
-                                        else if (ua[2] == 'l')    // !lstint
-                                        {
-                                            // timestamp of last interaction
-                                            u->changed.lstint = true;
-                                            notifyuser(u);
-                                        }
-                                        else
-                                        {
-                                            LOG_debug << "Private user attribute not recognized";
-                                        }
-                                    }
-                                    else
-                                    {
-                                        LOG_debug << "Private user attribute not recognized";
-                                    }
+                                    u->changed.firstname = true;
+                                    notifyuser(u);
+                                }
+                                else if (ua == "lastname")
+                                {
+                                    u->changed.lastname = true;
+                                    notifyuser(u);
+                                }
+                                else if (ua == "*!authring")    // authentication information
+                                {
+                                    u->changed.auth = true;
+                                    notifyuser(u);
+                                }
+                                else if (ua == "*!lstint")  // timestamp of last interaction
+                                {
+                                    u->changed.lstint = true;
+                                    notifyuser(u);
                                 }
                                 else
                                 {
-                                    LOG_debug << "Type of user attribute not recognized";
+                                    LOG_debug << "User attribute not recognized: " << ua;
                                 }
                             }
 

@@ -937,7 +937,8 @@ class MegaUser
             CHANGE_TYPE_AUTH            = 0x01,
             CHANGE_TYPE_LSTINT          = 0x02,
             CHANGE_TYPE_AVATAR          = 0x04,
-            CHANGE_TYPE_PERSONAL_INFO   = 0x08
+            CHANGE_TYPE_FIRSTNAME       = 0x08,
+            CHANGE_TYPE_LASTNAME        = 0x10
         };
 
         /**
@@ -959,8 +960,11 @@ class MegaUser
          * - MegaNode::CHANGE_TYPE_AVATAR          = 0x04
          * Check if the user has a new or modified avatar image
          *
-         * - MegaNode::CHANGE_TYPE_PERSONAL_INFO   = 0x08
-         * Check if the user has new or modified personal information
+         * - MegaNode::CHANGE_TYPE_FIRSTNAME       = 0x08
+         * Check if the user has new or modified firstname
+         *
+         * - MegaNode::CHANGE_TYPE_LASTNAME        = 0x10
+         * Check if the user has new or modified lastname
          *
          * @return true if this user has an specific change
          */
@@ -983,8 +987,11 @@ class MegaUser
          * - MegaNode::CHANGE_TYPE_AVATAR          = 0x04
          * Check if the user has a new or modified avatar image
          *
-         * - MegaNode::CHANGE_TYPE_PERSONAL_INFO   = 0x08
-         * Check if the user has new or modified personal information
+         * - MegaNode::CHANGE_TYPE_FIRSTNAME       = 0x08
+         * Check if the user has new or modified firstname
+         *
+         * - MegaNode::CHANGE_TYPE_LASTNAME        = 0x10
+         * Check if the user has new or modified lastname
          */
         virtual int getChanges();
 };

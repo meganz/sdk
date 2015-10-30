@@ -683,9 +683,13 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_LSTINT;
     }
-    if(user->changed.pinfo)
+    if(user->changed.firstname)
     {
-        changed |= MegaUser::CHANGE_TYPE_PERSONAL_INFO;
+        changed |= MegaUser::CHANGE_TYPE_FIRSTNAME;
+    }
+    if(user->changed.lastname)
+    {
+        changed |= MegaUser::CHANGE_TYPE_LASTNAME;
     }
 }
 
@@ -6556,7 +6560,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
-    if(request->getParamType() == 0)
+    if(request->getParamType() == MegaApi::USER_ATTR_AVATAR)
     {
         FileAccess *f = client->fsaccess->newfileaccess();
         string filePath(request->getFile());
