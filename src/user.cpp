@@ -128,6 +128,11 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
+    if ((i >= 0) || !(u = client->finduser(uh, 1)))
+    {
+        return NULL;
+    }
+
     if (isSharing)
     {
         l = *ptr++;
@@ -137,11 +142,6 @@ User* User::unserialize(MegaClient* client, string* d)
             ptr += sizeof(sh);
             sharing.insert(sh);
         }
-    }
-
-    if ((i >= 0) || !(u = client->finduser(uh, 1)))
-    {
-        return NULL;
     }
 
     if (v == ME)
