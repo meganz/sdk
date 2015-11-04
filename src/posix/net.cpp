@@ -1329,7 +1329,7 @@ bool CurlHttpIO::doio()
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     if (waiter)
     {
-        ares_process(ares, &waiter->rdfs, &waiter->wdfs);
+        ares_process(ares, &waiter->rfds, &waiter->wfds);
     }
 #else
     for (unsigned int i = 0; i < aressockets.size(); i++)

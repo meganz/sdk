@@ -24,8 +24,14 @@
 
 #include "mega/http.h"
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-#include "mega/win32/megawaiter.h"
+#ifdef _WIN32
+   #ifdef WINDOWS_PHONE
+   #include "mega/wp8/megawaiter.h"
+   #else
+   #include "mega/win32/megawaiter.h"
+   #endif
+#else
+   #include "mega/posix/megawaiter.h"
 #endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
