@@ -9991,7 +9991,7 @@ MegaSyncEventPrivate::MegaSyncEventPrivate(int type)
 
 MegaSyncEventPrivate::~MegaSyncEventPrivate()
 {
-    delete path;
+    delete [] path;
 }
 
 MegaSyncEvent *MegaSyncEventPrivate::copy()
