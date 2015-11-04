@@ -22,7 +22,11 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS CurlHttpIO
 
-#include "mega.h"
+#include "mega/http.h"
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#include "mega/win32/megawaiter.h"
+#endif
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
 #include <openssl/ssl.h>
@@ -32,6 +36,23 @@
 #include <ares.h>
 
 namespace mega {
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+struct MEGA_API SockInfo
+{
+    enum
+    {
+        NONE = 0,
+        READ = 1,
+        WRITE = 2
+    };
+
+    SockInfo();
+    int fd;
+    int mode;
+    HANDLE handle;
+};
+#endif
 
 struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
@@ -64,6 +85,11 @@ protected:
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int timer_callback(CURLM *multi, long timeout_ms, void *userp);
+#endif
+
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
@@ -77,6 +103,7 @@ protected:
     static bool crackurl(string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     bool ipv6available();
+    void filterDNSservers();
 
     bool curlipv6;
     bool reset;
@@ -85,6 +112,15 @@ protected:
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    void addaresevents(WinWaiter *waiter);
+    void addcurlevents(WinWaiter *waiter);
+    std::vector<SockInfo> aressockets;
+    std::map<int, SockInfo> curlsockets;
+    m_time_t curltimeoutms;
+    m_time_t arestimeoutds;
+#endif
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);

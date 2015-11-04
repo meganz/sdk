@@ -48,10 +48,26 @@ SOURCES += src/attrmap.cpp \
     src/mega_utf8proc.cpp
 
 win32 {
-SOURCES += src/win32/net.cpp  \
-    src/win32/fs.cpp  \
-    src/win32/waiter.cpp
+    # comment this line to use WinHTTP on Windows
+    CONFIG += USE_CURL
+
+    CONFIG(USE_CURL) {
+        SOURCES += src/wincurl/net.cpp  \
+            src/wincurl/fs.cpp  \
+            src/wincurl/waiter.cpp
+        HEADERS += include/mega/win32/meganet.h
+        DEFINES += USE_CURL
+        LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
+    }
+    else {
+        SOURCES += src/win32/net.cpp \
+            src/win32/fs.cpp \
+            src/win32/waiter.cpp
+        HEADERS += include/mega/posix/meganet.h
+        LIBS += -lwinhttp
+    }
 }
+
 
 unix {
 SOURCES += src/posix/net.cpp  \
@@ -110,8 +126,7 @@ HEADERS  += include/mega.h \
             include/mega/mega_utf8proc.h
 
 win32 {
-    HEADERS  += include/mega/win32/meganet.h  \
-            include/mega/win32/megasys.h  \
+    HEADERS  += include/mega/win32/megasys.h  \
             include/mega/win32/megafs.h  \
             include/mega/win32/megawaiter.h
 
@@ -145,7 +160,16 @@ else {
 win32 {
     INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
     INCLUDEPATH += $$[QT_INSTALL_PREFIX]/../src/qtbase/src/3rdparty/zlib
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
+
+    CONFIG(USE_CURL) {
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+    }
+    else {
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
+    }
+
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
     DEFINES += PCRE_STATIC
 
@@ -167,7 +191,7 @@ win32 {
 	}
     }
 
-    LIBS += -lshlwapi -lwinhttp -lws2_32 -luser32
+    LIBS += -lshlwapi -lws2_32 -luser32
 }
 
 unix:!macx {

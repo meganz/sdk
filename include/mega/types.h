@@ -35,7 +35,11 @@
 #endif
 
 // platform-specific includes and defines
-#include "megasys.h"
+#ifdef _WIN32
+#include "mega/win32/megasys.h"
+#else
+#include "mega/posix/megasys.h"
+#endif
 
 // signed 64-bit generic offset
 typedef int64_t m_off_t;

@@ -1636,8 +1636,6 @@ void MegaClient::exec()
         }
         else
         {
-            LOG_verbose << "Syncup engine stopped: " << syncdownrequired << " " << syncdownretry << " " << statecurrent << " " << syncadding;
-
             // sync timer: retry syncdown() ops in case of local filesystem lock clashes
             if (syncdownretry && syncdownbt.armed())
             {
