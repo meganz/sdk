@@ -195,7 +195,8 @@ void CurlHttpIO::filterDNSservers()
 
             if (straddr[0]
                     && serverset.find(straddr) == serverset.end()
-                    && strncasecmp(straddr, "fec0:", 5))
+                    && strncasecmp(straddr, "fec0:", 5)
+                    && strncasecmp(straddr, "169.254.", 8))
             {
                 if (!first)
                 {
