@@ -86,6 +86,8 @@ CurlHttpIO::CurlHttpIO()
     }
 
     curlipv6 = data->features & CURL_VERSION_IPV6;
+    LOG_debug << "IPv6 enabled: " << curlipv6;
+
     reset = false;
     statechange = false;
 
