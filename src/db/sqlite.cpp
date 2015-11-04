@@ -205,7 +205,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
         }
 
         sqlite3_finalize(stmt);
-        delete hkey;
+        free(hkey);
 
         if (!result)
             return NULL;
