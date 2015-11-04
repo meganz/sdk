@@ -5404,34 +5404,6 @@ class MegaApi
 		 */
 		int getNumChildren(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child files of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child files.
-		 *
-		 * @param parent Parent node
-         * @return Number of child files
-         * @note The returned value is a rough estimation.
-		 */
-		int getNumChildFiles(MegaNode* parent);
-
-		/**
-		 * @brief Get the number of child folders of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child folders.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child folders
-         * @note The returned value is a rough estimation.
-		 */
-		int getNumChildFolders(MegaNode* parent);
-
         /**
          * @brief Get the number of child files of a node
          *
