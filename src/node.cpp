@@ -1503,17 +1503,22 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
-    uint64_t mtime = 0;
+    m_time_t mtime = 0;
+    int32_t crc[4];
+    memset(crc, 0, sizeof crc);
 
     if (type == FILENODE)
-    {
-        if (ptr + 4 * sizeof(int32_t) > end + 1)
+    {        
+        memcpy(crc, ptr, sizeof crc);
+        ptr += sizeof crc;
+
+        if (ptr > end + 1)
         {
             LOG_err << "LocalNode unserialization failed - short fingerprint";
             return NULL;
         }
 
-        if (!Serialize64::unserialize((byte*)ptr + 4 * sizeof(int32_t), end - ptr - 4 * sizeof(int32_t), &mtime))
+        if (!Serialize64::unserialize((byte*)ptr, end - ptr, &mtime))
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
@@ -1533,8 +1538,12 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
-    memcpy(l->crc, ptr, sizeof l->crc);
-    l->mtime = mtime;
+    if (type == FILENODE)
+    {
+        memcpy(l->crc, crc, sizeof crc);
+        l->mtime = mtime;
+    }
+
     l->isvalid = 1;
 
     l->node = sync->client->nodebyhandle(h);
