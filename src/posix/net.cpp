@@ -25,34 +25,6 @@
 #define IPV6_RETRY_INTERVAL_DS 72000
 #define DNS_CACHE_TIMEOUT_DS 18000
 
-#ifdef _WIN32
-const char* inet_ntop(int af, const void* src, char* dst, int cnt)
-{
-    struct sockaddr_in srcaddr;
-    wchar_t ip[INET6_ADDRSTRLEN];
-    int len = INET6_ADDRSTRLEN;
-
-    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
-
-    srcaddr.sin_family = af;
-
-    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0) 
-    {
-        return NULL;
-    }
-
-    if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
-    {
-        return NULL;
-    }
-
-    return dst;
-}
-#else
-#include <netdb.h>
-#endif
-
 namespace mega {
 
 CurlHttpIO::CurlHttpIO()
@@ -98,7 +70,10 @@ CurlHttpIO::CurlHttpIO()
     ares_library_init(ARES_LIB_INIT_ALL);
 
     curlm = curl_multi_init();
-    ares_init(&ares);
+
+    struct ares_options options;
+    options.tries = 2;
+    ares_init_options(&ares, &options, ARES_OPT_TRIES);
     filterDNSservers();
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -395,7 +370,9 @@ void CurlHttpIO::disconnect()
     dnscache.clear();
 
     curlm = curl_multi_init();
-    ares_init(&ares);
+    struct ares_options options;
+    options.tries = 2;
+    ares_init_options(&ares, &options, ARES_OPT_TRIES);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     curl_multi_setopt(curlm, CURLMOPT_SOCKETFUNCTION, socket_callback);
@@ -1123,7 +1100,10 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         LOG_err << "Error in c-ares. Reinitializing...";
         reset = false;
         ares_destroy(ares);
-        ares_init(&ares);
+        struct ares_options options;
+        options.tries = 2;
+        ares_init_options(&ares, &options, ARES_OPT_TRIES);
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
         arestimeoutds = -1;
 #endif
@@ -1135,7 +1115,8 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
         else
         {
-            filterDNSservers();
+            getMEGADNSservers(&dnsservers);
+            ares_set_servers_csv(ares, dnsservers.c_str());
         }
     }
 

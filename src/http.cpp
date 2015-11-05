@@ -21,6 +21,42 @@
 
 #include "mega/http.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
+
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
+#ifdef WINDOWS_PHONE
+const char* inet_ntop(int af, const void* src, char* dst, int cnt)
+{
+    struct sockaddr_in srcaddr;
+    wchar_t ip[INET6_ADDRSTRLEN];
+    int len = INET6_ADDRSTRLEN;
+
+    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+
+    srcaddr.sin_family = af;
+
+    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0)
+    {
+        return NULL;
+    }
+
+    if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
+    {
+        return NULL;
+    }
+
+    return dst;
+}
+#endif
 
 namespace mega {
 HttpIO::HttpIO()
@@ -61,6 +97,107 @@ bool HttpIO::inetisback()
     }
 
     return false;
+}
+
+void HttpIO::getMEGADNSservers(string *dnsservers)
+{
+    if (!dnsservers)
+    {
+        return;
+    }
+
+    dnsservers->clear();
+
+    struct addrinfo *aiList = NULL;
+    struct addrinfo *hp;
+    struct addrinfo hints = {0};
+    vector<string> ipv4servers;
+    vector<string> ipv6servers;
+
+    hints.ai_family = AF_INET;
+    if(!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
+    {
+        hp = aiList;
+        while (hp)
+        {
+            char straddr[INET6_ADDRSTRLEN];
+            straddr[0] = 0;
+
+            sockaddr_in *addr = (sockaddr_in *)hp->ai_addr;
+
+            inet_ntop(hp->ai_family, &addr->sin_addr, straddr, hp->ai_addrlen);
+            if (straddr[0])
+            {
+                ipv4servers.push_back(straddr);
+            }
+
+            hp = hp->ai_next;
+        }
+        freeaddrinfo(aiList);
+    }
+
+    hints.ai_family = AF_INET6;
+    if(!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
+    {
+        hp = aiList;
+        while (hp)
+        {
+            char straddr[INET6_ADDRSTRLEN];
+            straddr[0] = 0;
+
+            sockaddr_in6 *addr = (sockaddr_in6 *)hp->ai_addr;
+            inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, hp->ai_addrlen);
+            if (straddr[0])
+            {
+                ipv6servers.push_back(straddr);
+            }
+
+            hp = hp->ai_next;
+        }
+        freeaddrinfo(aiList);
+    }
+
+    if(ipv4servers.size() || ipv6servers.size())
+    {
+        dnsservers->clear();
+        unsigned int i = 0;
+        for (; i < ipv4servers.size(); i++)
+        {
+            if (dnsservers->size())
+            {
+                dnsservers->append(",");
+            }
+            dnsservers->append(ipv4servers[i]);
+
+            if (i < ipv6servers.size())
+            {
+                dnsservers->append(",");
+                dnsservers->append(ipv6servers[i]);
+            }
+        }
+
+        for (; i < ipv6servers.size(); i++)
+        {
+            if (dnsservers->size())
+            {
+                dnsservers->append(",");
+            }
+            dnsservers->append(ipv6servers[i]);
+        }
+    }
+
+    if (!dnsservers->size())
+    {
+        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
+        *dnsservers = "154.53.224.130,2001:978:2:aa::20:2,"
+                      "154.53.224.134,2001:978:2:aa::21:2,"
+                      "122.56.56.216,2403:9800:c020::43,"
+                      "103.244.183.5,2405:f900:3e6a:1::103";
+    }
+    else
+    {
+        LOG_info << "Using current MEGA DNS servers: " << *dnsservers;
+    }
 }
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
