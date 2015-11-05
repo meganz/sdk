@@ -1503,7 +1503,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
-    m_time_t mtime = 0;
+    uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
 
