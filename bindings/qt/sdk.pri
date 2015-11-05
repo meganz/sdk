@@ -55,7 +55,7 @@ win32 {
         SOURCES += src/wincurl/net.cpp  \
             src/wincurl/fs.cpp  \
             src/wincurl/waiter.cpp
-        HEADERS += include/mega/win32/meganet.h
+        HEADERS += include/mega/wincurl/meganet.h
         DEFINES += USE_CURL
         LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
     }
@@ -63,7 +63,7 @@ win32 {
         SOURCES += src/win32/net.cpp \
             src/win32/fs.cpp \
             src/win32/waiter.cpp
-        HEADERS += include/mega/posix/meganet.h
+        HEADERS += include/mega/win32/meganet.h
         LIBS += -lwinhttp
     }
 }
