@@ -30,6 +30,7 @@ DbTable::DbTable(SymmCipher *key)
     this->key = key;
     this->hkey = NULL;
     this->phkey = NULL;
+    nextid = 0;
 }
 
 DbTable::~DbTable()
