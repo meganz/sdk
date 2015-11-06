@@ -166,7 +166,8 @@ class AppListener(MegaListener):
         :param api: Reference to the API object.
         :param users: List that contains the new or updated contacts.
         """
-        logging.info('Users updated ({})'.format(users.size()))
+        if users != None:
+            logging.info('Users updated ({})'.format(users.size()))
 
 
     def onNodesUpdate(self, api, nodes):
