@@ -361,13 +361,7 @@ bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
 {
     string data;
 
-    if (!record->serialize(&data))
-    {
-        //Don't return false if there are errors in the serialization
-        //to let the SDK continue and save the rest of records
-        return true;
-    }
-
+    record->serialize(&data);
     PaddedCBC::encrypt(&data, key);
 
     if (!record->dbid)
