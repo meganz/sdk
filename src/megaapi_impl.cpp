@@ -3105,7 +3105,7 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
                  saddress2.c_str(), scity.c_str(), sprovince.c_str(), spostalcode.c_str(), scountry.c_str(), email.c_str());
 
         request->setText((const char* )ccplain);
-        delete ccplain;
+        delete [] ccplain;
     }
 
     requestQueue.push(request);
@@ -8995,7 +8995,7 @@ void MegaApiImpl::sendPendingRequests()
             char *base64details = new char[size * 4 / 3 + 4];
             Base64::btoa((byte *)details, size, base64details);
             client->reportevent(event.c_str(), base64details);
-            delete base64details;
+            delete [] base64details;
             break;
         }
         case MegaRequest::TYPE_DELETE:
