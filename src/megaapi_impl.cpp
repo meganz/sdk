@@ -2289,9 +2289,8 @@ char* MegaApiImpl::getMyEmail()
 
 char *MegaApiImpl::getMyUserHandle()
 {
-    User* u;
     sdkMutex.lock();
-    if (!client->loggedin() || !(u = client->finduser(client->me)))
+    if (ISUNDEF(client->me))
     {
         sdkMutex.unlock();
         return NULL;
