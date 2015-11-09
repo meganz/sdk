@@ -25,6 +25,15 @@
 #include "types.h"
 #include "waiter.h"
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 namespace mega {
 // SSL public key pinning - active key
 #define APISSLMODULUS1 "\xb6\x61\xe7\xcf\x69\x2a\x84\x35\x05\xc3\x14\xbc\x95\xcf\x94\x33\x1c\x82\x67\x3b\x04\x35\x11" \
@@ -67,6 +76,11 @@ namespace mega {
 "\xbf\x24\xa2\x0e\x52\xd1\xbf\x81\x50\xa6\xbf\x3c\x83\x62\x13\x6f\x1e\xb3\xd1\xce\x64\x27\x04\x69" \
 "\xc0\xc8\x67\x78\x65\x02\x14\x3a\xd8\x44\x3a\x4f\x29\xb2\xaa\xa5\x3b\x67\x60\x5e\x5f\xec\x57\x8e" \
 "\x5e\x0a\x21\x08\xe9\xfd\xaa\x96\x9b\x84\x38\x5c\x7e\x06\x9d\xcd"
+
+#define MEGA_DNS_SERVERS "2001:978:2:aa::20:2,154.53.224.130," \
+                         "2001:978:2:aa::21:2,154.53.224.134," \
+                         "2403:9800:c020::43,122.56.56.216," \
+                         "2405:f900:3e6a:1::103,103.244.183.5"
 
 // generic host HTTP I/O interface
 struct MEGA_API HttpIO : public EventTrigger
@@ -114,7 +128,7 @@ struct MEGA_API HttpIO : public EventTrigger
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
 
-    void getMEGADNSservers(string*);
+    void getMEGADNSservers(string*, bool = true);
 
     HttpIO();
     virtual ~HttpIO() { }

@@ -23,15 +23,6 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
-#ifndef _WIN32
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#else
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
-
 #ifdef WINDOWS_PHONE
 const char* inet_ntop(int af, const void* src, char* dst, int cnt)
 {
@@ -99,7 +90,7 @@ bool HttpIO::inetisback()
     return false;
 }
 
-void HttpIO::getMEGADNSservers(string *dnsservers)
+void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 {
     if (!dnsservers)
     {
@@ -107,92 +98,53 @@ void HttpIO::getMEGADNSservers(string *dnsservers)
     }
 
     dnsservers->clear();
-
-    struct addrinfo *aiList = NULL;
-    struct addrinfo *hp;
-    struct addrinfo hints = {0};
-    vector<string> ipv4servers;
-    vector<string> ipv6servers;
-
-    hints.ai_family = AF_INET;
-    if(!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
+    if (getfromnetwork)
     {
-        hp = aiList;
-        while (hp)
+        struct addrinfo *aiList = NULL;
+        struct addrinfo *hp;
+
+        struct addrinfo hints = {};
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+
+        if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
         {
-            char straddr[INET6_ADDRSTRLEN];
-            straddr[0] = 0;
-
-            sockaddr_in *addr = (sockaddr_in *)hp->ai_addr;
-
-            inet_ntop(hp->ai_family, &addr->sin_addr, straddr, hp->ai_addrlen);
-            if (straddr[0])
+            hp = aiList;
+            while (hp)
             {
-                ipv4servers.push_back(straddr);
+                char straddr[INET6_ADDRSTRLEN];
+                straddr[0] = 0;
+
+                if (hp->ai_family == AF_INET)
+                {
+                    sockaddr_in *addr = (sockaddr_in *)hp->ai_addr;
+                    inet_ntop(hp->ai_family, &addr->sin_addr, straddr, hp->ai_addrlen);
+                }
+                else if(hp->ai_family == AF_INET6)
+                {
+                    sockaddr_in6 *addr = (sockaddr_in6 *)hp->ai_addr;
+                    inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, hp->ai_addrlen);
+                }
+
+                if (straddr[0])
+                {
+                    if(dnsservers->size())
+                    {
+                        dnsservers->append(",");
+                    }
+                    dnsservers->append(straddr);
+                }
+
+                hp = hp->ai_next;
             }
-
-            hp = hp->ai_next;
-        }
-        freeaddrinfo(aiList);
-    }
-
-    hints.ai_family = AF_INET6;
-    if(!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
-    {
-        hp = aiList;
-        while (hp)
-        {
-            char straddr[INET6_ADDRSTRLEN];
-            straddr[0] = 0;
-
-            sockaddr_in6 *addr = (sockaddr_in6 *)hp->ai_addr;
-            inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, hp->ai_addrlen);
-            if (straddr[0])
-            {
-                ipv6servers.push_back(straddr);
-            }
-
-            hp = hp->ai_next;
-        }
-        freeaddrinfo(aiList);
-    }
-
-    if(ipv4servers.size() || ipv6servers.size())
-    {
-        dnsservers->clear();
-        unsigned int i = 0;
-        for (; i < ipv4servers.size(); i++)
-        {
-            if (dnsservers->size())
-            {
-                dnsservers->append(",");
-            }
-            dnsservers->append(ipv4servers[i]);
-
-            if (i < ipv6servers.size())
-            {
-                dnsservers->append(",");
-                dnsservers->append(ipv6servers[i]);
-            }
-        }
-
-        for (; i < ipv6servers.size(); i++)
-        {
-            if (dnsservers->size())
-            {
-                dnsservers->append(",");
-            }
-            dnsservers->append(ipv6servers[i]);
+            freeaddrinfo(aiList);
         }
     }
 
-    if (!dnsservers->size())
+    if (!getfromnetwork || !dnsservers->size())
     {
         LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
-        *dnsservers = "154.53.224.130,2001:978:2:aa::20:2,"
-                      "154.53.224.134,2001:978:2:aa::21:2,"
-                      "122.56.56.216,2403:9800:c020::43,"
-                      "103.244.183.5,2405:f900:3e6a:1::103";
+        *dnsservers = MEGA_DNS_SERVERS;
     }
     else
     {

@@ -1113,9 +1113,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             LOG_info << "Using custom DNS servers: " << dnsservers;
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
-        else
+        else if (!dnscache.size())
         {
-            getMEGADNSservers(&dnsservers);
+            getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
     }
@@ -1169,15 +1169,20 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->hostheader.append(httpctx->hostname);
     httpctx->ares_pending = 1;
 
-    CurlDNSEntry& dnsEntry = dnscache[httpctx->hostname];
+    CurlDNSEntry* dnsEntry = NULL;
+    map<string, CurlDNSEntry>::iterator it = dnscache.find(httpctx->hostname);
+    if (it != dnscache.end())
+    {
+        dnsEntry = &it->second;
+    }
 
     if (ipv6requestsenabled)
     {
-        if (dnsEntry.ipv6.size() && Waiter::ds - dnsEntry.ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
+        if (dnsEntry && dnsEntry->ipv6.size() && Waiter::ds - dnsEntry->ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = true;
-            oss << "[" << dnsEntry.ipv6 << "]";
+            oss << "[" << dnsEntry->ipv6 << "]";
             httpctx->hostip = oss.str();
             httpctx->ares_pending = 0;
             send_request(httpctx);
@@ -1190,10 +1195,10 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
     else
     {
-        if (dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+        if (dnsEntry && dnsEntry->ipv4.size() && Waiter::ds - dnsEntry->ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
         {
             httpctx->isIPv6 = false;
-            httpctx->hostip = dnsEntry.ipv4;
+            httpctx->hostip = dnsEntry->ipv4;
             httpctx->ares_pending = 0;
             send_request(httpctx);
             return;
