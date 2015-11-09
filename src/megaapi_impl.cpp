@@ -68,10 +68,6 @@
 #include <openssl/rand.h>
 #endif
 
-#ifdef WINDOWS_PHONE
-const char* inet_ntop(int af, const void* src, char* dst, int cnt);
-#endif
-
 using namespace mega;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, MegaHandle parentHandle, const char*auth)

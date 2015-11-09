@@ -34,6 +34,10 @@
 #include <ws2tcpip.h>
 #endif
 
+#ifdef WINDOWS_PHONE
+const char* inet_ntop(int af, const void* src, char* dst, int cnt);
+#endif
+
 namespace mega {
 // SSL public key pinning - active key
 #define APISSLMODULUS1 "\xb6\x61\xe7\xcf\x69\x2a\x84\x35\x05\xc3\x14\xbc\x95\xcf\x94\x33\x1c\x82\x67\x3b\x04\x35\x11" \
