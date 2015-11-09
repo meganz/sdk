@@ -39,6 +39,7 @@ WinWaiter::WinWaiter()
         prevt = 0;
     }
 
+    pcsHTTP = NULL;
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 

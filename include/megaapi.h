@@ -893,7 +893,7 @@ class MegaUser
          * @brief Returns the timestamp when the contact was added to the contact list (in seconds since the epoch)
          * @return Timestamp when the contact was added to the contact list (in seconds since the epoch)
          */
-        virtual time_t getTimestamp();
+        virtual int64_t getTimestamp();
 };
 
 /**

@@ -21,6 +21,33 @@
 
 #include "mega/http.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
+
+#ifdef WINDOWS_PHONE
+const char* inet_ntop(int af, const void* src, char* dst, int cnt)
+{
+    struct sockaddr_in srcaddr;
+    wchar_t ip[INET6_ADDRSTRLEN];
+    int len = INET6_ADDRSTRLEN;
+
+    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+
+    srcaddr.sin_family = af;
+
+    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0)
+    {
+        return NULL;
+    }
+
+    if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
+    {
+        return NULL;
+    }
+
+    return dst;
+}
+#endif
 
 namespace mega {
 HttpIO::HttpIO()
@@ -61,6 +88,68 @@ bool HttpIO::inetisback()
     }
 
     return false;
+}
+
+void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
+{
+    if (!dnsservers)
+    {
+        return;
+    }
+
+    dnsservers->clear();
+    if (getfromnetwork)
+    {
+        struct addrinfo *aiList = NULL;
+        struct addrinfo *hp;
+
+        struct addrinfo hints = {};
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+
+        if (!getaddrinfo("ns.mega.co.nz", NULL, &hints, &aiList))
+        {
+            hp = aiList;
+            while (hp)
+            {
+                char straddr[INET6_ADDRSTRLEN];
+                straddr[0] = 0;
+
+                if (hp->ai_family == AF_INET)
+                {
+                    sockaddr_in *addr = (sockaddr_in *)hp->ai_addr;
+                    inet_ntop(hp->ai_family, &addr->sin_addr, straddr, hp->ai_addrlen);
+                }
+                else if(hp->ai_family == AF_INET6)
+                {
+                    sockaddr_in6 *addr = (sockaddr_in6 *)hp->ai_addr;
+                    inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, hp->ai_addrlen);
+                }
+
+                if (straddr[0])
+                {
+                    if(dnsservers->size())
+                    {
+                        dnsservers->append(",");
+                    }
+                    dnsservers->append(straddr);
+                }
+
+                hp = hp->ai_next;
+            }
+            freeaddrinfo(aiList);
+        }
+    }
+
+    if (!getfromnetwork || !dnsservers->size())
+    {
+        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
+        *dnsservers = MEGA_DNS_SERVERS;
+    }
+    else
+    {
+        LOG_info << "Using current MEGA DNS servers: " << *dnsservers;
+    }
 }
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)

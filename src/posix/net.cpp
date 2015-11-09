@@ -19,38 +19,11 @@
  * program.
  */
 
-#include "mega.h"
+#include "mega/posix/meganet.h"
+#include "mega/logging.h"
 
 #define IPV6_RETRY_INTERVAL_DS 72000
 #define DNS_CACHE_TIMEOUT_DS 18000
-
-#ifdef WINDOWS_PHONE
-const char* inet_ntop(int af, const void* src, char* dst, int cnt)
-{
-    struct sockaddr_in srcaddr;
-    wchar_t ip[INET6_ADDRSTRLEN];
-    int len = INET6_ADDRSTRLEN;
-
-    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
-
-    srcaddr.sin_family = af;
-
-    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0) 
-    {
-        return NULL;
-    }
-
-    if (!WideCharToMultiByte(CP_UTF8, 0, ip, len, dst, cnt, NULL, NULL))
-    {
-        return NULL;
-    }
-
-    return dst;
-}
-#else
-#include <netdb.h>
-#endif
 
 namespace mega {
 
@@ -85,6 +58,8 @@ CurlHttpIO::CurlHttpIO()
     }
 
     curlipv6 = data->features & CURL_VERSION_IPV6;
+    LOG_debug << "IPv6 enabled: " << curlipv6;
+
     reset = false;
     statechange = false;
 
@@ -95,7 +70,20 @@ CurlHttpIO::CurlHttpIO()
     ares_library_init(ARES_LIB_INIT_ALL);
 
     curlm = curl_multi_init();
-    ares_init(&ares);
+
+    struct ares_options options;
+    options.tries = 2;
+    ares_init_options(&ares, &options, ARES_OPT_TRIES);
+    filterDNSservers();
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    curl_multi_setopt(curlm, CURLMOPT_SOCKETFUNCTION, socket_callback);
+    curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
+    curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
+    curltimeoutms = -1;
+    arestimeoutds = -1;
+#endif
 
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
@@ -133,7 +121,7 @@ bool CurlHttpIO::ipv6available()
     else
     {
         ipv6_works = curlipv6;
-#ifdef WINDOWS_PHONE
+#ifdef _WIN32
 		closesocket(s);
 #else
         close(s);
@@ -142,6 +130,206 @@ bool CurlHttpIO::ipv6available()
 
     return ipv6_works;
 }
+
+void CurlHttpIO::filterDNSservers()
+{
+    string newservers;
+    string serverlist;
+    set<string> serverset;
+    vector<string> filteredservers;
+    ares_addr_node *servers;
+    ares_addr_node *server;
+    if (ares_get_servers(ares, &servers) == ARES_SUCCESS)
+    {
+        bool first = true;
+        bool filtered = false;
+        server = servers;
+        while (server)
+        {
+            char straddr[INET6_ADDRSTRLEN];
+            straddr[0] = 0;
+
+            if (server->family == AF_INET6)
+            {
+                inet_ntop(PF_INET6, &server->addr, straddr, sizeof(straddr));
+            }
+            else if (server->family == AF_INET)
+            {
+                inet_ntop(PF_INET, &server->addr, straddr, sizeof(straddr));
+            }
+            else
+            {
+                LOG_warn << "Unknown IP address family: " << server->family;
+            }
+
+            if (straddr[0])
+            {
+                serverlist.append(straddr);
+                serverlist.append(",");
+            }
+
+            if (straddr[0]
+                    && serverset.find(straddr) == serverset.end()
+                    && strncasecmp(straddr, "fec0:", 5)
+                    && strncasecmp(straddr, "169.254.", 8))
+            {
+                if (!first)
+                {
+                    newservers.append(",");
+                }
+
+                newservers.append(straddr);
+                serverset.insert(straddr);
+                first = false;
+            }
+            else
+            {
+                filtered = true;
+                if (!straddr[0])
+                {
+                    LOG_debug << "Filtering unkwnown address of DNS server";
+                }
+                else if (serverset.find(straddr) == serverset.end())
+                {
+                    serverset.insert(straddr);
+                    filteredservers.push_back(straddr);
+                }
+            }
+
+            server = server->next;
+        }
+
+        if (serverlist.size())
+        {
+            serverlist.resize(serverlist.size() - 1);
+        }
+        LOG_debug << "DNS servers: " << serverlist;
+
+        if (filtered && (newservers.size() || filteredservers.size()))
+        {
+            for (unsigned int i = 0; i < filteredservers.size(); i++)
+            {
+                if (newservers.size())
+                {
+                    newservers.append(",");
+                }
+
+                newservers.append(filteredservers[i]);
+            }
+
+            LOG_debug << "Setting filtered DNS servers: " << newservers;
+            ares_set_servers_csv(ares, newservers.c_str());
+        }
+
+        ares_free_data(servers);
+    }
+}
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+void CurlHttpIO::addaresevents(WinWaiter *waiter)
+{
+    long events;
+
+    for (unsigned int i = 0; i < aressockets.size(); i++)
+    {
+        if (aressockets[i].handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent(aressockets[i].handle);
+        }
+    }
+
+    aressockets.clear();
+    ares_socket_t socks[ARES_GETSOCK_MAXNUM];
+    int bitmask = ares_getsock(ares, socks, ARES_GETSOCK_MAXNUM);
+    for (int i = 0; i < ARES_GETSOCK_MAXNUM; i++)
+    {
+        SockInfo info;
+
+        events = 0;
+        if(ARES_GETSOCK_READABLE(bitmask, i))
+        {
+            info.fd = socks[i];
+            info.mode |= SockInfo::READ;
+            events |= FD_READ;
+        }
+
+        if(ARES_GETSOCK_WRITABLE(bitmask, i))
+        {
+            info.fd = socks[i];
+            info.mode |= SockInfo::WRITE;
+            events |= FD_WRITE;
+        }
+
+        if (!info.mode)
+        {
+            break;
+        }
+
+        info.handle = WSACreateEvent();
+        if (info.handle == WSA_INVALID_EVENT)
+        {
+            LOG_err << "Unable to create WSA event for cares";
+        }
+        else if (WSAEventSelect(info.fd, info.handle, events))
+        {
+            LOG_err << "Error associating cares handle " << info.fd << ": " << GetLastError();
+            info.handle = WSA_INVALID_EVENT;
+        }
+
+        if (info.handle != WSA_INVALID_EVENT)
+        {
+            ((WinWaiter *)waiter)->addhandle(info.handle, Waiter::NEEDEXEC);
+        }
+
+        aressockets.push_back(info);
+    }
+}
+
+void CurlHttpIO::addcurlevents(WinWaiter *waiter)
+{
+    long events;
+    for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end(); it++)
+    {
+        SockInfo &info = it->second;
+
+        if (!info.mode)
+        {
+            continue;
+        }
+
+        if (info.handle == WSA_INVALID_EVENT)
+        {
+            info.handle = WSACreateEvent();
+            if (info.handle == WSA_INVALID_EVENT)
+            {
+                LOG_err << "Unable to create WSA event for curl";
+                continue;
+            }
+        }
+
+        events = 0;
+        if (info.mode & SockInfo::READ)
+        {
+            events |= FD_READ;
+        }
+
+        if (info.mode & SockInfo::WRITE)
+        {
+            events |= FD_WRITE;
+        }
+
+        if (WSAEventSelect(info.fd, info.handle, events))
+        {
+            LOG_err << "Error associating curl handle " << info.fd << ": " << GetLastError();
+            WSACloseEvent(info.handle);
+            info.handle = WSA_INVALID_EVENT;
+            continue;
+        }
+
+        ((WinWaiter *)waiter)->addhandle(info.handle, Waiter::NEEDEXEC);
+    }
+}
+#endif
 
 CurlHttpIO::~CurlHttpIO()
 {
@@ -165,6 +353,8 @@ void CurlHttpIO::setdnsservers(const char* servers)
         dnscache.clear();
 
         dnsservers = servers;
+
+        LOG_debug << "Using custom DNS servers: " << dnsservers;
         ares_set_servers_csv(ares, servers);
     }
 }
@@ -180,48 +370,81 @@ void CurlHttpIO::disconnect()
     dnscache.clear();
 
     curlm = curl_multi_init();
-    ares_init(&ares);
+    struct ares_options options;
+    options.tries = 2;
+    ares_init_options(&ares, &options, ARES_OPT_TRIES);
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    curl_multi_setopt(curlm, CURLMOPT_SOCKETFUNCTION, socket_callback);
+    curl_multi_setopt(curlm, CURLMOPT_SOCKETDATA, this);
+    curl_multi_setopt(curlm, CURLMOPT_TIMERFUNCTION, timer_callback);
+    curl_multi_setopt(curlm, CURLMOPT_TIMERDATA, this);
+    curltimeoutms = -1;
+    arestimeoutds = -1;
+#endif
 
     if (dnsservers.size())
     {
         LOG_debug << "Using custom DNS servers: " << dnsservers;
         ares_set_servers_csv(ares, dnsservers.c_str());
     }
+    else
+    {
+        filterDNSservers();
+    }
 }
 
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
-    int t;
-
     waiter = (WAIT_CLASS*)w;
+
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+    int t;
     curl_multi_fdset(curlm, &waiter->rfds, &waiter->wfds, &waiter->efds, &t);
     waiter->bumpmaxfd(t);
 
-    long curltimeout;
-    
-    curl_multi_timeout(curlm, &curltimeout);
-
-    if (curltimeout >= 0)
-    {
-        curltimeout /= 100;
-        if ((unsigned long)curltimeout < waiter->maxds)
-        waiter->maxds = curltimeout;
-    }
+    long curltimeoutms, arestimeoutds;
+    curl_multi_timeout(curlm, &curltimeoutms);
 
     t = ares_fds(ares, &waiter->rfds, &waiter->wfds);
     waiter->bumpmaxfd(t);
+#else
+    addaresevents(waiter);
+    addcurlevents(waiter);
+#endif
+
+    if (curltimeoutms >= 0)
+    {
+        m_time_t timeoutds = curltimeoutms / 100;
+        if (curltimeoutms && !timeoutds)
+        {
+            timeoutds = 1;
+        }
+
+        if ((unsigned long)timeoutds < waiter->maxds)
+        {
+            waiter->maxds = timeoutds;
+        }
+    }
 
     timeval tv;
-
     if (ares_timeout(ares, NULL, &tv))
     {
-        dstime arestimeout = tv.tv_sec * 10 + tv.tv_usec / 100000;
-
-        if (arestimeout < waiter->maxds)
+        arestimeoutds = tv.tv_sec * 10 + tv.tv_usec / 100000;
+        if (!arestimeoutds && tv.tv_usec)
         {
-            waiter->maxds = arestimeout;
+            arestimeoutds = 1;
         }
+
+        if (arestimeoutds < waiter->maxds)
+        {
+            waiter->maxds = arestimeoutds;
+        }
+    }
+    else
+    {
+        arestimeoutds = -1;
     }
 }
 
@@ -875,44 +1098,24 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     if (reset)
     {
         LOG_err << "Error in c-ares. Reinitializing...";
-
-        struct ares_options options;
-        int optmask;
-
-        if (ares_save_options(ares, &options, &optmask) == ARES_SUCCESS)
-        {
-            if (optmask & ARES_OPT_SERVERS)
-            {
-                string invalidservers;
-
-                for (int i=0; i < options.nservers; i++)
-                {
-                    char* ip = inet_ntoa(options.servers[i]);
-
-                    if (ip)
-                    {
-                        invalidservers.append(ip);
-
-                        if(i != (options.nservers -1))
-                        {
-                            invalidservers.append(";");
-                        }
-                    }
-                }
-
-                LOG_err << "Invalid DNS servers: " << invalidservers;
-            }
-
-            ares_destroy_options(&options);
-        }
-
         reset = false;
         ares_destroy(ares);
-        ares_init(&ares);
+        struct ares_options options;
+        options.tries = 2;
+        ares_init_options(&ares, &options, ARES_OPT_TRIES);
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        arestimeoutds = -1;
+#endif
 
         if (dnsservers.size())
         {
             LOG_info << "Using custom DNS servers: " << dnsservers;
+            ares_set_servers_csv(ares, dnsservers.c_str());
+        }
+        else if (!dnscache.size())
+        {
+            getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
     }
@@ -966,15 +1169,20 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->hostheader.append(httpctx->hostname);
     httpctx->ares_pending = 1;
 
-    CurlDNSEntry& dnsEntry = dnscache[httpctx->hostname];
+    CurlDNSEntry* dnsEntry = NULL;
+    map<string, CurlDNSEntry>::iterator it = dnscache.find(httpctx->hostname);
+    if (it != dnscache.end())
+    {
+        dnsEntry = &it->second;
+    }
 
     if (ipv6requestsenabled)
     {
-        if (dnsEntry.ipv6.size() && Waiter::ds - dnsEntry.ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
+        if (dnsEntry && dnsEntry->ipv6.size() && Waiter::ds - dnsEntry->ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
         {
             std::ostringstream oss;
             httpctx->isIPv6 = true;
-            oss << "[" << dnsEntry.ipv6 << "]";
+            oss << "[" << dnsEntry->ipv6 << "]";
             httpctx->hostip = oss.str();
             httpctx->ares_pending = 0;
             send_request(httpctx);
@@ -987,10 +1195,10 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
     else
     {
-        if (dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+        if (dnsEntry && dnsEntry->ipv4.size() && Waiter::ds - dnsEntry->ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
         {
             httpctx->isIPv6 = false;
-            httpctx->hostip = dnsEntry.ipv4;
+            httpctx->hostip = dnsEntry->ipv4;
             httpctx->ares_pending = 0;
             send_request(httpctx);
             return;
@@ -1106,11 +1314,27 @@ bool CurlHttpIO::doio()
     CURLMsg* msg;
     int dummy;
 
-    if(waiter)
+
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
+    if (waiter)
     {
         ares_process(ares, &waiter->rfds, &waiter->wfds);
     }
+#else
+    for (unsigned int i = 0; i < aressockets.size(); i++)
+    {
+        SockInfo &info = aressockets[i];
+        ares_process_fd(ares,
+                        info.mode & SockInfo::READ ? info.fd : ARES_SOCKET_BAD,
+                        info.mode & SockInfo::WRITE ? info.fd : ARES_SOCKET_BAD);
+    }
+#endif
+
+#if !defined(_WIN32) || defined(WINDOWS_PHONE)
     curl_multi_perform(curlm, &dummy);
+#else
+    curl_multi_socket_all(curlm, &dummy);
+#endif
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
     {
@@ -1379,6 +1603,52 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
     return nmemb;
 }
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *)
+{
+    CurlHttpIO *httpio = (CurlHttpIO *)userp;
+
+    if (what == CURL_POLL_REMOVE)
+    {
+        LOG_debug << "Removing socket " << s;
+        HANDLE handle = httpio->curlsockets[s].handle;
+        if (handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent (handle);
+        }
+        httpio->curlsockets.erase(s);
+    }
+    else
+    {
+        LOG_debug << "Adding/setting curl socket " << s;
+        SockInfo info;
+        info.fd = s;
+        info.mode = what;
+        info.handle = WSA_INVALID_EVENT;
+        httpio->curlsockets[s] = info;
+    }
+
+    return 0;
+}
+
+int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp)
+{
+    CurlHttpIO *httpio = (CurlHttpIO *)userp;
+
+    if (timeout_ms < 0)
+    {
+        httpio->curltimeoutms = -1;
+    }
+    else
+    {
+        httpio->curltimeoutms = timeout_ms;
+    }
+
+    LOG_debug << "Setting cURL timeout to " << timeout_ms << " ms";
+    return 0;
+}
+#endif
+
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
 CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 {
@@ -1453,5 +1723,14 @@ CurlDNSEntry::CurlDNSEntry()
     ipv4timestamp = 0;
     ipv6timestamp = 0;
 }
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+SockInfo::SockInfo()
+{
+    fd = -1;
+    mode = NONE;
+    handle = WSA_INVALID_EVENT;
+}
+#endif
 
 } // namespace

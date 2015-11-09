@@ -356,7 +356,7 @@ int MegaUser::getVisibility()
     return 0;
 }
 
-time_t MegaUser::getTimestamp()
+int64_t MegaUser::getTimestamp()
 {
     return 0;
 }
