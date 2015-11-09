@@ -257,12 +257,12 @@ class MegaUserPrivate : public MegaUser
 		~MegaUserPrivate();
 		virtual const char* getEmail();
 		virtual int getVisibility();
-		virtual time_t getTimestamp();
+        virtual int64_t getTimestamp();
 
 	protected:
 		const char *email;
 		int visibility;
-		time_t ctime;
+        int64_t ctime;
 };
 
 class MegaSharePrivate : public MegaShare

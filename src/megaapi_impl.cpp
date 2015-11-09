@@ -634,7 +634,7 @@ int MegaUserPrivate::getVisibility()
 	return visibility;
 }
 
-time_t MegaUserPrivate::getTimestamp()
+int64_t MegaUserPrivate::getTimestamp()
 {
 	return ctime;
 }
