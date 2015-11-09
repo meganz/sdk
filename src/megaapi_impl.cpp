@@ -2659,26 +2659,7 @@ void MegaApiImpl::loop()
     while (true)
     {
     #ifdef WINDOWS_PHONE
-        struct hostent *hp;
-        hp = gethostbyname("ns.mega.co.nz");
-        if (hp != NULL && hp->h_addr != NULL)
-        {
-            struct in_addr **addr_list;
-            addr_list = (struct in_addr **)hp->h_addr_list;
-            for (int i = 0; addr_list[i] != NULL; i++)
-            {
-                char str[INET_ADDRSTRLEN];
-                const char *ip = inet_ntop(AF_INET, addr_list[i], str, INET_ADDRSTRLEN);
-                if(ip == str)
-                {
-                    if (servers.size())
-                    {
-                        servers.append(",");
-                    }
-                    servers.append(ip);
-                }
-            }
-        }
+        client->httpio->getMEGADNSservers(&servers);
     #else
         __res_state res;
         if(res_ninit(&res) == 0)
@@ -8619,26 +8600,7 @@ void MegaApiImpl::sendPendingRequests()
                 while (true)
                 {
                 #ifdef WINDOWS_PHONE
-                    struct hostent *hp;
-                    hp = gethostbyname("ns.mega.co.nz");
-                    if (hp != NULL && hp->h_addr != NULL)
-                    {
-                        struct in_addr **addr_list;
-                        addr_list = (struct in_addr **)hp->h_addr_list;
-                        for (int i = 0; addr_list[i] != NULL; i++)
-                        {
-                            char str[INET_ADDRSTRLEN];
-                            const char *ip = inet_ntop(AF_INET, addr_list[i], str, INET_ADDRSTRLEN);
-                            if(ip == str)
-                            {
-                                if (servers.size())
-                                {
-                                    servers.append(",");
-                                }
-                                servers.append(ip);
-                            }
-                        }
-                    }
+                    client->httpio->getMEGADNSservers(&servers);
                 #else
                     __res_state res;
                     if(res_ninit(&res) == 0)
