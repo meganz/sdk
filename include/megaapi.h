@@ -63,6 +63,7 @@ class MegaError;
 class MegaRequest;
 class MegaTransfer;
 class MegaSync;
+class MegaStringList;
 class MegaNodeList;
 class MegaUserList;
 class MegaContactRequestList;
@@ -446,6 +447,42 @@ class MegaNode
          * @return Name of the node
          */
         virtual const char* getName();
+
+        /**
+         * @brief Returns true if the node has custom attributes
+         *
+         * Custom attributes can be set using MegaApi::setCustomNodeAttribute
+         *
+         * @return True if the node has custom attributes, otherwise false
+         * @see MegaApi::setCustomNodeAttribute
+         */
+        virtual bool hasCustomAttrs();
+
+        /**
+         * @brief Returns the list with the names of the custom attributes of the node
+         *
+         * Custom attributes can be set using MegaApi::setCustomNodeAttribute
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Names of the custom attributes of the node
+         * @see MegaApi::setCustomNodeAttribute
+         */
+        virtual MegaStringList *getCustomAttrNames();
+
+        /**
+         * @brief Get a custom attribute of the node
+         *
+         * Custom attributes can be set using MegaApi::setCustomNodeAttribute
+         *
+         * The MegaNode object retains the ownership of the returned string. It will
+         * be valid until the MegaNode object is deleted.
+         *
+         * @param attrName Name of the custom attribute
+         * @return Custom attribute of the node
+         * @see MegaApi::setCustomNodeAttribute
+         */
+        virtual const char *getCustomAttr(const char* attrName);
 
         /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
@@ -983,6 +1020,43 @@ class MegaShare
         virtual int64_t getTimestamp();
 };
 
+
+/**
+ * @brief List of strings
+ *
+ * A MegaStringList has the ownership of the strings that it contains, so they will be
+ * only valid until the MegaStringList is deleted. If you want to retain a string returned by
+ * a MegaStringList, copy it.
+ *
+ * Objects of this class are immutable.
+ */
+class MegaStringList
+{
+public:
+    virtual ~MegaStringList();
+
+    virtual MegaStringList *copy();
+
+    /**
+     * @brief Returns the string at the position i in the MegaStringList
+     *
+     * The MegaStringList retains the ownership of the returned string. It will be only valid until
+     * the MegaStringList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the string that we want to get for the list
+     * @return string at the position i in the list
+     */
+    virtual const char* get(int i);
+
+    /**
+     * @brief Returns the number of strings in the list
+     * @return Number of strings in the list
+     */
+    virtual int size();
+};
+
 /**
  * @brief List of MegaNode objects
  *
@@ -1209,7 +1283,8 @@ class MegaRequest
             TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN
+            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
+            TYPE_SET_ATTR_NODE
         };
 
         virtual ~MegaRequest();
@@ -4302,6 +4377,27 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a custom attribute for the node
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getName - Returns the name of the custom attribute
+         * - MegaRequest::getText - Returns the tezt for the attribute
+         *
+         * The attribute name must be an UTF8 string with between 1 and 7 bytes
+         * If the attribute already has a value, it will be replaced
+         * If value is NULL, the attribute will be removed from the node
+         *
+         * @param node Node that will receive the attribute
+         * @param attrName Name of the custom attribute.
+         * The length of this parameter must be between 1 and 7 UTF8 bytes
+         * @param value Value for the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value,  MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA

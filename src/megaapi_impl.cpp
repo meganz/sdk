@@ -78,6 +78,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
+    this->customAttrs = NULL;
     this->type = type;
     this->size = size;
     this->ctime = ctime;
@@ -109,6 +110,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 : MegaNode()
 {
     this->name = MegaApi::strdup(node->getName());
+    this->customAttrs = NULL;
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -134,6 +136,17 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     else
         this->plink = NULL;
 
+    if (node->hasCustomAttrs())
+    {
+        this->customAttrs = new attr_map();
+        MegaStringList *names = node->getCustomAttrNames();
+        for (int i = 0; i < names->size(); i++)
+        {
+            (*customAttrs)[AttrMap::string2nameid(names->get(i))] = node->getCustomAttr(names->get(i));
+        }
+        delete names;
+    }
+
 #ifdef ENABLE_SYNC
     this->syncdeleted = node->isSyncDeleted();
     this->localPath = node->getLocalPath();
@@ -144,6 +157,25 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 : MegaNode()
 {
     this->name = MegaApi::strdup(node->displayname());
+    this->customAttrs = NULL;
+
+    char buf[10];
+    for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
+    {
+       buf[0] = 0;
+       node->attrs.nameid2string(it->first, buf);
+       if (buf[0] == '_')
+       {
+           if (!customAttrs)
+           {
+               customAttrs = new attr_map();
+           }
+
+           nameid id = AttrMap::string2nameid(&buf[1]);
+           (*customAttrs)[id] = it->second;
+       }
+    }
+
     this->type = node->type;
     this->size = node->size;
     this->ctime = node->ctime;
@@ -250,6 +282,51 @@ const char* MegaNodePrivate::getName()
         default:
             return name;
     }
+}
+
+bool MegaNodePrivate::hasCustomAttrs()
+{
+    return customAttrs != NULL;
+}
+
+MegaStringList *MegaNodePrivate::getCustomAttrNames()
+{
+    if (!customAttrs)
+    {
+        return new MegaStringList();
+    }
+
+    vector<char*> names;
+    char *buf;
+    for (attr_map::iterator it = customAttrs->begin(); it != customAttrs->end(); it++)
+    {
+        buf = new char[10];
+        AttrMap::nameid2string(it->first, buf);
+        names.push_back(buf);
+    }
+    return new MegaStringListPrivate(names.data(), names.size());
+}
+
+const char *MegaNodePrivate::getCustomAttr(const char *attrName)
+{
+    if (!customAttrs)
+    {
+        return NULL;
+    }
+
+    nameid n = AttrMap::string2nameid(attrName);
+    if (!n)
+    {
+        return NULL;
+    }
+
+    attr_map::iterator it = customAttrs->find(n);
+    if (it == customAttrs->end())
+    {
+        return NULL;
+    }
+
+    return it->second.c_str();
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -588,6 +665,7 @@ string *MegaNodePrivate::getAuth()
 MegaNodePrivate::~MegaNodePrivate()
 {
  	delete[] name;
+    delete customAttrs;
     delete plink;
 }
 
@@ -1680,6 +1758,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SUBMIT_FEEDBACK: return "SUBMIT_FEEDBACK";
         case TYPE_SEND_EVENT: return "SEND_EVENT";
         case TYPE_CLEAN_RUBBISH_BIN: return "CLEAN_RUBBISH_BIN";
+        case TYPE_SET_ATTR_NODE: return "SET_ATTR_NODE";
 	}
     return "UNKNOWN";
 }
@@ -1707,6 +1786,68 @@ const char *MegaRequestPrivate::__str__() const
 const char *MegaRequestPrivate::__toString() const
 {
 	return getRequestString();
+}
+
+MegaStringListPrivate::MegaStringListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaStringListPrivate::MegaStringListPrivate(MegaStringListPrivate *stringList)
+{
+    s = stringList->size();
+    if (!s)
+    {
+        list = NULL;
+        return;
+    }
+
+    list = new const char*[s];
+    for (int i = 0; i < s; i++)
+        list[i] = MegaApi::strdup(stringList->get(i));
+}
+
+MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
+{
+    list = NULL;
+    s = size;
+    if (!size)
+    {
+        return;
+    }
+
+    list = new const char*[size];
+    for (int i = 0; i < size; i++)
+        list[i] = newlist[i];
+}
+
+MegaStringListPrivate::~MegaStringListPrivate()
+{
+    if(!list)
+        return;
+
+    for(int i=0; i<s; i++)
+        delete [] list[i];
+    delete [] list;
+}
+
+MegaStringList *MegaStringListPrivate::copy()
+{
+    return new MegaStringListPrivate(this);
+}
+
+const char *MegaStringListPrivate::get(int i)
+{
+    if(!list || (i < 0) || (i >= s))
+        return NULL;
+
+    return list[i];
+}
+
+int MegaStringListPrivate::size()
+{
+    return s;
 }
 
 MegaNodeListPrivate::MegaNodeListPrivate()
@@ -2942,7 +3083,17 @@ void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener
 
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
-	setUserAttr(type ? type : -1, value, listener);
+    setUserAttr(type ? type : -1, value, listener);
+}
+
+void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setName(attrName);
+    request->setText(value);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
@@ -5501,7 +5652,11 @@ void MegaApiImpl::setattr_result(handle h, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_RENAME)) return;
+    if (!request || ((request->getType() != MegaRequest::TYPE_RENAME)
+            && request->getType() != MegaRequest::TYPE_SET_ATTR_NODE))
+    {
+        return;
+    }
 
 	request->setNodeHandle(h);
     fireOnRequestFinish(request, megaError);
@@ -8575,6 +8730,43 @@ void MegaApiImpl::sendPendingRequests()
 
             client->putfa(node->nodehandle, type, node->nodecipher(), attributedata);
             //attributedata is not deleted because putfa takes its ownership
+            break;
+        }
+        case MegaRequest::TYPE_SET_ATTR_NODE:
+        {
+            Node *node = client->nodebyhandle(request->getNodeHandle());
+            const char* attrName = request->getName();
+            const char* attrValue = request->getText();
+
+            if (!node || !attrName || !attrName[0] || strlen(attrName) > 7)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (!client->checkaccess(node, FULL))
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            string sname = attrName;
+            fsAccess->normalize(&sname);
+            sname.insert(0, "_");
+            nameid attr = AttrMap::string2nameid(sname.c_str());
+
+            if (attrValue)
+            {
+                string svalue = attrValue;
+                fsAccess->normalize(&svalue);
+                node->attrs.map[attr] = svalue;
+            }
+            else
+            {
+                node->attrs.map.erase(attr);
+            }
+
+            e = client->setattr(node);
             break;
         }
 		case MegaRequest::TYPE_CANCEL_ATTR_FILE:

@@ -37,7 +37,10 @@ struct MEGA_API AttrMap
     unsigned storagesize(int) const;
 
     // convert nameid to string
-    int nameid2string(nameid, char*) const;
+    static int nameid2string(nameid, char*);
+
+    // convert string to nameid
+    static nameid string2nameid(const char *);
 
     // export as JSON string
     void getjson(string*) const;

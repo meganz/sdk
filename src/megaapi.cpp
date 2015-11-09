@@ -90,6 +90,26 @@ const char *MegaProxy::getPassword()
     return password;
 }
 
+MegaStringList::~MegaStringList()
+{
+
+}
+
+MegaStringList *MegaStringList::copy()
+{
+    return NULL;
+}
+
+const char *MegaStringList::get(int i)
+{
+    return NULL;
+}
+
+int MegaStringList::size()
+{
+    return 0;
+}
+
 MegaNodeList::~MegaNodeList() { }
 
 MegaNodeList *MegaNodeList::copy()
@@ -178,6 +198,21 @@ int MegaNode::getType()
 }
 
 const char *MegaNode::getName()
+{
+    return NULL;
+}
+
+bool MegaNode::hasCustomAttrs()
+{
+    return false;
+}
+
+MegaStringList *MegaNode::getCustomAttrNames()
+{
+    return NULL;
+}
+
+const char *MegaNode::getCustomAttr(const char *attrName)
 {
     return NULL;
 }
@@ -1257,6 +1292,11 @@ void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
 void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
     pImpl->setUserAttribute(type, value, listener);
+}
+
+void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setCustomNodeAttribute(node, attrName, value, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
