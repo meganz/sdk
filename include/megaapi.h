@@ -951,19 +951,19 @@ class MegaUser
          *
          * @param changeType The type of change to check. It can be one of the following values:
          *
-         * - MegaNode::CHANGE_TYPE_AUTH            = 0x01
+         * - MegaUser::CHANGE_TYPE_AUTH            = 0x01
          * Check if the user has new or modified authentication information
          *
-         * - MegaNode::CHANGE_TYPE_LSTINT          = 0x02
+         * - MegaUser::CHANGE_TYPE_LSTINT          = 0x02
          * Check if the last interaction timestamp is modified
          *
-         * - MegaNode::CHANGE_TYPE_AVATAR          = 0x04
+         * - MegaUser::CHANGE_TYPE_AVATAR          = 0x04
          * Check if the user has a new or modified avatar image
          *
-         * - MegaNode::CHANGE_TYPE_FIRSTNAME       = 0x08
+         * - MegaUser::CHANGE_TYPE_FIRSTNAME       = 0x08
          * Check if the user has new or modified firstname
          *
-         * - MegaNode::CHANGE_TYPE_LASTNAME        = 0x10
+         * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
          *
          * @return true if this user has an specific change
@@ -978,19 +978,19 @@ class MegaUser
          *
          * @return The returned value is an OR combination of these flags:
          *
-         * - MegaNode::CHANGE_TYPE_AUTH            = 0x01
+         * - MegaUser::CHANGE_TYPE_AUTH            = 0x01
          * Check if the user has new or modified authentication information
          *
-         * - MegaNode::CHANGE_TYPE_LSTINT          = 0x02
+         * - MegaUser::CHANGE_TYPE_LSTINT          = 0x02
          * Check if the last interaction timestamp is modified
          *
-         * - MegaNode::CHANGE_TYPE_AVATAR          = 0x04
+         * - MegaUser::CHANGE_TYPE_AVATAR          = 0x04
          * Check if the user has a new or modified avatar image
          *
-         * - MegaNode::CHANGE_TYPE_FIRSTNAME       = 0x08
+         * - MegaUser::CHANGE_TYPE_FIRSTNAME       = 0x08
          * Check if the user has new or modified firstname
          *
-         * - MegaNode::CHANGE_TYPE_LASTNAME        = 0x10
+         * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
          */
         virtual int getChanges();
