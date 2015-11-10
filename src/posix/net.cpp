@@ -1663,6 +1663,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     HttpReq *request = (HttpReq *)req;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
     EVP_PKEY* evp;
+    static int errors = 0;
     int ok = 0;
 
     if(MegaClient::disablepkp)
@@ -1697,21 +1698,41 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
                     ok = 1;
                 }
             }
+            else
+            {
+                LOG_warn << "Public key mismatch for " << request->posturl;
+            }
+        }
+        else
+        {
+            LOG_warn << "Public key size mismatch " << BN_num_bytes(evp->pkey.rsa->n) << " " << BN_num_bytes(evp->pkey.rsa->e);
         }
 
         EVP_PKEY_free(evp);
     }
+    else
+    {
+        LOG_warn << "Public key not found";
+    }
 
     if (!ok)
     {
-        LOG_err << "Invalid public key. Possible MITM attack!!";
-        request->sslcheckfailed = true;
-        request->sslfakeissuer.resize(256);
-        int len = X509_NAME_get_text_by_NID (X509_get_issuer_name (ctx->cert),
-                                             NID_commonName,
-                                             (char *)request->sslfakeissuer.data(),
-                                             request->sslfakeissuer.size());
-        request->sslfakeissuer.resize(len > 0 ? len : 0);
+        errors++;
+        LOG_warn << "Invalid public key?";
+
+        if (errors == 3)
+        {
+            errors = 0;
+
+            LOG_err << "Invalid public key. Possible MITM attack!!";
+            request->sslcheckfailed = true;
+            request->sslfakeissuer.resize(256);
+            int len = X509_NAME_get_text_by_NID (X509_get_issuer_name (ctx->cert),
+                                                 NID_commonName,
+                                                 (char *)request->sslfakeissuer.data(),
+                                                 request->sslfakeissuer.size());
+            request->sslfakeissuer.resize(len > 0 ? len : 0);
+        }
     }
 
     return ok;
