@@ -1734,6 +1734,10 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
             request->sslfakeissuer.resize(len > 0 ? len : 0);
         }
     }
+    else
+    {
+        errors = 0;
+    }
 
     return ok;
 }
