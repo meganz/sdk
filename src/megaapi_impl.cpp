@@ -8627,28 +8627,24 @@ void MegaApiImpl::sendPendingRequests()
                 case MegaApi::USER_ATTR_FIRSTNAME:
                 {
                     attrname = "firstname";
-                    attrvalue = value;
                     break;
                 }
 
                 case MegaApi::USER_ATTR_LASTNAME:
                 {
                     attrname = "lastname";
-                    attrvalue = value;
                     break;
                 }
 
                 case MegaApi::USER_ATTR_AUTHRING:
                 {
                     attrname = "*!authring";
-                    attrvalue = value;
                     break;
                 }
 
                 case MegaApi::USER_ATTR_LAST_INTERACTION:
                 {
                     attrname = "*!lstint";
-                    attrvalue = value;
                     break;
                 }
 
