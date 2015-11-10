@@ -1969,7 +1969,6 @@ void CommandGetUA::procresult()
     }
     else
     {
-        string d;
         const char* ptr;
         const char* end;
 
@@ -1978,26 +1977,21 @@ void CommandGetUA::procresult()
             return(client->app->getua_result(API_EINTERNAL));
         }
 
-        int l;
-        byte* data = NULL;
-
-        // if there's no avatar, the value is not Base64 encoded
+        // if there's no avatar, the value is "none" (not Base64 encoded)
         if (attributename == "+a" && !strncmp(ptr, "none", 4))
         {
-            string message = "Avatar not found";
-            l = message.size();
-            data = new byte[l];
-            strcpy((char *)data, message.c_str());
+            return(client->app->getua_result(API_ENOENT));
         }
-        else
-        {
-            l = (end - ptr) / 4 * 3 + 3;
-            data = new byte[l];
-            l = Base64::atob(ptr, data, l);
-        }
+
+        int l;
+        byte* data;
+        l = (end - ptr) / 4 * 3 + 3;
+        data = new byte[l];
+        l = Base64::atob(ptr, data, l);
 
         if (attributename == "*!lstint" || attributename == "*!authring")
         {
+            string d;
             d.assign((char*)data, l);
 
             // Is the data a multiple of the cipher blocksize, then we're using

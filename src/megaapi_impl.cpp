@@ -3081,7 +3081,7 @@ void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaReq
 
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
-	setUserAttr(0, dstFilePath, listener);
+    setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
@@ -3461,7 +3461,7 @@ void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath,
 void MegaApiImpl::setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
-    if(!type)
+    if(type == MegaApi::USER_ATTR_AVATAR)
     {
         request->setFile(srcFilePath);
     }
@@ -6562,29 +6562,32 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
     if(request->getParamType() == MegaApi::USER_ATTR_AVATAR)
     {
-        FileAccess *f = client->fsaccess->newfileaccess();
-        string filePath(request->getFile());
-        string localPath;
-        fsAccess->path2local(&filePath, &localPath);
-
-        totalDownloadedBytes += len;
-
-        fsAccess->unlinklocal(&localPath);
-        if(!f->fopen(&localPath, false, true))
+        if (data)   // if there's no avatar, no data is received
         {
-            delete f;
-            fireOnRequestFinish(request, MegaError(API_EWRITE));
-            return;
-        }
+            FileAccess *f = client->fsaccess->newfileaccess();
+            string filePath(request->getFile());
+            string localPath;
+            fsAccess->path2local(&filePath, &localPath);
 
-        if(!f->fwrite((const byte*)data, len, 0))
-        {
-            delete f;
-            fireOnRequestFinish(request, MegaError(API_EWRITE));
-            return;
-        }
+            totalDownloadedBytes += len;
 
-        delete f;
+            fsAccess->unlinklocal(&localPath);
+            if(!f->fopen(&localPath, false, true))
+            {
+                delete f;
+                fireOnRequestFinish(request, MegaError(API_EWRITE));
+                return;
+            }
+
+            if(!f->fwrite((const byte*)data, len, 0))
+            {
+                delete f;
+                fireOnRequestFinish(request, MegaError(API_EWRITE));
+                return;
+            }
+
+            delete f;
+        }
     }
     else
     {
@@ -8624,24 +8627,28 @@ void MegaApiImpl::sendPendingRequests()
                 case MegaApi::USER_ATTR_FIRSTNAME:
                 {
                     attrname = "firstname";
+                    attrvalue = value;
                     break;
                 }
 
                 case MegaApi::USER_ATTR_LASTNAME:
                 {
                     attrname = "lastname";
+                    attrvalue = value;
                     break;
                 }
 
                 case MegaApi::USER_ATTR_AUTHRING:
                 {
                     attrname = "*!authring";
+                    attrvalue = value;
                     break;
                 }
 
                 case MegaApi::USER_ATTR_LAST_INTERACTION:
                 {
                     attrname = "*!lstint";
+                    attrvalue = value;
                     break;
                 }
 
@@ -8672,21 +8679,16 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             string attrname;
-            string attrvalue = value;
+            string attrvalue;
 
             switch (type)
             {
                 case MegaApi::USER_ATTR_AVATAR:
                 {
-                    if (!file)
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-                    else
-                    {
-                        attrname = "+a";
+                    attrname = "+a";
 
+                    if (file)
+                    {
                         string path = file;
                         string localpath;
                         fsAccess->path2local(&path, &localpath);
@@ -8743,7 +8745,14 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
-                client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size());
+                if ((type == MegaApi::USER_ATTR_AVATAR) && (attrvalue.empty()))
+                {
+                    client->putua(attrname.c_str());
+                }
+                else
+                {
+                    client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size());
+                }
             }
 
             break;
