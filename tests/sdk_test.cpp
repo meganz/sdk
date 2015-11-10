@@ -55,6 +55,7 @@ void SdkTest::TearDown()
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
+    deleteFile(AVATARDST);
 
     releaseMegaApiAux();
 
