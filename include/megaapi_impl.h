@@ -178,6 +178,9 @@ class MegaNodePrivate : public MegaNode
         virtual ~MegaNodePrivate();
         virtual int getType();
         virtual const char* getName();
+        virtual bool hasCustomAttrs();
+        MegaStringList *getCustomAttrNames();
+        virtual const char *getCustomAttr(const char* attrName);
         virtual char *getBase64Handle();
         virtual int64_t getSize();
         virtual int64_t getCreationTime();
@@ -220,6 +223,7 @@ class MegaNodePrivate : public MegaNode
         MegaNodePrivate(Node *node);
         int type;
         const char *name;
+        attr_map *customAttrs;
         int64_t size;
         int64_t ctime;
         int64_t mtime;
@@ -729,6 +733,23 @@ private:
     vector<const char *> androidId;
 };
 
+class MegaStringListPrivate : public MegaStringList
+{
+public:
+    MegaStringListPrivate();
+    MegaStringListPrivate(char **newlist, int size);
+    virtual ~MegaStringListPrivate();
+    virtual MegaStringList *copy();
+    virtual const char* get(int i);
+    virtual int size();
+
+
+protected:
+    MegaStringListPrivate(MegaStringListPrivate *stringList);
+    const char** list;
+    int s;
+};
+
 class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
@@ -1018,6 +1039,7 @@ class MegaApiImpl : public MegaApp
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+        void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
