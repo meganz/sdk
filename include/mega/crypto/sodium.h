@@ -59,18 +59,20 @@ public:
      * @param msg The message to sign.
      * @param msglen Length of the message.
      * @param sig Buffer to take the signature.
+     * @param siglen Size of the buffer to take the signature.
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
-    int sign(unsigned char* msg, unsigned long long msglen, char* sig);
+    int sign(unsigned char* msg, unsigned long long msglen,
+             unsigned char* sig, unsigned long long siglen);
 
     /**
      * @brief Verifies the signature of a message.
      *
-     * @param cipher The cipher text to encrypt.
-     * @param cipherlen Length of the cipher text.
-     * @param buf Buffer to take the plain text..
-     * @param buflen Length of the plain text.
+     * @param msg Text of the message.
+     * @param msglen Length of message.
+     * @param sig Signature of the message
+     * @param pubKey Public key to check the signature.
      * @return 1 on a valid signature, 0 on a failed verification.
      */
     static int verify(const unsigned char* msg, unsigned long long msglen,
