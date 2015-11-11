@@ -2810,12 +2810,12 @@ void MegaApiImpl::loop()
 
                 if(u[i].sin.sin_family == PF_INET)
                 {
-                    inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                    mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
                 }
 
                 if(u[i].sin6.sin6_family == PF_INET6)
                 {
-                    inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                    mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
                 }
 
                 if(straddr[0])
@@ -8802,12 +8802,12 @@ void MegaApiImpl::sendPendingRequests()
 
                             if(u[i].sin.sin_family == PF_INET)
                             {
-                                inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                                mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
                             }
 
                             if(u[i].sin6.sin6_family == PF_INET6)
                             {
-                                inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                                mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
                             }
 
                             if(straddr[0])

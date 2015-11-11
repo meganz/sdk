@@ -151,11 +151,11 @@ void CurlHttpIO::filterDNSservers()
 
             if (server->family == AF_INET6)
             {
-                inet_ntop(PF_INET6, &server->addr, straddr, sizeof(straddr));
+                mega_inet_ntop(PF_INET6, &server->addr, straddr, sizeof(straddr));
             }
             else if (server->family == AF_INET)
             {
-                inet_ntop(PF_INET, &server->addr, straddr, sizeof(straddr));
+                mega_inet_ntop(PF_INET, &server->addr, straddr, sizeof(straddr));
             }
             else
             {
@@ -497,7 +497,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
         // save the IP of the proxy
         char ip[INET6_ADDRSTRLEN];
 
-        inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof ip);
+        mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof ip);
         httpctx->hostip = ip;
         httpctx->isIPv6 = host->h_addrtype == PF_INET6;
 
@@ -565,7 +565,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     if (status == ARES_SUCCESS && host && host->h_addr_list[0])
     {
         char ip[INET6_ADDRSTRLEN];
-        inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
+        mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
 
         LOG_verbose << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
 

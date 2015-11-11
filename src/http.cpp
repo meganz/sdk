@@ -23,19 +23,31 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 
-#ifdef WINDOWS_PHONE
-const char* inet_ntop(int af, const void* src, char* dst, int cnt)
+namespace mega {
+
+#ifdef _WIN32
+const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
 {
-    struct sockaddr_in srcaddr;
     wchar_t ip[INET6_ADDRSTRLEN];
     int len = INET6_ADDRSTRLEN;
+    int ret = 1;
 
-    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+    if (af == AF_INET)
+    {
+        struct sockaddr_in in = {};
+        in.sin_family = AF_INET;
+        memcpy(&in.sin_addr, src, sizeof(struct in_addr));
+        ret = WSAAddressToString((struct sockaddr*) &in, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len);
+    }
+    else if (af == AF_INET6)
+    {
+        struct sockaddr_in6 in = {};
+        in.sin6_family = AF_INET6;
+        memcpy(&in.sin6_addr, src, sizeof(struct in_addr6));
+        ret = WSAAddressToString((struct sockaddr*) &in, sizeof(struct sockaddr_in6), 0, ip, (LPDWORD)&len);
+    }
 
-    srcaddr.sin_family = af;
-
-    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, ip, (LPDWORD)&len) != 0)
+    if (ret != 0)
     {
         return NULL;
     }
@@ -49,7 +61,6 @@ const char* inet_ntop(int af, const void* src, char* dst, int cnt)
 }
 #endif
 
-namespace mega {
 HttpIO::HttpIO()
 {
     success = false;
@@ -118,12 +129,12 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
                 if (hp->ai_family == AF_INET)
                 {
                     sockaddr_in *addr = (sockaddr_in *)hp->ai_addr;
-                    inet_ntop(hp->ai_family, &addr->sin_addr, straddr, hp->ai_addrlen);
+                    mega_inet_ntop(hp->ai_family, &addr->sin_addr, straddr, sizeof(straddr));
                 }
                 else if(hp->ai_family == AF_INET6)
                 {
                     sockaddr_in6 *addr = (sockaddr_in6 *)hp->ai_addr;
-                    inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, hp->ai_addrlen);
+                    mega_inet_ntop(hp->ai_family, &addr->sin6_addr, straddr, sizeof(straddr));
                 }
 
                 if (straddr[0])
