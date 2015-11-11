@@ -32,7 +32,7 @@ To start the client just run `megacli.py` from this folder.
 
 ## Mega CRUD Example
 
-Just run `crud_example.py` or `crud_example2.py` from this folder.
+Just run `crud_example.py` from this folder.
 
 To avoid typing in credentials, you may create a `credentials.json` file with
 the following content:

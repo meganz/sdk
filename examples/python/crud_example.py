@@ -5,7 +5,7 @@
 ## Created: 16 May 2015 Guy Kloss <gk@mega.co.nz>
 ##
 ## (c) 2015 by Mega Limited, Auckland, New Zealand
-##     https://mega.nz/   
+##     https://mega.nz/
 ##     Simplified (2-clause) BSD License.
 ##
 ## You should have received a copy of the license along with this
@@ -23,13 +23,17 @@ import sys
 import os
 import logging
 import time
+import threading
 import json
 import getpass
 
 from mega import (MegaApi, MegaListener, MegaError, MegaRequest, MegaNode)
 
+# Mega SDK application key.
+# Generate one for free here: https://mega.nz/#sdk
 APP_KEY = 'ox8xnQZL'
 
+# Credentials file to look for login info.
 CREDENTIALS_FILE = 'credentials.json'
 
 
@@ -40,10 +44,18 @@ class AppListener(MegaListener):
     callbacks are implemented.
     """
     
-    def __init__(self):
+    # Inhibit sending an event on callbacks from these requests.
+    _NO_EVENT_ON = (MegaRequest.TYPE_LOGIN,
+                    MegaRequest.TYPE_FETCH_NODES)
+
+    def __init__(self, continue_event):
         """
         Constructor.
+
+        :param continue_event: Event to use for notifying our main code
+            upon completion of the asyncrhonous operation.
         """
+        self.continue_event = continue_event
         self.root_node = None
         super(AppListener, self).__init__()
 
@@ -69,14 +81,12 @@ class AppListener(MegaListener):
         """
         logging.info('Request finished ({}); Result: {}'
                      .format(request, error))
-        if error.getErrorCode() != MegaError.API_OK:
-            return
 
         request_type = request.getType()
         if request_type == MegaRequest.TYPE_LOGIN:
             api.fetchNodes()
-        elif request_type == MegaRequest.TYPE_EXPORT:
-            logging.info('Exported link: {}'.format(request.getLink()))
+        elif request_type == MegaRequest.TYPE_FETCH_NODES:
+            self.root_node = api.getRootNode()
         elif request_type == MegaRequest.TYPE_ACCOUNT_DETAILS:
             account_details = request.getMegaAccountDetails()
             logging.info('Account details received')
@@ -86,6 +96,10 @@ class AppListener(MegaListener):
                                  100 * account_details.getStorageUsed()
                                  / account_details.getStorageMax()))
             logging.info('Pro level: {}'.format(account_details.getProLevel()))
+
+        # Notify other thread to go on.
+        if request_type not in self._NO_EVENT_ON:
+            self.continue_event.set()
 
 
     def onRequestTemporaryError(self, api, request, error):
@@ -112,6 +126,7 @@ class AppListener(MegaListener):
         """
         logging.info('Transfer finished ({}); Result: {}'
                      .format(transfer, transfer.getFileName(), error))
+        self.continue_event.set()
 
 
     def onTransferUpdate(self, api, transfer):
@@ -164,11 +179,39 @@ class AppListener(MegaListener):
         """
         if nodes != None:
             logging.info('Nodes updated ({})'.format(nodes.size()))
-        else:
-            self.root_node = api.getRootNode()
+        self.continue_event.set()
 
 
-def worker(api, listener, credentials):
+class AsyncExecutor(object):
+    """
+    Simple helper that will wrap asynchronous invocations of API operations
+    to notify the caller via an event upon completion.
+
+    This executor is "simple", it is not suitable for overlapping executions,
+    but only for a sequential chaining of API calls.
+    """
+    
+    def __init__(self):
+        """
+        Constructor that creates an event used for notification from the
+        API thread.
+        """
+        self.continue_event = threading.Event()
+
+    def do(self, function, args):
+        """
+        Performs the asynchronous operation and waits for a signal from the
+        Mega API using the event.
+
+        :param function: Callable Mega API operation.
+        :param args: Arguments to the callable.
+        """
+        self.continue_event.clear()
+        function(*args)
+        self.continue_event.wait()
+
+
+def worker(api, listener, executor, credentials):
     """
     Sequential collection of (CRUD) operations on the Mega API.
 
@@ -182,26 +225,25 @@ def worker(api, listener, credentials):
     """
     # Log in.
     logging.info('*** start: login ***')
-    api.login(str(credentials['user']),
-              str(credentials['password']))
+    executor.do(api.login, (str(credentials['user']),
+                            str(credentials['password'])))
     cwd = listener.root_node
     logging.info('*** done: login ***')
 
     # Who am I.
     logging.info('*** start: whoami ***')
     logging.info('My email: {}'.format(api.getMyEmail()))
-    api.getAccountDetails()
-    time.sleep(1)
+    executor.do(api.getAccountDetails, ())
     logging.info('*** done: whoami ***')
 
     # Make a directory.
     logging.info('*** start: mkdir ***')
+    print '###', cwd.getName()
     check = api.getNodeByPath('sandbox', cwd)
     if check == None:
-        api.createFolder('sandbox', cwd)
-        time.sleep(1)
+        executor.do(api.createFolder, ('sandbox', cwd))
     else:
-        logging.warn('Path already exists: {}'
+        logging.info('Path already exists: {}'
                      .format(api.getNodePath(check)))
     logging.info('*** done: mkdir ***')
 
@@ -218,16 +260,14 @@ def worker(api, listener, credentials):
 
     # Upload a file (create).
     logging.info('*** start: upload ***')
-    api.startUpload('README.md', cwd)
-    time.sleep(1)
+    executor.do(api.startUpload, ('README.md', cwd))
     logging.info('*** done: upload ***')
 
     # Download a file (read).
     logging.info('*** start: download ***')
     node = api.getNodeByPath('README.md', cwd)
     if node != None:
-        api.startDownload(node, 'README_returned.md')
-        time.sleep(1)
+        executor.do(api.startDownload, (node, 'README_returned.md'))
     else:
         logging.warn('Node not found: {}'.format('README.md'))
     logging.info('*** done: download ***')
@@ -237,12 +277,10 @@ def worker(api, listener, credentials):
     #       name!
     logging.info('*** start: update ***')
     old_node = api.getNodeByPath('README.md', cwd)
-    api.startUpload('README.md', cwd)
-    time.sleep(1)
+    executor.do(api.startUpload, ('README.md', cwd))
     if old_node != None:
         # Remove the old node with the same name.
-        api.remove(old_node)
-        time.sleep(1)
+        executor.do(api.remove, (old_node,))
     else:
         logging.info('No old file node needs removing')
     logging.info('*** done: update ***')
@@ -251,16 +289,14 @@ def worker(api, listener, credentials):
     logging.info('*** start: delete ***')
     node = api.getNodeByPath('README.md', cwd)
     if node != None:
-        api.remove(node)
-        time.sleep(1)
+        executor.do(api.remove, (node,))
     else:
         logging.warn('Node not found: README.md')
     logging.info('*** done: delete ***')
 
     # Logout.
     logging.info('*** start: logout ***')
-    api.logout()
-    time.sleep(1)
+    executor.do(api.logout, ())
     listener.root_node = None
     logging.info('*** done: logout ***')
 
@@ -280,13 +316,14 @@ def main():
         credentials['password'] = getpass.getpass()
     
     # Create the required Mega API objects.
+    executor = AsyncExecutor()
     api = MegaApi(APP_KEY, None, None, 'Python CRUD example')
-    listener = AppListener()
+    listener = AppListener(executor.continue_event)
     api.addListener(listener)
 
     # Run the operations.
     start_time = time.time()
-    worker(api, listener, credentials)
+    worker(api, listener, executor, credentials)
     logging.info('Total time taken: {} s'.format(time.time() - start_time))
 
 
