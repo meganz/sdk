@@ -80,7 +80,7 @@ public:
 
     /**
      * @brief Generates a new Ed25519 private key seed. The key seed is stored
-     * in the object.
+     * in the object and, optionally, in the pointer passed as parameter (if not NULL)
      *
      * @param privk Private key seed to return, unless NULL.
      * @return 1 on success, 0 on failure.

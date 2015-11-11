@@ -6794,7 +6794,7 @@ int MegaClient::inited25519()
     if (!signkey.genKeySeed())
     {
         LOG_err << "Error generating an Ed25519 key seed.";
-        return(0);
+        return 0;
     }
 
     unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
@@ -6803,14 +6803,15 @@ int MegaClient::inited25519()
     {
         free(pubKey);
         LOG_err << "Error deriving the Ed25519 public key.";
-        return(0);
+        return 0;
     }
 
     // Store the key pair to user attributes.
     putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
     putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
+
     free(pubKey);
-    return(1);
+    return 1;
 }
 #endif
 
