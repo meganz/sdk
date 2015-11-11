@@ -1964,8 +1964,8 @@ void CommandGetUA::procresult()
 
 #ifdef USE_SODIUM
         if ((e == API_ENOENT) && (user->userhandle == client->me)
-                && ((priv && strncmp(attributename.c_str(), "prEd255", 7))
-                        || (!priv && strncmp(attributename.c_str(), "puEd255", 7))))
+                && ((priv && !strncmp(attributename.c_str(), "prEd255", 7))
+                        || (!priv && !strncmp(attributename.c_str(), "puEd255", 7))))
         {
             // We apparently don't have Ed25519 keys, yet. Let's make 'em.
             if(!client->inited25519())
