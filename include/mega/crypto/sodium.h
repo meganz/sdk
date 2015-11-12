@@ -63,8 +63,8 @@ public:
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
-    int sign(unsigned char* msg, unsigned long long msglen,
-             unsigned char* sig, unsigned long long siglen);
+    int sign(const unsigned char* m, const unsigned long long mlen,
+             unsigned char* sm, unsigned long long smlen);
 
     /**
      * @brief Verifies the signature of a message.

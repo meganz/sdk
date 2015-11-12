@@ -43,15 +43,16 @@ void EdDSA::setKeySeed(const char* data)
 
 
 // Computes the signature of a message.
-int EdDSA::sign(unsigned char* msg, unsigned long long msglen,
-                unsigned char* sig, unsigned long long siglen)
+int EdDSA::sign(const unsigned char* m, const unsigned long long mlen,
+                unsigned char* sm, unsigned long long smlen)
 {
-    if (!sig || siglen != msglen + crypto_sign_BYTES)
+    if (!sm || smlen != mlen + crypto_sign_BYTES)
     {
         // Wrong allocated space for signature
         return 0;
     }
 
+    // Allocate memory for key pair
     unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
     if (pubKey == NULL)
     {
@@ -64,9 +65,9 @@ int EdDSA::sign(unsigned char* msg, unsigned long long msglen,
         free(pubKey);
         return 0;
     }
-    int check = 0;
-    check = crypto_sign_seed_keypair(pubKey, privKey,
-                                     (const unsigned char*)this->keySeed);
+
+    // Generate the key pair from the keySeed
+    int check = crypto_sign_seed_keypair(pubKey, privKey, (const unsigned char*)this->keySeed);
     if (check != 0)
     {
         // Something went wrong deriving keys.
@@ -75,13 +76,15 @@ int EdDSA::sign(unsigned char* msg, unsigned long long msglen,
         return 0;
     }
 
-    check = crypto_sign(sig, &siglen, (const unsigned char*)msg, msglen,
-                        (const unsigned char*)privKey);
+    // Sign the message 'm' with the private key and store it in 'sm'
+    unsigned long long len = 0;
+    check = crypto_sign(sm, &len, m, mlen, (const unsigned char*)privKey);
 
     free(pubKey);
     free(privKey);
 
-    return check ? 0 : siglen;
+    // crypto_sign() returns 0 on success
+    return check ? 0 : len;
 }
 
 
@@ -159,6 +162,10 @@ int EdDSA::publicKey(unsigned char* pubKey)
                                          (const unsigned char*)this->keySeed);
 
     free(privKey);
+
+    // crypto_sign_seed_keypair() returns 0 on success
+    return check ? 0 : 1;
+}
 
     return check ? 0 : 1;
 }
