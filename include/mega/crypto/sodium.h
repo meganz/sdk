@@ -97,6 +97,83 @@ public:
 };
 
 
+/**
+ * @brief Asymmetric cryptographic signature using ECDH approach with x25519 key pair.
+ */
+class MEGA_API ECDH
+{
+public:
+
+    ECDH();
+
+    /**
+     *  @brief Initialise libsodium crypto system. Should be called only once.
+     */
+    static void init();
+
+    /**
+     * @brief genKeys Generate a new key pair
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int genKeys();
+
+
+    /**
+     * @brief setKeys Establish the key pair passed by parameter.
+     *
+     * @param pubKey
+     * @param privKey
+     */
+    void setKeys(unsigned char *pubKey, unsigned char *privKey);
+
+    /**
+     * @brief cipher Chipher a message using the public key of recipient, the
+     * private key of the sender and a nounce (number used once)
+     *
+     * @param c Ciphered text after encryption. This function ensures that the
+     * first crypto_box_ZEROBYTES bytes of the chipered text c are all 0.
+     * @param m Message to be encrypted. Caller must ensure that the first
+     * crypto_box_ZEROBYTES bytes of the message m are all 0.
+     * @param n Number used once. The same nonce must never be used to encrypt another
+     * packet from the sender's private key to this receiver's public key or viceversa.
+     * @param pubKey Public key of the receiver.
+     * @param privKey Private key of the sender.
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int cipher(unsigned char* c, const unsigned char* m,
+               const unsigned long long mlen, const unsigned char* n,
+               const unsigned char* pubKey, const unsigned char* privKey);
+
+    /**
+     * @brief cipher Chipher a message using the public key of recipient, the
+     * private key of the sender and a nounce (number used once)
+     *
+     * @param m Message in plain text after decryption. This function ensures that
+     * the first crypto_box_ZEROBYTES bytes of the message m are all 0.
+     * @param c Ciphered text to be decrypted. Caller must ensure that the first
+     * crypto_box_ZEROBYTES bytes of the chipered text c are all 0.
+     * @param n Number used once. The same nonce must never be used to encrypt another
+     * packet from the sender's private key to this receiver's public key or viceversa.
+     * @param pubKey Public key of the sender.
+     * @param privKey Private key of the receiver.
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int uncipher(unsigned char* m, const unsigned char* c,
+                 const unsigned long long clen, const unsigned char* n,
+                 const unsigned char* pubKey, const unsigned char* privKey);
+
+    unsigned char * publicKey()     { return pubKey; }
+    unsigned char * privateKey()    { return privKey; }
+
+private:
+    unsigned char* pubKey;
+    unsigned char* privKey;
+    bool keypairset;
+};
+
 } // namespace
 
 #endif

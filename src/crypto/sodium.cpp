@@ -167,6 +167,79 @@ int EdDSA::publicKey(unsigned char* pubKey)
     return check ? 0 : 1;
 }
 
+ECDH::ECDH()
+{
+    pubKey = NULL;
+    privKey = NULL;
+    keypairset = false;
+}
+
+void ECDH::init()
+{
+    sodium_init();
+}
+
+int ECDH::genKeys()
+{
+    if (keypairset)
+    {
+        LOG_warn << "Regenerating chat key pair";
+    }
+    else
+    {
+        pubKey = (unsigned char*)malloc(crypto_box_PUBLICKEYBYTES);
+        privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
+    }
+
+    int check = crypto_box_keypair(pubKey,privKey);
+
+    if (check == 0)
+    {
+        keypairset = true;
+        return 1;
+    }
+    else
+    {
+        free (pubKey);
+        free (privKey);
+        keypairset = false;
+        return 0;
+    }
+}
+
+void ECDH::setKeys(unsigned char *pubKey, unsigned char *privKey)
+{
+    if (keypairset)
+    {
+        LOG_warn << "Setting a new chat key pair, but it already exists";
+    }
+    else
+    {
+        this->pubKey = (unsigned char*)malloc(crypto_box_PUBLICKEYBYTES);
+        this->privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
+    }
+
+    memcpy(this->pubKey, pubKey, crypto_box_PUBLICKEYBYTES);
+    memcpy(this->privKey, privKey, crypto_box_SECRETKEYBYTES);
+
+    keypairset = true;
+}
+
+int ECDH::cipher(unsigned char *c, const unsigned char *m,
+                 const unsigned long long mlen, const unsigned char *n,
+                 const unsigned char *pubKey, const unsigned char *privKey)
+{
+    int check = crypto_box(c, m, mlen, n, pubKey, privKey);
+
+    return check ? 0 : 1;
+}
+
+int ECDH::uncipher(unsigned char* m, const unsigned char* c,
+                   const unsigned long long clen, const unsigned char* n,
+                   const unsigned char* pubKey, const unsigned char* privKey)
+{
+    int check = crypto_box_open(m, c, clen, n, pubKey, privKey);
+
     return check ? 0 : 1;
 }
 

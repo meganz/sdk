@@ -80,6 +80,9 @@ public:
     // initialises the Ed25519 EdDSA key user properties
     int inited25519();
 
+    // initialises the x25519 key user properties
+    int initx25519();
+
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
@@ -780,6 +783,9 @@ public:
 
     /// EdDSA signing key (Ed25519 private key seed).
     EdDSA signkey;
+
+    /// ECDH key (x25519 private key seed).
+    ECDH chatkey;
 #endif
 
     // binary session ID

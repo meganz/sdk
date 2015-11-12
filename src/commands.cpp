@@ -1963,38 +1963,66 @@ void CommandGetUA::procresult()
         error e = (error)client->json.getint();
 
 #ifdef USE_SODIUM
-        if ((e == API_ENOENT) && (user->userhandle == client->me)
-                && ((priv && !strncmp(attributename.c_str(), "prEd255", 7))
-                        || (!priv && !strncmp(attributename.c_str(), "puEd255", 7))))
+        if ((e == API_ENOENT) && (user->userhandle == client->me))
         {
-            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-            if(!client->inited25519())
+            if ((priv && !strncmp(attributename.c_str(), "*prEd255", 7))
+                 || (!priv && !strncmp(attributename.c_str(), "+puEd255", 7)))
             {
-                return(client->app->getua_result(API_EINTERNAL));
-            }
-
-            // Return the required key data.
-            if (strncmp(attributename.c_str(), "prEd255", 7))
-            {
-                return(client->app->getua_result(client->signkey.keySeed,
-                                                 crypto_sign_SEEDBYTES));
-            }
-            else
-            {
-                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-                if (!client->signkey.publicKey(pubKey))
+                // We apparently don't have Ed25519 keys, yet. Let's make 'em.
+                if(!client->inited25519())
                 {
-                    free(pubKey);
-                    return(client->app->getua_result(API_EINTERNAL));
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
                 }
 
-                return(client->app->getua_result(pubKey,
-                                                 crypto_sign_PUBLICKEYBYTES));
+                // Return the required key data.
+                if (!strncmp(attributename.c_str(), "*prEd255", 7))
+                {
+                    client->app->getua_result(client->signkey.keySeed, crypto_sign_SEEDBYTES);
+                    return;
+                }
+                else
+                {
+                    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+                    if (!client->signkey.publicKey(pubKey))
+                    {
+                        free(pubKey);
+                        client->app->getua_result(API_EINTERNAL);
+                        return;
+                    }
+
+                    client->app->getua_result(pubKey, crypto_sign_PUBLICKEYBYTES);
+                    return;
+                }
+            }
+
+            if ((priv && !strncmp(attributename.c_str(), "*prCu255", 7))
+                 || (!priv && !strncmp(attributename.c_str(), "+puCu255", 7)))
+            {
+                // We apparently don't have x25519 keys, yet. Let's make 'em.
+                if(!client->initx25519())
+                {
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
+                }
+
+                // Return the required key data.
+                if (!strncmp(attributename.c_str(), "*prCu255", 7))
+                {
+                    client->app->getua_result(client->chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
+                    return;
+                }
+                else
+                {
+                    client->app->getua_result(client->chatkey.publicKey(), crypto_box_PUBLICKEYBYTES);
+                    return;
+                }
             }
         }
 #endif
 
-        return(client->app->getua_result(e));
+        client->app->getua_result(e);
+        return;
     }
     else
     {
@@ -2003,7 +2031,8 @@ void CommandGetUA::procresult()
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            return(client->app->getua_result(API_EINTERNAL));
+            client->app->getua_result(API_EINTERNAL);
+            return;
         }
 
         // if there's no avatar, the value is "none" (not Base64 encoded)

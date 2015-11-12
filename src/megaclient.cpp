@@ -6953,6 +6953,29 @@ int MegaClient::inited25519()
     free(pubKey);
     return 1;
 }
+
+/**
+ * @brief Initialises the x25519 ECDH key user properties.
+ *
+ * A key pair will be added, if not present, yet.
+ *
+ * @return Error code (default: 1 on success).
+ */
+int MegaClient::initx25519()
+{
+    chatkey.init();
+
+    if(!chatkey.genKeys())
+    {
+        LOG_err << "Error creating the x25519 key pair";
+        return 0;
+    }
+
+    putua("prCu255", (const byte*)chatkey.privateKey(), crypto_box_SECRETKEYBYTES, 1);
+    putua("puCu255", (const byte*)chatkey.publicKey(), crypto_box_PUBLICKEYBYTES, 0);
+
+    return 1;
+}
 #endif
 
 bool MegaClient::fetchsc(DbTable* sctable)
