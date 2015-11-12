@@ -77,13 +77,7 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
-    /**
-     * @brief Initialises the Ed25519 EdDSA key user properties.
-     *
-     * A key pair will be added, if not present, yet.
-     *
-     * @return Error code (default: 1 on success).
-     */
+    // initialises the Ed25519 EdDSA key user properties
     int inited25519();
 
     // user login: e-mail, pwkey
@@ -752,7 +746,8 @@ public:
     AsymmCipher asymkey;
 
 #ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
+
+    /// EdDSA signing key (Ed25519 private key seed).
     EdDSA signkey;
 #endif
 
