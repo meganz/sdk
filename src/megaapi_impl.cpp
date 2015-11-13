@@ -6562,7 +6562,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
     if(request->getParamType() == MegaApi::USER_ATTR_AVATAR)
     {
-        if (data)   // if there's no avatar, no data is received
+        if (len)
         {
             FileAccess *f = client->fsaccess->newfileaccess();
             string filePath(request->getFile());
@@ -6587,6 +6587,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             }
 
             delete f;
+        }
+        else    // no data for the avatar
+        {
+            fireOnRequestFinish(request, MegaError(API_ENOENT));
+            return;
         }
     }
     else
