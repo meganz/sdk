@@ -1315,6 +1315,10 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // retrieve signing and chat keys to force their creation if doesn't exist
+                client->getua(client->finduser(me,1), "+puEd255");
+                client->getua(client->finduser(me,1), "+puCu255");
+
                 return client->app->login_result(API_OK);
 
             default:
