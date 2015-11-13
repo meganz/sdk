@@ -1965,8 +1965,8 @@ void CommandGetUA::procresult()
 #ifdef USE_SODIUM
         if ((e == API_ENOENT) && (user->userhandle == client->me))
         {
-            if ((priv && !strncmp(attributename.c_str(), "*prEd255", 7))
-                 || (!priv && !strncmp(attributename.c_str(), "+puEd255", 7)))
+
+            if (attributename == "*prEd255" || attributename == "+puEd255")
             {
                 // We apparently don't have Ed25519 keys, yet. Let's make 'em.
                 if(!client->inited25519())
@@ -1976,7 +1976,7 @@ void CommandGetUA::procresult()
                 }
 
                 // Return the required key data.
-                if (!strncmp(attributename.c_str(), "*prEd255", 7))
+                if (attributename == "*prEd255")
                 {
                     client->app->getua_result(client->signkey.keySeed, crypto_sign_SEEDBYTES);
                     return;
@@ -1996,8 +1996,7 @@ void CommandGetUA::procresult()
                 }
             }
 
-            if ((priv && !strncmp(attributename.c_str(), "*prCu255", 7))
-                 || (!priv && !strncmp(attributename.c_str(), "+puCu255", 7)))
+            if (attributename == "*prCu255" || attributename == "+puCu255")
             {
                 // We apparently don't have x25519 keys, yet. Let's make 'em.
                 if(!client->initx25519())
@@ -2007,7 +2006,7 @@ void CommandGetUA::procresult()
                 }
 
                 // Return the required key data.
-                if (!strncmp(attributename.c_str(), "*prCu255", 7))
+                if (attributename == "*prCu255")
                 {
                     client->app->getua_result(client->chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
                     return;
