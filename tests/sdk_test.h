@@ -41,6 +41,8 @@ static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
+static const string AVATARSRC   = "logo.png";
+static const string AVATARDST   = "deleteme.png";
 
 // Fixture class with common code for most of tests
 class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
@@ -77,6 +79,11 @@ public:
 
     bool nodeUpdated;
     bool nodeUpdatedAux;
+
+    bool userUpdated;
+    bool userUpdatedAux;
+    bool userAttributeReceived;
+    string attributeValue;
 
     string link;
     MegaNode *publicNode;
@@ -129,6 +136,8 @@ public:
     void inviteContact(string email, string message, int action, int timeout = maxTimeout);
     void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
     void removeContact(string email, int timeout = maxTimeout);
+    void setUserAttribute(int type, string value, int timeout = maxTimeout);
+    void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout);
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 

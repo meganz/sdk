@@ -3445,13 +3445,34 @@ void MegaClient::sc_userattr()
                         {
                             while (jsonsc.storeobject(&ua))
                             {
-                                if (ua[0] == '+')
+                                if (ua == "+a")     // avatar
                                 {
-                                    app->userattr_update(u, 0, ua.c_str() + 1);
+                                    u->changed.avatar = true;
+                                    notifyuser(u);
                                 }
-                                else if (ua[0] == '*')
+                                else if (ua == "firstname")
                                 {
-                                    app->userattr_update(u, 1, ua.c_str() + 1);
+                                    u->changed.firstname = true;
+                                    notifyuser(u);
+                                }
+                                else if (ua == "lastname")
+                                {
+                                    u->changed.lastname = true;
+                                    notifyuser(u);
+                                }
+                                else if (ua == "*!authring")    // authentication information
+                                {
+                                    u->changed.auth = true;
+                                    notifyuser(u);
+                                }
+                                else if (ua == "*!lstint")  // timestamp of last interaction
+                                {
+                                    u->changed.lstint = true;
+                                    notifyuser(u);
+                                }
+                                else
+                                {
+                                    LOG_debug << "User attribute not recognized: " << ua;
                                 }
                             }
 
@@ -3459,6 +3480,8 @@ void MegaClient::sc_userattr()
                             return;
                         }
                     }
+
+                    LOG_debug << "User attributes update for non-existing user";
                 }
 
                 jsonsc.storeobject();
@@ -4006,6 +4029,14 @@ void MegaClient::notifypurge(void)
         if (!fetchingnodes)
         {
             app->users_updated(&usernotify[0], t);
+        }
+
+        for (i = 0; i < t; i++)
+        {
+            User *u = usernotify[i];
+
+            u->notified = false;
+            memset(&(u->changed), 0, sizeof(u->changed));
         }
 
         usernotify.clear();
@@ -5983,17 +6014,13 @@ error MegaClient::invite(const char* email, visibility_t show)
  * @param an Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
- * @param priv 1 for a private, 0 for a public attribute, 2 for a default attribute
  * @return Void.
  */
-void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
+void MegaClient::putua(const char* an, const byte* av, unsigned avl)
 {
-    string name = priv ? ((priv == 1) ? "*" : "") : "+";
     string data;
 
-    name.append(an);
-
-    if (priv == 1)
+    if (!strcmp(an, "*!lstint") || !strcmp(an, "*!authring"))
     {
         if (av)
         {
@@ -6007,15 +6034,24 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
         // Now prepend the data with the (8 byte) IV.
         iv.append(data);
         data = iv;
-    }
-    else if (!av)
-    {
-        av = (const byte*)"";
-    }
 
-    reqs.add(new CommandPutUA(this, name.c_str(),
-                                 (priv == 1) ? (const byte*)data.data() : av,
-                                 (priv == 1) ? data.size() : avl));
+        reqs.add(new CommandPutUA(this, an, (const byte*)data.data(), data.size()));
+    }
+    else
+    {
+        if (!av)
+        {
+            if (!strcmp(an, "+a"))  // remove avatar
+            {
+                data = "none";
+            }
+
+            av = (const byte*) data.data();
+            avl = data.size();
+        }
+
+        reqs.add(new CommandPutUA(this, an, av, avl));
+    }
 }
 
 /**
@@ -6023,18 +6059,13 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl, int priv)
  *
  * @param u User.
  * @param an Attribute name.
- * @param p 1 for a private, 0 for a public attribute.
  * @return Void.
  */
-void MegaClient::getua(User* u, const char* an, int p)
+void MegaClient::getua(User* u, const char* an)
 {
     if (an)
     {
-        string name = p ? ((p == 1) ? "*" : "") : "+";
-
-        name.append(an);
-
-        reqs.add(new CommandGetUA(this, u->uid.c_str(), name.c_str(), p));
+        reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
     }
 }
 
@@ -6153,7 +6184,11 @@ void MegaClient::notifynode(Node* n)
 // queue user for notification
 void MegaClient::notifyuser(User* u)
 {
-    usernotify.push_back(u);
+    if (!u->notified)
+    {
+        u->notified = true;
+        usernotify.push_back(u);
+    }
 }
 
 // queue pcr for notification

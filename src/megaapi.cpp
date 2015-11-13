@@ -396,6 +396,16 @@ int64_t MegaUser::getTimestamp()
     return 0;
 }
 
+bool MegaUser::hasChanged(int)
+{
+    return false;
+}
+
+int MegaUser::getChanges()
+{
+    return 0;
+}
+
 MegaShare::~MegaShare() { }
 
 MegaShare *MegaShare::copy()
