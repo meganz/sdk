@@ -9452,20 +9452,7 @@ void MegaApiImpl::sendPendingRequests()
                     attrvalue = value;
                     break;
                 }
-
-                case MegaApi::USER_ATTR_AUTHRING:
-                {
-                    attrname = "*!authring";
-                    attrvalue = value;
-                    break;
-                }
-
-                case MegaApi::USER_ATTR_LAST_INTERACTION:
-                {
-                    attrname = "*!lstint";
-                    attrvalue = value;
-                    break;
-                }
+                // authentication ring and last interaction are ro attributes
 
                 default:
                 {
