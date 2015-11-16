@@ -26,8 +26,6 @@
 namespace mega
 {
 
-CryptoPP::AutoSeededRandomPool EdDSA::rng;
-
 // Initialise libsodium crypto system.
 void EdDSA::init()
 {
@@ -136,7 +134,7 @@ int EdDSA::genKeySeed(unsigned char* privKey)
     }
 
     // Now make the new key seed.
-    this->rng.GenerateBlock(this->keySeed, crypto_sign_SEEDBYTES);
+    PrnGen::genblock(this->keySeed, crypto_sign_SEEDBYTES);
 
     // Copy it to privKey before returning.
     if (privKey)
