@@ -2741,11 +2741,6 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
     if(PrnGen::rng.CanIncorporateEntropy())
         PrnGen::rng.IncorporateEntropy((const byte*)data, size);
 
-#ifdef USE_SODIUM
-    if(PrnGen::rng.CanIncorporateEntropy())
-        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
-#endif
-
 #if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
     RAND_seed(data, size);
 #endif
