@@ -2742,8 +2742,8 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
         PrnGen::rng.IncorporateEntropy((const byte*)data, size);
 
 #ifdef USE_SODIUM
-    if(EdDSA::rng.CanIncorporateEntropy())
-        EdDSA::rng.IncorporateEntropy((const byte*)data, size);
+    if(PrnGen::rng.CanIncorporateEntropy())
+        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
 #endif
 
 #if (!defined(_WIN32) && !defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
