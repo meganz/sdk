@@ -96,13 +96,15 @@ public:
 
 
 /**
- * @brief Asymmetric cryptographic signature using ECDH approach with x25519 key pair.
+ * @brief Asymmetric cryptographic for chat messages encryptiong using
+ * ECDH approach with x25519 key pair.
  */
 class MEGA_API ECDH
 {
 public:
 
     ECDH();
+    ~ECDH();
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.

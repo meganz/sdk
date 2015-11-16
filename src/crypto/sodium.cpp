@@ -172,6 +172,15 @@ ECDH::ECDH()
     keypairset = false;
 }
 
+ECDH::~ECDH()
+{
+    if (keypairset)
+    {
+        free(pubKey);
+        free(privKey);
+    }
+}
+
 void ECDH::init()
 {
     sodium_init();
