@@ -1999,8 +1999,7 @@ void CommandGetUA::procresult()
                     return;
                 }
             }
-
-            if (attributename == "*prCu255" || attributename == "+puCu255")
+            else if (attributename == "*prCu255" || attributename == "+puCu255")
             {
                 // We apparently don't have x25519 keys, yet. Let's make 'em.
                 if(!client->initx25519())
