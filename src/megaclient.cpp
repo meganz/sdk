@@ -6806,9 +6806,12 @@ int MegaClient::inited25519()
         return 0;
     }
 
-    // Store the key pair to user attributes.
+    // Store the key pair to user attributes (skipping the procresult())
+    int creqtag = reqtag;
+    reqtag = 0;
     putua("*prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES);
     putua("+puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES);
+    reqtag = creqtag;
 
     LOG_debug << "Created new keys for signing (Ed25519)";
 
@@ -6833,8 +6836,12 @@ int MegaClient::initx25519()
         return 0;
     }
 
+    // Store the key pair to user attributes (skipping the procresult())
+    int creqtag = reqtag;
+    reqtag = 0;
     putua("*prCu255", (const byte*)chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
     putua("+puCu255", (const byte*)chatkey.publicKey(), crypto_box_PUBLICKEYBYTES);
+    reqtag = creqtag;
 
     LOG_debug << "Created new keys for chat (x25519)";
 
