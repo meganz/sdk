@@ -78,7 +78,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         
         let dateFormatter = NSDateFormatter()
         
-        var theDateFormat = NSDateFormatterStyle.ShortStyle
+        let theDateFormat = NSDateFormatterStyle.ShortStyle
         let theTimeFormat = NSDateFormatterStyle.ShortStyle
         
         dateFormatter.dateStyle = theDateFormat
@@ -150,7 +150,8 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     @IBAction func touchUpInsideRename(sender: UIButton) {
         renameAlertView = UIAlertView(title: "Rename", message: "Enter the new name", delegate: self, cancelButtonTitle: "Cancel", otherButtonTitles: "Rename")
         renameAlertView.alertViewStyle = UIAlertViewStyle.PlainTextInput
-        renameAlertView.textFieldAtIndex(0)?.text = node.name.lastPathComponent.stringByDeletingPathExtension
+        let nameURL = NSURL(string: node.name)!.URLByDeletingPathExtension
+        renameAlertView.textFieldAtIndex(0)?.text = nameURL!.path
         renameAlertView.tag = 0
         renameAlertView.show()
     }
@@ -171,11 +172,12 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     
     func alertView(alertView: UIAlertView, didDismissWithButtonIndex buttonIndex: Int) {
         if alertView.tag == 0 {
+            let nameURL = NSURL(string: node.name)
             if buttonIndex == 1 {
-                if node.name.pathExtension == "" {
+                if nameURL!.pathExtension == "" {
                     megaapi.renameNode(node, newName: alertView.textFieldAtIndex(0)?.text)
                 } else {
-                    let newName = alertView.textFieldAtIndex(0)?.text.stringByAppendingString(".".stringByAppendingString(node.name.pathExtension))
+                    let newName = alertView.textFieldAtIndex(0)?.text!.stringByAppendingString(".".stringByAppendingString(nameURL!.pathExtension!))
                     nameLabel.text = newName
                     megaapi.renameNode(node, newName: newName)
                 }

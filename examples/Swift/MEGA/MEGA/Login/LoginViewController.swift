@@ -54,7 +54,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     // MARK: - Validate methods
     
     func validateForm() -> Bool {
-        if !validateEmail(emailTextField.text) {
+        if !validateEmail(emailTextField.text!) {
             let alertController = UIAlertController(title: "Invalid email", message: "Enter a valid email", preferredStyle: UIAlertControllerStyle.Alert)
             alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertActionStyle.Default,handler: nil))
             self.presentViewController(alertController, animated: true, completion: nil)
@@ -62,7 +62,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
             emailTextField.becomeFirstResponder()
             
             return false
-        } else if !validatePassword(passwordTextField.text) {
+        } else if !validatePassword(passwordTextField.text!) {
             let alertController = UIAlertController(title: "Invalid password", message: "Enter a valid password", preferredStyle: UIAlertControllerStyle.Alert)
             alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertActionStyle.Default,handler: nil))
             self.presentViewController(alertController, animated: true, completion: nil)
@@ -136,7 +136,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     
     func onRequestUpdate(api: MEGASdk!, request: MEGARequest!) {
         if request.type == MEGARequestType.FetchNodes {
-            var progress = request.transferredBytes.floatValue / request.totalBytes.floatValue
+            let progress = request.transferredBytes.floatValue / request.totalBytes.floatValue
             if progress > 0 && progress < 0.99 {
                 informationLabel.text = "Fectching nodes"
                 loginProgressView.setProgress(progress, animated: true)
