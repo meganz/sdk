@@ -28,7 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     let megaapi: MEGASdk = MEGASdk(appKey: "iOS Swift/1.0", userAgent: "hNF3ELhK", basePath: nil)
     
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-        MEGASdk.setLogLevel(MEGALogLevel.Fatal)
+        MEGASdk.setLogLevel(MEGALogLevel.Debug)
         
         
         let storyboard = UIStoryboard(name: "Main", bundle: nil)
@@ -39,7 +39,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
             window?.rootViewController = tabBarC
             
         } else {
-            let loginVC = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") as! UIViewController
+            let loginVC = storyboard.instantiateViewControllerWithIdentifier("LoginViewControllerID") 
             window?.rootViewController = loginVC;
         }
         

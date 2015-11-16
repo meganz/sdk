@@ -3,7 +3,7 @@
 
 Xcode project for developing a MEGA app for iOS.
 
-Target OS: iOS 7.0
+Target OS: iOS 8.0
 
 Demo application that allows:
 

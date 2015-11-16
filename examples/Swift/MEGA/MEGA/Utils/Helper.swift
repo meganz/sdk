@@ -210,7 +210,7 @@ class Helper {
             }
             
         case MEGANodeType.File:
-            let im : String! = workaround.icons[node.name.lowercaseString.pathExtension]
+            let im : String! = workaround.icons[(node.name.lowercaseString as NSString).pathExtension]
             if im != nil {
                 return UIImage(named: im)!
             }
@@ -224,9 +224,9 @@ class Helper {
     }
     
     class func pathForNode(node : MEGANode, path : NSSearchPathDirectory, directory : String) -> String {
-        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
+        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] 
         let filename = node.base64Handle
-        let destinationFilePath = directory == "" ? destinationPath.stringByAppendingPathComponent(filename) : destinationPath.stringByAppendingPathComponent(directory).stringByAppendingPathComponent(filename)
+        let destinationFilePath = directory == "" ? (destinationPath as NSString).stringByAppendingPathComponent(filename) : ((destinationPath as NSString).stringByAppendingPathComponent(directory) as NSString).stringByAppendingPathComponent(filename)
         
         return destinationFilePath
     }
@@ -236,9 +236,9 @@ class Helper {
     }
     
     class func pathForUser(user : MEGAUser, path : NSSearchPathDirectory, directory : String) -> String {
-        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
+        let destinationPath : String = NSSearchPathForDirectoriesInDomains(path, NSSearchPathDomainMask.UserDomainMask, true)[0] 
         let filename = user.email
-        let destinationFilePath = directory == "" ? destinationPath.stringByAppendingPathComponent(filename) : destinationPath.stringByAppendingPathComponent(directory).stringByAppendingPathComponent(filename)
+        let destinationFilePath = directory == "" ? (destinationPath as NSString).stringByAppendingPathComponent(filename) : ((destinationPath as NSString).stringByAppendingPathComponent(directory) as NSString).stringByAppendingPathComponent(filename)
         
         return destinationFilePath
     }

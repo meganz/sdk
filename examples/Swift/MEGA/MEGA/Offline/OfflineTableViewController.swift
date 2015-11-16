@@ -52,16 +52,16 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     func reloadUI() {
         offlineDocuments = [MEGANode]()
         
-        let documentDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
+        let documentDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] 
         
-        if let directoryContent : Array = NSFileManager.defaultManager().contentsOfDirectoryAtPath(documentDirectory, error: nil) {
+        if let directoryContent : Array = try? NSFileManager.defaultManager().contentsOfDirectoryAtPath(documentDirectory) {
             var i = 0
             
             for i = 0; i < directoryContent.count; i++ {
-                let filename: String = String(directoryContent[i] as! NSString)
-                let filePath = documentDirectory.stringByAppendingPathComponent(filename)
+                let filename: String = String(directoryContent[i] as NSString)
+                let filePath = (documentDirectory as NSString).stringByAppendingPathComponent(filename)
                 
-                if !(filename.lowercaseString.pathExtension == "mega") {
+                if !((filename.lowercaseString as NSString).pathExtension == "mega") {
                     if let node = megaapi.nodeForHandle(MEGASdk.handleForBase64Handle(filename)) {
                         offlineDocuments.append(node)
                     }
