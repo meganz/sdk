@@ -2571,6 +2571,13 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
 - (MEGANodeList *)inShares;
 
 /**
+ * @brief Get a list with all active inboud sharings
+ *
+ * @return List of MegaShare objects that other users are sharing with this account
+ */
+- (MEGAShareList *)inSharesList;
+
+/**
  * @brief Check if a MEGANode is being shared.
  *
  * For nodes that are being shared, you can get a a list of MEGAShare
