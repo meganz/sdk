@@ -26,6 +26,18 @@
 namespace mega
 {
 
+EdDSA::EdDSA()
+{
+    keySeed = NULL;
+    privKey = NULL;
+}
+
+EdDSA::~EdDSA()
+{
+    free(privKey);
+    free(keySeed);
+}
+
 // Initialise libsodium crypto system.
 void EdDSA::init()
 {
@@ -36,50 +48,68 @@ void EdDSA::init()
 // Sets a private key seed from a buffer.
 void EdDSA::setKeySeed(const char* data)
 {
+    // Make space for a key seed (if not present).
+    if (!this->keySeed)
+    {
+        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
+        if (this->keySeed == NULL)
+        {
+            // Something went wrong allocating the memory.
+            return;
+        }
+    }
+
     memcpy(this->keySeed, data, crypto_sign_SEEDBYTES);
 }
 
 
 // Computes the signature of a message.
-int EdDSA::sign(const unsigned char* m, const unsigned long long mlen,
-                unsigned char* sm, unsigned long long smlen)
+int EdDSA::sign(const unsigned char* msg, const unsigned long long msglen,
+                unsigned char* sig, unsigned long long siglen)
 {
-    if (!sm || smlen != mlen + crypto_sign_BYTES)
+    int check;
+
+    if (!sig || siglen != msglen + crypto_sign_BYTES)
     {
         // Wrong allocated space for signature
         return 0;
     }
 
-    // Allocate memory for key pair
+    // Allocate memory for public key
     unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
     if (pubKey == NULL)
     {
         // Something went wrong allocating the memory.
         return 0;
     }
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        free(pubKey);
-        return 0;
-    }
 
     // Generate the key pair from the keySeed
-    int check = crypto_sign_seed_keypair(pubKey, privKey, (const unsigned char*)this->keySeed);
-    if (check != 0)
+    if (!privKey)
     {
-        // Something went wrong deriving keys.
-        free(pubKey);
-        free(privKey);
-        return 0;
+        privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
+        if (privKey == NULL)
+        {
+            // Something went wrong allocating the memory.
+            free(pubKey);
+            return 0;
+        }
+
+        check = crypto_sign_seed_keypair(pubKey, privKey, (const unsigned char*)this->keySeed);
+        if (check != 0)
+        {
+            // Something went wrong deriving keys.
+            free(pubKey);
+            free(privKey);
+            privKey = NULL;
+            return 0;
+        }
     }
 
     // Sign the message 'm' with the private key and store it in 'sm'
     unsigned long long len = 0;
-    check = crypto_sign(sm, &len, m, mlen, (const unsigned char*)privKey);
+    check = crypto_sign(sig, &len, msg, msglen, (const unsigned char*)privKey);
 
     free(pubKey);
-    free(privKey);
 
     // crypto_sign() returns 0 on success
     return check ? 0 : len;
@@ -120,7 +150,7 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
 
 
 // Generates a new Ed25519 private key seed. The key seed is stored in the object.
-int EdDSA::genKeySeed(unsigned char* privKey)
+int EdDSA::genKeySeed(unsigned char* keySeed)
 {
     // Make space for a new key seed (if not present).
     if (!this->keySeed)
@@ -137,9 +167,9 @@ int EdDSA::genKeySeed(unsigned char* privKey)
     PrnGen::genblock(this->keySeed, crypto_sign_SEEDBYTES);
 
     // Copy it to privKey before returning.
-    if (privKey)
+    if (keySeed)
     {
-        memcpy(privKey, this->keySeed, crypto_sign_SEEDBYTES);
+        memcpy(keySeed, this->keySeed, crypto_sign_SEEDBYTES);
     }
 
     return 1;
@@ -149,17 +179,24 @@ int EdDSA::genKeySeed(unsigned char* privKey)
 // Derives the Ed25519 public key from the stored private key seed.
 int EdDSA::publicKey(unsigned char* pubKey)
 {
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL)
+    int check = 1;  // error code != 0
+
+    if (!privKey)
     {
-        // Something went wrong allocating the memory.
-        return 0;
+        privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
+        if (privKey == NULL)
+        {
+            // Something went wrong allocating the memory.
+            return 0;
+        }
+
+        check = crypto_sign_seed_keypair(pubKey, privKey,
+                                             (const unsigned char*)this->keySeed);
     }
-
-    int check = crypto_sign_seed_keypair(pubKey, privKey,
-                                         (const unsigned char*)this->keySeed);
-
-    free(privKey);
+    else
+    {
+        check = crypto_sign_ed25519_sk_to_pk(pubKey, privKey);
+    }
 
     // crypto_sign_seed_keypair() returns 0 on success
     return check ? 0 : 1;
@@ -232,20 +269,20 @@ void ECDH::setKeys(unsigned char *pubKey, unsigned char *privKey)
     keypairset = true;
 }
 
-int ECDH::cipher(unsigned char *c, const unsigned char *m,
-                 const unsigned long long mlen, const unsigned char *n,
-                 const unsigned char *pubKey, const unsigned char *privKey)
+int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,
+                  const unsigned long long msglen, const unsigned char *nounce,
+                  const unsigned char *pubKey, const unsigned char *privKey)
 {
-    int check = crypto_box(c, m, mlen, n, pubKey, privKey);
+    int check = crypto_box(encmsg, msg, msglen, nounce, pubKey, privKey);
 
     return check ? 0 : 1;
 }
 
-int ECDH::uncipher(unsigned char* m, const unsigned char* c,
-                   const unsigned long long clen, const unsigned char* n,
-                   const unsigned char* pubKey, const unsigned char* privKey)
+int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
+                  const unsigned long long encmsglen, const unsigned char *nounce,
+                  const unsigned char *pubKey, const unsigned char *privKey)
 {
-    int check = crypto_box_open(m, c, clen, n, pubKey, privKey);
+    int check = crypto_box_open(msg, encmsg, encmsglen, nounce, pubKey, privKey);
 
     return check ? 0 : 1;
 }

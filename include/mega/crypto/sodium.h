@@ -34,9 +34,11 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
-    EdDSA() : keySeed(NULL) {}
+    EdDSA();
+    ~EdDSA();
 
     unsigned char* keySeed;
+    unsigned char* privKey;
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.
@@ -61,8 +63,8 @@ public:
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
-    int sign(const unsigned char* m, const unsigned long long mlen,
-             unsigned char* sm, unsigned long long smlen);
+    int sign(const unsigned char* msg, const unsigned long long msglen,
+             unsigned char* sig, unsigned long long siglen);
 
     /**
      * @brief Verifies the signature of a message.
@@ -128,41 +130,43 @@ public:
     void setKeys(unsigned char *pubKey, unsigned char *privKey);
 
     /**
-     * @brief cipher Chipher a message using the public key of recipient, the
+     * @brief encrypt Encrypt a message using the public key of recipient, the
      * private key of the sender and a nounce (number used once)
      *
-     * @param c Ciphered text after encryption. This function ensures that the
-     * first crypto_box_ZEROBYTES bytes of the chipered text c are all 0.
-     * @param m Message to be encrypted. Caller must ensure that the first
-     * crypto_box_ZEROBYTES bytes of the message m are all 0.
-     * @param n Number used once. The same nonce must never be used to encrypt another
+     * @param encmsg Encrypted text after encryption. This function ensures that the
+     * first crypto_box_ZEROBYTES bytes of the encrypted text msg are all 0.
+     * @param msg Message to be encrypted. Caller must ensure that the first
+     * crypto_box_ZEROBYTES bytes of the message msg are all 0.
+     * @param msglen Lenght of the message to be encrypted.
+     * @param nounce Number used once. The same nonce must never be used to encrypt another
      * packet from the sender's private key to this receiver's public key or viceversa.
      * @param pubKey Public key of the receiver.
      * @param privKey Private key of the sender.
      *
      * @return 1 on success, 0 on failure.
      */
-    int cipher(unsigned char* c, const unsigned char* m,
-               const unsigned long long mlen, const unsigned char* n,
+    int encrypt(unsigned char* encmsg, const unsigned char* msg,
+               const unsigned long long msglen, const unsigned char* nounce,
                const unsigned char* pubKey, const unsigned char* privKey);
 
     /**
-     * @brief cipher Chipher a message using the public key of recipient, the
+     * @brief decrypt Decrypt a message using the public key of recipient, the
      * private key of the sender and a nounce (number used once)
      *
-     * @param m Message in plain text after decryption. This function ensures that
-     * the first crypto_box_ZEROBYTES bytes of the message m are all 0.
-     * @param c Ciphered text to be decrypted. Caller must ensure that the first
-     * crypto_box_ZEROBYTES bytes of the chipered text c are all 0.
-     * @param n Number used once. The same nonce must never be used to encrypt another
+     * @param msg Message in plain text after decryption. This function ensures that
+     * the first crypto_box_ZEROBYTES bytes of the message msg are all 0.
+     * @param encmsg Encrypted text to be decrypted. Caller must ensure that the first
+     * crypto_box_ZEROBYTES bytes of the chipered text encmsg are all 0.
+     * @param encmsglen Length of the encrypted text.
+     * @param nounce Number used once. The same nonce must never be used to encrypt another
      * packet from the sender's private key to this receiver's public key or viceversa.
      * @param pubKey Public key of the sender.
      * @param privKey Private key of the receiver.
      *
      * @return 1 on success, 0 on failure.
      */
-    int uncipher(unsigned char* m, const unsigned char* c,
-                 const unsigned long long clen, const unsigned char* n,
+    int decrypt(unsigned char* msg, const unsigned char* encmsg,
+                 const unsigned long long encmsglen, const unsigned char* nounce,
                  const unsigned char* pubKey, const unsigned char* privKey);
 
     unsigned char * publicKey()     { return pubKey; }

@@ -753,7 +753,7 @@ public:
     /// EdDSA signing key (Ed25519 private key seed).
     EdDSA signkey;
 
-    /// ECDH key (x25519 private key seed).
+    /// ECDH key (x25519 private key).
     ECDH chatkey;
 #endif
 
