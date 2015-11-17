@@ -1710,6 +1710,11 @@ MegaNodeList* MegaApi::getInShares()
     return pImpl->getInShares();
 }
 
+MegaShareList* MegaApi::getInSharesList()
+{
+    return pImpl->getInSharesList();
+}
+
 bool MegaApi::isShared(MegaNode *node)
 {
     if (!node)
