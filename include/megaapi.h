@@ -5783,6 +5783,15 @@ class MegaApi
         MegaNodeList *getInShares();
 
         /**
+         * @brief Get a list with all active inboud sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaShare objects that other users are sharing with this account
+         */
+        MegaShareList *getInSharesList();
+
+        /**
           * @brief Check if a MegaNode is being shared by/with your own user
           *
           * For nodes that are being shared, you can get a list of MegaShare

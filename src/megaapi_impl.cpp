@@ -4335,6 +4335,33 @@ MegaNodeList* MegaApiImpl::getInShares()
 	return nodeList;
 }
 
+MegaShareList* MegaApiImpl::getInSharesList()
+{
+    sdkMutex.lock();
+
+    vector<Share*> vShares;
+    handle_vector vHandles;
+
+    for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
+    {
+        User *user = &(it->second);
+        Node *n;
+
+        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
+        {
+            if ((n = client->nodebyhandle(*sit)) && !n->parent)
+            {
+                vShares.push_back(n->inshare);
+                vHandles.push_back(n->nodehandle);
+            }
+        }
+    }
+
+    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
+    sdkMutex.unlock();
+    return shareList;
+}
+
 bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 {
     if(!megaNode) return false;

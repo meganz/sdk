@@ -1148,6 +1148,7 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* email);
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
+        MegaShareList *getInSharesList();
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);

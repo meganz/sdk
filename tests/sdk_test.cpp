@@ -1366,6 +1366,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Check the incoming share ---
 
+    sl = megaApiAux->getInSharesList();
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+
     nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
