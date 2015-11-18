@@ -969,7 +969,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * To share a folder with an user, set the desired access level in the level parameter. If you
  * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
  *
- * The associated request type with this request is MEGARequestTypeCopy.
+ * The associated request type with this request is MEGARequestTypeShare.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
@@ -997,7 +997,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * To share a folder with an user, set the desired access level in the level parameter. If you
  * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
  *
- * The associated request type with this request is MEGARequestTypeCopy.
+ * The associated request type with this request is MEGARequestTypeShare.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
@@ -1024,7 +1024,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * To share a folder with an user, set the desired access level in the level parameter. If you
  * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
  *
- * The associated request type with this request is MEGARequestTypeCopy
+ * The associated request type with this request is MEGARequestTypeShare
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
@@ -1054,7 +1054,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * To share a folder with an user, set the desired access level in the level parameter. If you
  * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
  *
- * The associated request type with this request is MEGARequestTypeCopy
+ * The associated request type with this request is MEGARequestTypeShare
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
