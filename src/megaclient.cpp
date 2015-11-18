@@ -7401,6 +7401,22 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     // local version is newer
                     nchildren.erase(rit);
                 }
+                else if (ll->mtime == rit->second->mtime
+                         && (ll->size > rit->second->size
+                             || (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) > 0)))
+
+                {
+                    if (ll->size < rit->second->size)
+                    {
+                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name;
+                    }
+                    else
+                    {
+                        LOG_warn << "Syncdown. Same mtime and size, but lower CRC: " << ll->name;
+                    }
+
+                    nchildren.erase(rit);
+                }
                 else if (*ll == *(FileFingerprint*)rit->second)
                 {
                     // both files are identical
@@ -7765,6 +7781,21 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         LOG_debug << "LocalNode is older: " << ll->name;
                         continue;
+                    }                           
+
+                    if (ll->mtime == rit->second->mtime)
+                    {
+                        if (ll->size < rit->second->size)
+                        {
+                            LOG_warn << "Syncup. Same mtime but lower size: " << ll->name;
+                            continue;
+                        }
+
+                        if (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) < 0)
+                        {
+                            LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name;
+                            continue;
+                        }
                     }
 
                     if (ll->node != rit->second)
