@@ -3664,8 +3664,11 @@ void MegaClient::sc_opc()
                 if (dts != 0)
                 {
                     // this is a delete, find the existing object in state
-                    pcr->uts = dts;
-                    pcr->changed.deleted = true;
+                    if (pcr)
+                    {
+                        pcr->uts = dts;
+                        pcr->changed.deleted = true;
+                    }
                 }
                 else if (pcr)
                 {
