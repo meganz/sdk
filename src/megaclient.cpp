@@ -2336,6 +2336,11 @@ void MegaClient::locallogout()
 
     init();
 
+    if (dbaccess)
+    {
+        dbaccess->currentDbVersion = DbAccess::LEGACY_DB_VERSION;
+    }
+
 #ifdef ENABLE_SYNC
     syncadding = 0;
 #endif
@@ -2777,8 +2782,7 @@ void MegaClient::finalizesc(bool complete)
     }
     else
     {
-        sctable->abort();
-        sctable->truncate();
+        sctable->remove();
 
         LOG_err << "Cache update DB write error - disabling caching";
 

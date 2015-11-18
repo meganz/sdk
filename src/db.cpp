@@ -76,4 +76,10 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 
     return false;
 }
+
+DbAccess::DbAccess()
+{
+    currentDbVersion = LEGACY_DB_VERSION;
+}
+
 } // namespace

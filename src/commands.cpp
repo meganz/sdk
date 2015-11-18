@@ -1134,6 +1134,14 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
         arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
     }
+    else
+    {
+        if (client->sctable && client->dbaccess->currentDbVersion == DbAccess::LEGACY_DB_VERSION)
+        {
+            LOG_debug << "Requesting a local cache upgrade";
+            arg("fa", 1);
+        }
+    }
 
     if (sessionkey)
     {
@@ -1162,6 +1170,7 @@ void CommandLogin::procresult()
     byte sek[SymmCipher::KEYLENGTH];
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0, len_sek = 0;
     handle me = UNDEF;
+    bool fa = false;
 
     for (;;)
     {
@@ -1191,6 +1200,10 @@ void CommandLogin::procresult()
                 len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
                 break;
 
+            case MAKENAMEID2('f', 'a'):
+                fa = client->json.getint();
+                break;
+
             case MAKENAMEID2('s', 'n'):
                 if (!client->json.getint())
                 {
@@ -1211,6 +1224,17 @@ void CommandLogin::procresult()
                     // decrypt and set master key
                     client->key.ecb_decrypt(hash);
                     client->key.setkey(hash);
+                }
+                else
+                {
+                    if (fa && client->sctable)
+                    {
+                        LOG_debug << "Local DB upgrade granted";
+                        client->sctable->remove();
+                        delete client->sctable;
+                        client->sctable = NULL;
+                        client->cachedscsn = UNDEF;
+                    }
                 }
 
                 if (len_sek)
