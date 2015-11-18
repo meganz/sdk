@@ -6026,8 +6026,9 @@ error MegaClient::invite(const char* email, visibility_t show)
  * Attributes are stored as base64-encoded binary blobs. They use internal
  * attribute name prefixes:
  *
- * "*" - Private and CBC-encrypted.
- * "+" - Public and plain text.
+ * "*" - Private and CBC-encrypted. Use a TLV container (key-value)
+ * "#" - Protected attributes, accessible only by contacts.
+ * "+" - Public and plain text, accessible by anyone knowing userhandle
  *
  * @param an Attribute name.
  * @param av Attribute value.
