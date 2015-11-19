@@ -222,6 +222,55 @@ struct MEGA_API MemAccess
 int mega_snprintf(char *s, size_t n, const char *format, ...);
 #endif
 
+struct MEGA_API TLVstore
+{
+private:
+    TLV_map tlv;
+
+ public:
+
+    /**
+     * @brief containerToTLVrecords Builds a TLV object with records from an encrypted container
+     * @param data Binary byte array representing the encrypted container
+     * @param datalen Length of the byte array.
+     * @param key Master key to decrypt the container
+     * @return A new TLVstore object. You take the ownership of the object.
+     */
+    static TLVstore * containerToTLVrecords(const byte * data, unsigned datalen, SymmCipher *key);
+
+    /**
+     * @brief containerToTLVrecords Builds a TLV object with records from a container
+     * @param data Binary byte array representing the TLV records
+     * @param datalen Length of the byte array.
+     * @return A new TLVstore object. You take the ownership of the object.
+     */
+    static TLVstore * containerToTLVrecords(const byte * data, unsigned datalen);
+
+    static byte * TLVrecordsToContainer(TLVstore *tlv, SymmCipher *key);
+
+    static byte * TLVrecordsToContainer(TLVstore *tlv);
+
+    /**
+     * @brief get Get the value for a given key
+     * @param type Type of the value.
+     * @return Byte array with the value, or NULL if error.
+     */
+    byte * get(string type);
+
+    /**
+     * @brief add Adds a new record to the container
+     * @param type Type for the new value.
+     * @param value New value to be set.
+     * @return
+     */
+    bool add(string type, byte *value, unsigned valuelen);
+
+    size_t size() { return tlv.size(); }
+
+
+    ~TLVstore();
+};
+
 } // namespace
 
 #endif

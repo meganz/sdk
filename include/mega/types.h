@@ -358,6 +358,11 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
+typedef pair<byte *, unsigned> TLVvalue;
+
+typedef map<string, TLVvalue> TLV_map;
+
+
 } // namespace
 
 #endif
