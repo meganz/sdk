@@ -203,7 +203,7 @@ public:
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * @param data Data to be encrypted (encryption in-place).
+     * @param data Data to be decrypted (decryption in-place).
      * @param len Length of cipher text to be decrypted in bytes (includes length
      *     of authentication tag: SymmCipher::TAG_SIZE).
      * @param iv Initialisation vector or nonce.

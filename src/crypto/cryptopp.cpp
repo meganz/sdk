@@ -262,7 +262,7 @@ void SymmCipher::gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLen
  * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
  * sizes.
  *
- * @param data Data to be encrypted (encryption in-place). The input given must
+ * @param data Data to be decrypted (decryption in-place). The input given must
  *     be in the concatenated form `{ciphertext, tag}`
  * @param len Length of cipher text to be decrypted in bytes (includes length
  *     of authentication tag: 16 bytes).

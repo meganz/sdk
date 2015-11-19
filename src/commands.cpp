@@ -1315,9 +1315,10 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
-                // retrieve signing and chat keys to force their creation if doesn't exist
-                client->getua(client->finduser(me,1), "+puEd255");
-                client->getua(client->finduser(me,1), "+puCu255");
+                // get keyring and check for missing keys
+                client->getua(client->finduser(me,1), "*keyring");
+//                client->getua(client->finduser(me,1), "+puEd255");
+//                client->getua(client->finduser(me,1), "+puCu255");
 
                 return client->app->login_result(API_OK);
 
@@ -1967,62 +1968,67 @@ void CommandGetUA::procresult()
         error e = (error)client->json.getint();
 
 #ifdef USE_SODIUM
-        if ((e == API_ENOENT) && (user->userhandle == client->me))
+        if ((e == API_ENOENT) && (user->userhandle == client->me)
+                && ( (attributename == "*keyring")
+                  || (attributename == "+puEd255")
+                  || (attributename == "+puCu255")))
         {
+            // We apparently have missing keys
 
-            if (attributename == "*prEd255" || attributename == "+puEd255")
+            // 1. check which ones are missing
+            // 2. create them
+            // 3. send to MEGA
+
+
+            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
+            if(!client->inited25519())
             {
-                // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-                if(!client->inited25519())
-                {
-                    client->app->getua_result(API_EINTERNAL);
-                    return;
-                }
-
-                // Return the required key data.
-                if (attributename == "*prEd255")
-                {
-                    client->app->getua_result(client->signkey.keySeed, crypto_sign_SEEDBYTES);
-                    return;
-                }
-                else
-                {
-                    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-                    if (!client->signkey.publicKey(pubKey))
-                    {
-                        free(pubKey);
-                        client->app->getua_result(API_EINTERNAL);
-                        return;
-                    }
-
-                    client->app->getua_result(pubKey, crypto_sign_PUBLICKEYBYTES);
-                    return;
-                }
+                client->app->getua_result(API_EINTERNAL);
+                return;
             }
-            else if (attributename == "*prCu255" || attributename == "+puCu255")
+
+            // Return the required key data.
+            if (attributename == "*prEd255")
             {
-                // We apparently don't have x25519 keys, yet. Let's make 'em.
-                if(!client->initx25519())
+                client->app->getua_result(client->signkey.keySeed, crypto_sign_SEEDBYTES);
+                return;
+            }
+            else
+            {
+                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+                if (!client->signkey.publicKey(pubKey))
                 {
+                    free(pubKey);
                     client->app->getua_result(API_EINTERNAL);
                     return;
                 }
 
-                // Return the required key data.
-                if (attributename == "*prCu255")
-                {
-                    client->app->getua_result(client->chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
-                    return;
-                }
-                else
-                {
-                    client->app->getua_result(client->chatkey.publicKey(), crypto_box_PUBLICKEYBYTES);
-                    return;
-                }
+                client->app->getua_result(pubKey, crypto_sign_PUBLICKEYBYTES);
+                return;
+            }
+        }
+        else if (attributename == "*prCu255" || attributename == "+puCu255")
+        {
+            // We apparently don't have x25519 keys, yet. Let's make 'em.
+            if(!client->initx25519())
+            {
+                client->app->getua_result(API_EINTERNAL);
+                return;
+            }
+
+            // Return the required key data.
+            if (attributename == "*prCu255")
+            {
+                client->app->getua_result(client->chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
+                return;
+            }
+            else
+            {
+                client->app->getua_result(client->chatkey.publicKey(), crypto_box_PUBLICKEYBYTES);
+                return;
             }
         }
 #endif
-
         client->app->getua_result(e);
         return;
     }
@@ -2040,71 +2046,88 @@ void CommandGetUA::procresult()
         // if there's no avatar, the value is "none" (not Base64 encoded)
         if (attributename == "+a" && !strncmp(ptr, "none", 4))
         {
-            return(client->app->getua_result(API_ENOENT));
+            client->app->getua_result(API_ENOENT);
+            return;
         }
 
-        int l;
+        // convert from ASCII to binary the received data
+        unsigned int datalen;
         byte* data;
-        l = (end - ptr) / 4 * 3 + 3;
-        data = new byte[l];
-        l = Base64::atob(ptr, data, l);
+        datalen = (end - ptr) / 4 * 3 + 3;
+        data = new byte[datalen];
+        datalen = Base64::atob(ptr, data, datalen);
 
-        if (attributename == "firstname")
+        TLVstore *tlv;
+
+        // handle the attribute data depending on the scope
+        char scope = attributename.at(0);
+//        bool nonhistoric = (attributename.at(1) == '!');
+        switch (scope)
         {
-            if (!user->firstname)
+        case '*':   // private
+
+            // decrypt the data and build the TLV records
+            tlv = TLVstore::containerToTLVrecords(data, datalen, &client->key);
+            if (!tlv)
             {
-                user->firstname = new string;
+                LOG_err << "Cannot extract TLV records for private attribute " << attributename;
+                client->app->getua_result(API_EINTERNAL);
+                delete [] data;
+                return;
             }
-            user->firstname->assign((char*) data, l);
-        }
-        else if (attributename == "lastname")
-        {
-            if (!user->lastname)
-            {
-                user->lastname = new string;
-            }
-            user->lastname->assign((char*) data, l);
-        }
 
-        if (attributename == "*!lstint" || attributename == "*!authring")
-        {
-            string d;
-            d.assign((char*)data, l);
+            client->app->getua_result(tlv);
+            delete tlv;
 
-            // Is the data a multiple of the cipher blocksize, then we're using
-            // a zero IV.
-            if (l % client->key.BLOCKSIZE == 0)
+            break;
+
+        case '+':   // public
+            if (attributename == "+a")  // legacy public attribute: '+' prefix but not TLV
             {
-                if (!PaddedCBC::decrypt(&d, &client->key))
-                {
-                    delete[] data;
-                    client->app->getua_result(API_EINTERNAL);
-                    return;
-                }
+                client->app->getua_result(data, datalen);
             }
             else
             {
-                // We need to shave off our 8 byte IV first.
-                string iv;
-                iv.assign(d, 0, 8);
-                string payload;
-                payload.assign(d, 8, l - 8);
-                d = payload;
-                if (!PaddedCBC::decrypt(&d, &client->key, &iv))
+                // build the TLV records
+                tlv = TLVstore::containerToTLVrecords(data, datalen);
+                if (!tlv)
                 {
-                    delete[] data;
+                    LOG_err << "Cannot extract TLV records for public attribute " << attributename;
                     client->app->getua_result(API_EINTERNAL);
+                    delete [] data;
                     return;
                 }
+
+                client->app->getua_result(tlv);
+                delete tlv;
             }
-            client->app->getua_result((byte*)d.data(), d.size());
-        }
-        else
-        {
-            client->app->getua_result(data, l);
+            break;
+
+        case '#':   // protected
+            client->app->getua_result(data, datalen);
+            break;
+
+        default:    // legacy private attributes or unknown attribute
+            if (attributename == "firstname" ||
+                    attributename == "lastname" ||
+                    attributename == "country" ||
+                    attributename == "birthday" ||
+                    attributename == "birthmonth" ||
+                    attributename == "birthyear")
+            {
+                client->app->getua_result(data, datalen);
+            }
+            else
+            {
+                LOG_err << "Unknown received attribute: " << attributename;
+                client->app->getua_result(API_EINTERNAL);
+                delete [] data;
+                return;
+            }
+            break;
         }
 
-        delete[] data;
+        delete [] data;
     }
 }
 

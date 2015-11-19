@@ -388,6 +388,9 @@ struct TextChat
 typedef vector<TextChat*> textchat_vector;
 #endif
 
+typedef pair<byte *, unsigned> TLVvalue;
+typedef map<string, TLVvalue> TLV_map;
+
 } // namespace
 
 #endif

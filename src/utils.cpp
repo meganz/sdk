@@ -360,4 +360,136 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
+TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
+{
+    if (!data || !datalen)
+    {
+        return NULL;
+    }
+
+    TLVstore *ret = new TLVstore();
+
+    char *ptr = (char*) data;
+    char *end = ptr + datalen;
+
+    unsigned int typelen;
+    string type;
+    unsigned int valuelen;
+    byte * value;
+
+    while (ptr < end)
+    {
+        // get the length of the Type string
+        typelen = 0;
+        while (ptr[typelen] != '\0')
+        {
+            typelen++;
+        }
+
+        if (ptr + typelen + 2 > end)
+        {
+            delete ret;
+            return NULL;
+        }
+
+        // get the Type string
+        type.assign(ptr, 0, typelen);
+        ptr += typelen + 1;             // +1: NULL character
+
+        // get the Length of the value
+        valuelen = ptr[0] << 8 | ptr[1];
+        ptr += 2;
+
+        if (ptr + valuelen > end)
+        {
+            delete ret;
+            return NULL;
+        }
+
+        // get the Value
+        value = new byte[valuelen];
+        memcpy(value, ptr, valuelen);
+        ptr += valuelen;
+
+        // add it to the map
+        ret->add(type, value, valuelen);
+    }
+
+    return ret;
+}
+
+
+TLVstore * TLVstore::containerToTLVrecords(const byte *data, unsigned datalen, SymmCipher *key)
+{
+    if (!data || !datalen)
+    {
+        return NULL;
+    }
+
+    unsigned offset = 0;
+
+    int mode = data[offset];
+    offset++;
+
+    int ivlen, taglen;
+    switch (mode)
+    {
+    case 0x00:  // AES_CCM_12_16
+    case 0x03:  // AES_GCM_12_16
+        ivlen = 12;
+        taglen = 16;
+        break;
+
+    case 0x01:  // AES_CCM_10_16
+        ivlen = 10;
+        taglen = 16;
+        break;
+
+    case 0x02:  // AES_CCM_10_08
+    case 0x04:  // AES_GCM_10_08
+        ivlen = 12;
+        taglen = 16;
+        break;
+
+    default:
+        return NULL;
+    }
+
+    byte *iv = new byte[ivlen];
+    memcpy(iv, &(data[offset]), ivlen);
+    offset += ivlen;
+
+    int buflen = datalen - offset;
+
+    byte *buf = new byte[buflen];
+    memcpy(buf, &(data[offset]), buflen);
+
+    // BUG: the AES mode may be different, based on the mode. Now, it's fixed
+    key->ccm_decrypt(buf, buflen, iv, ivlen);
+
+    TLVstore *ret = TLVstore::containerToTLVrecords(buf, buflen);
+
+    delete [] buf;
+    delete [] iv;
+
+    return ret;
+}
+
+TLVstore::~TLVstore()
+{
+    if (tlv.size())
+    {
+        TLV_map::iterator it;
+        for (it = tlv.begin(); it != tlv.end(); it++)
+        {
+            delete [] it->second.first;
+        }
+    }
+}
+
+bool TLVstore::add(string type, byte *value, unsigned valuelen)
+{
+    tlv[type] = TLVvalue(value, valuelen);
+}
+
 } // namespace
