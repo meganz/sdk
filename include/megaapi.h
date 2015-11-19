@@ -4160,7 +4160,7 @@ class MegaApi
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
          *
-         * The associated request type with this request is MegaRequest::TYPE_COPY
+         * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
          * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
