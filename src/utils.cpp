@@ -360,10 +360,10 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
-TLVcontainer * TLVstore::TLVrecordsToContainer(SymmCipher *key, unsigned mode)
+TLVcontainer TLVstore::TLVrecordsToContainer(SymmCipher *key, unsigned mode)
 {
     // serialize the TLV records
-    TLVcontainer *tlv = TLVrecordsToContainer();
+    TLVcontainer tlv = TLVrecordsToContainer();
 
     // encrypt the result
     int ivlen, taglen;
@@ -397,24 +397,61 @@ TLVcontainer * TLVstore::TLVrecordsToContainer(SymmCipher *key, unsigned mode)
         break;
 
     default:    // unknown block encryption mode
-        return NULL;
+        return TLVcontainer(NULL,0);
     }
 
-    byte *buf;
-    unsigned buflen;
+    // generate IV array
+    byte *iv = new byte[ivlen];
+    PrnGen::genblock(iv, ivlen);
 
     // encrypt the bytes using the specified mode
+    key->ccm_encrypt(tlv.first, tlv.second, iv, ivlen);
 
+    // prepare the resulting byte array
+    unsigned buflen = 1 + ivlen + tlv.second;
+    byte *buf = new byte[buflen];
 
+    buf[0] = mode;
+    memcpy(&buf[1], iv, ivlen);
+    memcpy(&buf[1+ivlen], tlv.first, tlv.second);
 
-    delete tlv;
+    delete [] iv;
+//    delete [] tlv.first;
 
-    return new TLVcontainer(buf, buflen);
+    return TLVcontainer(buf, buflen);
 }
 
-TLVcontainer * TLVstore::TLVrecordsToContainer()
+TLVcontainer TLVstore::TLVrecordsToContainer()
 {
+    TLV_map::iterator it;
+    unsigned buflen = 0;
 
+    for (it = tlv.begin(); it != tlv.end(); it++)
+    {
+        // add string length + null char + 2 bytes for length + value length
+        buflen += it->first.length() + 1 + 2 + it->second.second;
+    }
+
+    byte *buf = new byte[buflen];
+    char *ptr = (char *)buf;
+
+    for (it = tlv.begin(); it != tlv.end(); it++)
+    {
+        // copy Type
+        strcpy(ptr, it->first.c_str());
+        ptr += it->first.length() + 1;  // +1: null-character
+
+        // set Length of value
+        ptr[0] = it->second.second >> 8;
+        ptr[1] = it->second.second & 0xFF;
+        ptr += 2;
+
+        // copy the Value
+        memcpy(ptr, it->second.first, it->second.second);
+        ptr += it->second.second;
+    }
+
+    return TLVcontainer(buf, buflen);
 }
 
 TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
