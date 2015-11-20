@@ -67,49 +67,21 @@ void EdDSA::setKeySeed(const char* data)
 int EdDSA::sign(const unsigned char* msg, const unsigned long long msglen,
                 unsigned char* sig, unsigned long long siglen)
 {
-    int check;
-
     if (!sig || siglen != msglen + crypto_sign_BYTES)
     {
         // Wrong allocated space for signature
         return 0;
     }
 
-    // Allocate memory for public key
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-    if (pubKey == NULL)
-    {
-        // Something went wrong allocating the memory.
-        return 0;
-    }
-
     // Generate the key pair from the keySeed
-    if (!privKey)
+    if (!privKey && !genKeys())
     {
-        privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-        if (privKey == NULL)
-        {
-            // Something went wrong allocating the memory.
-            free(pubKey);
-            return 0;
-        }
-
-        check = crypto_sign_seed_keypair(pubKey, privKey, (const unsigned char*)this->keySeed);
-        if (check != 0)
-        {
-            // Something went wrong deriving keys.
-            free(pubKey);
-            free(privKey);
-            privKey = NULL;
-            return 0;
-        }
+        return 0;
     }
 
     // Sign the message 'm' with the private key and store it in 'sm'
     unsigned long long len = 0;
-    check = crypto_sign(sig, &len, msg, msglen, (const unsigned char*)privKey);
-
-    free(pubKey);
+    int check = crypto_sign(sig, &len, msg, msglen, (const unsigned char*)privKey);
 
     // crypto_sign() returns 0 on success
     return check ? 0 : len;
@@ -175,9 +147,8 @@ int EdDSA::genKeySeed(unsigned char* keySeed)
     return 1;
 }
 
-
-// Derives the Ed25519 public key from the stored private key seed.
-int EdDSA::publicKey(unsigned char* pubKey)
+// Derives the Ed25519 private and public keys from the stored private key seed.
+int EdDSA::genKeys()
 {
     int check = 1;  // error code != 0
 
@@ -189,14 +160,21 @@ int EdDSA::publicKey(unsigned char* pubKey)
             // Something went wrong allocating the memory.
             return 0;
         }
+    }
 
-        check = crypto_sign_seed_keypair(pubKey, privKey,
-                                             (const unsigned char*)this->keySeed);
-    }
-    else
+    if (!pubKey)
     {
-        check = crypto_sign_ed25519_sk_to_pk(pubKey, privKey);
+        pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+        if (pubKey == NULL)
+        {
+            free(privKey);
+            // Something went wrong allocating the memory.
+            return 0;
+        }
     }
+
+    check = crypto_sign_seed_keypair(pubKey, privKey,
+                                         (const unsigned char*)this->keySeed);
 
     // crypto_sign_seed_keypair() returns 0 on success
     return check ? 0 : 1;
@@ -235,7 +213,7 @@ int ECDH::genKeys()
         privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
     }
 
-    int check = crypto_box_keypair(pubKey,privKey);
+    int check = crypto_box_keypair(pubKey, privKey);
 
     if (check == 0)
     {

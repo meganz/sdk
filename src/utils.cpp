@@ -360,6 +360,63 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
+TLVcontainer * TLVstore::TLVrecordsToContainer(SymmCipher *key, unsigned mode)
+{
+    // serialize the TLV records
+    TLVcontainer *tlv = TLVrecordsToContainer();
+
+    // encrypt the result
+    int ivlen, taglen;
+    switch (mode)
+    {
+    case AES_CCM_12_16:
+    case AES_CCM_12_16_buggy:
+        ivlen = 12;
+        taglen = 16;
+        break;
+
+    case AES_CCM_10_16:
+        ivlen = 10;
+        taglen = 16;
+        break;
+
+    case AES_CCM_10_08:
+    case AES_CCM_10_08_buggy:
+        ivlen = 12;
+        taglen = 16;
+        break;
+
+    case AES_GCM_12_16:
+        ivlen = 12;
+        taglen = 16;
+        break;
+
+    case AES_GCM_10_08:
+        ivlen = 10;
+        taglen = 16;
+        break;
+
+    default:    // unknown block encryption mode
+        return NULL;
+    }
+
+    byte *buf;
+    unsigned buflen;
+
+    // encrypt the bytes using the specified mode
+
+
+
+    delete tlv;
+
+    return new TLVcontainer(buf, buflen);
+}
+
+TLVcontainer * TLVstore::TLVrecordsToContainer()
+{
+
+}
+
 TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
 {
     if (!data || !datalen)
@@ -367,7 +424,7 @@ TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
         return NULL;
     }
 
-    TLVstore *ret = new TLVstore();
+    TLVstore *tlv = new TLVstore();
 
     char *ptr = (char*) data;
     char *end = ptr + datalen;
@@ -388,7 +445,7 @@ TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
 
         if (ptr + typelen + 2 > end)
         {
-            delete ret;
+            delete tlv;
             return NULL;
         }
 
@@ -402,7 +459,7 @@ TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
 
         if (ptr + valuelen > end)
         {
-            delete ret;
+            delete tlv;
             return NULL;
         }
 
@@ -412,10 +469,10 @@ TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
         ptr += valuelen;
 
         // add it to the map
-        ret->add(type, value, valuelen);
+        tlv->set(type, value, valuelen);
     }
 
-    return ret;
+    return tlv;
 }
 
 
@@ -434,24 +491,34 @@ TLVstore * TLVstore::containerToTLVrecords(const byte *data, unsigned datalen, S
     int ivlen, taglen;
     switch (mode)
     {
-    case 0x00:  // AES_CCM_12_16
-    case 0x03:  // AES_GCM_12_16
+    case AES_CCM_12_16:
+    case AES_CCM_12_16_buggy:
         ivlen = 12;
         taglen = 16;
         break;
 
-    case 0x01:  // AES_CCM_10_16
+    case AES_CCM_10_16:
         ivlen = 10;
         taglen = 16;
         break;
 
-    case 0x02:  // AES_CCM_10_08
-    case 0x04:  // AES_GCM_10_08
+    case AES_CCM_10_08:
+    case AES_CCM_10_08_buggy:
         ivlen = 12;
         taglen = 16;
         break;
 
-    default:
+    case AES_GCM_12_16:
+        ivlen = 12;
+        taglen = 16;
+        break;
+
+    case AES_GCM_10_08:
+        ivlen = 10;
+        taglen = 16;
+        break;
+
+    default:    // unknown block encryption mode
         return NULL;
     }
 
@@ -464,15 +531,15 @@ TLVstore * TLVstore::containerToTLVrecords(const byte *data, unsigned datalen, S
     byte *buf = new byte[buflen];
     memcpy(buf, &(data[offset]), buflen);
 
-    // BUG: the AES mode may be different, based on the mode. Now, it's fixed
+    // BUG: the AES mode may be different, based on the mode. Now, it's always CCM_
     key->ccm_decrypt(buf, buflen, iv, ivlen);
 
-    TLVstore *ret = TLVstore::containerToTLVrecords(buf, buflen);
+    TLVstore *tlv = TLVstore::containerToTLVrecords(buf, buflen);
 
     delete [] buf;
     delete [] iv;
 
-    return ret;
+    return tlv;
 }
 
 TLVstore::~TLVstore()
@@ -487,9 +554,14 @@ TLVstore::~TLVstore()
     }
 }
 
-bool TLVstore::add(string type, byte *value, unsigned valuelen)
+bool TLVstore::set(string type, byte *value, unsigned valuelen)
 {
     tlv[type] = TLVvalue(value, valuelen);
+}
+
+bool TLVstore::set(string type, TLVvalue value)
+{
+    tlv[type] = value;
 }
 
 } // namespace

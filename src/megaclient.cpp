@@ -6938,12 +6938,9 @@ int MegaClient::inited25519()
         return 0;
     }
 
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-
-    if (!signkey.publicKey(pubKey))
+    if (!signkey.genKeys())
     {
-        free(pubKey);
-        LOG_err << "Error deriving the Ed25519 public key.";
+        LOG_err << "Error generating an Ed25519 key pair.";
         return 0;
     }
 
@@ -6951,12 +6948,11 @@ int MegaClient::inited25519()
     int creqtag = reqtag;
     reqtag = 0;
     putua("*prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES);
-    putua("+puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES);
+    putua("+puEd255", (const byte*)signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
     reqtag = creqtag;
 
     LOG_debug << "Created new keys for signing (Ed25519)";
 
-    free(pubKey);
     return 1;
 }
 
@@ -6980,8 +6976,8 @@ int MegaClient::initx25519()
     // Store the key pair to user attributes (skipping the procresult())
     int creqtag = reqtag;
     reqtag = 0;
-    putua("*prCu255", (const byte*)chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
-    putua("+puCu255", (const byte*)chatkey.publicKey(), crypto_box_PUBLICKEYBYTES);
+    putua("*prCu255", (const byte*)chatkey.privKey, crypto_box_SECRETKEYBYTES);
+    putua("+puCu255", (const byte*)chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
     reqtag = creqtag;
 
     LOG_debug << "Created new keys for chat (x25519)";
