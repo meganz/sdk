@@ -46,7 +46,7 @@ void EdDSA::init()
 
 
 // Sets a private key seed from a buffer.
-void EdDSA::setKeySeed(const char* data)
+void EdDSA::setKeySeed(const unsigned char* data)
 {
     // Make space for a key seed (if not present).
     if (!this->keySeed)
@@ -229,7 +229,7 @@ int ECDH::genKeys()
     }
 }
 
-void ECDH::setKeys(unsigned char *pubKey, unsigned char *privKey)
+void ECDH::setPubKey(unsigned char *pubKey)
 {
     if (keypairset)
     {
@@ -237,11 +237,31 @@ void ECDH::setKeys(unsigned char *pubKey, unsigned char *privKey)
     }
     else
     {
-        this->pubKey = (unsigned char*)malloc(crypto_box_PUBLICKEYBYTES);
-        this->privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
+        if (!this->pubKey)
+        {
+            this->pubKey = (unsigned char*)malloc(crypto_box_PUBLICKEYBYTES);
+        }
     }
 
     memcpy(this->pubKey, pubKey, crypto_box_PUBLICKEYBYTES);
+
+    keypairset = true;
+}
+
+void ECDH::setPrivKey(const unsigned char *privKey)
+{
+    if (keypairset)
+    {
+        LOG_warn << "Setting a new chat private key, but it already exists";
+    }
+    else
+    {
+        if (!this->privKey)
+        {
+            this->privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
+        }
+    }
+
     memcpy(this->privKey, privKey, crypto_box_SECRETKEYBYTES);
 
     keypairset = true;

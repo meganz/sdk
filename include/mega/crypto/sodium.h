@@ -52,7 +52,7 @@ public:
      * @param data Buffer containing the key bytes.
      * @return Void.
      */
-    void setKeySeed(const char* data);
+    void setKeySeed(const unsigned char* data);
 
     /**
      * @brief Computes the signature of a message.
@@ -136,7 +136,9 @@ public:
      * @param pubKey
      * @param privKey
      */
-    void setKeys(unsigned char *pubKey, unsigned char *privKey);
+    void setPubKey(unsigned char *pubKey);
+
+    void setPrivKey(const unsigned char *privKey);
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the

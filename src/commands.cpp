@@ -1970,27 +1970,44 @@ void CommandGetUA::procresult()
 #ifdef USE_SODIUM
         if ((e == API_ENOENT) && (user->userhandle == client->me))
         {
-            if (attributename == "+puEd255")
+            // If keyring is not found, create private keys and send them to MEGA
+            if (attributename == "*keyring")
             {
-                // if key seed not available --> init key-pair
-                if (!client->signkey.keySeed)
+                if(!client->inited25519())
                 {
-                    if(!client->inited25519())
-                    {
-                        client->app->getua_result(API_EINTERNAL);
-                        return;
-                    }
-                    
-                    TLVstore *keyring = new TLVstore;
-                    keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
-                    keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
-
-                    // update *keyring
-                    // 1. check if prEd255 is available. Otherwise, create it.
-                    // 2. create TLV and send to MEGA
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
                 }
 
-                client->putua(attributename.c_str(), client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
+                if(!client->initx25519())
+                {
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
+                }
+
+                // prepare the attribute `*keyring`
+                TLVstore *keyring = new TLVstore;
+                keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
+                keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
+
+                // since `*keyring` is private, serialize and encrypt
+                TLVcontainer attrvalue = keyring->TLVrecordsToContainer(&client->key);
+
+                // store keys into user attributes (skipping the procresult())
+                int creqtag = client->reqtag;
+                client->reqtag = 0;
+
+                client->putua(attributename.c_str(), attrvalue.first, attrvalue.second);
+                client->putua("*puEd255", client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
+                client->putua("*puCu255", client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
+
+                client->reqtag = creqtag;
+
+                client->app->getua_result(keyring);
+
+                // free (attrvalue->first);
+                delete [] attrvalue.first;
+                delete keyring;
             }
             else if (attributename == "+puCu255")
             {
@@ -2013,43 +2030,27 @@ void CommandGetUA::procresult()
                 client->app->getua_result(client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
 
             }
-            else if (attributename == "*keyring")
+            else if (attributename == "+puEd255")
             {
-                if(!client->inited25519())
+                // if key seed not available --> init key-pair
+                if (!client->signkey.keySeed)
                 {
-                    client->app->getua_result(API_EINTERNAL);
-                    return;
+                    if(!client->inited25519())
+                    {
+                        client->app->getua_result(API_EINTERNAL);
+                        return;
+                    }
+
+                    TLVstore *keyring = new TLVstore;
+                    keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
+                    keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
+
+                    // update *keyring
+                    // 1. check if prEd255 is available. Otherwise, create it.
+                    // 2. create TLV and send to MEGA
                 }
 
-                if(!client->initx25519())
-                {
-                    client->app->getua_result(API_EINTERNAL);
-                    return;
-                }
-
-                // prepare the attribute `*keyring`
-                TLVstore *keyring = new TLVstore;
-                keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
-                keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
-
-                // since `*keyring` is private, serialize and encrypt
-                TLVvalue * attrvalue = keyring->TLVrecordsToContainer(&client->key);
-
-                // store keys into user attributes (skipping the procresult())
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-
-//                putua(attributename, keyring);
-                client->putua(attributename.c_str(), attrvalue->first, attrvalue->second);
-                client->putua("*puEd255", client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
-                client->putua("*puCu255", client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
-
-                client->reqtag = creqtag;
-
-                client->app->getua_result(keyring);
-
-                delete attrvalue;
-                delete keyring;
+                client->putua(attributename.c_str(), client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
             }
         }
 #endif
@@ -2098,6 +2099,15 @@ void CommandGetUA::procresult()
                 client->app->getua_result(API_EINTERNAL);
                 delete [] data;
                 return;
+            }
+
+            if (attributename == "*keyring")
+            {
+                // TODO: check if keys are already set, so no need to reset singkey and chatkey but check value.
+
+                // store private keys locally
+                client->signkey.setKeySeed((const unsigned char *)tlv->get("prEd255").first);    // carefull, keys in TLV records don't include scope modifier
+                client->chatkey.setPrivKey((const unsigned char *)tlv->get("prCu255").first);    // carefull, keys in TLV records don't include scope modifier
             }
 
             client->app->getua_result(tlv);
