@@ -34,11 +34,12 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
+
     EdDSA();
     ~EdDSA();
 
     unsigned char* keySeed;
-    unsigned char* privKey;
+    unsigned char* pubKey;
 
     /**
      *  @brief Initialise libsodium crypto system. Should be called only once.
@@ -87,6 +88,8 @@ public:
      */
     int genKeySeed(unsigned char* privKey = NULL);
 
+    int genKeys();
+
     /**
      * @brief Derives the Ed25519 public key from the stored private key seed.
      *
@@ -94,6 +97,9 @@ public:
      * @return 1 on success, 0 on failure.
      */
     int publicKey(unsigned char* pubKey);
+
+private:
+    unsigned char* privKey;
 };
 
 
@@ -104,6 +110,9 @@ public:
 class MEGA_API ECDH
 {
 public:
+
+    unsigned char* pubKey;
+    unsigned char* privKey;
 
     ECDH();
     ~ECDH();
@@ -169,12 +178,7 @@ public:
                  const unsigned long long encmsglen, const unsigned char* nounce,
                  const unsigned char* pubKey, const unsigned char* privKey);
 
-    unsigned char * publicKey()     { return pubKey; }
-    unsigned char * privateKey()    { return privKey; }
-
 private:
-    unsigned char* pubKey;
-    unsigned char* privKey;
     bool keypairset;
 };
 

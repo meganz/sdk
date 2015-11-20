@@ -1968,64 +1968,88 @@ void CommandGetUA::procresult()
         error e = (error)client->json.getint();
 
 #ifdef USE_SODIUM
-        if ((e == API_ENOENT) && (user->userhandle == client->me)
-                && ( (attributename == "*keyring")
-                  || (attributename == "+puEd255")
-                  || (attributename == "+puCu255")))
+        if ((e == API_ENOENT) && (user->userhandle == client->me))
         {
-            // We apparently have missing keys
-
-            // 1. check which ones are missing
-            // 2. create them
-            // 3. send to MEGA
-
-
-            // We apparently don't have Ed25519 keys, yet. Let's make 'em.
-            if(!client->inited25519())
+            if (attributename == "+puEd255")
             {
-                client->app->getua_result(API_EINTERNAL);
-                return;
-            }
-
-            // Return the required key data.
-            if (attributename == "*prEd255")
-            {
-                client->app->getua_result(client->signkey.keySeed, crypto_sign_SEEDBYTES);
-                return;
-            }
-            else
-            {
-                unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-                if (!client->signkey.publicKey(pubKey))
+                // if key seed not available --> init key-pair
+                if (!client->signkey.keySeed)
                 {
-                    free(pubKey);
+                    if(!client->inited25519())
+                    {
+                        client->app->getua_result(API_EINTERNAL);
+                        return;
+                    }
+                    
+                    TLVstore *keyring = new TLVstore;
+                    keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
+                    keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
+
+                    // update *keyring
+                    // 1. check if prEd255 is available. Otherwise, create it.
+                    // 2. create TLV and send to MEGA
+                }
+
+                client->putua(attributename.c_str(), client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
+            }
+            else if (attributename == "+puCu255")
+            {
+                // if private key is not available --> init key-pair
+                if (!client->chatkey.privKey)
+                {
+                    if(!client->initx25519())
+                    {
+                        client->app->getua_result(API_EINTERNAL);
+                        return;
+                    }
+
+                    // update *keyring
+                    // 1. check if prCu255 is available. Otherwise, create it.
+                    // 2. create TLV and send to MEGA
+                }
+
+                client->putua(attributename.c_str(), (const byte *)client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
+
+                client->app->getua_result(client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
+
+            }
+            else if (attributename == "*keyring")
+            {
+                if(!client->inited25519())
+                {
                     client->app->getua_result(API_EINTERNAL);
                     return;
                 }
 
-                client->app->getua_result(pubKey, crypto_sign_PUBLICKEYBYTES);
-                return;
-            }
-        }
-        else if (attributename == "*prCu255" || attributename == "+puCu255")
-        {
-            // We apparently don't have x25519 keys, yet. Let's make 'em.
-            if(!client->initx25519())
-            {
-                client->app->getua_result(API_EINTERNAL);
-                return;
-            }
+                if(!client->initx25519())
+                {
+                    client->app->getua_result(API_EINTERNAL);
+                    return;
+                }
 
-            // Return the required key data.
-            if (attributename == "*prCu255")
-            {
-                client->app->getua_result(client->chatkey.privateKey(), crypto_box_SECRETKEYBYTES);
-                return;
-            }
-            else
-            {
-                client->app->getua_result(client->chatkey.publicKey(), crypto_box_PUBLICKEYBYTES);
-                return;
+                // prepare the attribute `*keyring`
+                TLVstore *keyring = new TLVstore;
+                keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
+                keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
+
+                // since `*keyring` is private, serialize and encrypt
+                TLVvalue * attrvalue = keyring->TLVrecordsToContainer(&client->key);
+
+                // store keys into user attributes (skipping the procresult())
+                int creqtag = client->reqtag;
+                client->reqtag = 0;
+
+//                putua(attributename, keyring);
+                client->putua(attributename.c_str(), attrvalue->first, attrvalue->second);
+                client->putua("*puEd255", client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
+                client->putua("*puCu255", client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
+
+                client->reqtag = creqtag;
+
+                client->app->getua_result(keyring);
+
+                delete attrvalue;
+                delete keyring;
             }
         }
 #endif
@@ -2082,7 +2106,7 @@ void CommandGetUA::procresult()
             break;
 
         case '+':   // public
-            if (attributename == "+a")  // legacy public attribute: '+' prefix but not TLV
+            if (attributename == "+a")  // legacy public attributes: '+' prefix but not TLV
             {
                 client->app->getua_result(data, datalen);
             }

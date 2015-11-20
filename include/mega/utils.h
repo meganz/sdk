@@ -246,16 +246,17 @@ private:
      */
     static TLVstore * containerToTLVrecords(const byte * data, unsigned datalen);
 
-    static byte * TLVrecordsToContainer(TLVstore *tlv, SymmCipher *key);
 
-    static byte * TLVrecordsToContainer(TLVstore *tlv);
+    TLVcontainer * TLVrecordsToContainer(SymmCipher *key, unsigned mode = AES_CCM_12_16);
+
+    TLVcontainer * TLVrecordsToContainer();
 
     /**
      * @brief get Get the value for a given key
      * @param type Type of the value.
      * @return Byte array with the value, or NULL if error.
      */
-    byte * get(string type);
+    TLVvalue get(string type);
 
     /**
      * @brief add Adds a new record to the container
@@ -263,7 +264,14 @@ private:
      * @param value New value to be set.
      * @return
      */
-    bool add(string type, byte *value, unsigned valuelen);
+    bool set(string type, byte *value, unsigned valuelen);
+
+    /**
+     * @brief add Adds a new record to the container
+     * @param value New value to be set.
+     * @return
+     */
+    bool set(string type, TLVvalue);
 
     size_t size() { return tlv.size(); }
 
