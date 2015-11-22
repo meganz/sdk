@@ -6473,17 +6473,26 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 }
                 else
                 {
-                    unsigned nsi, nni;
+                    n->applykey();
+                    if (sn->sharekey && n->nodekey.size() ==
+                            ((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
+                    {
+                        unsigned nsi, nni;
 
-                    nsi = addnode(&rshares, sn);
-                    nni = addnode(&rnodes, n);
+                        nsi = addnode(&rshares, sn);
+                        nni = addnode(&rnodes, n);
 
-                    sprintf(buf, "\",%u,%u,\"", nsi, nni);
+                        sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
-                    // generate & queue share nodekey
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
-                    Base64::btoa(keybuf, n->nodekey.size(), strchr(buf + 7, 0));
-                    crkeys.append(buf);
+                        // generate & queue share nodekey
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
+                        Base64::btoa(keybuf, n->nodekey.size(), strchr(buf + 7, 0));
+                        crkeys.append(buf);
+                    }
+                    else
+                    {
+                        LOG_warn << "Skipping node due to an unavailable key";
+                    }
                 }
             }
             else
