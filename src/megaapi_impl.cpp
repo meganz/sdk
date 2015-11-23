@@ -2772,10 +2772,10 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 
     string localurl;
 
-#ifndef USE_CURL
-    fsAccess->path2local(&url, &localurl);
-#else
+#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
     localurl = url;
+#else
+    fsAccess->path2local(&url, &localurl);
 #endif
 
     localProxySettings.setProxyURL(&localurl);
@@ -2788,10 +2788,10 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 
         string localusername;
 
-#ifndef USE_CURL
-        fsAccess->path2local(&username, &localusername);
-#else
+#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
         localusername = username;
+#else
+        fsAccess->path2local(&username, &localusername);
 #endif
 
         string password;
@@ -2800,10 +2800,10 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 
         string localpassword;
 
-#ifndef USE_CURL
-        fsAccess->path2local(&password, &localpassword);
-#else
+#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
         localpassword = password;
+#else
+        fsAccess->path2local(&password, &localpassword);
 #endif
 
         localProxySettings.setCredentials(&localusername, &localpassword);
