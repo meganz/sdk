@@ -389,16 +389,17 @@ struct TextChat
 typedef vector<TextChat*> textchat_vector;
 #endif
 
+// Type-Value (for user attributes)
 typedef pair<byte *, unsigned> TLVvalue;
-typedef map<string, TLVvalue> TLV_map;
+typedef map<string, string> TLV_map;
 
 typedef enum {
 
     AES_CCM_12_16 = 0x00,
     AES_CCM_10_16 = 0x01,
     AES_CCM_10_08 = 0x02,
-    AES_CCM_12_16_buggy = 0x03, // Same as 0x00 (due to a legacy bug)
-    AES_CCM_10_08_buggy = 0x04, // Same as 0x02 (due to a legacy bug)
+    AES_GCM_12_16_BROKEN = 0x03, // Same as 0x00 (due to a legacy bug)
+    AES_GCM_10_08_BROKEN = 0x04, // Same as 0x02 (due to a legacy bug)
     AES_GCM_12_16 = 0x10,
     AES_GCM_10_08 = 0x11
 

@@ -236,7 +236,7 @@ private:
      * @param key Master key to decrypt the container
      * @return A new TLVstore object. You take the ownership of the object.
      */
-    static TLVstore * containerToTLVrecords(const byte * data, unsigned datalen, SymmCipher *key);
+    static TLVstore * containerToTLVrecords(const string data, SymmCipher *key);
 
     /**
      * @brief containerToTLVrecords Builds a TLV object with records from a container
@@ -244,34 +244,34 @@ private:
      * @param datalen Length of the byte array.
      * @return A new TLVstore object. You take the ownership of the object.
      */
-    static TLVstore * containerToTLVrecords(const byte * data, unsigned datalen);
+    static TLVstore * containerToTLVrecords(const string data);
 
 
-    TLVcontainer TLVrecordsToContainer(SymmCipher *key, unsigned mode = AES_CCM_12_16);
+    string TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode = AES_CCM_12_16);
 
-    TLVcontainer TLVrecordsToContainer();
+    string TLVrecordsToContainer();
 
     /**
      * @brief get Get the value for a given key
-     * @param type Type of the value.
-     * @return Byte array with the value, or NULL if error.
+     * @param type Type of the value (without scope nor non-historic modifiers).
+     * @return String containing the array with the value, or NULL if error.
      */
-    TLVvalue get(string type)   { return tlv.at(type); }
+    string get(string type)   { return tlv.at(type); }
+
+    /**
+     * @brief find Checks whether a type of value is available in the TLV container.
+     * @param type Type of the value (without scope nor non-historic modifiers).
+     * @return True if the type of value is found, false otherwise.
+     */
+    bool find(string type)    { return (tlv.find(type) != tlv.end()); }
 
     /**
      * @brief add Adds a new record to the container
-     * @param type Type for the new value.
+     * @param type Type for the new value (without scope nor non-historic modifiers).
      * @param value New value to be set.
      * @return
      */
-    bool set(string type, byte *value, unsigned valuelen);
-
-    /**
-     * @brief add Adds a new record to the container
-     * @param value New value to be set.
-     * @return
-     */
-    bool set(string type, TLVvalue);
+    void set(string type, string value)   { tlv[type] = value; }
 
     size_t size() { return tlv.size(); }
 

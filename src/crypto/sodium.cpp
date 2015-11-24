@@ -26,42 +26,48 @@
 namespace mega
 {
 
-EdDSA::EdDSA()
+const std::string EdDSA::TLV_KEY = "prEd255";
+
+EdDSA::EdDSA(unsigned char *keySeed)
 {
-    keySeed = NULL;
-    privKey = NULL;
+    if (sodium_init() == -1)
+    {
+        LOG_err << "Cannot initialize sodium library.";
+        return;
+    }
+
+    this->keySeed = (unsigned char*) malloc(EdDSA::SEED_KEY_LENGTH);
+    if (this->keySeed == NULL)
+    {
+        LOG_err << "Cannot allocate memory for Ed25519 key seed.";
+        return;
+    }
+
+    if (keySeed)    // then use the value
+    {
+        memcpy(this->keySeed, keySeed, EdDSA::SEED_KEY_LENGTH);
+    }
+    else    // make the new key seed.
+    {
+        PrnGen::genblock(this->keySeed, EdDSA::SEED_KEY_LENGTH);
+    }
+
+    this->privKey = NULL;
+    this->pubKey = NULL;
+
+    // derive public and private keys from the seed
+    if (!genKeys())
+    {
+        LOG_err << "Error generating an Ed25519 key pair.";
+    }
 }
 
 EdDSA::~EdDSA()
 {
+    free(pubKey);
     free(privKey);
     free(keySeed);
 }
-
-// Initialise libsodium crypto system.
-void EdDSA::init()
-{
-    sodium_init();
-}
-
-
-// Sets a private key seed from a buffer.
-void EdDSA::setKeySeed(const unsigned char* data)
-{
-    // Make space for a key seed (if not present).
-    if (!this->keySeed)
-    {
-        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
-        if (this->keySeed == NULL)
-        {
-            // Something went wrong allocating the memory.
-            return;
-        }
-    }
-
-    memcpy(this->keySeed, data, crypto_sign_SEEDBYTES);
-}
-
 
 // Computes the signature of a message.
 int EdDSA::sign(const unsigned char* msg, const unsigned long long msglen,
@@ -121,32 +127,6 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
 }
 
 
-// Generates a new Ed25519 private key seed. The key seed is stored in the object.
-int EdDSA::genKeySeed(unsigned char* keySeed)
-{
-    // Make space for a new key seed (if not present).
-    if (!this->keySeed)
-    {
-        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
-        if (this->keySeed == NULL)
-        {
-            // Something went wrong allocating the memory.
-            return 0;
-        }
-    }
-
-    // Now make the new key seed.
-    PrnGen::genblock(this->keySeed, crypto_sign_SEEDBYTES);
-
-    // Copy it to privKey before returning.
-    if (keySeed)
-    {
-        memcpy(keySeed, this->keySeed, crypto_sign_SEEDBYTES);
-    }
-
-    return 1;
-}
-
 // Derives the Ed25519 private and public keys from the stored private key seed.
 int EdDSA::genKeys()
 {
@@ -154,7 +134,7 @@ int EdDSA::genKeys()
 
     if (!privKey)
     {
-        privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
+        privKey = (unsigned char*)malloc(PRIVATE_KEY_LENGTH);
         if (privKey == NULL)
         {
             // Something went wrong allocating the memory.
@@ -164,7 +144,7 @@ int EdDSA::genKeys()
 
     if (!pubKey)
     {
-        pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
+        pubKey = (unsigned char*)malloc(PUBLIC_KEY_LENGTH);
         if (pubKey == NULL)
         {
             free(privKey);
@@ -173,98 +153,95 @@ int EdDSA::genKeys()
         }
     }
 
-    check = crypto_sign_seed_keypair(pubKey, privKey,
-                                         (const unsigned char*)this->keySeed);
+    check = crypto_sign_seed_keypair(pubKey, privKey, (const unsigned char*) keySeed);
 
     // crypto_sign_seed_keypair() returns 0 on success
     return check ? 0 : 1;
 }
 
-ECDH::ECDH()
+const std::string ECDH::TLV_KEY= "prCu255";
+
+ECDH::ECDH(unsigned char *privKey)
 {
-    pubKey = NULL;
-    privKey = NULL;
-    keypairset = false;
+    if (sodium_init() == -1)
+    {
+        LOG_err << "Cannot initialize sodium library.";
+        return;
+    }
+
+    this->privKey = NULL;
+    this->pubKey = NULL;
+
+    if (privKey)    // then use the value
+    {
+        this->privKey = (unsigned char*)malloc(PRIVATE_KEY_LENGTH);
+        if (this->privKey == NULL)
+        {
+            LOG_err << "Cannot allocate memory for x25519 private key.";
+            return;
+        }
+
+        memcpy(this->privKey, privKey, PRIVATE_KEY_LENGTH);
+
+        // derive public key from privKey
+        this->pubKey = publicKey();
+    }
+    else
+    {
+        // no private key specified: create a new key pair
+        if (!genKeys())
+        {
+            LOG_err << "Error generating an x25519 key pair.";
+        }
+    }
 }
 
 ECDH::~ECDH()
 {
-    if (keypairset)
-    {
-        free(pubKey);
-        free(privKey);
-    }
-}
-
-void ECDH::init()
-{
-    sodium_init();
+    free(pubKey);
+    free(privKey);
 }
 
 int ECDH::genKeys()
 {
-    if (keypairset)
-    {
-        LOG_warn << "Regenerating chat key pair";
-    }
-    else
-    {
-        pubKey = (unsigned char*)malloc(crypto_box_PUBLICKEYBYTES);
-        privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
-    }
+    pubKey = (unsigned char*)malloc(PUBLIC_KEY_LENGTH);
+    privKey = (unsigned char*)malloc(PRIVATE_KEY_LENGTH);
 
     int check = crypto_box_keypair(pubKey, privKey);
 
-    if (check == 0)
-    {
-        keypairset = true;
-        return 1;
-    }
-    else
+    if (check != 0)
     {
         free (pubKey);
         free (privKey);
-        keypairset = false;
+        pubKey = NULL;
+        privKey = NULL;
         return 0;
     }
+
+    return 1;
 }
 
-void ECDH::setPubKey(unsigned char *pubKey)
+unsigned char * ECDH::publicKey()
 {
-    if (keypairset)
+    if (!pubKey)
     {
-        LOG_warn << "Setting a new chat key pair, but it already exists";
-    }
-    else
-    {
-        if (!this->pubKey)
+        if (privKey)
         {
-            this->pubKey = (unsigned char*)malloc(crypto_box_PUBLICKEYBYTES);
+            // derive pubKey from privKey
+            pubKey = (unsigned char*)malloc(PRIVATE_KEY_LENGTH);
+            if (crypto_scalarmult_base(pubKey, privKey))
+            {
+                free(pubKey);
+                pubKey = NULL;
+            }
+        }
+        else
+        {
+            LOG_warn << "Trying to get public key without private key.";
         }
     }
 
-    memcpy(this->pubKey, pubKey, crypto_box_PUBLICKEYBYTES);
-
-    keypairset = true;
-}
-
-void ECDH::setPrivKey(const unsigned char *privKey)
-{
-    if (keypairset)
-    {
-        LOG_warn << "Setting a new chat private key, but it already exists";
-    }
-    else
-    {
-        if (!this->privKey)
-        {
-            this->privKey = (unsigned char*)malloc(crypto_box_SECRETKEYBYTES);
-        }
-    }
-
-    memcpy(this->privKey, privKey, crypto_box_SECRETKEYBYTES);
-
-    keypairset = true;
+    return pubKey;
 }
 
 int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,

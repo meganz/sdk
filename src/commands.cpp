@@ -1315,11 +1315,6 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
-                // get keyring and check for missing keys
-                client->getua(client->finduser(me,1), "*keyring");
-//                client->getua(client->finduser(me,1), "+puEd255");
-//                client->getua(client->finduser(me,1), "+puCu255");
-
                 return client->app->login_result(API_OK);
 
             default:
@@ -1963,6 +1958,9 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
 
 void CommandGetUA::procresult()
 {
+    TLVstore *tlvRecords;
+    string tlvContainer;
+
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
@@ -1970,87 +1968,42 @@ void CommandGetUA::procresult()
 #ifdef USE_SODIUM
         if ((e == API_ENOENT) && (user->userhandle == client->me))
         {
-            // If keyring is not found, create private keys and send them to MEGA
+            // If keyring is not found, create keypairs and send them to MEGA
             if (attributename == "*keyring")
             {
-                if(!client->inited25519())
-                {
-                    client->app->getua_result(API_EINTERNAL);
-                    return;
-                }
-
-                if(!client->initx25519())
-                {
-                    client->app->getua_result(API_EINTERNAL);
-                    return;
-                }
+                client->signkey = new EdDSA();
+                client->chatkey = new ECDH();
 
                 // prepare the attribute `*keyring`
-                TLVstore *keyring = new TLVstore;
-                keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
-                keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
+                tlvRecords = new TLVstore;
+                tlvRecords->set(EdDSA::TLV_KEY, string((const char*)client->signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+                tlvRecords->set(ECDH::TLV_KEY, string((const char*)client->chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
 
                 // since `*keyring` is private, serialize and encrypt
-                TLVcontainer attrvalue = keyring->TLVrecordsToContainer(&client->key);
+                tlvContainer = tlvRecords->TLVrecordsToContainer(&client->key);
 
                 // store keys into user attributes (skipping the procresult())
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
 
-                client->putua(attributename.c_str(), attrvalue.first, attrvalue.second);
-                client->putua("*puEd255", client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
-                client->putua("*puCu255", client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
+                client->putua(attributename.c_str(), (byte *) tlvContainer.data(), tlvContainer.length());
+                client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
 
                 client->reqtag = creqtag;
 
-                client->app->getua_result(keyring);
-
-                // free (attrvalue->first);
-                delete [] attrvalue.first;
-                delete keyring;
+                client->app->getua_result(tlvRecords);
+                delete tlvRecords;
             }
-            else if (attributename == "+puCu255")
+            else if (attributename == "+puEd255")   // public key not found: resend the value
             {
-                // if private key is not available --> init key-pair
-                if (!client->chatkey.privKey)
-                {
-                    if(!client->initx25519())
-                    {
-                        client->app->getua_result(API_EINTERNAL);
-                        return;
-                    }
-
-                    // update *keyring
-                    // 1. check if prCu255 is available. Otherwise, create it.
-                    // 2. create TLV and send to MEGA
-                }
-
-                client->putua(attributename.c_str(), (const byte *)client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
-
-                client->app->getua_result(client->chatkey.pubKey, crypto_box_PUBLICKEYBYTES);
-
+                client->putua(attributename.c_str(), (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                client->app->getua_result(client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
             }
-            else if (attributename == "+puEd255")
+            else if (attributename == "+puCu255")   // public key not found: resend the value
             {
-                // if key seed not available --> init key-pair
-                if (!client->signkey.keySeed)
-                {
-                    if(!client->inited25519())
-                    {
-                        client->app->getua_result(API_EINTERNAL);
-                        return;
-                    }
-
-                    TLVstore *keyring = new TLVstore;
-                    keyring->set("prEd255", TLVvalue(client->signkey.keySeed, crypto_sign_SEEDBYTES));
-                    keyring->set("prCu255", TLVvalue(client->chatkey.privKey, crypto_box_SECRETKEYBYTES));
-
-                    // update *keyring
-                    // 1. check if prEd255 is available. Otherwise, create it.
-                    // 2. create TLV and send to MEGA
-                }
-
-                client->putua(attributename.c_str(), client->signkey.pubKey, crypto_sign_PUBLICKEYBYTES);
+                client->putua(attributename.c_str(), (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+                client->app->getua_result(client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
             }
         }
 #endif
@@ -2082,18 +2035,18 @@ void CommandGetUA::procresult()
         data = new byte[datalen];
         datalen = Base64::atob(ptr, data, datalen);
 
-        TLVstore *tlv;
+        bool missingKeypair = false;
+//        bool nonHistoric = (attributename.at(1) == '!');
 
         // handle the attribute data depending on the scope
         char scope = attributename.at(0);
-//        bool nonhistoric = (attributename.at(1) == '!');
         switch (scope)
         {
         case '*':   // private
 
             // decrypt the data and build the TLV records
-            tlv = TLVstore::containerToTLVrecords(data, datalen, &client->key);
-            if (!tlv)
+            tlvRecords = TLVstore::containerToTLVrecords(string((char*) data, datalen), &client->key);
+            if (!tlvRecords)
             {
                 LOG_err << "Cannot extract TLV records for private attribute " << attributename;
                 client->app->getua_result(API_EINTERNAL);
@@ -2103,28 +2056,102 @@ void CommandGetUA::procresult()
 
             if (attributename == "*keyring")
             {
-                // TODO: check if keys are already set, so no need to reset singkey and chatkey but check value.
+                // Ed25519 not initialized yet
+                if (!client->signkey)
+                {
+                    if (tlvRecords->find(EdDSA::TLV_KEY))   // use received value
+                    {
+                        client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                    }
+                    else    // create e new keypair
+                    {
+                        client->signkey = new EdDSA();
+                        missingKeypair = true;
+                    }
+                }
 
-                // store private keys locally
-                client->signkey.setKeySeed((const unsigned char *)tlv->get("prEd255").first);    // carefull, keys in TLV records don't include scope modifier
-                client->chatkey.setPrivKey((const unsigned char *)tlv->get("prCu255").first);    // carefull, keys in TLV records don't include scope modifier
+                // x25519 not initialized yet
+                if (!client->chatkey)
+                {
+                    if (tlvRecords->find(ECDH::TLV_KEY))   // use received value
+                    {
+                        client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+                    }
+                    else    // create e new keypair
+                    {
+                        client->chatkey = new ECDH();
+                        missingKeypair = true;
+                    }
+                }
+
+                // any of the keys is missing in MEGA --> update the *keyring
+                if (missingKeypair)
+                {
+                    tlvRecords->set(EdDSA::TLV_KEY, string((char *) client->signkey->keySeed));
+                    tlvRecords->set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
+
+                    tlvContainer = tlvRecords->TLVrecordsToContainer();
+                    client->putua(attributename.c_str(), (byte *) tlvContainer.data(), tlvContainer.length());
+                    client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                    client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+                }
+                else    // all good, ready to check public keys
+                {
+                    client->getua(client->finduser(client->me,0), "+puEd255");
+                    client->getua(client->finduser(client->me,0), "+puCu255");
+                }
             }
 
-            client->app->getua_result(tlv);
-            delete tlv;
+            client->app->getua_result(tlvRecords);
+            delete tlvRecords;
 
             break;
 
         case '+':   // public
-            if (attributename == "+a")  // legacy public attributes: '+' prefix but not TLV
+
+            // legacy public attributes: '+' prefix but not TLV
+            if ( attributename == "+a"        ||
+                 attributename == "+puEd255"  ||
+                 attributename == "+puCu255"  ||
+                 attributename == "+sigPubk"  ||
+                 attributename == "+sigCu255" )
             {
+                // if own user's attribute and it's a public key, check against derived pubKey
+                if (user->userhandle == client->me)
+                {
+                    if (attributename == "+puEd255")
+                    {
+                        if (memcmp(data, client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
+                        {
+                            LOG_warn << "Public key for Ed25519 doesn't match. Updating...";
+                            client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                        }
+                        else
+                        {
+                            LOG_info << "Public key for Ed25519 matches derived public key.";
+                        }
+                    }
+                    else if (attributename == "+puCu255")
+                    {
+                        if (memcmp(data, client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
+                        {
+                            LOG_warn << "Public key for x25519 doesn't match. Updating...";
+                            client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+                        }
+                        else
+                        {
+                            LOG_info << "Public key for x25519 matches derived public key.";
+                        }
+                    }
+                }
+
                 client->app->getua_result(data, datalen);
             }
             else
             {
                 // build the TLV records
-                tlv = TLVstore::containerToTLVrecords(data, datalen);
-                if (!tlv)
+                tlvRecords = TLVstore::containerToTLVrecords(string((char*) data, datalen));
+                if (!tlvRecords)
                 {
                     LOG_err << "Cannot extract TLV records for public attribute " << attributename;
                     client->app->getua_result(API_EINTERNAL);
@@ -2132,8 +2159,8 @@ void CommandGetUA::procresult()
                     return;
                 }
 
-                client->app->getua_result(tlv);
-                delete tlv;
+                client->app->getua_result(tlvRecords);
+                delete tlvRecords;
             }
             break;
 
@@ -2142,9 +2169,9 @@ void CommandGetUA::procresult()
             break;
 
         default:    // legacy private attributes or unknown attribute
-            if (attributename == "firstname" ||
+            if (attributename == "firstname"    ||
                     attributename == "lastname" ||
-                    attributename == "country" ||
+                    attributename == "country"  ||
                     attributename == "birthday" ||
                     attributename == "birthmonth" ||
                     attributename == "birthyear")
@@ -3184,6 +3211,10 @@ void CommandFetchNodes::procresult()
                 client->applykeys();
                 client->initsc();
                 client->fetchnodestag = tag;
+
+                // get keyring and check for missing keys
+                client->getua(client->finduser(client->me), "*keyring");
+
                 return;
 
             default:

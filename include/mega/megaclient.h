@@ -782,10 +782,10 @@ public:
 #ifdef USE_SODIUM
 
     /// EdDSA signing key (Ed25519 private key seed).
-    EdDSA signkey;
+    EdDSA *signkey;
 
     /// ECDH key (x25519 private key).
-    ECDH chatkey;
+    ECDH *chatkey;
 #endif
 
     // binary session ID
