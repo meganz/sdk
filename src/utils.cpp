@@ -514,6 +514,9 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
         value.assign((char*)&(data.data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
         offset += valuelen;
 
+        // add it to the map
+        tlv->set(type, value);
+
         // check if this record is affected by the UTF-8 bug: extra bytes after the value
         if (datalen > offset + typelen)   // more records available
         {
@@ -524,9 +527,6 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
                 offset += extraBytes;   // skip them
             }
         }
-
-        // add it to the map
-        tlv->set(type, value);
     }
 
     return tlv;
