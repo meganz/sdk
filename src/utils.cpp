@@ -466,7 +466,7 @@ string TLVstore::TLVrecordsToContainer()
     return result;
 }
 
-TLVstore * TLVstore::containerToTLVrecords(const string data)//const byte * data, unsigned datalen)
+TLVstore * TLVstore::containerToTLVrecords(const string data)
 {
     if (data.empty())
     {
@@ -478,16 +478,18 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)//const byte * data
     unsigned offset = 0;
 
     string type;
-    unsigned int typelen;
+    unsigned typelen;
     string value;
-    unsigned int valuelen;
+    unsigned valuelen;
 
-    while (offset < data.length())
+    unsigned datalen = data.length();
+
+    while (offset < datalen)
     {
         // get the length of the Type string
         typelen = data.find('\0', offset) - offset;
 
-        if (offset + typelen + 2 > data.length())
+        if (offset + typelen + 2 > datalen)
         {
             delete tlv;
             return NULL;
@@ -502,7 +504,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)//const byte * data
         value.resize(valuelen);
         offset += 2;
 
-        if (offset + valuelen > data.length())
+        if (offset + valuelen > datalen)
         {
             delete tlv;
             return NULL;
@@ -511,6 +513,17 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)//const byte * data
         // get the Value
         value.assign((char*)&(data.data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
         offset += valuelen;
+
+        // check if this record is affected by the UTF-8 bug: extra bytes after the value
+        if (datalen > offset + typelen)   // more records available
+        {
+            unsigned pos = data.find('\0', offset);
+            unsigned extraBytes = pos - offset - typelen;    // assume all 'T' strings have same length
+            if (pos != string::npos && extraBytes)
+            {
+                offset += extraBytes;   // skip them
+            }
+        }
 
         // add it to the map
         tlv->set(type, value);

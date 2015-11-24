@@ -2097,8 +2097,8 @@ void CommandGetUA::procresult()
                 }
                 else    // all good, ready to check public keys
                 {
-                    client->getua(client->finduser(client->me,0), "+puEd255");
-                    client->getua(client->finduser(client->me,0), "+puCu255");
+                    client->getua(client->finduser(client->me), "+puEd255");
+                    client->getua(client->finduser(client->me), "+puCu255");
                 }
             }
 
