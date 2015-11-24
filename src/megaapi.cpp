@@ -1034,6 +1034,11 @@ char *MegaApi::getMyUserHandle()
     return pImpl->getMyUserHandle();
 }
 
+char *MegaApi::getMyXMPPJid()
+{
+    return pImpl->getMyXMPPJid();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);

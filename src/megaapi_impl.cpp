@@ -2472,6 +2472,23 @@ char *MegaApiImpl::getMyUserHandle()
     return result;
 }
 
+char *MegaApiImpl::getMyXMPPJid()
+{
+    sdkMutex.lock();
+    if (ISUNDEF(client->me))
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char jid[16];
+    Base32::btoa((const byte *)&client->me, MegaClient::USERHANDLE, jid);
+    char *result = MegaApi::strdup(jid);
+
+    sdkMutex.unlock();
+    return result;
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     if(!externalLogger)

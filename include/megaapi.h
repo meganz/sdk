@@ -1711,7 +1711,7 @@ class MegaRequest
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::getUserData - Returns the XMPP ID of the contact
+         * - MegaApi::getUserData - Returns the XMPP JID of the user
          * - MegaApi::loadBalancing . Returns the response of the server
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
@@ -3722,6 +3722,7 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the logged user
          * - MegaRequest::getPassword - Returns the the public RSA key of the account, Base64-encoded
          * - MegaRequest::getPrivateKey - Returns the private RSA key of the account, Base64-encoded
+         * - MegaRequest::getText - Returns the XMPP JID of the logged user
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -3932,6 +3933,18 @@ class MegaApi
          * @return User handle of the account
          */
         char* getMyUserHandle();
+
+        /**
+         * @brief Returns the XMPP JID of the currently open account
+         *
+         * If the MegaApi object isn't logged in,
+         * this function returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @return XMPP JID of the current account
+         */
+        char* getMyXMPPJid();
 
         /**
          * @brief Set the active log level
