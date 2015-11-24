@@ -1229,11 +1229,16 @@ void CommandLogin::procresult()
                 {
                     if (fa && client->sctable)
                     {
-                        LOG_debug << "Local DB upgrade granted";
                         client->sctable->remove();
                         delete client->sctable;
                         client->sctable = NULL;
                         client->cachedscsn = UNDEF;
+                        client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
+
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99404, "Local DB upgrade granted");
+                        client->reqtag = creqtag;
                     }
                 }
 
