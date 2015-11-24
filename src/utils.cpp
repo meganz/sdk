@@ -360,44 +360,50 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
-TLVcontainer TLVstore::TLVrecordsToContainer(SymmCipher *key, unsigned mode)
+string TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
 {
     // serialize the TLV records
-    TLVcontainer tlv = TLVrecordsToContainer();
+    string container = TLVrecordsToContainer();
 
     // encrypt the result
     int ivlen, taglen;
+    bool useCCM = false;
     switch (mode)
     {
     case AES_CCM_12_16:
-    case AES_CCM_12_16_buggy:
+    case AES_GCM_12_16_BROKEN:
         ivlen = 12;
         taglen = 16;
+        useCCM = true;
         break;
 
     case AES_CCM_10_16:
         ivlen = 10;
         taglen = 16;
+        useCCM = true;
         break;
 
     case AES_CCM_10_08:
-    case AES_CCM_10_08_buggy:
+    case AES_GCM_10_08_BROKEN:
         ivlen = 12;
         taglen = 16;
+        useCCM = true;
         break;
 
     case AES_GCM_12_16:
         ivlen = 12;
         taglen = 16;
+        useCCM = false;
         break;
 
     case AES_GCM_10_08:
         ivlen = 10;
         taglen = 16;
+        useCCM = false;
         break;
 
     default:    // unknown block encryption mode
-        return TLVcontainer(NULL,0);
+        return NULL;
     }
 
     // generate IV array
@@ -405,23 +411,26 @@ TLVcontainer TLVstore::TLVrecordsToContainer(SymmCipher *key, unsigned mode)
     PrnGen::genblock(iv, ivlen);
 
     // encrypt the bytes using the specified mode
-    key->ccm_encrypt(tlv.first, tlv.second, iv, ivlen);
+    if (useCCM)
+    {
+        key->ccm_encrypt((byte *)container.data(), container.length(), iv, ivlen);
+    }
+    else    // then use GCM
+    {
+        key->gcm_encrypt((byte *)container.data(), container.length(), iv, ivlen);
+    }
 
-    // prepare the resulting byte array
-    unsigned buflen = 1 + ivlen + tlv.second;
-    byte *buf = new byte[buflen];
-
-    buf[0] = mode;
-    memcpy(&buf[1], iv, ivlen);
-    memcpy(&buf[1+ivlen], tlv.first, tlv.second);
+    string result;
+    result.resize(1);
+    result.at(0) = mode;
+    result.append((char*) iv, ivlen);
+    result.append((char*) container.data(), container.length());
 
     delete [] iv;
-//    delete [] tlv.first;
-
-    return TLVcontainer(buf, buflen);
+    return result;
 }
 
-TLVcontainer TLVstore::TLVrecordsToContainer()
+string TLVstore::TLVrecordsToContainer()
 {
     TLV_map::iterator it;
     unsigned buflen = 0;
@@ -429,130 +438,133 @@ TLVcontainer TLVstore::TLVrecordsToContainer()
     for (it = tlv.begin(); it != tlv.end(); it++)
     {
         // add string length + null char + 2 bytes for length + value length
-        buflen += it->first.length() + 1 + 2 + it->second.second;
+        buflen += it->first.length() + 1 + 2 + it->second.length();
     }
 
-    byte *buf = new byte[buflen];
-    char *ptr = (char *)buf;
+    string result;
+    unsigned offset = 0;
+    unsigned length;
 
     for (it = tlv.begin(); it != tlv.end(); it++)
     {
         // copy Type
-        strcpy(ptr, it->first.c_str());
-        ptr += it->first.length() + 1;  // +1: null-character
+        result.append(it->first);
+        offset += it->first.length() + 1;   // keep the NULL-char for Type string
 
         // set Length of value
-        ptr[0] = it->second.second >> 8;
-        ptr[1] = it->second.second & 0xFF;
-        ptr += 2;
+        length = it->second.length();
+        result.resize(offset + 2);
+        result.at(offset) = length >> 8;
+        result.at(offset + 1) = length & 0xFF;
+        offset += 2;
 
         // copy the Value
-        memcpy(ptr, it->second.first, it->second.second);
-        ptr += it->second.second;
+        result.append((char*)it->second.data(), it->second.length());
+        offset += it->second.length();
     }
 
-    return TLVcontainer(buf, buflen);
+    return result;
 }
 
-TLVstore * TLVstore::containerToTLVrecords(const byte * data, unsigned datalen)
+TLVstore * TLVstore::containerToTLVrecords(const string data)//const byte * data, unsigned datalen)
 {
-    if (!data || !datalen)
+    if (data.empty())
     {
         return NULL;
     }
 
     TLVstore *tlv = new TLVstore();
 
-    char *ptr = (char*) data;
-    char *end = ptr + datalen;
+    unsigned offset = 0;
 
-    unsigned int typelen;
     string type;
+    unsigned int typelen;
+    string value;
     unsigned int valuelen;
-    byte * value;
 
-    while (ptr < end)
+    while (offset < data.length())
     {
         // get the length of the Type string
-        typelen = 0;
-        while (ptr[typelen] != '\0')
-        {
-            typelen++;
-        }
+        typelen = data.find('\0', offset) - offset;
 
-        if (ptr + typelen + 2 > end)
+        if (offset + typelen + 2 > data.length())
         {
             delete tlv;
             return NULL;
         }
 
         // get the Type string
-        type.assign(ptr, 0, typelen);
-        ptr += typelen + 1;             // +1: NULL character
+        type.assign((char*)&(data.data()[offset]), typelen);
+        offset += typelen + 1;        // +1: NULL character
 
         // get the Length of the value
-        valuelen = ptr[0] << 8 | ptr[1];
-        ptr += 2;
+        valuelen = data.at(offset) << 8 | data.at(offset + 1);
+        value.resize(valuelen);
+        offset += 2;
 
-        if (ptr + valuelen > end)
+        if (offset + valuelen > data.length())
         {
             delete tlv;
             return NULL;
         }
 
         // get the Value
-        value = new byte[valuelen];
-        memcpy(value, ptr, valuelen);
-        ptr += valuelen;
+        value.assign((char*)&(data.data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
+        offset += valuelen;
 
         // add it to the map
-        tlv->set(type, value, valuelen);
+        tlv->set(type, value);
     }
 
     return tlv;
 }
 
 
-TLVstore * TLVstore::containerToTLVrecords(const byte *data, unsigned datalen, SymmCipher *key)
+TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
 {
-    if (!data || !datalen)
+    if (data.empty())
     {
         return NULL;
     }
 
     unsigned offset = 0;
-
-    int mode = data[offset];
+    encryptionmode_t mode = (encryptionmode_t) data.at(offset);
     offset++;
 
     int ivlen, taglen;
+    bool useCCM = false;
     switch (mode)
     {
     case AES_CCM_12_16:
-    case AES_CCM_12_16_buggy:
+    case AES_GCM_12_16_BROKEN:
         ivlen = 12;
         taglen = 16;
+        useCCM = true;
         break;
 
     case AES_CCM_10_16:
         ivlen = 10;
         taglen = 16;
+        useCCM = true;
         break;
 
     case AES_CCM_10_08:
-    case AES_CCM_10_08_buggy:
+    case AES_GCM_10_08_BROKEN:
         ivlen = 12;
         taglen = 16;
+        useCCM = true;
         break;
 
     case AES_GCM_12_16:
         ivlen = 12;
         taglen = 16;
+        useCCM = false;
         break;
 
     case AES_GCM_10_08:
         ivlen = 10;
         taglen = 16;
+        useCCM = false;
         break;
 
     default:    // unknown block encryption mode
@@ -563,17 +575,22 @@ TLVstore * TLVstore::containerToTLVrecords(const byte *data, unsigned datalen, S
     memcpy(iv, &(data[offset]), ivlen);
     offset += ivlen;
 
-    int buflen = datalen - offset;
+    int buflen = data.length() - offset;
 
-    byte *buf = new byte[buflen];
-    memcpy(buf, &(data[offset]), buflen);
+    string buf;
+    buf.assign((char*)&(data.data()[offset]), buflen);
 
-    // BUG: the AES mode may be different, based on the mode. Now, it's always CCM_
-    key->ccm_decrypt(buf, buflen, iv, ivlen);
+    if (useCCM)
+    {
+        key->ccm_decrypt((byte*)buf.data(), buflen, iv, ivlen);
+    }
+    else
+    {
+        key->gcm_decrypt((byte*)buf.data(), buflen, iv, ivlen);
+    }
 
-    TLVstore *tlv = TLVstore::containerToTLVrecords(buf, buflen);
+    TLVstore *tlv = TLVstore::containerToTLVrecords(buf);
 
-    delete [] buf;
     delete [] iv;
 
     return tlv;
@@ -581,24 +598,6 @@ TLVstore * TLVstore::containerToTLVrecords(const byte *data, unsigned datalen, S
 
 TLVstore::~TLVstore()
 {
-    if (tlv.size())
-    {
-        TLV_map::iterator it;
-        for (it = tlv.begin(); it != tlv.end(); it++)
-        {
-            delete [] it->second.first;
-        }
-    }
-}
-
-bool TLVstore::set(string type, byte *value, unsigned valuelen)
-{
-    tlv[type] = TLVvalue(value, valuelen);
-}
-
-bool TLVstore::set(string type, TLVvalue value)
-{
-    tlv[type] = value;
 }
 
 } // namespace

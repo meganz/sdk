@@ -34,25 +34,17 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
+    static const int SEED_KEY_LENGTH = crypto_sign_SEEDBYTES;
+    static const int PUBLIC_KEY_LENGTH = crypto_sign_PUBLICKEYBYTES;
 
-    EdDSA();
+    // TLV key to access to the corresponding value in the TLV records
+    static const string TLV_KEY;
+
+    EdDSA(unsigned char* keySeed = NULL);
     ~EdDSA();
 
     unsigned char* keySeed;
     unsigned char* pubKey;
-
-    /**
-     *  @brief Initialise libsodium crypto system. Should be called only once.
-     */
-    static void init();
-
-    /**
-     * @brief Sets a private key seed from a buffer.
-     *
-     * @param data Buffer containing the key bytes.
-     * @return Void.
-     */
-    void setKeySeed(const unsigned char* data);
 
     /**
      * @brief Computes the signature of a message.
@@ -86,20 +78,13 @@ public:
      * @param privk Private key seed to return, unless NULL.
      * @return 1 on success, 0 on failure.
      */
-    int genKeySeed(unsigned char* privKey = NULL);
+    int genKeySeed();
 
     int genKeys();
 
-    /**
-     * @brief Derives the Ed25519 public key from the stored private key seed.
-     *
-     * @param pubKey Public key.
-     * @return 1 on success, 0 on failure.
-     */
-    int publicKey(unsigned char* pubKey);
-
 private:
-    unsigned char* privKey;
+    static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
+    unsigned char* privKey; // don't use it externally, use keySeed instead
 };
 
 
@@ -110,17 +95,17 @@ private:
 class MEGA_API ECDH
 {
 public:
+    static const int PRIVATE_KEY_LENGTH = crypto_box_SECRETKEYBYTES;
+    static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
 
-    unsigned char* pubKey;
+    // TLV key to access to the corresponding value in the TLV records
+    static const string TLV_KEY;
+
     unsigned char* privKey;
+    unsigned char* pubKey;
 
-    ECDH();
+    ECDH(unsigned char * privKey = NULL);
     ~ECDH();
-
-    /**
-     *  @brief Initialise libsodium crypto system. Should be called only once.
-     */
-    static void init();
 
     /**
      * @brief genKeys Generate a new key pair
@@ -128,17 +113,6 @@ public:
      * @return 1 on success, 0 on failure.
      */
     int genKeys();
-
-
-    /**
-     * @brief setKeys Establish the key pair passed by parameter.
-     *
-     * @param pubKey
-     * @param privKey
-     */
-    void setPubKey(unsigned char *pubKey);
-
-    void setPrivKey(const unsigned char *privKey);
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -181,7 +155,7 @@ public:
                  const unsigned char* pubKey, const unsigned char* privKey);
 
 private:
-    bool keypairset;
+    unsigned char * publicKey();    // used to derive pubKey from privKey
 };
 
 } // namespace
