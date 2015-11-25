@@ -2130,8 +2130,8 @@ void CommandGetUA::procresult()
                 {
                     tlvRecords->set(EdDSA::TLV_KEY, string((char *) client->signkey->keySeed));
                     tlvRecords->set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
+                    tlvContainer = tlvRecords->TLVrecordsToContainer(&client->key);
 
-                    tlvContainer = tlvRecords->TLVrecordsToContainer();
                     client->putua(attributename.c_str(), (byte *) tlvContainer.data(), tlvContainer.length());
 
                     if (signkeyUpdated)
