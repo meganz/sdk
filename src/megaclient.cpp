@@ -3495,6 +3495,19 @@ void MegaClient::sc_userattr()
                                     u->changed.lstint = true;
                                     notifyuser(u);
                                 }
+                                else if (ua == "*keyring")
+                                {
+                                    // keyring has changed, get values and refresh
+                                    getua(u, "*keyring");
+                                }
+                                else if (ua == "+puEd255")
+                                {
+                                    getua(u, "+puEd255");
+                                }
+                                else if (ua == "+puCu255")
+                                {
+                                    getua(u, "+puCu255");
+                                }
                                 else
                                 {
                                     LOG_debug << "User attribute not recognized: " << ua;
@@ -6150,8 +6163,8 @@ error MegaClient::invite(const char* email, visibility_t show)
  * Attributes are stored as base64-encoded binary blobs. They use internal
  * attribute name prefixes:
  *
- * "*" - Private and CBC-encrypted. Use a TLV container (key-value)
- * "#" - Protected attributes, accessible only by contacts.
+ * "*" - Private and encrypted. Use a TLV container (key-value)
+ * "#" - Protected and plain text, accessible only by contacts.
  * "+" - Public and plain text, accessible by anyone knowing userhandle
  *
  * @param an Attribute name.
