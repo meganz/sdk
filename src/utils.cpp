@@ -538,8 +538,16 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
         tlv->set(type, value);
 
         // check if this record is affected by the UTF-8 bug: extra bytes after the value
-        if (datalen > offset + typelen)   // more records available
+        if (datalen > offset + typelen)   // more data available
         {
+//            string rest;
+//            rest.assign(data, offset, string::npos);
+
+//            if (rest.length() != datalen - offset)
+//            {
+//                // there are extra bytes we haven't read yet, should we shave them off or convert from UTF-8??
+//            }
+
             unsigned pos = data.find('\0', offset);
             unsigned extraBytes = pos - offset - typelen;    // assume all 'T' strings have same length
             if (pos != string::npos && extraBytes)
