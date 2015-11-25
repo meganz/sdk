@@ -116,14 +116,14 @@ public:
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
-     * private key of the sender and a nounce (number used once)
+     * private key of the sender and a nonce (number used once)
      *
      * @param encmsg Encrypted text after encryption. This function ensures that the
      * first crypto_box_ZEROBYTES bytes of the encrypted text msg are all 0.
      * @param msg Message to be encrypted. Caller must ensure that the first
      * crypto_box_ZEROBYTES bytes of the message msg are all 0.
      * @param msglen Lenght of the message to be encrypted.
-     * @param nounce Number used once. The same nonce must never be used to encrypt another
+     * @param nonce Number used once. The same nonce must never be used to encrypt another
      * packet from the sender's private key to this receiver's public key or viceversa.
      * @param pubKey Public key of the receiver.
      * @param privKey Private key of the sender.
@@ -131,19 +131,19 @@ public:
      * @return 1 on success, 0 on failure.
      */
     int encrypt(unsigned char* encmsg, const unsigned char* msg,
-               const unsigned long long msglen, const unsigned char* nounce,
+               const unsigned long long msglen, const unsigned char* nonce,
                const unsigned char* pubKey, const unsigned char* privKey);
 
     /**
      * @brief decrypt Decrypt a message using the public key of recipient, the
-     * private key of the sender and a nounce (number used once)
+     * private key of the sender and a nonce (number used once)
      *
      * @param msg Message in plain text after decryption. This function ensures that
      * the first crypto_box_ZEROBYTES bytes of the message msg are all 0.
      * @param encmsg Encrypted text to be decrypted. Caller must ensure that the first
      * crypto_box_ZEROBYTES bytes of the chipered text encmsg are all 0.
      * @param encmsglen Length of the encrypted text.
-     * @param nounce Number used once. The same nonce must never be used to encrypt another
+     * @param nonce Number used once. The same nonce must never be used to encrypt another
      * packet from the sender's private key to this receiver's public key or viceversa.
      * @param pubKey Public key of the sender.
      * @param privKey Private key of the receiver.
@@ -151,7 +151,7 @@ public:
      * @return 1 on success, 0 on failure.
      */
     int decrypt(unsigned char* msg, const unsigned char* encmsg,
-                 const unsigned long long encmsglen, const unsigned char* nounce,
+                 const unsigned long long encmsglen, const unsigned char* nonce,
                  const unsigned char* pubKey, const unsigned char* privKey);
 
 private:

@@ -30,6 +30,10 @@ const std::string EdDSA::TLV_KEY = "prEd255";
 
 EdDSA::EdDSA(unsigned char *keySeed)
 {
+    this->privKey = NULL;
+    this->pubKey = NULL;
+    this->keySeed = NULL;
+
     if (sodium_init() == -1)
     {
         LOG_err << "Cannot initialize sodium library.";
@@ -51,9 +55,6 @@ EdDSA::EdDSA(unsigned char *keySeed)
     {
         PrnGen::genblock(this->keySeed, EdDSA::SEED_KEY_LENGTH);
     }
-
-    this->privKey = NULL;
-    this->pubKey = NULL;
 
     // derive public and private keys from the seed
     if (!genKeys())
@@ -245,19 +246,19 @@ unsigned char * ECDH::publicKey()
 }
 
 int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,
-                  const unsigned long long msglen, const unsigned char *nounce,
+                  const unsigned long long msglen, const unsigned char *nonce,
                   const unsigned char *pubKey, const unsigned char *privKey)
 {
-    int check = crypto_box(encmsg, msg, msglen, nounce, pubKey, privKey);
+    int check = crypto_box(encmsg, msg, msglen, nonce, pubKey, privKey);
 
     return check ? 0 : 1;
 }
 
 int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
-                  const unsigned long long encmsglen, const unsigned char *nounce,
+                  const unsigned long long encmsglen, const unsigned char *nonce,
                   const unsigned char *pubKey, const unsigned char *privKey)
 {
-    int check = crypto_box_open(msg, encmsg, encmsglen, nounce, pubKey, privKey);
+    int check = crypto_box_open(msg, encmsg, encmsglen, nonce, pubKey, privKey);
 
     return check ? 0 : 1;
 }
