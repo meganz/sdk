@@ -1180,6 +1180,7 @@ class MegaApiImpl : public MegaApp
         MegaError checkAccess(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
 
+        bool isFilesystemAvailable();
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();

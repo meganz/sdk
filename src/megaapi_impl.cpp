@@ -7341,7 +7341,15 @@ MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 	MegaError e(client->checkmove(node,target));
     sdkMutex.unlock();
 
-	return e;
+    return e;
+}
+
+bool MegaApiImpl::isFilesystemAvailable()
+{
+    sdkMutex.lock();
+    bool result = client->nodebyhandle(client->rootnodes[0]) != NULL;
+    sdkMutex.unlock();
+    return result;
 }
 
 bool MegaApiImpl::nodeComparatorDefaultASC (Node *i, Node *j)

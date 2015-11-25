@@ -6104,6 +6104,16 @@ class MegaApi
         MegaError checkMove(MegaNode* node, MegaNode* target);
 
         /**
+         * @brief Check if the MEGA filesystem is available in the local computer
+         *
+         * This function returns true after a successful call to MegaApi::fetchNodes,
+         * otherwise it returns false
+         *
+         * @return True if the MEGA filesystem is available
+         */
+        bool isFilesystemAvailable();
+
+        /**
          * @brief Returns the root node of the account
          *
          * You take the ownership of the returned value

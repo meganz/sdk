@@ -2010,6 +2010,11 @@ MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
     return pImpl->checkMove(megaNode, targetNode);
 }
 
+bool MegaApi::isFilesystemAvailable()
+{
+    return pImpl->isFilesystemAvailable();
+}
+
 int MegaApi::getNumChildren(MegaNode* parent)
 {
 	return pImpl->getNumChildren(parent);
