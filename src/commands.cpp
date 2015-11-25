@@ -2125,32 +2125,36 @@ void CommandGetUA::procresult()
                     chatkeyUpdated = true;
                 }
 
-                // send to MEGA any updated key
-                if (signkeyUpdated || chatkeyUpdated)
+                // healing procedure for private keys
+                if (keyringSet && (signkeyUpdated || chatkeyUpdated))
                 {
+                    LOG_info << "Updating keyring...";
+
                     tlvRecords->set(EdDSA::TLV_KEY, string((char *) client->signkey->keySeed));
                     tlvRecords->set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
                     tlvContainer = tlvRecords->TLVrecordsToContainer(&client->key);
 
                     client->putua(attributename.c_str(), (byte *) tlvContainer.data(), tlvContainer.length());
-
-                    if (signkeyUpdated)
-                    {
-                        client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-                    }
-
-                    if (chatkeyUpdated)
-                    {
-                        client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
-                    }
                 }
-                else    // all good, ready to check public keys
+                if (!keyringSet)    // first time we see keyring, check public keys
                 {
-                    if (!keyringSet)    // first time we see keyring, check public keys
-                    {
-                        client->getua(client->finduser(client->me), "+puEd255");
-                        client->getua(client->finduser(client->me), "+puCu255");
-                    }
+                    LOG_info << "Keyring successufully initialized";
+                    client->getua(user, "+puEd255");
+                    client->getua(user, "+puCu255");
+                }
+
+                // healing procedure for public key Ed25519
+                if (keyringSet && signkeyUpdated)
+                {
+                    LOG_info << "Updating public key for Ed25519";
+                    client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                }
+
+                // healing procedure for public key x25519
+                if (keyringSet && chatkeyUpdated)
+                {
+                    LOG_info << "Updating public key for x25519";
+                    client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
                 }
             }
 
