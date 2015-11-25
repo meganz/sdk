@@ -466,6 +466,26 @@ string TLVstore::TLVrecordsToContainer()
     return result;
 }
 
+string TLVstore::get(string type)
+{
+    return tlv.at(type);
+}
+
+bool TLVstore::find(string type)
+{
+    return (tlv.find(type) != tlv.end());
+}
+
+void TLVstore::set(string type, string value)
+{
+    tlv[type] = value;
+}
+
+size_t TLVstore::size()
+{
+    return tlv.size();
+}
+
 TLVstore * TLVstore::containerToTLVrecords(const string data)
 {
     if (data.empty())
