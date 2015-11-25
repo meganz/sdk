@@ -1742,6 +1742,12 @@ int MegaClient::wait()
         // next retry of a failed transfer
         nds = NEVER;
 
+        if (httpio->success && chunkfailed)
+        {
+            // there is a pending transfer retry, don't wait
+            nds = Waiter::ds;
+        }
+
         nexttransferretry(PUT, &nds);
         nexttransferretry(GET, &nds);
 
