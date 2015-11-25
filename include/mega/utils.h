@@ -256,14 +256,14 @@ private:
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return String containing the array with the value, or NULL if error.
      */
-    string get(string type)   { return tlv.at(type); }
+    string get(string type);
 
     /**
      * @brief find Checks whether a type of value is available in the TLV container.
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return True if the type of value is found, false otherwise.
      */
-    bool find(string type)    { return (tlv.find(type) != tlv.end()); }
+    bool find(string type);
 
     /**
      * @brief add Adds a new record to the container
@@ -271,9 +271,9 @@ private:
      * @param value New value to be set.
      * @return
      */
-    void set(string type, string value)   { tlv[type] = value; }
+    void set(string type, string value);
 
-    size_t size() { return tlv.size(); }
+    size_t size();
 
 
     ~TLVstore();
