@@ -3501,12 +3501,51 @@ void CommandChatCreate::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatcreate_result((error)client->json.getint());
+        return client->app->chatcreate_result((error)client->json.getint());
     }
-    else
+
+    string url;
+    handle chatid = UNDEF;
+    int shard = -1;
+    bool group = false;
+
+    for (;;)
     {
-        client->json.storeobject();
-        client->app->chatcreate_result(API_EINTERNAL);
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID3('u','r','l'):
+                url = client->json.getvalue();
+                break;
+
+            case MAKENAMEID2('i','d'):
+                chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case MAKENAMEID2('c','s'):
+                shard = client->json.getint();
+                break;
+
+            case 'g':
+                group = client->json.getint();
+                break;
+
+            case EOO:
+                if (chatid != UNDEF && !url.empty() && shard != -1)
+                {
+                    client->app->chatcreate_result(url, chatid, shard, group);
+                }
+                else
+                {
+                    client->app->chatcreate_result(API_EINTERNAL);
+                }
+                return;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    client->app->chatcreate_result(API_EINTERNAL);
+                }
+        }
     }
 }
 

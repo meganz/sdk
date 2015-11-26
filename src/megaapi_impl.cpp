@@ -5369,6 +5369,11 @@ void MegaApiImpl::chatcreate_result(error)
 
 }
 
+void MegaApiImpl::chatcreate_result(string url, handle chatid, int shard, bool group)
+{
+
+}
+
 void MegaApiImpl::chatfetch_result(error)
 {
 

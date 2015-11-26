@@ -1424,6 +1424,7 @@ protected:
 
         // chat-related commandsresult
         virtual void chatcreate_result(error);
+        virtual void chatcreate_result(string, handle, int, bool);
         virtual void chatfetch_result(error);
         virtual void chatinvite_result(error);
         virtual void chatremove_result(error);
