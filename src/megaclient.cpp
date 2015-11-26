@@ -6901,6 +6901,9 @@ void MegaClient::fetchnodes()
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
+
+        // initialize signing and chat keys
+        getua(finduser(me), "*keyring");
     }
     else if (!fetchingnodes)
     {
