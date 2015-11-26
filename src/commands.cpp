@@ -3464,5 +3464,152 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
+CommandChatCreate::CommandChatCreate(MegaClient *client, user_list users, privilege_list privileges)
+{
+    this->client = client;
+    this->users = users;
+    this->privileges = privileges;
+
+    cmd("mcc");
+    arg("g", (users.size() > 2) ? 1 : 0);   // if more than two people, it is a group chat
+
+    beginarray("u");
+
+    user_list::iterator itu;
+    privilege_list::iterator itp;
+    for (itu = users.begin(), itp = privileges.begin();
+         itp != privileges.end(), itu != users.end();
+         itp++, itu++)
+    {
+        beginobject();
+
+        User *u = *itu;
+        privilege_t priv = *itp;
+
+        arg("u", u->uid.c_str());
+        arg("p", priv);
+
+        endobject();
+    }
+
+    endarray();
+
+    tag = client->reqtag;
+}
+
+void CommandChatCreate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatcreate_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatcreate_result(API_EINTERNAL);
+    }
+}
+
+CommandChatFetch::CommandChatFetch(MegaClient *client)
+{
+    this->client = client;
+
+    cmd("mcf");
+
+    tag = client->reqtag;
+}
+
+void CommandChatFetch::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatfetch_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatfetch_result(API_EINTERNAL);
+    }
+}
+
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, User *u, privilege_t priv)
+{
+    this->client = client;
+
+    cmd("mci");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("u", u->uid.c_str());
+    arg("p", priv);
+
+    tag = client->reqtag;
+}
+
+void CommandChatInvite::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatinvite_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatinvite_result(API_EINTERNAL);
+    }
+}
+
+CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, User *u)
+{
+    this->client = client;
+
+    cmd("mcr");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (u)
+    {
+        arg("u", u->uid.c_str());
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandChatRemove::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatremove_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatremove_result(API_EINTERNAL);
+    }
+}
+
+CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
+{
+    this->client = client;
+
+    cmd("mcurl");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandChatURL::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chaturl_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chaturl_result(API_EINTERNAL);
+    }
+}
+
 
 } // namespace

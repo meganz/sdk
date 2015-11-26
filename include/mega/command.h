@@ -599,6 +599,66 @@ public:
     CommandCleanRubbishBin(MegaClient*);
 };
 
+class MEGA_API CommandChatCreate : public Command
+{
+    MegaClient *client;
+    user_list users;
+    privilege_list privileges;
+
+public:
+    void procresult();
+
+    CommandChatCreate(MegaClient*, user_list, privilege_list);
+};
+
+
+class MEGA_API CommandChatFetch : public Command
+{
+    MegaClient *client;
+public:
+    void procresult();
+
+    CommandChatFetch(MegaClient*);
+};
+
+class MEGA_API CommandChatInvite : public Command
+{
+    MegaClient *client;
+    user_list users;
+    privilege_list privileges;
+
+public:
+    void procresult();
+
+    CommandChatInvite(MegaClient*, handle, User *, privilege_t);
+};
+
+class MEGA_API CommandChatRemove : public Command
+{
+    MegaClient *client;
+    user_list users;
+    privilege_list privileges;
+
+public:
+    void procresult();
+
+    CommandChatRemove(MegaClient*, handle, User * = NULL);
+};
+
+class MEGA_API CommandChatURL : public Command
+{
+    MegaClient *client;
+    user_list users;
+    privilege_list privileges;
+
+public:
+    void procresult();
+
+    CommandChatURL(MegaClient*, handle);
+};
+
+
+
 } // namespace
 
 #endif

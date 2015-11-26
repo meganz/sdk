@@ -1422,6 +1422,13 @@ protected:
 
         virtual void cleanrubbishbin_result(error);
 
+        // chat-related commandsresult
+        virtual void chatcreate_result(error);
+        virtual void chatfetch_result(error);
+        virtual void chatinvite_result(error);
+        virtual void chatremove_result(error);
+        virtual void chaturl_result(error);
+
 #ifdef ENABLE_SYNC
         // sync status updates and events
         virtual void syncupdate_state(Sync*, syncstate_t);

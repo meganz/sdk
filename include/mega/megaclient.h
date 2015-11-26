@@ -734,6 +734,7 @@ public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
+    static const int CHATHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;

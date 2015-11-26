@@ -5364,6 +5364,31 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::chatcreate_result(error)
+{
+
+}
+
+void MegaApiImpl::chatfetch_result(error)
+{
+
+}
+
+void MegaApiImpl::chatinvite_result(error)
+{
+
+}
+
+void MegaApiImpl::chatremove_result(error)
+{
+
+}
+
+void MegaApiImpl::chaturl_result(error)
+{
+
+}
+
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
