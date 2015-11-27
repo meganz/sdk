@@ -11,6 +11,10 @@
 #include <ImageIO/CGImageDestination.h>
 #include <MobileCoreServices/UTCoreTypes.h>
 #include <ImageIO/CGImageProperties.h>
+#import <Foundation/NSString.h>
+#import <AVFoundation/AVFoundation.h>
+#import <UIKit/UIImage.h>
+#import <MobileCoreServices/UTType.h>
 
 using namespace mega;
 
@@ -42,11 +46,38 @@ GfxProcCG::~GfxProcCG() {
 }
 
 const char* GfxProcCG::supportedformats() {
-    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.";
+    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.";
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
-    CGDataProviderRef dataProvider = CGDataProviderCreateWithFilename(name->c_str());
+    NSString *nameString = [NSString stringWithCString:name->c_str()
+                                              encoding:[NSString defaultCStringEncoding]];
+    
+    CFStringRef fileExtension = (__bridge CFStringRef) [nameString pathExtension];
+    CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
+    
+    CGDataProviderRef dataProvider = NULL;
+    
+    if (UTTypeConformsTo(fileUTI, kUTTypeMovie)) {
+        NSURL *videoURL = [NSURL fileURLWithPath:nameString];
+        AVURLAsset *asset = [[AVURLAsset alloc] initWithURL:videoURL options:nil];
+        AVAssetImageGenerator *generator = [[AVAssetImageGenerator alloc] initWithAsset:asset];
+        generator.appliesPreferredTrackTransform=TRUE;
+        NSError *err = NULL;
+        CMTime requestedTime = CMTimeMake(1, 60);
+        CGImageRef imgRef = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:&err];
+        
+        UIImage *thumbnailImage = [[UIImage alloc] initWithCGImage:imgRef];
+        CGImageRelease(imgRef);
+        
+        [UIImageJPEGRepresentation(thumbnailImage, 1) writeToFile:nameString.stringByDeletingPathExtension atomically:YES];
+        
+        dataProvider = CGDataProviderCreateWithFilename([nameString.stringByDeletingPathExtension UTF8String]);
+        [[NSFileManager defaultManager] removeItemAtPath:nameString.stringByDeletingPathExtension error:nil];
+    } else {
+        dataProvider = CGDataProviderCreateWithFilename(name->c_str());
+    }
+    
     if (!dataProvider) {
         return false;
     }
