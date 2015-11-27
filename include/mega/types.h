@@ -358,9 +358,8 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
-typedef list<User*> user_list;
-typedef enum { PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
-typedef list<privilege_t> privilege_list;
+typedef enum { PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
+typedef list< pair<User*, privilege_t> > userpriv_list;
 
 } // namespace
 

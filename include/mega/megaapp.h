@@ -166,11 +166,13 @@ struct MEGA_API MegaApp
 
     // chat-related commandsresult
     virtual void chatcreate_result(error) { }
-    virtual void chatcreate_result(string, handle, int, bool) { }
+    virtual void chatcreate_result(string, handle, int, bool, error) { }
     virtual void chatfetch_result(error) { }
+    virtual void chatfetch_result(string, error) { }
     virtual void chatinvite_result(error) { }
     virtual void chatremove_result(error) { }
     virtual void chaturl_result(error) { }
+    virtual void chaturl_result(string, error) { }
 
     // global transfer queue updates (separate signaling towards the queued objects)
     virtual void transfer_added(Transfer*) { }

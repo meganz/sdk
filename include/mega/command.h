@@ -602,13 +602,11 @@ public:
 class MEGA_API CommandChatCreate : public Command
 {
     MegaClient *client;
-    user_list users;
-    privilege_list privileges;
 
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, user_list, privilege_list);
+    CommandChatCreate(MegaClient*, userpriv_list);
 };
 
 
@@ -624,8 +622,6 @@ public:
 class MEGA_API CommandChatInvite : public Command
 {
     MegaClient *client;
-    user_list users;
-    privilege_list privileges;
 
 public:
     void procresult();
@@ -636,9 +632,6 @@ public:
 class MEGA_API CommandChatRemove : public Command
 {
     MegaClient *client;
-    user_list users;
-    privilege_list privileges;
-
 public:
     void procresult();
 
@@ -648,8 +641,6 @@ public:
 class MEGA_API CommandChatURL : public Command
 {
     MegaClient *client;
-    user_list users;
-    privilege_list privileges;
 
 public:
     void procresult();

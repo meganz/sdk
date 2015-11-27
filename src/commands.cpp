@@ -3464,27 +3464,22 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
-CommandChatCreate::CommandChatCreate(MegaClient *client, user_list users, privilege_list privileges)
+CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_list upl)
 {
     this->client = client;
-    this->users = users;
-    this->privileges = privileges;
 
     cmd("mcc");
-    arg("g", (users.size() > 2) ? 1 : 0);   // if more than two people, it is a group chat
+    arg("g", (upl.size() > 2) ? 1 : 0);   // if more than two people, it is a group chat
 
     beginarray("u");
 
-    user_list::iterator itu;
-    privilege_list::iterator itp;
-    for (itu = users.begin(), itp = privileges.begin();
-         itp != privileges.end(), itu != users.end();
-         itp++, itu++)
+    userpriv_list::iterator itupl;
+    for (itupl = upl.begin(); itupl != upl.end(); itupl++)
     {
         beginobject();
 
-        User *u = *itu;
-        privilege_t priv = *itp;
+        User *u = itupl->first;
+        privilege_t priv = itupl->second;
 
         arg("u", u->uid.c_str());
         arg("p", priv);
@@ -3501,51 +3496,61 @@ void CommandChatCreate::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->chatcreate_result((error)client->json.getint());
+        client->app->chatcreate_result((error)client->json.getint());
     }
-
-    string url;
-    handle chatid = UNDEF;
-    int shard = -1;
-    bool group = false;
-
-    for (;;)
+    else
     {
-        switch (client->json.getnameid())
+        if(!client->json.enterobject())
         {
-            case MAKENAMEID3('u','r','l'):
-                url = client->json.getvalue();
-                break;
-
-            case MAKENAMEID2('i','d'):
-                chatid = client->json.gethandle(MegaClient::CHATHANDLE);
-                break;
-
-            case MAKENAMEID2('c','s'):
-                shard = client->json.getint();
-                break;
-
-            case 'g':
-                group = client->json.getint();
-                break;
-
-            case EOO:
-                if (chatid != UNDEF && !url.empty() && shard != -1)
-                {
-                    client->app->chatcreate_result(url, chatid, shard, group);
-                }
-                else
-                {
-                    client->app->chatcreate_result(API_EINTERNAL);
-                }
-                return;
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    client->app->chatcreate_result(API_EINTERNAL);
-                }
+            client->app->chatcreate_result(API_EINTERNAL);
+            return;
         }
+
+        string url;
+        handle chatid = UNDEF;
+        int shard = -1;
+        bool group = false;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID3('u','r','l'):
+                    url = client->json.getvalue();
+                    break;
+
+                case MAKENAMEID2('i','d'):
+                    chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = client->json.getint();
+                    break;
+
+                case 'g':
+                    group = client->json.getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && !url.empty() && shard != -1)
+                    {
+                        client->app->chatcreate_result(url, chatid, shard, group, API_OK);
+                    }
+                    else
+                    {
+                        client->app->chatcreate_result(API_EINTERNAL);
+                    }
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        client->app->chatcreate_result(API_EINTERNAL);
+                    }
+            }
+        }
+
+        client->json.leaveobject();
     }
 }
 
@@ -3566,8 +3571,9 @@ void CommandChatFetch::procresult()
     }
     else
     {
-        client->json.storeobject();
-        client->app->chatfetch_result(API_EINTERNAL);
+        string result;
+        client->json.storeobject(&result);
+        client->app->chatfetch_result(result, API_OK);
     }
 }
 
@@ -3645,8 +3651,15 @@ void CommandChatURL::procresult()
     }
     else
     {
-        client->json.storeobject();
-        client->app->chaturl_result(API_EINTERNAL);
+        string url;
+        if (!client->json.storeobject(&url))
+        {
+            client->app->chaturl_result(API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chaturl_result(url, API_OK);
+        }
     }
 }
 

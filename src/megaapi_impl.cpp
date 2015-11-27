@@ -5364,34 +5364,100 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatcreate_result(error)
+void MegaApiImpl::chatcreate_result(error e)
 {
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_CREATE)) return;
 
+    fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatcreate_result(string url, handle chatid, int shard, bool group)
+void MegaApiImpl::chatcreate_result(string url, handle chatid, int shard, bool group, error e)
 {
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_CREATE)) return;
 
+    if(!e)
+    {
+        request->setText(url.c_str());
+        request->setNodeHandle(chatid);
+        request->setAccess(shard);
+        request->setFlag(group);
+    }
+    fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatfetch_result(error)
+void MegaApiImpl::chatfetch_result(error e)
 {
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
 
+    fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatinvite_result(error)
+void MegaApiImpl::chatfetch_result(string chats, error e)
 {
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
 
+    if(!e)
+    {
+        request->setText(chats.c_str());
+    }
+    fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatremove_result(error)
+void MegaApiImpl::chatinvite_result(error e)
 {
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_INVITE)) return;
 
+    fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chaturl_result(error)
+void MegaApiImpl::chatremove_result(error e)
 {
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE)) return;
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chaturl_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_URL)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chaturl_result(string url, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_URL)) return;
+
+    if (!e)
+    {
+        request->setLink(url.c_str());
+    }
+
+    fireOnRequestFinish(request, megaError);
 }
 
 #ifdef ENABLE_SYNC
