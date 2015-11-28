@@ -8614,6 +8614,14 @@ void MegaClient::stopxfer(File* f)
             app->transfer_removed(transfer);
             delete transfer;
         }
+        else
+        {
+            if (transfer->type == PUT && transfer->localfilename.size())
+            {
+                LOG_debug << "Updating transfer path";
+                transfer->files.front()->prepare();
+            }
+        }
     }
 }
 
