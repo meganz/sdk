@@ -619,8 +619,17 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
+    
+#ifndef EMSCRIPTEN
     autodownport = true;
     autoupport = true;
+    usehttps = false;
+#else
+    autodownport = false;
+    autoupport = false;
+    usehttps = true;
+#endif
+    
     fetchingnodes = false;
 
 #ifdef ENABLE_SYNC
@@ -1151,6 +1160,11 @@ void MegaClient::exec()
                 pendingsc->posturl.append("sc?sn=");
                 pendingsc->posturl.append(scsn);
                 pendingsc->posturl.append(auth);
+
+                if (usehttps)
+                {
+                    pendingsc->posturl.append("&ssl=1");
+                }
             }
 
             pendingsc->type = REQ_JSON;
