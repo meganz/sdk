@@ -2333,22 +2333,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Remove a contact to the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REMOVE_CONTACT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getEmail() - Returns the email of the contact.
-     * 
-     * @param user
-     *            Email of the contact.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     */
-    public void removeContact(MegaUser user, MegaRequestListenerInterface listener) {
-        megaApi.removeContact(user, createDelegateRequestListener(listener));
-    }
-
-    /**
      * Invite another person to be your MEGA contact.
      * <p>
      * The user does not need to be registered with MEGA. If the email is not associated with
@@ -2421,6 +2405,22 @@ public class MegaApiJava {
      */
     public void replyContactRequest(MegaContactRequest request, int action) {
         megaApi.replyContactRequest(request, action);
+    }
+    
+    /**
+     * Remove a contact to the MEGA account.
+     * <p>
+     * The associated request type with this request is MegaRequest.TYPE_REMOVE_CONTACT.
+     * Valid data in the MegaRequest object received on callbacks: <br>
+     * - MegaRequest.getEmail() - Returns the email of the contact.
+     * 
+     * @param user
+     *            Email of the contact.
+     * @param listener
+     *            MegaRequestListener to track this request.
+     */
+    public void removeContact(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.removeContact(user, createDelegateRequestListener(listener));
     }
 
     /**
@@ -2887,6 +2887,18 @@ public class MegaApiJava {
     public ArrayList<MegaTransfer> getTransfers() {
         return transferListToArray(megaApi.getTransfers());
     }
+    
+    /**
+     * Get all active transfers based on the type.
+     * 
+     * @param type
+     *            MegaTransfer.TYPE_DOWNLOAD || MegaTransfer.TYPE_UPLOAD.
+     * 
+     * @return List with all active download or upload transfers.
+     */
+    public ArrayList<MegaTransfer> getTransfers(int type) {
+        return transferListToArray(megaApi.getTransfers(type));
+    }
 
     /**
      * Get the transfer with a transfer tag.
@@ -2901,18 +2913,6 @@ public class MegaApiJava {
      */
     public MegaTransfer getTransferByTag(int transferTag) {
         return megaApi.getTransferByTag(transferTag);
-    }
-
-    /**
-     * Get all active transfers based on the type.
-     * 
-     * @param type
-     *            MegaTransfer.TYPE_DOWNLOAD || MegaTransfer.TYPE_UPLOAD.
-     * 
-     * @return List with all active download or upload transfers.
-     */
-    public ArrayList<MegaTransfer> getTransfers(int type) {
-        return transferListToArray(megaApi.getTransfers(type));
     }
 
     /**
@@ -3346,6 +3346,24 @@ public class MegaApiJava {
     public MegaUser getContact(String email) {
         return megaApi.getContact(email);
     }
+    
+    /**
+     * Get a list with all incoming contact requests.
+     *
+     * @return List of MegaContactRequest objects.
+     */
+    public ArrayList<MegaContactRequest> getIncomingContactRequests() {
+        return contactRequestListToArray(megaApi.getIncomingContactRequests());
+    }
+
+    /**
+     * Get a list with all outgoing contact requests.
+     *
+     * @return List of MegaContactRequest objects.
+     */
+    public ArrayList<MegaContactRequest> getOutgoingContactRequests() {
+        return contactRequestListToArray(megaApi.getOutgoingContactRequests());
+    }
 
     /**
      * Get a list with all inbound shares from one MegaUser.
@@ -3423,24 +3441,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all incoming contact requests.
-     *
-     * @return List of MegaContactRequest objects.
-     */
-    public ArrayList<MegaContactRequest> getIncomingContactRequests() {
-        return contactRequestListToArray(megaApi.getIncomingContactRequests());
-    }
-
-    /**
-     * Get a list with all outgoing contact requests.
-     *
-     * @return List of MegaContactRequest objects.
-     */
-    public ArrayList<MegaContactRequest> getOutgoingContactRequests() {
-        return contactRequestListToArray(megaApi.getOutgoingContactRequests());
-    }
-
-    /**
      * Get the access level of a MegaNode.
      * 
      * @param node
@@ -3515,6 +3515,17 @@ public class MegaApiJava {
         return megaApi.getNodeByFingerprint(fingerprint);
     }
 
+    /**
+     * Returns a node with the provided fingerprint in a preferred parent folder.
+     * <p>
+     * If there is not any node in the account with that fingerprint, this function returns null.
+     * 
+     * @param fingerprint
+     *            Fingerprint to check.
+     * @param preferredParent
+     *            Preferred parent if several matches are found.
+     * @return MegaNode object with the provided fingerprint.
+     */
     public MegaNode getNodeByFingerprint(String fingerprint, MegaNode preferredParent) {
         return megaApi.getNodeByFingerprint(fingerprint, preferredParent);
     }

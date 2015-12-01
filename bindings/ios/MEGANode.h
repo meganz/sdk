@@ -29,6 +29,18 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeRubbish
 };
 
+typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
+    MEGANodeChangeTypeRemoved        = 0x01,
+    MEGANodeChangeTypeAttributes     = 0x02,
+    MEGANodeChangeTypeOwner          = 0x04,
+    MEGANodeChangeTypeTimestamp      = 0x08,
+    MEGANodeChangeTypeFileAttributes = 0x10,
+    MEGANodeChangeTypeInShare        = 0x20,
+    MEGANodeChangeTypeOutShare       = 0x40,
+    MEGANodeChangeTypeParent         = 0x80,
+    MEGANodeChangeTypePendingShare   = 0x100
+};
+
 /**
  * @brief Represents a node (file/folder) in the MEGA account.
  *
@@ -141,6 +153,34 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 @property (readonly, nonatomic) NSInteger tag;
 
 /**
+ * @brief The expiration time of a public link (in seconds since the epoch), if any
+ *
+ * 0 for non-expire links, and -1 if the MEGANode is not exported.
+ */
+@property (readonly, nonatomic) NSDate *expirationTime;
+
+/**
+ * @brief The public handle of an exported node. If the MEGANode
+ * has not been exported, it returns UNDEF.
+ *
+ * Only exported nodes have a public handle.
+ *
+ */
+@property (readonly, nonatomic) uint64_t publicHandle;
+
+/**
+ * @brief A public node for the exported node. If the MEGANode has not been
+ * exported or it has expired, then it returns nil.
+ */
+@property (readonly, nonatomic) MEGANode *publicNode;
+
+/**
+ * @brief The URL for the public link of the exported node. If the MEGANode
+ * has not been exported, it returns nil.
+ */
+@property (readonly, nonatomic) NSString *publicLink;
+
+/**
  * @brief Creates a copy of this MEGANode object.
  *
  * The resulting object is fully independent of the source MEGANode,
@@ -179,25 +219,160 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
 - (BOOL)isRemoved;
 
 /**
- * @brief Returns a BOOL value that indicates if the node has an associated thumbnail.
+ * @brief Returns YES if this node has an specific change
+ *
+ * This value is only useful for nodes notified by [MEGADelegate onNodesUpdate:nodeList:] or
+ * [MEGAGlobalDelegate onNodesUpdate:nodeList:] that can notify about node modifications.
+ *
+ * In other cases, the return value of this function will be always NO.
+ *
+ * @param changeType The type of change to check. It can be one of the following values:
+ *
+ * - MEGANodeChangeTypeRemoved             = 0x01
+ * Check if the node is being removed
+ *
+ * - MEGANodeChangeTypeAttributes          = 0x02
+ * Check if an attribute of the node has changed, usually the namespace name
+ *
+ * - MEGANodeChangeTypeOwner               = 0x04
+ * Check if the owner of the node has changed
+ *
+ * - MEGANodeChangeTypeTimestamp           = 0x08
+ * Check if the modification time of the node has changed
+ *
+ * - MEGANodeChangeTypeFileAttributes      = 0x10
+ * Check if file attributes have changed, usually the thumbnail or the preview for images
+ *
+ * - MEGANodeChangeTypeInShare             = 0x20
+ * Check if the node is a new or modified inshare
+ *
+ * - MEGANodeChangeTypeOutShare            = 0x40
+ * Check if the node is a new or modified outshare
+ *
+ * - MEGANodeChangeTypeParent          = 0x80
+ * Check if the parent of the node has changed
+ *
+ * @return YES if this node has an specific change
+ */
+- (BOOL)hasChangedType:(MEGANodeChangeType)changeType;
+
+/**
+ * @brief Returns a bit field with the changes of the node
+ *
+ * This value is only useful for nodes notified by [DelegateMEGAListener onNodesUpdate] or
+ * [DelegateMEGAGlobalListener onNodesUpdate] that can notify about node modifications.
+ *
+ * @return The returned value is an OR combination of these flags:
+ *
+ *
+ * - MEGANodeChangeTypeRemoved             = 0x01
+ * The node is being removed
+ *
+ * - MEGANodeChangeTypeAttributes          = 0x02
+ * An attribute of the node has changed, usually the namespace name
+ *
+ * - MEGANodeChangeTypeOwner               = 0x04
+ * The owner of the node has changed
+ *
+ * - MEGANodeChangeTypeTimestamp           = 0x08
+ * The modification time of the node has changed
+ *
+ * - MEGANodeChangeTypeFileAttributes      = 0x10
+ * File attributes have changed, usually the thumbnail or the preview for images
+ *
+ * - MEGANodeChangeTypeInShare             = 0x20
+ * The node is a new or modified inshare
+ *
+ * - MEGANodeChangeTypeOutShare            = 0x40
+ * The node is a new or modified outshare
+ *
+ * - MEGANodeChangeTypeParent               = 0x80
+ * The parent of the node has changed
+ *
+ */
+- (MEGANodeChangeType)getChanges;
+
+/**
+ * @brief Returns YES if the node has an associated thumbnail
  * @return YES if the node has an associated thumbnail, otherwise NO
  */
 - (BOOL)hasThumbnail;
 
 /**
- * @brief Returns a BOOL value that indicates if the node has an associated preview.
- * @return YES if the node has an associated preview, otherwise NO.
+ * @brief Returns YES if the node has an associated preview
+ * @return YES if the node has an associated preview, otherwise NO
  */
 - (BOOL)hasPreview;
 
 /**
- * @brief Returns a BOOL value that indicates if the node is a public.
+ * @brief Returns YES if this is a public node
  *
- * Only MEGANode objects generated with [MEGASdk publicNodeWithMegaLink:].
- * will return YES.
+ * Only MEGANode objects generated with MegaApi::getPublicMegaNode
+ * will return YES
  *
- * @return YES if the node is public node, otherwise NO.
+ * @return YES if this is a public node, otherwise NO
  */
 - (BOOL)isPublic;
+
+/**
+ * @brief Returns a BOOL value that indicates if the node is a shared
+ *
+ * For nodes that are being shared, you can get a list of MEGAShare
+ * objects using [MEGASdk outShares], or a list of MEGANode objects
+ * using [MEGASdk inShares]
+ *
+ * @return YES is the MegaNode is being shared, otherwise NO
+ * @note Exported nodes (public link) are not considered to be shared nodes
+ */
+- (BOOL)isShared;
+
+/**
+ * @brief Check if the MEGANode is being shared with other users
+ *
+ * For nodes that are being shared, you can get a list of MEGAShare
+ * objects using [MEGASdk outShares]
+ *
+ * @return YES is the MEGANode is being shared, otherwise NO
+ */
+- (BOOL)isOutShare;
+
+/**
+ * @brief Check if a MEGANode belong to another MEGAUser, but it is shared with you
+ *
+ * For nodes that are being shared, you can get a list of MEGANode
+ * objects using [MEGASdk inShares]
+ *
+ * @return YES is the MEGANode is being shared, otherwise NO
+ */
+- (BOOL)isInShare;
+
+/**
+ * @brief Returns YES if the node has been exported (has a public link)
+ *
+ * Public links are created by calling [MEGASdk exportNode]
+ *
+ * @return YES if this is an exported node, otherwise NO
+ */
+- (BOOL)isExported;
+
+/**
+ * @brief Returns YES if the node has been exported (has a temporal public link)
+ * and the related public link has expired
+ *
+ * Public links are created by calling [MEGASdk exportNode]
+ *
+ * @return YES if the public link has expired, otherwise NO
+ */
+- (BOOL)isExpired;
+
+/**
+ * @brief Returns YES if this the node has been exported
+ * and the related public link has been taken down
+ *
+ * Public links are created by calling [MEGASdk exportNode]
+ *
+ * @return YES if the public link has been taken down, otherwise NO
+ */
+- (BOOL)isTakenDown;
 
 @end

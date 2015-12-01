@@ -26,14 +26,15 @@ class MainTabBarViewController: UITabBarController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        var viewControllerArray : NSMutableArray = NSMutableArray(capacity: 5)
+        let viewControllerArray : NSMutableArray = NSMutableArray(capacity: 5)
         
-        viewControllerArray.addObject(UIStoryboard(name: "Cloud", bundle: nil).instantiateInitialViewController())
-        viewControllerArray.addObject(UIStoryboard(name: "Offline", bundle: nil).instantiateInitialViewController())
-        viewControllerArray.addObject(UIStoryboard(name: "Contacts", bundle: nil).instantiateInitialViewController())
-        viewControllerArray.addObject(UIStoryboard(name: "Settings", bundle: nil).instantiateInitialViewController())
+        viewControllerArray.addObject(UIStoryboard(name: "Cloud", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.addObject(UIStoryboard(name: "Offline", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.addObject(UIStoryboard(name: "Contacts", bundle: nil).instantiateInitialViewController()!)
+        viewControllerArray.addObject(UIStoryboard(name: "Settings", bundle: nil).instantiateInitialViewController()!)
         
-        self.setViewControllers(viewControllerArray as [AnyObject], animated: false)
+        let viewControllers = viewControllerArray.copy()
+        self.setViewControllers(viewControllers as? [UIViewController], animated: false)
     }
     
     override func didReceiveMemoryWarning() {

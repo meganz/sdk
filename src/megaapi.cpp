@@ -90,6 +90,26 @@ const char *MegaProxy::getPassword()
     return password;
 }
 
+MegaStringList::~MegaStringList()
+{
+
+}
+
+MegaStringList *MegaStringList::copy()
+{
+    return NULL;
+}
+
+const char *MegaStringList::get(int i)
+{
+    return NULL;
+}
+
+int MegaStringList::size()
+{
+    return 0;
+}
+
 MegaNodeList::~MegaNodeList() { }
 
 MegaNodeList *MegaNodeList::copy()
@@ -178,6 +198,21 @@ int MegaNode::getType()
 }
 
 const char *MegaNode::getName()
+{
+    return NULL;
+}
+
+bool MegaNode::hasCustomAttrs()
+{
+    return false;
+}
+
+MegaStringList *MegaNode::getCustomAttrNames()
+{
+    return NULL;
+}
+
+const char *MegaNode::getCustomAttr(const char *attrName)
 {
     return NULL;
 }
@@ -356,7 +391,17 @@ int MegaUser::getVisibility()
     return 0;
 }
 
-time_t MegaUser::getTimestamp()
+int64_t MegaUser::getTimestamp()
+{
+    return 0;
+}
+
+bool MegaUser::hasChanged(int)
+{
+    return false;
+}
+
+int MegaUser::getChanges()
 {
     return 0;
 }
@@ -541,7 +586,12 @@ int MegaRequest::getTransferTag() const
 
 int MegaRequest::getNumDetails() const
 {
-	return 0;
+    return 0;
+}
+
+int MegaRequest::getTag() const
+{
+    return 0;
 }
 
 
@@ -679,7 +729,17 @@ bool MegaTransfer::isStreamingTransfer() const
 
 char *MegaTransfer::getLastBytes() const
 {
-	return NULL;
+    return NULL;
+}
+
+bool MegaTransfer::isFolderTransfer() const
+{
+    return false;
+}
+
+int MegaTransfer::getFolderTransferTag() const
+{
+    return 0;
 }
 
 
@@ -974,6 +1034,11 @@ char *MegaApi::getMyUserHandle()
     return pImpl->getMyUserHandle();
 }
 
+char *MegaApi::getMyXMPPJid()
+{
+    return pImpl->getMyXMPPJid();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
@@ -1244,6 +1309,11 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
     pImpl->setUserAttribute(type, value, listener);
 }
 
+void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setCustomNodeAttribute(node, attrName, value, listener);
+}
+
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->exportNode(node, 0, listener);
@@ -1435,6 +1505,11 @@ MegaTransferList *MegaApi::getTransfers(int type)
     return pImpl->getTransfers(type);
 }
 
+MegaTransferList *MegaApi::getChildTransfers(int transferTag)
+{
+    return pImpl->getChildTransfers(transferTag);
+}
+
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, listener);
@@ -1452,7 +1527,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, fileName, mtime, listener);
+    pImpl->startUpload(localPath, parent, fileName, mtime, 0, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -1640,18 +1715,38 @@ MegaNodeList* MegaApi::getInShares()
     return pImpl->getInShares();
 }
 
+MegaShareList* MegaApi::getInSharesList()
+{
+    return pImpl->getInSharesList();
+}
+
 bool MegaApi::isShared(MegaNode *node)
 {
+    if (!node)
+    {
+        return false;
+    }
+
     return node->isShared();
 }
 
 bool MegaApi::isOutShare(MegaNode *node)
 {
+    if (!node)
+    {
+        return false;
+    }
+
     return node->isOutShare();
 }
 
 bool MegaApi::isInShare(MegaNode *node)
 {
+    if (!node)
+    {
+        return false;
+    }
+
     return node->isInShare();
 }
 
@@ -1913,6 +2008,11 @@ MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
 MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
     return pImpl->checkMove(megaNode, targetNode);
+}
+
+bool MegaApi::isFilesystemAvailable()
+{
+    return pImpl->isFilesystemAvailable();
 }
 
 int MegaApi::getNumChildren(MegaNode* parent)

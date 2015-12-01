@@ -97,14 +97,15 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         
         switch request.type {
         case MEGARequestType.GetAttrUser:
-            for tableViewCell in tableView.visibleCells() as! [ContactTableViewCell] {
+            for tableViewCell in tableView.visibleCells as! [ContactTableViewCell] {
                 if request?.email == tableViewCell.nameLabel.text {
                     let filename = request.email
-                    let avatarFilePath = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0].stringByAppendingPathComponent("thumbs").stringByAppendingPathComponent(filename)
-                    let fileExists = NSFileManager.defaultManager().fileExistsAtPath(avatarFilePath)
+                    let avatarURL = NSFileManager.defaultManager().URLsForDirectory(.CachesDirectory, inDomains: .UserDomainMask)[0]
+                    let avatarFilePath = avatarURL.URLByAppendingPathComponent("thumbs").URLByAppendingPathComponent(filename)
+                    let fileExists = NSFileManager.defaultManager().fileExistsAtPath(avatarFilePath.path!)
                     
                     if fileExists {
-                        tableViewCell.avatarImageView.image = UIImage(named: avatarFilePath)
+                        tableViewCell.avatarImageView.image = UIImage(named: avatarFilePath.path!)
                         tableViewCell.avatarImageView.layer.cornerRadius = tableViewCell.avatarImageView.frame.size.width/2
                         tableViewCell.avatarImageView.layer.masksToBounds = true
                     }

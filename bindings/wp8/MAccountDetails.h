@@ -47,6 +47,10 @@ namespace mega
 	public ref class MAccountDetails sealed
 	{
 		friend ref class MRequest;
+        friend ref class MAccountBalance;
+        friend ref class MAccountSession;
+        friend ref class MAccountPurchase;
+        friend ref class MAccountTransaction;
 
 	public:
 		virtual ~MAccountDetails();
@@ -66,6 +70,18 @@ namespace mega
 		uint64 getStorageUsed(uint64 handle);
 		uint64 getNumFiles(uint64 handle);
 		uint64 getNumFolders(uint64 handle);
+
+        int getNumBalances();
+        MAccountBalance^ getBalance(int i);
+
+        int getNumSessions();
+        MAccountSession^ getSession(int i);
+
+        int getNumPurchases();
+        MAccountPurchase^ getPurchase(int i);
+
+        int getNumTransactions();
+        MAccountTransaction^ getTransaction(int i);
 
 	private:
 		MAccountDetails(MegaAccountDetails *accountDetails, bool cMemoryOwn);

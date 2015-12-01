@@ -67,7 +67,7 @@ print_distro_help()
     type apt-get >/dev/null 2>&1
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
-        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool-bin unzip autoconf make wget"
+        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool-bin unzip autoconf m4 make wget"
         echo " (or 'libtool' on older Debian / Ubuntu distro versions)"
         return
     fi
@@ -306,7 +306,7 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.3"
+    local sodium_ver="1.0.4"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
@@ -375,7 +375,7 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3081002"
+    local sqlite_ver="3090100"
     local sqlite_url="http://www.sqlite.org/2015/sqlite-autoconf-$sqlite_ver.tar.gz"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
@@ -425,7 +425,7 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.42.1"
+    local curl_ver="7.45.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"

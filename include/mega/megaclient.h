@@ -201,26 +201,11 @@ public:
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
 
-    /**
-     * @brief Attach/update/delete a user attribute.
-     *
-     * @param an Attribute name.
-     * @param av Attribute value.
-     * @param avl Attribute value length.
-     * @param priv 1 for a private, 0 for a public attribute.
-     * @return Void.
-     */
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int priv = 0);
+    // attach/update/delete a user attribute
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
 
-    /**
-     * @brief Queue a user attribute retrieval.
-     *
-     * @param u User.
-     * @param an Attribute name.
-     * @param p 1 for a private, 0 for a public attribute.
-     * @return Void.
-     */
-    void getua(User* u, const char* an = NULL, int p = 0);
+    // queue a user attribute retrieval
+    void getua(User* u, const char* an = NULL);
 
     // add new contact (by e-mail address)
     error invite(const char*, visibility_t = VISIBLE);
@@ -256,6 +241,9 @@ public:
 
     // User-Agent header for HTTP requests
     string useragent;
+
+    // Issuer of a detected fake SSL certificate
+    string sslfakeissuer;
 
     // shopping basket
     handle_vector purchase_basket;

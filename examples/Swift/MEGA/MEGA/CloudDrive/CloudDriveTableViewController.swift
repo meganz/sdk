@@ -37,12 +37,14 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let thumbsDirectory = NSSearchPathForDirectoriesInDomains(.CachesDirectory, .UserDomainMask, true)[0].stringByAppendingPathComponent("thumbs")
+        let thumbsURL = NSFileManager.defaultManager().URLsForDirectory(.CachesDirectory, inDomains: .UserDomainMask)[0]
+        let thumbsDirectory = thumbsURL.URLByAppendingPathComponent("thumbs")
         
-        if !NSFileManager.defaultManager().fileExistsAtPath(thumbsDirectory) {
-            var error : NSError?
-            if !NSFileManager.defaultManager().createDirectoryAtPath(thumbsDirectory, withIntermediateDirectories: false, attributes: nil, error: &error) {
-                println("Create directory error \(error?.localizedDescription)")
+        if !NSFileManager.defaultManager().fileExistsAtPath(thumbsDirectory.path!) {
+            do {
+                try NSFileManager.defaultManager().createDirectoryAtPath(thumbsDirectory.path!, withIntermediateDirectories: true, attributes: nil)
+            } catch let error as NSError {
+                NSLog("Unable to create directory \(error.debugDescription)")
             }
         }
     }
@@ -200,7 +202,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     @IBAction func addOption(sender: UIBarButtonItem) {
         let actionSheet = UIActionSheet(title: nil, delegate: self, cancelButtonTitle: "Cancel", destructiveButtonTitle: nil, otherButtonTitles: "Create folder", "Upload photo")
-        actionSheet.showFromTabBar(self.tabBarController?.tabBar)
+        actionSheet.showFromTabBar((self.tabBarController?.tabBar)!)
     }
     
     // MARK: - UIActionSheetDelegate
@@ -237,31 +239,27 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     }
     
     // MARK: - UIImagePickerControllerDelegate
-    
-    func imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [NSObject : AnyObject]) {
+    func imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : AnyObject]) {
         let assetURL = info[UIImagePickerControllerReferenceURL] as! NSURL
-        
         let library = ALAssetsLibrary()
         library.assetForURL(assetURL, resultBlock: { (let asset: ALAsset!) in
             let name: String = asset.defaultRepresentation().filename()
             let modificationTime: NSDate = asset.valueForProperty(ALAssetPropertyDate) as! NSDate
             let imageView = UIImageView()
             imageView.image = (info[UIImagePickerControllerOriginalImage] as! UIImage)
-            let webData: NSData = UIImageJPEGRepresentation(imageView.image, 0.9)
+            let webData: NSData = UIImageJPEGRepresentation(imageView.image!, 0.9)!
             
-            let localFilePath: String = NSTemporaryDirectory().stringByAppendingPathComponent(name)
-            webData.writeToFile(localFilePath, atomically: true)
+            let localFileURL = NSURL(fileURLWithPath:NSTemporaryDirectory());
+            let localFilePath = localFileURL.URLByAppendingPathComponent(name)
+            webData.writeToFile(localFilePath.path!, atomically: true)
             
-            var error = NSErrorPointer()
-            NSFileManager.defaultManager().setAttributes([modificationTime: NSFileModificationDate], ofItemAtPath: localFilePath, error: error)
-            if (error != nil) {
-                println("Error change modification date of file \(error)")
-            }
+            let attributes = [NSFileModificationDate : modificationTime]
+            try? NSFileManager.defaultManager().setAttributes(attributes, ofItemAtPath: localFilePath.path!)
             
             if self.parentNode != nil {
-                self.megaapi.startUploadWithLocalPath(localFilePath, parent: self.parentNode)
+                self.megaapi.startUploadWithLocalPath(localFilePath.path!, parent: self.parentNode)
             } else {
-                self.megaapi.startUploadWithLocalPath(localFilePath, parent: self.megaapi.rootNode)
+                self.megaapi.startUploadWithLocalPath(localFilePath.path!, parent: self.megaapi.rootNode)
             }
             
             self.dismissViewControllerAnimated(true, completion: nil)
@@ -285,7 +283,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             SVProgressHUD.dismiss()
             
         case MEGARequestType.GetAttrFile:
-            for tableViewCell in tableView.visibleCells() as! [NodeTableViewCell] {
+            for tableViewCell in tableView.visibleCells as! [NodeTableViewCell] {
                 if request?.nodeHandle == tableViewCell.nodeHandle {
                     let node = megaapi.nodeForHandle(request.nodeHandle)
                     let thumbnailFilePath = Helper.pathForNode(node, path: NSSearchPathDirectory.CachesDirectory, directory: "thumbs")

@@ -29,6 +29,8 @@
 #import "MEGAUserList+init.h"
 #import "MEGAError+init.h"
 #import "MEGAShareList+init.h"
+#import "MEGAContactRequest+init.h"
+#import "MEGAContactRequestList+init.h"
 #import "DelegateMEGARequestListener.h"
 #import "DelegateMEGATransferListener.h"
 #import "DelegateMEGAGlobalListener.h"
@@ -433,6 +435,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     self.megaApi->remove((node != nil) ? [node getCPtr] : NULL);
 }
 
+- (void)cleanRubbishBinWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cleanRubbishBin([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cleanRubbishBin {
+    self.megaApi->cleanRubbishBin();
+}
+
 #pragma mark - Sharing Requests
 
 - (void)shareNode:(MEGANode *)node withUser:(MEGAUser *)user level:(NSInteger)level delegate:(id<MEGARequestDelegate>)delegate {
@@ -621,6 +631,22 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (void)addContactWithEmail:(NSString *)email {
     self.megaApi->addContact((email != nil) ? [email UTF8String] : NULL);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action);
+}
+
+- (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->replyContactRequest((request != nil) ? [request getCPtr] : NULL, (int)action, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action {
+    self.megaApi->replyContactRequest((request != nil) ? [request getCPtr] : NULL, (int)action);
 }
 
 - (void)removeContactUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
@@ -852,6 +878,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares() cMemoryOwn:YES];
 }
 
+- (MEGAShareList *)inSharesList {
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList() cMemoryOwn:YES];
+}
+
 - (BOOL)isSharedNode:(MEGANode *)node {
     if (!node) return NO;
     
@@ -864,6 +894,14 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (MEGAContactRequestList *)incomingContactRequests {
+    return [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaApi->getIncomingContactRequests() cMemoryOwn:YES];
+}
+
+- (MEGAContactRequestList *)outgoingContactRequests {
+    return [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaApi->getOutgoingContactRequests() cMemoryOwn:YES];
 }
 
 - (NSString *)fingerprintForFilePath:(NSString *)filePath {

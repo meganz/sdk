@@ -937,15 +937,6 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             {
                 if (name != node->attrs.map['n'])
                 {
-                    string prevname = node->attrs.map['n'];
-                    int creqtag = sync->client->reqtag;
-
-                    // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, NULL, prevname.c_str());
-                    sync->client->reqtag = creqtag;
-
                     if (node->type == FILENODE)
                     {
                         treestate(TREESTATE_SYNCING);
@@ -954,6 +945,15 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     {
                         sync->client->app->syncupdate_treestate(this);
                     }
+
+                    string prevname = node->attrs.map['n'];
+                    int creqtag = sync->client->reqtag;
+
+                    // set new name
+                    node->attrs.map['n'] = name;
+                    sync->client->reqtag = sync->tag;
+                    sync->client->setattr(node, NULL, prevname.c_str());
+                    sync->client->reqtag = creqtag;
                 }
             }
         }

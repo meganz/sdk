@@ -511,22 +511,26 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
         // look up deepest existing LocalNode by path, store remainder (if any)
         // in newname
-        l = localnodebypath(l, localpath, &parent, &newname);
+        LocalNode *tmp = localnodebypath(l, localpath, &parent, &newname);
 
         size_t index = 0;
         while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
         {
             if(!(index % client->fsaccess->localseparator.size()))
             {
-                LOG_warn << "Parent not detected yet. Unknown reminder: " << newname;
+                string utf8newname;
+                client->fsaccess->local2path(&newname, &utf8newname);
+                LOG_warn << "Parent not detected yet. Unknown reminder: " << utf8newname;
                 string parentpath = localpath->substr(0, localpath->size() - newname.size() + index);
-                dirnotify->notify(DirNotify::DIREVENTS, NULL, parentpath.data(), parentpath.size(), true);
+                dirnotify->notify(DirNotify::DIREVENTS, l, parentpath.data(), parentpath.size(), true);
                 return NULL;
             }
 
             LOG_debug << "Skipping invalid separator detection";
             index++;
         }
+
+        l = tmp;
 
         client->fsaccess->local2path(&tmppath, &path);
 
@@ -813,6 +817,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                 }
                 else
                 {
+                    if (fa->fsidvalid && l->fsid != fa->fsid)
+                    {
+                        l->setfsid(fa->fsid);
+                    }
+
                     if (l->size > 0)
                     {
                         localbytes -= l->size;
@@ -837,6 +846,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     else if (changed)
                     {
                         client->app->syncupdate_local_file_change(this, l, path.c_str());
+                        client->stopxfer(l);
                     }
 
                     if (newnode || changed)
@@ -988,6 +998,7 @@ bool Sync::movetolocaldebris(string* localpath)
     {
         if (i == -2 || i > 95)
         {
+            LOG_verbose << "Creating local debris folder";
             client->fsaccess->mkdirlocal(&localdebris, true);
         }
 
@@ -1006,6 +1017,7 @@ bool Sync::movetolocaldebris(string* localpath)
 
         if (i > -3)
         {
+            LOG_verbose << "Creating daily local debris folder";
             havedir = client->fsaccess->mkdirlocal(&localdebris, true) || client->fsaccess->target_exists;
         }
 

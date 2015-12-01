@@ -88,8 +88,8 @@ class AppListener(MegaListener):
 
 
     def onUsersUpdate(self, api, users):
-        logging.info('Users updated ({})'.format(users.size()))
-
+        if users != None:
+            logging.info('Users updated ({})'.format(users.size()))
 
     def onNodesUpdate(self, api, nodes):
         if nodes != None:

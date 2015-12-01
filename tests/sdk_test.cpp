@@ -55,6 +55,7 @@ void SdkTest::TearDown()
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
+    deleteFile(AVATARDST);
 
     releaseMegaApiAux();
 
@@ -177,6 +178,27 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         responseReceived = true;
         break;
+
+    case MegaRequest::TYPE_SET_ATTR_USER:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_GET_ATTR_USER:
+        if ( (lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
+            attributeValue = request->getText();
+
+        if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
+        {
+            if (lastError == API_OK)
+                attributeValue = "Avatar changed";
+
+            if (lastError == API_ENOENT)
+                attributeValue = "Avatar not found";
+        }
+
+        responseReceived = true;
+        break;
+
     }
 }
 
@@ -201,10 +223,26 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
-    // Main testing account
-    if (api == megaApi)
+    if (!users)
+        return;
+
+    for (int i = 0; i < users->size(); i++)
     {
-        contactRemoved = true;
+        MegaUser *u = users->get(i);
+
+        if (u->hasChanged(MegaUser::CHANGE_TYPE_AVATAR)
+                || u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME)
+                || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
+        {
+            if (api == megaApi) userUpdated = true;
+
+            if (api == megaApiAux) userUpdatedAux = true;
+        }
+        else
+        {
+            // Contact is removed from main account
+            contactRemoved = (api == megaApi);
+        }
     }
 }
 
@@ -604,6 +642,53 @@ void SdkTest::getContactRequest(bool outgoing, int expectedSize)
     delete crl;
 }
 
+void SdkTest::setUserAttribute(int type, string value, int timeout)
+{
+    responseReceived = false;
+
+    if (type == MegaApi::USER_ATTR_AVATAR)
+    {
+        megaApi->setAvatar(value.empty() ? NULL : value.c_str());
+    }
+    else
+    {
+        megaApi->setUserAttribute(type, value.c_str());
+    }
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "User attribute setup not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "User attribute setup failed (error: " << lastError << ")";
+}
+
+void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
+{
+    responseReceived = false;
+
+    if (type == MegaApi::USER_ATTR_AVATAR)
+    {
+        megaApiAux->getUserAvatar(u, AVATARDST.data());
+    }
+    else
+    {
+        megaApiAux->getUserAttribute(u, type);
+    }
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "User attribute retrieval not finished after " << timeout  << " seconds";
+    }
+
+    bool result = (lastError == MegaError::API_OK) || (lastError == MegaError::API_ENOENT);
+    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError << ")";
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -886,6 +971,13 @@ TEST_F(SdkTest, SdkTestTransfers)
  * - Invite a contact
  * = Accept the invitation
  *
+ * - Modify firstname
+ * = Check firstname of a contact
+ * - Load avatar
+ * = Check avatar of a contact
+ * - Delete avatar
+ * = Check non-existing avatar of a contact
+ *
  * - Remove contact
  *
  * TODO:
@@ -1043,14 +1135,103 @@ TEST_F(SdkTest, SdkTestContacts)
     delete craux;   craux = NULL;
 
 
+    // --- Modify firstname ---
+
+    string firstname = "My firstname";
+
+    userUpdated = false;
+    userUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
+
+    waitForResponse(&userUpdatedAux); // at the target side (auxiliar account) --> action packet notification
+    waitForResponse(&userUpdated);    // at the source side (main account)
+
+
+    // --- Check firstname of a contact
+
+    MegaUser *u = megaApi->getContact(email.c_str());
+
+    bool null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+
+    userAttributeReceived = false;
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
+    ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
+
+    delete u;
+
+    // --- Load avatar ---
+
+    userUpdated = false;
+    userUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
+
+    waitForResponse(&userUpdatedAux); // at the target side (auxiliar account) --> action packet notification
+    waitForResponse(&userUpdated);    // at the source side (main account)
+
+
+    // --- Get avatar of a contact ---
+
+    u = megaApi->getContact(email.c_str());
+
+    null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+
+    userAttributeReceived = false;
+    attributeValue = "";
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
+    ASSERT_STREQ( "Avatar changed", attributeValue.data()) << "Failed to change avatar";
+
+    int filesizeSrc = getFilesize(AVATARSRC);
+    int filesizeDst = getFilesize(AVATARDST);
+    ASSERT_EQ(filesizeDst, filesizeSrc) << "Received avatar differs from uploaded avatar";
+
+    delete u;
+
+
+    // --- Delete avatar ---
+
+    userUpdated = false;
+    userUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
+
+    waitForResponse(&userUpdatedAux); // at the target side (auxiliar account) --> action packet notification
+    waitForResponse(&userUpdated);    // at the source side (main account)
+
+
+    // --- Get non-existing avatar of a contact ---
+
+    u = megaApi->getContact(email.c_str());
+
+    null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+
+    userAttributeReceived = false;
+    attributeValue = "";
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
+    ASSERT_STREQ("Avatar not found", attributeValue.data()) << "Failed to remove avatar";
+
+    delete u;
+
+
     // --- Delete an existing contact ---
 
     contactRemoved = false;
     ASSERT_NO_FATAL_FAILURE( removeContact(emailaux) );
     waitForResponse(&contactRemoved);
 
-    MegaUser *u = megaApi->getContact(emailaux.data());
+    u = megaApi->getContact(emailaux.data());
+    null_pointer = (u == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact still visible";
+
     delete u;
 }
 
@@ -1184,6 +1365,9 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Check the incoming share ---
+
+    sl = megaApiAux->getInSharesList();
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
     nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";

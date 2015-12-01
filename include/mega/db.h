@@ -73,9 +73,15 @@ public:
 
 struct MEGA_API DbAccess
 {
+    static const int LEGACY_DB_VERSION = 7;
+    static const int DB_VERSION = 8;
+
+    DbAccess();
     virtual DbTable* open(FileSystemAccess*, string*) = 0;
 
     virtual ~DbAccess() { }
+
+    int currentDbVersion;
 };
 } // namespace
 

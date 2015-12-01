@@ -138,7 +138,7 @@
 			path = SVProgressHUD;
 			sourceTree = "<group>";
 		};
-		41A990791A5D65A100B2094A /* Cloud drive */ = {
+		41A990791A5D65A100B2094A /* CloudDrive */ = {
 			isa = PBXGroup;
 			children = (
 				41A9907A1A5D65C100B2094A /* Cloud.storyboard */,
@@ -146,8 +146,9 @@
 				41A9907E1A5D8C3F00B2094A /* NodeTableViewCell.swift */,
 				41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */,
 			);
-			path = "Cloud drive";
-			sourceTree = "<group>";
+			name = CloudDrive;
+			path = MEGA/CloudDrive;
+			sourceTree = SOURCE_ROOT;
 		};
 		41AB404B1A52D66500E5E16E /* Login */ = {
 			isa = PBXGroup;
@@ -207,7 +208,7 @@
 			children = (
 				41F1756E1A51E22500570E30 /* AppDelegate.swift */,
 				41AB404B1A52D66500E5E16E /* Login */,
-				41A990791A5D65A100B2094A /* Cloud drive */,
+				41A990791A5D65A100B2094A /* CloudDrive */,
 				41C6A0421A5FD13300865971 /* Offline */,
 				410C42381A60453C00CA67D3 /* Contacts */,
 				41C6A0471A5FF8CC00865971 /* Settings */,
@@ -271,6 +272,8 @@
 			isa = PBXProject;
 			attributes = {
 				CLASSPREFIX = "";
+				LastSwiftMigration = 0710;
+				LastSwiftUpdateCheck = 0710;
 				LastUpgradeCheck = 0610;
 				ORGANIZATIONNAME = "Mega Limited";
 				TargetAttributes = {
@@ -435,7 +438,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = MEGA/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -449,7 +452,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = MEGA/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_NAME = "$(TARGET_NAME)";

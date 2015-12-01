@@ -1560,8 +1560,8 @@ static void process_line(char* l)
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
                 cout << "      users" << endl;
-                cout << "      getua attrname [email|private]" << endl;
-                cout << "      putua attrname [del|set string|load file] [private]" << endl;
+                cout << "      getua attrname [email]" << endl;
+                cout << "      putua attrname [del|set string|load file]" << endl;
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
@@ -2603,28 +2603,19 @@ static void process_line(char* l)
                     else if (words[0] == "getua")
                     {
                         User* u = NULL;
-                        int priv = 0;
 
                         if (words.size() == 3)
                         {
-                            if (words[2] == "private")
+                            // get other user's attribute
+                            if (!(u = client->finduser(words[2].c_str())))
                             {
-                                priv = 1;
-                            }
-                            else
-                            {
-                                // get other user's attribute
-                                if (!(u = client->finduser(words[2].c_str())))
-                                {
-                                    cout << words[2] << ": Unknown user." << endl;
-                                    return;
-                                }
+                                cout << words[2] << ": Unknown user." << endl;
+                                return;
                             }
                         }
                         else if (words.size() != 2)
                         {
-                            cout << "      getua attrname [email|private]" << endl;
-
+                            cout << "      getua attrname [email]" << endl;
                             return;
                         }
 
@@ -2634,12 +2625,11 @@ static void process_line(char* l)
                             if (!(u = client->finduser(client->me)))
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
-
                                 return;
                             }
                         }
 
-                        client->getua(u, words[1].c_str(), priv);
+                        client->getua(u, words[1].c_str());
 
                         return;
                     }
@@ -2652,23 +2642,24 @@ static void process_line(char* l)
 
                             return;
                         }
-                        else if (words.size() > 3)
+                        else if (words.size() == 3)
                         {
-                            int priv = words.size() == 5 && words[4] == "private";
-
                             if (words[2] == "del")
                             {
                                 client->putua(words[1].c_str());
 
                                 return;
                             }
-                            else if (words[2] == "set" && (words.size() == 4 || priv))
+                        }
+                        else if (words.size() == 4)
+                        {
+                            if (words[2] == "set")
                             {
-                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size(), priv);
+                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size());
 
                                 return;
                             }
-                            else if (words[2] == "load" && (words.size() == 4 || priv))
+                            else if (words[2] == "load")
                             {
                                 string data, localpath;
 
@@ -2676,7 +2667,7 @@ static void process_line(char* l)
 
                                 if (loadfile(&localpath, &data))
                                 {
-                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size(), priv);
+                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size());
                                 }
                                 else
                                 {
@@ -2687,7 +2678,7 @@ static void process_line(char* l)
                             }
                         }
 
-                        cout << "      putua attrname [del|set string|load file] [private]" << endl;
+                        cout << "      putua attrname [del|set string|load file]" << endl;
 
                         return;
                     }
@@ -2867,24 +2858,31 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        int del = words.size() == 3 && words[2] == "del";
-                        int rmd = words.size() == 3 && words[2] == "rmd";
-                        if (words.size() == 2 || words.size() == 3)
+                        if (client->finduser(client->me)->email.compare(words[1]))
                         {
-                            if (del || rmd)
+                            int del = words.size() == 3 && words[2] == "del";
+                            int rmd = words.size() == 3 && words[2] == "rmd";
+                            if (words.size() == 2 || words.size() == 3)
                             {
-                                client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
-                            } 
-                            else 
+                                if (del || rmd)
+                                {
+                                    client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                }
+                                else
+                                {
+                                    // Original email is not required, but can be used if this account has multiple email addresses associated,
+                                    // to have the invite come from a specific email
+                                    client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                }
+                            }
+                            else
                             {
-                                // Original email is not required, but can be used if this account has multiple email addresses associated,
-                                // to have the invite come from a specific email
-                                client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                cout << "      invite dstemail [origemail|del|rmd]" << endl;
                             }
                         }
                         else
                         {
-                            cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                            cout << "Cannot send invitation to your own user" << endl;
                         }
 
                         return;

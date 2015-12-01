@@ -92,7 +92,12 @@ class MegaGfxProc : public GfxProcExternal {};
 
 #ifdef WIN32
     #ifndef WINDOWS_PHONE
+    #ifdef USE_CURL
+    class MegaHttpIO : public CurlHttpIO {};
+    #else
     class MegaHttpIO : public WinHttpIO {};
+    #endif
+
     class MegaFileSystemAccess : public WinFileSystemAccess {};
     class MegaWaiter : public WinWaiter {};
     #else
@@ -132,6 +137,37 @@ private:
     MegaLogger *megaLogger;
 };
 
+class MegaTransferPrivate;
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
+{
+public:
+    MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
+    void start();
+
+protected:
+    void onFolderAvailable(MegaHandle handle);
+    void checkCompletion();
+
+    std::list<std::string> pendingFolders;
+    std::list<MegaTransferPrivate *> pendingSkippedTransfers;
+
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    const char* name;
+    handle parenthandle;
+    MegaTransferPrivate *transfer;
+    MegaTransferListener *listener;
+    int recursive;
+    int tag;
+    int pendingTransfers;
+
+public:
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+};
+
 class MegaNodePrivate : public MegaNode
 {
     public:
@@ -142,6 +178,9 @@ class MegaNodePrivate : public MegaNode
         virtual ~MegaNodePrivate();
         virtual int getType();
         virtual const char* getName();
+        virtual bool hasCustomAttrs();
+        MegaStringList *getCustomAttrNames();
+        virtual const char *getCustomAttr(const char* attrName);
         virtual char *getBase64Handle();
         virtual int64_t getSize();
         virtual int64_t getCreationTime();
@@ -184,6 +223,7 @@ class MegaNodePrivate : public MegaNode
         MegaNodePrivate(Node *node);
         int type;
         const char *name;
+        attr_map *customAttrs;
         int64_t size;
         int64_t ctime;
         int64_t mtime;
@@ -220,13 +260,16 @@ class MegaUserPrivate : public MegaUser
 
 		~MegaUserPrivate();
 		virtual const char* getEmail();
-		virtual int getVisibility();
-		virtual time_t getTimestamp();
+        virtual int getVisibility();
+        virtual int64_t getTimestamp();
+        virtual bool hasChanged(int changeType);
+        virtual int getChanges();
 
 	protected:
 		const char *email;
-		int visibility;
-		time_t ctime;
+        int visibility;
+        int64_t ctime;
+        int changed;
 };
 
 class MegaSharePrivate : public MegaShare
@@ -283,6 +326,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setSyncTransfer(bool syncTransfer);
         void setLastBytes(char *lastBytes);
         void setLastErrorCode(error errorCode);
+        void setFolderTransferTag(int tag);
 
 		virtual int getType() const;
 		virtual const char * getTransferString() const;
@@ -313,6 +357,8 @@ class MegaTransferPrivate : public MegaTransfer
         virtual bool isStreamingTransfer() const;
         virtual char *getLastBytes() const;
         virtual error getLastErrorCode() const;
+        virtual bool isFolderTransfer() const;
+        virtual int getFolderTransferTag() const;
 
 	protected:		
 		int type;
@@ -340,6 +386,7 @@ class MegaTransferPrivate : public MegaTransfer
 		MegaTransferListener *listener;
         Transfer *transfer;
         error lastError;
+        int folderTransferTag;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
@@ -689,6 +736,23 @@ private:
     vector<const char *> androidId;
 };
 
+class MegaStringListPrivate : public MegaStringList
+{
+public:
+    MegaStringListPrivate();
+    MegaStringListPrivate(char **newlist, int size);
+    virtual ~MegaStringListPrivate();
+    virtual MegaStringList *copy();
+    virtual const char* get(int i);
+    virtual int size();
+
+
+protected:
+    MegaStringListPrivate(MegaStringListPrivate *stringList);
+    const char** list;
+    int s;
+};
+
 class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
@@ -950,6 +1014,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         char* getMyEmail();
         char* getMyUserHandle();
+        char* getMyXMPPJid();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
@@ -978,6 +1043,7 @@ class MegaApiImpl : public MegaApp
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+        void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -1014,7 +1080,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, MegaTransferListener *listener = NULL);
+        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void startPublicDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
@@ -1031,6 +1097,7 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTransfers();
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
+        MegaTransferList *getChildTransfers(int transferTag);
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -1082,6 +1149,7 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* email);
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
+        MegaShareList *getInSharesList();
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares();
         MegaShareList *getOutShares(MegaNode *node);
@@ -1112,6 +1180,7 @@ class MegaApiImpl : public MegaApp
         MegaError checkAccess(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
 
+        bool isFilesystemAvailable();
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();
@@ -1148,6 +1217,14 @@ class MegaApiImpl : public MegaApp
 
         bool isOnline();
 
+        void fireOnTransferStart(MegaTransferPrivate *transfer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnTransferUpdate(MegaTransferPrivate *transfer);
+        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        map<int, MegaTransferPrivate *> transferMap;
+
+        MegaClient *getMegaClient();
+
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 
@@ -1160,11 +1237,7 @@ protected:
         void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
         void fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaError e);
-        void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
-        void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
-        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         void fireOnUsersUpdate(MegaUserList *users);
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
@@ -1190,7 +1263,6 @@ protected:
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
-        map<int, MegaTransferPrivate *> transferMap;
 
         vector<m_time_t> downloadTimes;
         vector<int64_t> downloadBytes;

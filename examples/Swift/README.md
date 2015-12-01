@@ -3,7 +3,7 @@
 
 Xcode project for developing a MEGA app for iOS.
 
-Target OS: iOS 7.0
+Target OS: iOS 8.0
 
 Demo application that allows:
 
@@ -27,7 +27,7 @@ To build and run the project, follow theses steps:
 
 1. Download or clone the whole SDK
 
-2. Download the prebuilt third party dependencies from this link: https://mega.nz/#!VUlX2CYB!dJ8GgRT53qJYmAD64ynUwFc4XMxfGkxVHZkedAxcYIc
+2. Download the prebuilt third party dependencies from this link: https://mega.nz/#!QF02zQTL!rdyWnXtY3utfyuMdWCmpoR9CXHPGKQpf1afXQenk5vI
 
 3. Uncompress the content and move `include`and `lib`to the directory `sdk/bindings/ios/3rdparty`
 

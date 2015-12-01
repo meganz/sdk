@@ -450,6 +450,16 @@ void MegaSDK::killSession(MegaHandle sessionHandle)
     megaApi->killSession(sessionHandle);
 }
 
+void MegaSDK::killAllSessions(MRequestListenerInterface^ listener)
+{
+    megaApi->killSession(mega::INVALID_HANDLE, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::killAllSessions()
+{
+    megaApi->killSession(mega::INVALID_HANDLE);
+}
+
 void MegaSDK::getOwnUserData(MRequestListenerInterface^ listener)
 {
 	megaApi->getUserData(createDelegateMRequestListener(listener));
@@ -1183,6 +1193,17 @@ void MegaSDK::exportNode(MNode^ node)
     megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL);
 }
 
+void MegaSDK::exportNodeWithExpireTime(MNode^ node, int64 expireTime, MRequestListenerInterface^ listener)
+{
+    megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL, expireTime, 
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::exportNodeWithExpireTime(MNode^ node, int64 expireTime)
+{
+    megaApi->exportNode((node != nullptr) ? node->getCPtr() : NULL, expireTime);
+}
+
 void MegaSDK::disableExport(MNode^ node, MRequestListenerInterface^ listener)
 {
     megaApi->disableExport((node != nullptr) ? node->getCPtr() : NULL, 
@@ -1212,6 +1233,16 @@ void MegaSDK::getAccountDetails(MRequestListenerInterface^ listener)
 void MegaSDK::getAccountDetails()
 {
 	megaApi->getAccountDetails();
+}
+
+void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MRequestListenerInterface^ listener)
+{
+    megaApi->getExtendedAccountDetails(sessions, purchases, transactions, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions)
+{
+    megaApi->getExtendedAccountDetails(sessions, purchases, transactions);
 }
 
 void MegaSDK::getPricing(MRequestListenerInterface^ listener)
