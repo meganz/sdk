@@ -601,11 +601,13 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
+#ifdef USE_SODIUM
     delete signkey;
     signkey = NULL;
 
     delete chatkey;
     chatkey = NULL;
+#endif
 
     btcs.reset();
     btsc.reset();
