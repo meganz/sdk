@@ -2035,9 +2035,6 @@ void CommandGetUA::procresult()
         data = new byte[datalen];
         datalen = Base64::atob(ptr, data, datalen);
 
-        bool signkeyUpdated = false;
-        bool chatkeyUpdated = false;
-        bool keyringSet = (client->signkey && client->chatkey);
         string tmpstr;
 //        bool nonHistoric = (attributename.at(1) == '!');
 
@@ -2057,8 +2054,13 @@ void CommandGetUA::procresult()
                 return;
             }
 
+#ifdef USE_SODIUM
             if (attributename == "*keyring")
-            {
+            {                
+                bool signkeyUpdated = false;
+                bool chatkeyUpdated = false;
+                bool keyringSet = (client->signkey && client->chatkey);
+
                 // Ed25519 sanity checkup
                 if (tlvRecords->find(EdDSA::TLV_KEY))
                 {
@@ -2157,6 +2159,7 @@ void CommandGetUA::procresult()
                     client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
                 }
             }
+#endif
 
             client->app->getua_result(tlvRecords);
             delete tlvRecords;
@@ -2165,6 +2168,7 @@ void CommandGetUA::procresult()
 
         case '+':   // public
 
+#ifdef USE_SODIUM
             // if own user's attribute and it's a public key, check against derived pubKey
             if (user->userhandle == client->me)
             {
@@ -2193,6 +2197,7 @@ void CommandGetUA::procresult()
                     }
                 }
             }
+#endif
 
             client->app->getua_result(data, datalen);
             break;
