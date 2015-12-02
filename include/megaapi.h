@@ -1083,6 +1083,150 @@ class MegaShare
         virtual int64_t getTimestamp();
 };
 
+#ifdef ENABLE_CHAT
+class MegaTextChatMemberList
+{
+public:
+    enum {
+        PRIV_UNKNOWN = -2,
+        PRIV_RM = -1,
+        PRIV_RO = 0,
+        PRIV_RW = 1,
+        PRIV_FULL = 2,
+        PRIV_OPERATOR = 3
+    };
+
+    virtual ~MegaTextChatMemberList();
+
+    /**
+     * @brief Creates a copy of this MegaTextChatMemberList object
+     *
+     * The resulting object is fully independent of the source MegaTextChatMemberList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTextChatMemberList object
+     */
+    virtual MegaTextChatMemberList *copy();
+
+    /**
+     * @brief Returns the MegaHandle of the chat member at the position i in the list
+     *
+     * The MegaTextChatMemberList retains the ownership of the returned MegaHandle. It will be only valid until
+     * the MegaTextChatMemberList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the chat member that we want to get from the list
+     * @return MegaHandle of the chat member at the position i in the list
+     */
+    virtual MegaHandle getMemberHandle(int i);
+
+    /**
+     * @brief Returns the privilege of the chat member at the position i in the list
+     *
+     * If the index is >= the size of the list, this function returns PRIV_UNKNOWN.
+     *
+     * @param i Position of the chat member that we want to get from the list
+     * @return MegaHandle of the chat member at the position i in the list
+     */
+    virtual int getMemberPrivilege(int i);
+
+    /**
+     * @brief Returns the number of chat members in the list
+     * @return Number of chat members in the list
+     */
+    virtual int size();
+
+};
+
+class MegaTextChat
+{
+public:
+
+    /**
+     * @brief getHandle Returns the MegaHandle of the chat.
+     * @return MegaHandle of the chat.
+     */
+    virtual MegaHandle getHandle();
+
+    /**
+     * @brief getOwnPrivilege Returns your privilege level in this chat
+     * @return
+     */
+    virtual int getOwnPrivilege();
+
+    /**
+     * @brief getUrl Returns your URL to connect to chatd for this chat
+     * @return
+     */
+    virtual const char *getUrl();
+
+    /**
+     * @brief getShard Returns the chat shard
+     * @return
+     */
+    virtual int getShard();
+
+    /**
+     * @brief getMemberList Returns the full user list and privileges (including yourself).
+     *
+     * The MegaTextChat retains the ownership of the returned MetaTextChatMemberList. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return
+     */
+    virtual MegaTextChatMemberList *getMemberList();
+
+    /**
+     * @brief isGroup Returns whether this chat is a group chat or not
+     * @return True if this chat is a group chat. Only chats with more than 2 members are groupal chats.
+     */
+    virtual bool isGroup();
+
+};
+
+/**
+ * @brief List of MegaTextChat objects
+ *
+ * A MegaTextChatList has the ownership of the MegaTextChat objects that it contains, so they will be
+ * only valid until the MegaTextChatList is deleted. If you want to retain a MegaTextChat returned by
+ * a MegaTextChatList, use MegaTextChat::copy.
+ *
+ * Objects of this class are immutable.
+ */
+class MegaTextChatList
+{
+public:
+
+    virtual ~MegaTextChatList();
+
+    virtual MegaTextChatList *copy();
+
+    /**
+     * @brief Returns the MegaTextChat at the position i in the MegaTextChatList
+     *
+     * The MegaTextChatList retains the ownership of the returned MegaTextChat. It will be only valid until
+     * the MegaTextChatList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaTextChat that we want to get for the list
+     * @return MegaTextChat at the position i in the list
+     */
+    virtual MegaTextChat *get(int i);
+
+    /**
+     * @brief Returns the number of MegaTextChats in the list
+     * @return Number of MegaTextChats in the list
+     */
+    virtual int size();
+};
+
+
+#endif
 
 /**
  * @brief List of strings
