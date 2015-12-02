@@ -366,6 +366,27 @@ void CurlHttpIO::disconnect()
     ares_destroy(ares);
     curl_multi_cleanup(curlm);
 
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    for (unsigned int i = 0; i < aressockets.size(); i++)
+    {
+        if (aressockets[i].handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent(aressockets[i].handle);
+        }
+    }
+    aressockets.clear();
+
+    for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end(); it++)
+    {
+        SockInfo &info = it->second;
+        if (info.handle != WSA_INVALID_EVENT)
+        {
+            WSACloseEvent (info.handle);
+        }
+    }
+    curlsockets.clear();
+#endif
+
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
     dnscache.clear();
 
@@ -1614,11 +1635,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     {
         LOG_debug << "Removing socket " << s;
         HANDLE handle = httpio->curlsockets[s].handle;
+        httpio->curlsockets.erase(s);
         if (handle != WSA_INVALID_EVENT)
         {
             WSACloseEvent (handle);
         }
-        httpio->curlsockets.erase(s);
     }
     else
     {
