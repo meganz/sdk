@@ -2105,6 +2105,33 @@ bool MegaApi::isOnline()
     return pImpl->isOnline();
 }
 
+#ifdef ENABLE_CHAT
+void MegaApi::createChat(MegaStringList *users, MegaStringList *privs, MegaRequestListener *listener)
+{
+    pImpl->createChat(users, privs, listener);
+}
+
+void MegaApi::fetchChats(MegaRequestListener *listener)
+{
+    pImpl->fetchChats(listener);
+}
+
+void MegaApi::inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener)
+{
+    pImpl->inviteToChat(chatid, u, privilege, listener);
+}
+
+void MegaApi::removeFromChat(MegaHandle chatid, MegaUser *u, MegaRequestListener *listener)
+{
+    pImpl->removeFromChat(chatid, u, listener);
+}
+
+void MegaApi::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->getUrlChat(chatid, listener);
+}
+#endif
+
 char* MegaApi::strdup(const char* buffer)
 {
     if(!buffer)

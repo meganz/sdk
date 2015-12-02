@@ -284,6 +284,23 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+#ifdef ENABLE_CHAT
+    // create a new chat with multiple users and different privileges
+    void createChat(const char *users, const char *privs);
+
+    // fetch the list of chats
+    void fetchChats();
+
+    // invite a user to a chat
+    void inviteToChat(handle chatid, const char *email, int priv);
+
+    // remove a user from a chat
+    void removeFromChat(handle chatid, const char *email);
+
+    // get the URL of a chat
+    void getUrlChat(handle chatid);
+#endif
+
     // toggle global debug flag
     bool toggledebug();
 

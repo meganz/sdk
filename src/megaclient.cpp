@@ -8731,5 +8731,78 @@ void MegaClient::cleanrubbishbin()
     reqs.add(new CommandCleanRubbishBin(this));
 }
 
+#ifdef ENABLE_CHAT
+void MegaClient::createChat(const char *users, const char *privs)
+{
+    string ustr(users);
+    string pstr(privs);
+
+    userpriv_vector userpriv;
+    User *u;
+    privilege_t p;
+
+    unsigned startu = 0;
+    unsigned startp = 0;
+    unsigned endu = 0;
+    unsigned endp = 0;
+    string tmp;
+
+    while (endu < ustr.length() && endp < pstr.length())
+    {
+        endu = ustr.find(" ", endu);
+        endp = pstr.find(" ", endp);
+
+        u = finduser(ustr.substr(startu, endu - startu).c_str());
+        tmp = pstr.substr(startp, endp - startp);
+        if (tmp == "ro")
+        {
+            p = PRIV_RO;
+        }
+        else if (tmp == "rw")
+        {
+            p = PRIV_RW;
+        }
+        else if (tmp == "full")
+        {
+            p = PRIV_FULL;
+        }
+        else if (tmp == "op")
+        {
+            p = PRIV_OPERATOR;
+        }
+        else
+        {
+            p = PRIV_UNKNOWN;
+        }
+
+        userpriv.push_back(pair<User*,privilege_t>(u, p));
+
+        startu = endu;
+        startp = endp;
+    }
+
+    reqs.add(new CommandChatCreate(this, userpriv));
+}
+
+void MegaClient::fetchChats()
+{
+    reqs.add(new CommandChatFetch(this));
+}
+
+void MegaClient::inviteToChat(handle chatid, const char *email, int priv)
+{
+    reqs.add(new CommandChatInvite(this, chatid, finduser(email), (privilege_t) priv));
+}
+
+void MegaClient::removeFromChat(handle chatid, const char *email)
+{
+    reqs.add(new CommandChatRemove(this, chatid, finduser(email)));
+}
+
+void MegaClient::getUrlChat(handle chatid)
+{
+    reqs.add(new CommandChatURL(this, chatid));
+}
+#endif
 
 } // namespace

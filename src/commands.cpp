@@ -3464,7 +3464,8 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
-CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_list upl)
+#ifdef ENABLE_CHAT
+CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_vector upl)
 {
     this->client = client;
 
@@ -3473,7 +3474,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_list upl)
 
     beginarray("u");
 
-    userpriv_list::iterator itupl;
+    userpriv_vector::iterator itupl;
     for (itupl = upl.begin(); itupl != upl.end(); itupl++)
     {
         beginobject();
@@ -3662,6 +3663,7 @@ void CommandChatURL::procresult()
         }
     }
 }
+#endif
 
 
 } // namespace

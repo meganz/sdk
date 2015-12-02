@@ -4290,6 +4290,76 @@ bool MegaApiImpl::isOnline()
     return !client->httpio->noinetds;
 }
 
+#ifdef ENABLE_CHAT
+void MegaApiImpl::createChat(MegaStringList *users, MegaStringList *privs, MegaRequestListener *listener)
+{
+    // cocatenate users to send them as a single argument in the request
+    string usersstr;
+    for (int i = 0; i < users->size(); i++)
+    {
+        if (i)
+        {
+            usersstr.append(" ");
+        }
+        usersstr.append(users->get(i));
+    }
+
+    // cocatenate privileges to send them as a single argument in the request
+    string privsstr;
+    for (int i = 0; i < privs->size(); i++)
+    {
+        if (i)
+        {
+            privsstr.append(" ");
+        }
+        privsstr.append(privs->get(i));
+    }
+
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
+    request->setName(usersstr.c_str());
+    request->setText(privsstr.c_str());
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchChats(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_FETCH, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
+    request->setNodeHandle(chatid);
+    if (u)
+    {
+        request->setEmail(u->getEmail());
+    }
+    request->setAccess(privilege);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeFromChat(MegaHandle chatid, MegaUser *u, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE, listener);
+    request->setNodeHandle(chatid);
+    request->setEmail(u->getEmail());
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_URL, listener);
+    request->setNodeHandle(chatid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+#endif
+
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -9573,6 +9643,59 @@ void MegaApiImpl::sendPendingRequests()
             client->cleanrubbishbin();
             break;
         }
+#ifdef ENABLE_CHAT
+        case MegaRequest::TYPE_CHAT_CREATE:
+        {
+            const char *users = request->getName();
+            const char *privs = request->getText();
+            client->createChat(users, privs);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_FETCH:
+        {
+            client->fetchChats();
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_INVITE:
+        {
+            handle chatid = request->getNodeHandle();
+            const char *email = request->getEmail();
+            int access = request->getAccess();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->inviteToChat(chatid, email, access);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_REMOVE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            const char *email = request->getEmail();
+            if (chatid == INVALID_HANDLE || !email)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->removeFromChat(chatid, email);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_URL:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->getUrlChat(chatid);
+            break;
+        }
+#endif
         default:
         {
             e = API_EINTERNAL;

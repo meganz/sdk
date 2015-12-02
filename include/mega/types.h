@@ -358,8 +358,10 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
-typedef enum { PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
-typedef list< pair<User*, privilege_t> > userpriv_list;
+#ifdef ENABLE_CHAT
+typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
+typedef vector< pair<User*, privilege_t> > userpriv_vector;
+#endif
 
 } // namespace
 

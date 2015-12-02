@@ -1217,6 +1217,14 @@ class MegaApiImpl : public MegaApp
 
         bool isOnline();
 
+#ifdef ENABLE_CHAT
+        void createChat(MegaStringList *users, MegaStringList *privs, MegaRequestListener *listener = NULL);
+        void fetchChats(MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener = NULL);
+        void removeFromChat(MegaHandle chatid, MegaUser *u = NULL, MegaRequestListener *listener = NULL);
+        void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+#endif
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);

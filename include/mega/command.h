@@ -599,6 +599,8 @@ public:
     CommandCleanRubbishBin(MegaClient*);
 };
 
+
+#ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {
     MegaClient *client;
@@ -606,9 +608,8 @@ class MEGA_API CommandChatCreate : public Command
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, userpriv_list);
+    CommandChatCreate(MegaClient*, userpriv_vector);
 };
-
 
 class MEGA_API CommandChatFetch : public Command
 {
@@ -647,7 +648,7 @@ public:
 
     CommandChatURL(MegaClient*, handle);
 };
-
+#endif
 
 
 } // namespace
