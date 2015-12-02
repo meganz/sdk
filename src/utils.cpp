@@ -618,20 +618,27 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
 
     int buflen = data.length() - offset;
 
-    string buf;
-    buf.assign((char*)&(data.data()[offset]), buflen);
+//    string buf;
+//    buf.assign((char*)&(data.data()[offset]), buflen);
+
+    byte *buf = new byte[buflen];
+    memcpy(buf, &(data.data()[offset]), buflen);
 
     if (useCCM)
     {
-        key->ccm_decrypt((byte*)buf.data(), buflen, iv, ivlen);
+        key->ccm_decrypt(buf, buflen, iv, ivlen);
     }
     else
     {
-        key->gcm_decrypt((byte*)buf.data(), buflen, iv, ivlen);
+        key->gcm_decrypt(buf, buflen, iv, ivlen);
     }
 
-    TLVstore *tlv = TLVstore::containerToTLVrecords(buf);
+    string clearBytes;
+    clearBytes.assign((const char *)buf, buflen);
 
+    TLVstore *tlv = TLVstore::containerToTLVrecords(clearBytes);
+
+    delete [] buf;
     delete [] iv;
 
     return tlv;
