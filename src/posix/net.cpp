@@ -1604,7 +1604,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
 }
 
 // set contentlength according to Original-Content-Length header
-size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
+size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
     if (!memcmp(ptr, "Content-Length:", 15))
     {
@@ -1616,6 +1616,10 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
         {
             ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
         }
+        else
+        {
+            return size * nmemb;
+        }
     }
 
     if (((HttpReq*)target)->httpio)
@@ -1623,7 +1627,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t, size_t nmemb, void* target)
         ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
     }
 
-    return nmemb;
+    return size * nmemb;
 }
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
