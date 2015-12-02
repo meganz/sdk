@@ -540,14 +540,6 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
         // check if this record is affected by the UTF-8 bug: extra bytes after the value
         if (datalen > offset + typelen)   // more data available
         {
-//            string rest;
-//            rest.assign(data, offset, string::npos);
-
-//            if (rest.length() != datalen - offset)
-//            {
-//                // there are extra bytes we haven't read yet, should we shave them off or convert from UTF-8??
-//            }
-
             unsigned pos = data.find('\0', offset);
             unsigned extraBytes = pos - offset - typelen;    // assume all 'T' strings have same length
             if (pos != string::npos && extraBytes)
@@ -616,11 +608,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
     memcpy(iv, &(data[offset]), ivlen);
     offset += ivlen;
 
-    int buflen = data.length() - offset;
-
-//    string buf;
-//    buf.assign((char*)&(data.data()[offset]), buflen);
-
+    unsigned buflen = data.length() - offset;
     byte *buf = new byte[buflen];
     memcpy(buf, &(data.data()[offset]), buflen);
 
