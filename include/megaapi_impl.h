@@ -736,6 +736,62 @@ private:
     vector<const char *> androidId;
 };
 
+#ifdef ENABLE_CHAT
+class MegaTextChatMemberListPrivate : public MegaTextChatMemberList
+{
+public:
+    virtual ~MegaTextChatMemberListPrivate();
+    virtual MegaTextChatMemberList *copy();
+    virtual void addMember(MegaHandle h, int priv);
+    virtual MegaHandle getMemberHandle(int i);
+    virtual int getMemberPrivilege(int i);
+    virtual int size();
+
+private:
+    vector< pair<handle, int> > list;
+};
+
+class MegaTextChatPrivate : public MegaTextChat
+{
+public:
+    MegaTextChatPrivate(MegaTextChat *);
+    MegaTextChatPrivate(handle id, int priv, string url, int shard, MegaTextChatMemberList *members, bool group);
+
+    virtual ~MegaTextChatPrivate();
+    virtual MegaHandle getHandle();
+    virtual int getOwnPrivilege();
+    virtual const char *getUrl();
+    virtual int getShard();
+    virtual MegaTextChatMemberList *getMemberList();
+    virtual bool isGroup();
+
+private:
+    handle id;
+    int priv;
+    string url;
+    int shard;
+    MegaTextChatMemberList *members;
+    bool group;
+};
+
+class MegaTextChatListPrivate : public MegaTextChatList
+{
+public:
+    MegaTextChatListPrivate();
+
+    virtual ~MegaTextChatListPrivate();
+    virtual MegaTextChatList *copy();
+    virtual MegaTextChat *get(int i);
+    virtual int size();
+
+private:
+    MegaTextChatListPrivate(MegaTextChatListPrivate*);
+    vector<MegaTextChat*> list;
+};
+
+#endif
+
+
 class MegaStringListPrivate : public MegaStringList
 {
 public:

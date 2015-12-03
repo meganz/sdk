@@ -11078,3 +11078,154 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     megaApi->fireOnTransferUpdate(transfer);
     checkCompletion();
 }
+
+#ifdef ENABLE_CHAT
+MegaTextChatMemberListPrivate::~MegaTextChatMemberListPrivate()
+{
+
+}
+
+MegaTextChatMemberList *MegaTextChatMemberListPrivate::copy()
+{
+    MegaTextChatMemberListPrivate *ret = new MegaTextChatMemberListPrivate;
+
+    for (int i = 0; i < size(); i++)
+    {
+        ret->addMember(list.at(i).first, list.at(i).second);
+    }
+
+    return ret;
+}
+
+void MegaTextChatMemberListPrivate::addMember(MegaHandle h, int priv)
+{
+    list.push_back(pair<handle, int>(h,priv));
+}
+
+MegaHandle MegaTextChatMemberListPrivate::getMemberHandle(int i)
+{
+    if (i > size())
+    {
+        return INVALID_HANDLE;
+    }
+    else
+    {
+        return list.at(i).first;
+    }
+}
+
+int MegaTextChatMemberListPrivate::getMemberPrivilege(int i)
+{
+    if (i > size())
+    {
+        return PRIV_UNKNOWN;
+    }
+    else
+    {
+        return list.at(i).second;
+    }
+}
+
+int MegaTextChatMemberListPrivate::size()
+{
+    return list.size();
+}
+
+MegaTextChatPrivate::MegaTextChatPrivate(MegaTextChat *chat)
+{
+    this->id = chat->getHandle();
+    this->priv = chat->getOwnPrivilege();
+    this->url = chat->getUrl();
+    this->shard = chat->getShard();
+    this->members = chat->getMemberList()->copy();
+    this->group = chat->isGroup();
+}
+
+MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int shard, MegaTextChatMemberList *members, bool group)
+{
+    this->id = id;
+    this->priv = priv;
+    this->url = url;
+    this->shard = shard;
+    this->members = members->copy();
+    this->group = group;
+}
+
+MegaTextChatPrivate::~MegaTextChatPrivate()
+{
+    delete members;
+}
+
+MegaHandle MegaTextChatPrivate::getHandle()
+{
+    return id;
+}
+
+int MegaTextChatPrivate::getOwnPrivilege()
+{
+    return priv;
+}
+
+const char *MegaTextChatPrivate::getUrl()
+{
+    return url.c_str();
+}
+
+int MegaTextChatPrivate::getShard()
+{
+    return shard;
+}
+
+MegaTextChatMemberList *MegaTextChatPrivate::getMemberList()
+{
+    return members;
+}
+
+bool MegaTextChatPrivate::isGroup()
+{
+    return group;
+}
+
+MegaTextChatListPrivate::~MegaTextChatListPrivate()
+{
+    for (int i = 0; i < size(); i++)
+    {
+        delete list.at(i);
+    }
+}
+
+MegaTextChatList *MegaTextChatListPrivate::copy()
+{
+    return new MegaTextChatListPrivate(this);
+}
+
+MegaTextChat *MegaTextChatListPrivate::get(int i)
+{
+    if (i > size())
+    {
+        return NULL;
+    }
+    else
+    {
+        return list.at(i);
+    }
+}
+
+int MegaTextChatListPrivate::size()
+{
+    return list.size();
+}
+
+MegaTextChatListPrivate::MegaTextChatListPrivate(MegaTextChatListPrivate *list)
+{
+    MegaTextChatPrivate *chat;
+
+    for (int i = 0; i < list->size(); i++)
+    {
+        chat = new MegaTextChatPrivate(list->get(i));
+        this->list.push_back(chat);
+    }
+}
+
+
+#endif

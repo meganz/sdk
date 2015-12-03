@@ -2660,3 +2660,90 @@ MegaInputStream::~MegaInputStream()
 {
 
 }
+
+#ifdef ENABLE_CHAT
+MegaTextChatMemberList::~MegaTextChatMemberList()
+{
+
+}
+
+MegaTextChatMemberList *MegaTextChatMemberList::copy()
+{
+    return NULL;
+}
+
+void MegaTextChatMemberList::addMember(MegaHandle, int)
+{
+}
+
+MegaHandle MegaTextChatMemberList::getMemberHandle(int)
+{
+    return INVALID_HANDLE;
+}
+
+int MegaTextChatMemberList::getMemberPrivilege(int)
+{
+    return PRIV_UNKNOWN;
+}
+
+int MegaTextChatMemberList::size()
+{
+    return 0;
+}
+
+MegaTextChat::~MegaTextChat()
+{
+
+}
+
+MegaHandle MegaTextChat::getHandle()
+{
+    return INVALID_HANDLE;
+}
+
+int MegaTextChat::getOwnPrivilege()
+{
+    return PRIV_UNKNOWN;
+}
+
+const char *MegaTextChat::getUrl()
+{
+    return NULL;
+}
+
+int MegaTextChat::getShard()
+{
+    return -1;
+}
+
+MegaTextChatMemberList *MegaTextChat::getMemberList()
+{
+    return NULL;
+}
+
+bool MegaTextChat::isGroup()
+{
+    return false;
+}
+
+MegaTextChatList::~MegaTextChatList()
+{
+
+}
+
+MegaTextChatList *MegaTextChatList::copy()
+{
+    return NULL;
+}
+
+MegaTextChat *MegaTextChatList::get(int)
+{
+    return NULL;
+}
+
+int MegaTextChatList::size()
+{
+    return 0;
+}
+
+#endif  // ENABLE_CHAT

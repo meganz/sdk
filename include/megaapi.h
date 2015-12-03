@@ -1112,12 +1112,16 @@ public:
     virtual MegaTextChatMemberList *copy();
 
     /**
+     * @brief addMember Adds a new chat member to the list
+     * @param h MegaHandle of the user to be added
+     * @param priv Privilege level of the user to be added
+     */
+    virtual void addMember(MegaHandle h, int priv);
+
+    /**
      * @brief Returns the MegaHandle of the chat member at the position i in the list
-     *
-     * The MegaTextChatMemberList retains the ownership of the returned MegaHandle. It will be only valid until
-     * the MegaTextChatMemberList is deleted.
-     *
-     * If the index is >= the size of the list, this function returns NULL.
+     *     *
+     * If the index is >= the size of the list, this function returns INVALID_HANDLE.
      *
      * @param i Position of the chat member that we want to get from the list
      * @return MegaHandle of the chat member at the position i in the list
@@ -1145,6 +1149,8 @@ public:
 class MegaTextChat
 {
 public:
+
+    virtual ~MegaTextChat();
 
     /**
      * @brief getHandle Returns the MegaHandle of the chat.
