@@ -3600,6 +3600,15 @@ void MegaApiImpl::setDownloadMethod(int method)
             break;
         case MegaApi::TRANSFER_METHOD_AUTO:
             client->autodownport = true;
+            break;
+        case MegaApi::TRANSFER_METHOD_AUTO_NORMAL:
+            client->usealtdownport = false;
+            client->autodownport = true;
+            break;
+        case MegaApi::TRANSFER_METHOD_AUTO_ALTERNATIVE:
+            client->usealtdownport = true;
+            client->autodownport = true;
+            break;
         default:
             break;
     }
@@ -3619,6 +3628,15 @@ void MegaApiImpl::setUploadMethod(int method)
             break;
         case MegaApi::TRANSFER_METHOD_AUTO:
             client->autoupport = true;
+            break;
+        case MegaApi::TRANSFER_METHOD_AUTO_NORMAL:
+            client->usealtupport = false;
+            client->autoupport = true;
+            break;
+        case MegaApi::TRANSFER_METHOD_AUTO_ALTERNATIVE:
+            client->usealtupport = true;
+            client->autoupport = true;
+            break;
         default:
             break;
     }
@@ -3628,7 +3646,14 @@ int MegaApiImpl::getDownloadMethod()
 {
     if (client->autodownport)
     {
-        return MegaApi::TRANSFER_METHOD_AUTO;
+        if(client->usealtdownport)
+        {
+            return MegaApi::TRANSFER_METHOD_AUTO_ALTERNATIVE;
+        }
+        else
+        {
+            return MegaApi::TRANSFER_METHOD_AUTO_NORMAL;
+        }
     }
 
     if (client->usealtdownport)
@@ -3643,7 +3668,14 @@ int MegaApiImpl::getUploadMethod()
 {
     if (client->autoupport)
     {
-        return MegaApi::TRANSFER_METHOD_AUTO;
+        if(client->usealtupport)
+        {
+            return MegaApi::TRANSFER_METHOD_AUTO_ALTERNATIVE;
+        }
+        else
+        {
+            return MegaApi::TRANSFER_METHOD_AUTO_NORMAL;
+        }
     }
 
     if (client->usealtupport)

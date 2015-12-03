@@ -286,6 +286,7 @@ void TransferSlot::doio(MegaClient* client)
                                 changeport = true;
                             }
 
+                            client->app->transfer_failed(transfer, API_EFAILED);
                             client->setchunkfailed(&reqs[i]->posturl);
 
                             if (changeport)

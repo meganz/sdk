@@ -3267,7 +3267,9 @@ class MegaApi
         enum {
             TRANSFER_METHOD_NORMAL = 0,
             TRANSFER_METHOD_ALTERNATIVE_PORT = 1,
-            TRANSFER_METHOD_AUTO = 2
+            TRANSFER_METHOD_AUTO = 2,
+            TRANSFER_METHOD_AUTO_NORMAL = 3,
+            TRANSFER_METHOD_AUTO_ALTERNATIVE = 4
         };
 
         /**
@@ -5082,6 +5084,12 @@ class MegaApi
          * - TRANSFER_METHOD_AUTO = 2
          * The SDK selects the transfer method automatically
          *
+         * - TRANSFER_METHOD_AUTO_NORMAL = 3
+         * The SDK selects the transfer method automatically starting with port 80.
+         *
+         *  - TRANSFER_METHOD_AUTO_ALTERNATIVE = 4
+         * The SDK selects the transfer method automatically starting with alternative port 8080.
+         *
          * @param method Selected transfer method for downloads
          */
         void setDownloadMethod(int method);
@@ -5098,6 +5106,12 @@ class MegaApi
          *
          * - TRANSFER_METHOD_AUTO = 2
          * The SDK selects the transfer method automatically
+         *
+         * - TRANSFER_METHOD_AUTO_NORMAL = 3
+         * The SDK selects the transfer method automatically starting with port 80.
+         *
+         * - TRANSFER_METHOD_AUTO_ALTERNATIVE = 4
+         * The SDK selects the transfer method automatically starting with alternative port 8080.
          *
          * @param method Selected transfer method for uploads
          */
@@ -5116,6 +5130,12 @@ class MegaApi
          * - TRANSFER_METHOD_AUTO = 2
          * The SDK selects the transfer method automatically
          *
+         * - TRANSFER_METHOD_AUTO_NORMAL = 3
+         * The SDK selects the transfer method automatically starting with port 80.
+         *
+         * - TRANSFER_METHOD_AUTO_ALTERNATIVE = 4
+         * The SDK selects the transfer method automatically starting with alternative port 8080.
+         *
          * @return Active transfer method for downloads
          */
         int getDownloadMethod();
@@ -5132,6 +5152,12 @@ class MegaApi
          *
          * - TRANSFER_METHOD_AUTO = 2
          * The SDK selects the transfer method automatically
+         *
+         * - TRANSFER_METHOD_AUTO_NORMAL = 3
+         * The SDK selects the transfer method automatically starting with port 80.
+         *
+         * - TRANSFER_METHOD_AUTO_ALTERNATIVE = 4
+         * The SDK selects the transfer method automatically starting with alternative port 8080.
          *
          * @return Active transfer method for uploads
          */
