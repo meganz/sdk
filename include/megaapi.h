@@ -1971,6 +1971,22 @@ class MegaRequest
          * @return Unique tag that identifies this request
          */
         virtual int getTag() const;
+
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Returns the list of members in a chat.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createChat - Creates a chat for one or more participants.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::fetchChats - Fetches the full list of current chats
+         *
+         * @return List of members of a chat
+         */
+        virtual MegaTextChatMemberList *getMegaTextChatMemberList() const;
+#endif
 };
 
 /**
@@ -3901,7 +3917,8 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact,
+         * depending on the value provided as user parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -6523,11 +6540,13 @@ class MegaApi
          */
         bool isOnline();
 
-        void createChat(MegaStringList *users, MegaStringList *privs, MegaRequestListener *listener = NULL);
+#ifdef ENABLE_CHAT
+        void createChat(MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
         void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaUser *u = NULL, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+#endif
 
 private:
         MegaApiImpl *pImpl;

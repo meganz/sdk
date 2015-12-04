@@ -552,7 +552,13 @@ class MegaRequestPrivate : public MegaRequest
         virtual int getNumDetails() const;
         virtual int getTag() const;
         virtual MegaPricing *getPricing() const;
-	    AccountDetails * getAccountDetails() const;
+	    AccountDetails * getAccountDetails() const;        
+#ifdef ENABLE_CHAT
+        virtual MegaTextChatMemberList *getMegaTextChatMemberList() const;
+        void setMegaTextChatMemberList(MegaTextChatMemberList *chatMembers);
+        virtual MegaTextChatList *getMegaTextChatList() const;
+        void setMegaTextChatList(MegaTextChatList *chatList);
+#endif
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -589,6 +595,10 @@ class MegaRequestPrivate : public MegaRequest
         MegaNode* publicNode;
 		int numRetry;
         int tag;
+#ifdef ENABLE_CHAT
+        MegaTextChatMemberList *chatMemberList;
+        MegaTextChatList *chatList;
+#endif
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -740,6 +750,9 @@ private:
 class MegaTextChatMemberListPrivate : public MegaTextChatMemberList
 {
 public:
+    MegaTextChatMemberListPrivate();
+    MegaTextChatMemberListPrivate(userpriv_vector *);
+
     virtual ~MegaTextChatMemberListPrivate();
     virtual MegaTextChatMemberList *copy();
     virtual void addMember(MegaHandle h, int priv);
@@ -778,11 +791,14 @@ class MegaTextChatListPrivate : public MegaTextChatList
 {
 public:
     MegaTextChatListPrivate();
+    MegaTextChatListPrivate(textchat_vector *list);
 
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy();
     virtual MegaTextChat *get(int i);
     virtual int size();
+
+    void addChat(MegaTextChatPrivate*);
 
 private:
     MegaTextChatListPrivate(MegaTextChatListPrivate*);
@@ -1274,7 +1290,7 @@ class MegaApiImpl : public MegaApp
         bool isOnline();
 
 #ifdef ENABLE_CHAT
-        void createChat(MegaStringList *users, MegaStringList *privs, MegaRequestListener *listener = NULL);
+        void createChat(MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
         void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaUser *u = NULL, MegaRequestListener *listener = NULL);
@@ -1488,9 +1504,9 @@ protected:
 
         // chat-related commandsresult
         virtual void chatcreate_result(error);
-        virtual void chatcreate_result(string, handle, int, bool, error);
+        virtual void chatcreate_result(TextChat *);
         virtual void chatfetch_result(error);
-        virtual void chatfetch_result(string, error);
+        virtual void chatfetch_result(textchat_vector *chatList);
         virtual void chatinvite_result(error);
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);

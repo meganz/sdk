@@ -594,6 +594,12 @@ int MegaRequest::getTag() const
     return 0;
 }
 
+#ifdef ENABLE_CHAT
+MegaTextChatMemberList *MegaRequest::getMegaTextChatMemberList() const
+{
+    return NULL;
+}
+#endif
 
 MegaTransfer::~MegaTransfer() { }
 
@@ -2106,9 +2112,9 @@ bool MegaApi::isOnline()
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(MegaStringList *users, MegaStringList *privs, MegaRequestListener *listener)
+void MegaApi::createChat(MegaTextChatMemberList *members, MegaRequestListener *listener)
 {
-    pImpl->createChat(users, privs, listener);
+    pImpl->createChat(members, listener);
 }
 
 void MegaApi::fetchChats(MegaRequestListener *listener)
@@ -2116,7 +2122,7 @@ void MegaApi::fetchChats(MegaRequestListener *listener)
     pImpl->fetchChats(listener);
 }
 
-void MegaApi::inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener)
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaUser *u, int privilege, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, u, privilege, listener);
 }

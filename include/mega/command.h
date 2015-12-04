@@ -604,11 +604,12 @@ public:
 class MEGA_API CommandChatCreate : public Command
 {
     MegaClient *client;
+    userpriv_vector *chatMembers;
 
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, userpriv_vector);
+    CommandChatCreate(MegaClient*, userpriv_vector*);
 };
 
 class MEGA_API CommandChatFetch : public Command

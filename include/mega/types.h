@@ -361,6 +361,16 @@ typedef map<handle, PendingContactRequest*> handlepcr_map;
 #ifdef ENABLE_CHAT
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
 typedef vector< pair<User*, privilege_t> > userpriv_vector;
+struct TextChat
+{
+    handle id;
+    privilege_t priv;
+    string url;
+    int shard;
+    userpriv_vector *userpriv;
+    bool group;
+};
+typedef vector<TextChat*> textchat_vector;
 #endif
 
 } // namespace

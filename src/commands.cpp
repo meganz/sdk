@@ -3465,17 +3465,18 @@ void CommandCleanRubbishBin::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_vector upl)
+CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_vector *upl)
 {
     this->client = client;
+    this->chatMembers = upl;
 
     cmd("mcc");
-    arg("g", (upl.size() > 2) ? 1 : 0);   // if more than two people, it is a group chat
+    arg("g", (upl->size() > 2) ? 1 : 0);   // if more than two people, it is a group chat
 
     beginarray("u");
 
     userpriv_vector::iterator itupl;
-    for (itupl = upl.begin(); itupl != upl.end(); itupl++)
+    for (itupl = upl->begin(); itupl != upl->end(); itupl++)
     {
         beginobject();
 
@@ -3534,8 +3535,17 @@ void CommandChatCreate::procresult()
 
                 case EOO:
                     if (chatid != UNDEF && !url.empty() && shard != -1)
-                    {
-                        client->app->chatcreate_result(url, chatid, shard, group, API_OK);
+                    {                        
+                        TextChat *chat = new TextChat;
+                        chat->id = chatid;
+                        chat->priv = PRIV_OPERATOR;
+                        chat->url = url;
+                        chat->shard = shard;
+                        chat->userpriv = this->chatMembers;
+                        chat->group = group;
+
+                        client->app->chatcreate_result(chat);
+                        delete chat;
                     }
                     else
                     {
@@ -3572,9 +3582,194 @@ void CommandChatFetch::procresult()
     }
     else
     {
-        string result;
-        client->json.storeobject(&result);
-        client->app->chatfetch_result(result, API_OK);
+        // the API response is in the format:
+//        {
+//        "c":[ // List of your chats as follows
+//        {
+//        "id":"LQKwU1xMnSo", // chatid
+//        "p":3, // your privilege level
+//        "url":"ws://31.216.147.155/LAcnqUqIOcY", // your url to
+//        connect to chatd for this chat
+//        "cs":0, //the chat shard
+//        "u":[{"u":"LAcnqUqIOcY","p":3},{"u":"tH4UoOPQuhU","p":1}],
+//        // Full user list and privileges (including yourself)
+//        "g":1 // Group chat or not
+//        },
+//        ],
+//        "sn":6724763754 // The sequence number for actionpacket business
+//        }
+
+        if(!client->json.enterobject())
+        {
+            client->app->chatfetch_result(API_EINTERNAL);
+            return;
+        }
+
+        if(client->json.getnameid() != 'c')
+        {
+            client->app->chatfetch_result(API_EINTERNAL);
+            return;
+        }
+
+        if(!client->json.enterarray())
+        {
+            client->app->chatfetch_result(API_EINTERNAL);
+            return;
+        }
+
+        // list of chats
+        textchat_vector *chatlist = new textchat_vector;
+        error e = API_OK;
+
+        while(client->json.enterobject() && !e)   // while there are more chats to read...
+        {
+            handle chatid = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+            string url;
+            int shard = -1;
+            userpriv_vector *userpriv = NULL;
+            bool group = false;
+
+            bool readingChat = true;
+            while(readingChat) // read the chat information
+            {
+                switch (client->json.getnameid())
+                {
+                    case MAKENAMEID2('i','d'):
+                        chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                        break;
+
+                    case 'p':
+                        priv = (privilege_t) client->json.getint();
+                        break;
+
+                    case MAKENAMEID3('u','r','l'):
+                        url = client->json.getvalue();
+                        break;
+
+                    case MAKENAMEID2('c','s'):
+                        shard = client->json.getint();
+                        break;
+
+                    case 'u':   // list of users participating in the chat (+privileges)
+
+                        if (!client->json.enterarray())
+                        {
+                            e = API_EINTERNAL;
+                        }
+                        else
+                        {
+                            while(client->json.enterobject() && !e)
+                            {
+                                handle uh = UNDEF;
+                                privilege_t priv = PRIV_UNKNOWN;
+
+                                bool readingUsers = true;
+                                while(readingUsers)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                    case 'u':
+                                        uh = client->json.gethandle(MegaClient::USERHANDLE);
+                                        break;
+
+                                    case 'p':
+                                        priv = (privilege_t) client->json.getint();
+                                        break;
+
+                                    case EOO:
+                                        {
+                                            User *u = client->finduser(uh, 0);
+                                            if(u && priv != PRIV_UNKNOWN)
+                                            {
+                                                userpriv = new userpriv_vector;
+                                                userpriv->push_back(pair<User*,privilege_t>(u, priv));
+                                            }
+                                            else
+                                            {
+                                                e = API_EINTERNAL;
+                                            }
+                                        }
+                                        readingUsers = false;
+                                        break;
+
+                                    default:
+                                        if (!client->json.storeobject())
+                                        {
+                                            e = API_EINTERNAL;
+                                            readingUsers = false;
+                                        }
+                                        break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                            }
+                        }
+                        client->json.leavearray();
+                        break;
+
+                    case 'g':
+                        group = client->json.getint();
+                        break;
+
+                    case EOO:
+                        if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
+                                && shard != -1 && userpriv)
+                        {
+                            TextChat *chat = new TextChat;
+                            chat->id = chatid;
+                            chat->priv = priv;
+                            chat->url = url;
+                            chat->shard = shard;
+                            chat->userpriv = userpriv;
+                            chat->group = group;
+
+                            chatlist->push_back(chat);
+                        }
+                        else
+                        {
+                            e = API_EINTERNAL;
+                        }
+                        readingChat = false;
+                        break;
+
+                    default:
+                        if (!client->json.storeobject())
+                        {
+                            e = API_EINTERNAL;
+                            readingChat = false;
+                        }
+                        break;
+                }
+            }
+            client->json.leaveobject();
+        }
+        client->json.leavearray();
+
+        if(client->json.getnameid() != MAKENAMEID2('s','n') || !client->json.getint())
+        {
+            e = API_EINTERNAL;
+        }
+
+        client->json.leaveobject();
+
+        if (!e)
+        {
+            client->app->chatfetch_result(chatlist);
+        }
+        else
+        {
+            client->app->chatfetch_result(e);
+        }
+
+        // clean allocated memory
+        TextChat *chat;
+        for (unsigned i = 0; i < chatlist->size(); i++)
+        {
+            chat = chatlist->at(i);
+            delete chat->userpriv;
+        }
+        chatlist->clear();
     }
 }
 
