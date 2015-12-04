@@ -1502,6 +1502,7 @@ protected:
 
         virtual void cleanrubbishbin_result(error);
 
+#ifdef ENABLE_CHAT
         // chat-related commandsresult
         virtual void chatcreate_result(error);
         virtual void chatcreate_result(TextChat *);
@@ -1511,6 +1512,7 @@ protected:
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
         virtual void chaturl_result(string, error);
+#endif
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
