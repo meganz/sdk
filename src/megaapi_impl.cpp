@@ -3181,6 +3181,11 @@ void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaReq
     getUserAttr(user, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
+void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFilePath, MegaRequestListener *listener)
+{
+    getUserAttr(email_or_handle, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
+}
+
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
@@ -3188,7 +3193,17 @@ void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listen
 
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
 {
-    getUserAttr(user, type ? type : -1, NULL, listener);
+    const char *email = NULL;
+    if (user)
+    {
+        email = user->getEmail();
+    }
+    getUserAttr(email, type ? type : -1, NULL, listener);
+}
+
+void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener)
+{
+    getUserAttr(email_or_handle, type ? type : -1, NULL, listener);
 }
 
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
@@ -3528,7 +3543,18 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFile
 
 void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath, MegaRequestListener *listener)
 {
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    const char *email = NULL;
+    if (user)
+    {
+        email = user->getEmail();
+    }
+
+    getUserAttr(email, type, dstFilePath, listener);
+}
+
+void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
 
     if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
     {
@@ -3541,22 +3567,20 @@ void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath,
         int c = path[path.size()-1];
         if((c=='/') || (c == '\\'))
         {
-            const char *email = user->getEmail();
-            path.append(email);
+            path.append(email_or_handle);
             path.push_back('0' + type);
             path.append(".jpg");
-            delete [] email;
         }
 
         request->setFile(path.c_str());
     }
 
     request->setParamType(type);
-    if(user)
+    if(email_or_handle)
     {
-        request->setEmail(user->getEmail());
+        request->setEmail(email_or_handle);
     }
-	requestQueue.push(request);
+    requestQueue.push(request);
     waiter->notify();
 }
 

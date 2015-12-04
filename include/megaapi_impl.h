@@ -1113,7 +1113,9 @@ class MegaApiImpl : public MegaApp
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
+        void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
+        void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
@@ -1562,6 +1564,7 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(MegaUser* user, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
