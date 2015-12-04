@@ -3178,7 +3178,12 @@ void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaReques
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
 {
-    getUserAttr(user, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
+    const char *email = NULL;
+    if (user)
+    {
+        email = user->getEmail();
+    }
+    getUserAttr(email, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
 void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFilePath, MegaRequestListener *listener)
@@ -3539,17 +3544,6 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFile
     if(node) request->setNodeHandle(node->getHandle());
 	requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::getUserAttr(MegaUser *user, int type, const char *dstFilePath, MegaRequestListener *listener)
-{
-    const char *email = NULL;
-    if (user)
-    {
-        email = user->getEmail();
-    }
-
-    getUserAttr(email, type, dstFilePath, listener);
 }
 
 void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener)
