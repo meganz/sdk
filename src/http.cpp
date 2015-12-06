@@ -168,6 +168,12 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+    }
+
     httpio = client->httpio;
     bufpos = 0;
     inpurge = 0;
@@ -186,7 +192,10 @@ void HttpReq::postchunked(MegaClient* client)
     }
     else
     {
-        httpio->sendchunked(this);
+        if (httpio)
+        {
+            httpio->sendchunked(this);
+        }
     }
 }
 
@@ -195,6 +204,7 @@ void HttpReq::disconnect()
     if (httpio)
     {
         httpio->cancel(this);
+        httpio = NULL;
     }
 
     chunked = false;

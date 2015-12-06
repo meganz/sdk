@@ -1414,59 +1414,61 @@ bool CurlHttpIO::doio()
             if (req->status == REQ_FAILURE && !req->httpstatus)
             {                
                 CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-
-                // remove the IP from the DNS cache
-                CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
-
-                if (httpctx->isIPv6)
+                if (httpctx)
                 {
-                    dnsEntry.ipv6.clear();
-                    dnsEntry.ipv6timestamp = 0;
-                }
-                else
-                {
-                    dnsEntry.ipv4.clear();
-                    dnsEntry.ipv4timestamp = 0;
-                }
+                    // remove the IP from the DNS cache
+                    CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
 
-                ipv6requestsenabled = !httpctx->isIPv6 && ipv6available();
-
-                if (ipv6requestsenabled)
-                {
-                    // change the protocol of the proxy after fails contacting
-                    // MEGA servers with both protocols (IPv4 and IPv6)
-                    ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
-                    request_proxy_ip();
-                }
-                else if (httpctx->isIPv6)
-                {
-                    ipv6deactivationtime = Waiter::ds;
-
-                    // for IPv6 errors, try IPv4 before sending an error to the engine
-                    if((dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS) || httpctx->ares_pending)
+                    if (httpctx->isIPv6)
                     {
-                        curl_multi_remove_handle(curlm, msg->easy_handle);
-                        curl_easy_cleanup(msg->easy_handle);
-                        curl_slist_free_all(httpctx->headers);
-                        httpctx->headers = NULL;
-                        httpctx->curl = NULL;
-                        req->httpio = this;
-                        req->in.clear();
-                        req->status = REQ_INFLIGHT;
+                        dnsEntry.ipv6.clear();
+                        dnsEntry.ipv6timestamp = 0;
+                    }
+                    else
+                    {
+                        dnsEntry.ipv4.clear();
+                        dnsEntry.ipv4timestamp = 0;
+                    }
 
-                        if(dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+                    ipv6requestsenabled = !httpctx->isIPv6 && ipv6available();
+
+                    if (ipv6requestsenabled)
+                    {
+                        // change the protocol of the proxy after fails contacting
+                        // MEGA servers with both protocols (IPv4 and IPv6)
+                        ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
+                        request_proxy_ip();
+                    }
+                    else if (httpctx->isIPv6)
+                    {
+                        ipv6deactivationtime = Waiter::ds;
+
+                        // for IPv6 errors, try IPv4 before sending an error to the engine
+                        if((dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS) || httpctx->ares_pending)
                         {
-                            LOG_debug << "Retrying using IPv4 from cache";
-                            httpctx->isIPv6 = false;
-                            httpctx->hostip = dnsEntry.ipv4;
-                            send_request(httpctx);
+                            curl_multi_remove_handle(curlm, msg->easy_handle);
+                            curl_easy_cleanup(msg->easy_handle);
+                            curl_slist_free_all(httpctx->headers);
+                            httpctx->headers = NULL;
+                            httpctx->curl = NULL;
+                            req->httpio = this;
+                            req->in.clear();
+                            req->status = REQ_INFLIGHT;
+
+                            if(dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+                            {
+                                LOG_debug << "Retrying using IPv4 from cache";
+                                httpctx->isIPv6 = false;
+                                httpctx->hostip = dnsEntry.ipv4;
+                                send_request(httpctx);
+                            }
+                            else
+                            {
+                                httpctx->hostip.clear();
+                                LOG_debug << "Retrying with the pending DNS response";
+                            }
+                            return true;
                         }
-                        else
-                        {
-                            httpctx->hostip.clear();
-                            LOG_debug << "Retrying with the pending DNS response";
-                        }
-                        return true;
                     }
                 }
             }
@@ -1571,9 +1573,9 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
     curl_off_t nread = ((HttpReq*)source)->out->size();
     
-    if (nread > nmemb)
+    if (nread > (size * nmemb))
     {
-        nread = nmemb;
+        nread = size * nmemb;
     }
     
     if (!nread)
@@ -1587,20 +1589,24 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     return nread;
 }
 
-size_t CurlHttpIO::write_data(void* ptr, size_t, size_t nmemb, void* target)
+size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target)
 {
-    if (((HttpReq*)target)->chunked)
-    {
-        ((CurlHttpIO*)((HttpReq*)target)->httpio)->statechange = true;
-    }
-
     if(((HttpReq*)target)->httpio)
     {
-        ((HttpReq*)target)->put(ptr, nmemb, true);
+        if (((HttpReq*)target)->chunked)
+        {
+            ((CurlHttpIO*)((HttpReq*)target)->httpio)->statechange = true;
+        }
+
+        if (size * nmemb)
+        {
+            ((HttpReq*)target)->put(ptr, size * nmemb, true);
+        }
+
         ((HttpReq*)target)->httpio->lastdata = Waiter::ds;
     }
 
-    return nmemb;
+    return size * nmemb;
 }
 
 // set contentlength according to Original-Content-Length header
