@@ -265,7 +265,7 @@ void CurlHttpIO::addaresevents(WinWaiter *waiter)
             break;
         }
 
-        info.handle = WSACreateEvent();
+        info.handle = CreateEvent(NULL, FALSE, FALSE, NULL);
         if (info.handle == WSA_INVALID_EVENT)
         {
             LOG_err << "Unable to create WSA event for cares";
@@ -299,7 +299,7 @@ void CurlHttpIO::addcurlevents(WinWaiter *waiter)
 
         if (info.handle == WSA_INVALID_EVENT)
         {
-            info.handle = WSACreateEvent();
+            info.handle = CreateEvent(NULL, FALSE, FALSE, NULL);
             if (info.handle == WSA_INVALID_EVENT)
             {
                 LOG_err << "Unable to create WSA event for curl";
