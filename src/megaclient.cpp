@@ -1157,6 +1157,7 @@ void MegaClient::exec()
         {
             if (badhostcs->status == REQ_FAILURE || badhostcs->status == REQ_SUCCESS)
             {
+                httpio->success = true;
                 delete badhostcs;
                 badhostcs = NULL;
             }
