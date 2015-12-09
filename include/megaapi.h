@@ -1976,6 +1976,9 @@ class MegaRequest
         /**
          * @brief Returns the list of members in a chat.
          *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
          * This value is valid for these requests:
          * - MegaApi::createChat - Creates a chat for one or more participants.
          * @return List of members of a chat
@@ -1984,6 +1987,9 @@ class MegaRequest
 
         /**
          * @brief Returns the list of chats.
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
