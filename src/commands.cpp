@@ -3676,7 +3676,10 @@ void CommandChatFetch::procresult()
                                             User *u = client->finduser(uh, 0);
                                             if(u && priv != PRIV_UNKNOWN)
                                             {
-                                                userpriv = new userpriv_vector;
+                                                if (!userpriv)
+                                                {
+                                                    userpriv = new userpriv_vector;
+                                                }
                                                 userpriv->push_back(pair<User*,privilege_t>(u, priv));
                                             }
                                             else
