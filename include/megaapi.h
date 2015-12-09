@@ -1122,6 +1122,13 @@ public:
      * @brief addMember Adds a new chat member to the list
      * @param h MegaHandle of the user to be added
      * @param priv Privilege level of the user to be added
+     * Valid values are:
+     * - MegaTextChatMemberList::PRIV_UNKNOWN = -2
+     * - MegaTextChatMemberList::PRIV_RM = -1
+     * - MegaTextChatMemberList::PRIV_RO = 0
+     * - MegaTextChatMemberList::PRIV_RW = 1
+     * - MegaTextChatMemberList::PRIV_FULL = 2
+     * - MegaTextChatMemberList::PRIV_OPERATOR = 3
      */
     virtual void addMember(MegaHandle h, int priv);
 
@@ -1141,7 +1148,14 @@ public:
      * If the index is >= the size of the list, this function returns PRIV_UNKNOWN.
      *
      * @param i Position of the chat member that we want to get from the list
-     * @return MegaHandle of the chat member at the position i in the list
+     * @return Privilege level of the chat member at the position i in the list.
+     * Valid values are:
+     * - MegaTextChatMemberList::PRIV_UNKNOWN = -2
+     * - MegaTextChatMemberList::PRIV_RM = -1
+     * - MegaTextChatMemberList::PRIV_RO = 0
+     * - MegaTextChatMemberList::PRIV_RW = 1
+     * - MegaTextChatMemberList::PRIV_FULL = 2
+     * - MegaTextChatMemberList::PRIV_OPERATOR = 3     *
      */
     virtual int getMemberPrivilege(int i);
 
@@ -1905,6 +1919,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
+         * - MegaApi::createChat - Creates a chat for one or more participants
          *
          * @return Flag related to the request
          */
@@ -1987,7 +2002,8 @@ class MegaRequest
          * the MegaRequest object is deleted.
          *
          * This value is valid for these requests:
-         * - MegaApi::createChat - Creates a chat for one or more participants.
+         * - MegaApi::createChat - Creates a chat for one or more participants
+         *
          * @return List of members of a chat
          */
         virtual MegaTextChatMemberList *getMegaTextChatMemberList() const;
@@ -6607,10 +6623,69 @@ class MegaApi
         bool isOnline();
 
 #ifdef ENABLE_CHAT
+        /**
+         * @brief Creates a chat for one or participants, allowing you to specify their
+         * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
+         *
+         * There are two types of chat: permanent an group. A permanent chat is between two people, and
+         * participants can not leave it.
+         *
+         * The creator of the chat will have operator level privilege and should not be included in the
+         * list of members.
+         *
+         * @note If you are trying to create a chat with more than 1 other person, then it will be forced
+         * to be a group chat.
+         *
+         * @note If members list contains only one person, group chat is not set and a permament chat already
+         * exists with that person, then this call will return the information for the existing chat, rather
+         * than a new chat.
+         *
+         * @param group Flag to indicate if the chat is a group chat or not
+         * @param members MegaTextChatMemberList including other users and their privilege level
+         * @param listener MegaRequestListener to track this request
+         */
         void createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetches the full list of current chats for the requesting user.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void fetchChats(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Adds a user to an existing chat. To do this you must have the
+         * operator privilege in the chat, and the chat must be a group chat.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the new member. Valid values are:
+         * - MegaTextChatMemberList::PRIV_UNKNOWN = -2
+         * - MegaTextChatMemberList::PRIV_RM = -1
+         * - MegaTextChatMemberList::PRIV_RO = 0
+         * - MegaTextChatMemberList::PRIV_RW = 1
+         * - MegaTextChatMemberList::PRIV_FULL = 2
+         * - MegaTextChatMemberList::PRIV_OPERATOR = 3
+         * @param listener MegaRequestListener to track this request
+         */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove yourself or another user from a chat. To remove a user other than
+         * yourself you need to have the operator privilege. Only a group chat may be left.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user. If not provided (INVALID_HANDLE), the requester is removed
+         * @param listener MegaRequestListener to track this request
+         */
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get your current, user-specific url to connect to chatd with
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
 #endif
 
