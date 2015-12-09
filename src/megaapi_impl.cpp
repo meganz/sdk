@@ -9717,11 +9717,16 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_CHAT
         case MegaRequest::TYPE_CHAT_CREATE:
         {
-            userpriv_vector *userpriv = new userpriv_vector;
+            MegaTextChatMemberList *chatMembers = request->getMegaTextChatMemberList();
+            if (!chatMembers)   // refuse to create chats without participants
+            {
+                e = API_EARGS;
+                break;
+            }
+
             User *u;
             privilege_t p;
-
-            MegaTextChatMemberList *chatMembers = request->getMegaTextChatMemberList();
+            userpriv_vector *userpriv = new userpriv_vector;
             for (int i = 0; i < chatMembers->size(); i++)
             {
                 p = (privilege_t) chatMembers->getMemberPrivilege(i);
@@ -9731,6 +9736,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (!u) // user doesn't exist
                 {
                     userpriv->clear();  // destroy allocated User*
+                    delete userpriv;
                     e = API_EARGS;
                     break;
                 }
