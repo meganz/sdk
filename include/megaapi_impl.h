@@ -260,6 +260,7 @@ class MegaUserPrivate : public MegaUser
 
 		~MegaUserPrivate();
 		virtual const char* getEmail();
+        virtual MegaHandle getHandle();
         virtual int getVisibility();
         virtual int64_t getTimestamp();
         virtual bool hasChanged(int changeType);
@@ -267,6 +268,7 @@ class MegaUserPrivate : public MegaUser
 
 	protected:
 		const char *email;
+        MegaHandle handle;
         int visibility;
         int64_t ctime;
         int changed;

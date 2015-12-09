@@ -668,6 +668,7 @@ MegaNodePrivate::~MegaNodePrivate()
 MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
 {
     email = MegaApi::strdup(user->email.c_str());
+    handle = user->userhandle;
 	visibility = user->show;
 	ctime = user->ctime;
     changed = 0;
@@ -696,6 +697,7 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
 {
 	email = MegaApi::strdup(user->getEmail());
+    handle = user->getHandle();
 	visibility = user->getVisibility();
 	ctime = user->getTimestamp();
     changed = user->getChanges();
@@ -723,6 +725,11 @@ MegaUserPrivate::~MegaUserPrivate()
 const char* MegaUserPrivate::getEmail()
 {
 	return email;
+}
+
+MegaHandle MegaUserPrivate::getHandle()
+{
+    return handle;
 }
 
 int MegaUserPrivate::getVisibility()

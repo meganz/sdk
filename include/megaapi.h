@@ -906,6 +906,13 @@ class MegaUser
         virtual const char* getEmail();
 
         /**
+         * @brief Returns the handle associated with the contact.
+         *
+         * @return The handle associated with the contact.
+         */
+        virtual MegaHandle getHandle();
+
+        /**
          * @brief Get the current visibility of the contact
          *
          * The returned value will be one of these:

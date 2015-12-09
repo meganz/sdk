@@ -386,6 +386,11 @@ const char *MegaUser::getEmail()
     return NULL;
 }
 
+MegaHandle MegaUser::getHandle()
+{
+    return INVALID_HANDLE;
+}
+
 int MegaUser::getVisibility()
 {
     return 0;
