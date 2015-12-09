@@ -3480,10 +3480,10 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, userpriv_ve
     {
         beginobject();
 
-        User *u = itupl->first;
+        handle u = itupl->first;
         privilege_t priv = itupl->second;
 
-        arg("u", u->uid.c_str());
+        arg("u", u);
         arg("p", priv);
 
         endobject();
@@ -3673,14 +3673,13 @@ void CommandChatFetch::procresult()
 
                                     case EOO:
                                         {
-                                            User *u = client->finduser(uh, 0);
-                                            if(u && priv != PRIV_UNKNOWN)
+                                            if(uh == UNDEF && priv != PRIV_UNKNOWN)
                                             {
                                                 if (!userpriv)
                                                 {
                                                     userpriv = new userpriv_vector;
                                                 }
-                                                userpriv->push_back(pair<User*,privilege_t>(u, priv));
+                                                userpriv->push_back(userpriv_pair(uh, priv));
                                             }
                                             else
                                             {

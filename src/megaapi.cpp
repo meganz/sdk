@@ -2142,14 +2142,14 @@ void MegaApi::fetchChats(MegaRequestListener *listener)
     pImpl->fetchChats(listener);
 }
 
-void MegaApi::inviteToChat(MegaHandle chatid,  MegaUser *u, int privilege, MegaRequestListener *listener)
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
-    pImpl->inviteToChat(chatid, u, privilege, listener);
+    pImpl->inviteToChat(chatid, uh, privilege, listener);
 }
 
-void MegaApi::removeFromChat(MegaHandle chatid, MegaUser *u, MegaRequestListener *listener)
+void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
 {
-    pImpl->removeFromChat(chatid, u, listener);
+    pImpl->removeFromChat(chatid, uh, listener);
 }
 
 void MegaApi::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)

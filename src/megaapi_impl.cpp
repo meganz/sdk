@@ -4402,24 +4402,24 @@ void MegaApiImpl::fetchChats(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener)
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
     request->setNodeHandle(chatid);
-    if (u)
-    {
-        request->setEmail(u->getEmail());
-    }
+    request->setParentHandle(uh);
     request->setAccess(privilege);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::removeFromChat(MegaHandle chatid, MegaUser *u, MegaRequestListener *listener)
+void MegaApiImpl::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE, listener);
     request->setNodeHandle(chatid);
-    request->setEmail(u->getEmail());
+    if (uh != INVALID_HANDLE)   // if not provided, it removes oneself from the chat
+    {
+        request->setParentHandle(uh);
+    }
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9719,37 +9719,22 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_CREATE:
         {
             MegaTextChatMemberList *chatMembers = request->getMegaTextChatMemberList();
-            bool group = request->getFlag();
-            // refuse to create chats without participants or non-groupal with more than 2 participants
-            if (!chatMembers || (!group && chatMembers->size() > 1))
+            if (!chatMembers)   // refuse to create chats without participants
             {
                 e = API_EARGS;
                 break;
             }
 
-            User *u;
-            privilege_t p;
-            userpriv_vector *userpriv = new userpriv_vector;
-            for (int i = 0; i < chatMembers->size(); i++)
+            bool group = request->getFlag();
+            userpriv_vector *userpriv = ((MegaTextChatMemberListPrivate*)chatMembers)->getList();
+            if (!userpriv || (!group && chatMembers->size() > 1))
             {
-                p = (privilege_t) chatMembers->getMemberPrivilege(i);
-                // if a non-contact user, it will create a new User!!
-                u = client->finduser(chatMembers->getMemberHandle(i), 1);
-//                u = client->finduser(chatMembers->getMemberHandle(i), 0);
-                if (!u) // user doesn't exist
-                {
-                    userpriv->clear();  // destroy allocated User*
-                    delete userpriv;
-                    e = API_EARGS;
-                    break;
-                }
+                e = API_EARGS;
+                delete userpriv;
+                break;
+            }
 
-                userpriv->push_back((pair<User*, privilege_t>(u, p)));
-            }
-            if (!e)
-            {
-                client->createChat(group, userpriv);
-            }
+            client->createChat(group, userpriv);
             break;
         }
         case MegaRequest::TYPE_CHAT_FETCH:
@@ -11205,7 +11190,7 @@ MegaTextChatMemberList *MegaTextChatMemberListPrivate::copy()
 
 void MegaTextChatMemberListPrivate::addMember(MegaHandle h, int priv)
 {
-    list.push_back(pair<handle, int>(h,priv));
+    list.push_back(userpriv_pair(h, (privilege_t) priv));
 }
 
 MegaHandle MegaTextChatMemberListPrivate::getMemberHandle(int i)
@@ -11237,17 +11222,22 @@ int MegaTextChatMemberListPrivate::size()
     return list.size();
 }
 
+userpriv_vector * MegaTextChatMemberListPrivate::getList()
+{
+    return new userpriv_vector(list);
+}
+
 MegaTextChatMemberListPrivate::MegaTextChatMemberListPrivate(userpriv_vector *userpriv)
 {
-    User *u;
+    handle uh;
     privilege_t priv;
 
     for (unsigned i = 0; i < userpriv->size(); i++)
     {
-        u = userpriv->at(i).first;
+        uh = userpriv->at(i).first;
         priv = userpriv->at(i).second;
 
-        this->addMember(u->userhandle, priv);
+        this->addMember(uh, priv);
     }
 }
 

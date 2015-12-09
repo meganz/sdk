@@ -762,8 +762,11 @@ public:
     virtual int getMemberPrivilege(int i);
     virtual int size();
 
+    // returns a copy of the list of user-privilege (you get the ownership)
+    userpriv_vector * getList();
+
 private:
-    vector< pair<handle, int> > list;
+    userpriv_vector list;
 };
 
 class MegaTextChatPrivate : public MegaTextChat
@@ -1296,8 +1299,8 @@ class MegaApiImpl : public MegaApp
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
         void fetchChats(MegaRequestListener *listener = NULL);
-        void inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener = NULL);
-        void removeFromChat(MegaHandle chatid, MegaUser *u = NULL, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+        void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
 #endif
 
