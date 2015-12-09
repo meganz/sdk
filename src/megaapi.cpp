@@ -599,6 +599,11 @@ MegaTextChatMemberList *MegaRequest::getMegaTextChatMemberList() const
 {
     return NULL;
 }
+
+MegaTextChatList *MegaRequest::getMegaTextChatList() const
+{
+    return NULL;
+}
 #endif
 
 MegaTransfer::~MegaTransfer() { }

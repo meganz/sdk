@@ -1978,14 +1978,21 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::createChat - Creates a chat for one or more participants.
-         *
-         * This value is valid for these requests in onRequestFinish when the
-         * error code is MegaError::API_OK:
-         * - MegaApi::fetchChats - Fetches the full list of current chats
-         *
          * @return List of members of a chat
          */
         virtual MegaTextChatMemberList *getMegaTextChatMemberList() const;
+
+        /**
+         * @brief Returns the list of chats.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::createChat - The information of the just created chat (list of one element)
+         * - MegaApi::fetchChat - Fetches the full list of current chats
+         *
+         * @return List of chats
+         */
+        virtual MegaTextChatList *getMegaTextChatList() const;
 #endif
 };
 
