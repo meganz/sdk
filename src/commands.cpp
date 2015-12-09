@@ -3599,12 +3599,6 @@ void CommandChatFetch::procresult()
 //        "sn":6724763754 // The sequence number for actionpacket business
 //        }
 
-        if(!client->json.enterobject())
-        {
-            client->app->chatfetch_result(API_EINTERNAL);
-            return;
-        }
-
         if(client->json.getnameid() != 'c')
         {
             client->app->chatfetch_result(API_EINTERNAL);
@@ -3746,12 +3740,10 @@ void CommandChatFetch::procresult()
         }
         client->json.leavearray();
 
-        if(client->json.getnameid() != MAKENAMEID2('s','n') || !client->json.getint())
+        if(client->json.getnameid() != MAKENAMEID2('s','n') || !client->json.getint()) //!client->setscsn(&client->json))
         {
             e = API_EINTERNAL;
         }
-
-        client->json.leaveobject();
 
         if (!e)
         {
