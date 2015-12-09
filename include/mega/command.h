@@ -609,7 +609,7 @@ class MEGA_API CommandChatCreate : public Command
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, userpriv_vector*);
+    CommandChatCreate(MegaClient*, bool group, userpriv_vector*);
 };
 
 class MEGA_API CommandChatFetch : public Command

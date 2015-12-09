@@ -4386,9 +4386,10 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(MegaTextChatMemberList *members, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
+    request->setFlag(group);
     request->setMegaTextChatMemberList(members);
     requestQueue.push(request);
     waiter->notify();
@@ -9718,7 +9719,9 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_CREATE:
         {
             MegaTextChatMemberList *chatMembers = request->getMegaTextChatMemberList();
-            if (!chatMembers)   // refuse to create chats without participants
+            bool group = request->getFlag();
+            // refuse to create chats without participants or non-groupal with more than 2 participants
+            if (!chatMembers || (!group && chatMembers->size() > 1))
             {
                 e = API_EARGS;
                 break;
@@ -9745,7 +9748,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             if (!e)
             {
-                client->createChat(userpriv);
+                client->createChat(group, userpriv);
             }
             break;
         }

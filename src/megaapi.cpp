@@ -2132,9 +2132,9 @@ bool MegaApi::isOnline()
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(MegaTextChatMemberList *members, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener)
 {
-    pImpl->createChat(members, listener);
+    pImpl->createChat(group, members, listener);
 }
 
 void MegaApi::fetchChats(MegaRequestListener *listener)

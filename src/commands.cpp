@@ -3465,13 +3465,13 @@ void CommandCleanRubbishBin::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, userpriv_vector *upl)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, userpriv_vector *upl)
 {
     this->client = client;
     this->chatMembers = upl;
 
     cmd("mcc");
-    arg("g", (upl->size() > 2) ? 1 : 0);   // if more than two people, it is a group chat
+    arg("g", (group) ? 1 : 0);
 
     beginarray("u");
 

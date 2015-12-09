@@ -8732,9 +8732,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(userpriv_vector *userpriv)
+void MegaClient::createChat(bool group, userpriv_vector *userpriv)
 {
-    reqs.add(new CommandChatCreate(this, userpriv));
+    reqs.add(new CommandChatCreate(this, group, userpriv));
 }
 
 void MegaClient::fetchChats()

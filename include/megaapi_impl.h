@@ -1294,7 +1294,7 @@ class MegaApiImpl : public MegaApp
         bool isOnline();
 
 #ifdef ENABLE_CHAT
-        void createChat(MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
         void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaUser *u, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaUser *u = NULL, MegaRequestListener *listener = NULL);
