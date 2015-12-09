@@ -6085,11 +6085,13 @@ void MegaClient::getua(User* u, const char* an)
         // if we can solve those requests locally (runtime cached values)...
         if (!strcmp(an, "firstname") && u->firstname)
         {
+            restag = reqtag;
             app->getua_result((byte*) u->firstname->data(), u->firstname->size());
             return;
         }
         else if (!strcmp(an, "lastname") && u->lastname)
         {
+            restag = reqtag;
             app->getua_result((byte*) u->lastname->data(), u->lastname->size());
             return;
         }
