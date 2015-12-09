@@ -265,7 +265,7 @@ void CurlHttpIO::addaresevents(WinWaiter *waiter)
             break;
         }
 
-        info.handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+        info.handle = WSACreateEvent();
         if (info.handle == WSA_INVALID_EVENT)
         {
             LOG_err << "Unable to create WSA event for cares";
@@ -299,7 +299,7 @@ void CurlHttpIO::addcurlevents(WinWaiter *waiter)
 
         if (info.handle == WSA_INVALID_EVENT)
         {
-            info.handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+            info.handle = WSACreateEvent();
             if (info.handle == WSA_INVALID_EVENT)
             {
                 LOG_err << "Unable to create WSA event for curl";
@@ -381,7 +381,7 @@ void CurlHttpIO::disconnect()
         SockInfo &info = it->second;
         if (info.handle != WSA_INVALID_EVENT)
         {
-            WSACloseEvent (info.handle);
+            WSACloseEvent(info.handle);
         }
     }
     curlsockets.clear();
@@ -1166,6 +1166,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
             if (!entry.ipv6.size() && !entry.ipv4.size())
             {
+                LOG_debug << "DNS cache record expired for " << it->first;
                 dnscache.erase(it++);
             }
             else
@@ -1203,6 +1204,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv6.size() && Waiter::ds - dnsEntry->ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
         {
+            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6)";
             std::ostringstream oss;
             httpctx->isIPv6 = true;
             oss << "[" << dnsEntry->ipv6 << "]";
@@ -1220,6 +1222,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv4.size() && Waiter::ds - dnsEntry->ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
         {
+            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4)";
             httpctx->isIPv6 = false;
             httpctx->hostip = dnsEntry->ipv4;
             httpctx->ares_pending = 0;
@@ -1335,8 +1338,7 @@ bool CurlHttpIO::doio()
 {
     bool result;
     CURLMsg* msg;
-    int dummy;
-
+    int dummy = 0;
 
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     if (waiter)
@@ -1356,7 +1358,32 @@ bool CurlHttpIO::doio()
 #if !defined(_WIN32) || defined(WINDOWS_PHONE)
     curl_multi_perform(curlm, &dummy);
 #else
-    curl_multi_socket_all(curlm, &dummy);
+    bool active = false;
+    for (std::map<int, SockInfo>::iterator it = curlsockets.begin(); it != curlsockets.end();)
+    {
+        SockInfo &info = (it++)->second;
+        if (!info.mode || info.handle == WSA_INVALID_EVENT)
+        {
+            continue;
+        }
+
+        if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
+        {
+            active = true;
+            WSAResetEvent(info.handle);
+            curl_multi_socket_action(curlm,
+                                     info.fd,
+                                     ((info.mode & SockInfo::READ) ? CURL_CSELECT_IN : 0)
+                                   | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
+                                     &dummy);
+            break;
+        }
+    }
+
+    if (!active)
+    {
+        curl_multi_socket_action(curlm, CURL_SOCKET_TIMEOUT, 0, &dummy);
+    }
 #endif
 
     while ((msg = curl_multi_info_read(curlm, &dummy)))
