@@ -5556,7 +5556,7 @@ void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *localNode, const char *p
 
 void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
 {
-    LOG_debug << "Sync - remote file addition detected " << n->displayname();
+    LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
     client->abortbackoff(false);
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;

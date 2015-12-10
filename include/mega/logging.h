@@ -130,6 +130,7 @@ public:
     typedef std::map<enum LogLevel, OutputStreams> OutputMap;
     static OutputMap outputs;
     static Logger *logger;
+    static char base64Handle[14];
 
     typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
     static OutputSettingsMap outputSettings;
@@ -151,6 +152,12 @@ public:
             default: return "";
         }
         return "";
+    }
+
+    static const char *toNodeHandle(mega::handle nodeHandle)
+    {
+        Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
+        return base64Handle;
     }
 
     template <typename T>
@@ -272,6 +279,8 @@ public:
     SimpleLogger(logFatal, __FILE__, __LINE__)
 #define LOGn_fatal \
     SimpleLogger(logFatal, __FILE__, __LINE__, false)
+
+#define LOG_NODEHANDLE(x) SimpleLogger::toNodeHandle(x)
 
 } // namespace
 

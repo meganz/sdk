@@ -7431,11 +7431,13 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     if (ll->size < rit->second->size)
                     {
-                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name;
+                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
+                                 << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
                     else
                     {
-                        LOG_warn << "Syncdown. Same mtime and size, but lower CRC: " << ll->name;
+                        LOG_warn << "Syncdown. Same mtime and size, but lower CRC: " << ll->name
+                                 << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
 
                     nchildren.erase(rit);
@@ -7539,7 +7541,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         string utf8path;
         fsaccess->local2path(localpath, &utf8path);
-        LOG_debug << "Unsynced remote node in syncdown: " << utf8path;
+        LOG_debug << "Unsynced remote node in syncdown: " << utf8path << " Nsize: " << rit->second->size
+                  << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
         // does this node already have a corresponding LocalNode under
         // a different name or elsewhere in the filesystem?
@@ -7810,13 +7813,17 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         if (ll->size < rit->second->size)
                         {
-                            LOG_warn << "Syncup. Same mtime but lower size: " << ll->name;
+                            LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
+                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+
                             continue;
                         }
 
                         if (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) < 0)
                         {
-                            LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name;
+                            LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
+                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+
                             continue;
                         }
                     }
@@ -7887,7 +7894,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         }
                     }
 
-                    LOG_debug << "LocalNode change detected on syncupload: " << ll->name;
+                    LOG_debug << "LocalNode change detected on syncupload: " << ll->name << " LNsize: " << ll->size << " LNmtime: " << ll->mtime
+                              << " NSize: " << rit->second->size << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
 #ifdef WIN32
                     if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
@@ -8429,7 +8437,7 @@ void MegaClient::execmovetosyncdebris()
                     n->syncdeleted = SYNCDEL_INFLIGHT;
                     int creqtag = reqtag;
                     reqtag = n->tag;
-                    LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname();
+                    LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                     rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
                     reqtag = creqtag;
                     it++;

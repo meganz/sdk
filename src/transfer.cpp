@@ -109,10 +109,10 @@ void Transfer::failed(error e)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
-    LOG_debug << "Transfer complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
-
     if (type == GET)
     {
+        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
+
         bool transient_error = false;
         string tmplocalname;
         string localname;
@@ -425,6 +425,8 @@ void Transfer::complete()
     }
     else
     {
+        LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+
         // files must not change during a PUT transfer
         if (genfingerprint(slot->fa, true))
         {
