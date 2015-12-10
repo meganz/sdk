@@ -6238,6 +6238,12 @@ void MegaApiImpl::notify_retry(dstime dsdelta)
     if(previousFlag != waitingRequest)
         fireOnGlobalSyncStateChanged();
 #endif
+
+    if (dsdelta && requestMap.size() == 1)
+    {
+        MegaRequestPrivate *request = requestMap.begin()->second;
+        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
+    }
 }
 
 // callback for non-EAGAIN request-level errors
