@@ -11176,7 +11176,7 @@ MegaTextChatMemberListPrivate::~MegaTextChatMemberListPrivate()
 
 }
 
-MegaTextChatMemberList *MegaTextChatMemberListPrivate::copy()
+MegaTextChatMemberList *MegaTextChatMemberListPrivate::copy() const
 {
     MegaTextChatMemberListPrivate *ret = new MegaTextChatMemberListPrivate;
 
@@ -11193,7 +11193,7 @@ void MegaTextChatMemberListPrivate::addMember(MegaHandle h, int priv)
     list.push_back(userpriv_pair(h, (privilege_t) priv));
 }
 
-MegaHandle MegaTextChatMemberListPrivate::getMemberHandle(int i)
+MegaHandle MegaTextChatMemberListPrivate::getMemberHandle(int i) const
 {
     if (i > size())
     {
@@ -11205,7 +11205,7 @@ MegaHandle MegaTextChatMemberListPrivate::getMemberHandle(int i)
     }
 }
 
-int MegaTextChatMemberListPrivate::getMemberPrivilege(int i)
+int MegaTextChatMemberListPrivate::getMemberPrivilege(int i) const
 {
     if (i > size())
     {
@@ -11217,12 +11217,12 @@ int MegaTextChatMemberListPrivate::getMemberPrivilege(int i)
     }
 }
 
-int MegaTextChatMemberListPrivate::size()
+int MegaTextChatMemberListPrivate::size() const
 {
     return list.size();
 }
 
-userpriv_vector * MegaTextChatMemberListPrivate::getList()
+userpriv_vector * MegaTextChatMemberListPrivate::getList() const
 {
     return new userpriv_vector(list);
 }
@@ -11241,7 +11241,7 @@ MegaTextChatMemberListPrivate::MegaTextChatMemberListPrivate(userpriv_vector *us
     }
 }
 
-MegaTextChatPrivate::MegaTextChatPrivate(MegaTextChat *chat)
+MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
 {
     this->id = chat->getHandle();
     this->priv = chat->getOwnPrivilege();
@@ -11251,7 +11251,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(MegaTextChat *chat)
     this->group = chat->isGroup();
 }
 
-MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int shard, MegaTextChatMemberList *members, bool group)
+MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatMemberList *members, bool group)
 {
     this->id = id;
     this->priv = priv;
@@ -11266,32 +11266,32 @@ MegaTextChatPrivate::~MegaTextChatPrivate()
     delete members;
 }
 
-MegaHandle MegaTextChatPrivate::getHandle()
+MegaHandle MegaTextChatPrivate::getHandle() const
 {
     return id;
 }
 
-int MegaTextChatPrivate::getOwnPrivilege()
+int MegaTextChatPrivate::getOwnPrivilege() const
 {
     return priv;
 }
 
-const char *MegaTextChatPrivate::getUrl()
+const char *MegaTextChatPrivate::getUrl() const
 {
     return url.c_str();
 }
 
-int MegaTextChatPrivate::getShard()
+int MegaTextChatPrivate::getShard() const
 {
     return shard;
 }
 
-MegaTextChatMemberList *MegaTextChatPrivate::getMemberList()
+const MegaTextChatMemberList *MegaTextChatPrivate::getMemberList() const
 {
     return members;
 }
 
-bool MegaTextChatPrivate::isGroup()
+bool MegaTextChatPrivate::isGroup() const
 {
     return group;
 }
@@ -11304,12 +11304,12 @@ MegaTextChatListPrivate::~MegaTextChatListPrivate()
     }
 }
 
-MegaTextChatList *MegaTextChatListPrivate::copy()
+MegaTextChatList *MegaTextChatListPrivate::copy() const
 {
     return new MegaTextChatListPrivate(this);
 }
 
-MegaTextChat *MegaTextChatListPrivate::get(int i)
+const MegaTextChat *MegaTextChatListPrivate::get(int i) const
 {
     if (i > size())
     {
@@ -11321,7 +11321,7 @@ MegaTextChat *MegaTextChatListPrivate::get(int i)
     }
 }
 
-int MegaTextChatListPrivate::size()
+int MegaTextChatListPrivate::size() const
 {
     return list.size();
 }
@@ -11331,7 +11331,7 @@ void MegaTextChatListPrivate::addChat(MegaTextChatPrivate *chat)
     list.push_back(chat);
 }
 
-MegaTextChatListPrivate::MegaTextChatListPrivate(MegaTextChatListPrivate *list)
+MegaTextChatListPrivate::MegaTextChatListPrivate(const MegaTextChatListPrivate *list)
 {
     MegaTextChatPrivate *chat;
 

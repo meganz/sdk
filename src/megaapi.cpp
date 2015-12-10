@@ -2693,7 +2693,7 @@ MegaTextChatMemberList::~MegaTextChatMemberList()
 
 }
 
-MegaTextChatMemberList *MegaTextChatMemberList::copy()
+MegaTextChatMemberList *MegaTextChatMemberList::copy() const
 {
     return NULL;
 }
@@ -2702,17 +2702,17 @@ void MegaTextChatMemberList::addMember(MegaHandle, int)
 {
 }
 
-MegaHandle MegaTextChatMemberList::getMemberHandle(int)
+MegaHandle MegaTextChatMemberList::getMemberHandle(int) const
 {
     return INVALID_HANDLE;
 }
 
-int MegaTextChatMemberList::getMemberPrivilege(int)
+int MegaTextChatMemberList::getMemberPrivilege(int) const
 {
     return PRIV_UNKNOWN;
 }
 
-int MegaTextChatMemberList::size()
+int MegaTextChatMemberList::size() const
 {
     return 0;
 }
@@ -2722,32 +2722,32 @@ MegaTextChat::~MegaTextChat()
 
 }
 
-MegaHandle MegaTextChat::getHandle()
+MegaHandle MegaTextChat::getHandle() const
 {
     return INVALID_HANDLE;
 }
 
-int MegaTextChat::getOwnPrivilege()
+int MegaTextChat::getOwnPrivilege() const
 {
     return PRIV_UNKNOWN;
 }
 
-const char *MegaTextChat::getUrl()
+const char *MegaTextChat::getUrl() const
 {
     return NULL;
 }
 
-int MegaTextChat::getShard()
+int MegaTextChat::getShard() const
 {
     return -1;
 }
 
-MegaTextChatMemberList *MegaTextChat::getMemberList()
+const MegaTextChatMemberList *MegaTextChat::getMemberList() const
 {
     return NULL;
 }
 
-bool MegaTextChat::isGroup()
+bool MegaTextChat::isGroup() const
 {
     return false;
 }
@@ -2757,17 +2757,17 @@ MegaTextChatList::~MegaTextChatList()
 
 }
 
-MegaTextChatList *MegaTextChatList::copy()
+MegaTextChatList *MegaTextChatList::copy() const
 {
     return NULL;
 }
 
-MegaTextChat *MegaTextChatList::get(int)
+const MegaTextChat *MegaTextChatList::get(int) const
 {
     return NULL;
 }
 
-int MegaTextChatList::size()
+int MegaTextChatList::size() const
 {
     return 0;
 }

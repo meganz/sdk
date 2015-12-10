@@ -756,14 +756,14 @@ public:
     MegaTextChatMemberListPrivate(userpriv_vector *);
 
     virtual ~MegaTextChatMemberListPrivate();
-    virtual MegaTextChatMemberList *copy();
+    virtual MegaTextChatMemberList *copy() const;
     virtual void addMember(MegaHandle h, int priv);
-    virtual MegaHandle getMemberHandle(int i);
-    virtual int getMemberPrivilege(int i);
-    virtual int size();
+    virtual MegaHandle getMemberHandle(int i) const;
+    virtual int getMemberPrivilege(int i) const;
+    virtual int size() const;
 
     // returns a copy of the list of user-privilege (you get the ownership)
-    userpriv_vector * getList();
+    userpriv_vector * getList() const;
 
 private:
     userpriv_vector list;
@@ -772,16 +772,16 @@ private:
 class MegaTextChatPrivate : public MegaTextChat
 {
 public:
-    MegaTextChatPrivate(MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, MegaTextChatMemberList *members, bool group);
+    MegaTextChatPrivate(const MegaTextChat *);
+    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatMemberList *members, bool group);
 
     virtual ~MegaTextChatPrivate();
-    virtual MegaHandle getHandle();
-    virtual int getOwnPrivilege();
-    virtual const char *getUrl();
-    virtual int getShard();
-    virtual MegaTextChatMemberList *getMemberList();
-    virtual bool isGroup();
+    virtual MegaHandle getHandle() const;
+    virtual int getOwnPrivilege() const;
+    virtual const char *getUrl() const;
+    virtual int getShard() const;
+    virtual const MegaTextChatMemberList *getMemberList() const;
+    virtual bool isGroup() const;
 
 private:
     handle id;
@@ -799,14 +799,14 @@ public:
     MegaTextChatListPrivate(textchat_vector *list);
 
     virtual ~MegaTextChatListPrivate();
-    virtual MegaTextChatList *copy();
-    virtual MegaTextChat *get(int i);
-    virtual int size();
+    virtual MegaTextChatList *copy() const;
+    virtual const MegaTextChat *get(int i) const;
+    virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
 
 private:
-    MegaTextChatListPrivate(MegaTextChatListPrivate*);
+    MegaTextChatListPrivate(const MegaTextChatListPrivate*);
     vector<MegaTextChat*> list;
 };
 

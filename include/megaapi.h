@@ -1116,7 +1116,7 @@ public:
      *
      * @return Copy of the MegaTextChatMemberList object
      */
-    virtual MegaTextChatMemberList *copy();
+    virtual MegaTextChatMemberList *copy() const;
 
     /**
      * @brief addMember Adds a new chat member to the list
@@ -1140,7 +1140,7 @@ public:
      * @param i Position of the chat member that we want to get from the list
      * @return MegaHandle of the chat member at the position i in the list
      */
-    virtual MegaHandle getMemberHandle(int i);
+    virtual MegaHandle getMemberHandle(int i) const;
 
     /**
      * @brief Returns the privilege of the chat member at the position i in the list
@@ -1157,13 +1157,13 @@ public:
      * - MegaTextChatMemberList::PRIV_FULL = 2
      * - MegaTextChatMemberList::PRIV_OPERATOR = 3     *
      */
-    virtual int getMemberPrivilege(int i);
+    virtual int getMemberPrivilege(int i) const;
 
     /**
      * @brief Returns the number of chat members in the list
      * @return Number of chat members in the list
      */
-    virtual int size();
+    virtual int size() const;
 
 };
 
@@ -1177,25 +1177,25 @@ public:
      * @brief getHandle Returns the MegaHandle of the chat.
      * @return MegaHandle of the chat.
      */
-    virtual MegaHandle getHandle();
+    virtual MegaHandle getHandle() const;
 
     /**
      * @brief getOwnPrivilege Returns your privilege level in this chat
      * @return
      */
-    virtual int getOwnPrivilege();
+    virtual int getOwnPrivilege() const;
 
     /**
      * @brief getUrl Returns your URL to connect to chatd for this chat
      * @return
      */
-    virtual const char *getUrl();
+    virtual const char *getUrl() const;
 
     /**
      * @brief getShard Returns the chat shard
      * @return
      */
-    virtual int getShard();
+    virtual int getShard() const;
 
     /**
      * @brief getMemberList Returns the full user list and privileges (including yourself).
@@ -1205,13 +1205,13 @@ public:
      *
      * @return
      */
-    virtual MegaTextChatMemberList *getMemberList();
+    virtual const MegaTextChatMemberList *getMemberList() const;
 
     /**
      * @brief isGroup Returns whether this chat is a group chat or not
      * @return True if this chat is a group chat. Only chats with more than 2 members are groupal chats.
      */
-    virtual bool isGroup();
+    virtual bool isGroup() const;
 
 };
 
@@ -1230,7 +1230,7 @@ public:
 
     virtual ~MegaTextChatList();
 
-    virtual MegaTextChatList *copy();
+    virtual MegaTextChatList *copy() const;
 
     /**
      * @brief Returns the MegaTextChat at the position i in the MegaTextChatList
@@ -1243,13 +1243,13 @@ public:
      * @param i Position of the MegaTextChat that we want to get for the list
      * @return MegaTextChat at the position i in the list
      */
-    virtual MegaTextChat *get(int i);
+    virtual const MegaTextChat *get(int i)  const;
 
     /**
      * @brief Returns the number of MegaTextChats in the list
      * @return Number of MegaTextChats in the list
      */
-    virtual int size();
+    virtual int size() const;
 };
 
 
