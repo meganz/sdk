@@ -285,6 +285,7 @@ public:
     void cleanrubbishbin();
 
 #ifdef ENABLE_CHAT
+
     // create a new chat with multiple users and different privileges
     void createChat(bool group, userpriv_vector *userpriv);
 
@@ -299,6 +300,10 @@ public:
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
+
+    // process object arrays by the API server (users + privileges)
+    userpriv_vector * readuserpriv(JSON* j);
+
 #endif
 
     // toggle global debug flag

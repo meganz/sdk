@@ -3034,7 +3034,7 @@ void CommandFetchNodes::procresult()
                 break;
 
             case MAKENAMEID2('s', 'n'):
-                // share node
+                // sequence number
                 if (!client->setscsn(&client->json))
                 {
                     client->fetchingnodes = false;
@@ -3582,23 +3582,6 @@ void CommandChatFetch::procresult()
     }
     else
     {
-        // the API response is in the format:
-//        {
-//        "c":[ // List of your chats as follows
-//        {
-//        "id":"LQKwU1xMnSo", // chatid
-//        "p":3, // your privilege level
-//        "url":"ws://31.216.147.155/LAcnqUqIOcY", // your url to
-//        connect to chatd for this chat
-//        "cs":0, //the chat shard
-//        "u":[{"u":"LAcnqUqIOcY","p":3},{"u":"tH4UoOPQuhU","p":1}],
-//        // Full user list and privileges (including yourself)
-//        "g":1 // Group chat or not
-//        },
-//        ],
-//        "sn":6724763754 // The sequence number for actionpacket business
-//        }
-
         if(client->json.getnameid() != 'c')
         {
             client->app->chatfetch_result(API_EINTERNAL);
@@ -3646,62 +3629,11 @@ void CommandChatFetch::procresult()
                         break;
 
                     case 'u':   // list of users participating in the chat (+privileges)
-
-                        if (!client->json.enterarray())
+                        userpriv = client->readuserpriv(&client->json);
+                        if(!userpriv)
                         {
                             e = API_EINTERNAL;
                         }
-                        else
-                        {
-                            while(client->json.enterobject() && !e)
-                            {
-                                handle uh = UNDEF;
-                                privilege_t priv = PRIV_UNKNOWN;
-
-                                bool readingUsers = true;
-                                while(readingUsers)
-                                {
-                                    switch (client->json.getnameid())
-                                    {
-                                    case 'u':
-                                        uh = client->json.gethandle(MegaClient::USERHANDLE);
-                                        break;
-
-                                    case 'p':
-                                        priv = (privilege_t) client->json.getint();
-                                        break;
-
-                                    case EOO:
-                                        {
-                                            if(uh == UNDEF && priv != PRIV_UNKNOWN)
-                                            {
-                                                if (!userpriv)
-                                                {
-                                                    userpriv = new userpriv_vector;
-                                                }
-                                                userpriv->push_back(userpriv_pair(uh, priv));
-                                            }
-                                            else
-                                            {
-                                                e = API_EINTERNAL;
-                                            }
-                                        }
-                                        readingUsers = false;
-                                        break;
-
-                                    default:
-                                        if (!client->json.storeobject())
-                                        {
-                                            e = API_EINTERNAL;
-                                            readingUsers = false;
-                                        }
-                                        break;
-                                    }
-                                }
-                                client->json.leaveobject();
-                            }
-                        }
-                        client->json.leavearray();
                         break;
 
                     case 'g':
@@ -3742,9 +3674,24 @@ void CommandChatFetch::procresult()
         }
         client->json.leavearray();
 
-        if(client->json.getnameid() != MAKENAMEID2('s','n') || !client->json.getint()) //!client->setscsn(&client->json))
+        if(client->json.getnameid() != MAKENAMEID2('s','n'))
         {
             e = API_EINTERNAL;
+        }
+        else    // sequence number received
+        {
+            handle t;
+
+            if (client->json.storebinary((byte*)&t, sizeof t) != sizeof t)
+            {
+                e = API_EINTERNAL;
+            }
+
+            // the 'scsn' should be discarded if alrready have one from fetchnodes
+            if (!*client->scsn)
+            {
+                Base64::btoa((byte*)&t, sizeof t, client->scsn);
+            }
         }
 
         if (!e)

@@ -8756,6 +8756,64 @@ void MegaClient::getUrlChat(handle chatid)
 {
     reqs.add(new CommandChatURL(this, chatid));
 }
+
+userpriv_vector *MegaClient::readuserpriv(JSON *j)
+{
+    userpriv_vector *userpriv = NULL;
+
+    if (j->enterarray())
+    {
+        while(j->enterobject())
+        {
+            handle uh = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+
+            bool readingUsers = true;
+            while(readingUsers)
+            {
+                switch (j->getnameid())
+                {
+                    case 'u':
+                        uh = j->gethandle(MegaClient::USERHANDLE);
+                        break;
+
+                    case 'p':
+                        priv = (privilege_t) j->getint();
+                        break;
+
+                    case EOO:
+                        if(uh == UNDEF || priv == PRIV_UNKNOWN)
+                        {
+                            delete userpriv;
+                            return NULL;
+                        }
+
+                        if (!userpriv)
+                        {
+                            userpriv = new userpriv_vector;
+                        }
+
+                        userpriv->push_back(userpriv_pair(uh, priv));
+                        readingUsers = false;
+                        break;
+
+                    default:
+                        if (!j->storeobject())
+                        {
+                            delete userpriv;
+                            return NULL;
+                        }
+                        break;
+                    }
+            }
+            j->leaveobject();
+        }
+        j->leavearray();
+    }
+
+    return userpriv;
+}
+
 #endif
 
 } // namespace
