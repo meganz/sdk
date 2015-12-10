@@ -5630,10 +5630,6 @@ User* MegaClient::finduser(handle uh, int add)
         return NULL;
     }
 
-    char uid1[12];
-    Base64::btoa((byte*)&uh, sizeof uh, uid1);
-    uid1[11] = 0;
-
     User* u;
     uh_map::iterator it = uhindex.find(uh);
 
