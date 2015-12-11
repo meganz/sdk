@@ -1608,6 +1608,9 @@ class MegaRequest
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
          * - MegaApi::upgradeAccount - Returns that handle of the product
          * - MegaApi::replyContactRequest - Returns the handle of the contact request
+         * - MegaApi::inviteToChat - Returns the handle of the chat
+         * - MegaApi::removeFromChat - Returns the handle of the chat
+         * - MegaApi::getUrlChat - Returns the handle of the chat
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1634,6 +1637,7 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentId - Returns the payment identifier
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1650,6 +1654,8 @@ class MegaRequest
          * - MegaApi::moveNode - Returns the handle of the new parent for the node
          * - MegaApi::copyNode - Returns the handle of the parent for the new node
          * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
+         * - MegaApi::inviteToChat - Returns the handle of the user to be invited
+         * - MegaApi::removeFromChat - Returns the handle of the user to be removed
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1786,6 +1792,7 @@ class MegaRequest
          * - MegaApi::share - Returns the access level for the shared folder
          * - MegaApi::exportNode - Returns true
          * - MegaApi::disableExport - Returns false
+         * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
          *
          * @return Access level related to the request
          */
@@ -2003,7 +2010,7 @@ class MegaRequest
          * the MegaRequest object is deleted.
          *
          * This value is valid for these requests:
-         * - MegaApi::createChat - Creates a chat for one or more participants
+         * - MegaApi::createChat - Returns the list of participants and their privilege level
          *
          * @return List of members of a chat
          */
@@ -2017,8 +2024,8 @@ class MegaRequest
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::createChat - The information of the just created chat (list of one element)
-         * - MegaApi::fetchChat - Fetches the full list of current chats
+         * - MegaApi::createChat - Returns the new chat's information
+         * - MegaApi::fetchChat - Returns the list of chats
          *
          * @return List of chats
          */
@@ -6634,6 +6641,15 @@ class MegaApi
          * The creator of the chat will have operator level privilege and should not be included in the
          * list of members.
          *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getMegaTextChatMemberList - List of participants and their privilege level
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTextChatList - Returns the new chat's information
+         *
          * @note If you are trying to create a chat with more than 1 other person, then it will be forced
          * to be a group chat.
          *
@@ -6650,6 +6666,12 @@ class MegaApi
         /**
          * @brief Fetches the full list of current chats for the requesting user.
          *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTextChatList - Returns the list of chats
+         *
          * @param listener MegaRequestListener to track this request
          */
         void fetchChats(MegaRequestListener *listener = NULL);
@@ -6657,6 +6679,12 @@ class MegaApi
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_INVITE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
@@ -6675,6 +6703,11 @@ class MegaApi
          * @brief Remove yourself or another user from a chat. To remove a user other than
          * yourself you need to have the operator privilege. Only a group chat may be left.
          *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be removed
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user. If not provided (INVALID_HANDLE), the requester is removed
          * @param listener MegaRequestListener to track this request
@@ -6683,6 +6716,14 @@ class MegaApi
 
         /**
          * @brief Get your current, user-specific url to connect to chatd with
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_URL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
