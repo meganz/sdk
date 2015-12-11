@@ -351,6 +351,7 @@ namespace mega
         MNode^ getNodeByPath(String^ path, MNode^ n);
         MNode^ getNodeByPath(String^ path);
         MNode^ getNodeByHandle(uint64 handle);
+        MNode^ getNodeByBase64Handle(String^ base64Handle);
         MContactRequest^ getContactRequestByHandle(MegaHandle handle);
         MUserList^ getContacts();
         MUser^ getContact(String^ email);
