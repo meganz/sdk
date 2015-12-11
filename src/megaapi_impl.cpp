@@ -1452,12 +1452,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->chatPeerList) = *(request->getMegaTextChatPeerList());
     }
 
-    this->chatList = NULL;
-    if(request->getMegaTextChatPeerList())
-    {
-        this->chatList = new MegaTextChatListPrivate;
-        *(this->chatList) = *(request->getMegaTextChatList());
-    }
+    this->chatList = request->chatList
+        ? request->chatList->copy()
+        : nullptr;
 #endif
 
 }
