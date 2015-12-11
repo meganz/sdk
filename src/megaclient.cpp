@@ -8738,14 +8738,14 @@ void MegaClient::fetchChats()
     reqs.add(new CommandChatFetch(this));
 }
 
-void MegaClient::inviteToChat(handle chatid, const char *email, int priv)
+void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)
 {
-    reqs.add(new CommandChatInvite(this, chatid, finduser(email), (privilege_t) priv));
+    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv));
 }
 
-void MegaClient::removeFromChat(handle chatid, const char *email)
+void MegaClient::removeFromChat(handle chatid, const char *uid)
 {
-    reqs.add(new CommandChatRemove(this, chatid, finduser(email)));
+    reqs.add(new CommandChatRemove(this, chatid, uid));
 }
 
 void MegaClient::getUrlChat(handle chatid)

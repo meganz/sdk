@@ -628,7 +628,7 @@ class MEGA_API CommandChatInvite : public Command
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, User *, privilege_t);
+    CommandChatInvite(MegaClient*, handle, const char *, privilege_t);
 };
 
 class MEGA_API CommandChatRemove : public Command
@@ -637,7 +637,7 @@ class MEGA_API CommandChatRemove : public Command
 public:
     void procresult();
 
-    CommandChatRemove(MegaClient*, handle, User * = NULL);
+    CommandChatRemove(MegaClient*, handle, const char * = NULL);
 };
 
 class MEGA_API CommandChatURL : public Command

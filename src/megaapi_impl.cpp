@@ -9745,28 +9745,46 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_INVITE:
         {
             handle chatid = request->getNodeHandle();
-            const char *email = request->getEmail();
+            handle uh = request->getParentHandle();
             int access = request->getAccess();
+
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            char uid[12];
+            Base64::btoa((byte*)&uh, sizeof uh, uid);
+            uid[11] = 0;
+
+            client->inviteToChat(chatid, uid, access);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_REMOVE:
+        {
+            handle chatid = request->getNodeHandle();
+            handle uh = request->getParentHandle();
+
             if (chatid == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->inviteToChat(chatid, email, access);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_REMOVE:
-        {
-            MegaHandle chatid = request->getNodeHandle();
-            const char *email = request->getEmail();
-            if (chatid == INVALID_HANDLE || !email)
+            // user is optional. If not provided, command apply to own user
+            if (uh != INVALID_HANDLE)
             {
-                e = API_EARGS;
-                break;
-            }
+                char uid[12];
+                Base64::btoa((byte*)&uh, sizeof uh, uid);
+                uid[11] = 0;
 
-            client->removeFromChat(chatid, email);
+                client->removeFromChat(chatid, uid);
+            }
+            else
+            {
+                client->removeFromChat(chatid);
+            }
             break;
         }
         case MegaRequest::TYPE_CHAT_URL:

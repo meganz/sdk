@@ -293,10 +293,10 @@ public:
     void fetchChats();
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *email, int priv);
+    void inviteToChat(handle chatid, const char *uid, int priv);
 
     // remove a user from a chat
-    void removeFromChat(handle chatid, const char *email);
+    void removeFromChat(handle chatid, const char *uid = NULL);
 
     // get the URL of a chat
     void getUrlChat(handle chatid);

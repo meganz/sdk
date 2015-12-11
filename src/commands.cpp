@@ -3480,10 +3480,14 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, userpriv_ve
     {
         beginobject();
 
-        handle u = itupl->first;
+        handle uh = itupl->first;
+        char uid[12];
+        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        uid[11] = 0;
+
         privilege_t priv = itupl->second;
 
-        arg("u", u);
+        arg("u", uid);
         arg("p", priv);
 
         endobject();
@@ -3714,14 +3718,14 @@ void CommandChatFetch::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, User *u, privilege_t priv)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
 {
     this->client = client;
 
     cmd("mci");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("u", u->uid.c_str());
+    arg("u", uid);
     arg("p", priv);
 
     tag = client->reqtag;
@@ -3740,7 +3744,7 @@ void CommandChatInvite::procresult()
     }
 }
 
-CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, User *u)
+CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const char *uid)
 {
     this->client = client;
 
@@ -3748,9 +3752,9 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, User *u)
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    if (u)
+    if (uid)
     {
-        arg("u", u->uid.c_str());
+        arg("u", uid);
     }
 
     tag = client->reqtag;

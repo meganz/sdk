@@ -1120,6 +1120,7 @@ public:
 
     /**
      * @brief addMember Adds a new chat member to the list
+     *
      * @param h MegaHandle of the user to be added
      * @param priv Privilege level of the user to be added
      * Valid values are:
@@ -1134,7 +1135,7 @@ public:
 
     /**
      * @brief Returns the MegaHandle of the chat member at the position i in the list
-     *     *
+     *
      * If the index is >= the size of the list, this function returns INVALID_HANDLE.
      *
      * @param i Position of the chat member that we want to get from the list
@@ -1155,7 +1156,7 @@ public:
      * - MegaTextChatMemberList::PRIV_RO = 0
      * - MegaTextChatMemberList::PRIV_RW = 1
      * - MegaTextChatMemberList::PRIV_FULL = 2
-     * - MegaTextChatMemberList::PRIV_OPERATOR = 3     *
+     * - MegaTextChatMemberList::PRIV_OPERATOR = 3
      */
     virtual int getMemberPrivilege(int i) const;
 
