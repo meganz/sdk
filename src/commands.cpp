@@ -3506,12 +3506,6 @@ void CommandChatCreate::procresult()
     }
     else
     {
-        if(!client->json.enterobject())
-        {
-            client->app->chatcreate_result(API_EINTERNAL);
-            return;
-        }
-
         string url;
         handle chatid = UNDEF;
         int shard = -1;
@@ -3564,8 +3558,6 @@ void CommandChatCreate::procresult()
                     }
             }
         }
-
-        client->json.leaveobject();
     }
 }
 
