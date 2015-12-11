@@ -604,7 +604,7 @@ public:
 class MEGA_API CommandChatCreate : public Command
 {
     MegaClient *client;
-    userpriv_vector *chatMembers;
+    userpriv_vector *chatPeers;
 
 public:
     void procresult();

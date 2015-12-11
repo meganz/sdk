@@ -3468,7 +3468,7 @@ void CommandCleanRubbishBin::procresult()
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, userpriv_vector *upl)
 {
     this->client = client;
-    this->chatMembers = upl;
+    this->chatPeers = upl;
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
@@ -3539,7 +3539,7 @@ void CommandChatCreate::procresult()
                         chat->priv = PRIV_OPERATOR;
                         chat->url = url;
                         chat->shard = shard;
-                        chat->userpriv = this->chatMembers;
+                        chat->userpriv = this->chatPeers;
                         chat->group = group;
 
                         client->app->chatcreate_result(chat);
@@ -3626,10 +3626,6 @@ void CommandChatFetch::procresult()
 
                     case 'u':   // list of users participating in the chat (+privileges)
                         userpriv = client->readuserpriv(&client->json);
-                        if(!userpriv)
-                        {
-                            e = API_EINTERNAL;
-                        }
                         break;
 
                     case 'g':

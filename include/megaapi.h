@@ -1091,7 +1091,7 @@ class MegaShare
 };
 
 #ifdef ENABLE_CHAT
-class MegaTextChatMemberList
+class MegaTextChatPeerList
 {
 public:
     enum {
@@ -1103,66 +1103,66 @@ public:
         PRIV_OPERATOR = 3
     };
 
-    virtual ~MegaTextChatMemberList();
+    virtual ~MegaTextChatPeerList();
 
     /**
-     * @brief Creates a copy of this MegaTextChatMemberList object
+     * @brief Creates a copy of this MegaTextChatPeerList object
      *
-     * The resulting object is fully independent of the source MegaTextChatMemberList,
+     * The resulting object is fully independent of the source MegaTextChatPeerList,
      * it contains a copy of all internal attributes, so it will be valid after
      * the original object is deleted.
      *
      * You are the owner of the returned object
      *
-     * @return Copy of the MegaTextChatMemberList object
+     * @return Copy of the MegaTextChatPeerList object
      */
-    virtual MegaTextChatMemberList *copy() const;
+    virtual MegaTextChatPeerList *copy() const;
 
     /**
-     * @brief addMember Adds a new chat member to the list
+     * @brief addPeer Adds a new chat peer to the list
      *
      * @param h MegaHandle of the user to be added
      * @param priv Privilege level of the user to be added
      * Valid values are:
-     * - MegaTextChatMemberList::PRIV_UNKNOWN = -2
-     * - MegaTextChatMemberList::PRIV_RM = -1
-     * - MegaTextChatMemberList::PRIV_RO = 0
-     * - MegaTextChatMemberList::PRIV_RW = 1
-     * - MegaTextChatMemberList::PRIV_FULL = 2
-     * - MegaTextChatMemberList::PRIV_OPERATOR = 3
+     * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+     * - MegaTextChatPeerList::PRIV_RM = -1
+     * - MegaTextChatPeerList::PRIV_RO = 0
+     * - MegaTextChatPeerList::PRIV_RW = 1
+     * - MegaTextChatPeerList::PRIV_FULL = 2
+     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
      */
-    virtual void addMember(MegaHandle h, int priv);
+    virtual void addPeer(MegaHandle h, int priv);
 
     /**
-     * @brief Returns the MegaHandle of the chat member at the position i in the list
+     * @brief Returns the MegaHandle of the chat peer at the position i in the list
      *
      * If the index is >= the size of the list, this function returns INVALID_HANDLE.
      *
-     * @param i Position of the chat member that we want to get from the list
-     * @return MegaHandle of the chat member at the position i in the list
+     * @param i Position of the chat peer that we want to get from the list
+     * @return MegaHandle of the chat peer at the position i in the list
      */
-    virtual MegaHandle getMemberHandle(int i) const;
+    virtual MegaHandle getPeerHandle(int i) const;
 
     /**
-     * @brief Returns the privilege of the chat member at the position i in the list
+     * @brief Returns the privilege of the chat peer at the position i in the list
      *
      * If the index is >= the size of the list, this function returns PRIV_UNKNOWN.
      *
-     * @param i Position of the chat member that we want to get from the list
-     * @return Privilege level of the chat member at the position i in the list.
+     * @param i Position of the chat peer that we want to get from the list
+     * @return Privilege level of the chat peer at the position i in the list.
      * Valid values are:
-     * - MegaTextChatMemberList::PRIV_UNKNOWN = -2
-     * - MegaTextChatMemberList::PRIV_RM = -1
-     * - MegaTextChatMemberList::PRIV_RO = 0
-     * - MegaTextChatMemberList::PRIV_RW = 1
-     * - MegaTextChatMemberList::PRIV_FULL = 2
-     * - MegaTextChatMemberList::PRIV_OPERATOR = 3
+     * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+     * - MegaTextChatPeerList::PRIV_RM = -1
+     * - MegaTextChatPeerList::PRIV_RO = 0
+     * - MegaTextChatPeerList::PRIV_RW = 1
+     * - MegaTextChatPeerList::PRIV_FULL = 2
+     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
      */
-    virtual int getMemberPrivilege(int i) const;
+    virtual int getPeerPrivilege(int i) const;
 
     /**
-     * @brief Returns the number of chat members in the list
-     * @return Number of chat members in the list
+     * @brief Returns the number of chat peer in the list
+     * @return Number of chat peers in the list
      */
     virtual int size() const;
 
@@ -1199,18 +1199,18 @@ public:
     virtual int getShard() const;
 
     /**
-     * @brief getMemberList Returns the full user list and privileges (including yourself).
+     * @brief getPeerList Returns the full user list and privileges (including yourself).
      *
-     * The MegaTextChat retains the ownership of the returned MetaTextChatMemberList. It will
+     * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
      * be only valid until the MegaTextChat is deleted.
      *
      * @return
      */
-    virtual const MegaTextChatMemberList *getMemberList() const;
+    virtual const MegaTextChatPeerList *getPeerList() const;
 
     /**
      * @brief isGroup Returns whether this chat is a group chat or not
-     * @return True if this chat is a group chat. Only chats with more than 2 members are groupal chats.
+     * @return True if this chat is a group chat. Only chats with more than 2 peers are groupal chats.
      */
     virtual bool isGroup() const;
 
@@ -1252,7 +1252,6 @@ public:
      */
     virtual int size() const;
 };
-
 
 #endif
 
@@ -2004,7 +2003,7 @@ class MegaRequest
 
 #ifdef ENABLE_CHAT
         /**
-         * @brief Returns the list of members in a chat.
+         * @brief Returns the list of peers in a chat.
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -2012,9 +2011,9 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::createChat - Returns the list of participants and their privilege level
          *
-         * @return List of members of a chat
+         * @return List of peers of a chat
          */
-        virtual MegaTextChatMemberList *getMegaTextChatMemberList() const;
+        virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
 
         /**
          * @brief Returns the list of chats.
@@ -6639,12 +6638,12 @@ class MegaApi
          * participants can not leave it.
          *
          * The creator of the chat will have operator level privilege and should not be included in the
-         * list of members.
+         * list of peers.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
-         * - MegaRequest::getMegaTextChatMemberList - List of participants and their privilege level
+         * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -6653,15 +6652,15 @@ class MegaApi
          * @note If you are trying to create a chat with more than 1 other person, then it will be forced
          * to be a group chat.
          *
-         * @note If members list contains only one person, group chat is not set and a permament chat already
+         * @note If peers list contains only one person, group chat is not set and a permament chat already
          * exists with that person, then this call will return the information for the existing chat, rather
          * than a new chat.
          *
          * @param group Flag to indicate if the chat is a group chat or not
-         * @param members MegaTextChatMemberList including other users and their privilege level
+         * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Fetches the full list of current chats for the requesting user.
@@ -6688,13 +6687,13 @@ class MegaApi
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
-         * @param privilege Privilege level for the new member. Valid values are:
-         * - MegaTextChatMemberList::PRIV_UNKNOWN = -2
-         * - MegaTextChatMemberList::PRIV_RM = -1
-         * - MegaTextChatMemberList::PRIV_RO = 0
-         * - MegaTextChatMemberList::PRIV_RW = 1
-         * - MegaTextChatMemberList::PRIV_FULL = 2
-         * - MegaTextChatMemberList::PRIV_OPERATOR = 3
+         * @param privilege Privilege level for the new peers. Valid values are:
+         * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+         * - MegaTextChatPeerList::PRIV_RM = -1
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_RW = 1
+         * - MegaTextChatPeerList::PRIV_FULL = 2
+         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);

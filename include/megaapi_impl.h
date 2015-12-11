@@ -556,8 +556,8 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaPricing *getPricing() const;
 	    AccountDetails * getAccountDetails() const;        
 #ifdef ENABLE_CHAT
-        virtual MegaTextChatMemberList *getMegaTextChatMemberList() const;
-        void setMegaTextChatMemberList(MegaTextChatMemberList *chatMembers);
+        virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
+        void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
         virtual MegaTextChatList *getMegaTextChatList() const;
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
@@ -598,7 +598,7 @@ class MegaRequestPrivate : public MegaRequest
 		int numRetry;
         int tag;
 #ifdef ENABLE_CHAT
-        MegaTextChatMemberList *chatMemberList;
+        MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
 #endif
 };
@@ -749,17 +749,17 @@ private:
 };
 
 #ifdef ENABLE_CHAT
-class MegaTextChatMemberListPrivate : public MegaTextChatMemberList
+class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {
 public:
-    MegaTextChatMemberListPrivate();
-    MegaTextChatMemberListPrivate(userpriv_vector *);
+    MegaTextChatPeerListPrivate();
+    MegaTextChatPeerListPrivate(userpriv_vector *);
 
-    virtual ~MegaTextChatMemberListPrivate();
-    virtual MegaTextChatMemberList *copy() const;
-    virtual void addMember(MegaHandle h, int priv);
-    virtual MegaHandle getMemberHandle(int i) const;
-    virtual int getMemberPrivilege(int i) const;
+    virtual ~MegaTextChatPeerListPrivate();
+    virtual MegaTextChatPeerList *copy() const;
+    virtual void addPeer(MegaHandle h, int priv);
+    virtual MegaHandle getPeerHandle(int i) const;
+    virtual int getPeerPrivilege(int i) const;
     virtual int size() const;
 
     // returns a copy of the list of user-privilege (you get the ownership)
@@ -773,14 +773,14 @@ class MegaTextChatPrivate : public MegaTextChat
 {
 public:
     MegaTextChatPrivate(const MegaTextChat *);
-    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatMemberList *members, bool group);
+    MegaTextChatPrivate(handle id, int priv, string url, int shard, const MegaTextChatPeerList *peers, bool group);
 
     virtual ~MegaTextChatPrivate();
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
     virtual const char *getUrl() const;
     virtual int getShard() const;
-    virtual const MegaTextChatMemberList *getMemberList() const;
+    virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;
 
 private:
@@ -788,7 +788,7 @@ private:
     int priv;
     string url;
     int shard;
-    MegaTextChatMemberList *members;
+    MegaTextChatPeerList *peers;
     bool group;
 };
 
@@ -1297,7 +1297,7 @@ class MegaApiImpl : public MegaApp
         bool isOnline();
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
         void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);

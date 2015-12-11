@@ -600,7 +600,7 @@ int MegaRequest::getTag() const
 }
 
 #ifdef ENABLE_CHAT
-MegaTextChatMemberList *MegaRequest::getMegaTextChatMemberList() const
+MegaTextChatPeerList *MegaRequest::getMegaTextChatPeerList() const
 {
     return NULL;
 }
@@ -2132,9 +2132,9 @@ bool MegaApi::isOnline()
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatMemberList *members, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, members, listener);
+    pImpl->createChat(group, peers, listener);
 }
 
 void MegaApi::fetchChats(MegaRequestListener *listener)
@@ -2688,31 +2688,31 @@ MegaInputStream::~MegaInputStream()
 }
 
 #ifdef ENABLE_CHAT
-MegaTextChatMemberList::~MegaTextChatMemberList()
+MegaTextChatPeerList::~MegaTextChatPeerList()
 {
 
 }
 
-MegaTextChatMemberList *MegaTextChatMemberList::copy() const
+MegaTextChatPeerList *MegaTextChatPeerList::copy() const
 {
     return NULL;
 }
 
-void MegaTextChatMemberList::addMember(MegaHandle, int)
+void MegaTextChatPeerList::addPeer(MegaHandle, int)
 {
 }
 
-MegaHandle MegaTextChatMemberList::getMemberHandle(int) const
+MegaHandle MegaTextChatPeerList::getPeerHandle(int) const
 {
     return INVALID_HANDLE;
 }
 
-int MegaTextChatMemberList::getMemberPrivilege(int) const
+int MegaTextChatPeerList::getPeerPrivilege(int) const
 {
     return PRIV_UNKNOWN;
 }
 
-int MegaTextChatMemberList::size() const
+int MegaTextChatPeerList::size() const
 {
     return 0;
 }
@@ -2742,7 +2742,7 @@ int MegaTextChat::getShard() const
     return -1;
 }
 
-const MegaTextChatMemberList *MegaTextChat::getMemberList() const
+const MegaTextChatPeerList *MegaTextChat::getPeerList() const
 {
     return NULL;
 }
