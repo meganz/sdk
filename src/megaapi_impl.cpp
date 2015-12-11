@@ -1861,6 +1861,11 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SEND_EVENT: return "SEND_EVENT";
         case TYPE_CLEAN_RUBBISH_BIN: return "CLEAN_RUBBISH_BIN";
         case TYPE_SET_ATTR_NODE: return "SET_ATTR_NODE";
+        case TYPE_CHAT_FETCH: return "CHAT_FETCH";
+        case TYPE_CHAT_CREATE: return "CHAT_CREATE";
+        case TYPE_CHAT_URL: return "CHAT_URL";
+        case TYPE_CHAT_INVITE: return "CHAT_INVITE";
+        case TYPE_CHAT_REMOVE: return "CHAT_REMOVE";
 	}
     return "UNKNOWN";
 }
