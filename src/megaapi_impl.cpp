@@ -1454,7 +1454,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 
     this->chatList = request->chatList
         ? request->chatList->copy()
-        : nullptr;
+        : NULL;
 #endif
 
 }
