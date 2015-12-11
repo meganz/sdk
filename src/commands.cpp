@@ -3516,7 +3516,7 @@ void CommandChatCreate::procresult()
             switch (client->json.getnameid())
             {
                 case MAKENAMEID3('u','r','l'):
-                    url = client->json.getvalue();
+                    client->json.storeobject(&url);
                     break;
 
                 case MAKENAMEID2('i','d'):
@@ -3617,7 +3617,7 @@ void CommandChatFetch::procresult()
                         break;
 
                     case MAKENAMEID3('u','r','l'):
-                        url = client->json.getvalue();
+                        client->json.storeobject(&url);
                         break;
 
                     case MAKENAMEID2('c','s'):
