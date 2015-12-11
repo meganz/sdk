@@ -3533,7 +3533,7 @@ void CommandChatCreate::procresult()
 
                 case EOO:
                     if (chatid != UNDEF && !url.empty() && shard != -1)
-                    {                        
+                    {
                         TextChat *chat = new TextChat;
                         chat->id = chatid;
                         chat->priv = PRIV_OPERATOR;
@@ -3639,10 +3639,21 @@ void CommandChatFetch::procresult()
                             TextChat *chat = new TextChat;
                             chat->id = chatid;
                             chat->priv = priv;
+                            chat->userpriv = userpriv;
                             chat->url = url;
                             chat->shard = shard;
-                            chat->userpriv = userpriv;
                             chat->group = group;
+
+                            // remove yourself from the list of users (only peers matter)
+                            userpriv_vector::iterator upvit;
+                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            {
+                                if (upvit->first == client->me)
+                                {
+                                    userpriv->erase(upvit);
+                                    break;
+                                }
+                            }
 
                             chatlist->push_back(chat);
                         }

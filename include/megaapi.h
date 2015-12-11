@@ -2009,7 +2009,7 @@ class MegaRequest
          * the MegaRequest object is deleted.
          *
          * This value is valid for these requests:
-         * - MegaApi::createChat - Returns the list of participants and their privilege level
+         * - MegaApi::createChat - Returns the list of peers and their privilege level
          *
          * @return List of peers of a chat
          */
