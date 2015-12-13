@@ -897,7 +897,7 @@ void MegaClient::exec()
                     if (Waiter::ds - fc->urltime > 600)
                     {
                         // fetches pending for this unconnected channel - dispatch fresh connection
-                        reqs.add(new CommandGetFA(cit->first, fc->fahref, httpio->chunkedok));
+                        reqs.add(new CommandGetFA(this, cit->first, fc->fahref, httpio->chunkedok));
                         fc->req.status = REQ_INFLIGHT;
                     }
                     else
@@ -2130,8 +2130,8 @@ bool MegaClient::dispatch(direction_t d)
 
                 // dispatch request for temporary source/target URL
                 reqs.add((ts->pendingcmd = (d == PUT)
-                          ? (Command*)new CommandPutFile(ts, putmbpscap)
-                          : (Command*)new CommandGetFile(ts, NULL, h, hprivate, auth)));
+                          ? (Command*)new CommandPutFile(this, ts, putmbpscap)
+                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, auth)));
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
@@ -6813,7 +6813,7 @@ error MegaClient::openfilelink(const char* link, int op)
                 }
                 else
                 {
-                    reqs.add(new CommandGetFile(NULL, key, ph, false));
+                    reqs.add(new CommandGetFile(this, NULL, key, ph, false));
                 }
 
                 return API_OK;

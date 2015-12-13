@@ -99,7 +99,7 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(int p, handle fahref, bool chunked)
+CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunked)
 {
     part = p;
 
@@ -217,7 +217,7 @@ void CommandAttachFA::procresult()
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(TransferSlot* ctslot, int ms)
+CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 {
     tslot = ctslot;
 
@@ -296,7 +296,7 @@ void CommandPutFile::procresult()
 }
 
 // request temporary source URL for DirectRead
-CommandDirectRead::CommandDirectRead(DirectReadNode* cdrn)
+CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 {
     drn = cdrn;
 
@@ -377,7 +377,7 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
 {
     cmd("g");
     arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
