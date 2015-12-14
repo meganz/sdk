@@ -88,6 +88,12 @@ public:
     string link;
     MegaNode *publicNode;
 
+#ifdef ENABLE_CHAT
+    bool chatUpdated;
+    bool chatUpdatedAux;
+    MegaTextChatList *chats;
+#endif
+
 private:
 
 
@@ -113,6 +119,9 @@ protected:
     void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
     void onGlobalSyncStateChanged(MegaApi* api) {}
+#endif
+#ifdef ENABLE_CHAT
+    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats);
 #endif
 
 public:
@@ -147,4 +156,10 @@ public:
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
 
     void getContactRequest(bool outgoing, int expectedSize = 1);
+
+#ifdef ENABLE_CHAT
+    void fetchChats(int timeout = maxTimeout);
+    void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
+#endif
+
 };
