@@ -4270,6 +4270,20 @@ void MegaClient::notifypurge(void)
 
         usernotify.clear();
     }
+
+    if ((t = chatnotify.size()))
+    {
+        if (!fetchingnodes)
+        {
+            app->chats_updated(&chatnotify);
+        }
+
+        for (i = 0; i < t; i++)
+        {
+            delete chatnotify[i]->userpriv;
+        }
+        chatnotify.clear();
+    }
 }
 
 // return node pointer derived from node handle
