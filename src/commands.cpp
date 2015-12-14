@@ -3639,7 +3639,6 @@ void CommandChatFetch::procresult()
                             TextChat *chat = new TextChat;
                             chat->id = chatid;
                             chat->priv = priv;
-                            chat->userpriv = userpriv;
                             chat->url = url;
                             chat->shard = shard;
                             chat->group = group;
@@ -3651,9 +3650,15 @@ void CommandChatFetch::procresult()
                                 if (upvit->first == client->me)
                                 {
                                     userpriv->erase(upvit);
+                                    if (userpriv->empty())
+                                    {
+                                        delete userpriv;
+                                        userpriv = NULL;
+                                    }
                                     break;
                                 }
                             }
+                            chat->userpriv = userpriv;
 
                             chatlist->push_back(chat);
                         }

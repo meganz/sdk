@@ -3997,7 +3997,6 @@ void MegaClient::sc_chatcreate()
                 {
                     TextChat *chat = new TextChat;
                     chat->id = chatid;
-                    chat->userpriv = userpriv;
                     chat->shard = shard;
                     chat->group = group;
                     chat->priv = PRIV_UNKNOWN;
@@ -4011,14 +4010,17 @@ void MegaClient::sc_chatcreate()
                         {
                             chat->priv = upvit->second;
                             userpriv->erase(upvit);
+                            if (userpriv->empty())
+                            {
+                                delete userpriv;
+                                userpriv = NULL;
+                            }
                             break;
                         }
                     }
+                    chat->userpriv = userpriv;
 
                     notifychat(chat);
-
-                    delete userpriv;
-                    delete chat;
                 }
                 break;
 
@@ -4097,7 +4099,6 @@ void MegaClient::sc_chatupdate()
                 {
                     TextChat *chat = new TextChat;
                     chat->id = chatid;
-                    chat->userpriv = userpriv;
                     chat->shard = shard;
                     chat->group = group;
                     chat->priv = PRIV_UNKNOWN;
@@ -4111,15 +4112,19 @@ void MegaClient::sc_chatupdate()
                         {
                             chat->priv = upvit->second;
                             userpriv->erase(upvit);
+                            if (userpriv->empty())
+                            {
+                                delete userpriv;
+                                userpriv = NULL;
+                            }
                             break;
                         }
                     }
+                    chat->userpriv = userpriv;
 
                     notifychat(chat);
 
                     delete upnotif;
-                    delete userpriv;
-                    delete chat;
                 }
                 break;
 

@@ -11298,7 +11298,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->priv = chat->getOwnPrivilege();
     this->url = chat->getUrl();
     this->shard = chat->getShard();
-    this->peers = chat->getPeerList()->copy();
+    this->peers = chat->getPeerList() ? chat->getPeerList()->copy() : NULL;
     this->group = chat->isGroup();
 }
 
@@ -11308,7 +11308,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(handle id, int priv, string url, int sh
     this->priv = priv;
     this->url = url;
     this->shard = shard;
-    this->peers = peers->copy();
+    this->peers = peers ? peers->copy() : NULL;
     this->group = group;
 }
 
@@ -11407,7 +11407,7 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_vector *list)
     for (unsigned i = 0; i < list->size(); i++)
     {
         chat = list->at(i);
-        chatPeers = new MegaTextChatPeerListPrivate(chat->userpriv);
+        chatPeers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
         megaChat = new MegaTextChatPrivate(chat->id, chat->priv, chat->url, chat->shard, chatPeers, chat->group);
 
         this->list.push_back(megaChat);
