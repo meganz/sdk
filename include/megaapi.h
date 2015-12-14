@@ -3125,6 +3125,20 @@ class MegaGlobalListener
         virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 
+#ifdef ENABLE_CHAT
+        /**
+         * @brief This function is called when there are new or updated chats
+         *
+         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
+         * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
+         * MegaTextChat::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param chats List that contains the new or updated chats
+         */
+        virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+#endif
         virtual ~MegaGlobalListener();
 };
 
@@ -3393,6 +3407,22 @@ class MegaListener
      */
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
+
+#ifdef ENABLE_SYNC
+    /**
+     * @brief This function is called when there are new or updated chats
+     *
+     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
+     * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
+     * MegaTextChat::copy for those objects.
+     *
+     * @param api MegaApi object connected to the account
+     * @param chats List that contains the new or updated chats
+     */
+    virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+#endif
+
         virtual ~MegaListener();
 };
 

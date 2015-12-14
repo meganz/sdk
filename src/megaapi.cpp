@@ -1006,6 +1006,13 @@ void MegaListener::onGlobalSyncStateChanged(MegaApi *api)
 { }
 #endif
 
+#ifdef ENABLE_CHAT
+void MegaGlobalListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{}
+void MegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{}
+#endif
+
 MegaListener::~MegaListener() {}
 
 bool MegaTreeProcessor::processMegaNode(MegaNode*)

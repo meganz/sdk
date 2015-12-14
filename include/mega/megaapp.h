@@ -174,6 +174,7 @@ struct MEGA_API MegaApp
     virtual void chatremove_result(error) { }
     virtual void chaturl_result(error) { }
     virtual void chaturl_result(string, error) { }
+    virtual void chats_updated(textchat_vector *) {}
 #endif
 
     // global transfer queue updates (separate signaling towards the queued objects)

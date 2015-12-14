@@ -1338,6 +1338,10 @@ protected:
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *filePath, int newState);
 #endif
 
+#ifdef ENABLE_CHAT
+        void fireOnChatsUpdate(MegaTextChatList *chats);
+#endif
+
         MegaApi *api;
         MegaThread thread;
         MegaClient *client;
@@ -1519,6 +1523,7 @@ protected:
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
         virtual void chaturl_result(string, error);
+        virtual void chats_updated(textchat_vector *);
 #endif
 
 #ifdef ENABLE_SYNC

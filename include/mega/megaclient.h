@@ -588,6 +588,11 @@ public:
     node_vector nodenotify;
     void notifynode(Node*);
 
+#ifdef ENABLE_CHAT
+    textchat_vector chatnotify;
+    void notifychat(TextChat *);
+#endif
+
     // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();

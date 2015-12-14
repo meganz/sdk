@@ -5605,6 +5605,18 @@ void MegaApiImpl::chaturl_result(string url, error e)
 
     fireOnRequestFinish(request, megaError);
 }
+
+void MegaApiImpl::chats_updated(textchat_vector *chats)
+{
+    if (!chats || !chats->size())
+    {
+        return;
+    }
+
+    MegaTextChatList *chatList = new MegaTextChatListPrivate(chats);
+    fireOnChatsUpdate(chatList);
+    delete chatList;
+}
 #endif
 
 #ifdef ENABLE_SYNC
@@ -7524,6 +7536,22 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, const char *
     if(listener)
     {
         listener->onSyncFileStateChanged(api, sync, filePath, newState);
+    }
+}
+
+#endif
+
+#ifdef ENABLE_CHAT
+
+void MegaApiImpl::fireOnChatsUpdate(MegaTextChatList *chats)
+{
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ; it++)
+    {
+        (*it)->onChatsUpdate(api, chats);
+    }
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ; it++)
+    {
+        (*it)->onChatsUpdate(api, chats);
     }
 }
 

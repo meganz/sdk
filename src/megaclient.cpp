@@ -4015,8 +4015,7 @@ void MegaClient::sc_chatcreate()
                         }
                     }
 
-//                    notifychat(chat);
-                    //free chat??
+                    notifychat(chat);
 
                     delete userpriv;
                     delete chat;
@@ -4116,8 +4115,7 @@ void MegaClient::sc_chatupdate()
                         }
                     }
 
-//                    notifychat(chat);
-                    //free chat??
+                    notifychat(chat);
 
                     delete upnotif;
                     delete userpriv;
@@ -6422,6 +6420,14 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
         pcrnotify.push_back(pcr);
     }
 }
+
+#ifdef ENABLE_CHAT
+void MegaClient::notifychat(TextChat *chat)
+{
+    chatnotify.push_back(chat);
+}
+
+#endif
 
 // process request for share node keys
 // builds & emits k/cr command
