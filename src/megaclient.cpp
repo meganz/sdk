@@ -2598,19 +2598,8 @@ bool MegaClient::procsc()
                                 break;
 #ifdef ENABLE_CHAT
                             case MAKENAMEID3('m', 'c', 'c'):
-                                // chat creation
-                                sc_chatcreate();
-                                break;
-
-                            case MAKENAMEID3('m', 'c', 'i'):
-                                // chat - peer's invitation
+                                // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate();
-                                break;
-
-                            case MAKENAMEID3('m', 'c', 'r'):
-                                // chat - peer's removal
-                                sc_chatupdate();
-                                break;
 #endif
                         }
                     }
@@ -3940,99 +3929,6 @@ void MegaClient::sc_ph()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::sc_chatcreate()
-{
-    // fields: id, u, cs, g, ou
-    handle chatid = UNDEF;
-    userpriv_vector *userpriv = NULL;
-    int shard = -1;
-    bool group = false;
-    handle ou = UNDEF;
-
-    bool done = false;
-    while (!done)
-    {
-        switch (jsonsc.getnameid())
-        {
-            case MAKENAMEID2('i','d'):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
-                break;
-
-            case 'u':   // list of users participating in the chat (+privileges)
-                userpriv = readuserpriv(&jsonsc);
-                break;
-
-            case MAKENAMEID2('c','s'):
-                shard = jsonsc.getint();
-                break;
-
-            case 'g':
-                group = jsonsc.getint();
-                break;
-
-            case MAKENAMEID2('o','u'):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
-                break;
-
-            case EOO:
-                done = true;
-
-                if(!userpriv)
-                {
-                    LOG_err << "Cannot read user's' list and privilege levels";
-                }
-                else if (ISUNDEF(chatid))
-                {
-                    LOG_err << "Cannot read handle of the chat";
-                }
-                else if (ISUNDEF(ou))
-                {
-                    LOG_err << "Cannot read originating user of action packet";
-                }
-                else if (shard == -1)
-                {
-                    LOG_err << "Cannot read chat shard";
-                }
-                else
-                {
-                    TextChat *chat = new TextChat;
-                    chat->id = chatid;
-                    chat->shard = shard;
-                    chat->group = group;
-                    chat->priv = PRIV_UNKNOWN;
-                    chat->url = ""; // not received in action packets
-
-                    // find 'me' in list of users, get privilege and remove user
-                    userpriv_vector::iterator upvit;
-                    for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
-                    {
-                        if (upvit->first == me)
-                        {
-                            chat->priv = upvit->second;
-                            userpriv->erase(upvit);
-                            if (userpriv->empty())
-                            {
-                                delete userpriv;
-                                userpriv = NULL;
-                            }
-                            break;
-                        }
-                    }
-                    chat->userpriv = userpriv;
-
-                    notifychat(chat);
-                }
-                break;
-
-            default:
-                if (!jsonsc.storeobject())
-                {
-                    return;
-                }
-        }
-    }
-}
-
 void MegaClient::sc_chatupdate()
 {
     // fields: id, u, cs, n, g, ou
@@ -4060,7 +3956,7 @@ void MegaClient::sc_chatupdate()
                 shard = jsonsc.getint();
                 break;
 
-            case 'n':   // the new user, for notification purposes
+            case 'n':   // the new user, for notification purposes (not used)
                 upnotif = readuserpriv(&jsonsc);
                 break;
 
@@ -4078,10 +3974,6 @@ void MegaClient::sc_chatupdate()
                 if(!userpriv)
                 {
                     LOG_err << "Cannot read user's' list and privilege levels";
-                }
-                else if (!upnotif)
-                {
-                    LOG_err << "Cannot read new user for notification purposes";
                 }
                 else if (ISUNDEF(chatid))
                 {
@@ -4271,6 +4163,7 @@ void MegaClient::notifypurge(void)
         usernotify.clear();
     }
 
+#ifdef ENABLE_CHAT
     if ((t = chatnotify.size()))
     {
         if (!fetchingnodes)
@@ -4284,6 +4177,7 @@ void MegaClient::notifypurge(void)
         }
         chatnotify.clear();
     }
+#endif
 }
 
 // return node pointer derived from node handle

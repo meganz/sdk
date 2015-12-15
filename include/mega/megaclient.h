@@ -402,7 +402,6 @@ private:
     void sc_upc();
     void sc_ph();
 #ifdef ENABLE_CHAT
-    void sc_chatcreate();
     void sc_chatupdate();
 #endif
 
