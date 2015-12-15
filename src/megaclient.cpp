@@ -3971,11 +3971,7 @@ void MegaClient::sc_chatupdate()
             case EOO:
                 done = true;
 
-                if(!userpriv)
-                {
-                    LOG_err << "Cannot read user's' list and privilege levels";
-                }
-                else if (ISUNDEF(chatid))
+                if (ISUNDEF(chatid))
                 {
                     LOG_err << "Cannot read handle of the chat";
                 }
@@ -3996,20 +3992,23 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->url = ""; // not received in action packets
 
-                    // find 'me' in list of users, get privilege and remove user
-                    userpriv_vector::iterator upvit;
-                    for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                    if (userpriv)
                     {
-                        if (upvit->first == me)
+                        // find 'me' in list of users, get privilege and remove user
+                        userpriv_vector::iterator upvit;
+                        for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                         {
-                            chat->priv = upvit->second;
-                            userpriv->erase(upvit);
-                            if (userpriv->empty())
+                            if (upvit->first == me)
                             {
-                                delete userpriv;
-                                userpriv = NULL;
+                                chat->priv = upvit->second;
+                                userpriv->erase(upvit);
+                                if (userpriv->empty())
+                                {
+                                    delete userpriv;
+                                    userpriv = NULL;
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
                     chat->userpriv = userpriv;
