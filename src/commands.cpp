@@ -3502,7 +3502,7 @@ void CommandChatCreate::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatcreate_result((error)client->json.getint());
+        client->app->chatcreate_result(NULL, (error)client->json.getint());
     }
     else
     {
@@ -3542,19 +3542,19 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
 
-                        client->app->chatcreate_result(chat);
+                        client->app->chatcreate_result(chat, API_OK);
                         delete chat;
                     }
                     else
                     {
-                        client->app->chatcreate_result(API_EINTERNAL);
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
                     }
                     return;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatcreate_result(API_EINTERNAL);
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
                     }
             }
         }
@@ -3574,19 +3574,19 @@ void CommandChatFetch::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatfetch_result((error)client->json.getint());
+        client->app->chatfetch_result(NULL, (error)client->json.getint());
     }
     else
     {
         if(client->json.getnameid() != 'c')
         {
-            client->app->chatfetch_result(API_EINTERNAL);
+            client->app->chatfetch_result(NULL, API_EINTERNAL);
             return;
         }
 
         if(!client->json.enterarray())
         {
-            client->app->chatfetch_result(API_EINTERNAL);
+            client->app->chatfetch_result(NULL, API_EINTERNAL);
             return;
         }
 
@@ -3704,11 +3704,11 @@ void CommandChatFetch::procresult()
 
         if (!e)
         {
-            client->app->chatfetch_result(chatlist);
+            client->app->chatfetch_result(chatlist, API_OK);
         }
         else
         {
-            client->app->chatfetch_result(e);
+            client->app->chatfetch_result(NULL, e);
         }
 
         // clean allocated memory
@@ -3719,6 +3719,7 @@ void CommandChatFetch::procresult()
             delete chat->userpriv;
         }
         chatlist->clear();
+        delete chatlist;
     }
 }
 
@@ -3792,18 +3793,18 @@ void CommandChatURL::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chaturl_result((error)client->json.getint());
+        client->app->chaturl_result(NULL, (error)client->json.getint());
     }
     else
     {
         string url;
         if (!client->json.storeobject(&url))
         {
-            client->app->chaturl_result(API_EINTERNAL);
+            client->app->chaturl_result(NULL, API_EINTERNAL);
         }
         else
         {
-            client->app->chaturl_result(url, API_OK);
+            client->app->chaturl_result(&url, API_OK);
         }
     }
 }

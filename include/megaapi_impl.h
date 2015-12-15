@@ -1515,14 +1515,12 @@ protected:
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
-        virtual void chatcreate_result(error);
-        virtual void chatcreate_result(TextChat *);
-        virtual void chatfetch_result(error);
-        virtual void chatfetch_result(textchat_vector *chatList);
+        virtual void chatcreate_result(TextChat *, error);
+        virtual void chatfetch_result(textchat_vector *chatList, error);
         virtual void chatinvite_result(error);
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
-        virtual void chaturl_result(string, error);
+        virtual void chaturl_result(string*, error);
         virtual void chats_updated(textchat_vector *);
 #endif
 

@@ -5513,52 +5513,41 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::chatcreate_result(error e)
+
+void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
 {
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_CREATE)) return;
 
+    if (!e)
+    {
+        // encapsulate the chat in a list for the request
+        textchat_vector chatList;
+        chatList.push_back(chat);
+
+        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(&chatList);
+        request->setMegaTextChatList(megaChatList);
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatcreate_result(TextChat *chat)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_CREATE)) return;
-
-    // encapsulate the chat in a list for the request
-    textchat_vector chatList;
-    chatList.push_back(chat);
-
-    MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(&chatList);
-    request->setMegaTextChatList(megaChatList);
-
-    fireOnRequestFinish(request, MegaError(API_OK));
-}
-
-void MegaApiImpl::chatfetch_result(error e)
+void MegaApiImpl::chatfetch_result(textchat_vector *chatList, error e)
 {
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
 
+    if (!e)
+    {
+        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(chatList);
+        request->setMegaTextChatList(megaChatList);
+    }
+
     fireOnRequestFinish(request, megaError);
-}
-
-void MegaApiImpl::chatfetch_result(textchat_vector *chatList)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_FETCH)) return;
-
-    MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(chatList);
-    request->setMegaTextChatList(megaChatList);
-
-    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 void MegaApiImpl::chatinvite_result(error e)
@@ -5591,7 +5580,7 @@ void MegaApiImpl::chaturl_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chaturl_result(string url, error e)
+void MegaApiImpl::chaturl_result(string *url, error e)
 {
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -5600,7 +5589,7 @@ void MegaApiImpl::chaturl_result(string url, error e)
 
     if (!e)
     {
-        request->setLink(url.c_str());
+        request->setLink(url->c_str());
     }
 
     fireOnRequestFinish(request, megaError);
