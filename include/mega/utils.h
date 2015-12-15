@@ -247,7 +247,7 @@ private:
     static TLVstore * containerToTLVrecords(const string data);
 
 
-    string TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode = AES_CCM_12_16);
+    string TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode = AES_GCM_12_16);
 
     string TLVrecordsToContainer();
 

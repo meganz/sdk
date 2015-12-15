@@ -251,6 +251,7 @@ void SymmCipher::ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLen
  */
 void SymmCipher::gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
 {
+    aesgcm_e.SetKeyWithIV(this->key, KEYLENGTH, iv);
     aesgcm_e.Resynchronize(iv, ivLength);
     aesgcm_e.ProcessData(data, data, len);
 }
@@ -272,6 +273,7 @@ void SymmCipher::gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLen
  */
 void SymmCipher::gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
 {
+    aesgcm_d.SetKeyWithIV(this->key, this->KEYLENGTH, iv);
     aesgcm_d.Resynchronize(iv, ivLength);
     aesgcm_d.ProcessData(data, data, len);
 }
