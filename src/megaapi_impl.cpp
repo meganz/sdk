@@ -2961,16 +2961,10 @@ void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListe
 void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
-    if(node)
+    if (node)
     {
-        if(node->isPublic())
-        {
-            request->setPublicNode(node);
-        }
-        else
-        {
-            request->setNodeHandle(node->getHandle());
-        }
+        request->setPublicNode(node);
+        request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
 	requestQueue.push(request);
@@ -2980,16 +2974,10 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener
 void MegaApiImpl::copyNode(MegaNode *node, MegaNode *target, const char *newName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
-    if(node)
+    if (node)
     {
-        if(node->isPublic())
-        {
-            request->setPublicNode(node);
-        }
-        else
-        {
-            request->setNodeHandle(node->getHandle());
-        }
+        request->setPublicNode(node);
+        request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
     request->setName(newName);
@@ -3029,7 +3017,11 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestList
 void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
-    if(node) request->setNodeHandle(node->getHandle());
+    if (node)
+    {
+        request->setPublicNode(node);
+        request->setNodeHandle(node->getHandle());
+    }
     request->setEmail(email);
 	requestQueue.push(request);
     waiter->notify();
@@ -8441,22 +8433,36 @@ void MegaApiImpl::sendPendingRequests()
             MegaNode *publicNode = request->getPublicNode();
             const char *newName = request->getName();
 
-            if((!node && !publicNode) || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
+            if (!publicNode || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
 
-            if(publicNode)
+            if (!node)
             {
-                if(publicNode->getAuth()->size())
-                {
-                    e = API_EACCESS;
-                    break;
-                }
-
                 NewNode *newnode = new NewNode[1];
                 newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
                 newnode->attrstring = new string;
-                newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+
+                if (publicNode->isPublic())
+                {
+                    newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+                    newnode->source = NEW_PUBLIC;
+                }
+                else
+                {
+                    SymmCipher key;
+                    AttrMap attrs;
+
+                    key.setkey((const byte*)publicNode->getNodeKey()->data(), FILENODE);
+                    string sname = publicNode->getName();
+                    fsAccess->normalize(&sname);
+                    attrs.map['n'] = sname;
+
+                    string attrstring;
+                    attrs.getjson(&attrstring);
+                    client->makeattr(&key,newnode->attrstring, attrstring.c_str());
+                    newnode->source = NEW_NODE;
+                }
+
                 newnode->nodehandle = publicNode->getHandle();
-                newnode->source = NEW_PUBLIC;
                 newnode->type = FILENODE;
                 newnode->parenthandle = UNDEF;
 
