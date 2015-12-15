@@ -199,6 +199,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         responseReceived = true;
         break;
 
+#ifdef ENABLE_CHAT
     case MegaRequest::TYPE_CHAT_FETCH:
         if (lastError == API_OK)
         {
@@ -230,7 +231,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             link.assign(request->getLink());
         }
-
+#endif
         responseReceived = true;
         break;
 
