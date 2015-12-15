@@ -3408,7 +3408,7 @@ class MegaListener
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 
-#ifdef ENABLE_SYNC
+#ifdef ENABLE_CHAT
     /**
      * @brief This function is called when there are new or updated chats
      *
