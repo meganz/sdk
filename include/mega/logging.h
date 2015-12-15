@@ -154,7 +154,7 @@ public:
         return "";
     }
 
-    static const char *toNodeHandle(mega::handle nodeHandle)
+    static const char *toNodeHandle(handle nodeHandle)
     {
         Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
         return base64Handle;
