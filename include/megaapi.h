@@ -449,7 +449,7 @@ class MegaNode
         virtual const char* getName();
 
         /**
-         * @brief Returns the fingerprint of the node
+         * @brief Returns the fingerprint (Base64-encoded) of the node
          *
          * Only files have a fingerprint, and there could be files without it.
          * If the node doesn't have a fingerprint, this funtion returns NULL
@@ -457,7 +457,7 @@ class MegaNode
          * The MegaNode object retains the ownership of the returned string. It will
          * be valid until the MegaNode object is deleted.
          *
-         * @return Fingerprint of the node, or NULL it the node doesn't have a fingerprint.
+         * @return Base64-encoded fingerprint of the node, or NULL it the node doesn't have a fingerprint.
          */
         virtual const char* getFingerprint();
 
