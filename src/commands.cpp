@@ -2049,7 +2049,7 @@ void CommandGetUA::procresult()
             if (!tlvRecords)
             {
                 LOG_err << "Cannot extract TLV records for private attribute " << attributename;
-                client->app->getua_result(API_EINTERNAL);
+                client->app->getua_result(API_EKEY);
                 delete [] data;
                 return;
             }

@@ -544,7 +544,9 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
             unsigned extraBytes = pos - offset - typelen;    // assume all 'T' strings have same length
             if (pos != string::npos && extraBytes)
             {
-                offset += extraBytes;   // skip them
+//                offset += extraBytes;   // skip them
+                delete tlv;
+                return NULL;
             }
         }
     }
