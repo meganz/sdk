@@ -173,11 +173,12 @@ class MegaNodePrivate : public MegaNode
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
-                        MegaHandle parentHandle = INVALID_HANDLE, const char*auth = NULL);
+                        const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE, const char*auth = NULL);
         MegaNodePrivate(MegaNode *node);
         virtual ~MegaNodePrivate();
         virtual int getType();
         virtual const char* getName();
+        virtual const char* getFingerprint();
         virtual bool hasCustomAttrs();
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
@@ -223,6 +224,7 @@ class MegaNodePrivate : public MegaNode
         MegaNodePrivate(Node *node);
         int type;
         const char *name;
+        const char *fingerprint;
         attr_map *customAttrs;
         int64_t size;
         int64_t ctime;
