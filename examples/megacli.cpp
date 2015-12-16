@@ -496,19 +496,26 @@ void DemoApp::chatcreate_result(TextChat *chat, error e)
 
 void DemoApp::chatfetch_result(textchat_vector *chats, error e)
 {
-    if (chats->size() == 1)
+    if (e)
     {
-        cout << "1 chat received or updated" << endl;
+        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
     }
     else
     {
-        cout << chats->size() << " chats received or updated" << endl;
-    }
+        if (chats->size() == 1)
+        {
+            cout << "1 chat received or updated" << endl;
+        }
+        else
+        {
+            cout << chats->size() << " chats received or updated" << endl;
+        }
 
-    for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
-    {
-        printChatInformation(*it);
-        cout << endl;
+        for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
+        {
+            printChatInformation(*it);
+            cout << endl;
+        }
     }
 }
 
