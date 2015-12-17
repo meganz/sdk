@@ -41,8 +41,25 @@ namespace mega {
 #ifdef USE_IOS
     char* PosixFileSystemAccess::appbasepath = NULL;
 #endif
-    
-PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
+
+PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
+{
+    synchronizer = NULL;
+}
+
+PosixAsyncIOContext::~PosixAsyncIOContext()
+{
+    LOG_verbose << "Deleting PosixAsyncIOContext";
+    pthread_mutex_lock(&PosixFileAccess::asyncmutex);
+    if (synchronizer)
+    {
+        synchronizer->context = NULL;
+        synchronizer = NULL;
+    }
+    pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
+}
+
+PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
 {
     fd = -1;
     this->defaultfilepermissions = defaultfilepermissions;
@@ -129,6 +146,174 @@ void PosixFileAccess::sysclose()
         // fd will always be valid at this point
         close(fd);
         fd = -1;
+    }
+}
+
+pthread_mutex_t PosixFileAccess::asyncmutex = PTHREAD_MUTEX_INITIALIZER;
+
+bool PosixFileAccess::asyncavailable()
+{
+    return true;
+}
+
+AsyncIOContext *PosixFileAccess::newasynccontext()
+{
+    return new PosixAsyncIOContext();
+}
+
+void PosixFileAccess::asyncopfinished(union sigval sigev_value)
+{
+    PosixAsyncSynchronizer *synchronizer = (PosixAsyncSynchronizer *)(sigev_value.sival_ptr);
+
+    pthread_mutex_lock(&PosixFileAccess::asyncmutex);
+    PosixAsyncIOContext *context = synchronizer->context;
+    struct aiocb *aiocbp = synchronizer->aiocb;
+
+    if (!context)
+    {
+        LOG_debug << "Async IO request already cancelled";
+        delete synchronizer;
+        delete aiocbp;
+        pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
+        return;
+    }
+
+    context->synchronizer = NULL;
+    context->failed = aio_error(aiocbp);
+    if (!context->failed)
+    {
+        if (context->op == AsyncIOContext::READ)
+        {
+            memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
+            LOG_verbose << "Async read finished OK";
+        }
+        else
+        {
+            LOG_verbose << "Async write finished OK";
+        }
+    }
+    else
+    {
+        LOG_warn << "Async operation finished with error";
+    }
+
+    delete synchronizer;
+    delete aiocbp;
+
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+    pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
+}
+
+void PosixFileAccess::asyncsysread(AsyncIOContext *context)
+{
+    if (!context)
+    {
+        return;
+    }
+
+    PosixAsyncIOContext *posixContext = dynamic_cast<PosixAsyncIOContext*>(context);
+    if (!posixContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    struct aiocb *aiocbp = new struct aiocb;
+    memset(aiocbp, 0, sizeof (struct aiocb));
+
+    aiocbp->aio_fildes = fd;
+    aiocbp->aio_buf = (void *)posixContext->buffer;
+    aiocbp->aio_nbytes = posixContext->len;
+    aiocbp->aio_offset = posixContext->pos;
+
+    PosixAsyncSynchronizer *synchronizer = new PosixAsyncSynchronizer();
+    synchronizer->aiocb = aiocbp;
+    synchronizer->context = posixContext;
+    posixContext->synchronizer = synchronizer;
+
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
+    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
+
+    if (aio_read(aiocbp))
+    {
+        LOG_warn << "Async read failed at startup";
+        posixContext->failed = true;
+        posixContext->retry = false;
+        posixContext->finished = true;
+        posixContext->synchronizer = NULL;
+        delete synchronizer;
+        delete aiocbp;
+
+        if (posixContext->userCallback)
+        {
+            posixContext->userCallback(posixContext->userData);
+        }
+    }
+}
+
+void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+    if (!context)
+    {
+        return;
+    }
+
+    PosixAsyncIOContext *posixContext = dynamic_cast<PosixAsyncIOContext*>(context);
+    if (!posixContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    struct aiocb *aiocbp = new struct aiocb;
+    memset(aiocbp, 0, sizeof (struct aiocb));
+
+    aiocbp->aio_fildes = fd;
+    aiocbp->aio_buf = (void *)posixContext->buffer;
+    aiocbp->aio_nbytes = posixContext->len;
+    aiocbp->aio_offset = posixContext->pos;
+
+    PosixAsyncSynchronizer *synchronizer = new PosixAsyncSynchronizer();
+    synchronizer->aiocb = aiocbp;
+    synchronizer->context = posixContext;
+    posixContext->synchronizer = synchronizer;
+
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)synchronizer;
+    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
+
+    if (aio_write(aiocbp))
+    {
+        LOG_warn << "Async read failed at startup";
+        posixContext->failed = true;
+        posixContext->retry = false;
+        posixContext->finished = true;
+        posixContext->synchronizer = NULL;
+        delete synchronizer;
+        delete aiocbp;
+
+        if (posixContext->userCallback)
+        {
+            posixContext->userCallback(posixContext->userData);
+        }
     }
 }
 
@@ -1384,7 +1569,7 @@ fsfp_t PosixDirNotify::fsfingerprint()
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {
-    return new PosixFileAccess(defaultfilepermissions);
+    return new PosixFileAccess(waiter, defaultfilepermissions);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

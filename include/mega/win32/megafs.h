@@ -134,7 +134,7 @@ public:
 
     static bool skipattributes(DWORD);
 
-    WinFileAccess();
+    WinFileAccess(Waiter *w);
     ~WinFileAccess();
 };
 } // namespace

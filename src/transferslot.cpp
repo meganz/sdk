@@ -57,6 +57,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     LOG_debug << "Creating transfer slot with " << connections << " connections";
 
     reqs = new HttpReqXfer*[connections]();
+    asyncIO = new AsyncIOContext*[connections]();
 
     fa = transfer->client->fsaccess->newfileaccess();
 
@@ -90,7 +91,11 @@ TransferSlot::~TransferSlot()
                 while (endpos <= finalpos)
                 {
                     m_off_t chunksize = endpos - startpos;
-                    reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
+                    reqs[i]->finalize(&transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
+                    fa->fwrite(bufstart, chunksize, startpos);
+                    ChunkMAC &chunkmac = transfer->chunkmacs[ChunkedHash::chunkfloor(startpos)];
+                    chunkmac.offset = 0;
+                    chunkmac.finished = true;
                     transfer->progresscompleted += chunksize;
                     LOG_debug << "Caching finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
@@ -149,9 +154,11 @@ TransferSlot::~TransferSlot()
 
     while (connections--)
     {
+        delete asyncIO[connections];
         delete reqs[connections];
     }
 
+    delete[] asyncIO;
     delete[] reqs;
 }
 
@@ -264,6 +271,7 @@ void TransferSlot::doio(MegaClient* client)
 
     if (errorcount > 4)
     {
+        LOG_warn << "Failed transfer: too many errors";
         return transfer->failed(lasterror);
     }
 
@@ -371,55 +379,87 @@ void TransferSlot::doio(MegaClient* client)
 
                         errorcount = 0;
                         transfer->failcount = 0;
+                        client->transfercacheadd(transfer);
+                        reqs[i]->status = REQ_READY;
                     }
                     else
                     {
                         if (reqs[i]->size == reqs[i]->bufpos)
                         {
-                            m_off_t startpos = ((HttpReqDL *)reqs[i])->dlpos;
-                            m_off_t finalpos = startpos + reqs[i]->bufpos;
-                            while (startpos < finalpos)
+                            errorcount = 0;
+
+                            if (fa->asyncavailable())
                             {
-                                m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);
-                                m_off_t chunksize = endpos - startpos;
-                                reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
-                                transfer->progresscompleted += chunksize;
-                                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                                startpos = endpos;
-                            }
-
-                            if (transfer->progresscompleted == transfer->size)
-                            {
-                                if (transfer->progresscompleted)
+                                if (!asyncIO[i])
                                 {
-                                    transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                    transfer->hascurrentmetamac = true;
-                                }
-
-                                // verify meta MAC
-                                if (!transfer->progresscompleted
-                                        || (transfer->currentmetamac == transfer->metamac))
-                                {
-                                    errorcount = 0;
-                                    transfer->failcount = 0;
-                                    client->transfercacheadd(transfer);
-
-                                    if (transfer->progresscompleted != progressreported)
-                                    {
-                                        progressreported = transfer->progresscompleted;
-                                        lastdata = Waiter::ds;
-
-                                        progress();
-                                    }
-
-                                    return transfer->complete();
+                                    reqs[i]->finalize(&transfer->key, &transfer->chunkmacs, transfer->ctriv, 0, -1);
                                 }
                                 else
                                 {
-                                    LOG_warn << "MAC verification failed";                                    
-                                    transfer->chunkmacs.clear();
-                                    return transfer->failed(API_EKEY);
+                                    LOG_warn << "Retrying failed async write";
+                                    delete asyncIO[i];
+                                    asyncIO[i] = NULL;
                                 }
+
+                                transfer->progresscompleted -= reqs[i]->size;
+                                asyncIO[i] = fa->asyncfwrite(reqs[i]->buf, reqs[i]->bufpos, ((HttpReqDL *)reqs[i])->dlpos);
+                                reqs[i]->status = REQ_ASYNCIO;
+                            }
+                            else
+                            {
+                                m_off_t startpos = ((HttpReqDL *)reqs[i])->dlpos;
+                                m_off_t finalpos = startpos + reqs[i]->bufpos;
+                                byte *chunkstart = reqs[i]->buf;
+                                while (startpos < finalpos)
+                                {
+                                    m_off_t endpos = ChunkedHash::chunkceil(startpos, transfer->size);
+                                    m_off_t chunksize = endpos - startpos;
+                                    reqs[i]->finalize(&transfer->key, &transfer->chunkmacs, transfer->ctriv, startpos, endpos);
+                                    fa->fwrite(chunkstart, chunksize, startpos);
+                                    ChunkMAC &chunkmac = transfer->chunkmacs[ChunkedHash::chunkfloor(startpos)];
+                                    chunkmac.offset = 0;
+                                    chunkmac.finished = true;
+                                    transfer->progresscompleted += chunksize;
+                                    LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                                    chunkstart += chunksize;
+                                    startpos = endpos;
+                                }
+
+                                if (transfer->progresscompleted == transfer->size)
+                                {
+                                    if (transfer->progresscompleted)
+                                    {
+                                        transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+                                        transfer->hascurrentmetamac = true;
+                                    }
+
+                                    // verify meta MAC
+                                    if (!transfer->progresscompleted
+                                            || (transfer->currentmetamac == transfer->metamac))
+                                    {
+                                        errorcount = 0;
+                                        transfer->failcount = 0;
+                                        client->transfercacheadd(transfer);
+
+                                        if (transfer->progresscompleted != progressreported)
+                                        {
+                                            progressreported = transfer->progresscompleted;
+                                            lastdata = Waiter::ds;
+
+                                            progress();
+                                        }
+
+                                        return transfer->complete();
+                                    }
+                                    else
+                                    {
+                                        LOG_warn << "MAC verification failed";
+                                        transfer->chunkmacs.clear();
+                                        return transfer->failed(API_EKEY);
+                                    }
+                                }
+                                client->transfercacheadd(transfer);
+                                reqs[i]->status = REQ_READY;
                             }
                             errorcount = 0;
                             transfer->failcount = 0;
@@ -433,9 +473,88 @@ void TransferSlot::doio(MegaClient* client)
                             break;
                         }
                     }
+                    break;
 
-                    client->transfercacheadd(transfer);
-                    reqs[i]->status = REQ_READY;
+                case REQ_ASYNCIO:
+                    if (asyncIO[i]->finished)
+                    {
+                        LOG_verbose << "Processing finished async fs operation";
+                        if (!asyncIO[i]->failed)
+                        {
+                            if (transfer->type == PUT)
+                            {
+                                LOG_verbose << "Async read succeeded";
+                                m_off_t npos = ChunkedHash::chunkceil(asyncIO[i]->pos);
+
+                                if (npos > transfer->size)
+                                {
+                                    npos = transfer->size;
+                                }
+
+                                string finaltempurl = tempurl;
+                                if (transfer->type == GET && client->usealtdownport
+                                        && !memcmp(tempurl.c_str(), "http:", 5))
+                                {
+                                    size_t index = tempurl.find("/", 8);
+                                    if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                                    {
+                                        finaltempurl.insert(index, ":8080");
+                                    }
+                                }
+
+                                if (transfer->type == PUT && client->usealtupport
+                                        && !memcmp(tempurl.c_str(), "http:", 5))
+                                {
+                                    size_t index = tempurl.find("/", 8);
+                                    if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                                    {
+                                        finaltempurl.insert(index, ":8080");
+                                    }
+                                }
+
+                                reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                                         &transfer->chunkmacs, transfer->ctriv,
+                                         asyncIO[i]->pos, npos);
+
+                                reqs[i]->status = REQ_PREPARED;
+                            }
+                            else
+                            {
+                                LOG_verbose << "Async write succeeded";
+                                transfer->progresscompleted += reqs[i]->size;
+                                if (transfer->progresscompleted == transfer->size)
+                                {
+                                    // verify meta MAC
+                                    if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
+                                    {
+                                        return transfer->complete();
+                                    }
+                                    else
+                                    {
+                                        transfer->progresscompleted -= reqs[i]->size;
+                                        return transfer->failed(API_EKEY);
+                                    }
+                                }
+                                reqs[i]->status = REQ_READY;
+                            }
+                            delete asyncIO[i];
+                            asyncIO[i] = NULL;
+                        }
+                        else
+                        {
+                            LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
+                            if (!asyncIO[i]->retry)
+                            {
+                                delete asyncIO[i];
+                                asyncIO[i] = NULL;
+                                return transfer->failed(transfer->type == PUT ? API_EREAD : API_EWRITE);
+                            }
+
+                            // retry shortly
+                            reqs[i]->status = transfer->type == PUT ? REQ_READY : REQ_SUCCESS;
+                            backoff = 2;
+                        }
+                    }
                     break;
 
                 case REQ_FAILURE:
@@ -513,7 +632,7 @@ void TransferSlot::doio(MegaClient* client)
                     transfer->pos = 0;
                 }
 
-                if ((npos > transfer->pos) || !transfer->size)
+                if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
                     if (transfer->type == GET && transfer->size && transfer->pos >= 3670016)
                     {
@@ -557,45 +676,79 @@ void TransferSlot::doio(MegaClient* client)
                         reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
                     }
 
-                    string finaltempurl = tempurl;
-                    if (transfer->type == GET && client->usealtdownport
-                            && !memcmp(tempurl.c_str(), "http:", 5))
+                    bool prepare = true;
+                    if (transfer->type == PUT)
                     {
-                        size_t index = tempurl.find("/", 8);
-                        if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                        unsigned pos = transfer->pos;
+                        unsigned size = (unsigned)(npos - pos);
+
+                        if (fa->asyncavailable())
                         {
-                            finaltempurl.insert(index, ":8080");
+                            if (asyncIO[i])
+                            {
+                                LOG_warn << "Retrying a failed read";
+                                pos = asyncIO[i]->pos;
+                                size = asyncIO[i]->len;
+                                npos = ChunkedHash::chunkceil(pos);
+                                delete asyncIO[i];
+                                asyncIO[i] = NULL;
+                            }
+
+                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
+                            reqs[i]->status = REQ_ASYNCIO;
+                            prepare = false;
+                        }
+                        else
+                        {
+                            if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos))
+                            {
+                                LOG_warn << "Error preparing transfer: " << fa->retry;
+                                if (!fa->retry)
+                                {
+                                    return transfer->failed(API_EREAD);
+                                }
+
+                                // retry the read shortly
+                                backoff = 2;
+                                npos = transfer->pos;
+                                prepare = false;
+                            }
                         }
                     }
 
-                    if (transfer->type == PUT && client->usealtupport
-                            && !memcmp(tempurl.c_str(), "http:", 5))
+                    if (prepare)
                     {
-                        size_t index = tempurl.find("/", 8);
-                        if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                        string finaltempurl = tempurl;
+                        if (transfer->type == GET && client->usealtdownport
+                                && !memcmp(tempurl.c_str(), "http:", 5))
                         {
-                            finaltempurl.insert(index, ":8080");
+                            size_t index = tempurl.find("/", 8);
+                            if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                            {
+                                finaltempurl.insert(index, ":8080");
+                            }
                         }
-                    }
 
-                    if (reqs[i]->prepare(fa, finaltempurl.c_str(), &transfer->key,
-                                         &transfer->chunkmacs, transfer->ctriv,
-                                         transfer->pos, npos))
-                    {
+                        if (transfer->type == PUT && client->usealtupport
+                                && !memcmp(tempurl.c_str(), "http:", 5))
+                        {
+                            size_t index = tempurl.find("/", 8);
+                            if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                            {
+                                finaltempurl.insert(index, ":8080");
+                            }
+                        }
+
+                        reqs[i]->prepare(finaltempurl.c_str(), &transfer->key,
+                                                                 &transfer->chunkmacs, transfer->ctriv,
+                                                                 transfer->pos, npos);
                         reqs[i]->pos = ChunkedHash::chunkfloor(transfer->pos);
                         reqs[i]->status = REQ_PREPARED;
-                        transfer->pos = npos;
                     }
-                    else
-                    {
-                        LOG_warn << "Error preparing transfer: " << fa->retry;
-                        if (!fa->retry)
-                        {
-                            return transfer->failed(API_EREAD);
-                        }
 
-                        // retry the read shortly
-                        backoff = 2;
+                    if (transfer->pos < npos)
+                    {
+                        transfer->pos = npos;
                     }
                 }
                 else if (reqs[i])

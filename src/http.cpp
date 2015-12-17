@@ -526,7 +526,7 @@ m_off_t HttpReq::transferred(MegaClient*)
 }
 
 // prepare file chunk download
-bool HttpReqDL::prepare(FileAccess* /*fa*/, const char* tempurl, SymmCipher* /*key*/,
+void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
                         chunkmac_map* /*macs*/, uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
@@ -549,12 +549,10 @@ bool HttpReqDL::prepare(FileAccess* /*fa*/, const char* tempurl, SymmCipher* /*k
         buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
         buflen = size;
     }
-
-    return true;
 }
 
 // decrypt, mac and write downloaded chunk
-void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
+void HttpReqDL::finalize(SymmCipher* key, chunkmac_map* macs,
                          uint64_t ctriv, m_off_t startpos, m_off_t endpos)
 {
     unsigned skip;
@@ -593,24 +591,14 @@ void HttpReqDL::finalize(FileAccess* fa, SymmCipher* key, chunkmac_map* macs,
     ChunkMAC &chunkmac = (*macs)[ChunkedHash::chunkfloor(chunkpos)];
     key->ctr_crypt(chunkstart, chunklen, chunkpos, ctriv, chunkmac.mac, 0,
             !chunkmac.finished && !chunkmac.offset);
-
-    fa->fwrite(chunkstart, chunklen, chunkpos);
-
-    chunkmac.finished = true;
-    chunkmac.offset = 0;
 }
 
 // prepare chunk for uploading: mac and encrypt
-bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
+void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
                         chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
                         m_off_t npos)
 {
     size = (unsigned)(npos - pos);
-
-    if (!fa->fread(out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos))
-    {
-        return false;
-    }
 
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
@@ -621,7 +609,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
 
     // unpad for POSTing
     out->resize(size);
-
 
     const char *data = out->data();
     byte c[CRCSIZE];
@@ -656,7 +643,6 @@ bool HttpReqUL::prepare(FileAccess* fa, const char* tempurl, SymmCipher* key,
     Base64::btoa(c, CRCSIZE, crc);
     snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
     setreq(buf, REQ_BINARY);
-    return true;
 }
 
 // number of bytes sent in this request

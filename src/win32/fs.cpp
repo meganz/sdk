@@ -22,7 +22,7 @@
 #include "mega.h"
 
 namespace mega {
-WinFileAccess::WinFileAccess()
+WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
     hFile = INVALID_HANDLE_VALUE;
     hFind = INVALID_HANDLE_VALUE;
@@ -1169,7 +1169,7 @@ WinDirNotify::~WinDirNotify()
 
 FileAccess* WinFileSystemAccess::newfileaccess()
 {
-    return new WinFileAccess();
+    return new WinFileAccess(waiter);
 }
 
 DirAccess* WinFileSystemAccess::newdiraccess()

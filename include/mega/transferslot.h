@@ -81,6 +81,9 @@ struct MEGA_API TransferSlot
     int connections;
     HttpReqXfer** reqs;
 
+    // async IO operations
+    AsyncIOContext** asyncIO;
+
     // handle I/O for this slot
     void doio(MegaClient*);
 

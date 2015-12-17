@@ -23,6 +23,7 @@
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
+#include "mega/logging.h"
 
 namespace mega {
 void FileSystemAccess::captimestamp(m_time_t* t)
@@ -165,6 +166,11 @@ DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
     return new DirNotify(localpath, ignore);
 }
 
+FileAccess::FileAccess(Waiter *waiter)
+{
+    this->waiter = waiter;
+}
+
 // open file for reading
 bool FileAccess::fopen(string* name)
 {
@@ -207,6 +213,88 @@ void FileAccess::closef()
     }
 }
 
+void FileAccess::asyncopfinished(void *param)
+{
+    AsyncIOContext *context = (AsyncIOContext *)param;
+    if (context->waiter)
+    {
+        context->waiter->notify();
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, m_off_t pos)
+{
+    LOG_verbose << "Async read start";
+    dst->resize(len + pad);
+
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::READ;
+    context->pos = pos;
+    context->len = len;
+    context->pad = pad;
+    context->buffer = (byte *)dst->data();
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = context;
+
+    if (!openf())
+    {
+        LOG_warn << "Async read failed opening file";
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        asyncopfinished(context);
+        return context;
+    }
+
+    asyncsysread(context);
+    return context;
+}
+
+void FileAccess::asyncsysread(AsyncIOContext *context)
+{
+    context->failed = true;
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t pos)
+{
+    LOG_verbose << "Async write start";
+
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::WRITE;
+    context->pos = pos;
+    context->len = len;
+    context->buffer = (byte *)data;
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = context;
+
+    asyncsyswrite(context);
+    return context;
+}
+
+void FileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+    context->failed = true;
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+AsyncIOContext *FileAccess::newasynccontext()
+{
+    return new AsyncIOContext();
+}
+
 bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
 {
     if (!openf())
@@ -241,4 +329,21 @@ bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos)
 
     return r;
 }
+
+AsyncIOContext::AsyncIOContext()
+{
+    op = NONE;
+    pos = 0;
+    len = 0;
+    pad = 0;
+    buffer = NULL;
+    waiter = NULL;
+
+    userCallback = NULL;
+    userData = NULL;
+    finished = false;
+    failed = false;
+    retry = false;
+}
+
 } // namespace
