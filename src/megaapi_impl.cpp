@@ -5252,6 +5252,7 @@ void MegaApiImpl::transfer_failed(Transfer* tr, error e)
 
 void MegaApiImpl::transfer_limit(Transfer* t)
 {
+    LOG_warn << "Transfer limit";
     if(transferMap.find(t->tag) == transferMap.end()) return;
     MegaTransferPrivate* transfer = transferMap.at(t->tag);
     transfer->setUpdateTime(Waiter::ds);
