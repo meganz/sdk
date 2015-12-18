@@ -222,6 +222,36 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
+AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write)
+{
+    LOG_verbose << "Async open start";
+    AsyncIOContext *context = newasynccontext();
+    context->op = AsyncIOContext::OPEN;
+    context->access = AsyncIOContext::ACCESS_NONE
+            | (read ? AsyncIOContext::ACCESS_READ : 0)
+            | (write ? AsyncIOContext::ACCESS_WRITE : 0);
+
+    context->buffer = (byte *)f->data();
+    context->len = f->size();
+    context->waiter = waiter;
+    context->userCallback = asyncopfinished;
+    context->userData = context;
+
+    asyncsysopen(context);
+    return context;
+}
+
+void FileAccess::asyncsysopen(AsyncIOContext *context)
+{
+    context->failed = true;
+    context->retry = false;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
 AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, m_off_t pos)
 {
     LOG_verbose << "Async read start";
@@ -236,16 +266,6 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = context;
-
-    if (!openf())
-    {
-        LOG_warn << "Async read failed opening file";
-        context->failed = true;
-        context->retry = false;
-        context->finished = true;
-        asyncopfinished(context);
-        return context;
-    }
 
     asyncsysread(context);
     return context;
@@ -338,6 +358,7 @@ AsyncIOContext::AsyncIOContext()
     pad = 0;
     buffer = NULL;
     waiter = NULL;
+    access = ACCESS_NONE;
 
     userCallback = NULL;
     userData = NULL;

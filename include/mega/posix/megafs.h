@@ -156,6 +156,7 @@ public:
     // async interface
     static pthread_mutex_t asyncmutex;
     virtual bool asyncavailable();
+    virtual void asyncsysopen(AsyncIOContext* context);
     virtual void asyncsysread(AsyncIOContext* context);
     virtual void asyncsyswrite(AsyncIOContext* context);
 

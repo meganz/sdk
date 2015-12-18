@@ -40,6 +40,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
+    asyncopencontext = NULL;
     progresscompleted = 0;
     hasprevmetamac = false;
     hascurrentmetamac = false;
@@ -84,6 +85,7 @@ Transfer::~Transfer()
         delete slot;
     }
 
+    delete asyncopencontext;
     if (ultoken)
     {
         delete [] ultoken;
@@ -1568,7 +1570,9 @@ Transfer *TransferList::nexttransfer(direction_t direction)
     for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
     {
         Transfer *transfer = (*it);
-        if (!transfer->slot && isReady(transfer))
+        if ((!transfer->slot && isReady(transfer))
+                || (transfer->asyncopencontext
+                    && transfer->asyncopencontext->finished))
         {
             return transfer;
         }

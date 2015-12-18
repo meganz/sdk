@@ -37,7 +37,13 @@ typedef void (*asyncfscallback)(void *);
 struct MEGA_API AsyncIOContext
 {
     enum {
-        NONE, READ, WRITE
+        NONE, READ, WRITE, OPEN
+    };
+
+    enum {
+        ACCESS_NONE     = 0x00,
+        ACCESS_READ     = 0x01,
+        ACCESS_WRITE    = 0x02
     };
 
     AsyncIOContext();
@@ -52,6 +58,7 @@ struct MEGA_API AsyncIOContext
 
     // parameters
     int op;
+    int access;
     m_off_t pos;
     unsigned len;
     unsigned pad;
@@ -119,6 +126,10 @@ struct MEGA_API FileAccess
     virtual ~FileAccess() { }
 
     virtual bool asyncavailable() { return false; }
+
+    virtual AsyncIOContext *asyncfopen(string *, bool, bool);
+    virtual void asyncsysopen(AsyncIOContext*);
+
     AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
     virtual void asyncsysread(AsyncIOContext*);
 

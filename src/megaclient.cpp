@@ -2469,16 +2469,47 @@ bool MegaClient::dispatch(direction_t d)
             app->transfer_prepare(nexttransfer);
         }
 
+        bool openok;
+        bool openfinished = false;
+
         // verify that a local path was given and start/resume transfer
         if (nexttransfer->localfilename.size())
         {
-            // allocate transfer slot
-            ts = new TransferSlot(nexttransfer);
+            if (!nexttransfer->slot)
+            {
+                // allocate transfer slot
+                ts = new TransferSlot(nexttransfer);
+            }
+
+            if (ts->fa->asyncavailable())
+            {
+                if (!nexttransfer->asyncopencontext)
+                {
+                    LOG_debug << "Starting async open";
+                   nexttransfer->asyncopencontext = (d == PUT)
+                        ? ts->fa->asyncfopen(&nexttransfer->localfilename, true, false)
+                        : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true);
+                }
+
+                if (nexttransfer->asyncopencontext->finished)
+                {
+                    LOG_debug << "Async open finished";
+                    openok = !nexttransfer->asyncopencontext->failed;
+                    openfinished = true;
+                    delete nexttransfer->asyncopencontext;
+                    nexttransfer->asyncopencontext = NULL;
+                }
+            }
+            else
+            {
+                openok = (d == PUT)
+                        ? ts->fa->fopen(&nexttransfer->localfilename)
+                        : ts->fa->fopen(&nexttransfer->localfilename, false, true);
+                openfinished = true;
+            }
 
             // try to open file (PUT transfers: open in nonblocking mode)
-            if ((d == PUT)
-              ? ts->fa->fopen(&nexttransfer->localfilename)
-              : ts->fa->fopen(&nexttransfer->localfilename, false, true))
+            if (openfinished && openok)
             {
                 handle h = UNDEF;
                 bool hprivate = true;
@@ -2596,7 +2627,7 @@ bool MegaClient::dispatch(direction_t d)
 
                 return true;
             }
-            else
+            else if (openfinished)
             {
                 string utf8path;
                 fsaccess->local2path(&nexttransfer->localfilename, &utf8path);

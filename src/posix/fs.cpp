@@ -209,6 +209,20 @@ void PosixFileAccess::asyncopfinished(union sigval sigev_value)
     pthread_mutex_unlock(&PosixFileAccess::asyncmutex);
 }
 
+void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
+{
+    string path;
+    path.assign((char *)context->buffer, context->len);
+    context->failed = !fopen(&path, context->access & AsyncIOContext::ACCESS_READ,
+                             context->access & AsyncIOContext::ACCESS_WRITE);
+    context->retry = retry;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
 void PosixFileAccess::asyncsysread(AsyncIOContext *context)
 {
     if (!context)
