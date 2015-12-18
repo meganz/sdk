@@ -22,6 +22,8 @@
 #include "mega.h"
 #include "mega/thread/qtthread.h"
 
+#define STACK_SIZE 1048576
+
 namespace mega {
 
 QtThread::QtThread()
@@ -36,6 +38,7 @@ void QtThread::run()
 
 void QtThread::start(void *(*start_routine)(void*), void *parameter)
 {
+    setStackSize(STACK_SIZE);
     this->start_routine = start_routine;
     this->pointer = parameter;
 
