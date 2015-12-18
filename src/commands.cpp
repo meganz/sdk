@@ -2035,7 +2035,6 @@ void CommandGetUA::procresult()
         data = new byte[datalen];
         datalen = Base64::atob(ptr, data, datalen);
 
-        string tmpstr;
 //        bool nonHistoric = (attributename.at(1) == '!');
 
         // handle the attribute data depending on the scope
@@ -2049,7 +2048,7 @@ void CommandGetUA::procresult()
             if (!tlvRecords)
             {
                 LOG_err << "Cannot extract TLV records for private attribute " << attributename;
-                client->app->getua_result(API_EKEY);
+                client->app->getua_result(API_EINTERNAL);
                 delete [] data;
                 return;
             }
@@ -2060,6 +2059,7 @@ void CommandGetUA::procresult()
                 bool signkeyUpdated = false;
                 bool chatkeyUpdated = false;
                 bool keyringSet = (client->signkey && client->chatkey);
+                string tmpstr;
 
                 // Ed25519 sanity checkup
                 if (tlvRecords->find(EdDSA::TLV_KEY))

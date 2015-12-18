@@ -279,6 +279,12 @@ private:
     ~TLVstore();
 };
 
+class Utils {
+public:
+    static string utf8toUnicode(const uint8_t *src, unsigned srclen);
+};
+
+
 } // namespace
 
 #endif

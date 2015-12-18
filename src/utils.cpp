@@ -20,6 +20,7 @@
  */
 
 #include "mega/utils.h"
+#include "logging.h"
 
 namespace mega {
 Cachable::Cachable()
@@ -501,15 +502,18 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
     unsigned typelen;
     string value;
     unsigned valuelen;
+    size_t pos;
 
     unsigned datalen = data.length();
 
     while (offset < datalen)
     {
         // get the length of the Type string
-        typelen = data.find('\0', offset) - offset;
+        pos = data.find('\0', offset);
+        typelen = pos - offset;
 
-        if (offset + typelen + 2 > datalen)
+        // if no valid TLV record in the container, but remaining bytes...
+        if ( (pos == data.npos) || (offset + typelen + 3 > datalen) )
         {
             delete tlv;
             return NULL;
@@ -524,6 +528,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
         value.resize(valuelen);
         offset += 2;
 
+        // if there's not enough data for value...
         if (offset + valuelen > datalen)
         {
             delete tlv;
@@ -536,19 +541,6 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
 
         // add it to the map
         tlv->set(type, value);
-
-        // check if this record is affected by the UTF-8 bug: extra bytes after the value
-        if (datalen > offset + typelen)   // more data available
-        {
-            unsigned pos = data.find('\0', offset);
-            unsigned extraBytes = pos - offset - typelen;    // assume all 'T' strings have same length
-            if (pos != string::npos && extraBytes)
-            {
-//                offset += extraBytes;   // skip them
-                delete tlv;
-                return NULL;
-            }
-        }
     }
 
     return tlv;
@@ -628,6 +620,22 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(clearBytes);
 
+    if (!tlv) // 'data' might be affected by the UTF-8 encoding legacy bug.
+    {
+        // retry TLV decoding after conversion from 'UTF-8 chars' to 'Unicode chars'
+        LOG_warn << "Retrying TLV records decoding with UTF-8 patch";
+
+        string result = Utils::utf8toUnicode(buf, buflen);
+        if (result.empty())
+        {
+            LOG_err << "Invalid UTF-8 encoding";
+        }
+        else
+        {
+            tlv = TLVstore::containerToTLVrecords(result);
+        }
+    }
+
     delete [] buf;
     delete [] iv;
 
@@ -636,6 +644,44 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
 
 TLVstore::~TLVstore()
 {
+}
+
+string Utils::utf8toUnicode(const uint8_t *src, unsigned srclen)
+{
+    uint8_t utf8cp1;
+    uint8_t utf8cp2;
+    int32_t unicodecp;
+
+    byte res[srclen];
+    unsigned rescount = 0;
+
+    unsigned i = 0;
+    while (i < srclen)
+    {
+        utf8cp1 = src[i++];
+
+        if (utf8cp1 < 0x80)
+        {
+            res[rescount++] = utf8cp1;
+        }
+        else
+        {
+            if (i < srclen)
+            {
+                utf8cp2 = src[i++];
+
+                unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
+                res[rescount++] = unicodecp & 0xFF;
+            }
+            else
+            {
+                // error: last byte indicates a two-bytes UTF-8 char, but only one left
+                return "";
+            }
+        }
+    }
+
+    return string((const char*)res, rescount);
 }
 
 } // namespace
