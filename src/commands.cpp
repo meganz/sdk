@@ -2018,6 +2018,23 @@ void CommandGetUA::procresult()
         data = new byte[l];
         l = Base64::atob(ptr, data, l);
 
+        if (attributename == "firstname")
+        {
+            if (!user->firstname)
+            {
+                user->firstname = new string;
+            }
+            user->firstname->assign((char*) data, l);
+        }
+        else if (attributename == "lastname")
+        {
+            if (!user->lastname)
+            {
+                user->lastname = new string;
+            }
+            user->lastname->assign((char*) data, l);
+        }
+
         if (attributename == "*!lstint" || attributename == "*!authring")
         {
             string d;

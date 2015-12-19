@@ -3463,11 +3463,15 @@ void MegaClient::sc_userattr()
                                 }
                                 else if (ua == "firstname")
                                 {
+                                    delete u->firstname;
+                                    u->firstname = NULL;
                                     u->changed.firstname = true;
                                     notifyuser(u);
                                 }
                                 else if (ua == "lastname")
-                                {
+                                {                                    
+                                    delete u->lastname;
+                                    u->lastname = NULL;
                                     u->changed.lastname = true;
                                     notifyuser(u);
                                 }
@@ -6079,6 +6083,20 @@ void MegaClient::getua(User* u, const char* an)
 {
     if (an)
     {
+        // if we can solve those requests locally (runtime cached values)...
+        if (!strcmp(an, "firstname") && u->firstname)
+        {
+            restag = reqtag;
+            app->getua_result((byte*) u->firstname->data(), u->firstname->size());
+            return;
+        }
+        else if (!strcmp(an, "lastname") && u->lastname)
+        {
+            restag = reqtag;
+            app->getua_result((byte*) u->lastname->data(), u->lastname->size());
+            return;
+        }
+
         reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
     }
 }

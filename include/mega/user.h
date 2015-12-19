@@ -38,6 +38,12 @@ struct MEGA_API User : public Cachable
     // e-mail address
     string email;
 
+    // first name (initialized on first request, invalidated if updated)
+    string *firstname;
+
+    // last name (initialized on first request, invalidated if updated)
+    string *lastname;
+
     // persistent attributes (n = name, a = avatar)
     AttrMap attrs;
 
