@@ -1,41 +1,88 @@
+.. _installsdk:
+
 ================================
 Installing the Mega SDK Java API
 ================================
 
+--------------------------
+1. Prepare System
+--------------------------
+
+.. code:: bash
+
+    sudo apt-get install build-essential autoconf libtool git-core
+
 -------------------------
-First Create Clone of SDK
+2. Clone MEGA SDK
 -------------------------
 
-git clone https://github.com/meganz/sdk cd sdk
+.. code:: bash
+    
+    git clone https://github.com/meganz/sdk
 
 -------------------------
-Next Install Dependancies
+3. Install Dependencies
 -------------------------
-* sudo apt-get install autoconf   
-* sudo apt-get install libtool   
-* sh autogen.sh   
-* sudo apt-get install libcrypto++-dev     
-* sudo apt-get install zlib1g-dev    
-* sudo apt-get install libsqlite3-dev    
-* sudo apt-get install libssl-dev    
-* sudo apt-get install libc-ares-dev    
-* sudo apt-get install libcurl4-openssl-dev    
-* sudo apt-get install libfreeimage-dev    
-* sudo apt-get install libtinfo-dev   
-* sudo apt-get install swig2.0    
-* sudo apt-get install default-jdk   
+
+.. code:: bash
+
+    sudo apt-get install libcrypto++-dev zlib1g-dev libsqlite3-dev libssl-dev libc-ares-dev libcurl4-openssl-dev libfreeimage-dev libreaadline6-dev swig2.0 default-jdk
    
 ----------------------
-Next Configure the SDK 
+4. Configure SDK 
 ----------------------
+
+.. code:: bash
+
+    cd sdk/
    
-* Configure while pointing to Java headers ./configure --enable-java --with-java-include-dir=/usr/lib/jvm/"Your Java JDK Folder"/include/
+.. code:: bash
 
----------------------------
-Compile and Install the SDK
----------------------------
-* make
+    sh autogen.sh
 
-* sudo make install
+.. code:: bash
+    
+    ./configure --enable-java --with-java-include-dir=/usr/lib/jvm/java-7-openjdk-i386/include/
 
-* Congratulations you are now ready to use the Mega Java API in your own applications!
+-------------------------------
+5. Compile & Install SDK
+-------------------------------
+
+.. code:: bash
+    
+    make
+
+.. code:: bash
+
+    sudo make install
+    
+-------------------------------------------------
+6. Copy SDK Library & Bindings into your Project
+-------------------------------------------------
+    
+To use the MEGA SDK bindings, copy the MEGA SDK Java library ``libmegajava.so`` into a  ``/libs/`` folder in the root of your project folder and copy the MEGA SDK Java binding classes into the source folder of your project:
+
+.. code:: bash
+
+    mkdir -p projectRootFolder/libs/
+
+.. code:: bash
+    
+    cp bindings/java/.libs/libmegajava.so projectRootFolder/libs/
+
+.. code:: bash
+    
+    mkdir -p projectRootFolder/src/nz/mega/sdk/
+    
+.. code:: bash
+
+    cp bindings/java/nz/mega/sdk/*.java projectRootFolder/src/nz/mega/sdk/
+
+-------------------------------------------------
+7. Done
+-------------------------------------------------
+
+Congratulations you are now ready to use the MEGA SDK Java API bindings in your own applications!
+
+.. NOTE::
+    This guide was tested on Ubuntu 15.04 and is adapted from:      https://github.com/meganz/sdk/blob/master/README.md and     https://help.ubuntu.com/community/CompilingEasyHowTo 

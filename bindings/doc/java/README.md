@@ -8,10 +8,12 @@ Guide to installing and using Sphinx on Ubuntu/Linux
 1. Install Sphinx
    Since Sphinx is written in the Python language, you need to install Python (the required version is at least 2.6) and        Sphinx. The latest Versions of Ubuntu and Fedora already have Python installed so please check this before you continue.
 
-   First you will need to install the Sphinx package on you machine.
-   $ apt-get install python-sphinx
+   First you will need to install the Sphinx package on your machine.
    
-   Installation instructions can be found here: http://sphinx-doc.org/install.html
+```bash   
+   $ apt-get install python-sphinx
+```   
+   Installation instructions can be found here: [http://sphinx-doc.org/install.html](http://sphinx-doc.org/install.html)
 
 2. Creating a Sphinx Directory 
 
@@ -48,17 +50,32 @@ For more info on Sphinx please see http://sphinx-doc.org/
 #To Create PDF files of the Documentation.#
 -------------------------------------------
 
-1. Install rst2pdf
+1. Install TeXLive - Full
 
-   rst2pdf is a free tool to use to create pdf files from rst. To install simply run:
-   
-   sudo apt-get install rst2pdf
-   
-2. Running rst2pdf
+   TeXLive is used by Sphinx to convert the latex files into PDF
 
-   To run the rst2pdf simply navigate to the directory where the rst file is stored and run:
+   You can use the command:
+   sudo apt-get install wget build-essential python-old-doctools texlive-full
    
-   rst2pdf "nameoffile".rst "nameofpdf".pdf
+   However this requires quite a bit of space but will provide you with all the nessacary tools
+   for Latex creation and modification.
+   
+2. Creating the PDF
+
+   To create the PDFs, in terminal change the directory to the Sphinx directory and
+   run the below command: 
+
+   make latexpdf
+
+   This will run the LaTeX builder and readily invokes the pdfTeX toolchain for you. 
+
+   Please note if you do not install the TeXLive before running this 
+   command you will receive error messages and only the latex will be produced not the pdfs.
+   
+   rst2pdf
+   -------
+   Alternativly there is a direct PDF creater call rst2pdf which you can use to convert
+   your rst files into pdfs without the need to create the latex files.
 
 PLEASE NOTE   
 This is work in progress. As such there may be times when files are uploaded without/missing content.  

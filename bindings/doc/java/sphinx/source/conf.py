@@ -55,9 +55,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'javauserguide'
-copyright = u'2015, Patrick Baird'
-author = u'Patrick Baird'
+project = u'Java User Guide'
+copyright = u'2015, MEGA NZ'
+author = u'MEGA NZ & AUT BCIS Project Team'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -117,7 +117,7 @@ todo_include_todos = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+html_theme = 'default'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -216,6 +216,7 @@ htmlhelp_basename = 'javauserguidedoc'
 latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
 #'papersize': 'letterpaper',
+'papersize': 'a4paper',
 
 # The font size ('10pt', '11pt' or '12pt').
 #'pointsize': '10pt',
@@ -232,7 +233,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
   (master_doc, 'javauserguide.tex', u'javauserguide Documentation',
-   u'Patrick Baird', 'manual'),
+   u'MEGA Ltd', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
