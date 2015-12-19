@@ -113,6 +113,21 @@ struct MEGA_API WinDirNotify : public DirNotify
     ~WinDirNotify();
 };
 
+struct MEGA_API WinAsyncIOContext;
+struct MEGA_API WinAsyncSynchronizer
+{
+    OVERLAPPED *overlapped;
+    WinAsyncIOContext *context;
+};
+
+struct MEGA_API WinAsyncIOContext : public AsyncIOContext
+{
+    WinAsyncIOContext();
+    virtual ~WinAsyncIOContext();
+
+    WinAsyncSynchronizer *synchronizer;
+};
+
 class MEGA_API WinFileAccess : public FileAccess
 {
     HANDLE hFile;
@@ -122,6 +137,7 @@ public:
     WIN32_FIND_DATAW ffd;
 
     bool fopen(string*, bool, bool);
+    bool fopen(string*, bool, bool, bool);
     void updatelocalname(string*);
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool frawread(byte *, unsigned, m_off_t);
@@ -132,10 +148,23 @@ public:
     bool sysopen();
     void sysclose();
 
+    // async interface
+    virtual bool asyncavailable();
+    virtual void asyncsysopen(AsyncIOContext* context);
+    virtual void asyncsysread(AsyncIOContext* context);
+    virtual void asyncsyswrite(AsyncIOContext* context);
+
     static bool skipattributes(DWORD);
 
     WinFileAccess(Waiter *w);
     ~WinFileAccess();
+
+protected:
+    virtual AsyncIOContext* newasynccontext();
+    static VOID CALLBACK asyncopfinished(
+            DWORD        dwErrorCode,
+            DWORD        dwNumberOfBytesTransfered,
+            LPOVERLAPPED lpOverlapped);
 };
 } // namespace
 

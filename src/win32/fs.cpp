@@ -147,6 +147,191 @@ void WinFileAccess::sysclose()
     }
 }
 
+WinAsyncIOContext::WinAsyncIOContext() : AsyncIOContext()
+{
+    synchronizer = NULL;
+}
+
+WinAsyncIOContext::~WinAsyncIOContext()
+{
+    LOG_verbose << "Deleting WinAsyncIOContext";
+    if (synchronizer)
+    {
+        synchronizer->context = NULL;
+        synchronizer = NULL;
+    }
+}
+
+AsyncIOContext *WinFileAccess::newasynccontext()
+{
+    return new WinAsyncIOContext();
+}
+
+VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped)
+{
+    WinAsyncSynchronizer *synchronizer = (WinAsyncSynchronizer *)(lpOverlapped->hEvent);
+    WinAsyncIOContext *context = synchronizer->context;
+    if (!context)
+    {
+        LOG_debug << "Async IO request already cancelled";
+        delete synchronizer;
+        delete lpOverlapped;
+        return;
+    }
+
+    context->synchronizer = NULL;
+    context->failed = dwErrorCode || dwNumberOfBytesTransfered != context->len;
+    if (!context->failed)
+    {
+        if (context->op == AsyncIOContext::READ)
+        {
+            memset((void *)(((char *)(context->buffer)) + context->len), 0, context->pad);
+            LOG_verbose << "Async read finished OK";
+        }
+        else
+        {
+            LOG_verbose << "Async write finished OK";
+        }
+    }
+    else
+    {
+        LOG_warn << "Async operation finished with error";
+    }
+
+    delete synchronizer;
+    delete lpOverlapped;
+
+    context->retry = WinFileSystemAccess::istransient(dwErrorCode);
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+bool WinFileAccess::asyncavailable()
+{
+    return true;
+}
+
+void WinFileAccess::asyncsysopen(AsyncIOContext *context)
+{
+    string path;
+    path.assign((char *)context->buffer, context->len);
+    bool read = context->access & AsyncIOContext::ACCESS_READ;
+    bool write = context->access & AsyncIOContext::ACCESS_WRITE;
+
+    context->failed = !fopen(&path, read, write, true);
+    context->retry = retry;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+void WinFileAccess::asyncsysread(AsyncIOContext *context)
+{
+    if (!context)
+    {
+        return;
+    }
+
+    WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
+    if (!winContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    OVERLAPPED *overlapped = new OVERLAPPED;
+    memset(overlapped, 0, sizeof (OVERLAPPED));
+
+    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+
+    WinAsyncSynchronizer *synchronizer = new WinAsyncSynchronizer();
+    synchronizer->overlapped = overlapped;
+    synchronizer->context = winContext;
+    winContext->synchronizer = synchronizer;
+
+    overlapped->hEvent = synchronizer;
+
+    if(!ReadFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+                   overlapped, asyncopfinished))
+    {
+        winContext->failed = true;
+        winContext->retry = WinFileSystemAccess::istransient(GetLastError());
+        LOG_warn << "Async read failed at startup";
+        winContext->finished = true;
+        winContext->synchronizer = NULL;
+        delete synchronizer;
+        delete overlapped;
+
+        if (winContext->userCallback)
+        {
+            winContext->userCallback(winContext->userData);
+        }
+    }
+}
+
+void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+    if (!context)
+    {
+        return;
+    }
+
+    WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
+    if (!winContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    OVERLAPPED *overlapped = new OVERLAPPED;
+    memset(overlapped, 0, sizeof (OVERLAPPED));
+
+    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+
+    WinAsyncSynchronizer *synchronizer = new WinAsyncSynchronizer();
+    synchronizer->overlapped = overlapped;
+    synchronizer->context = winContext;
+    winContext->synchronizer = synchronizer;
+
+    overlapped->hEvent = synchronizer;
+
+    if(!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+                   overlapped, asyncopfinished))
+    {
+        winContext->failed = true;
+        winContext->retry = WinFileSystemAccess::istransient(GetLastError());
+        LOG_warn << "Async read failed at startup";
+        winContext->finished = true;
+        winContext->synchronizer = NULL;
+        delete synchronizer;
+        delete overlapped;
+
+        if (winContext->userCallback)
+        {
+            winContext->userCallback(winContext->userData);
+        }
+    }
+}
+
 // update local name
 void WinFileAccess::updatelocalname(string* name)
 {
@@ -172,7 +357,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(string* name, bool read, bool write)
+bool WinFileAccess::fopen(string *name, bool read, bool write)
+{
+    return fopen(name, read, write, false);
+}
+
+bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
 {
     WIN32_FIND_DATA fad = { 0 };
 
@@ -294,6 +484,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     {
         ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
     }
+    else if (async)
+    {
+        ex.dwFileFlags = FILE_FLAG_OVERLAPPED;
+    }
 
     hFile = CreateFile2((LPCWSTR)name->data(),
                         read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
@@ -306,7 +500,8 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
                         !write ? OPEN_EXISTING : OPEN_ALWAYS,
-                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
+                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS
+                                             : (async ? FILE_FLAG_OVERLAPPED : 0),
                         NULL);
 #endif
 

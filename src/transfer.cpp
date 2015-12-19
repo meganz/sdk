@@ -779,6 +779,12 @@ void Transfer::complete()
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
         // files must not change during a PUT transfer
+        if (slot->fa->asyncavailable())
+        {
+            slot->fa->closef();
+            slot->fa->fopen(&localfilename);
+        }
+
         if (genfingerprint(slot->fa, true))
         {
             return failed(API_EREAD);
