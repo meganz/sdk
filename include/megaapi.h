@@ -449,6 +449,19 @@ class MegaNode
         virtual const char* getName();
 
         /**
+         * @brief Returns the fingerprint (Base64-encoded) of the node
+         *
+         * Only files have a fingerprint, and there could be files without it.
+         * If the node doesn't have a fingerprint, this funtion returns NULL
+         *
+         * The MegaNode object retains the ownership of the returned string. It will
+         * be valid until the MegaNode object is deleted.
+         *
+         * @return Base64-encoded fingerprint of the node, or NULL it the node doesn't have a fingerprint.
+         */
+        virtual const char* getFingerprint();
+
+        /**
          * @brief Returns true if the node has custom attributes
          *
          * Custom attributes can be set using MegaApi::setCustomNodeAttribute
@@ -5989,6 +6002,7 @@ class MegaApi
          *
          * @param node Node for which we want to get the fingerprint
          * @return Base64-encoded fingerprint for the file
+         * @deprecated Use MegaNode::getFingerprint instead of this function
          */
         char *getFingerprint(MegaNode *node);
 

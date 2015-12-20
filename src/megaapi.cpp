@@ -202,6 +202,11 @@ const char *MegaNode::getName()
     return NULL;
 }
 
+const char *MegaNode::getFingerprint()
+{
+    return NULL;
+}
+
 bool MegaNode::hasCustomAttrs()
 {
     return false;

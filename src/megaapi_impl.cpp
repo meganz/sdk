@@ -70,10 +70,11 @@
 
 using namespace mega;
 
-MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, MegaHandle parentHandle, const char*auth)
+MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle, const char*auth)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
+    this->fingerprint = MegaApi::strdup(fingerprint);
     this->customAttrs = NULL;
     this->type = type;
     this->size = size;
@@ -106,6 +107,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 : MegaNode()
 {
     this->name = MegaApi::strdup(node->getName());
+    this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
     this->type = node->getType();
     this->size = node->getSize();
@@ -153,6 +155,25 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 : MegaNode()
 {
     this->name = MegaApi::strdup(node->displayname());
+    this->fingerprint = NULL;
+
+    if (node->isvalid)
+    {
+        string fingerprint;
+        node->serializefingerprint(&fingerprint);
+        m_off_t size = node->size;
+        char bsize[sizeof(size)+1];
+        int l = Serialize64::serialize((byte *)bsize, size);
+        char *buf = new char[l * 4 / 3 + 4];
+        char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+        string result(1, ssize);
+        result.append(buf);
+        result.append(fingerprint);
+        delete [] buf;
+
+        this->fingerprint = MegaApi::strdup(result.c_str());
+    }
+
     this->customAttrs = NULL;
 
     char buf[10];
@@ -280,6 +301,11 @@ const char* MegaNodePrivate::getName()
     }
 }
 
+const char *MegaNodePrivate::getFingerprint()
+{
+    return fingerprint;
+}
+
 bool MegaNodePrivate::hasCustomAttrs()
 {
     return customAttrs != NULL;
@@ -401,7 +427,7 @@ MegaNode* MegaNodePrivate::getPublicNode()
 
     MegaNode *node = new MegaNodePrivate(
                 name, type, size, ctime, mtime,
-                plink->ph, &key, &attrstring);
+                plink->ph, &key, &attrstring, fingerprint);
 
     delete [] skey;
 
@@ -660,7 +686,8 @@ string *MegaNodePrivate::getAuth()
 
 MegaNodePrivate::~MegaNodePrivate()
 {
- 	delete[] name;
+    delete[] name;
+    delete [] fingerprint;
     delete customAttrs;
     delete plink;
 }
@@ -2961,16 +2988,10 @@ void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListe
 void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
-    if(node)
+    if (node)
     {
-        if(node->isPublic())
-        {
-            request->setPublicNode(node);
-        }
-        else
-        {
-            request->setNodeHandle(node->getHandle());
-        }
+        request->setPublicNode(node);
+        request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
 	requestQueue.push(request);
@@ -2980,16 +3001,10 @@ void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener
 void MegaApiImpl::copyNode(MegaNode *node, MegaNode *target, const char *newName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
-    if(node)
+    if (node)
     {
-        if(node->isPublic())
-        {
-            request->setPublicNode(node);
-        }
-        else
-        {
-            request->setNodeHandle(node->getHandle());
-        }
+        request->setPublicNode(node);
+        request->setNodeHandle(node->getHandle());
     }
     if(target) request->setParentHandle(target->getHandle());
     request->setName(newName);
@@ -3029,7 +3044,11 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestList
 void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY, listener);
-    if(node) request->setNodeHandle(node->getHandle());
+    if (node)
+    {
+        request->setPublicNode(node);
+        request->setNodeHandle(node->getHandle());
+    }
     request->setEmail(email);
 	requestQueue.push(request);
     waiter->notify();
@@ -4659,14 +4678,14 @@ MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, 
     string attrstring;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), nodekey.size()));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, parentHandle, auth);
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle, auth);
 }
 
 MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
 {
     string nodekey;
     string attrstring;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, parentHandle, auth);
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, NULL, parentHandle, auth);
 }
 
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
@@ -4823,29 +4842,7 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
 {
     if(!n) return NULL;
 
-    sdkMutex.lock();
-    Node *node = client->nodebyhandle(n->getHandle());
-    if(!node || node->type != FILENODE || node->size < 0 || !node->isvalid)
-    {
-        sdkMutex.unlock();
-        return NULL;
-    }
-
-    string fingerprint;
-    node->serializefingerprint(&fingerprint);
-    m_off_t size = node->size;
-    sdkMutex.unlock();
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
-
-    return MegaApi::strdup(result.c_str());
+    return MegaApi::strdup(n->getFingerprint());
 }
 
 char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
@@ -6496,6 +6493,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     string attrstring;
     string fileName;
     string keystring;
+    string fingerprint;
 
     attrstring.resize(a->length()*4/3+4);
     attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
@@ -6533,6 +6531,18 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             if(ffp.unserializefingerprint(&it->second))
             {
                 mtime = ffp.mtime;
+
+                char bsize[sizeof(size)+1];
+                int l = Serialize64::serialize((byte *)bsize, size);
+                char *buf = new char[l * 4 / 3 + 4];
+                char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+
+                string result(1, ssize);
+                result.append(buf);
+                result.append(it->second);
+                delete [] buf;
+
+                fingerprint = result;
             }
         }
     }
@@ -6559,7 +6569,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 	}
 	else
 	{
-        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a));
+        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
+                                                   fingerprint.size() ? fingerprint.c_str() : NULL));
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
 	}
 }
@@ -8442,22 +8453,56 @@ void MegaApiImpl::sendPendingRequests()
             MegaNode *publicNode = request->getPublicNode();
             const char *newName = request->getName();
 
-            if((!node && !publicNode) || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
+            if (!publicNode || (!target && !email) || (newName && !(*newName))) { e = API_EARGS; break; }
 
-            if(publicNode)
+            if (!node)
             {
-                if(publicNode->getAuth()->size())
-                {
-                    e = API_EACCESS;
-                    break;
-                }
-
                 NewNode *newnode = new NewNode[1];
                 newnode->nodekey.assign(publicNode->getNodeKey()->data(), publicNode->getNodeKey()->size());
                 newnode->attrstring = new string;
-                newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+
+                if (publicNode->isPublic())
+                {
+                    newnode->attrstring->assign(publicNode->getAttrString()->data(), publicNode->getAttrString()->size());
+                    newnode->source = NEW_PUBLIC;
+                }
+                else
+                {
+                    SymmCipher key;
+                    AttrMap attrs;
+
+                    key.setkey((const byte*)publicNode->getNodeKey()->data(), FILENODE);
+                    string sname = publicNode->getName();
+                    fsAccess->normalize(&sname);
+                    attrs.map['n'] = sname;
+
+                    const char *fingerprint = publicNode->getFingerprint();
+                    if (fingerprint && fingerprint[0])
+                    {
+                        m_off_t size = 0;
+                        unsigned int fsize = strlen(fingerprint);
+                        unsigned int ssize = fingerprint[0] - 'A';
+                        if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
+                        {
+                            int len =  sizeof(size) + 1;
+                            byte *buf = new byte[len];
+                            Base64::atob(fingerprint + 1, buf, len);
+                            int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+                            delete [] buf;
+                            if (l > 0)
+                            {
+                                attrs.map['c'] = fingerprint + ssize + 1;
+                            }
+                        }
+                    }
+
+                    string attrstring;
+                    attrs.getjson(&attrstring);
+                    client->makeattr(&key,newnode->attrstring, attrstring.c_str());
+                    newnode->source = NEW_NODE;
+                }
+
                 newnode->nodehandle = publicNode->getHandle();
-                newnode->source = NEW_PUBLIC;
                 newnode->type = FILENODE;
                 newnode->parenthandle = UNDEF;
 
