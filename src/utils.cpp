@@ -361,12 +361,9 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
-string TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
+string * TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
 {
-    // serialize the TLV records
-    string container = TLVrecordsToContainer();
-
-    // encrypt the result
+    // decide nonce/IV and auth. tag lengths based on the `mode`
     int ivlen, taglen;
     bool useCCM = false;
     switch (mode)
@@ -407,31 +404,42 @@ string TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
         return NULL;
     }
 
+    // serialize the TLV records
+    string *container = TLVrecordsToContainer();
+
     // generate IV array
     byte *iv = new byte[ivlen];
     PrnGen::genblock(iv, ivlen);
 
+    // generate auth. tag array
+    byte *tag = new byte[taglen];
+    PrnGen::genblock(tag, taglen);
+
     // encrypt the bytes using the specified mode
     if (useCCM)
     {
-        key->ccm_encrypt((byte *)container.data(), container.length(), iv, ivlen);
+        key->ccm_encrypt((byte *)container->data(), container->length(), iv, ivlen);
     }
     else    // then use GCM
     {
-        key->gcm_encrypt((byte *)container.data(), container.length(), iv, ivlen);
+        key->gcm_encrypt((byte *)container->data(), container->length(), iv, ivlen);
     }
 
-    string result;
-    result.resize(1);
-    result.at(0) = mode;
-    result.append((char*) iv, ivlen);
-    result.append((char*) container.data(), container.length());
+    string *result = new string;
+    result->resize(1);
+    result->at(0) = mode;
+    result->append((char*) iv, ivlen);
+    result->append((char*) container->data(), container->length());
+    result->append((char*) tag, taglen);
 
+    delete [] tag;
     delete [] iv;
+    delete container;
+
     return result;
 }
 
-string TLVstore::TLVrecordsToContainer()
+string * TLVstore::TLVrecordsToContainer()
 {
     TLV_map::iterator it;
     unsigned buflen = 0;
@@ -442,25 +450,25 @@ string TLVstore::TLVrecordsToContainer()
         buflen += it->first.length() + 1 + 2 + it->second.length();
     }
 
-    string result;
+    string * result = new string;
     unsigned offset = 0;
     unsigned length;
 
     for (it = tlv.begin(); it != tlv.end(); it++)
     {
         // copy Type
-        result.append(it->first);
+        result->append(it->first);
         offset += it->first.length() + 1;   // keep the NULL-char for Type string
 
         // set Length of value
         length = it->second.length();
-        result.resize(offset + 2);
-        result.at(offset) = length >> 8;
-        result.at(offset + 1) = length & 0xFF;
+        result->resize(offset + 2);
+        result->at(offset) = length >> 8;
+        result->at(offset + 1) = length & 0xFF;
         offset += 2;
 
         // copy the Value
-        result.append((char*)it->second.data(), it->second.length());
+        result->append((char*)it->second.data(), it->second.length());
         offset += it->second.length();
     }
 
@@ -487,9 +495,9 @@ size_t TLVstore::size()
     return tlv.size();
 }
 
-TLVstore * TLVstore::containerToTLVrecords(const string data)
+TLVstore * TLVstore::containerToTLVrecords(const string *data)
 {
-    if (data.empty())
+    if (data->empty())
     {
         return NULL;
     }
@@ -504,27 +512,27 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
     unsigned valuelen;
     size_t pos;
 
-    unsigned datalen = data.length();
+    unsigned datalen = data->length();
 
     while (offset < datalen)
     {
         // get the length of the Type string
-        pos = data.find('\0', offset);
+        pos = data->find('\0', offset);
         typelen = pos - offset;
 
         // if no valid TLV record in the container, but remaining bytes...
-        if ( (pos == data.npos) || (offset + typelen + 3 > datalen) )
+        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
         {
             delete tlv;
             return NULL;
         }
 
         // get the Type string
-        type.assign((char*)&(data.data()[offset]), typelen);
+        type.assign((char*)&(data->data()[offset]), typelen);
         offset += typelen + 1;        // +1: NULL character
 
         // get the Length of the value
-        valuelen = data.at(offset) << 8 | data.at(offset + 1);
+        valuelen = data->at(offset) << 8 | data->at(offset + 1);
         value.resize(valuelen);
         offset += 2;
 
@@ -536,7 +544,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
         }
 
         // get the Value
-        value.assign((char*)&(data.data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
+        value.assign((char*)&(data->data()[offset]), valuelen);  // value may include NULL characters, read as a buffer
         offset += valuelen;
 
         // add it to the map
@@ -547,15 +555,15 @@ TLVstore * TLVstore::containerToTLVrecords(const string data)
 }
 
 
-TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
+TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
 {
-    if (data.empty())
+    if (data->empty())
     {
         return NULL;
     }
 
     unsigned offset = 0;
-    encryptionmode_t mode = (encryptionmode_t) data.at(offset);
+    encryptionmode_t mode = (encryptionmode_t) data->at(offset);
     offset++;
 
     int ivlen, taglen;
@@ -599,12 +607,12 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
     }
 
     byte *iv = new byte[ivlen];
-    memcpy(iv, &(data[offset]), ivlen);
+    memcpy(iv, &(data->data()[offset]), ivlen);
     offset += ivlen;
 
-    unsigned buflen = data.length() - offset;
+    unsigned buflen = data->length() - offset;
     byte *buf = new byte[buflen];
-    memcpy(buf, &(data.data()[offset]), buflen);
+    memcpy(buf, &(data->data()[offset]), buflen);
 
     if (useCCM)
     {
@@ -615,8 +623,8 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
         key->gcm_decrypt(buf, buflen, iv, ivlen);
     }
 
-    string clearBytes;
-    clearBytes.assign((const char *)buf, buflen);
+    unsigned clearLen = buflen - taglen;
+    string *clearBytes = new string((const char *)buf, clearLen);
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(clearBytes);
 
@@ -625,19 +633,21 @@ TLVstore * TLVstore::containerToTLVrecords(const string data, SymmCipher *key)
         // retry TLV decoding after conversion from 'UTF-8 chars' to 'Unicode chars'
         LOG_warn << "Retrying TLV records decoding with UTF-8 patch";
 
-        string result = Utils::utf8toUnicode(buf, buflen);
-        if (result.empty())
+        string *clearBytes = Utils::utf8toUnicode(buf, clearLen);
+        if (clearBytes == NULL)
         {
             LOG_err << "Invalid UTF-8 encoding";
         }
         else
         {
-            tlv = TLVstore::containerToTLVrecords(result);
+            tlv = TLVstore::containerToTLVrecords(clearBytes);
+            delete clearBytes;
         }
     }
 
     delete [] buf;
     delete [] iv;
+    delete clearBytes;
 
     return tlv;
 }
@@ -646,7 +656,7 @@ TLVstore::~TLVstore()
 {
 }
 
-string Utils::utf8toUnicode(const uint8_t *src, unsigned srclen)
+string * Utils::utf8toUnicode(const uint8_t *src, unsigned srclen)
 {
     uint8_t utf8cp1;
     uint8_t utf8cp2;
@@ -676,12 +686,12 @@ string Utils::utf8toUnicode(const uint8_t *src, unsigned srclen)
             else
             {
                 // error: last byte indicates a two-bytes UTF-8 char, but only one left
-                return "";
+                return NULL;
             }
         }
     }
 
-    return string((const char*)res, rescount);
+    return new string((const char*)res, rescount);
 }
 
 } // namespace

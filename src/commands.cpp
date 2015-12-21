@@ -1959,7 +1959,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
 void CommandGetUA::procresult()
 {
     TLVstore *tlvRecords;
-    string tlvContainer;
+    string * tlvContainer = NULL;
 
     if (client->json.isnumeric())
     {
@@ -1986,7 +1986,7 @@ void CommandGetUA::procresult()
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
 
-                client->putua(attributename.c_str(), (byte *) tlvContainer.data(), tlvContainer.length());
+                client->putua(attributename.c_str(), (byte *) tlvContainer->data(), tlvContainer->length());
                 client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
                 client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
 
@@ -1994,6 +1994,7 @@ void CommandGetUA::procresult()
 
                 client->app->getua_result(tlvRecords);
                 delete tlvRecords;
+                delete tlvContainer;
             }
             else if (attributename == "+puEd255")   // public key not found: resend the value
             {
@@ -2042,9 +2043,12 @@ void CommandGetUA::procresult()
         switch (scope)
         {
         case '*':   // private
+        {
 
             // decrypt the data and build the TLV records
-            tlvRecords = TLVstore::containerToTLVrecords(string((char*) data, datalen), &client->key);
+            string *datastr = new string((const char *)data, datalen);
+            tlvRecords = TLVstore::containerToTLVrecords(datastr, &client->key);
+            delete datastr;
             if (!tlvRecords)
             {
                 LOG_err << "Cannot extract TLV records for private attribute " << attributename;
@@ -2136,7 +2140,9 @@ void CommandGetUA::procresult()
                     tlvRecords->set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
                     tlvContainer = tlvRecords->TLVrecordsToContainer(&client->key);
 
-                    client->putua(attributename.c_str(), (byte *) tlvContainer.data(), tlvContainer.length());
+                    client->putua(attributename.c_str(), (byte *) tlvContainer->data(), tlvContainer->length());
+
+                    delete tlvContainer;
                 }
                 if (!keyringSet)    // first time we see keyring, check public keys
                 {
@@ -2163,9 +2169,8 @@ void CommandGetUA::procresult()
 
             client->app->getua_result(tlvRecords);
             delete tlvRecords;
-
+        }
             break;
-
         case '+':   // public
 
 #ifdef USE_SODIUM
