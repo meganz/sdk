@@ -236,20 +236,29 @@ private:
      * @param key Master key to decrypt the container
      * @return A new TLVstore object. You take the ownership of the object.
      */
-    static TLVstore * containerToTLVrecords(const string data, SymmCipher *key);
+    static TLVstore * containerToTLVrecords(const string *data, SymmCipher *key);
 
     /**
-     * @brief containerToTLVrecords Builds a TLV object with records from a container
+     * @brief Builds a TLV object with records from a container
      * @param data Binary byte array representing the TLV records
      * @param datalen Length of the byte array.
      * @return A new TLVstore object. You take the ownership of the object.
      */
-    static TLVstore * containerToTLVrecords(const string data);
+    static TLVstore * containerToTLVrecords(const string *data);
 
+    /**
+     * @brief Converts the TLV records into an encrypted byte array
+     * @param key Master key to decrypt the container
+     * @param mode Block encryption mode to be used by AES
+     * @return A new string holding the encrypted byte array. You take the ownership of the string.
+     */
+    string *TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode = AES_GCM_12_16);
 
-    string TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode = AES_GCM_12_16);
-
-    string TLVrecordsToContainer();
+    /**
+     * @brief Converts the TLV records into a byte array
+     * @return A new string holding the encrypted byte array. You take the ownership of the string.
+     */
+    string *TLVrecordsToContainer();
 
     /**
      * @brief get Get the value for a given key
@@ -281,7 +290,14 @@ private:
 
 class Utils {
 public:
-    static string utf8toUnicode(const uint8_t *src, unsigned srclen);
+    /**
+     * @brief Converts a character string from UTF-8 to Unicode
+     * @note The UTF-8 string should only contain characters encoded as 1 or 2 bytes.
+     * @param src Characters string encoded in UTF-8
+     * @param srclen Length of the string (in bytes)
+     * @return A new string holding the byte array of Unicode characters. You take the ownership of the string.
+     */
+    static string *utf8toUnicode(const uint8_t *src, unsigned srclen);
 };
 
 
