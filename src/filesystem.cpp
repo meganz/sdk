@@ -222,7 +222,7 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write)
+AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t size)
 {
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -236,6 +236,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write)
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = context;
+    context->pos = size;
 
     asyncsysopen(context);
     return context;

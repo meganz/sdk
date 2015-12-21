@@ -127,7 +127,7 @@ struct MEGA_API FileAccess
 
     virtual bool asyncavailable() { return false; }
 
-    virtual AsyncIOContext *asyncfopen(string *, bool, bool);
+    AsyncIOContext *asyncfopen(string *, bool, bool, m_off_t = 0);
     virtual void asyncsysopen(AsyncIOContext*);
 
     AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
