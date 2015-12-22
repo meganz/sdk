@@ -750,12 +750,19 @@ int MegaTransfer::getFolderTransferTag() const
 
 MegaError::MegaError(int errorCode)
 {
-	this->errorCode = errorCode;
+    this->errorCode = errorCode;
+}
+
+MegaError::MegaError(int errorCode, long long value)
+{
+    this->errorCode = errorCode;
+    this->value = value;
 }
 
 MegaError::MegaError(const MegaError &megaError)
 {
 	errorCode = megaError.getErrorCode();
+    value = megaError.getValue();
 }
 
 MegaError::~MegaError()
@@ -771,6 +778,11 @@ MegaError* MegaError::copy()
 int MegaError::getErrorCode() const 
 { 
     return errorCode;
+}
+
+long long MegaError::getValue() const
+{
+    return value;
 }
 
 const char* MegaError::getErrorString() const

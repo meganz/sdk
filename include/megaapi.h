@@ -2538,7 +2538,14 @@ public:
      * @brief Creates a new MegaError object
      * @param errorCode Error code for this error
      */
-    MegaError(int errorCode);
+    MegaError(int errorCode = MegaError::API_OK);
+
+    /**
+     * @brief Creates a new MegaError object
+     * @param errorCode Error code for this error
+     * @param value Value associated to the error
+     */
+    MegaError(int errorCode, long long value);
 
     /**
      * @brief Creates a new MegaError object copying another one
@@ -2565,6 +2572,19 @@ public:
 		 * @return Error code associated with this MegaError
 		 */
 		int getErrorCode() const;
+
+        /**
+         * @brief Returns a value associated with the error
+         *
+         * Currently, this value is only useful when it is related to an API_EOVERQUOTA
+         * error related to a transfer. In that case, it's the number of seconds until
+         * the more bandwidth will be available for the account.
+         *
+         * In any other case, this value will be 0
+         *
+         * @return Value associated with the error
+         */
+        long long getValue() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -2629,6 +2649,7 @@ public:
     private:
         //< 0 = API error code, > 0 = http error, 0 = No error
 		int errorCode;
+        long long value;
 };
 
 /**
