@@ -338,7 +338,7 @@ class MegaTransferPrivate : public MegaTransfer
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
         void setLastBytes(char *lastBytes);
-        void setLastErrorCode(error errorCode);
+        void setLastError(MegaError e);
         void setFolderTransferTag(int tag);
         void setListener(MegaTransferListener *listener);
 
@@ -370,7 +370,7 @@ class MegaTransferPrivate : public MegaTransfer
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
         virtual char *getLastBytes() const;
-        virtual error getLastErrorCode() const;
+        virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
 
@@ -399,7 +399,7 @@ class MegaTransferPrivate : public MegaTransfer
 
 		MegaTransferListener *listener;
         Transfer *transfer;
-        error lastError;
+        MegaError lastError;
         int folderTransferTag;
 };
 
@@ -1568,9 +1568,8 @@ protected:
         virtual void transfer_added(Transfer*);
         virtual void transfer_removed(Transfer*);
         virtual void transfer_prepare(Transfer*);
-        virtual void transfer_failed(Transfer*, error error);
+        virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
-        virtual void transfer_limit(Transfer*);
         virtual void transfer_complete(Transfer*);
 
         virtual dstime pread_failure(error, int, void*);

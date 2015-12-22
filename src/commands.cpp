@@ -422,6 +422,7 @@ void CommandGetFile::procresult()
     const char* at = NULL;
     error e = API_EINTERNAL;
     m_off_t s = -1;
+    dstime tl = 0;
     int d = 0;
     byte* buf;
     time_t ts = 0, tm = 0;
@@ -480,6 +481,10 @@ void CommandGetFile::procresult()
 
             case 'e':
                 e = (error)client->json.getint();
+                break;
+
+            case MAKENAMEID2('t', 'l'):
+                tl = client->json.getint();
                 break;
 
             case EOO:
@@ -558,7 +563,7 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        return tslot->transfer->failed(e);
+                                        return tslot->transfer->failed(e, tl * 10);
                                     }
                                     else
                                     {
