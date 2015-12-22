@@ -411,28 +411,24 @@ string * TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
     byte *iv = new byte[ivlen];
     PrnGen::genblock(iv, ivlen);
 
-    // generate auth. tag array
-    byte *tag = new byte[taglen];
-    PrnGen::genblock(tag, taglen);
+    string cipherText;
 
     // encrypt the bytes using the specified mode
     if (useCCM)
     {
-        key->ccm_encrypt((byte *)container->data(), container->length(), iv, ivlen);
+        key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
     }
     else    // then use GCM
     {
-        key->gcm_encrypt((byte *)container->data(), container->length(), iv, ivlen);
+        key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
     }
 
     string *result = new string;
     result->resize(1);
     result->at(0) = mode;
     result->append((char*) iv, ivlen);
-    result->append((char*) container->data(), container->length());
-    result->append((char*) tag, taglen);
+    result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
 
-    delete [] tag;
     delete [] iv;
     delete container;
 
@@ -566,7 +562,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     encryptionmode_t mode = (encryptionmode_t) data->at(offset);
     offset++;
 
-    int ivlen, taglen;
+    unsigned ivlen, taglen;
     bool useCCM = false;
     switch (mode)
     {
@@ -585,8 +581,8 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
 
     case AES_CCM_10_08:
     case AES_GCM_10_08_BROKEN:
-        ivlen = 12;
-        taglen = 16;
+        ivlen = 10;
+        taglen = 8;
         useCCM = true;
         break;
 
@@ -598,7 +594,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
 
     case AES_GCM_10_08:
         ivlen = 10;
-        taglen = 16;
+        taglen = 8;
         useCCM = false;
         break;
 
@@ -610,44 +606,39 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     memcpy(iv, &(data->data()[offset]), ivlen);
     offset += ivlen;
 
-    unsigned buflen = data->length() - offset;
-    byte *buf = new byte[buflen];
-    memcpy(buf, &(data->data()[offset]), buflen);
+    unsigned cipherTextLen = data->length() - offset;
+    string cipherText = data->substr(offset, cipherTextLen);
+
+    unsigned clearTextLen = cipherTextLen - taglen;
+    string clearText;
 
     if (useCCM)
     {
-        key->ccm_decrypt(buf, buflen, iv, ivlen);
+        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
     else
     {
-        key->gcm_decrypt(buf, buflen, iv, ivlen);
+        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
 
-    unsigned clearLen = buflen - taglen;
-    string *clearBytes = new string((const char *)buf, clearLen);
+    delete [] iv;
 
-    TLVstore *tlv = TLVstore::containerToTLVrecords(clearBytes);
-
-    if (!tlv) // 'data' might be affected by the UTF-8 encoding legacy bug.
+    TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
+    if (!tlv) // 'data' might be affected by the legacy bug: strings encoded in UTF-8 instead of Unicode
     {
         // retry TLV decoding after conversion from 'UTF-8 chars' to 'Unicode chars'
         LOG_warn << "Retrying TLV records decoding with UTF-8 patch";
 
-        string *clearBytes = Utils::utf8toUnicode(buf, clearLen);
-        if (clearBytes == NULL)
+        string clearTextUnicode;
+        if (!Utils::utf8toUnicode((const byte*)clearText.data(), clearTextLen, &clearTextUnicode))
         {
             LOG_err << "Invalid UTF-8 encoding";
         }
         else
         {
-            tlv = TLVstore::containerToTLVrecords(clearBytes);
-            delete clearBytes;
+            tlv = TLVstore::containerToTLVrecords(&clearTextUnicode);
         }
     }
-
-    delete [] buf;
-    delete [] iv;
-    delete clearBytes;
 
     return tlv;
 }
@@ -656,7 +647,7 @@ TLVstore::~TLVstore()
 {
 }
 
-string * Utils::utf8toUnicode(const uint8_t *src, unsigned srclen)
+bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 {
     uint8_t utf8cp1;
     uint8_t utf8cp2;
@@ -686,12 +677,13 @@ string * Utils::utf8toUnicode(const uint8_t *src, unsigned srclen)
             else
             {
                 // error: last byte indicates a two-bytes UTF-8 char, but only one left
-                return NULL;
+                return false;
             }
         }
     }
 
-    return new string((const char*)res, rescount);
+    result->assign((const char*)res, rescount);
+    return true;
 }
 
 } // namespace
