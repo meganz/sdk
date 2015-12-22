@@ -729,7 +729,7 @@ void MegaClient::exec()
     if (httpio->inetisback())
     {
         LOG_info << "Internet connectivity returned - resetting all backoff timers";
-        abortbackoff();
+        abortbackoff(overquotauntil <= Waiter::ds);
     }
 
     if (EVER(httpio->lastdata) && !pendingcs && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
@@ -1889,6 +1889,7 @@ bool MegaClient::abortbackoff(bool includexfers)
 
     if (includexfers)
     {
+        overquotauntil = 0;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
