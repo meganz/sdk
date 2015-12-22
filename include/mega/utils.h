@@ -295,9 +295,10 @@ public:
      * @note The UTF-8 string should only contain characters encoded as 1 or 2 bytes.
      * @param src Characters string encoded in UTF-8
      * @param srclen Length of the string (in bytes)
-     * @return A new string holding the byte array of Unicode characters. You take the ownership of the string.
+     * @param result String holding the byte array of Unicode characters
+     * @return True if success, false if the byte 'src' is not a valid UTF-8 string
      */
-    static string *utf8toUnicode(const uint8_t *src, unsigned srclen);
+    static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
 };
 
 
