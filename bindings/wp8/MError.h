@@ -67,6 +67,7 @@ namespace mega
         virtual ~MError();
         MError^ copy();
         MErrorType getErrorCode();
+        uint64 getValue();
         String^ getErrorString();
         String^ toString();
         static String^ getErrorString(int errorCode);
