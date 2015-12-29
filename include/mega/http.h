@@ -135,6 +135,9 @@ struct MEGA_API HttpIO : public EventTrigger
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
 
+    // get proxy settings from the system
+    virtual Proxy *getautoproxy();
+
     void getMEGADNSservers(string*, bool = true);
 
     HttpIO();

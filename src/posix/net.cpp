@@ -1278,13 +1278,6 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     request_proxy_ip();
 }
 
-Proxy* CurlHttpIO::getautoproxy()
-{
-    Proxy* proxy = new Proxy();
-    proxy->setProxyType(Proxy::NONE);
-    return proxy;
-}
-
 // cancel pending HTTP request
 void CurlHttpIO::cancel(HttpReq* req)
 {

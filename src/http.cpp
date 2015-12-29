@@ -101,6 +101,112 @@ bool HttpIO::inetisback()
     return false;
 }
 
+Proxy *HttpIO::getautoproxy()
+{
+    Proxy* proxy = new Proxy();
+    proxy->setProxyType(Proxy::NONE);
+
+#if defined(WIN32) && !defined(WINDOWS_PHONE)
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG ieProxyConfig = { 0 };
+
+    if (WinHttpGetIEProxyConfigForCurrentUser(&ieProxyConfig) == TRUE)
+    {
+        if (ieProxyConfig.lpszProxy)
+        {
+            string proxyURL;
+            proxy->setProxyType(Proxy::CUSTOM);
+            int len = wcslen(ieProxyConfig.lpszProxy);
+            proxyURL.assign((const char*)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
+
+            // only save one proxy
+            for (int i = 0; i < len; i++)
+            {
+                wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
+
+                if (*character == ' ' || *character == ';')
+                {
+                    proxyURL.resize(i*sizeof(wchar_t));
+                    len = i;
+                    break;
+                }
+            }
+
+            // remove protocol prefix, if any
+            for (int i = len - 1; i >= 0; i--)
+            {
+                wchar_t* character = (wchar_t*)(proxyURL.data() + i * sizeof(wchar_t));
+
+                if (*character == '/')
+                {
+                    proxyURL = proxyURL.substr((i + 1) * sizeof(wchar_t));
+                    break;
+                }
+            }
+
+            proxy->setProxyURL(&proxyURL);
+        }
+        else if (ieProxyConfig.lpszAutoConfigUrl || ieProxyConfig.fAutoDetect == TRUE)
+        {
+            WINHTTP_AUTOPROXY_OPTIONS autoProxyOptions;
+
+            if (ieProxyConfig.lpszAutoConfigUrl)
+            {
+                autoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_CONFIG_URL;
+                autoProxyOptions.lpszAutoConfigUrl = ieProxyConfig.lpszAutoConfigUrl;
+                autoProxyOptions.dwAutoDetectFlags = 0;
+            }
+            else
+            {
+                autoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_AUTO_DETECT;
+                autoProxyOptions.lpszAutoConfigUrl = NULL;
+                autoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP | WINHTTP_AUTO_DETECT_TYPE_DNS_A;
+            }
+
+            autoProxyOptions.fAutoLogonIfChallenged = TRUE;
+            autoProxyOptions.lpvReserved = NULL;
+            autoProxyOptions.dwReserved = 0;
+
+            WINHTTP_PROXY_INFO proxyInfo;
+
+            HINTERNET hSession = WinHttpOpen(L"MEGAsync proxy detection",
+                                   WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                   WINHTTP_NO_PROXY_NAME,
+                                   WINHTTP_NO_PROXY_BYPASS,
+                                   WINHTTP_FLAG_ASYNC);
+
+            if (WinHttpGetProxyForUrl(hSession, L"https://g.api.mega.co.nz/", &autoProxyOptions, &proxyInfo))
+            {
+                if (proxyInfo.lpszProxy)
+                {
+                    string proxyURL;
+                    proxy->setProxyType(Proxy::CUSTOM);
+                    proxyURL.assign((const char*)proxyInfo.lpszProxy, wcslen(proxyInfo.lpszProxy) * sizeof(wchar_t));
+                    proxy->setProxyURL(&proxyURL);
+                }
+            }
+            WinHttpCloseHandle(hSession);
+        }
+    }
+
+    if (ieProxyConfig.lpszProxy)
+    {
+        GlobalFree(ieProxyConfig.lpszProxy);
+    }
+
+    if (ieProxyConfig.lpszProxyBypass)
+    {
+        GlobalFree(ieProxyConfig.lpszProxyBypass);
+    }
+
+    if (ieProxyConfig.lpszAutoConfigUrl)
+    {
+        GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
+    }
+#endif
+
+    return proxy;
+}
+
 void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 {
     if (!dnsservers)

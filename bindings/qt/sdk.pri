@@ -64,8 +64,10 @@ win32 {
             src/win32/fs.cpp \
             src/win32/waiter.cpp
         HEADERS += include/mega/win32/meganet.h
-        LIBS += -lwinhttp
     }
+
+    # link winhttp anyway (required for automatic proxy detection)
+    LIBS += -lwinhttp
 }
 
 

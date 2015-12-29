@@ -141,7 +141,6 @@ public:
 
     void setuseragent(string*);
     void setproxy(Proxy*);
-    Proxy* getautoproxy();
     void setdnsservers(const char*);
     void disconnect();
 

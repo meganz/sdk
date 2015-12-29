@@ -76,7 +76,6 @@ public:
 
     void setuseragent(string*);
     void setproxy(Proxy *);
-    Proxy *getautoproxy();
 
     WinHttpIO();
     ~WinHttpIO();
