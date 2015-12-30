@@ -6433,6 +6433,151 @@ class MegaApi
          */
         bool isOnline();
 
+#ifdef HAVE_LIBUV
+        /**
+         * @brief Start an HTTP proxy server in specified port
+         *
+         * If this function returns true, that means that the server is
+         * ready to accept connections. The initialization is synchronous.
+         *
+         * The server will serve files using this URL format:
+         * http://127.0.0.1/<NodeHandle>/[Node name]
+         *
+         * The server will serve the file even if the node name doesn't match.
+         * It is allowed in the URL to help other apps to recognize the file type.
+         *
+         * If the node handle belongs to a folder node, a web with the list of files
+         * inside the folder is returned.
+         *
+         * @param port Port in which the server must accept connections
+         * @return True is the server is ready, false if the initialization failed
+         */
+        bool httpServerStart(int port = 4443);
+
+        /**
+         * @brief Stop the HTTP proxy server
+         *
+         * When this function returns, the server is already shutdown.
+         * If the HTTP proxy server isn't running, this functions doesn't do anything.
+         */
+        void httpServerStop();
+
+        /**
+         * @brief Check if the HTTP proxy server is running
+         * @return 0 if the server is not running, otherwise the port in which it's listening
+         */
+        int httpServerIsRunning();
+
+        /**
+         * @brief Allow/forbid to serve files
+         *
+         * By default, files are served (when the server is running)
+         *
+         * @param true to allow to server files, false to forbid it
+         */
+        void httpServerEnableFileServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve files
+         *
+         * This function can return true even if the HTTP proxy server is not running
+         *
+         * @return true if it's allowed to serve files, otherwise false
+         */
+        bool httpServerIsFileServerEnabled();
+
+        /**
+         * @brief Allow/forbid to serve folders
+         *
+         * By default, folders are served (when the server is running)
+         *
+         * @param true to allow to server folders, false to forbid it
+         */
+        void httpServerEnableFolderServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve folders
+         *
+         * This function can return true even if the HTTP proxy server is not running
+         *
+         * @return true if it's allowed to serve folders, otherwise false
+         */
+        bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Set the maximum buffer size for the internal buffer
+         *
+         * The HTTP proxy server has an internal buffer to store the data received from MEGA
+         * while it's being sent to clients. When the buffer is full, the connection with
+         * the MEGA storage server is closed, when the buffer has few data, the connection
+         * with the MEGA storage server is started again.
+         *
+         * Even with very fast connections, due to the possible latency starting new connections,
+         * if this buffer is small the streaming can have problems due to the overhead caused by
+         * the excessive number of POST requests.
+         *
+         * It's recommended to set this buffer at least to 1MB
+         *
+         * For connections that request less data than the buffer size, the HTTP proxy server
+         * will only allocate the required memory to complete the request to minimize the
+         * memory usage.
+         *
+         * The new value will be takein into account since the next request received by
+         * the HTTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param bufferSize Maximum buffer size (in bytes) or a number <= 0 to use the
+         * internal default value
+         */
+        void httpServerSetMaxBufferSize(int bufferSize);
+
+        /**
+         * @brief Get the maximum size of the internal buffer size
+         *
+         * See MegaApi::httpServerSetMaxBufferSize
+         *
+         * @return Maximum size of the internal buffer size (in bytes)
+         */
+        int httpServerGetMaxBufferSize();
+
+        /**
+         * @brief Set the maximum size of packets sent to clients
+         *
+         * For each connection, the HTTP proxy server only sends one write to the underlying
+         * socket at once. This parameter allows to set the size of that write.
+         *
+         * A small value could cause a lot of writes and would lower the performance.
+         *
+         * A big value could send too much data to the output buffer of the socket. That could
+         * keep the internal buffer full of data that hasn't been sent to the client yet,
+         * preventing the retrieval of additional data from the MEGA storage server. In that
+         * circumstances, the client could read a lot of data at once and the HTTP server
+         * could not have enough time to get more data fast enough.
+         *
+         * It's recommended to set this value to at least 8192 and no more than the 25% of
+         * the maximum buffer size (MegaApi::httpServerSetMaxBufferSize).
+         *
+         * The new value will be takein into account since the next request received by
+         * the HTTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param outputSize Maximun size of data packets sent to clients (in bytes) or
+         * a number <= 0 to use the internal default value
+         */
+        void httpServerSetMaxOutputSize(int outputSize);
+
+        /**
+         * @brief Get the maximum size of the packets sent to clients
+         *
+         * See MegaApi::httpServerSetMaxOutputSize
+         *
+         * @return Maximum size of the packets sent to clients (in bytes)
+         */
+        int httpServerGetMaxOutputSize();
+#endif
+
 private:
         MegaApiImpl *pImpl;
 };

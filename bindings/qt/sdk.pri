@@ -47,6 +47,14 @@ SOURCES += src/attrmap.cpp \
     bindings/qt/QTMegaEvent.cpp \
     src/mega_utf8proc.cpp
 
+# CONFIG += USE_LIBUV
+CONFIG(USE_LIBUV) {
+    SOURCES += src/mega_http_parser.cpp
+    DEFINES += HAVE_LIBUV
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
+    LIBS += -llibuv
+}
+
 win32 {
     # comment this line to use WinHTTP on Windows
     CONFIG += USE_CURL

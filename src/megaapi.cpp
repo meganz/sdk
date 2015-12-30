@@ -2122,6 +2122,63 @@ bool MegaApi::isOnline()
     return pImpl->isOnline();
 }
 
+#ifdef HAVE_LIBUV
+bool MegaApi::httpServerStart(int port)
+{
+    return pImpl->httpServerStart(port);
+}
+
+void MegaApi::httpServerStop()
+{
+    pImpl->httpServerStop();
+}
+
+int MegaApi::httpServerIsRunning()
+{
+    return pImpl->httpServerIsRunning();
+}
+
+void MegaApi::httpServerEnableFileServer(bool enable)
+{
+    pImpl->httpServerEnableFileServer(enable);
+}
+
+bool MegaApi::httpServerIsFileServerEnabled()
+{
+    return pImpl->httpServerIsFileServerEnabled();
+}
+
+void MegaApi::httpServerEnableFolderServer(bool enable)
+{
+    pImpl->httpServerEnableFolderServer(enable);
+}
+
+bool MegaApi::httpServerIsFolderServerEnabled()
+{
+    return pImpl->httpServerIsFolderServerEnabled();
+}
+
+void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
+{
+    pImpl->httpServerSetMaxBufferSize(bufferSize);
+}
+
+int MegaApi::httpServerGetMaxBufferSize()
+{
+    return pImpl->httpServerGetMaxBufferSize();
+}
+
+void MegaApi::httpServerSetMaxOutputSize(int outputSize)
+{
+    pImpl->httpServerSetMaxOutputSize(outputSize);
+}
+
+int MegaApi::httpServerGetMaxOutputSize()
+{
+    return pImpl->httpServerGetMaxOutputSize();
+}
+#endif
+
 char* MegaApi::strdup(const char* buffer)
 {
     if(!buffer)
