@@ -52,7 +52,12 @@ CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
-    LIBS += -llibuv
+    win32 {
+        LIBS += -llibuv
+    }
+    else {
+        LIBS += -luv
+    }
 }
 
 win32 {

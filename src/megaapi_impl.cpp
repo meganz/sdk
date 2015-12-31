@@ -11601,7 +11601,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         response << "HTTP/1.1 405 Method not allowed\r\n"
                     "\r\n";
 
-        sendHeaders(httpctx, &response.str());
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         return 0;
     }
 
@@ -11612,7 +11613,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                     "Location: https://mega.nz/favicon.ico\r\n"
                     "\r\n";
 
-        sendHeaders(httpctx, &response.str());
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         return 0;
     }
 
@@ -11630,7 +11632,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         response << "HTTP/1.1 404 Not Found\r\n"
                   << "\r\n";
 
-        sendHeaders(httpctx, &response.str());
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         return 0;
     }
 
@@ -11641,7 +11644,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             response << "HTTP/1.1 403 Forbidden\r\n"
                       << "\r\n";
 
-            sendHeaders(httpctx, &response.str());
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
             delete node;
             return 0;
         }
@@ -11791,7 +11795,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             << "Access-Control-Allow-Origin: *\r\n"
             << "\r\n";
         response << sweb;
-        sendHeaders(httpctx, &response.str());
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         delete node;
         return 0;
     }
@@ -11802,7 +11807,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         response << "HTTP/1.1 403 Forbidden\r\n"
                   << "\r\n";
 
-        sendHeaders(httpctx, &response.str());
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         delete node;
         return 0;
     }
@@ -11836,7 +11842,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             << "Content-Range: bytes 0-0/" << totalSize << "\r\n"
             << "\r\n";
 
-        sendHeaders(httpctx, &response.str());
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         delete node;
         return 0;
     }
