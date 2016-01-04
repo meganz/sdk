@@ -1444,20 +1444,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->accountDetails) = *(request->getAccountDetails());
 	}
 
-#ifdef ENABLE_CHAT
-    this->chatPeerList = NULL;
-    if(request->getMegaTextChatPeerList())
-    {
-        this->chatPeerList = new MegaTextChatPeerListPrivate;
-        *(this->chatPeerList) = *(request->getMegaTextChatPeerList());
-    }
-
-    this->chatList = NULL;
-    if(request->getMegaTextChatList())
-    {
-        this->chatList = new MegaTextChatListPrivate;
-        *(this->chatList) = *(request->getMegaTextChatList());
-    }
+#ifdef ENABLE_CHAT   
+    this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
+    this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
 #endif
 
 }
