@@ -101,6 +101,12 @@ struct MEGA_API DirectReadSlot
 {
     m_off_t pos;
 
+    // values to calculate the transfer speed
+    static const int MEAN_SPEED_INTERVAL_DS = 100;
+    static const int MIN_BYTES_PER_SECOND = 1024 * 15;
+    m_off_t partiallen;
+    dstime partialstarttime;
+
     DirectRead* dr;
     HttpReq* req;
 

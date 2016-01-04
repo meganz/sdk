@@ -521,6 +521,12 @@ void DirectReadNode::retry(error e)
 
     retries++;
 
+    LOG_warn << "Streaming transfer retry due to error " << e;
+    if (client->autodownport)
+    {
+        client->usealtdownport = !client->usealtdownport;
+    }
+
     // signal failure to app , obtain minimum desired retry time
     for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
     {
@@ -637,6 +643,7 @@ bool DirectReadSlot::doio()
             }
 
             req->httpio->lastdata = Waiter::ds;
+            partiallen += req->in.size();
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
             {
                 pos += t;
@@ -649,6 +656,7 @@ bool DirectReadSlot::doio()
             {
                 // app-requested abort
                 delete dr;
+                dr = NULL;
                 return false;
             }
         }
@@ -659,6 +667,7 @@ bool DirectReadSlot::doio()
 
             // remove and delete completed read request, then remove slot
             delete dr;
+            dr = NULL;
             return true;
         }
     }
@@ -666,6 +675,25 @@ bool DirectReadSlot::doio()
     {
         // a failure triggers a complete abort and retry of all pending reads for this node
         dr->drn->retry(API_EREAD);
+        return false;
+    }
+
+    if (Waiter::ds - partialstarttime > MEAN_SPEED_INTERVAL_DS)
+    {
+        m_off_t meanspeed = (10 * partiallen) / (Waiter::ds - partialstarttime);
+
+        LOG_debug << "Mean speed (B/s): " << meanspeed;
+        if (meanspeed < MIN_BYTES_PER_SECOND)
+        {
+            LOG_warn << "Transfer speed too low for streaming. Retrying";
+            dr->drn->retry(API_EAGAIN);
+            return false;
+        }
+        else
+        {
+            partialstarttime = Waiter::ds;
+            partiallen = 0;
+        }
     }
 
     return false;
@@ -727,6 +755,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     dr = cdr;
 
     pos = dr->offset;
+    partiallen = 0;
+    partialstarttime = Waiter::ds;
 
     req = new HttpReq(true);
 
@@ -737,10 +767,39 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
         sprintf(strchr(buf, 0), "%" PRIu64, dr->offset + dr->count - 1);
     }
 
+    partiallen = 0;
+    partialstarttime = Waiter::ds;
     req->posturl = dr->drn->tempurl;
+    if (!memcmp(req->posturl.c_str(), "http:", 5))
+    {
+        size_t portendindex = req->posturl.find("/", 8);
+        size_t portstartindex = req->posturl.find(":", 8);
+
+        if (portendindex != string::npos)
+        {
+            if (portstartindex == string::npos)
+            {
+                if (dr->drn->client->usealtdownport)
+                {
+                    LOG_debug << "Enabling alternative port for streaming transfer";
+                    req->posturl.insert(portendindex, ":8080");
+                }
+            }
+            else
+            {
+                if (!dr->drn->client->usealtdownport)
+                {
+                    LOG_debug << "Disabling alternative port for streaming transfer";
+                    req->posturl.erase(portstartindex, portendindex - portstartindex);
+                }
+            }
+        }
+    }
+
     req->posturl.append(buf);
     req->type = REQ_BINARY;
 
+    LOG_debug << "POST URL: " << req->posturl;
     req->post(dr->drn->client);
 
     drs_it = dr->drn->client->drss.insert(dr->drn->client->drss.end(), this);
