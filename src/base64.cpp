@@ -297,4 +297,82 @@ int Base32::atob(const char *a, byte *b, int blen)
     return p;
 }
 
+bool URLCodec::issafe(char c)
+{
+    if (ishexdigit(c)
+            || (c >= 'a' && c <= 'z')
+            || (c >= 'A' && c <= 'Z')
+            || c == '-' || c == '.'
+            || c == '_' || c == '~')
+    {
+        return true;
+    }
+    return false;
+}
+
+char URLCodec::hexval(char c)
+{
+    return c > '9' ? (c > 'a' ? c - 'a' + 10 : c - 'A' + 10) : c - '0';
+}
+
+bool URLCodec::ishexdigit(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+void URLCodec::escape(string *plain, string *escaped)
+{
+    if (!escaped || !plain)
+    {
+        return;
+    }
+
+    escaped->clear();
+    int len = plain->size();
+    int escapedIndex = 0;
+    for (int i = 0; i < len; i++)
+    {
+        char c = plain->at(i);
+        if (issafe(c))
+        {
+            escaped->push_back(c);
+            escapedIndex++;
+        }
+        else
+        {
+            escaped->resize(escapedIndex + 3);
+            sprintf((char *)escaped->c_str() + escapedIndex, "%%%02x", c);
+            escapedIndex += 3;
+        }
+    }
+}
+
+void URLCodec::unescape(string *escaped, string *plain)
+{
+    if (!escaped || !plain)
+    {
+        return;
+    }
+
+    plain->clear();
+    plain->reserve(escaped->size());
+    int len = escaped->size();
+    for (int i = 0; i < len; i++)
+    {
+        if (escaped->at(i) == '%' && ishexdigit(escaped->at(i + 1)) && ishexdigit(escaped->at(i + 2)))
+        {
+            char c1 = hexval(escaped->at(i + 1));
+            char c2 = hexval(escaped->at(i + 2));
+            char c = 0xFF & ((c1 << 4) | c2);
+
+            plain->push_back(c);
+            i += 2;
+        }
+        else
+        {
+            plain->push_back(escaped->at(i));
+        }
+    }
+}
+
 } // namespace
