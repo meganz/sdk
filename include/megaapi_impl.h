@@ -1236,7 +1236,8 @@ class MegaApiImpl : public MegaApp
         void httpServerStop();
         int httpServerIsRunning();
 
-        // settings
+        // management
+        char *httpServerGetLocalLink(MegaNode *node);
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);

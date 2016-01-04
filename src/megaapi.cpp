@@ -2158,6 +2158,11 @@ bool MegaApi::httpServerIsFolderServerEnabled()
     return pImpl->httpServerIsFolderServerEnabled();
 }
 
+char *MegaApi::httpServerGetLocalLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalLink(node);
+}
+
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
 {
     pImpl->httpServerSetMaxBufferSize(bufferSize);

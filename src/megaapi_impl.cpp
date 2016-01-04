@@ -4394,6 +4394,46 @@ int MegaApiImpl::httpServerIsRunning()
     return result;
 }
 
+char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    int port = httpServer->getPort();
+    sdkMutex.unlock();
+
+    ostringstream oss;
+    oss << "http://127.0.0.1:" << port << "/";
+    char *base64handle = node->getBase64Handle();
+    oss << base64handle;
+    delete [] base64handle;
+
+    if (node->isPublic())
+    {
+        char *base64key = node->getBase64Key();
+        oss << "!" << base64key;
+        delete [] base64key;
+    }
+
+    oss << "/";
+
+    string name = node->getName();
+    string escapedName;
+    URLCodec::escape(&name, &escapedName);
+    oss << escapedName;
+    string link = oss.str();
+    return MegaApi::strdup(link.c_str());
+}
+
 void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();

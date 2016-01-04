@@ -6441,10 +6441,10 @@ class MegaApi
          * ready to accept connections. The initialization is synchronous.
          *
          * The server will serve files using this URL format:
-         * http://127.0.0.1/<NodeHandle>/[Node name]
+         * http://127.0.0.1/<NodeHandle>/<NodeName>
          *
-         * The server will serve the file even if the node name doesn't match.
-         * It is allowed in the URL to help other apps to recognize the file type.
+         * The node name must be URL encoded and must match with the node handle.
+         * You can generate a correct link for a MegaNode using MegaApi::httpServerGetLocalLink
          *
          * If the node handle belongs to a folder node, a web with the list of files
          * inside the folder is returned.
@@ -6503,6 +6503,19 @@ class MegaApi
          * @return true if it's allowed to serve folders, otherwise false
          */
         bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Returns a URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalLink(MegaNode *node);
 
         /**
          * @brief Set the maximum buffer size for the internal buffer
