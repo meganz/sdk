@@ -11489,6 +11489,7 @@ void MegaHTTPServer::onClose(uv_handle_t* handle)
 
     // streaming transfers are automatically stopped when their listener is removed
     httpctx->megaApi->removeTransferListener(httpctx);
+    httpctx->megaApi->removeRequestListener(httpctx);
     uv_close((uv_handle_t *)&httpctx->asynchandle, onAsyncEventClose);
 }
 
@@ -11516,18 +11517,37 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
     httpctx->path.assign(url, length);
     LOG_debug << "URL received: " << httpctx->path;
 
-    if (length < 9 || url[0] != '/' || (length >= 10 && url[9] != '/'))
+    if (length < 9 || url[0] != '/' || (length >= 10 && url[9] != '/' && url[9] != '!'))
     {
         LOG_debug << "URL without node handle";
         return 0;
     }
+
+    unsigned int index = 9;
     httpctx->nodehandle.assign(url + 1, 8);
-    if (length > 10)
+    LOG_debug << "Node handle: " << httpctx->nodehandle;
+
+    if (length > 53 && url[index] == '!')
     {
-        httpctx->nodename.assign(url + 10, length - 10);
+        httpctx->nodekey.assign(url + 10, 43);
+        LOG_debug << "Public link. Key: " << httpctx->nodekey;
+        index = 53;
     }
 
-    LOG_debug << "Valid URL. Handle: " << httpctx->nodehandle;
+    if (length > index && url[index] != '/')
+    {
+        LOG_warn << "Invalid URL";
+        return 0;
+    }
+
+    index++;
+    if (length > index)
+    {
+        string nodename(url + index, length - index);
+        URLCodec::unescape(&nodename, &httpctx->nodename);
+        LOG_debug << "Node name: " << httpctx->nodename;
+    }
+
     return 0;
 }
 
@@ -11629,11 +11649,35 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (!node)
     {
+        if (!httpctx->nodehandle.size() || !httpctx->nodekey.size())
+        {
+            response << "HTTP/1.1 404 Not Found\r\n"
+                      << "\r\n";
+
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
+            return 0;
+        }
+        else
+        {
+            string link = "https://mega.nz/#!";
+            link.append(httpctx->nodehandle);
+            link.append("!");
+            link.append(httpctx->nodekey);
+            LOG_debug << "Getting public link: " << link;
+            httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
+            return 0;
+        }
+    }
+
+    if (node && httpctx->nodename != node->getName())
+    {
         response << "HTTP/1.1 404 Not Found\r\n"
                   << "\r\n";
 
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
+        delete node;
         return 0;
     }
 
@@ -11813,6 +11857,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         return 0;
     }
 
+    httpctx->node = node;
+    streamNode(httpctx);
+    return 0;
+}
+
+int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
+{
+    std::ostringstream response;
+    MegaNode *node = httpctx->node;
     m_off_t totalSize = node->getSize();
     m_off_t start = 0;
     m_off_t end = totalSize - 1;
@@ -11876,7 +11929,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     LOG_debug << "Requesting range. From " << start << "  size " << len;
     uv_mutex_init(&httpctx->mutex);
-    httpctx->node = node;
     httpctx->rangeWritten = 0;
     httpctx->megaApi->startStreaming(node, start, len, httpctx);
     return 0;
@@ -11916,6 +11968,21 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
         }
         return;
     }
+
+    if (httpctx->nodereceived)
+    {
+        httpctx->nodereceived = false;
+        if (!httpctx->node)
+        {
+            string resstr = "HTTP/1.1 404 Not Found\r\n\r\n";
+            sendHeaders(httpctx, &resstr);
+            return;
+        }
+
+        streamNode(httpctx);
+        return;
+    }
+
     sendNextBytes(httpctx);
 }
 
@@ -12035,6 +12102,7 @@ MegaHTTPContext::MegaHTTPContext()
     range = false;
     finished = false;
     failed = false;
+    nodereceived = false;
 }
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
@@ -12076,6 +12144,13 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
         failed = true;
         uv_async_send(&asynchandle);
     }
+}
+
+void MegaHTTPContext::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+{
+    node = request->getPublicMegaNode();
+    nodereceived = true;
+    uv_async_send(&asynchandle);
 }
 
 #endif

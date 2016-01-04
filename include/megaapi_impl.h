@@ -1581,7 +1581,7 @@ protected:
 };
 
 class MegaHTTPServer;
-class MegaHTTPContext : public MegaTransferListener
+class MegaHTTPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
     MegaHTTPContext();
@@ -1598,6 +1598,7 @@ public:
     m_off_t size;
     char *lastBuffer;
     int lastBufferLen;
+    bool nodereceived;
     bool finished;
     bool failed;
     bool pause;
@@ -1610,10 +1611,12 @@ public:
     MegaNode *node;
     std::string path;
     std::string nodehandle;
+    std::string nodekey;
     std::string nodename;
 
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
 class MegaHTTPServer
@@ -1657,6 +1660,7 @@ protected:
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
     static void sendNextBytes(MegaHTTPContext *httpctx);
+    static int streamNode(MegaHTTPContext *httpctx);
 
 public:
     MegaHTTPServer(MegaApiImpl *megaApi);
