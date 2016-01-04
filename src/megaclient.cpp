@@ -4173,6 +4173,7 @@ void MegaClient::notifypurge(void)
         for (i = 0; i < t; i++)
         {
             delete chatnotify[i]->userpriv;
+            delete chatnotify[i];
         }
         chatnotify.clear();
     }
