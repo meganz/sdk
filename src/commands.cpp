@@ -2046,9 +2046,8 @@ void CommandGetUA::procresult()
         {
 
             // decrypt the data and build the TLV records
-            string *datastr = new string((const char *)data, datalen);
-            tlvRecords = TLVstore::containerToTLVrecords(datastr, &client->key);
-            delete datastr;
+            string datastr((const char *)data, datalen);
+            tlvRecords = TLVstore::containerToTLVrecords(&datastr, &client->key);
             if (!tlvRecords)
             {
                 LOG_err << "Cannot extract TLV records for private attribute " << attributename;
