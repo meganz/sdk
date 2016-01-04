@@ -642,7 +642,11 @@ bool DirectReadSlot::doio()
                 dr->drn->symmcipher.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
             }
 
-            req->httpio->lastdata = Waiter::ds;
+            if (req->httpio)
+            {
+                req->httpio->lastdata = Waiter::ds;
+            }
+
             partiallen += req->in.size();
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
             {

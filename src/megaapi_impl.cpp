@@ -4358,15 +4358,26 @@ bool MegaApiImpl::isOnline()
 bool MegaApiImpl::httpServerStart(int port)
 {
     sdkMutex.lock();
-    if (!httpServer)
+    if (httpServer && httpServer->getPort() == port)
     {
-        httpServer = new MegaHTTPServer(this);
-        httpServer->setMaxBufferSize(httpServerMaxBufferSize);
-        httpServer->setMaxOutputSize(httpServerMaxOutputSize);
-        httpServer->enableFileServer(httpServerEnableFiles);
-        httpServer->enableFolderServer(httpServerEnableFolders);
+        sdkMutex.lock();
+        return true;
     }
+
+    httpServerStop();
+    httpServer = new MegaHTTPServer(this);
+    httpServer->setMaxBufferSize(httpServerMaxBufferSize);
+    httpServer->setMaxOutputSize(httpServerMaxOutputSize);
+    httpServer->enableFileServer(httpServerEnableFiles);
+    httpServer->enableFolderServer(httpServerEnableFolders);
+
     bool result = httpServer->start(port);
+    if (!result)
+    {
+        delete httpServer;
+        httpServer = NULL;
+    }
+
     sdkMutex.unlock();
     return result;
 }
