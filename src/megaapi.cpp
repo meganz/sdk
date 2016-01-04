@@ -2695,6 +2695,16 @@ MegaInputStream::~MegaInputStream()
 }
 
 #ifdef ENABLE_CHAT
+MegaTextChatPeerList * MegaTextChatPeerList::createInstance()
+{
+    return new MegaTextChatPeerListPrivate();
+}
+
+MegaTextChatPeerList::MegaTextChatPeerList()
+{
+
+}
+
 MegaTextChatPeerList::~MegaTextChatPeerList()
 {
 

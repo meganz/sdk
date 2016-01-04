@@ -1641,7 +1641,7 @@ TEST_F(SdkTest, SdkTestChat)
     bool group;
 
     h = megaApiAux->getContact(emailaux.c_str())->getHandle();
-    peers = new MegaTextChatPeerListPrivate();
+    peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_RW);
     group = true;
 

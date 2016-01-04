@@ -1103,6 +1103,12 @@ public:
         PRIV_OPERATOR = 3
     };
 
+    /**
+     * @brief Creates a new instance of MegaTextChatPeerList
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaTextChatPeerList * createInstance();
+
     virtual ~MegaTextChatPeerList();
 
     /**
@@ -1165,6 +1171,9 @@ public:
      * @return Number of chat peers in the list
      */
     virtual int size() const;
+
+protected:
+    MegaTextChatPeerList();
 
 };
 
