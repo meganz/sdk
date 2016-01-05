@@ -284,6 +284,10 @@ private:
 
     size_t size();
 
+    static unsigned getTaglen(int mode);
+    static unsigned getIvlen(int mode);
+    static unsigned getMode(int mode);
+
 
     ~TLVstore();
 };

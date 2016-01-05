@@ -362,45 +362,14 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 #endif
 
 string * TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
-{
+{    
     // decide nonce/IV and auth. tag lengths based on the `mode`
-    int ivlen, taglen;
-    bool useCCM = false;
-    switch (mode)
+    unsigned ivlen = TLVstore::getIvlen(mode);
+    unsigned taglen = TLVstore::getTaglen(mode);
+    unsigned encMode = TLVstore::getMode(mode);
+
+    if (!ivlen || !taglen || !encMode)
     {
-    case AES_CCM_12_16:
-    case AES_GCM_12_16_BROKEN:
-        ivlen = 12;
-        taglen = 16;
-        useCCM = true;
-        break;
-
-    case AES_CCM_10_16:
-        ivlen = 10;
-        taglen = 16;
-        useCCM = true;
-        break;
-
-    case AES_CCM_10_08:
-    case AES_GCM_10_08_BROKEN:
-        ivlen = 12;
-        taglen = 16;
-        useCCM = true;
-        break;
-
-    case AES_GCM_12_16:
-        ivlen = 12;
-        taglen = 16;
-        useCCM = false;
-        break;
-
-    case AES_GCM_10_08:
-        ivlen = 10;
-        taglen = 16;
-        useCCM = false;
-        break;
-
-    default:    // unknown block encryption mode
         return NULL;
     }
 
@@ -414,11 +383,11 @@ string * TLVstore::TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode)
     string cipherText;
 
     // encrypt the bytes using the specified mode
-    if (useCCM)
+    if (encMode == 1)   // CCM or GCM_BROKEN (same than CCM)
     {
         key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
     }
-    else    // then use GCM
+    else if (encMode == 2)   // then use GCM
     {
         key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
     }
@@ -489,6 +458,67 @@ void TLVstore::set(string type, string value)
 size_t TLVstore::size()
 {
     return tlv.size();
+}
+
+unsigned TLVstore::getTaglen(int mode)
+{
+
+    switch (mode)
+    {
+    case AES_CCM_10_16:
+    case AES_CCM_12_16:
+    case AES_GCM_12_16_BROKEN:
+    case AES_GCM_12_16:
+        return 16;
+
+    case AES_CCM_10_08:
+    case AES_GCM_10_08_BROKEN:
+    case AES_GCM_10_08:
+        return 8;
+
+    default:    // unknown block encryption mode
+        return 0;
+    }
+}
+
+unsigned TLVstore::getIvlen(int mode)
+{
+    switch (mode)
+    {
+    case AES_CCM_12_16:
+    case AES_GCM_12_16_BROKEN:
+    case AES_GCM_12_16:
+        return 12;
+
+    case AES_CCM_10_08:
+    case AES_GCM_10_08_BROKEN:
+    case AES_CCM_10_16:
+    case AES_GCM_10_08:
+        return 10;
+
+    default:    // unknown block encryption mode
+        return 0;
+    }
+}
+
+unsigned TLVstore::getMode(int mode)
+{
+    switch (mode)
+    {
+    case AES_CCM_12_16:
+    case AES_GCM_12_16_BROKEN:
+    case AES_CCM_10_16:
+    case AES_CCM_10_08:
+    case AES_GCM_10_08_BROKEN:
+        return 1;
+
+    case AES_GCM_12_16:
+    case AES_GCM_10_08:
+        return 2;
+
+    default:    // unknown block encryption mode
+        return 0;
+    }
 }
 
 TLVstore * TLVstore::containerToTLVrecords(const string *data)
@@ -562,43 +592,12 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     encryptionmode_t mode = (encryptionmode_t) data->at(offset);
     offset++;
 
-    unsigned ivlen, taglen;
-    bool useCCM = false;
-    switch (mode)
+    unsigned ivlen = TLVstore::getIvlen(mode);
+    unsigned taglen = TLVstore::getTaglen(mode);
+    unsigned encMode = TLVstore::getMode(mode);
+
+    if (!ivlen || !taglen || !encMode)
     {
-    case AES_CCM_12_16:
-    case AES_GCM_12_16_BROKEN:
-        ivlen = 12;
-        taglen = 16;
-        useCCM = true;
-        break;
-
-    case AES_CCM_10_16:
-        ivlen = 10;
-        taglen = 16;
-        useCCM = true;
-        break;
-
-    case AES_CCM_10_08:
-    case AES_GCM_10_08_BROKEN:
-        ivlen = 10;
-        taglen = 8;
-        useCCM = true;
-        break;
-
-    case AES_GCM_12_16:
-        ivlen = 12;
-        taglen = 16;
-        useCCM = false;
-        break;
-
-    case AES_GCM_10_08:
-        ivlen = 10;
-        taglen = 8;
-        useCCM = false;
-        break;
-
-    default:    // unknown block encryption mode
         return NULL;
     }
 
@@ -612,11 +611,11 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned clearTextLen = cipherTextLen - taglen;
     string clearText;
 
-    if (useCCM)
+    if (encMode == 1)   // CCM or GCM_BROKEN (same than CCM)
     {
         key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
-    else
+    else if (encMode == 2)  // GCM
     {
         key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
