@@ -375,7 +375,7 @@ struct TextChat
     {
         id = UNDEF;
         priv = PRIV_UNKNOWN;
-        shard = 0;
+        shard = -1;
         userpriv = NULL;
         group = false;
     }
