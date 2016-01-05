@@ -2241,6 +2241,11 @@ void MegaClient::disconnect()
         (*it)->disconnect();
     }
 
+    for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end(); it++)
+    {
+        it->second->retry(API_OK);
+    }
+
     for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
     {
         (*it)->disconnect();
