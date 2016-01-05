@@ -517,7 +517,7 @@ void DirectReadNode::dispatch()
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
 void DirectReadNode::retry(error e)
 {
-    dstime retryds, minretryds = NEVER;
+    dstime minretryds = NEVER;
 
     retries++;
 
@@ -532,15 +532,18 @@ void DirectReadNode::retry(error e)
     {
         (*it)->abort();
 
-        retryds = client->app->pread_failure(e, retries, (*it)->appdata);
-
-        if (retryds < minretryds)
+        if (e)
         {
-            minretryds = retryds;
+            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata);
+
+            if (retryds < minretryds)
+            {
+                minretryds = retryds;
+            }
         }
     }
 
-    if (!minretryds)
+    if (!e || !minretryds)
     {
         // immediate retry desired
         dispatch();        
