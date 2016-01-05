@@ -4360,7 +4360,7 @@ bool MegaApiImpl::httpServerStart(int port)
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port)
     {
-        sdkMutex.lock();
+        sdkMutex.unlock();
         return true;
     }
 
