@@ -3534,7 +3534,7 @@ void CommandChatCreate::procresult()
                 case EOO:
                     if (chatid != UNDEF && !url.empty() && shard != -1)
                     {
-                        TextChat *chat = new TextChat;
+                        TextChat *chat = new TextChat();
                         chat->id = chatid;
                         chat->priv = PRIV_OPERATOR;
                         chat->url = url;
@@ -3558,6 +3558,7 @@ void CommandChatCreate::procresult()
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
                         delete chatPeers;   // unused, but might be set at creation
+                        return;
                     }
             }
         }
@@ -3639,7 +3640,7 @@ void CommandChatFetch::procresult()
                         if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
                                 && shard != -1 && userpriv)
                         {
-                            TextChat *chat = new TextChat;
+                            TextChat *chat = new TextChat();
                             chat->id = chatid;
                             chat->priv = priv;
                             chat->url = url;
@@ -3678,6 +3679,7 @@ void CommandChatFetch::procresult()
                             e = API_EINTERNAL;
                             readingChat = false;
                             delete userpriv;
+                            userpriv = NULL;
                         }
                         break;
                 }

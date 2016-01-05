@@ -368,8 +368,17 @@ struct TextChat
     privilege_t priv;
     string url;
     int shard;
-    userpriv_vector *userpriv = NULL;
+    userpriv_vector *userpriv;
     bool group;
+
+    TextChat()
+    {
+        id = UNDEF;
+        priv = PRIV_UNKNOWN;
+        shard = 0;
+        userpriv = NULL;
+        group = false;
+    }
 
     ~TextChat()
     {

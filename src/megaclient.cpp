@@ -3985,7 +3985,7 @@ void MegaClient::sc_chatupdate()
                 }
                 else
                 {
-                    TextChat *chat = new TextChat;
+                    TextChat *chat = new TextChat();
                     chat->id = chatid;
                     chat->shard = shard;
                     chat->group = group;
