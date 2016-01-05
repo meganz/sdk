@@ -284,6 +284,28 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+#ifdef ENABLE_CHAT
+
+    // create a new chat with multiple users and different privileges
+    void createChat(bool group, const userpriv_vector *userpriv);
+
+    // fetch the list of chats
+    void fetchChats();
+
+    // invite a user to a chat
+    void inviteToChat(handle chatid, const char *uid, int priv);
+
+    // remove a user from a chat
+    void removeFromChat(handle chatid, const char *uid = NULL);
+
+    // get the URL of a chat
+    void getUrlChat(handle chatid);
+
+    // process object arrays by the API server (users + privileges)
+    userpriv_vector * readuserpriv(JSON* j);
+
+#endif
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -379,6 +401,9 @@ private:
     void sc_ipc();
     void sc_upc();
     void sc_ph();
+#ifdef ENABLE_CHAT
+    void sc_chatupdate();
+#endif
 
     void init();
 
@@ -562,6 +587,11 @@ public:
     node_vector nodenotify;
     void notifynode(Node*);
 
+#ifdef ENABLE_CHAT
+    textchat_vector chatnotify;
+    void notifychat(TextChat *);
+#endif
+
     // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();
@@ -734,6 +764,7 @@ public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
+    static const int CHATHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;

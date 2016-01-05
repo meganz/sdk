@@ -164,6 +164,16 @@ struct MEGA_API MegaApp
     // clean rubbish bin result
     virtual void cleanrubbishbin_result(error) { }
 
+#ifdef ENABLE_CHAT
+    // chat-related command's result
+    virtual void chatcreate_result(TextChat *, error) { }
+    virtual void chatfetch_result(textchat_vector *, error) { }
+    virtual void chatinvite_result(error) { }
+    virtual void chatremove_result(error) { }
+    virtual void chaturl_result(string*, error) { }
+    virtual void chats_updated(textchat_vector *) { }
+#endif
+
     // global transfer queue updates (separate signaling towards the queued objects)
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }

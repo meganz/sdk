@@ -199,6 +199,42 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         responseReceived = true;
         break;
 
+#ifdef ENABLE_CHAT
+    case MegaRequest::TYPE_CHAT_FETCH:
+        if (lastError == API_OK)
+        {
+            chats = request->getMegaTextChatList()->copy();
+        }
+
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_CREATE:
+        if (lastError == API_OK)
+        {
+            chats = request->getMegaTextChatList()->copy();
+        }
+
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_INVITE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_REMOVE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_URL:
+        if (lastError == API_OK)
+        {
+            link.assign(request->getLink());
+        }
+#endif
+        responseReceived = true;
+        break;
+
     }
 }
 
@@ -275,6 +311,54 @@ void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requ
         contactRequestUpdatedAux = true;
     }
 }
+
+#ifdef ENABLE_CHAT
+void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{
+    // Main testing account
+    if (api == megaApi)
+    {
+        chatUpdated = true;
+    }
+
+    // Auxiliar testing account
+    if (api == megaApiAux)
+    {
+        chatUpdatedAux = true;
+    }
+}
+
+void SdkTest::fetchChats(int timeout)
+{
+    responseReceived = false;
+
+    megaApi->fetchChats();
+
+    waitForResponse(&responseReceived, timeout);
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "Fetching chats not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Fetching list of chats failed (error: " << lastError << ")";
+}
+
+void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
+{
+    responseReceived = false;
+
+    megaApi->createChat(group, peers);
+
+    waitForResponse(&responseReceived, timeout);
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "Chat creation not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Chat creation failed (error: " << lastError << ")";
+}
+
+#endif
 
 void SdkTest::login(int timeout)
 {
@@ -1495,3 +1579,116 @@ TEST_F(SdkTest, SdkTestShares)
     delete nimported;
 }
 
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief TEST_F SdkTestChat
+ *
+ * Initialize a test scenario by:
+ *
+ * - Setting a new contact to chat with
+ *
+ * Performs different operations related to chats:
+ *
+ * - Fetch the list of available chats
+ * - Create a group chat
+ * - Remove a peer from the chat
+ * - Invite a contact to a chat
+ * - Get the user-specific URL for the chat
+ */
+TEST_F(SdkTest, SdkTestChat)
+{
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+
+    // --- Send a new contact request ---
+
+    string message = "Hi contact. This is a testing message";
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+
+    // --- Accept a contact invitation ---
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+    delete craux;   craux = NULL;
+
+
+    // --- Fetch list of available chats ---
+
+    ASSERT_NO_FATAL_FAILURE( fetchChats() );
+    uint numChats = chats->size();      // permanent chats cannot be deleted, so they're kept forever
+
+
+    // --- Create a group chat ---
+
+    MegaTextChatPeerList *peers;
+    handle h;
+    bool group;
+
+    h = megaApiAux->getContact(emailaux.c_str())->getHandle();
+    peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
+    peers->addPeer(h, PRIV_RW);
+    group = true;
+
+    chatUpdatedAux = false;
+    ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );
+    waitForResponse(&chatUpdatedAux);
+
+    delete peers;
+
+    // check the new chat information
+    ASSERT_NO_FATAL_FAILURE( fetchChats() );
+    ASSERT_EQ(chats->size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_TRUE(chatUpdatedAux) << "The peer didn't receive notification of the chat creation";
+
+
+    // --- Remove a peer from the chat ---
+
+    handle chatid = chats->get(numChats - 1)->getHandle();
+
+    chatUpdated = false;
+    responseReceived = false;
+    megaApi->removeFromChat(chatid, h);
+    waitForResponse(&responseReceived);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Removal of chat peer failed (error: " << lastError << ")";
+
+    waitForResponse(&chatUpdated);
+    ASSERT_TRUE(chatUpdated) << "Didn't receive notification of the peer removal";
+
+
+    // --- Invite a contact to a chat ---
+
+    chatUpdatedAux = false;
+    responseReceived = false;
+    megaApi->inviteToChat(chatid, h, PRIV_FULL);
+    waitForResponse(&responseReceived);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Invitation of chat peer failed (error: " << lastError << ")";
+
+    waitForResponse(&chatUpdated);
+    ASSERT_TRUE(chatUpdatedAux) << "The peer didn't receive notification of the invitation";
+
+
+    // --- Get the user-specific URL for the chat ---
+
+    responseReceived = false;
+    megaApi->getUrlChat(chatid);
+    waitForResponse(&responseReceived);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Retrieval of chat URL failed (error: " << lastError << ")";
+}
+
+#endif
