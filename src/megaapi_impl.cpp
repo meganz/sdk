@@ -11367,7 +11367,7 @@ void MegaHTTPServer::run()
     uv_tcp_init(uv_loop, &server);
     server.data = this;
 
-    uv_tcp_keepalive(&server, 1, 60);
+    uv_tcp_keepalive(&server, 0, 0);
 
     struct sockaddr_in address;
     uv_ip4_addr("127.0.0.1", port, &address);
