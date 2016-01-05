@@ -122,6 +122,7 @@ struct MEGA_API DirectRead
 {
     m_off_t count;
     m_off_t offset;
+    m_off_t progress;
 
     DirectReadNode* drn;
     DirectReadSlot* drs;

@@ -650,10 +650,11 @@ bool DirectReadSlot::doio()
                 req->httpio->lastdata = Waiter::ds;
             }
 
-            partiallen += req->in.size();
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
             {
                 pos += t;
+                partiallen += t;
+                dr->progress += t;
 
                 req->in.clear();
                 req->contentlength -= t;
@@ -725,6 +726,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
     count = ccount;
     offset = coffset;
+    progress = 0;
     reqtag = creqtag;
     appdata = cappdata;
 
@@ -761,13 +763,13 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     dr = cdr;
 
-    pos = dr->offset;
+    pos = dr->offset + dr->progress;
     partiallen = 0;
     partialstarttime = Waiter::ds;
 
     req = new HttpReq(true);
 
-    sprintf(buf,"/%" PRIu64 "-", dr->offset);
+    sprintf(buf,"/%" PRIu64 "-", pos);
 
     if (dr->count)
     {
