@@ -3465,10 +3465,10 @@ void CommandCleanRubbishBin::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, userpriv_vector *upl)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {
     this->client = client;
-    this->chatPeers = upl;
+    this->chatPeers = new userpriv_vector(*upl);
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
@@ -3476,7 +3476,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, userpriv_ve
     beginarray("u");
 
     userpriv_vector::iterator itupl;
-    for (itupl = upl->begin(); itupl != upl->end(); itupl++)
+    for (itupl = chatPeers->begin(); itupl != chatPeers->end(); itupl++)
     {
         beginobject();
 
@@ -3543,11 +3543,13 @@ void CommandChatCreate::procresult()
                         chat->group = group;
 
                         client->app->chatcreate_result(chat, API_OK);
+
                         delete chat;
                     }
                     else
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers;   // unused, but might be set at creation
                     }
                     return;
 
@@ -3555,6 +3557,7 @@ void CommandChatCreate::procresult()
                     if (!client->json.storeobject())
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers;   // unused, but might be set at creation
                     }
             }
         }
@@ -3674,6 +3677,7 @@ void CommandChatFetch::procresult()
                         {
                             e = API_EINTERNAL;
                             readingChat = false;
+                            delete userpriv;
                         }
                         break;
                 }
@@ -3711,14 +3715,12 @@ void CommandChatFetch::procresult()
             client->app->chatfetch_result(NULL, e);
         }
 
-        // clean allocated memory
-        TextChat *chat;
-        for (unsigned i = 0; i < chatlist->size(); i++)
+        // clean allocated memory for individual chats and the list
+        textchat_vector::iterator it;
+        for(it = chatlist->begin(); it != chatlist->end(); it++)
         {
-            chat = chatlist->at(i);
-            delete chat->userpriv;
+            delete *it;
         }
-        chatlist->clear();
         delete chatlist;
     }
 }

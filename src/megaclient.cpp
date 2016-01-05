@@ -4172,7 +4172,6 @@ void MegaClient::notifypurge(void)
 
         for (i = 0; i < t; i++)
         {
-            delete chatnotify[i]->userpriv;
             delete chatnotify[i];
         }
         chatnotify.clear();
@@ -8860,7 +8859,7 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, userpriv_vector *userpriv)
+void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
 {
     reqs.add(new CommandChatCreate(this, group, userpriv));
 }

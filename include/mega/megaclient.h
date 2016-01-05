@@ -287,7 +287,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, userpriv_vector *userpriv);
+    void createChat(bool group, const userpriv_vector *userpriv);
 
     // fetch the list of chats
     void fetchChats();

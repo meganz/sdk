@@ -9737,11 +9737,10 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool group = request->getFlag();
-            userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
+            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
             if (!userpriv || (!group && chatPeers->size() > 1))
             {
                 e = API_EARGS;
-                delete userpriv;
                 break;
             }
 
@@ -11251,9 +11250,9 @@ int MegaTextChatPeerListPrivate::size() const
     return list.size();
 }
 
-userpriv_vector * MegaTextChatPeerListPrivate::getList() const
+const userpriv_vector *MegaTextChatPeerListPrivate::getList() const
 {
-    return new userpriv_vector(list);
+    return &list;
 }
 
 MegaTextChatPeerListPrivate::MegaTextChatPeerListPrivate(userpriv_vector *userpriv)

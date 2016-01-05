@@ -762,8 +762,8 @@ public:
     virtual int getPeerPrivilege(int i) const;
     virtual int size() const;
 
-    // returns a copy of the list of user-privilege (you get the ownership)
-    userpriv_vector * getList() const;
+    // returns a copy of the list of user-privilege (this object keeps the ownership)
+    const userpriv_vector * getList() const;
 
 private:
     userpriv_vector list;

@@ -368,8 +368,13 @@ struct TextChat
     privilege_t priv;
     string url;
     int shard;
-    userpriv_vector *userpriv;
+    userpriv_vector *userpriv = NULL;
     bool group;
+
+    ~TextChat()
+    {
+        delete userpriv;
+    }
 };
 typedef vector<TextChat*> textchat_vector;
 #endif

@@ -3014,6 +3014,7 @@ static void process_line(char* l)
                             }
 
                             client->createChat(group, userpriv);
+                            delete userpriv;
                             return;
                         }
                         else
