@@ -1248,6 +1248,13 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+
+        void httpServerAddListener(MegaTransferListener *listener);
+        void httpServerRemoveListener(MegaTransferListener *listener);
+
+        void fireOnStreamingStart(MegaTransferPrivate *transfer);
+        void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1299,6 +1306,7 @@ protected:
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
+        set<MegaTransferListener *> httpServerListeners;
 #endif
 		
         RequestQueue requestQueue;
@@ -1590,6 +1598,7 @@ public:
     // Connection management
     MegaHTTPServer *server;
     StreamingBuffer streamingBuffer;
+    MegaTransferPrivate *transfer;
     uv_tcp_t tcphandle;
     uv_async_t asynchandle;
     http_parser parser;
@@ -1614,6 +1623,7 @@ public:
     std::string nodehandle;
     std::string nodekey;
     std::string nodename;
+    int resultCode;
 
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);

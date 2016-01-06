@@ -1850,8 +1850,11 @@ class MegaRequest
 class MegaTransfer
 {
 	public:
-        enum {TYPE_DOWNLOAD = 0,
-              TYPE_UPLOAD};
+        enum {
+            TYPE_DOWNLOAD = 0,
+            TYPE_UPLOAD,
+            TYPE_LOCAL_HTTP_DOWNLOAD
+        };
         
         virtual ~MegaTransfer();
 
@@ -6503,6 +6506,37 @@ class MegaApi
          * @return true if it's allowed to serve folders, otherwise false
          */
         bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Add a listener to receive information about the HTTP proxy server
+         *
+         * This is the valid data that will be provided on callbacks:
+         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD
+         * - MegaTransfer::getPath - URL requested to the HTTP proxy server
+         * - MegaTransfer::getFileName - Name of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getNodeHandle - Handle of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getTotalBytes - Total bytes of the response (response headers + file, if required)
+         * - MegaTransfer::getStartPos - Start position (for range requests only, otherwise -1)
+         * - MegaTransfer::getEndPos - End position (for range requests only, otherwise -1)
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINCOMPLETE - If the whole response wasn't sent
+         * (it's normal to get this error code sometimes because media players close connections when they have
+         * the data that they need)
+         *
+         * - MegaError::API_EREAD - If the connection with MEGA storage servers failed
+         * - MegaError::API_EAGAIN - If the download speed is too slow for streaming
+         * - A number > 0 means an HTTP error code returned to the client
+         *
+         * @param listener Listener to receive information about the HTTP proxy server
+         */
+        void httpServerAddListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Stop the reception of callbacks related to the HTTP proxy server on this listener
+         * @param listener Listener that won't continue receiving information
+         */
+        void httpServerRemoveListener(MegaTransferListener *listener);
 
         /**
          * @brief Returns a URL to a node in the local HTTP proxy server

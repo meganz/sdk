@@ -2158,6 +2158,16 @@ bool MegaApi::httpServerIsFolderServerEnabled()
     return pImpl->httpServerIsFolderServerEnabled();
 }
 
+void MegaApi::httpServerAddListener(MegaTransferListener *listener)
+{
+    pImpl->httpServerAddListener(listener);
+}
+
+void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
+{
+    pImpl->httpServerRemoveListener(listener);
+}
+
 char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
     return pImpl->httpServerGetLocalLink(node);
