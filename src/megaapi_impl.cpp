@@ -833,26 +833,26 @@ int64_t MegaSharePrivate::getTimestamp()
 
 MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listener)
 {
-	this->type = type;
-	this->tag = -1;
-	this->path = NULL;
-	this->nodeHandle = UNDEF;
-	this->parentHandle = UNDEF;
-	this->startPos = 0;
-	this->endPos = 0;
-	this->parentPath = NULL;
-	this->listener = listener;
-	this->retry = 0;
-	this->maxRetries = 3;
+    this->type = type;
+    this->tag = -1;
+    this->path = NULL;
+    this->nodeHandle = UNDEF;
+    this->parentHandle = UNDEF;
+    this->startPos = 0;
+    this->endPos = 0;
+    this->parentPath = NULL;
+    this->listener = listener;
+    this->retry = 0;
+    this->maxRetries = 6;
     this->time = -1;
-	this->startTime = 0;
-	this->transferredBytes = 0;
-	this->totalBytes = 0;
-	this->fileName = NULL;
-	this->transfer = NULL;
-	this->speed = 0;
-	this->deltaSize = 0;
-	this->updateTime = 0;
+    this->startTime = 0;
+    this->transferredBytes = 0;
+    this->totalBytes = 0;
+    this->fileName = NULL;
+    this->transfer = NULL;
+    this->speed = 0;
+    this->deltaSize = 0;
+    this->updateTime = 0;
     this->publicNode = NULL;
     this->lastBytes = NULL;
     this->syncTransfer = false;
@@ -5503,21 +5503,22 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
 
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
 {
-	MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
-	transfer->setUpdateTime(Waiter::ds);
-	transfer->setDeltaSize(0);
-	transfer->setSpeed(0);
-	transfer->setLastBytes(NULL);
-	if (retry < transfer->getMaxRetries())
-	{
+    MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setDeltaSize(0);
+    transfer->setSpeed(0);
+    transfer->setLastBytes(NULL);
+    transfer->setNumRetry(retry);
+    if (retry <= transfer->getMaxRetries())
+    {
         fireOnTransferTemporaryError(transfer, MegaError(e));
-		return (dstime)(retry*10);
-	}
-	else
-	{
+        return (dstime)(1 << retry);
+    }
+    else
+    {
         fireOnTransferFinish(transfer, MegaError(e));
-		return ~(dstime)0;
-	}
+        return NEVER;
+    }
 }
 
 bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
