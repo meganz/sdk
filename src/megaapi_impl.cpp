@@ -11755,6 +11755,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         LOG_debug << "Request method: OPTIONS";
         response << "HTTP/1.1 200 OK\r\n"
                     "Allow: GET,POST,HEAD,OPTIONS\r\n"
+                    "Connection: close\r\n"
                     "\r\n";
 
         httpctx->resultCode = API_OK;
@@ -11767,6 +11768,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Method not allowed: " << parser->method;
         response << "HTTP/1.1 405 Method not allowed\r\n"
+                    "Connection: close\r\n"
                     "\r\n";
 
         httpctx->resultCode = 405;
@@ -11797,6 +11799,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         LOG_debug << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
                     "Location: https://mega.nz/favicon.ico\r\n"
+                    "Connection: close\r\n"
                     "\r\n";
 
         httpctx->resultCode = API_OK;
@@ -11823,6 +11826,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             LOG_warn << "URL not found: " << httpctx->path;
 
             response << "HTTP/1.1 404 Not Found\r\n"
+                        "Connection: close\r\n"
                       << "\r\n";
 
             httpctx->resultCode = 404;
@@ -11876,6 +11880,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
 
             response << "HTTP/1.1 404 Not Found\r\n"
+                        "Connection: close\r\n"
                       << "\r\n";
 
             httpctx->resultCode = 404;
@@ -11891,6 +11896,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         if (!httpctx->server->isFolderServerEnabled())
         {
             response << "HTTP/1.1 403 Forbidden\r\n"
+                        "Connection: close\r\n"
                       << "\r\n";
 
             httpctx->resultCode = 403;
@@ -12060,6 +12066,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     if (!httpctx->server->isFileServerEnabled())
     {
         response << "HTTP/1.1 403 Forbidden\r\n"
+                    "Connection: close\r\n"
                   << "\r\n";
 
         httpctx->resultCode = 403;
@@ -12208,7 +12215,7 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
             }
 
             httpctx->resultCode = 404;
-            string resstr = "HTTP/1.1 404 Not Found\r\n\r\n";
+            string resstr = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
             sendHeaders(httpctx, &resstr);
             return;
         }
