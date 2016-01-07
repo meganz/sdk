@@ -11844,16 +11844,46 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (node && httpctx->nodename != node->getName())
     {
-        LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
+        //Subtitles support
+        string originalname = node->getName();
+        string::size_type dotpos = originalname.find_last_of('.');
+        if (dotpos != string::npos)
+        {
+            originalname.resize(dotpos);
+        }
 
-        response << "HTTP/1.1 404 Not Found\r\n"
-                  << "\r\n";
+        bool subtitles = false;
+        if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
+        {
+            LOG_debug << "Possible subtitles file";
+            MegaNode *parent = httpctx->megaApi->getParentNode(node);
+            if (parent)
+            {
+                MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
+                if (child)
+                {
+                    LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
+                    subtitles = true;
+                    delete node;
+                    node = child;
+                }
+                delete parent;
+            }
+        }
 
-        httpctx->resultCode = 404;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        delete node;
-        return 0;
+        if (!subtitles)
+        {
+            LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
+
+            response << "HTTP/1.1 404 Not Found\r\n"
+                      << "\r\n";
+
+            httpctx->resultCode = 404;
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
+            delete node;
+            return 0;
+        }
     }
 
     if (node->isFolder())
