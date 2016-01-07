@@ -4357,10 +4357,10 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApiImpl::httpServerStart(int port)
+bool MegaApiImpl::httpServerStart(bool localOnly, int port)
 {
     sdkMutex.lock();
-    if (httpServer && httpServer->getPort() == port)
+    if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
     {
         sdkMutex.unlock();
         return true;
@@ -4373,7 +4373,7 @@ bool MegaApiImpl::httpServerStart(int port)
     httpServer->enableFileServer(httpServerEnableFiles);
     httpServer->enableFolderServer(httpServerEnableFolders);
 
-    bool result = httpServer->start(port);
+    bool result = httpServer->start(port, localOnly);
     if (!result)
     {
         delete httpServer;
@@ -4533,6 +4533,18 @@ bool MegaApiImpl::httpServerIsFolderServerEnabled()
     return httpServerEnableFolders;
 }
 
+bool MegaApiImpl::httpServerIsLocalOnly()
+{
+    bool localOnly = true;
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        localOnly = httpServer->isLocalOnly();
+    }
+    sdkMutex.unlock();
+    return localOnly;
+}
+
 void MegaApiImpl::httpServerAddListener(MegaTransferListener *listener)
 {
     if (!listener)
@@ -4571,6 +4583,7 @@ void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, M
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
 {
+
     if (!transfer || transfer->getType() != MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD)
     {
         LOG_err << "Invalid streaming request";
@@ -11382,6 +11395,7 @@ http_parser_settings MegaHTTPServer::parsercfg;
 MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
 {
     this->megaApi = megaApi;
+    this->localOnly = true;
     this->started = false;
     this->port = 0;
     this->maxBufferSize = 0;
@@ -11395,15 +11409,16 @@ MegaHTTPServer::~MegaHTTPServer()
     stop();
 }
 
-bool MegaHTTPServer::start(int port)
+bool MegaHTTPServer::start(int port, bool localOnly)
 {
-    if (started && this->port == port)
+    if (started && this->port == port && this->localOnly == localOnly)
     {
         return true;
     }
     stop();
 
     this->port = port;
+    this->localOnly = localOnly;
     uv_sem_init(&semaphore, 0);
     thread.start(threadEntryPoint, this);
     uv_sem_wait(&semaphore);
@@ -11433,7 +11448,14 @@ void MegaHTTPServer::run()
     uv_tcp_keepalive(&server, 0, 0);
 
     struct sockaddr_in address;
-    uv_ip4_addr("127.0.0.1", port, &address);
+    if (localOnly)
+    {
+        uv_ip4_addr("127.0.0.1", port, &address);
+    }
+    else
+    {
+        uv_ip4_addr("0.0.0.0", port, &address);
+    }
 
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
         || uv_listen((uv_stream_t*)&server, 32, onNewClient))
@@ -11471,6 +11493,11 @@ void MegaHTTPServer::stop()
 int MegaHTTPServer::getPort()
 {
     return port;
+}
+
+bool MegaHTTPServer::isLocalOnly()
+{
+    return localOnly;
 }
 
 void MegaHTTPServer::setMaxBufferSize(int bufferSize)

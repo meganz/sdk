@@ -6452,10 +6452,11 @@ class MegaApi
          * If the node handle belongs to a folder node, a web with the list of files
          * inside the folder is returned.
          *
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
          * @return True is the server is ready, false if the initialization failed
          */
-        bool httpServerStart(int port = 4443);
+        bool httpServerStart(bool localOnly = true, int port = 4443);
 
         /**
          * @brief Stop the HTTP proxy server
@@ -6470,6 +6471,13 @@ class MegaApi
          * @return 0 if the server is not running, otherwise the port in which it's listening
          */
         int httpServerIsRunning();
+
+        /**
+         * @brief Check if the HTTP proxy server is listening on all network interfaces
+         * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
+         * If it's started and listening on all network interfaces, this function returns false
+         */
+        bool httpServerIsLocalOnly();
 
         /**
          * @brief Allow/forbid to serve files

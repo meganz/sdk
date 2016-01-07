@@ -2123,9 +2123,9 @@ bool MegaApi::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApi::httpServerStart(int port)
+bool MegaApi::httpServerStart(bool localOnly, int port)
 {
-    return pImpl->httpServerStart(port);
+    return pImpl->httpServerStart(localOnly, port);
 }
 
 void MegaApi::httpServerStop()
@@ -2136,6 +2136,11 @@ void MegaApi::httpServerStop()
 int MegaApi::httpServerIsRunning()
 {
     return pImpl->httpServerIsRunning();
+}
+
+bool MegaApi::httpServerIsLocalOnly()
+{
+    return pImpl->httpServerIsLocalOnly();
 }
 
 void MegaApi::httpServerEnableFileServer(bool enable)

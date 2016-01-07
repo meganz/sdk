@@ -1232,7 +1232,7 @@ class MegaApiImpl : public MegaApp
 
 #ifdef HAVE_LIBUV
         // start/stop
-        bool httpServerStart(int port);
+        bool httpServerStart(bool localOnly = true, int port = 4443);
         void httpServerStop();
         int httpServerIsRunning();
 
@@ -1248,6 +1248,7 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+        bool httpServerIsLocalOnly();
 
         void httpServerAddListener(MegaTransferListener *listener);
         void httpServerRemoveListener(MegaTransferListener *listener);
@@ -1646,6 +1647,7 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    bool localOnly;
     bool started;
     int port;
 
@@ -1676,9 +1678,10 @@ protected:
 public:
     MegaHTTPServer(MegaApiImpl *megaApi);
     virtual ~MegaHTTPServer();
-    bool start(int port);
+    bool start(int port, bool localOnly = true);
     void stop();
     int getPort();
+    bool isLocalOnly();
     void setMaxBufferSize(int bufferSize);
     void setMaxOutputSize(int outputSize);
     int getMaxBufferSize();
