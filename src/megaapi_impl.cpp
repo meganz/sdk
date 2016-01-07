@@ -4583,13 +4583,6 @@ void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, M
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
 {
-
-    if (!transfer || transfer->getType() != MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD)
-    {
-        LOG_err << "Invalid streaming request";
-        return;
-    }
-
     if(e.getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e.getErrorString();
@@ -11643,7 +11636,11 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
         httpctx->resultCode = API_EINCOMPLETE;
     }
 
-    httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
+    if (httpctx->transfer)
+    {
+        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
+    }
+
     httpctx->server->connections.remove(httpctx);
     LOG_debug << "Connection closed: " << httpctx->server->connections.size();
     delete httpctx->node;
@@ -12377,6 +12374,7 @@ MegaHTTPContext::MegaHTTPContext()
     nodereceived = false;
     resultCode = API_EINTERNAL;
     node = NULL;
+    transfer = NULL;
 }
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
