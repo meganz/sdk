@@ -4635,8 +4635,12 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
-		vShares.push_back(it->second);
-		vHandles.push_back(node->nodehandle);
+        Share *share = it->second;
+        if (share->user)
+        {
+            vShares.push_back(share);
+            vHandles.push_back(node->nodehandle);
+        }
 	}
 
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
@@ -4683,6 +4687,18 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
     sdkMutex.unlock();
     return shareList;
+}
+
+MegaNodeList *MegaApiImpl::getPublicLinks()
+{
+    sdkMutex.lock();
+
+    PublicLinkProcessor linkProcessor;
+    processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
+    MegaNodeList *nodeList = new MegaNodeListPrivate(linkProcessor.getNodes().data(), linkProcessor.getNodes().size());
+
+    sdkMutex.unlock();
+    return nodeList;
 }
 
 MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
@@ -10425,8 +10441,12 @@ bool OutShareProcessor::processNode(Node *node)
 
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
-		shares.push_back(it->second);
-		handles.push_back(node->nodehandle);
+        Share *share = it->second;
+        if (share->user)    // public links have no user
+        {
+            shares.push_back(share);
+            handles.push_back(node->nodehandle);
+        }
 	}
 
 	return true;
@@ -11477,3 +11497,35 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_vector *list)
 
 
 #endif
+
+
+PublicLinkProcessor::PublicLinkProcessor()
+{
+
+}
+
+bool PublicLinkProcessor::processNode(Node *node)
+{
+    if(!node->outshares)
+    {
+        return true;
+    }
+
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+    {
+        Share *share = it->second;
+        if (share->user == NULL)    // public links have no user
+        {
+            nodes.push_back(node);
+        }
+    }
+
+    return true;
+}
+
+PublicLinkProcessor::~PublicLinkProcessor() {}
+
+vector<Node *> &PublicLinkProcessor::getNodes()
+{
+    return nodes;
+}

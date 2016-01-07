@@ -6252,6 +6252,15 @@ class MegaApi
         MegaShareList *getPendingOutShares(MegaNode *node);
 
         /**
+         * @brief Get a list with all public links
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaNode objects that are shared with everyone via public link
+         */
+        MegaNodeList *getPublicLinks();
+
+        /**
          * @brief Get a list with all incoming contact requests
          *
          * You take the ownership of the returned value

@@ -1825,6 +1825,11 @@ MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
     return pImpl->getPendingOutShares(node);
 }
 
+MegaNodeList *MegaApi::getPublicLinks()
+{
+    return pImpl->getPublicLinks();
+}
+
 MegaContactRequestList *MegaApi::getIncomingContactRequests()
 {
     return pImpl->getIncomingContactRequests();
