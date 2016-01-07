@@ -11750,8 +11750,22 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     httpctx->transfer->setStartTime(Waiter::ds);
 
-    if (parser->method != HTTP_GET && parser->method != HTTP_POST)
+    if (parser->method == HTTP_OPTIONS)
     {
+        LOG_debug << "Request method: OPTIONS";
+        response << "HTTP/1.1 200 OK\r\n"
+                    "Allow: GET,POST,HEAD,OPTIONS\r\n"
+                    "\r\n";
+
+        httpctx->resultCode = API_OK;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+    }
+
+    if (parser->method != HTTP_GET && parser->method != HTTP_POST && parser->method != HTTP_HEAD)
+    {
+        LOG_debug << "Method not allowed: " << parser->method;
         response << "HTTP/1.1 405 Method not allowed\r\n"
                     "\r\n";
 
@@ -11759,6 +11773,23 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
         return 0;
+    }
+    else
+    {
+        switch (parser->method)
+        {
+        case HTTP_GET:
+            LOG_debug << "Request method: GET";
+            break;
+        case HTTP_POST:
+            LOG_debug << "Request method: POST";
+            break;
+        case HTTP_HEAD:
+            LOG_debug << "Request method: HEAD";
+            break;
+        default:
+            LOG_warn << "Request method: " << parser->method;
+        }
     }
 
     if (httpctx->path == "/favicon.ico")
@@ -11768,7 +11799,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                     "Location: https://mega.nz/favicon.ico\r\n"
                     "\r\n";
 
-        httpctx->resultCode = 0;
+        httpctx->resultCode = API_OK;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
         return 0;
@@ -11983,8 +12014,12 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             << "Content-Length: " << sweb.size() << "\r\n"
             << "Access-Control-Allow-Origin: *\r\n"
             << "\r\n";
-        response << sweb;
-        httpctx->resultCode = 0;
+
+        if (httpctx->parser.method != HTTP_HEAD)
+        {
+            response << sweb;
+        }
+        httpctx->resultCode = API_OK;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
         delete node;
@@ -12065,7 +12100,6 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         << "Accept-Ranges: bytes\r\n"
         << "\r\n";
 
-    httpctx->size = len;
     httpctx->pause = false;
     httpctx->lastBuffer = NULL;
     httpctx->lastBufferLen = 0;
@@ -12073,8 +12107,16 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     httpctx->transfer->setEndPos(end);
 
     string resstr = response.str();
-    httpctx->streamingBuffer.init(len + resstr.size());
+    if (httpctx->parser.method != HTTP_HEAD)
+    {
+        httpctx->streamingBuffer.init(len + resstr.size());
+        httpctx->size = len;
+    }
     sendHeaders(httpctx, &resstr);
+    if (httpctx->parser.method == HTTP_HEAD)
+    {
+        return 0;
+    }
 
     LOG_debug << "Requesting range. From " << start << "  size " << len;
     uv_mutex_init(&httpctx->mutex);
