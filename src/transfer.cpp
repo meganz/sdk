@@ -665,7 +665,7 @@ bool DirectReadSlot::doio()
                 // app-requested abort
                 delete dr;
                 dr = NULL;
-                return false;
+                return true;
             }
         }
 
@@ -683,7 +683,7 @@ bool DirectReadSlot::doio()
     {
         // a failure triggers a complete abort and retry of all pending reads for this node
         dr->drn->retry(API_EREAD);
-        return false;
+        return true;
     }
 
     if (Waiter::ds - partialstarttime > MEAN_SPEED_INTERVAL_DS)
@@ -695,7 +695,7 @@ bool DirectReadSlot::doio()
         {
             LOG_warn << "Transfer speed too low for streaming. Retrying";
             dr->drn->retry(API_EAGAIN);
-            return false;
+            return true;
         }
         else
         {

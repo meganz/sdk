@@ -7130,7 +7130,11 @@ bool MegaClient::execdirectreads()
     // perform slot I/O
     for (drs_list::iterator it = drss.begin(); it != drss.end(); )
     {
-        if ((*(it++))->doio() && !r) r = true;
+        if ((*(it++))->doio())
+        {
+            r = true;
+            break;
+        }
     }
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
