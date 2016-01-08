@@ -104,6 +104,8 @@ struct MEGA_API DirectReadSlot
     // values to calculate the transfer speed
     static const int MEAN_SPEED_INTERVAL_DS = 100;
     static const int MIN_BYTES_PER_SECOND = 1024 * 15;
+    static const int TIMEOUT_DS = 100;
+    static const int TEMPURL_TIMEOUT_DS = 3000;
 
     DirectRead* dr;
     HttpReq* req;

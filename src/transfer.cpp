@@ -507,7 +507,7 @@ void DirectReadNode::dispatch()
             assert(!(*it)->drs);
         }
 
-        schedule(100);
+        schedule(DirectReadSlot::TIMEOUT_DS);
         pendingcmd = new CommandDirectRead(this);
 
         client->reqs.add(pendingcmd);
@@ -586,7 +586,7 @@ void DirectReadNode::cmdresult(error e)
             (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
         }
 
-        schedule(100);
+        schedule(DirectReadSlot::TIMEOUT_DS);
     }
     else
     {
@@ -629,7 +629,7 @@ bool DirectReadSlot::doio()
             r = pos & (sizeof buf - 1);
             t = req->in.size();
 
-            dr->drn->schedule(100);
+            dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
 
             if (r)
             {
@@ -682,7 +682,7 @@ bool DirectReadSlot::doio()
 
         if (req->status == REQ_SUCCESS)
         {
-            dr->drn->schedule(3000);
+            dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
 
             // remove and delete completed read request, then remove slot
             delete dr;
