@@ -65,6 +65,10 @@ using namespace mega;
     return [[NSString alloc] initWithUTF8String:self.megaError->getErrorString()];
 }
 
+- (long long)value {
+    return self.megaError ? self.megaError->getValue() : 0;
+}
+
 - (NSString *)nameWithErrorCode:(NSInteger)errorCode {
     return MegaError::getErrorString((int)errorCode) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode)] : nil;
 }

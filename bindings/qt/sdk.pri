@@ -213,10 +213,6 @@ unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
    INCLUDEPATH += /usr/include/cryptopp
 
-   DEFINES += USE_SODIUM
-   HEADERS += ./include/mega/crypto/sodium.h
-   SOURCES += ./src/crypto/sodium.cpp
-
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
@@ -226,14 +222,6 @@ unix:!macx {
    else {
     LIBS += -lcurl -lz -lssl -lcrypto -lcares
    }
-
-   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
-    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
-   }
-   else {
-    LIBS += -lsodium
-   }
-
 }
 
 macx {

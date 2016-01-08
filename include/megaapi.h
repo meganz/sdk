@@ -919,6 +919,13 @@ class MegaUser
         virtual const char* getEmail();
 
         /**
+         * @brief Returns the handle associated with the contact.
+         *
+         * @return The handle associated with the contact.
+         */
+        virtual MegaHandle getHandle();
+
+        /**
          * @brief Get the current visibility of the contact
          *
          * The returned value will be one of these:
@@ -1096,6 +1103,179 @@ class MegaShare
         virtual int64_t getTimestamp();
 };
 
+#ifdef ENABLE_CHAT
+class MegaTextChatPeerList
+{
+public:
+    enum {
+        PRIV_UNKNOWN = -2,
+        PRIV_RM = -1,
+        PRIV_RO = 0,
+        PRIV_RW = 1,
+        PRIV_FULL = 2,
+        PRIV_OPERATOR = 3
+    };
+
+    /**
+     * @brief Creates a new instance of MegaTextChatPeerList
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaTextChatPeerList * createInstance();
+
+    virtual ~MegaTextChatPeerList();
+
+    /**
+     * @brief Creates a copy of this MegaTextChatPeerList object
+     *
+     * The resulting object is fully independent of the source MegaTextChatPeerList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTextChatPeerList object
+     */
+    virtual MegaTextChatPeerList *copy() const;
+
+    /**
+     * @brief addPeer Adds a new chat peer to the list
+     *
+     * @param h MegaHandle of the user to be added
+     * @param priv Privilege level of the user to be added
+     * Valid values are:
+     * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+     * - MegaTextChatPeerList::PRIV_RM = -1
+     * - MegaTextChatPeerList::PRIV_RO = 0
+     * - MegaTextChatPeerList::PRIV_RW = 1
+     * - MegaTextChatPeerList::PRIV_FULL = 2
+     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+     */
+    virtual void addPeer(MegaHandle h, int priv);
+
+    /**
+     * @brief Returns the MegaHandle of the chat peer at the position i in the list
+     *
+     * If the index is >= the size of the list, this function returns INVALID_HANDLE.
+     *
+     * @param i Position of the chat peer that we want to get from the list
+     * @return MegaHandle of the chat peer at the position i in the list
+     */
+    virtual MegaHandle getPeerHandle(int i) const;
+
+    /**
+     * @brief Returns the privilege of the chat peer at the position i in the list
+     *
+     * If the index is >= the size of the list, this function returns PRIV_UNKNOWN.
+     *
+     * @param i Position of the chat peer that we want to get from the list
+     * @return Privilege level of the chat peer at the position i in the list.
+     * Valid values are:
+     * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+     * - MegaTextChatPeerList::PRIV_RM = -1
+     * - MegaTextChatPeerList::PRIV_RO = 0
+     * - MegaTextChatPeerList::PRIV_RW = 1
+     * - MegaTextChatPeerList::PRIV_FULL = 2
+     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+     */
+    virtual int getPeerPrivilege(int i) const;
+
+    /**
+     * @brief Returns the number of chat peer in the list
+     * @return Number of chat peers in the list
+     */
+    virtual int size() const;
+
+protected:
+    MegaTextChatPeerList();
+
+};
+
+class MegaTextChat
+{
+public:
+
+    virtual ~MegaTextChat();
+
+    /**
+     * @brief getHandle Returns the MegaHandle of the chat.
+     * @return MegaHandle of the chat.
+     */
+    virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief getOwnPrivilege Returns your privilege level in this chat
+     * @return
+     */
+    virtual int getOwnPrivilege() const;
+
+    /**
+     * @brief getUrl Returns your URL to connect to chatd for this chat
+     * @return
+     */
+    virtual const char *getUrl() const;
+
+    /**
+     * @brief getShard Returns the chat shard
+     * @return
+     */
+    virtual int getShard() const;
+
+    /**
+     * @brief getPeerList Returns the full user list and privileges (including yourself).
+     *
+     * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return
+     */
+    virtual const MegaTextChatPeerList *getPeerList() const;
+
+    /**
+     * @brief isGroup Returns whether this chat is a group chat or not
+     * @return True if this chat is a group chat. Only chats with more than 2 peers are groupal chats.
+     */
+    virtual bool isGroup() const;
+
+};
+
+/**
+ * @brief List of MegaTextChat objects
+ *
+ * A MegaTextChatList has the ownership of the MegaTextChat objects that it contains, so they will be
+ * only valid until the MegaTextChatList is deleted. If you want to retain a MegaTextChat returned by
+ * a MegaTextChatList, use MegaTextChat::copy.
+ *
+ * Objects of this class are immutable.
+ */
+class MegaTextChatList
+{
+public:
+
+    virtual ~MegaTextChatList();
+
+    virtual MegaTextChatList *copy() const;
+
+    /**
+     * @brief Returns the MegaTextChat at the position i in the MegaTextChatList
+     *
+     * The MegaTextChatList retains the ownership of the returned MegaTextChat. It will be only valid until
+     * the MegaTextChatList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaTextChat that we want to get for the list
+     * @return MegaTextChat at the position i in the list
+     */
+    virtual const MegaTextChat *get(int i)  const;
+
+    /**
+     * @brief Returns the number of MegaTextChats in the list
+     * @return Number of MegaTextChats in the list
+     */
+    virtual int size() const;
+};
+
+#endif
 
 /**
  * @brief List of strings
@@ -1360,7 +1540,8 @@ class MegaRequest
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
-            TYPE_SET_ATTR_NODE
+            TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
+            TYPE_CHAT_REMOVE, TYPE_CHAT_URL
         };
 
         virtual ~MegaRequest();
@@ -1448,6 +1629,9 @@ class MegaRequest
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
          * - MegaApi::upgradeAccount - Returns that handle of the product
          * - MegaApi::replyContactRequest - Returns the handle of the contact request
+         * - MegaApi::inviteToChat - Returns the handle of the chat
+         * - MegaApi::removeFromChat - Returns the handle of the chat
+         * - MegaApi::getUrlChat - Returns the handle of the chat
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1474,6 +1658,7 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentId - Returns the payment identifier
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1490,6 +1675,8 @@ class MegaRequest
          * - MegaApi::moveNode - Returns the handle of the new parent for the node
          * - MegaApi::copyNode - Returns the handle of the parent for the new node
          * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
+         * - MegaApi::inviteToChat - Returns the handle of the user to be invited
+         * - MegaApi::removeFromChat - Returns the handle of the user to be removed
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1626,6 +1813,7 @@ class MegaRequest
          * - MegaApi::share - Returns the access level for the shared folder
          * - MegaApi::exportNode - Returns true
          * - MegaApi::disableExport - Returns false
+         * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
          *
          * @return Access level related to the request
          */
@@ -1760,6 +1948,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
+         * - MegaApi::createChat - Creates a chat for one or more participants
          *
          * @return Flag related to the request
          */
@@ -1833,6 +2022,36 @@ class MegaRequest
          * @return Unique tag that identifies this request
          */
         virtual int getTag() const;
+
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Returns the list of peers in a chat.
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createChat - Returns the list of peers and their privilege level
+         *
+         * @return List of peers of a chat
+         */
+        virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
+
+        /**
+         * @brief Returns the list of chats.
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::createChat - Returns the new chat's information
+         * - MegaApi::fetchChat - Returns the list of chats
+         *
+         * @return List of chats
+         */
+        virtual MegaTextChatList *getMegaTextChatList() const;
+#endif
 };
 
 /**
@@ -2952,6 +3171,20 @@ class MegaGlobalListener
         virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 
+#ifdef ENABLE_CHAT
+        /**
+         * @brief This function is called when there are new or updated chats
+         *
+         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
+         * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
+         * MegaTextChat::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param chats List that contains the new or updated chats
+         */
+        virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+#endif
         virtual ~MegaGlobalListener();
 };
 
@@ -3220,6 +3453,22 @@ class MegaListener
      */
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
+
+#ifdef ENABLE_CHAT
+    /**
+     * @brief This function is called when there are new or updated chats
+     *
+     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
+     * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
+     * MegaTextChat::copy for those objects.
+     *
+     * @param api MegaApi object connected to the account
+     * @param chats List that contains the new or updated chats
+     */
+    virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+#endif
+
         virtual ~MegaListener();
 };
 
@@ -3789,7 +4038,8 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact,
+         * depending on the value provided as user parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -4336,6 +4586,25 @@ class MegaApi
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the avatar of any user in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         *
+         * @param user email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * set to NULL, the avatar is obtained for the active account
+         * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+         * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+         * will be used as the file name inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get the avatar of the active account
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -4377,6 +4646,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get an attribute of any user in MEGA.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value of the attribute
+         *
+         * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
+         * If this parameter is set to NULL, the attribute is obtained for the active account.
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(const char *email_or_handle, int type, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get an attribute of the current account.
@@ -6631,6 +6927,107 @@ class MegaApi
          * @return Maximum size of the packets sent to clients (in bytes)
          */
         int httpServerGetMaxOutputSize();
+#endif
+
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Creates a chat for one or participants, allowing you to specify their
+         * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
+         *
+         * There are two types of chat: permanent an group. A permanent chat is between two people, and
+         * participants can not leave it.
+         *
+         * The creator of the chat will have operator level privilege and should not be included in the
+         * list of peers.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTextChatList - Returns the new chat's information
+         *
+         * @note If you are trying to create a chat with more than 1 other person, then it will be forced
+         * to be a group chat.
+         *
+         * @note If peers list contains only one person, group chat is not set and a permament chat already
+         * exists with that person, then this call will return the information for the existing chat, rather
+         * than a new chat.
+         *
+         * @param group Flag to indicate if the chat is a group chat or not
+         * @param peers MegaTextChatPeerList including other users and their privilege level
+         * @param listener MegaRequestListener to track this request
+         */
+        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetches the full list of current chats for the requesting user.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTextChatList - Returns the list of chats
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchChats(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Adds a user to an existing chat. To do this you must have the
+         * operator privilege in the chat, and the chat must be a group chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_INVITE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the new peers. Valid values are:
+         * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+         * - MegaTextChatPeerList::PRIV_RM = -1
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_RW = 1
+         * - MegaTextChatPeerList::PRIV_FULL = 2
+         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove yourself or another user from a chat. To remove a user other than
+         * yourself you need to have the operator privilege. Only a group chat may be left.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be removed
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user. If not provided (INVALID_HANDLE), the requester is removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get your current, user-specific url to connect to chatd with
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_URL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
 #endif
 
 private:

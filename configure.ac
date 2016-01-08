@@ -262,6 +262,14 @@ if test x$enable_megaapi = xyes; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
 
+# Chat
+AC_ARG_ENABLE(chat,
+    AS_HELP_STRING([--enable-chat], [enable chat support]),
+    [], [enable_chat=no])
+if test "x$enable_chat" = "xyes" ; then
+    AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
+fi
+
 
 SAVE_LDFLAGS=$LDFLAGS
 SAVE_CXXFLAGS=$CXXFLAGS

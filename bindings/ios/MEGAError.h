@@ -63,6 +63,17 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
+ * @brief Value associated with the error
+ *
+ * Currently, this value is only useful when it is related to an MEGAErrorTypeApiEOverQuota
+ * error related to a transfer. In that case, it's the number of seconds until
+ * the more bandwidth will be available for the account.
+ *
+ * In any other case, this value will be 0
+ */
+@property (readonly, nonatomic) long long value;
+
+/**
  * @brief Creates a copy of this MEGAError object.
  *
  * The resulting object is fully independent of the source MEGAError,
