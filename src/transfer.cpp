@@ -488,8 +488,6 @@ DirectReadNode::~DirectReadNode()
 
 void DirectReadNode::dispatch()
 {
-    schedule(NEVER);
-
     if (pendingcmd)
     {
         pendingcmd->cancel();
@@ -498,6 +496,7 @@ void DirectReadNode::dispatch()
     
     if (reads.empty())
     {
+        LOG_debug << "Removing DirectReadNode";
         delete this;
     }
     else
@@ -508,6 +507,7 @@ void DirectReadNode::dispatch()
             assert(!(*it)->drs);
         }
 
+        schedule(100);
         pendingcmd = new CommandDirectRead(this);
 
         client->reqs.add(pendingcmd);
@@ -517,6 +517,13 @@ void DirectReadNode::dispatch()
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
 void DirectReadNode::retry(error e)
 {
+    if (reads.empty())
+    {
+        LOG_warn << "Removing DirectReadNode. No reads to retry.";
+        delete this;
+        return;
+    }
+
     dstime minretryds = NEVER;
 
     retries++;
@@ -543,6 +550,8 @@ void DirectReadNode::retry(error e)
         }
     }
 
+    tempurl.clear();
+
     if (!e || !minretryds)
     {
         // immediate retry desired
@@ -558,6 +567,7 @@ void DirectReadNode::retry(error e)
         else
         {
             // cancellation desired
+            LOG_debug << "Removing DirectReadNode. Too many errors.";
             delete this;
         }
     }
@@ -572,10 +582,11 @@ void DirectReadNode::cmdresult(error e)
         // feed all pending reads to the global read queue
         for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
         {
+            assert((*it)->drq_it == client->drq.end());
             (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
         }
 
-        schedule(NEVER);
+        schedule(100);
     }
     else
     {
@@ -618,7 +629,7 @@ bool DirectReadSlot::doio()
             r = pos & (sizeof buf - 1);
             t = req->in.size();
 
-            dr->drn->schedule(1800);
+            dr->drn->schedule(100);
 
             if (r)
             {
@@ -653,7 +664,7 @@ bool DirectReadSlot::doio()
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
             {
                 pos += t;
-                partiallen += t;
+                dr->drn->partiallen += t;
                 dr->progress += t;
 
                 req->in.clear();
@@ -686,9 +697,9 @@ bool DirectReadSlot::doio()
         return true;
     }
 
-    if (Waiter::ds - partialstarttime > MEAN_SPEED_INTERVAL_DS)
+    if (Waiter::ds - dr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
     {
-        m_off_t meanspeed = (10 * partiallen) / (Waiter::ds - partialstarttime);
+        m_off_t meanspeed = (10 * dr->drn->partiallen) / (Waiter::ds - dr->drn->partialstarttime);
 
         LOG_debug << "Mean speed (B/s): " << meanspeed;
         if (meanspeed < MIN_BYTES_PER_SECOND)
@@ -699,8 +710,8 @@ bool DirectReadSlot::doio()
         }
         else
         {
-            partialstarttime = Waiter::ds;
-            partiallen = 0;
+            dr->drn->partiallen = 0;
+            dr->drn->partialstarttime = Waiter::ds;
         }
     }
 
@@ -741,7 +752,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
     }
     else
     {
-        // no tempurl yet
+        // no tempurl yet or waiting for a retry
         drq_it = drn->client->drq.end();
     }
 }
@@ -764,8 +775,6 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     dr = cdr;
 
     pos = dr->offset + dr->progress;
-    partiallen = 0;
-    partialstarttime = Waiter::ds;
 
     req = new HttpReq(true);
 
@@ -776,8 +785,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
         sprintf(strchr(buf, 0), "%" PRIu64, dr->offset + dr->count - 1);
     }
 
-    partiallen = 0;
-    partialstarttime = Waiter::ds;
+    dr->drn->partiallen = 0;
+    dr->drn->partialstarttime = Waiter::ds;
     req->posturl = dr->drn->tempurl;
     if (!memcmp(req->posturl.c_str(), "http:", 5))
     {
@@ -818,6 +827,7 @@ DirectReadSlot::~DirectReadSlot()
 {
     dr->drn->client->drss.erase(drs_it);
 
+    LOG_debug << "Deleting DirectReadSlot";
     delete req;
 }
 } // namespace

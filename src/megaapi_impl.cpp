@@ -843,7 +843,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->parentPath = NULL;
     this->listener = listener;
     this->retry = 0;
-    this->maxRetries = 6;
+    this->maxRetries = 7;
     this->time = -1;
     this->startTime = 0;
     this->transferredBytes = 0;
@@ -2384,7 +2384,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     this->api = api;
 
     sdkMutex.init(true);
-    maxRetries = 10;
+    maxRetries = 7;
 	currentTransfer = NULL;
     pendingUploads = 0;
     pendingDownloads = 0;
@@ -5580,7 +5580,13 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
     if (retry <= transfer->getMaxRetries())
     {
         fireOnTransferTemporaryError(transfer, MegaError(e));
-        return (dstime)(1 << retry);
+        LOG_debug << "Streaming temporarily failed " << retry;
+        if (retry <= 1)
+        {
+            return 0;
+        }
+
+        return (dstime)(1 << (retry - 1));
     }
     else
     {
