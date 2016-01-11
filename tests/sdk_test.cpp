@@ -231,9 +231,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             link.assign(request->getLink());
         }
-#endif
         responseReceived = true;
         break;
+#endif
 
     }
 }

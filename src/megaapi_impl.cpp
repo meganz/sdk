@@ -9437,7 +9437,69 @@ void MegaApiImpl::sendPendingRequests()
 			client->createephemeral();
 			break;
 		}
-		case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
+        case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
+        {
+            const char *link = request->getLink();
+            if(!link)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            const char* ptr = link;
+            const char* tptr;
+
+            if ((tptr = strstr(ptr,"#confirm")))
+            {
+                ptr = tptr+8;
+
+                unsigned len = (strlen(link)-(ptr-link))*3/4+4;
+                byte *c = new byte[len];
+                len = Base64::atob(ptr,c,len);
+                client->querysignuplink(c,len);
+                delete[] c;
+                break;
+            }
+            else if ((tptr = strstr(ptr,"#newsignup")))
+            {
+                ptr = tptr+10;
+
+                unsigned len = (strlen(link)-(ptr-link))*3/4+4;
+                byte *c = new byte[len];
+                len = Base64::atob(ptr,c,len);
+
+                // extract email and email_hash from link
+                byte *email = c;
+                byte *sha512bytes = c+len-8;    // last 11 chars
+
+                // get the hash for the received email
+                Hash sha512;
+                sha512.add(email, len-8);
+                string sha512str;
+                sha512.get(&sha512str);
+
+                // and finally check it
+                if (memcmp(sha512bytes, sha512str.data(), 8) == 0)
+                {
+                    email[len-8] = '\0';
+                    request->setEmail((const char *)email);
+                    delete[] c;
+
+                    client->restag = request->getTag();
+                    fireOnRequestFinish(request, API_OK);
+                    break;
+                }
+                else
+                {
+                    e = API_EARGS;
+                    delete[] c;
+                    break;
+                }
+            }
+
+            e = API_EARGS;
+            break;
+        }
 		case MegaRequest::TYPE_CONFIRM_ACCOUNT:
 		{
 			const char *link = request->getLink();
