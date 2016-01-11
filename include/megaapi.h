@@ -6765,6 +6765,7 @@ class MegaApi
          *
          * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
          * - File nodes are allowed to be served (see MegaApi::httpServerEnableFileServer)
+         * - Subtitles support is disabled (see MegaApi::httpServerEnableSubtitlesSupport)
          *
          * The HTTP server will only stream a node if it's allowed by all configuration options.
          *
@@ -6905,6 +6906,44 @@ class MegaApi
          * @return State of the restricted mode of the HTTP proxy server
          */
         int httpServerGetRestrictedMode();
+
+        /**
+         * @brief Enable/disable the support for subtitles
+         *
+         * Subtitles support allows to stream some special links that otherwise wouldn't be valid.
+         * For example, let's suppose that the server is streaming this video:
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.avi
+         *
+         * Some media players scan HTTP servers looking for subtitle files and request links like these ones:
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.txt
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.srt
+         *
+         * Even if a file with that name is in the same folder of the MEGA account, the node wouldn't be served because
+         * the node handle wouldn't match.
+         *
+         * When this feature is enabled, the HTTP proxy server will check if there are files with that name
+         * in the same folder as the node corresponding to the handle in the link.
+         *
+         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
+         * the HTTP proxy server will serve that file.
+         *
+         * This feature is disabled by default.
+         *
+         * @param enable True to enable subtitles support, false to disable it
+         */
+        void httpServerEnableSubtitlesSupport(bool enable);
+
+        /**
+         * @brief Check if the support for subtitles is enabled
+         *
+         * See MegaApi::httpServerEnableSubtitlesSupport.
+         *
+         * This feature is disabled by default.
+         *
+         * @return true of the support for subtibles is enables, otherwise false
+         */
+        bool httpServerIsSubtitlesSupportEnabled();
 
         /**
          * @brief Add a listener to receive information about the HTTP proxy server

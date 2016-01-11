@@ -2206,6 +2206,16 @@ int MegaApi::httpServerGetRestrictedMode()
     return pImpl->httpServerGetRestrictedMode();
 }
 
+void MegaApi::httpServerEnableSubtitlesSupport(bool enable)
+{
+    pImpl->httpServerEnableSubtitlesSupport(enable);
+}
+
+bool MegaApi::httpServerIsSubtitlesSupportEnabled()
+{
+    return pImpl->httpServerIsSubtitlesSupportEnabled();
+}
+
 void MegaApi::httpServerAddListener(MegaTransferListener *listener)
 {
     pImpl->httpServerAddListener(listener);

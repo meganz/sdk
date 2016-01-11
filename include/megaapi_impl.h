@@ -1329,6 +1329,8 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFolderServerEnabled();
         void httpServerSetRestrictedMode(int mode);
         int httpServerGetRestrictedMode();
+        void httpServerEnableSubtitlesSupport(bool enable);
+        bool httpServerIsSubtitlesSupportEnabled();
         bool httpServerIsLocalOnly();
 
         void httpServerAddListener(MegaTransferListener *listener);
@@ -1401,6 +1403,7 @@ protected:
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
         int httpServerRestrictedMode;
+        bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
 #endif
 		
@@ -1754,6 +1757,7 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    bool subtitlesSupportEnabled;
     int restrictedMode;
     bool localOnly;
     bool started;
@@ -1803,6 +1807,8 @@ public:
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
     char* getLink(MegaNode *node);
+    bool isSubtitlesSupportEnabled();
+    void enableSubtitlesSupport(bool enable);
 };
 #endif
 

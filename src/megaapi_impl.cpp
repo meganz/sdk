@@ -2485,6 +2485,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpServerEnableFiles = true;
     httpServerEnableFolders = false;
     httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    httpServerSubtitlesSupportEnabled = false;
 #endif
 
     httpio = new MegaHttpIO();
@@ -4464,6 +4465,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     httpServer->enableFileServer(httpServerEnableFiles);
     httpServer->enableFolderServer(httpServerEnableFolders);
     httpServer->setRestrictedMode(httpServerRestrictedMode);
+    httpServer->enableSubtitlesSupport(httpServerRestrictedMode);
 
     bool result = httpServer->start(port, localOnly);
     if (!result)
@@ -4626,6 +4628,22 @@ void MegaApiImpl::httpServerSetRestrictedMode(int mode)
 int MegaApiImpl::httpServerGetRestrictedMode()
 {
     return httpServerRestrictedMode;
+}
+
+void MegaApiImpl::httpServerEnableSubtitlesSupport(bool enable)
+{
+    sdkMutex.lock();
+    httpServerSubtitlesSupportEnabled = enable;
+    if (httpServer)
+    {
+        httpServer->enableSubtitlesSupport(httpServerSubtitlesSupportEnabled);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::httpServerIsSubtitlesSupportEnabled()
+{
+    return httpServerSubtitlesSupportEnabled;
 }
 
 bool MegaApiImpl::httpServerIsLocalOnly()
@@ -11740,6 +11758,7 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
     this->folderServerEnabled = true;
     this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
+    this->subtitlesSupportEnabled = false;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
@@ -11950,6 +11969,16 @@ char *MegaHTTPServer::getLink(MegaNode *node)
     oss << escapedName;
     string link = oss.str();
     return MegaApi::strdup(link.c_str());
+}
+
+bool MegaHTTPServer::isSubtitlesSupportEnabled()
+{
+    return subtitlesSupportEnabled;
+}
+
+void MegaHTTPServer::enableSubtitlesSupport(bool enable)
+{
+    this->subtitlesSupportEnabled = enable;
 }
 
 void *MegaHTTPServer::threadEntryPoint(void *param)
@@ -12312,29 +12341,33 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     if (node && httpctx->nodename != node->getName())
     {
         //Subtitles support
-        string originalname = node->getName();
-        string::size_type dotpos = originalname.find_last_of('.');
-        if (dotpos != string::npos)
-        {
-            originalname.resize(dotpos);
-        }
-
         bool subtitles = false;
-        if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
+
+        if (httpctx->server->isSubtitlesSupportEnabled())
         {
-            LOG_debug << "Possible subtitles file";
-            MegaNode *parent = httpctx->megaApi->getParentNode(node);
-            if (parent)
+            string originalname = node->getName();
+            string::size_type dotpos = originalname.find_last_of('.');
+            if (dotpos != string::npos)
             {
-                MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
-                if (child)
+                originalname.resize(dotpos);
+            }
+
+            if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
+            {
+                LOG_debug << "Possible subtitles file";
+                MegaNode *parent = httpctx->megaApi->getParentNode(node);
+                if (parent)
                 {
-                    LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
-                    subtitles = true;
-                    delete node;
-                    node = child;
+                    MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
+                    if (child)
+                    {
+                        LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
+                        subtitles = true;
+                        delete node;
+                        node = child;
+                    }
+                    delete parent;
                 }
-                delete parent;
             }
         }
 
