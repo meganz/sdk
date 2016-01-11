@@ -6739,6 +6739,13 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 		return;
 	}
 
+    // no key provided --> check only that the nodehandle is valid
+    if (!key && (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE))
+    {
+        fireOnRequestFinish(request, MegaError(MegaError::API_EINCOMPLETE));
+        return;
+    }
+
     string attrstring;
     string fileName;
     string keystring;
