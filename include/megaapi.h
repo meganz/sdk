@@ -6733,6 +6733,14 @@ class MegaApi
         bool isOnline();
 
 #ifdef HAVE_LIBUV
+
+        enum {
+            HTTP_SERVER_DENY_ALL = -1,
+            HTTP_SERVER_ALLOW_ALL = 0,
+            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+        };
+
         /**
          * @brief Start an HTTP proxy server in specified port
          *
@@ -6747,6 +6755,18 @@ class MegaApi
          *
          * If the node handle belongs to a folder node, a web with the list of files
          * inside the folder is returned.
+         *
+         * It's important to know that the HTTP proxy server has several configuration options
+         * that can restrict the nodes that will be served and the connections that will be accepted.
+         *
+         * These are the default options:
+         * - The restricted mode of the server is set to MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * (see MegaApi::httpServerSetRestrictedMode)
+         *
+         * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
+         * - File nodes are allowed to be served (see MegaApi::httpServerEnableFileServer)
+         *
+         * The HTTP server will only stream a node if it's allowed by all configuration options.
          *
          * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
@@ -6780,6 +6800,9 @@ class MegaApi
          *
          * By default, files are served (when the server is running)
          *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
          * @param true to allow to server files, false to forbid it
          */
         void httpServerEnableFileServer(bool enable);
@@ -6789,6 +6812,9 @@ class MegaApi
          *
          * This function can return true even if the HTTP proxy server is not running
          *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
          * @return true if it's allowed to serve files, otherwise false
          */
         bool httpServerIsFileServerEnabled();
@@ -6796,7 +6822,10 @@ class MegaApi
         /**
          * @brief Allow/forbid to serve folders
          *
-         * By default, folders are served (when the server is running)
+         * By default, folders are NOT served
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
          *
          * @param true to allow to server folders, false to forbid it
          */
@@ -6807,9 +6836,75 @@ class MegaApi
          *
          * This function can return true even if the HTTP proxy server is not running
          *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
          * @return true if it's allowed to serve folders, otherwise false
          */
         bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Enable/disable the restricted mode of the HTTP server
+         *
+         * This function allows to restrict the nodes that are allowed to be served.
+         * For not allowed links, the server will return "407 Forbidden".
+         *
+         * Possible values are:
+         * - HTTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - HTTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1 (default)
+         * Only links created with MegaApi::httpServerGetLocalLink are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * If another value is passed to this function, it won't have any effect and the previous
+         * state of this option will be preserved.
+         *
+         * The state of this option is preserved even if the HTTP server is restarted, but the
+         * the HTTP proxy server only remembers the generated links since the last call to
+         * MegaApi::httpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerEnableFileServer,
+         * MegaApi::httpServerEnableFolderServer) are still applied.
+         *
+         * @param Required state for the restricted mode of the HTTP proxy server
+         */
+        void httpServerSetRestrictedMode(int mode);
+
+        /**
+         * @brief Check if the HTTP proxy server is working in restricted mode
+         *
+         * Possible return values are:
+         * - HTTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - HTTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1
+         * Only links created with MegaApi::httpServerGetLocalLink are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * See MegaApi::httpServerEnableRestrictedMode and MegaApi::httpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerEnableFileServer,
+         * MegaApi::httpServerEnableFolderServer) are still applied.
+         *
+         * @return State of the restricted mode of the HTTP proxy server
+         */
+        int httpServerGetRestrictedMode();
 
         /**
          * @brief Add a listener to receive information about the HTTP proxy server

@@ -2483,7 +2483,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpServerMaxBufferSize = 0;
     httpServerMaxOutputSize = 0;
     httpServerEnableFiles = true;
-    httpServerEnableFolders = true;
+    httpServerEnableFolders = false;
+    httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
 #endif
 
     httpio = new MegaHttpIO();
@@ -4451,6 +4452,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
     {
+        httpServer->clearAllowedHandles();
         sdkMutex.unlock();
         return true;
     }
@@ -4461,6 +4463,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
     httpServer->enableFolderServer(httpServerEnableFolders);
+    httpServer->setRestrictedMode(httpServerRestrictedMode);
 
     bool result = httpServer->start(port, localOnly);
     if (!result)
@@ -4510,30 +4513,9 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
         return NULL;
     }
 
-    int port = httpServer->getPort();
+    char *result = httpServer->getLink(node);
     sdkMutex.unlock();
-
-    ostringstream oss;
-    oss << "http://127.0.0.1:" << port << "/";
-    char *base64handle = node->getBase64Handle();
-    oss << base64handle;
-    delete [] base64handle;
-
-    if (node->isPublic())
-    {
-        char *base64key = node->getBase64Key();
-        oss << "!" << base64key;
-        delete [] base64key;
-    }
-
-    oss << "/";
-
-    string name = node->getName();
-    string escapedName;
-    URLCodec::escape(&name, &escapedName);
-    oss << escapedName;
-    string link = oss.str();
-    return MegaApi::strdup(link.c_str());
+    return result;
 }
 
 void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
@@ -4620,6 +4602,30 @@ void MegaApiImpl::httpServerEnableFolderServer(bool enable)
 bool MegaApiImpl::httpServerIsFolderServerEnabled()
 {
     return httpServerEnableFolders;
+}
+
+void MegaApiImpl::httpServerSetRestrictedMode(int mode)
+{
+    if (mode != MegaApi::HTTP_SERVER_DENY_ALL
+            && mode != MegaApi::HTTP_SERVER_ALLOW_ALL
+            && mode != MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    httpServerRestrictedMode = mode;
+    if (httpServer)
+    {
+        httpServer->setRestrictedMode(httpServerRestrictedMode);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::httpServerGetRestrictedMode()
+{
+    return httpServerRestrictedMode;
 }
 
 bool MegaApiImpl::httpServerIsLocalOnly()
@@ -11732,6 +11738,8 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
     this->maxOutputSize = 0;
     this->fileServerEnabled = true;
     this->folderServerEnabled = true;
+    this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    this->lastHandle = INVALID_HANDLE;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
@@ -11870,6 +11878,19 @@ void MegaHTTPServer::enableFolderServer(bool enable)
     this->folderServerEnabled = enable;
 }
 
+void MegaHTTPServer::setRestrictedMode(int mode)
+{
+    if (mode != MegaApi::HTTP_SERVER_DENY_ALL
+            && mode != MegaApi::HTTP_SERVER_ALLOW_ALL
+            && mode != MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    {
+        return;
+    }
+
+    this->restrictedMode = mode;
+}
+
 bool MegaHTTPServer::isFileServerEnabled()
 {
     return fileServerEnabled;
@@ -11878,6 +11899,57 @@ bool MegaHTTPServer::isFileServerEnabled()
 bool MegaHTTPServer::isFolderServerEnabled()
 {
     return folderServerEnabled;
+}
+
+int MegaHTTPServer::getRestrictedMode()
+{
+    return restrictedMode;
+}
+
+bool MegaHTTPServer::isHandleAllowed(handle h)
+{
+    return restrictedMode == MegaApi::HTTP_SERVER_ALLOW_ALL
+            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS && allowedHandles.count(h))
+            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
+}
+
+void MegaHTTPServer::clearAllowedHandles()
+{
+    allowedHandles.clear();
+    lastHandle = INVALID_HANDLE;
+}
+
+char *MegaHTTPServer::getLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    lastHandle = node->getHandle();
+    allowedHandles.insert(lastHandle);
+
+    ostringstream oss;
+    oss << "http://127.0.0.1:" << port << "/";
+    char *base64handle = node->getBase64Handle();
+    oss << base64handle;
+    delete [] base64handle;
+
+    if (node->isPublic())
+    {
+        char *base64key = node->getBase64Key();
+        oss << "!" << base64key;
+        delete [] base64key;
+    }
+
+    oss << "/";
+
+    string name = node->getName();
+    string escapedName;
+    URLCodec::escape(&name, &escapedName);
+    oss << escapedName;
+    string link = oss.str();
+    return MegaApi::strdup(link.c_str());
 }
 
 void *MegaHTTPServer::threadEntryPoint(void *param)
@@ -12172,12 +12244,42 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     if (httpctx->path == "/")
     {
         node = httpctx->megaApi->getRootNode();
+        char *base64Handle = node->getBase64Handle();
+        httpctx->nodehandle = base64Handle;
+        delete [] base64Handle;
         httpctx->nodename = node->getName();
         httpctx->transfer->setFileName(httpctx->nodename.c_str());
     }
     else if (httpctx->nodehandle.size())
     {
         node = httpctx->megaApi->getNodeByHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+    }
+
+    if (!httpctx->nodehandle.size())
+    {
+        response << "HTTP/1.1 404 Not Found\r\n"
+                    "Connection: close\r\n"
+                  << "\r\n";
+        httpctx->resultCode = 404;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+    handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
+    if (!httpctx->server->isHandleAllowed(h))
+    {
+        LOG_debug << "Forbidden due to the restricted mode";
+        response << "HTTP/1.1 403 Forbidden\r\n"
+                    "Connection: close\r\n"
+                  << "\r\n";
+
+        httpctx->resultCode = 403;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
     }
 
     if (!node)

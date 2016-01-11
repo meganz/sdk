@@ -2196,6 +2196,16 @@ bool MegaApi::httpServerIsFolderServerEnabled()
     return pImpl->httpServerIsFolderServerEnabled();
 }
 
+void MegaApi::httpServerSetRestrictedMode(int mode)
+{
+    pImpl->httpServerSetRestrictedMode(mode);
+}
+
+int MegaApi::httpServerGetRestrictedMode()
+{
+    return pImpl->httpServerGetRestrictedMode();
+}
+
 void MegaApi::httpServerAddListener(MegaTransferListener *listener)
 {
     pImpl->httpServerAddListener(listener);

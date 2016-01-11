@@ -1327,6 +1327,8 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+        void httpServerSetRestrictedMode(int mode);
+        int httpServerGetRestrictedMode();
         bool httpServerIsLocalOnly();
 
         void httpServerAddListener(MegaTransferListener *listener);
@@ -1398,6 +1400,7 @@ protected:
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
+        int httpServerRestrictedMode;
         set<MegaTransferListener *> httpServerListeners;
 #endif
 		
@@ -1739,6 +1742,8 @@ protected:
     static void *threadEntryPoint(void *param);
     static http_parser_settings parsercfg;
 
+    set<handle> allowedHandles;
+    handle lastHandle;
     list<MegaHTTPContext*> connections;
     uv_async_t exit_handle;
     MegaApiImpl *megaApi;
@@ -1749,6 +1754,7 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    int restrictedMode;
     bool localOnly;
     bool started;
     int port;
@@ -1790,8 +1796,13 @@ public:
     int getMaxOutputSize();
     void enableFileServer(bool enable);
     void enableFolderServer(bool enable);
+    void setRestrictedMode(int mode);
     bool isFileServerEnabled();
     bool isFolderServerEnabled();
+    int getRestrictedMode();
+    bool isHandleAllowed(handle h);
+    void clearAllowedHandles();
+    char* getLink(MegaNode *node);
 };
 #endif
 
