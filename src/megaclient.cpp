@@ -6767,7 +6767,7 @@ error MegaClient::openfilelink(const char* link, int op)
                 return API_OK;
             }
         }
-        else    // no key provided, check only the existence of the node
+        else if (*ptr == '\0')    // no key provided, check only the existence of the node
         {
             if (op)
             {

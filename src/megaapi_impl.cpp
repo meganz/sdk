@@ -9463,7 +9463,14 @@ void MegaApiImpl::sendPendingRequests()
                 unsigned len = (strlen(link)-(ptr-link))*3/4+4;
                 byte *c = new byte[len];
                 len = Base64::atob(ptr,c,len);
-                client->querysignuplink(c,len);
+                if (len)
+                {
+                    client->querysignuplink(c,len);
+                }
+                else
+                {
+                    e = API_EARGS;
+                }
                 delete[] c;
                 break;
             }
@@ -9475,33 +9482,31 @@ void MegaApiImpl::sendPendingRequests()
                 byte *c = new byte[len];
                 len = Base64::atob(ptr,c,len);
 
-                // extract email and email_hash from link
-                byte *email = c;
-                byte *sha512bytes = c+len-8;    // last 11 chars
-
-                // get the hash for the received email
-                Hash sha512;
-                sha512.add(email, len-8);
-                string sha512str;
-                sha512.get(&sha512str);
-
-                // and finally check it
-                if (memcmp(sha512bytes, sha512str.data(), 8) == 0)
+                if (len > 8)
                 {
-                    email[len-8] = '\0';
-                    request->setEmail((const char *)email);
-                    delete[] c;
+                    // extract email and email_hash from link
+                    byte *email = c;
+                    byte *sha512bytes = c+len-8;    // last 11 chars
 
-                    client->restag = request->getTag();
-                    fireOnRequestFinish(request, API_OK);
-                    break;
+                    // get the hash for the received email
+                    Hash sha512;
+                    sha512.add(email, len-8);
+                    string sha512str;
+                    sha512.get(&sha512str);
+
+                    // and finally check it
+                    if (memcmp(sha512bytes, sha512str.data(), 8) == 0)
+                    {
+                        email[len-8] = '\0';
+                        request->setEmail((const char *)email);
+                        delete[] c;
+
+                        fireOnRequestFinish(request, MegaError(API_OK));
+                        break;
+                    }
                 }
-                else
-                {
-                    e = API_EARGS;
-                    delete[] c;
-                    break;
-                }
+
+                delete[] c;
             }
 
             e = API_EARGS;
@@ -9527,7 +9532,14 @@ void MegaApiImpl::sendPendingRequests()
 			unsigned len = (strlen(link)-(ptr-link))*3/4+4;
 			byte *c = new byte[len];
             len = Base64::atob(ptr,c,len);
-			client->querysignuplink(c,len);
+            if (len)
+            {
+                client->querysignuplink(c,len);
+            }
+            else
+            {
+                e = API_EARGS;
+            }
 			delete[] c;
 			break;
 		}

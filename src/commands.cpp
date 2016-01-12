@@ -2742,9 +2742,13 @@ void CommandGetPH::procresult()
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
                     if (havekey)
+                    {
                         client->app->openfilelink_result(ph, key, s, &a, &fa, op);
+                    }
                     else
+                    {
                         client->app->openfilelink_result(ph, NULL, s, &a, &fa, op);
+                    }
                 }
                 else
                 {

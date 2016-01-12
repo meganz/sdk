@@ -767,6 +767,7 @@ int MegaTransfer::getFolderTransferTag() const
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;
+    this->value = 0;
 }
 
 MegaError::MegaError(int errorCode, long long value)
