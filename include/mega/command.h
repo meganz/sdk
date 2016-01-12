@@ -468,6 +468,7 @@ class MEGA_API CommandGetPH : public Command
     handle ph;
     byte key[FILENODEKEYLENGTH];
     int op;
+    bool havekey;
 
 public:
     void procresult();

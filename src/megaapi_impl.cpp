@@ -4635,8 +4635,12 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
-		vShares.push_back(it->second);
-		vHandles.push_back(node->nodehandle);
+        Share *share = it->second;
+        if (share->user)
+        {
+            vShares.push_back(share);
+            vHandles.push_back(node->nodehandle);
+        }
 	}
 
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
@@ -4683,6 +4687,18 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
     sdkMutex.unlock();
     return shareList;
+}
+
+MegaNodeList *MegaApiImpl::getPublicLinks()
+{
+    sdkMutex.lock();
+
+    PublicLinkProcessor linkProcessor;
+    processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
+    MegaNodeList *nodeList = new MegaNodeListPrivate(linkProcessor.getNodes().data(), linkProcessor.getNodes().size());
+
+    sdkMutex.unlock();
+    return nodeList;
 }
 
 MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
@@ -6722,6 +6738,13 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
 		return;
 	}
+
+    // no key provided --> check only that the nodehandle is valid
+    if (!key && (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE))
+    {
+        fireOnRequestFinish(request, MegaError(MegaError::API_EINCOMPLETE));
+        return;
+    }
 
     string attrstring;
     string fileName;
@@ -9421,7 +9444,74 @@ void MegaApiImpl::sendPendingRequests()
 			client->createephemeral();
 			break;
 		}
-		case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
+        case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
+        {
+            const char *link = request->getLink();
+            if(!link)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            const char* ptr = link;
+            const char* tptr;
+
+            if ((tptr = strstr(ptr,"#confirm")))
+            {
+                ptr = tptr+8;
+
+                unsigned len = (strlen(link)-(ptr-link))*3/4+4;
+                byte *c = new byte[len];
+                len = Base64::atob(ptr,c,len);
+                if (len)
+                {
+                    client->querysignuplink(c,len);
+                }
+                else
+                {
+                    e = API_EARGS;
+                }
+                delete[] c;
+                break;
+            }
+            else if ((tptr = strstr(ptr,"#newsignup")))
+            {
+                ptr = tptr+10;
+
+                unsigned len = (strlen(link)-(ptr-link))*3/4+4;
+                byte *c = new byte[len];
+                len = Base64::atob(ptr,c,len);
+
+                if (len > 8)
+                {
+                    // extract email and email_hash from link
+                    byte *email = c;
+                    byte *sha512bytes = c+len-8;    // last 11 chars
+
+                    // get the hash for the received email
+                    Hash sha512;
+                    sha512.add(email, len-8);
+                    string sha512str;
+                    sha512.get(&sha512str);
+
+                    // and finally check it
+                    if (memcmp(sha512bytes, sha512str.data(), 8) == 0)
+                    {
+                        email[len-8] = '\0';
+                        request->setEmail((const char *)email);
+                        delete[] c;
+
+                        fireOnRequestFinish(request, MegaError(API_OK));
+                        break;
+                    }
+                }
+
+                delete[] c;
+            }
+
+            e = API_EARGS;
+            break;
+        }
 		case MegaRequest::TYPE_CONFIRM_ACCOUNT:
 		{
 			const char *link = request->getLink();
@@ -9442,7 +9532,14 @@ void MegaApiImpl::sendPendingRequests()
 			unsigned len = (strlen(link)-(ptr-link))*3/4+4;
 			byte *c = new byte[len];
             len = Base64::atob(ptr,c,len);
-			client->querysignuplink(c,len);
+            if (len)
+            {
+                client->querysignuplink(c,len);
+            }
+            else
+            {
+                e = API_EARGS;
+            }
 			delete[] c;
 			break;
 		}
@@ -10425,8 +10522,12 @@ bool OutShareProcessor::processNode(Node *node)
 
     for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
 	{
-		shares.push_back(it->second);
-		handles.push_back(node->nodehandle);
+        Share *share = it->second;
+        if (share->user)    // public links have no user
+        {
+            shares.push_back(share);
+            handles.push_back(node->nodehandle);
+        }
 	}
 
 	return true;
@@ -11477,3 +11578,35 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_vector *list)
 
 
 #endif
+
+
+PublicLinkProcessor::PublicLinkProcessor()
+{
+
+}
+
+bool PublicLinkProcessor::processNode(Node *node)
+{
+    if(!node->outshares)
+    {
+        return true;
+    }
+
+    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+    {
+        Share *share = it->second;
+        if (share->user == NULL)    // public links have no user
+        {
+            nodes.push_back(node);
+        }
+    }
+
+    return true;
+}
+
+PublicLinkProcessor::~PublicLinkProcessor() {}
+
+vector<Node *> &PublicLinkProcessor::getNodes()
+{
+    return nodes;
+}

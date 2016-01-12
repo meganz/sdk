@@ -2701,7 +2701,11 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
     arg("p", (byte*)&cph, MegaClient::NODEHANDLE);
 
     ph = cph;
-    memcpy(key, ckey, sizeof key);
+    havekey = ckey ? true : false;
+    if (havekey)
+    {
+        memcpy(key, ckey, sizeof key);
+    }
     tag = client->reqtag;
     op = cop;
 }
@@ -2737,7 +2741,14 @@ void CommandGetPH::procresult()
                 if (s >= 0)
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
-                    client->app->openfilelink_result(ph, key, s, &a, &fa, op);
+                    if (havekey)
+                    {
+                        client->app->openfilelink_result(ph, key, s, &a, &fa, op);
+                    }
+                    else
+                    {
+                        client->app->openfilelink_result(ph, NULL, s, &a, &fa, op);
+                    }
                 }
                 else
                 {

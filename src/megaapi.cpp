@@ -767,6 +767,7 @@ int MegaTransfer::getFolderTransferTag() const
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;
+    this->value = 0;
 }
 
 MegaError::MegaError(int errorCode, long long value)
@@ -1823,6 +1824,11 @@ MegaShareList *MegaApi::getPendingOutShares()
 MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
 {
     return pImpl->getPendingOutShares(node);
+}
+
+MegaNodeList *MegaApi::getPublicLinks()
+{
+    return pImpl->getPublicLinks();
 }
 
 MegaContactRequestList *MegaApi::getIncomingContactRequests()

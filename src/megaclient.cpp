@@ -6767,6 +6767,14 @@ error MegaClient::openfilelink(const char* link, int op)
                 return API_OK;
             }
         }
+        else if (*ptr == '\0')    // no key provided, check only the existence of the node
+        {
+            if (op)
+            {
+                reqs.add(new CommandGetPH(this, ph, NULL, op));
+                return API_OK;
+            }
+        }
     }
 
     return API_EARGS;

@@ -988,6 +988,18 @@ class PendingOutShareProcessor : public TreeProcessor
         vector<handle> handles;
 };
 
+class PublicLinkProcessor : public TreeProcessor
+{
+    public:
+        PublicLinkProcessor();
+        virtual bool processNode(Node* node);
+        virtual ~PublicLinkProcessor();
+        vector<Node *> &getNodes();
+
+    protected:
+        vector<Node *> nodes;
+};
+
 class SizeProcessor : public TreeProcessor
 {
     protected:
@@ -1236,6 +1248,7 @@ class MegaApiImpl : public MegaApp
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
+        MegaNodeList *getPublicLinks();
         MegaContactRequestList *getIncomingContactRequests();
         MegaContactRequestList *getOutgoingContactRequests();
 
