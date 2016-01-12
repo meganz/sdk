@@ -1980,7 +1980,7 @@ void CommandGetUA::procresult()
                 tlvRecords->set(ECDH::TLV_KEY, string((const char*)client->chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
 
                 // since `*keyring` is private, serialize and encrypt
-                tlvContainer = tlvRecords->TLVrecordsToContainer(&client->key);
+                tlvContainer = tlvRecords->tlvRecordsToContainer(&client->key);
 
                 // store keys into user attributes (skipping the procresult())
                 int creqtag = client->reqtag;
@@ -2137,7 +2137,7 @@ void CommandGetUA::procresult()
 
                     tlvRecords->set(EdDSA::TLV_KEY, string((char *) client->signkey->keySeed));
                     tlvRecords->set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
-                    tlvContainer = tlvRecords->TLVrecordsToContainer(&client->key);
+                    tlvContainer = tlvRecords->tlvRecordsToContainer(&client->key);
 
                     client->putua(attributename.c_str(), (byte *) tlvContainer->data(), tlvContainer->length());
 

@@ -371,8 +371,9 @@ typedef enum {
     AES_GCM_12_16 = 0x10,
     AES_GCM_10_08 = 0x11
 
-} encryptionmode_t;
+} encryptionsetting_t;
 
+typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 
 
 } // namespace
