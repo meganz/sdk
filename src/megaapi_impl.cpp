@@ -11899,14 +11899,6 @@ void MegaHTTPServer::enableFolderServer(bool enable)
 
 void MegaHTTPServer::setRestrictedMode(int mode)
 {
-    if (mode != MegaApi::HTTP_SERVER_DENY_ALL
-            && mode != MegaApi::HTTP_SERVER_ALLOW_ALL
-            && mode != MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-            && mode != MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK)
-    {
-        return;
-    }
-
     this->restrictedMode = mode;
 }
 

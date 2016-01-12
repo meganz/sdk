@@ -6779,13 +6779,13 @@ class MegaApi
          * @brief Stop the HTTP proxy server
          *
          * When this function returns, the server is already shutdown.
-         * If the HTTP proxy server isn't running, this functions doesn't do anything.
+         * If the HTTP proxy server isn't running, this functions does nothing
          */
         void httpServerStop();
 
         /**
          * @brief Check if the HTTP proxy server is running
-         * @return 0 if the server is not running, otherwise the port in which it's listening
+         * @return 0 if the server is not running. Otherwise the port in which it's listening to
          */
         int httpServerIsRunning();
 
@@ -6863,9 +6863,10 @@ class MegaApi
          * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
          * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
          *
-         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-         * If another value is passed to this function, it won't have any effect and the previous
+         * If a different value from the list above is passed to this function, it won't have any effect and the previous
          * state of this option will be preserved.
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
          *
          * The state of this option is preserved even if the HTTP server is restarted, but the
          * the HTTP proxy server only remembers the generated links since the last call to
@@ -7007,7 +7008,7 @@ class MegaApi
          * will only allocate the required memory to complete the request to minimize the
          * memory usage.
          *
-         * The new value will be takein into account since the next request received by
+         * The new value will be taken into account since the next request received by
          * the HTTP proxy server, not for ongoing requests. It's possible and effective
          * to call this function even before the server has been started, and the value
          * will be still active even if the server is stopped and started again.
