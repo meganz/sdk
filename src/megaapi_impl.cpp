@@ -12812,17 +12812,21 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
         return;
     }
 
-    if (httpctx->pause &&
-            httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+    if (httpctx->pause)
     {
-        httpctx->pause = false;
-        m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
-        m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+        uv_mutex_lock(&httpctx->mutex);
+        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        {
+            httpctx->pause = false;
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
+            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
 
-        LOG_debug << "Resuming streaming from " << start << " len: " << len
-                 << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
-                 << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
-        httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
+            LOG_debug << "Resuming streaming from " << start << " len: " << len
+                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
+                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
+        }
+        uv_mutex_unlock(&httpctx->mutex);
     }
     sendNextBytes(httpctx);
 }

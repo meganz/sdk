@@ -487,13 +487,7 @@ DirectReadNode::~DirectReadNode()
 }
 
 void DirectReadNode::dispatch()
-{
-    if (pendingcmd)
-    {
-        pendingcmd->cancel();
-        pendingcmd = NULL;
-    }
-    
+{    
     if (reads.empty())
     {
         LOG_debug << "Removing DirectReadNode";
@@ -508,9 +502,11 @@ void DirectReadNode::dispatch()
         }
 
         schedule(DirectReadSlot::TIMEOUT_DS);
-        pendingcmd = new CommandDirectRead(this);
-
-        client->reqs.add(pendingcmd);
+        if (!pendingcmd)
+        {
+            pendingcmd = new CommandDirectRead(this);
+            client->reqs.add(pendingcmd);
+        }
     }
 }
 
@@ -596,6 +592,7 @@ void DirectReadNode::cmdresult(error e)
 
 void DirectReadNode::schedule(dstime deltads)
 {            
+    WAIT_CLASS::bumpds();
     if (dsdrn_it != client->dsdrns.end())
     {
         client->dsdrns.erase(dsdrn_it);
