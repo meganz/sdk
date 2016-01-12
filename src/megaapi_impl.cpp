@@ -840,26 +840,26 @@ int64_t MegaSharePrivate::getTimestamp()
 
 MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listener)
 {
-	this->type = type;
-	this->tag = -1;
-	this->path = NULL;
-	this->nodeHandle = UNDEF;
-	this->parentHandle = UNDEF;
-	this->startPos = 0;
-	this->endPos = 0;
-	this->parentPath = NULL;
-	this->listener = listener;
-	this->retry = 0;
-	this->maxRetries = 3;
+    this->type = type;
+    this->tag = -1;
+    this->path = NULL;
+    this->nodeHandle = UNDEF;
+    this->parentHandle = UNDEF;
+    this->startPos = -1;
+    this->endPos = -1;
+    this->parentPath = NULL;
+    this->listener = listener;
+    this->retry = 0;
+    this->maxRetries = 7;
     this->time = -1;
-	this->startTime = 0;
-	this->transferredBytes = 0;
-	this->totalBytes = 0;
-	this->fileName = NULL;
-	this->transfer = NULL;
-	this->speed = 0;
-	this->deltaSize = 0;
-	this->updateTime = 0;
+    this->startTime = 0;
+    this->transferredBytes = 0;
+    this->totalBytes = 0;
+    this->fileName = NULL;
+    this->transfer = NULL;
+    this->speed = 0;
+    this->deltaSize = 0;
+    this->updateTime = 0;
     this->publicNode = NULL;
     this->lastBytes = NULL;
     this->syncTransfer = false;
@@ -1117,6 +1117,11 @@ void MegaTransferPrivate::setFolderTransferTag(int tag)
     this->folderTransferTag = tag;
 }
 
+void MegaTransferPrivate::setListener(MegaTransferListener *listener)
+{
+    this->listener = listener;
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
 	if(this->path) delete [] this->path;
@@ -1187,13 +1192,15 @@ void MegaTransferPrivate::setTime(int64_t time)
 
 const char * MegaTransferPrivate::getTransferString() const
 {
-	switch(type)
-	{
-	case TYPE_UPLOAD:
+    switch(type)
+    {
+    case TYPE_UPLOAD:
         return "UPLOAD";
-	case TYPE_DOWNLOAD:
+    case TYPE_DOWNLOAD:
         return "DOWNLOAD";
-	}
+    case TYPE_LOCAL_HTTP_DOWNLOAD:
+        return "LOCAL_HTTP_DOWNLOAD";
+    }
 
     return "UNKNOWN";
 }
@@ -2448,7 +2455,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     this->api = api;
 
     sdkMutex.init(true);
-    maxRetries = 10;
+    maxRetries = 7;
 	currentTransfer = NULL;
     pendingUploads = 0;
     pendingDownloads = 0;
@@ -2470,6 +2477,16 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     uploadSpeed = 0;
     uploadPartialBytes = 0;
     downloadPartialBytes = 0;
+
+#ifdef HAVE_LIBUV
+    httpServer = NULL;
+    httpServerMaxBufferSize = 0;
+    httpServerMaxOutputSize = 0;
+    httpServerEnableFiles = true;
+    httpServerEnableFolders = false;
+    httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    httpServerSubtitlesSupportEnabled = false;
+#endif
 
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
@@ -4430,6 +4447,271 @@ bool MegaApiImpl::isOnline()
     return !client->httpio->noinetds;
 }
 
+#ifdef HAVE_LIBUV
+bool MegaApiImpl::httpServerStart(bool localOnly, int port)
+{
+    sdkMutex.lock();
+    if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
+    {
+        httpServer->clearAllowedHandles();
+        sdkMutex.unlock();
+        return true;
+    }
+
+    httpServerStop();
+    httpServer = new MegaHTTPServer(this);
+    httpServer->setMaxBufferSize(httpServerMaxBufferSize);
+    httpServer->setMaxOutputSize(httpServerMaxOutputSize);
+    httpServer->enableFileServer(httpServerEnableFiles);
+    httpServer->enableFolderServer(httpServerEnableFolders);
+    httpServer->setRestrictedMode(httpServerRestrictedMode);
+    httpServer->enableSubtitlesSupport(httpServerRestrictedMode);
+
+    bool result = httpServer->start(port, localOnly);
+    if (!result)
+    {
+        delete httpServer;
+        httpServer = NULL;
+    }
+
+    sdkMutex.unlock();
+    return result;
+}
+
+void MegaApiImpl::httpServerStop()
+{
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        delete httpServer;
+        httpServer = NULL;
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::httpServerIsRunning()
+{
+    bool result = false;
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        result = httpServer->getPort();
+    }
+    sdkMutex.unlock();
+    return result;
+}
+
+char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char *result = httpServer->getLink(node);
+    sdkMutex.unlock();
+    return result;
+}
+
+void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
+{
+    sdkMutex.lock();
+    httpServerMaxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+    if (httpServer)
+    {
+        httpServer->setMaxBufferSize(httpServerMaxBufferSize);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::httpServerGetMaxBufferSize()
+{
+    int value;
+    sdkMutex.lock();
+    if (httpServerMaxBufferSize)
+    {
+        value = httpServerMaxBufferSize;
+    }
+    else
+    {
+        value = StreamingBuffer::MAX_BUFFER_SIZE;
+    }
+    sdkMutex.unlock();
+    return value;
+}
+
+void MegaApiImpl::httpServerSetMaxOutputSize(int outputSize)
+{
+    sdkMutex.lock();
+    httpServerMaxOutputSize = outputSize <= 0 ? 0 : outputSize;
+    if (httpServer)
+    {
+        httpServer->setMaxOutputSize(httpServerMaxOutputSize);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::httpServerGetMaxOutputSize()
+{
+    int value;
+    sdkMutex.lock();
+    if (httpServerMaxOutputSize)
+    {
+        value = httpServerMaxOutputSize;
+    }
+    else
+    {
+        value = StreamingBuffer::MAX_OUTPUT_SIZE;
+    }
+    sdkMutex.unlock();
+    return value;
+}
+
+void MegaApiImpl::httpServerEnableFileServer(bool enable)
+{
+    sdkMutex.lock();
+    this->httpServerEnableFiles = enable;
+    if (httpServer)
+    {
+        httpServer->enableFileServer(enable);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::httpServerIsFileServerEnabled()
+{
+    return httpServerEnableFiles;
+}
+
+void MegaApiImpl::httpServerEnableFolderServer(bool enable)
+{
+    sdkMutex.lock();
+    this->httpServerEnableFolders = enable;
+    if (httpServer)
+    {
+        httpServer->enableFolderServer(enable);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::httpServerIsFolderServerEnabled()
+{
+    return httpServerEnableFolders;
+}
+
+void MegaApiImpl::httpServerSetRestrictedMode(int mode)
+{
+    if (mode != MegaApi::HTTP_SERVER_DENY_ALL
+            && mode != MegaApi::HTTP_SERVER_ALLOW_ALL
+            && mode != MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    httpServerRestrictedMode = mode;
+    if (httpServer)
+    {
+        httpServer->setRestrictedMode(httpServerRestrictedMode);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::httpServerGetRestrictedMode()
+{
+    return httpServerRestrictedMode;
+}
+
+void MegaApiImpl::httpServerEnableSubtitlesSupport(bool enable)
+{
+    sdkMutex.lock();
+    httpServerSubtitlesSupportEnabled = enable;
+    if (httpServer)
+    {
+        httpServer->enableSubtitlesSupport(httpServerSubtitlesSupportEnabled);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::httpServerIsSubtitlesSupportEnabled()
+{
+    return httpServerSubtitlesSupportEnabled;
+}
+
+bool MegaApiImpl::httpServerIsLocalOnly()
+{
+    bool localOnly = true;
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        localOnly = httpServer->isLocalOnly();
+    }
+    sdkMutex.unlock();
+    return localOnly;
+}
+
+void MegaApiImpl::httpServerAddListener(MegaTransferListener *listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    httpServerListeners.insert(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::httpServerRemoveListener(MegaTransferListener *listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    httpServerListeners.erase(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
+{
+    for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
+        (*it)->onTransferStart(api, transfer);
+}
+
+void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+{
+    for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
+        (*it)->onTransferTemporaryError(api, transfer, &e);
+}
+
+void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
+{
+    if(e.getErrorCode())
+    {
+        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+    }
+    else
+    {
+        LOG_info << "Streaming request finished";
+    }
+
+    for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
+        (*it)->onTransferFinish(api, transfer, &e);
+
+    delete transfer;
+}
+#endif
+
 #ifdef ENABLE_CHAT
 void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
 {
@@ -5465,21 +5747,28 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
 
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
 {
-	MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
-	transfer->setUpdateTime(Waiter::ds);
-	transfer->setDeltaSize(0);
-	transfer->setSpeed(0);
-	transfer->setLastBytes(NULL);
-	if (retry < transfer->getMaxRetries())
-	{
+    MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setDeltaSize(0);
+    transfer->setSpeed(0);
+    transfer->setLastBytes(NULL);
+    transfer->setNumRetry(retry);
+    if (retry <= transfer->getMaxRetries())
+    {
         fireOnTransferTemporaryError(transfer, MegaError(e));
-		return (dstime)(retry*10);
-	}
-	else
-	{
+        LOG_debug << "Streaming temporarily failed " << retry;
+        if (retry <= 1)
+        {
+            return 0;
+        }
+
+        return (dstime)(1 << (retry - 1));
+    }
+    else
+    {
         fireOnTransferFinish(transfer, MegaError(e));
-		return ~(dstime)0;
-	}
+        return NEVER;
+    }
 }
 
 bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, void* param)
@@ -7217,7 +7506,7 @@ void MegaApiImpl::removeRequestListener(MegaRequestListener* listener)
     sdkMutex.lock();
     requestListeners.erase(listener);
 
-    std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
+    std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
     while(it != requestMap.end())
     {
         MegaRequestPrivate* request = it->second;
@@ -7237,6 +7526,18 @@ void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
 
     sdkMutex.lock();
     transferListeners.erase(listener);
+
+    std::map<int, MegaTransferPrivate*>::iterator it = transferMap.begin();
+    while(it != transferMap.end())
+    {
+        MegaTransferPrivate* transfer = it->second;
+        if(transfer->getListener() == listener)
+            transfer->setListener(NULL);
+
+        it++;
+    }
+
+    transferQueue.removeListener(listener);
     sdkMutex.unlock();
 }
 
@@ -7458,7 +7759,9 @@ bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 	bool result = false;
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener)
+    {
 		result = listener->onTransferData(api, transfer, transfer->getLastBytes(), transfer->getDeltaSize());
+    }
 
 	activeTransfer = NULL;
 	return result;
@@ -9735,6 +10038,13 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_DELETE:
         {
+#ifdef HAVE_LIBUV
+            if (httpServer)
+            {
+                delete httpServer;
+                httpServer = NULL;
+            }
+#endif
             threadExit = 1;
             break;
         }
@@ -10185,6 +10495,22 @@ MegaTransferPrivate *TransferQueue::pop()
     transfers.pop_front();
     mutex.unlock();
     return transfer;
+}
+
+void TransferQueue::removeListener(MegaTransferListener *listener)
+{
+    mutex.lock();
+
+    std::deque<MegaTransferPrivate *>::iterator it = transfers.begin();
+    while(it != transfers.end())
+    {
+        MegaTransferPrivate *transfer = (*it);
+        if(transfer->getListener() == listener)
+            transfer->setListener(NULL);
+        it++;
+    }
+
+    mutex.unlock();
 }
 
 RequestQueue::RequestQueue()
@@ -11378,6 +11704,1297 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
+#ifdef HAVE_LIBUV
+StreamingBuffer::StreamingBuffer()
+{
+    this->capacity = 0;
+    this->buffer = NULL;
+    this->inpos = 0;
+    this->outpos = 0;
+    this->size = 0;
+    this->free = 0;
+    this->maxBufferSize = MAX_BUFFER_SIZE;
+    this->maxOutputSize = MAX_OUTPUT_SIZE;
+}
+
+StreamingBuffer::~StreamingBuffer()
+{
+    delete [] buffer;
+}
+
+void StreamingBuffer::init(unsigned int capacity)
+{
+    if (capacity > maxBufferSize)
+    {
+        capacity = maxBufferSize;
+    }
+
+    this->capacity = capacity;
+    this->buffer = new char[capacity];
+    this->inpos = 0;
+    this->outpos = 0;
+    this->size = 0;
+    this->free = capacity;
+}
+
+unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
+{
+    if (!buffer)
+    {
+        // initialize the buffer if it's not initialized yet
+        init(len);
+    }
+
+    if (free < len)
+    {
+        LOG_debug << "Not enough available space";
+        len = free;
+    }
+
+    // update the internal state
+    int currentIndex = inpos;
+    inpos += len;
+    int remaining = inpos - capacity;
+    inpos %= capacity;
+    size += len;
+    free -= len;
+
+    // append the new data
+    if (remaining <= 0)
+    {
+        memcpy(buffer + currentIndex, buf, len);
+    }
+    else
+    {
+        int num = len - remaining;
+        memcpy(buffer + currentIndex, buf, num);
+        memcpy(buffer, buf + num, remaining);
+    }
+
+    return len;
+}
+
+unsigned int StreamingBuffer::availableData()
+{
+    return size;
+}
+
+unsigned int StreamingBuffer::availableSpace()
+{
+    return free;
+}
+
+unsigned int StreamingBuffer::availableCapacity()
+{
+    return capacity;
+}
+
+uv_buf_t StreamingBuffer::nextBuffer()
+{
+    if (!size)
+    {
+        // no data available
+        return uv_buf_init(NULL, 0);
+    }
+
+    // prepare output buffer
+    char *outbuf = buffer + outpos;
+    int len = size < maxOutputSize ? size : maxOutputSize;
+    if (outpos + len > capacity)
+    {
+        len = capacity - outpos;
+    }
+
+    // update the internal state
+    size -= len;
+    outpos += len;
+    outpos %= capacity;
+
+    // return the buffer
+    return uv_buf_init(outbuf, len);
+}
+
+void StreamingBuffer::freeData(unsigned int len)
+{
+    // update the internal state
+    free += len;
+}
+
+void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
+{
+    if (bufferSize)
+    {
+        this->maxBufferSize = bufferSize;
+    }
+    else
+    {
+        this->maxBufferSize = MAX_BUFFER_SIZE;
+    }
+}
+
+void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
+{
+    if (outputSize)
+    {
+        this->maxOutputSize = outputSize;
+    }
+    else
+    {
+        this->maxOutputSize = MAX_OUTPUT_SIZE;
+    }
+}
+
+// http_parser settings
+http_parser_settings MegaHTTPServer::parsercfg;
+
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
+{
+    this->megaApi = megaApi;
+    this->localOnly = true;
+    this->started = false;
+    this->port = 0;
+    this->maxBufferSize = 0;
+    this->maxOutputSize = 0;
+    this->fileServerEnabled = true;
+    this->folderServerEnabled = true;
+    this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    this->lastHandle = INVALID_HANDLE;
+    this->subtitlesSupportEnabled = false;
+}
+
+MegaHTTPServer::~MegaHTTPServer()
+{
+    stop();
+}
+
+bool MegaHTTPServer::start(int port, bool localOnly)
+{
+    if (started && this->port == port && this->localOnly == localOnly)
+    {
+        return true;
+    }
+    stop();
+
+    this->port = port;
+    this->localOnly = localOnly;
+    uv_sem_init(&semaphore, 0);
+    thread.start(threadEntryPoint, this);
+    uv_sem_wait(&semaphore);
+    uv_sem_destroy(&semaphore);
+    return started;
+}
+
+void MegaHTTPServer::run()
+{
+    // parser callbacks
+    parsercfg.on_url = onUrlReceived;
+    parsercfg.on_message_begin = onMessageBegin;
+    parsercfg.on_headers_complete = onHeadersComplete;
+    parsercfg.on_message_complete = onMessageComplete;
+    parsercfg.on_header_field = onHeaderField;
+    parsercfg.on_header_value = onHeaderValue;
+    parsercfg.on_body = onBody;
+
+    uv_loop_t *uv_loop = uv_default_loop();
+
+    uv_async_init(uv_loop, &exit_handle, onCloseRequested);
+    exit_handle.data = this;
+
+    uv_tcp_init(uv_loop, &server);
+    server.data = this;
+
+    uv_tcp_keepalive(&server, 0, 0);
+
+    struct sockaddr_in address;
+    if (localOnly)
+    {
+        uv_ip4_addr("127.0.0.1", port, &address);
+    }
+    else
+    {
+        uv_ip4_addr("0.0.0.0", port, &address);
+    }
+
+    if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
+        || uv_listen((uv_stream_t*)&server, 32, onNewClient))
+    {
+        port = 0;
+        uv_sem_post(&semaphore);
+        return;
+    }
+
+    LOG_info << "HTTP server started on port " << port;
+    started = true;
+    uv_sem_post(&semaphore);
+    uv_run(uv_loop, UV_RUN_DEFAULT);
+
+    uv_loop_close(uv_loop);
+    LOG_debug << "HTTP server thread exit";
+    uv_sem_post(&semaphore);
+}
+
+void MegaHTTPServer::stop()
+{
+    if (!started)
+    {
+        return;
+    }
+
+    uv_sem_init(&semaphore, 0);
+    uv_async_send(&exit_handle);
+    uv_sem_wait(&semaphore);
+    uv_sem_destroy(&semaphore);
+    started = 0;
+    port = 0;
+}
+
+int MegaHTTPServer::getPort()
+{
+    return port;
+}
+
+bool MegaHTTPServer::isLocalOnly()
+{
+    return localOnly;
+}
+
+void MegaHTTPServer::setMaxBufferSize(int bufferSize)
+{
+    this->maxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+}
+
+void MegaHTTPServer::setMaxOutputSize(int outputSize)
+{
+    this->maxOutputSize = outputSize <= 0 ? 0 : outputSize;
+}
+
+int MegaHTTPServer::getMaxBufferSize()
+{
+    if (maxBufferSize)
+    {
+        return maxBufferSize;
+    }
+
+    return StreamingBuffer::MAX_BUFFER_SIZE;
+}
+
+int MegaHTTPServer::getMaxOutputSize()
+{
+    if (maxOutputSize)
+    {
+        return maxOutputSize;
+    }
+
+    return StreamingBuffer::MAX_OUTPUT_SIZE;
+}
+
+void MegaHTTPServer::enableFileServer(bool enable)
+{
+    this->fileServerEnabled = enable;
+}
+
+void MegaHTTPServer::enableFolderServer(bool enable)
+{
+    this->folderServerEnabled = enable;
+}
+
+void MegaHTTPServer::setRestrictedMode(int mode)
+{
+    this->restrictedMode = mode;
+}
+
+bool MegaHTTPServer::isFileServerEnabled()
+{
+    return fileServerEnabled;
+}
+
+bool MegaHTTPServer::isFolderServerEnabled()
+{
+    return folderServerEnabled;
+}
+
+int MegaHTTPServer::getRestrictedMode()
+{
+    return restrictedMode;
+}
+
+bool MegaHTTPServer::isHandleAllowed(handle h)
+{
+    return restrictedMode == MegaApi::HTTP_SERVER_ALLOW_ALL
+            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS && allowedHandles.count(h))
+            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
+}
+
+void MegaHTTPServer::clearAllowedHandles()
+{
+    allowedHandles.clear();
+    lastHandle = INVALID_HANDLE;
+}
+
+char *MegaHTTPServer::getLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    lastHandle = node->getHandle();
+    allowedHandles.insert(lastHandle);
+
+    ostringstream oss;
+    oss << "http://127.0.0.1:" << port << "/";
+    char *base64handle = node->getBase64Handle();
+    oss << base64handle;
+    delete [] base64handle;
+
+    if (node->isPublic())
+    {
+        char *base64key = node->getBase64Key();
+        oss << "!" << base64key;
+        delete [] base64key;
+    }
+
+    oss << "/";
+
+    string name = node->getName();
+    string escapedName;
+    URLCodec::escape(&name, &escapedName);
+    oss << escapedName;
+    string link = oss.str();
+    return MegaApi::strdup(link.c_str());
+}
+
+bool MegaHTTPServer::isSubtitlesSupportEnabled()
+{
+    return subtitlesSupportEnabled;
+}
+
+void MegaHTTPServer::enableSubtitlesSupport(bool enable)
+{
+    this->subtitlesSupportEnabled = enable;
+}
+
+void *MegaHTTPServer::threadEntryPoint(void *param)
+{
+#ifndef _WIN32
+    struct sigaction noaction;
+    memset(&noaction, 0, sizeof(noaction));
+    noaction.sa_handler = SIG_IGN;
+    ::sigaction(SIGPIPE, &noaction, 0);
+#endif
+
+    MegaHTTPServer *httpServer = (MegaHTTPServer *)param;
+    httpServer->run();
+    return NULL;
+}
+
+void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
+{
+    if (status < 0)
+    {
+        return;
+    }
+
+    // Create an object to save context information
+    MegaHTTPContext* httpctx = new MegaHTTPContext();
+
+    // Initialize the parser
+    http_parser_init(&httpctx->parser, HTTP_REQUEST);
+
+    // Set connection data
+    httpctx->server = (MegaHTTPServer *)(server_handle->data);
+    httpctx->megaApi = httpctx->server->megaApi;
+    httpctx->parser.data = httpctx;
+    httpctx->tcphandle.data = httpctx;
+    httpctx->asynchandle.data = httpctx;
+    httpctx->server->connections.push_back(httpctx);
+    LOG_debug << "Connection received! " << httpctx->server->connections.size();
+
+    // Async handle to perform writes
+    uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
+
+    // Accept the connection
+    uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
+    uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle);
+
+    // Start reading
+    uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
+}
+
+void MegaHTTPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t* buf)
+{
+    // Reserve a buffer with the suggested size
+    *buf = uv_buf_init(new char[suggested_size], suggested_size);
+}
+
+void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
+{
+    ssize_t parsed = -1;
+    MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
+    if (nread >= 0)
+    {
+        parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+    }
+    delete [] buf->base;
+
+    if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
+    {
+        httpctx->finished = true;
+        LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        }
+    }
+}
+
+void MegaHTTPServer::onClose(uv_handle_t* handle)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+
+    // streaming transfers are automatically stopped when their listener is removed
+    httpctx->megaApi->removeTransferListener(httpctx);
+    httpctx->megaApi->removeRequestListener(httpctx);
+    uv_close((uv_handle_t *)&httpctx->asynchandle, onAsyncEventClose);
+}
+
+void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+
+    if (httpctx->resultCode == API_EINTERNAL)
+    {
+        httpctx->resultCode = API_EINCOMPLETE;
+    }
+
+    if (httpctx->transfer)
+    {
+        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
+    }
+
+    httpctx->server->connections.remove(httpctx);
+    LOG_debug << "Connection closed: " << httpctx->server->connections.size();
+    delete httpctx->node;
+    delete httpctx;
+}
+
+int MegaHTTPServer::onMessageBegin(http_parser *)
+{
+    return 0;
+}
+
+int MegaHTTPServer::onHeadersComplete(http_parser *)
+{
+    return 0;
+}
+
+int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t length)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+    httpctx->path.assign(url, length);
+    LOG_debug << "URL received: " << httpctx->path;
+
+    if (length < 9 || url[0] != '/' || (length >= 10 && url[9] != '/' && url[9] != '!'))
+    {
+        LOG_debug << "URL without node handle";
+        return 0;
+    }
+
+    unsigned int index = 9;
+    httpctx->nodehandle.assign(url + 1, 8);
+    LOG_debug << "Node handle: " << httpctx->nodehandle;
+
+    if (length > 53 && url[index] == '!')
+    {
+        httpctx->nodekey.assign(url + 10, 43);
+        LOG_debug << "Public link. Key: " << httpctx->nodekey;
+        index = 53;
+    }
+
+    if (length > index && url[index] != '/')
+    {
+        LOG_warn << "Invalid URL";
+        return 0;
+    }
+
+    index++;
+    if (length > index)
+    {
+        string nodename(url + index, length - index);
+        URLCodec::unescape(&nodename, &httpctx->nodename);
+        LOG_debug << "Node name: " << httpctx->nodename;
+    }
+
+    return 0;
+}
+
+int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t length)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+
+    if (length == 5 && !memcmp(at, "Range", 5))
+    {
+        httpctx->range = true;
+        LOG_debug << "Range header detected";
+    }
+    return 0;
+}
+
+int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t length)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+    string value(at, length);
+    size_t index;
+    char *endptr;
+
+    if (httpctx->range)
+    {
+        LOG_debug << "Range header value: " << value;
+        httpctx->range = false;
+        if (length > 7 && !memcmp(at, "bytes=", 6)
+                && ((index = value.find_first_of('-')) != string::npos))
+        {
+            endptr = (char *)value.c_str();
+            unsigned long long number = strtoull(value.c_str() + 6, &endptr, 10);
+            if (endptr == value.c_str() || *endptr != '-' || number == ULLONG_MAX)
+            {
+                return 0;
+            }
+
+            httpctx->rangeStart = number;
+            if (length > (index + 1))
+            {
+                number = strtoull(value.c_str() + index + 1, &endptr, 10);
+                if (endptr == value.c_str() || *endptr != '\0' || number == ULLONG_MAX)
+                {
+                    return 0;
+                }
+                httpctx->rangeEnd = number;
+            }
+            LOG_debug << "Range value parsed: " << httpctx->rangeStart << " - " << httpctx->rangeEnd;
+        }
+    }
+    return 0;
+}
+
+int MegaHTTPServer::onBody(http_parser *, const char *, size_t)
+{
+    return 0;
+}
+
+int MegaHTTPServer::onMessageComplete(http_parser *parser)
+{
+    LOG_debug << "Message complete";
+    MegaNode *node = NULL;
+    std::ostringstream response;
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+    httpctx->bytesWritten = 0;
+    httpctx->size = 0;
+    httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
+    httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
+
+    httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+    httpctx->transfer->setPath(httpctx->path.c_str());
+    if (httpctx->nodename.size())
+    {
+        httpctx->transfer->setFileName(httpctx->nodename.c_str());
+    }
+    if (httpctx->nodehandle.size())
+    {
+        httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+    }
+    httpctx->transfer->setStartTime(Waiter::ds);
+
+    if (parser->method == HTTP_OPTIONS)
+    {
+        LOG_debug << "Request method: OPTIONS";
+        response << "HTTP/1.1 200 OK\r\n"
+                    "Allow: GET,POST,HEAD,OPTIONS\r\n"
+                    "Connection: close\r\n"
+                    "\r\n";
+
+        httpctx->resultCode = API_OK;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+    }
+
+    if (parser->method != HTTP_GET && parser->method != HTTP_POST && parser->method != HTTP_HEAD)
+    {
+        LOG_debug << "Method not allowed: " << parser->method;
+        response << "HTTP/1.1 405 Method not allowed\r\n"
+                    "Connection: close\r\n"
+                    "\r\n";
+
+        httpctx->resultCode = 405;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+    }
+    else
+    {
+        switch (parser->method)
+        {
+        case HTTP_GET:
+            LOG_debug << "Request method: GET";
+            break;
+        case HTTP_POST:
+            LOG_debug << "Request method: POST";
+            break;
+        case HTTP_HEAD:
+            LOG_debug << "Request method: HEAD";
+            break;
+        default:
+            LOG_warn << "Request method: " << parser->method;
+        }
+    }
+
+    if (httpctx->path == "/favicon.ico")
+    {
+        LOG_debug << "Favicon requested";
+        response << "HTTP/1.1 301 Moved Permanently\r\n"
+                    "Location: https://mega.nz/favicon.ico\r\n"
+                    "Connection: close\r\n"
+                    "\r\n";
+
+        httpctx->resultCode = API_OK;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+    }
+
+    if (httpctx->path == "/")
+    {
+        node = httpctx->megaApi->getRootNode();
+        char *base64Handle = node->getBase64Handle();
+        httpctx->nodehandle = base64Handle;
+        delete [] base64Handle;
+        httpctx->nodename = node->getName();
+        httpctx->transfer->setFileName(httpctx->nodename.c_str());
+    }
+    else if (httpctx->nodehandle.size())
+    {
+        node = httpctx->megaApi->getNodeByHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+    }
+
+    if (!httpctx->nodehandle.size())
+    {
+        response << "HTTP/1.1 404 Not Found\r\n"
+                    "Connection: close\r\n"
+                  << "\r\n";
+        httpctx->resultCode = 404;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+    handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
+    if (!httpctx->server->isHandleAllowed(h))
+    {
+        LOG_debug << "Forbidden due to the restricted mode";
+        response << "HTTP/1.1 403 Forbidden\r\n"
+                    "Connection: close\r\n"
+                  << "\r\n";
+
+        httpctx->resultCode = 403;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+    if (!node)
+    {
+        if (!httpctx->nodehandle.size() || !httpctx->nodekey.size())
+        {
+            LOG_warn << "URL not found: " << httpctx->path;
+
+            response << "HTTP/1.1 404 Not Found\r\n"
+                        "Connection: close\r\n"
+                      << "\r\n";
+
+            httpctx->resultCode = 404;
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
+            return 0;
+        }
+        else
+        {
+            string link = "https://mega.nz/#!";
+            link.append(httpctx->nodehandle);
+            link.append("!");
+            link.append(httpctx->nodekey);
+            LOG_debug << "Getting public link: " << link;
+            httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
+            return 0;
+        }
+    }
+
+    if (node && httpctx->nodename != node->getName())
+    {
+        //Subtitles support
+        bool subtitles = false;
+
+        if (httpctx->server->isSubtitlesSupportEnabled())
+        {
+            string originalname = node->getName();
+            string::size_type dotpos = originalname.find_last_of('.');
+            if (dotpos != string::npos)
+            {
+                originalname.resize(dotpos);
+            }
+
+            if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
+            {
+                LOG_debug << "Possible subtitles file";
+                MegaNode *parent = httpctx->megaApi->getParentNode(node);
+                if (parent)
+                {
+                    MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
+                    if (child)
+                    {
+                        LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
+                        subtitles = true;
+                        delete node;
+                        node = child;
+                    }
+                    delete parent;
+                }
+            }
+        }
+
+        if (!subtitles)
+        {
+            LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
+
+            response << "HTTP/1.1 404 Not Found\r\n"
+                        "Connection: close\r\n"
+                      << "\r\n";
+
+            httpctx->resultCode = 404;
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
+            delete node;
+            return 0;
+        }
+    }
+
+    if (node->isFolder())
+    {
+        if (!httpctx->server->isFolderServerEnabled())
+        {
+            response << "HTTP/1.1 403 Forbidden\r\n"
+                        "Connection: close\r\n"
+                      << "\r\n";
+
+            httpctx->resultCode = 403;
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
+            delete node;
+            return 0;
+        }
+
+        MegaNode *parent = httpctx->megaApi->getParentNode(node);
+        MegaNodeList *children = httpctx->megaApi->getChildren(node);
+
+        std::ostringstream web;
+
+        // Title
+        web << "<title>MEGA</title>";
+
+        //Styles
+        web << "<head><style>"
+               ".folder {"
+               "padding: 0;"
+               "width: 24px;"
+               "height: 24px;"
+               "margin: 0 0 0 -2px;"
+               "display: block;"
+               "position: absolute;"
+               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+               "background-position: -14px -7465px;"
+               "background-repeat: no-repeat;}"
+
+               ".file {"
+               "padding: 0;"
+               "width: 24px;"
+               "height: 24px;"
+               "margin: 0 0 0 -6px;"
+               "display: block;"
+               "position: absolute;"
+               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+               "background-position: -7px -1494px;"
+               "background-repeat: no-repeat;} "
+
+               ".headerimage {"
+               "padding: 0 8px 0 46px;"
+               "width: 100%;"
+               "height: 24px;"
+               "margin: 0 0 0 -12px;"
+               "display: block;"
+               "position: absolute;"
+               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+               "background-position: 5px -1000px;"
+               "line-height: 23px;"
+               "background-repeat: no-repeat;} "
+
+               ".headertext {"
+               "line-height: 23px;"
+               "color: #777777;"
+               "font-size: 18px;"
+               "font-weight: bold;"
+               "display: block;"
+               "position: absolute;"
+               "line-height: 23px;}"
+
+               "a {"
+               "text-decoration: none; }"
+
+               ".text {"
+               "height: 24px;"
+               "padding: 0 10px 0 26px;"
+               "word-break: break-all;"
+               "white-space: pre-wrap;"
+               "overflow: hidden;"
+               "max-width: 100%;"
+               "text-decoration: none;"
+               "-moz-box-sizing: border-box;"
+               "-webkit-box-sizing: border-box;"
+               "box-sizing: border-box;"
+               "font-size: 13px;"
+               "line-height: 23px;"
+               "color: #666666;}"
+               "</style></head>";
+
+        // Folder path
+        web << "<span class=\"headerimage\"><span class=\"headertext\">";
+        char *path = httpctx->megaApi->getNodePath(node);
+        if (path)
+        {
+            web << path;
+            delete [] path;
+        }
+        else
+        {
+            web << node->getName();
+        }
+        web << "</span></span><br /><br />";
+
+        // Child nodes
+        web << "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"width: auto;\">";
+        if (parent)
+        {
+            web << "<tr><td>";
+            char *base64Handle = parent->getBase64Handle();
+            web << "<a href=\"/" << base64Handle << "/" << parent->getName()
+                << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
+            delete [] base64Handle;
+            delete parent;
+            web << "</td></tr>";
+        }
+
+        for (int i = 0; i < children->size(); i++)
+        {
+            web << "<tr><td>";
+            MegaNode *child = children->get(i);
+            char *base64Handle = child->getBase64Handle();
+            web << "<a href=\"/" << base64Handle << "/" << child->getName()
+                << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
+                << child->getName() << "</span></a>";
+            delete [] base64Handle;
+
+            if (!child->isFile())
+            {
+                web << "</td><td>";
+            }
+            else
+            {
+                unsigned const long long KB = 1024;
+                unsigned const long long MB = 1024 * KB;
+                unsigned const long long GB = 1024 * MB;
+                unsigned const long long TB = 1024 * GB;
+
+                web << "</td><td><span class=\"text\">";
+                unsigned long long bytes = child->getSize();
+                if (bytes > TB)
+                    web << ((unsigned long long)((100 * bytes) / TB))/100.0 << " TB";
+                else if (bytes > GB)
+                    web << ((unsigned long long)((100 * bytes) / GB))/100.0 << " GB";
+                else if (bytes > MB)
+                    web << ((unsigned long long)((100 * bytes) / MB))/100.0 << " MB";
+                else if (bytes > KB)
+                    web << ((unsigned long long)((100 * bytes) / KB))/100.0 << " KB";
+                web << "</span>";
+            }
+            web << "</td></tr>";
+        }
+        web << "</table>";
+        delete children;
+
+        string sweb = web.str();
+        response << "HTTP/1.1 200 OK\r\n"
+            << "Content-Type: text/html\r\n"
+            << "Connection: close\r\n"
+            << "Content-Length: " << sweb.size() << "\r\n"
+            << "Access-Control-Allow-Origin: *\r\n"
+            << "\r\n";
+
+        if (httpctx->parser.method != HTTP_HEAD)
+        {
+            response << sweb;
+        }
+        httpctx->resultCode = API_OK;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+    //File node
+    if (!httpctx->server->isFileServerEnabled())
+    {
+        response << "HTTP/1.1 403 Forbidden\r\n"
+                    "Connection: close\r\n"
+                  << "\r\n";
+
+        httpctx->resultCode = 403;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+    httpctx->node = node;
+    streamNode(httpctx);
+    return 0;
+}
+
+int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
+{
+    std::ostringstream response;
+    MegaNode *node = httpctx->node;
+    m_off_t totalSize = node->getSize();
+    m_off_t start = 0;
+    m_off_t end = totalSize - 1;
+
+    if (httpctx->rangeStart >= 0)
+    {
+        start = httpctx->rangeStart;
+    }
+    httpctx->rangeStart = start;
+
+    if (httpctx->rangeEnd >= 0)
+    {
+        end = httpctx->rangeEnd;
+    }
+    httpctx->rangeEnd = end + 1;
+
+    bool rangeRequested = (httpctx->rangeEnd - httpctx->rangeStart) != totalSize;
+
+    m_off_t len = end - start + 1;
+    if (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize)
+    {
+        response << "HTTP/1.1 416 Requested Range Not Satisfiable\r\n"
+            << "Content-Type: application/octet-stream\r\n"
+            << "Connection: close\r\n"
+            << "Access-Control-Allow-Origin: *\r\n"
+            << "Accept-Ranges: bytes\r\n"
+            << "Content-Range: bytes 0-0/" << totalSize << "\r\n"
+            << "\r\n";
+
+        httpctx->resultCode = 416;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+    }
+
+    if (rangeRequested)
+    {
+        response << "HTTP/1.1 206 Partial Content\r\n";
+        response << "Content-Range: bytes " << start << "-" << end << "/" << totalSize << "\r\n";
+    }
+    else
+    {
+        response << "HTTP/1.1 200 OK\r\n";
+    }
+
+    response << "Content-Type: application/octet-stream\r\n"
+        << "Connection: close\r\n"
+        << "Content-Length: " << len << "\r\n"
+        << "Access-Control-Allow-Origin: *\r\n"
+        << "Accept-Ranges: bytes\r\n"
+        << "\r\n";
+
+    httpctx->pause = false;
+    httpctx->lastBuffer = NULL;
+    httpctx->lastBufferLen = 0;
+    httpctx->transfer->setStartPos(start);
+    httpctx->transfer->setEndPos(end);
+
+    string resstr = response.str();
+    if (httpctx->parser.method != HTTP_HEAD)
+    {
+        httpctx->streamingBuffer.init(len + resstr.size());
+        httpctx->size = len;
+    }
+    sendHeaders(httpctx, &resstr);
+    if (httpctx->parser.method == HTTP_HEAD)
+    {
+        return 0;
+    }
+
+    LOG_debug << "Requesting range. From " << start << "  size " << len;
+    uv_mutex_init(&httpctx->mutex);
+    httpctx->rangeWritten = 0;
+    httpctx->megaApi->startStreaming(node, start, len, httpctx);
+    return 0;
+}
+
+void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
+{
+    LOG_debug << "Response headers: " << *headers;
+    httpctx->streamingBuffer.append(headers->data(), headers->size());
+    uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
+    httpctx->size += headers->size();
+    httpctx->lastBuffer = resbuf.base;
+    httpctx->lastBufferLen = resbuf.len;
+
+    httpctx->transfer->setTotalBytes(httpctx->size);
+    httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+
+    uv_write_t *req = new uv_write_t;
+    req->data = httpctx;
+    if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+    {
+        LOG_warn << "Finishing due to an error sending the response: " << err;
+        httpctx->finished = true;
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        }
+    }
+}
+
+void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    if (httpctx->failed)
+    {
+        LOG_warn << "Streaming transfer failed. Closing connection.";
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        }
+        return;
+    }
+
+    if (httpctx->nodereceived)
+    {
+        httpctx->nodereceived = false;
+        if (!httpctx->node || httpctx->nodename != httpctx->node->getName())
+        {
+            if (!httpctx->node)
+            {
+                LOG_warn << "Public link not found";
+            }
+            else
+            {
+                LOG_warn << "Invalid name for public link";
+            }
+
+            httpctx->resultCode = 404;
+            string resstr = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
+            sendHeaders(httpctx, &resstr);
+            return;
+        }
+
+        streamNode(httpctx);
+        return;
+    }
+
+    sendNextBytes(httpctx);
+}
+
+void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
+{
+    LOG_debug << "HTTP server stopping";
+    MegaHTTPServer *httpServer = (MegaHTTPServer*) handle->data;
+
+    for (list<MegaHTTPContext*>::iterator it = httpServer->connections.begin(); it != httpServer->connections.end(); it++)
+    {
+        MegaHTTPContext *httpctx = (*it);
+        httpctx->finished = true;
+        uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
+    }
+
+    uv_close((uv_handle_t *)&httpServer->server, NULL);
+    uv_close((uv_handle_t *)&httpServer->exit_handle, NULL);
+}
+
+void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
+{
+    uv_mutex_lock(&httpctx->mutex);
+    if (httpctx->lastBuffer)
+    {
+        LOG_verbose << "Skipping write due to another ongoing write";
+        uv_mutex_unlock(&httpctx->mutex);
+        return;
+    }
+
+    if (httpctx->lastBufferLen)
+    {
+        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+        httpctx->lastBufferLen = 0;
+    }
+
+    if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
+    {
+        LOG_warn << "Skipping write. Too much queued data";
+        uv_mutex_unlock(&httpctx->mutex);
+        return;
+    }
+
+    uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
+    if (!resbuf.len)
+    {
+        LOG_verbose << "Skipping write. No data available";
+        uv_mutex_unlock(&httpctx->mutex);
+        return;
+    }
+
+    uv_write_t *req = new uv_write_t;
+    req->data = httpctx;
+
+    LOG_verbose << "Writting " << resbuf.len << " bytes";
+    httpctx->rangeWritten += resbuf.len;
+    httpctx->lastBuffer = resbuf.base;
+    httpctx->lastBufferLen = resbuf.len;
+    if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, MegaHTTPServer::onWriteFinished))
+    {
+        LOG_warn << "Finishing due to an error in uv_write: " << err;
+        httpctx->finished = true;
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        }
+    }
+    uv_mutex_unlock(&httpctx->mutex);
+}
+
+void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
+{
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
+    httpctx->bytesWritten += httpctx->lastBufferLen;
+    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
+    httpctx->lastBuffer = NULL;
+    delete req;
+
+    if (status < 0 || httpctx->size == httpctx->bytesWritten)
+    {
+        if (status < 0)
+        {
+            LOG_warn << "Finishing request. Write failed: " << status;
+        }
+        else
+        {
+            LOG_debug << "Finishing request. All data sent";
+            if (httpctx->resultCode == API_EINTERNAL)
+            {
+                httpctx->resultCode = API_OK;
+            }
+        }
+
+        httpctx->finished = true;
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        }
+        return;
+    }
+
+    if (httpctx->pause)
+    {
+        uv_mutex_lock(&httpctx->mutex);
+        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        {
+            httpctx->pause = false;
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
+            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+
+            LOG_debug << "Resuming streaming from " << start << " len: " << len
+                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
+                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
+        }
+        uv_mutex_unlock(&httpctx->mutex);
+    }
+    sendNextBytes(httpctx);
+}
+
+
+MegaHTTPContext::MegaHTTPContext()
+{
+    rangeStart = -1;
+    rangeEnd = -1;
+    range = false;
+    finished = false;
+    failed = false;
+    nodereceived = false;
+    resultCode = API_EINTERNAL;
+    node = NULL;
+    transfer = NULL;
+}
+
+bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+{
+    LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
+                << " Size: " << size
+                << " Queued: " << this->tcphandle.write_queue_size
+                << " Buffered: " << streamingBuffer.availableData()
+                << " Free: " << streamingBuffer.availableSpace();
+
+    if (finished)
+    {
+        LOG_info << "Removing streaming transfer after " << transfer->getTransferredBytes() << " bytes";
+        return false;
+    }
+
+    // append the data to the buffer
+    uv_mutex_lock(&mutex);
+    if (streamingBuffer.availableSpace() < 2 * size)
+    {
+        LOG_debug << "Buffer full: " << streamingBuffer.availableSpace() << " of "
+                 << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
+        pause = true;
+    }
+    streamingBuffer.append(buffer, size);
+    uv_mutex_unlock(&mutex);
+
+    // notify the HTTP server
+    uv_async_send(&asynchandle);
+    return !pause;
+}
+
+void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
+{
+    int ecode = e->getErrorCode();
+    if (ecode != API_OK && ecode != API_EINCOMPLETE)
+    {
+        LOG_warn << "Transfer failed with error code: " << ecode;
+        failed = true;
+        uv_async_send(&asynchandle);
+    }
+}
+
+void MegaHTTPContext::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
+{
+    node = request->getPublicMegaNode();
+    nodereceived = true;
+    uv_async_send(&asynchandle);
+}
+#endif
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerListPrivate::MegaTextChatPeerListPrivate()
 {
@@ -11575,8 +13192,6 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_vector *list)
         this->list.push_back(megaChat);
     }
 }
-
-
 #endif
 
 

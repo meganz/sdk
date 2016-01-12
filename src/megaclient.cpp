@@ -2241,6 +2241,11 @@ void MegaClient::disconnect()
         (*it)->disconnect();
     }
 
+    for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end(); it++)
+    {
+        it->second->retry(API_OK);
+    }
+
     for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
     {
         (*it)->disconnect();
@@ -7260,12 +7265,25 @@ bool MegaClient::execdirectreads()
     // perform slot I/O
     for (drs_list::iterator it = drss.begin(); it != drss.end(); )
     {
-        if ((*(it++))->doio() && !r) r = true;
+        if ((*(it++))->doio())
+        {
+            r = true;
+            break;
+        }
     }
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
     {
-        dsdrns.begin()->second->dispatch();
+        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurl.size() || dsdrns.begin()->second->pendingcmd))
+        {
+            LOG_warn << "DirectRead scheduled retry";
+            dsdrns.begin()->second->retry(API_EAGAIN);
+        }
+        else
+        {
+            LOG_debug << "Dispatching scheduled streaming";
+            dsdrns.begin()->second->dispatch();
+        }
     }
 
     return r;

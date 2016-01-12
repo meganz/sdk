@@ -2161,6 +2161,103 @@ bool MegaApi::isOnline()
     return pImpl->isOnline();
 }
 
+#ifdef HAVE_LIBUV
+bool MegaApi::httpServerStart(bool localOnly, int port)
+{
+    return pImpl->httpServerStart(localOnly, port);
+}
+
+void MegaApi::httpServerStop()
+{
+    pImpl->httpServerStop();
+}
+
+int MegaApi::httpServerIsRunning()
+{
+    return pImpl->httpServerIsRunning();
+}
+
+bool MegaApi::httpServerIsLocalOnly()
+{
+    return pImpl->httpServerIsLocalOnly();
+}
+
+void MegaApi::httpServerEnableFileServer(bool enable)
+{
+    pImpl->httpServerEnableFileServer(enable);
+}
+
+bool MegaApi::httpServerIsFileServerEnabled()
+{
+    return pImpl->httpServerIsFileServerEnabled();
+}
+
+void MegaApi::httpServerEnableFolderServer(bool enable)
+{
+    pImpl->httpServerEnableFolderServer(enable);
+}
+
+bool MegaApi::httpServerIsFolderServerEnabled()
+{
+    return pImpl->httpServerIsFolderServerEnabled();
+}
+
+void MegaApi::httpServerSetRestrictedMode(int mode)
+{
+    pImpl->httpServerSetRestrictedMode(mode);
+}
+
+int MegaApi::httpServerGetRestrictedMode()
+{
+    return pImpl->httpServerGetRestrictedMode();
+}
+
+void MegaApi::httpServerEnableSubtitlesSupport(bool enable)
+{
+    pImpl->httpServerEnableSubtitlesSupport(enable);
+}
+
+bool MegaApi::httpServerIsSubtitlesSupportEnabled()
+{
+    return pImpl->httpServerIsSubtitlesSupportEnabled();
+}
+
+void MegaApi::httpServerAddListener(MegaTransferListener *listener)
+{
+    pImpl->httpServerAddListener(listener);
+}
+
+void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
+{
+    pImpl->httpServerRemoveListener(listener);
+}
+
+char *MegaApi::httpServerGetLocalLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalLink(node);
+}
+
+void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
+{
+    pImpl->httpServerSetMaxBufferSize(bufferSize);
+}
+
+int MegaApi::httpServerGetMaxBufferSize()
+{
+    return pImpl->httpServerGetMaxBufferSize();
+}
+
+void MegaApi::httpServerSetMaxOutputSize(int outputSize)
+{
+    pImpl->httpServerSetMaxOutputSize(outputSize);
+}
+
+int MegaApi::httpServerGetMaxOutputSize()
+{
+    return pImpl->httpServerGetMaxOutputSize();
+}
+#endif
+
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
 {
