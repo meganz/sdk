@@ -97,7 +97,7 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    if (defer)
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
     {
         failcount++;
         delete slot;
