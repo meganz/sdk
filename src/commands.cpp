@@ -35,6 +35,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 {
     cmd("ufa");
     arg("s", cdata->size());
+    arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
 
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
@@ -55,9 +56,20 @@ HttpReqCommandPutFA::~HttpReqCommandPutFA()
 
 void HttpReqCommandPutFA::procresult()
 {
+    error e;
+
     if (client->json.isnumeric())
     {
-        status = REQ_FAILURE;
+        e = (error)client->json.getint();
+
+        if (e == API_EAGAIN)
+        {
+            status = REQ_FAILURE;
+        }
+        else
+        {
+            return client->app->putfa_result(th, type, e);
+        }
     }
     else
     {
