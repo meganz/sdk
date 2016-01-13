@@ -10336,34 +10336,9 @@ char* MegaApiImpl::stringToArray(string &buffer)
 
 void MegaApiImpl::updateStats()
 {
-    transfer_map::iterator it;
-    transfer_map::iterator end;
-    int downloadCount = 0;
-    int uploadCount = 0;
-
     sdkMutex.lock();
-    it = client->transfers[0].begin();
-    end = client->transfers[0].end();
-    while(it != end)
-    {
-        Transfer *transfer = it->second;
-        if((transfer->failcount<2) || (transfer->slot && (Waiter::ds - transfer->slot->lastdata) < TransferSlot::XFERTIMEOUT))
-            downloadCount++;
-        it++;
-    }
-
-    it = client->transfers[1].begin();
-    end = client->transfers[1].end();
-    while(it != end)
-    {
-        Transfer *transfer = it->second;
-        if((transfer->failcount<2) || (transfer->slot && (Waiter::ds - transfer->slot->lastdata) < TransferSlot::XFERTIMEOUT))
-            uploadCount++;
-        it++;
-    }
-
-    pendingDownloads = downloadCount;
-    pendingUploads = uploadCount;
+    pendingDownloads = client->transfers[0].size();
+    pendingUploads = client->transfers[1].size();
     sdkMutex.unlock();
 }
 
