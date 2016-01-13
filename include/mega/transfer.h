@@ -82,7 +82,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int tag;
 
     // signal failure
-    void failed(error);
+    void failed(error, dstime = 0);
 
     // signal completion
     void complete();

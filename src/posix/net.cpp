@@ -1634,18 +1634,22 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 {
     if (!memcmp(ptr, "Content-Length:", 15))
     {
-        if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+        if (((HttpReq*)target)->contentlength < 0)
+        {
+            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+        }
+    }
+    else if (!memcmp(ptr, "Original-Content-Length:", 24))
+    {
+        ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+    }
+    else if (!memcmp(ptr, "X-MEGA-Time-Left:", 17))
+    {
+        ((HttpReq*)target)->timeleft = atol((char*)ptr + 17);
     }
     else
     {
-        if (!memcmp(ptr, "Original-Content-Length:", 24))
-        {
-            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
-        }
-        else
-        {
-            return size * nmemb;
-        }
+        return size * nmemb;
     }
 
     if (((HttpReq*)target)->httpio)

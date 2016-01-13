@@ -636,6 +636,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
+    overquotauntil = 0;
 
     init();
 
@@ -720,10 +721,15 @@ void MegaClient::exec()
 {
     WAIT_CLASS::bumpds();
 
+    if (overquotauntil && overquotauntil < Waiter::ds)
+    {
+        overquotauntil = 0;
+    }
+
     if (httpio->inetisback())
     {
         LOG_info << "Internet connectivity returned - resetting all backoff timers";
-        abortbackoff();
+        abortbackoff(overquotauntil <= Waiter::ds);
     }
 
     if (EVER(httpio->lastdata) && !pendingcs && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
@@ -1883,6 +1889,7 @@ bool MegaClient::abortbackoff(bool includexfers)
 
     if (includexfers)
     {
+        overquotauntil = 0;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
@@ -1890,6 +1897,14 @@ bool MegaClient::abortbackoff(bool includexfers)
                 if (it->second->failcount)
                 {
                     if (it->second->bt.arm())
+                    {
+                        r = true;
+                    }
+                }
+
+                if (it->second->slot && it->second->slot->retrying)
+                {
+                    if (it->second->slot->retrybt.arm())
                     {
                         r = true;
                     }
@@ -2322,6 +2337,7 @@ void MegaClient::locallogout()
     xferpaused[GET] = false;
     putmbpscap = 0;
     fetchingnodes = false;
+    overquotauntil = 0;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -2577,6 +2593,7 @@ bool MegaClient::procsc()
                                 if (sc_upgrade())
                                 {
                                     app->account_updated();
+                                    abortbackoff(true);
                                 }
                                 break;
 
@@ -8767,6 +8784,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             app->transfer_added(t);
+
+            if (overquotauntil && overquotauntil > Waiter::ds)
+            {
+                t->bt.backoff(overquotauntil - Waiter::ds);
+            }
         }
 
         f->file_it = t->files.insert(t->files.begin(), f);

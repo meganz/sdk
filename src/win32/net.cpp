@@ -329,6 +329,19 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 if (!req->buf)
                 {
+                    DWORD timeLeft;
+                    DWORD timeLeftSize = sizeof(timeLeft);
+                    if (WinHttpQueryHeaders(httpctx->hRequest,
+                                            WINHTTP_QUERY_CUSTOM | WINHTTP_QUERY_FLAG_NUMBER,
+                                            L"X-MEGA-Time-Left",
+                                            &timeLeft,
+                                            &timeLeftSize,
+                                            WINHTTP_NO_HEADER_INDEX))
+                    {
+                        LOG_verbose << "Seconds left until more bandwidth quota: " << timeLeft;
+                        req->timeleft = timeLeft;
+                    }
+
                     // obtain original content length - always present if gzip is in use
                     DWORD contentLength;
                     DWORD contentLengthSize = sizeof(contentLength);

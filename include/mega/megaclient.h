@@ -329,6 +329,9 @@ public:
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
 
+    // time left for bandwidth overquota
+    m_time_t overquotauntil;
+
     // root URL for API requests
     static string APIURL;
 

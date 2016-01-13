@@ -173,7 +173,7 @@ void TransferSlot::doio(MegaClient* client)
         return;
     }
 
-    time_t backoff = 0;
+    dstime backoff = 0;
     m_off_t p = 0;
 
     if (errorcount > 4)
@@ -199,6 +199,7 @@ void TransferSlot::doio(MegaClient* client)
                     if (transfer->type == PUT)
                     {
                         errorcount = 0;
+                        transfer->failcount = 0;
 
                         // completed put transfers are signalled through the
                         // return of the upload token
@@ -229,6 +230,7 @@ void TransferSlot::doio(MegaClient* client)
                         if (reqs[i]->size == reqs[i]->bufpos)
                         {
                             errorcount = 0;
+                            transfer->failcount = 0;
 
                             reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, 0, -1);
 
@@ -261,11 +263,18 @@ void TransferSlot::doio(MegaClient* client)
                 case REQ_FAILURE:
                     if (reqs[i]->httpstatus == 509)
                     {
-                        client->app->transfer_limit(transfer);
+                        LOG_warn << "Bandwidth overquota from storage server";
+                        if (reqs[i]->timeleft)
+                        {
+                            backoff = reqs[i]->timeleft * 10;
+                        }
+                        else
+                        {
+                            // fixed ten-minute retry intervals
+                            backoff = 6000;
+                        }
 
-                        // fixed ten-minute retry intervals
-                        backoff = 6000;
-                        retrying = true;
+                        return transfer->failed(API_EOVERQUOTA, backoff);
                     }
                     else
                     {
