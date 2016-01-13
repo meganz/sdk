@@ -391,6 +391,11 @@ const char *MegaUser::getEmail()
     return NULL;
 }
 
+MegaHandle MegaUser::getHandle()
+{
+    return INVALID_HANDLE;
+}
+
 int MegaUser::getVisibility()
 {
     return 0;
@@ -599,6 +604,17 @@ int MegaRequest::getTag() const
     return 0;
 }
 
+#ifdef ENABLE_CHAT
+MegaTextChatPeerList *MegaRequest::getMegaTextChatPeerList() const
+{
+    return NULL;
+}
+
+MegaTextChatList *MegaRequest::getMegaTextChatList() const
+{
+    return NULL;
+}
+#endif
 
 MegaTransfer::~MegaTransfer() { }
 
@@ -751,6 +767,7 @@ int MegaTransfer::getFolderTransferTag() const
 MegaError::MegaError(int errorCode)
 {
     this->errorCode = errorCode;
+    this->value = 0;
 }
 
 MegaError::MegaError(int errorCode, long long value)
@@ -1005,6 +1022,13 @@ void MegaListener::onSyncStateChanged(MegaApi *api, MegaSync *sync)
 { }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *api)
 { }
+#endif
+
+#ifdef ENABLE_CHAT
+void MegaGlobalListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{}
+void MegaListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{}
 #endif
 
 MegaListener::~MegaListener() {}
@@ -1301,9 +1325,14 @@ void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequest
     pImpl->getUserAvatar(user, dstFilePath, listener);
 }
 
+void MegaApi::getUserAvatar(const char* email_or_handle, const char *dstFilePath, MegaRequestListener *listener)
+{
+    pImpl->getUserAvatar(email_or_handle, dstFilePath, listener);
+}
+
 void MegaApi::getUserAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
-    pImpl->getUserAvatar(NULL, dstFilePath, listener);
+    pImpl->getUserAvatar((MegaUser*)NULL, dstFilePath, listener);
 }
 
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
@@ -1318,7 +1347,12 @@ void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *li
 
 void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
 {
-    pImpl->getUserAttribute(NULL, type, listener);
+    pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
+}
+
+void MegaApi::getUserAttribute(const char *email_or_handle, int type, MegaRequestListener *listener)
+{
+    pImpl->getUserAttribute(email_or_handle, type, listener);
 }
 
 void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
@@ -1792,6 +1826,11 @@ MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
     return pImpl->getPendingOutShares(node);
 }
 
+MegaNodeList *MegaApi::getPublicLinks()
+{
+    return pImpl->getPublicLinks();
+}
+
 MegaContactRequestList *MegaApi::getIncomingContactRequests()
 {
     return pImpl->getIncomingContactRequests();
@@ -2121,6 +2160,130 @@ bool MegaApi::isOnline()
 {
     return pImpl->isOnline();
 }
+
+#ifdef HAVE_LIBUV
+bool MegaApi::httpServerStart(bool localOnly, int port)
+{
+    return pImpl->httpServerStart(localOnly, port);
+}
+
+void MegaApi::httpServerStop()
+{
+    pImpl->httpServerStop();
+}
+
+int MegaApi::httpServerIsRunning()
+{
+    return pImpl->httpServerIsRunning();
+}
+
+bool MegaApi::httpServerIsLocalOnly()
+{
+    return pImpl->httpServerIsLocalOnly();
+}
+
+void MegaApi::httpServerEnableFileServer(bool enable)
+{
+    pImpl->httpServerEnableFileServer(enable);
+}
+
+bool MegaApi::httpServerIsFileServerEnabled()
+{
+    return pImpl->httpServerIsFileServerEnabled();
+}
+
+void MegaApi::httpServerEnableFolderServer(bool enable)
+{
+    pImpl->httpServerEnableFolderServer(enable);
+}
+
+bool MegaApi::httpServerIsFolderServerEnabled()
+{
+    return pImpl->httpServerIsFolderServerEnabled();
+}
+
+void MegaApi::httpServerSetRestrictedMode(int mode)
+{
+    pImpl->httpServerSetRestrictedMode(mode);
+}
+
+int MegaApi::httpServerGetRestrictedMode()
+{
+    return pImpl->httpServerGetRestrictedMode();
+}
+
+void MegaApi::httpServerEnableSubtitlesSupport(bool enable)
+{
+    pImpl->httpServerEnableSubtitlesSupport(enable);
+}
+
+bool MegaApi::httpServerIsSubtitlesSupportEnabled()
+{
+    return pImpl->httpServerIsSubtitlesSupportEnabled();
+}
+
+void MegaApi::httpServerAddListener(MegaTransferListener *listener)
+{
+    pImpl->httpServerAddListener(listener);
+}
+
+void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
+{
+    pImpl->httpServerRemoveListener(listener);
+}
+
+char *MegaApi::httpServerGetLocalLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalLink(node);
+}
+
+void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
+{
+    pImpl->httpServerSetMaxBufferSize(bufferSize);
+}
+
+int MegaApi::httpServerGetMaxBufferSize()
+{
+    return pImpl->httpServerGetMaxBufferSize();
+}
+
+void MegaApi::httpServerSetMaxOutputSize(int outputSize)
+{
+    pImpl->httpServerSetMaxOutputSize(outputSize);
+}
+
+int MegaApi::httpServerGetMaxOutputSize()
+{
+    return pImpl->httpServerGetMaxOutputSize();
+}
+#endif
+
+#ifdef ENABLE_CHAT
+void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
+{
+    pImpl->createChat(group, peers, listener);
+}
+
+void MegaApi::fetchChats(MegaRequestListener *listener)
+{
+    pImpl->fetchChats(listener);
+}
+
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, MegaRequestListener *listener)
+{
+    pImpl->inviteToChat(chatid, uh, privilege, listener);
+}
+
+void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
+{
+    pImpl->removeFromChat(chatid, uh, listener);
+}
+
+void MegaApi::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->getUrlChat(chatid, listener);
+}
+#endif
 
 char* MegaApi::strdup(const char* buffer)
 {
@@ -2650,3 +2813,100 @@ MegaInputStream::~MegaInputStream()
 {
 
 }
+
+#ifdef ENABLE_CHAT
+MegaTextChatPeerList * MegaTextChatPeerList::createInstance()
+{
+    return new MegaTextChatPeerListPrivate();
+}
+
+MegaTextChatPeerList::MegaTextChatPeerList()
+{
+
+}
+
+MegaTextChatPeerList::~MegaTextChatPeerList()
+{
+
+}
+
+MegaTextChatPeerList *MegaTextChatPeerList::copy() const
+{
+    return NULL;
+}
+
+void MegaTextChatPeerList::addPeer(MegaHandle, int)
+{
+}
+
+MegaHandle MegaTextChatPeerList::getPeerHandle(int) const
+{
+    return INVALID_HANDLE;
+}
+
+int MegaTextChatPeerList::getPeerPrivilege(int) const
+{
+    return PRIV_UNKNOWN;
+}
+
+int MegaTextChatPeerList::size() const
+{
+    return 0;
+}
+
+MegaTextChat::~MegaTextChat()
+{
+
+}
+
+MegaHandle MegaTextChat::getHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+int MegaTextChat::getOwnPrivilege() const
+{
+    return PRIV_UNKNOWN;
+}
+
+const char *MegaTextChat::getUrl() const
+{
+    return NULL;
+}
+
+int MegaTextChat::getShard() const
+{
+    return -1;
+}
+
+const MegaTextChatPeerList *MegaTextChat::getPeerList() const
+{
+    return NULL;
+}
+
+bool MegaTextChat::isGroup() const
+{
+    return false;
+}
+
+MegaTextChatList::~MegaTextChatList()
+{
+
+}
+
+MegaTextChatList *MegaTextChatList::copy() const
+{
+    return NULL;
+}
+
+const MegaTextChat *MegaTextChatList::get(int) const
+{
+    return NULL;
+}
+
+int MegaTextChatList::size() const
+{
+    return 0;
+}
+
+#endif  // ENABLE_CHAT

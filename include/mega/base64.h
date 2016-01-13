@@ -46,6 +46,19 @@ public:
     static int btoa(const byte*, int, char*);
     static int atob(const char*, byte*, int);
 };
+
+class MEGA_API URLCodec
+{
+    static bool ishexdigit(char c);
+    static bool issafe(char c);
+    static char hexval(char c);
+
+
+public:
+    static void escape(string* plain, string* escaped);
+    static void unescape(string* escaped, string* plain);
+};
+
 } // namespace
 
 #endif

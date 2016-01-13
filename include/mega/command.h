@@ -468,6 +468,7 @@ class MEGA_API CommandGetPH : public Command
     handle ph;
     byte key[FILENODEKEYLENGTH];
     int op;
+    bool havekey;
 
 public:
     void procresult();
@@ -598,6 +599,59 @@ public:
 
     CommandCleanRubbishBin(MegaClient*);
 };
+
+
+#ifdef ENABLE_CHAT
+class MEGA_API CommandChatCreate : public Command
+{
+    MegaClient *client;
+    userpriv_vector *chatPeers;
+
+public:
+    void procresult();
+
+    CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
+};
+
+class MEGA_API CommandChatFetch : public Command
+{
+    MegaClient *client;
+public:
+    void procresult();
+
+    CommandChatFetch(MegaClient*);
+};
+
+class MEGA_API CommandChatInvite : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatInvite(MegaClient*, handle, const char *, privilege_t);
+};
+
+class MEGA_API CommandChatRemove : public Command
+{
+    MegaClient *client;
+public:
+    void procresult();
+
+    CommandChatRemove(MegaClient*, handle, const char * = NULL);
+};
+
+class MEGA_API CommandChatURL : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatURL(MegaClient*, handle);
+};
+#endif
+
 
 } // namespace
 

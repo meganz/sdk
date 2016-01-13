@@ -100,6 +100,18 @@ struct DemoApp : public MegaApp
     void pcrs_updated(PendingContactRequest**, int);
     void nodes_current();
 
+#ifdef ENABLE_CHAT
+    void chatcreate_result(TextChat *, error);
+    void chatfetch_result(textchat_vector *chats, error);
+    void chatinvite_result(error);
+    void chatremove_result(error);
+    void chaturl_result(string *, error);
+    void chats_updated(textchat_vector *);
+
+    void printChatInformation(TextChat *);
+    string getPrivilegeString(privilege_t priv);
+#endif
+
     int prepare_download(Node*);
 
     void setattr_result(handle, error);

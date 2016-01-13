@@ -919,6 +919,13 @@ class MegaUser
         virtual const char* getEmail();
 
         /**
+         * @brief Returns the handle associated with the contact.
+         *
+         * @return The handle associated with the contact.
+         */
+        virtual MegaHandle getHandle();
+
+        /**
          * @brief Get the current visibility of the contact
          *
          * The returned value will be one of these:
@@ -1096,6 +1103,179 @@ class MegaShare
         virtual int64_t getTimestamp();
 };
 
+#ifdef ENABLE_CHAT
+class MegaTextChatPeerList
+{
+public:
+    enum {
+        PRIV_UNKNOWN = -2,
+        PRIV_RM = -1,
+        PRIV_RO = 0,
+        PRIV_RW = 1,
+        PRIV_FULL = 2,
+        PRIV_OPERATOR = 3
+    };
+
+    /**
+     * @brief Creates a new instance of MegaTextChatPeerList
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaTextChatPeerList * createInstance();
+
+    virtual ~MegaTextChatPeerList();
+
+    /**
+     * @brief Creates a copy of this MegaTextChatPeerList object
+     *
+     * The resulting object is fully independent of the source MegaTextChatPeerList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTextChatPeerList object
+     */
+    virtual MegaTextChatPeerList *copy() const;
+
+    /**
+     * @brief addPeer Adds a new chat peer to the list
+     *
+     * @param h MegaHandle of the user to be added
+     * @param priv Privilege level of the user to be added
+     * Valid values are:
+     * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+     * - MegaTextChatPeerList::PRIV_RM = -1
+     * - MegaTextChatPeerList::PRIV_RO = 0
+     * - MegaTextChatPeerList::PRIV_RW = 1
+     * - MegaTextChatPeerList::PRIV_FULL = 2
+     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+     */
+    virtual void addPeer(MegaHandle h, int priv);
+
+    /**
+     * @brief Returns the MegaHandle of the chat peer at the position i in the list
+     *
+     * If the index is >= the size of the list, this function returns INVALID_HANDLE.
+     *
+     * @param i Position of the chat peer that we want to get from the list
+     * @return MegaHandle of the chat peer at the position i in the list
+     */
+    virtual MegaHandle getPeerHandle(int i) const;
+
+    /**
+     * @brief Returns the privilege of the chat peer at the position i in the list
+     *
+     * If the index is >= the size of the list, this function returns PRIV_UNKNOWN.
+     *
+     * @param i Position of the chat peer that we want to get from the list
+     * @return Privilege level of the chat peer at the position i in the list.
+     * Valid values are:
+     * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+     * - MegaTextChatPeerList::PRIV_RM = -1
+     * - MegaTextChatPeerList::PRIV_RO = 0
+     * - MegaTextChatPeerList::PRIV_RW = 1
+     * - MegaTextChatPeerList::PRIV_FULL = 2
+     * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+     */
+    virtual int getPeerPrivilege(int i) const;
+
+    /**
+     * @brief Returns the number of chat peer in the list
+     * @return Number of chat peers in the list
+     */
+    virtual int size() const;
+
+protected:
+    MegaTextChatPeerList();
+
+};
+
+class MegaTextChat
+{
+public:
+
+    virtual ~MegaTextChat();
+
+    /**
+     * @brief getHandle Returns the MegaHandle of the chat.
+     * @return MegaHandle of the chat.
+     */
+    virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief getOwnPrivilege Returns your privilege level in this chat
+     * @return
+     */
+    virtual int getOwnPrivilege() const;
+
+    /**
+     * @brief getUrl Returns your URL to connect to chatd for this chat
+     * @return
+     */
+    virtual const char *getUrl() const;
+
+    /**
+     * @brief getShard Returns the chat shard
+     * @return
+     */
+    virtual int getShard() const;
+
+    /**
+     * @brief getPeerList Returns the full user list and privileges (including yourself).
+     *
+     * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return
+     */
+    virtual const MegaTextChatPeerList *getPeerList() const;
+
+    /**
+     * @brief isGroup Returns whether this chat is a group chat or not
+     * @return True if this chat is a group chat. Only chats with more than 2 peers are groupal chats.
+     */
+    virtual bool isGroup() const;
+
+};
+
+/**
+ * @brief List of MegaTextChat objects
+ *
+ * A MegaTextChatList has the ownership of the MegaTextChat objects that it contains, so they will be
+ * only valid until the MegaTextChatList is deleted. If you want to retain a MegaTextChat returned by
+ * a MegaTextChatList, use MegaTextChat::copy.
+ *
+ * Objects of this class are immutable.
+ */
+class MegaTextChatList
+{
+public:
+
+    virtual ~MegaTextChatList();
+
+    virtual MegaTextChatList *copy() const;
+
+    /**
+     * @brief Returns the MegaTextChat at the position i in the MegaTextChatList
+     *
+     * The MegaTextChatList retains the ownership of the returned MegaTextChat. It will be only valid until
+     * the MegaTextChatList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaTextChat that we want to get for the list
+     * @return MegaTextChat at the position i in the list
+     */
+    virtual const MegaTextChat *get(int i)  const;
+
+    /**
+     * @brief Returns the number of MegaTextChats in the list
+     * @return Number of MegaTextChats in the list
+     */
+    virtual int size() const;
+};
+
+#endif
 
 /**
  * @brief List of strings
@@ -1360,7 +1540,8 @@ class MegaRequest
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
-            TYPE_SET_ATTR_NODE
+            TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
+            TYPE_CHAT_REMOVE, TYPE_CHAT_URL
         };
 
         virtual ~MegaRequest();
@@ -1448,6 +1629,9 @@ class MegaRequest
          * - MegaApi::removeSync - Returns the handle of the folder in MEGA
          * - MegaApi::upgradeAccount - Returns that handle of the product
          * - MegaApi::replyContactRequest - Returns the handle of the contact request
+         * - MegaApi::inviteToChat - Returns the handle of the chat
+         * - MegaApi::removeFromChat - Returns the handle of the chat
+         * - MegaApi::getUrlChat - Returns the handle of the chat
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1474,6 +1658,7 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::exportNode - Returns the public link
          * - MegaApi::getPaymentId - Returns the payment identifier
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -1490,6 +1675,8 @@ class MegaRequest
          * - MegaApi::moveNode - Returns the handle of the new parent for the node
          * - MegaApi::copyNode - Returns the handle of the parent for the new node
          * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
+         * - MegaApi::inviteToChat - Returns the handle of the user to be invited
+         * - MegaApi::removeFromChat - Returns the handle of the user to be removed
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1626,6 +1813,7 @@ class MegaRequest
          * - MegaApi::share - Returns the access level for the shared folder
          * - MegaApi::exportNode - Returns true
          * - MegaApi::disableExport - Returns false
+         * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
          *
          * @return Access level related to the request
          */
@@ -1760,6 +1948,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
+         * - MegaApi::createChat - Creates a chat for one or more participants
          *
          * @return Flag related to the request
          */
@@ -1833,6 +2022,36 @@ class MegaRequest
          * @return Unique tag that identifies this request
          */
         virtual int getTag() const;
+
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Returns the list of peers in a chat.
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createChat - Returns the list of peers and their privilege level
+         *
+         * @return List of peers of a chat
+         */
+        virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
+
+        /**
+         * @brief Returns the list of chats.
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::createChat - Returns the new chat's information
+         * - MegaApi::fetchChat - Returns the list of chats
+         *
+         * @return List of chats
+         */
+        virtual MegaTextChatList *getMegaTextChatList() const;
+#endif
 };
 
 /**
@@ -1850,8 +2069,11 @@ class MegaRequest
 class MegaTransfer
 {
 	public:
-        enum {TYPE_DOWNLOAD = 0,
-              TYPE_UPLOAD};
+        enum {
+            TYPE_DOWNLOAD = 0,
+            TYPE_UPLOAD,
+            TYPE_LOCAL_HTTP_DOWNLOAD
+        };
         
         virtual ~MegaTransfer();
 
@@ -2949,6 +3171,20 @@ class MegaGlobalListener
         virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 
+#ifdef ENABLE_CHAT
+        /**
+         * @brief This function is called when there are new or updated chats
+         *
+         * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
+         * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
+         * MegaTextChat::copy for those objects.
+         *
+         * @param api MegaApi object connected to the account
+         * @param chats List that contains the new or updated chats
+         */
+        virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+#endif
         virtual ~MegaGlobalListener();
 };
 
@@ -3217,6 +3453,22 @@ class MegaListener
      */
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
+
+#ifdef ENABLE_CHAT
+    /**
+     * @brief This function is called when there are new or updated chats
+     *
+     * The SDK retains the ownership of the MegaTextChatList in the second parameter. The list and all the
+     * MegaTextChat objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaTextChatList::copy. If you want to save only some of the MegaTextChat objects, use
+     * MegaTextChat::copy for those objects.
+     *
+     * @param api MegaApi object connected to the account
+     * @param chats List that contains the new or updated chats
+     */
+    virtual void onChatsUpdate(MegaApi* api, MegaTextChatList *chats);
+#endif
+
         virtual ~MegaListener();
 };
 
@@ -3786,7 +4038,8 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_USER_DATA.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact
+         * - MegaRequest::getEmail - Returns the email or the Base64 handle of the contact,
+         * depending on the value provided as user parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -3863,7 +4116,7 @@ class MegaApi
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get information about a confirmation link
+         * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
          * Valid data in the MegaRequest object received on all callbacks:
@@ -3871,10 +4124,10 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getEmail - Return the email associated with the confirmation link
-         * - MegaRequest::getName - Returns the name associated with the confirmation link
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getName - Returns the name associated with the link (available only for confirmation links)
          *
-         * @param link Confirmation link
+         * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
          */
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -4333,6 +4586,25 @@ class MegaApi
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the avatar of any user in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         *
+         * @param user email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * set to NULL, the avatar is obtained for the active account
+         * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+         * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+         * will be used as the file name inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get the avatar of the active account
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -4374,6 +4646,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get an attribute of any user in MEGA.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value of the attribute
+         *
+         * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
+         * If this parameter is set to NULL, the attribute is obtained for the active account.
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAttribute(const char *email_or_handle, int type, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get an attribute of the current account.
@@ -5956,6 +6255,15 @@ class MegaApi
         MegaShareList *getPendingOutShares(MegaNode *node);
 
         /**
+         * @brief Get a list with all public links
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaNode objects that are shared with everyone via public link
+         */
+        MegaNodeList *getPublicLinks();
+
+        /**
          * @brief Get a list with all incoming contact requests
          *
          * You take the ownership of the returned value
@@ -6432,6 +6740,439 @@ class MegaApi
          * @return true if the connection is perfectly OK, otherwise false
          */
         bool isOnline();
+
+#ifdef HAVE_LIBUV
+
+        enum {
+            HTTP_SERVER_DENY_ALL = -1,
+            HTTP_SERVER_ALLOW_ALL = 0,
+            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+        };
+
+        /**
+         * @brief Start an HTTP proxy server in specified port
+         *
+         * If this function returns true, that means that the server is
+         * ready to accept connections. The initialization is synchronous.
+         *
+         * The server will serve files using this URL format:
+         * http://127.0.0.1/<NodeHandle>/<NodeName>
+         *
+         * The node name must be URL encoded and must match with the node handle.
+         * You can generate a correct link for a MegaNode using MegaApi::httpServerGetLocalLink
+         *
+         * If the node handle belongs to a folder node, a web with the list of files
+         * inside the folder is returned.
+         *
+         * It's important to know that the HTTP proxy server has several configuration options
+         * that can restrict the nodes that will be served and the connections that will be accepted.
+         *
+         * These are the default options:
+         * - The restricted mode of the server is set to MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * (see MegaApi::httpServerSetRestrictedMode)
+         *
+         * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
+         * - File nodes are allowed to be served (see MegaApi::httpServerEnableFileServer)
+         * - Subtitles support is disabled (see MegaApi::httpServerEnableSubtitlesSupport)
+         *
+         * The HTTP server will only stream a node if it's allowed by all configuration options.
+         *
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
+         * @param port Port in which the server must accept connections
+         * @return True is the server is ready, false if the initialization failed
+         */
+        bool httpServerStart(bool localOnly = true, int port = 4443);
+
+        /**
+         * @brief Stop the HTTP proxy server
+         *
+         * When this function returns, the server is already shutdown.
+         * If the HTTP proxy server isn't running, this functions does nothing
+         */
+        void httpServerStop();
+
+        /**
+         * @brief Check if the HTTP proxy server is running
+         * @return 0 if the server is not running. Otherwise the port in which it's listening to
+         */
+        int httpServerIsRunning();
+
+        /**
+         * @brief Check if the HTTP proxy server is listening on all network interfaces
+         * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
+         * If it's started and listening on all network interfaces, this function returns false
+         */
+        bool httpServerIsLocalOnly();
+
+        /**
+         * @brief Allow/forbid to serve files
+         *
+         * By default, files are served (when the server is running)
+         *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @param true to allow to server files, false to forbid it
+         */
+        void httpServerEnableFileServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve files
+         *
+         * This function can return true even if the HTTP proxy server is not running
+         *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @return true if it's allowed to serve files, otherwise false
+         */
+        bool httpServerIsFileServerEnabled();
+
+        /**
+         * @brief Allow/forbid to serve folders
+         *
+         * By default, folders are NOT served
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @param true to allow to server folders, false to forbid it
+         */
+        void httpServerEnableFolderServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve folders
+         *
+         * This function can return true even if the HTTP proxy server is not running
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @return true if it's allowed to serve folders, otherwise false
+         */
+        bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Enable/disable the restricted mode of the HTTP server
+         *
+         * This function allows to restrict the nodes that are allowed to be served.
+         * For not allowed links, the server will return "407 Forbidden".
+         *
+         * Possible values are:
+         * - HTTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - HTTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1 (default)
+         * Only links created with MegaApi::httpServerGetLocalLink are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
+         *
+         * If a different value from the list above is passed to this function, it won't have any effect and the previous
+         * state of this option will be preserved.
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * The state of this option is preserved even if the HTTP server is restarted, but the
+         * the HTTP proxy server only remembers the generated links since the last call to
+         * MegaApi::httpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerEnableFileServer,
+         * MegaApi::httpServerEnableFolderServer) are still applied.
+         *
+         * @param Required state for the restricted mode of the HTTP proxy server
+         */
+        void httpServerSetRestrictedMode(int mode);
+
+        /**
+         * @brief Check if the HTTP proxy server is working in restricted mode
+         *
+         * Possible return values are:
+         * - HTTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - HTTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1
+         * Only links created with MegaApi::httpServerGetLocalLink are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * See MegaApi::httpServerEnableRestrictedMode and MegaApi::httpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerEnableFileServer,
+         * MegaApi::httpServerEnableFolderServer) are still applied.
+         *
+         * @return State of the restricted mode of the HTTP proxy server
+         */
+        int httpServerGetRestrictedMode();
+
+        /**
+         * @brief Enable/disable the support for subtitles
+         *
+         * Subtitles support allows to stream some special links that otherwise wouldn't be valid.
+         * For example, let's suppose that the server is streaming this video:
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.avi
+         *
+         * Some media players scan HTTP servers looking for subtitle files and request links like these ones:
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.txt
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.srt
+         *
+         * Even if a file with that name is in the same folder of the MEGA account, the node wouldn't be served because
+         * the node handle wouldn't match.
+         *
+         * When this feature is enabled, the HTTP proxy server will check if there are files with that name
+         * in the same folder as the node corresponding to the handle in the link.
+         *
+         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
+         * the HTTP proxy server will serve that file.
+         *
+         * This feature is disabled by default.
+         *
+         * @param enable True to enable subtitles support, false to disable it
+         */
+        void httpServerEnableSubtitlesSupport(bool enable);
+
+        /**
+         * @brief Check if the support for subtitles is enabled
+         *
+         * See MegaApi::httpServerEnableSubtitlesSupport.
+         *
+         * This feature is disabled by default.
+         *
+         * @return true of the support for subtibles is enables, otherwise false
+         */
+        bool httpServerIsSubtitlesSupportEnabled();
+
+        /**
+         * @brief Add a listener to receive information about the HTTP proxy server
+         *
+         * This is the valid data that will be provided on callbacks:
+         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD
+         * - MegaTransfer::getPath - URL requested to the HTTP proxy server
+         * - MegaTransfer::getFileName - Name of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getNodeHandle - Handle of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getTotalBytes - Total bytes of the response (response headers + file, if required)
+         * - MegaTransfer::getStartPos - Start position (for range requests only, otherwise -1)
+         * - MegaTransfer::getEndPos - End position (for range requests only, otherwise -1)
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINCOMPLETE - If the whole response wasn't sent
+         * (it's normal to get this error code sometimes because media players close connections when they have
+         * the data that they need)
+         *
+         * - MegaError::API_EREAD - If the connection with MEGA storage servers failed
+         * - MegaError::API_EAGAIN - If the download speed is too slow for streaming
+         * - A number > 0 means an HTTP error code returned to the client
+         *
+         * @param listener Listener to receive information about the HTTP proxy server
+         */
+        void httpServerAddListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Stop the reception of callbacks related to the HTTP proxy server on this listener
+         * @param listener Listener that won't continue receiving information
+         */
+        void httpServerRemoveListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Returns a URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Set the maximum buffer size for the internal buffer
+         *
+         * The HTTP proxy server has an internal buffer to store the data received from MEGA
+         * while it's being sent to clients. When the buffer is full, the connection with
+         * the MEGA storage server is closed, when the buffer has few data, the connection
+         * with the MEGA storage server is started again.
+         *
+         * Even with very fast connections, due to the possible latency starting new connections,
+         * if this buffer is small the streaming can have problems due to the overhead caused by
+         * the excessive number of POST requests.
+         *
+         * It's recommended to set this buffer at least to 1MB
+         *
+         * For connections that request less data than the buffer size, the HTTP proxy server
+         * will only allocate the required memory to complete the request to minimize the
+         * memory usage.
+         *
+         * The new value will be taken into account since the next request received by
+         * the HTTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param bufferSize Maximum buffer size (in bytes) or a number <= 0 to use the
+         * internal default value
+         */
+        void httpServerSetMaxBufferSize(int bufferSize);
+
+        /**
+         * @brief Get the maximum size of the internal buffer size
+         *
+         * See MegaApi::httpServerSetMaxBufferSize
+         *
+         * @return Maximum size of the internal buffer size (in bytes)
+         */
+        int httpServerGetMaxBufferSize();
+
+        /**
+         * @brief Set the maximum size of packets sent to clients
+         *
+         * For each connection, the HTTP proxy server only sends one write to the underlying
+         * socket at once. This parameter allows to set the size of that write.
+         *
+         * A small value could cause a lot of writes and would lower the performance.
+         *
+         * A big value could send too much data to the output buffer of the socket. That could
+         * keep the internal buffer full of data that hasn't been sent to the client yet,
+         * preventing the retrieval of additional data from the MEGA storage server. In that
+         * circumstances, the client could read a lot of data at once and the HTTP server
+         * could not have enough time to get more data fast enough.
+         *
+         * It's recommended to set this value to at least 8192 and no more than the 25% of
+         * the maximum buffer size (MegaApi::httpServerSetMaxBufferSize).
+         *
+         * The new value will be takein into account since the next request received by
+         * the HTTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param outputSize Maximun size of data packets sent to clients (in bytes) or
+         * a number <= 0 to use the internal default value
+         */
+        void httpServerSetMaxOutputSize(int outputSize);
+
+        /**
+         * @brief Get the maximum size of the packets sent to clients
+         *
+         * See MegaApi::httpServerSetMaxOutputSize
+         *
+         * @return Maximum size of the packets sent to clients (in bytes)
+         */
+        int httpServerGetMaxOutputSize();
+#endif
+
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Creates a chat for one or participants, allowing you to specify their
+         * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
+         *
+         * There are two types of chat: permanent an group. A permanent chat is between two people, and
+         * participants can not leave it.
+         *
+         * The creator of the chat will have operator level privilege and should not be included in the
+         * list of peers.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTextChatList - Returns the new chat's information
+         *
+         * @note If you are trying to create a chat with more than 1 other person, then it will be forced
+         * to be a group chat.
+         *
+         * @note If peers list contains only one person, group chat is not set and a permament chat already
+         * exists with that person, then this call will return the information for the existing chat, rather
+         * than a new chat.
+         *
+         * @param group Flag to indicate if the chat is a group chat or not
+         * @param peers MegaTextChatPeerList including other users and their privilege level
+         * @param listener MegaRequestListener to track this request
+         */
+        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetches the full list of current chats for the requesting user.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_FETCH
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTextChatList - Returns the list of chats
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchChats(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Adds a user to an existing chat. To do this you must have the
+         * operator privilege in the chat, and the chat must be a group chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_INVITE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the new peers. Valid values are:
+         * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+         * - MegaTextChatPeerList::PRIV_RM = -1
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_RW = 1
+         * - MegaTextChatPeerList::PRIV_FULL = 2
+         * - MegaTextChatPeerList::PRIV_OPERATOR = 3
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove yourself or another user from a chat. To remove a user other than
+         * yourself you need to have the operator privilege. Only a group chat may be left.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be removed
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user. If not provided (INVALID_HANDLE), the requester is removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get your current, user-specific url to connect to chatd with
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_URL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the user-specific URL for the chat
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+#endif
 
 private:
         MegaApiImpl *pImpl;

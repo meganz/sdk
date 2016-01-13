@@ -2248,6 +2248,11 @@ void MegaClient::disconnect()
         (*it)->disconnect();
     }
 
+    for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end(); it++)
+    {
+        it->second->retry(API_OK);
+    }
+
     for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
     {
         (*it)->disconnect();
@@ -2604,6 +2609,11 @@ bool MegaClient::procsc()
                                 // public links handles
                                 sc_ph();
                                 break;
+#ifdef ENABLE_CHAT
+                            case MAKENAMEID3('m', 'c', 'c'):
+                                // chat creation / peer's invitation / peer's removal
+                                sc_chatupdate();
+#endif
                         }
                     }
                 }
@@ -3948,6 +3958,108 @@ void MegaClient::sc_ph()
     }
 }
 
+#ifdef ENABLE_CHAT
+void MegaClient::sc_chatupdate()
+{
+    // fields: id, u, cs, n, g, ou
+    handle chatid = UNDEF;
+    userpriv_vector *userpriv = NULL;
+    int shard = -1;
+    userpriv_vector *upnotif = NULL;
+    bool group = false;
+    handle ou = UNDEF;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('i','d'):
+                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case 'u':   // list of users participating in the chat (+privileges)
+                userpriv = readuserpriv(&jsonsc);
+                break;
+
+            case MAKENAMEID2('c','s'):
+                shard = jsonsc.getint();
+                break;
+
+            case 'n':   // the new user, for notification purposes (not used)
+                upnotif = readuserpriv(&jsonsc);
+                break;
+
+            case 'g':
+                group = jsonsc.getint();
+                break;
+
+            case MAKENAMEID2('o','u'):
+                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                break;
+
+            case EOO:
+                done = true;
+
+                if (ISUNDEF(chatid))
+                {
+                    LOG_err << "Cannot read handle of the chat";
+                }
+                else if (ISUNDEF(ou))
+                {
+                    LOG_err << "Cannot read originating user of action packet";
+                }
+                else if (shard == -1)
+                {
+                    LOG_err << "Cannot read chat shard";
+                }
+                else
+                {
+                    TextChat *chat = new TextChat();
+                    chat->id = chatid;
+                    chat->shard = shard;
+                    chat->group = group;
+                    chat->priv = PRIV_UNKNOWN;
+                    chat->url = ""; // not received in action packets
+
+                    if (userpriv)
+                    {
+                        // find 'me' in list of users, get privilege and remove user
+                        userpriv_vector::iterator upvit;
+                        for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                        {
+                            if (upvit->first == me)
+                            {
+                                chat->priv = upvit->second;
+                                userpriv->erase(upvit);
+                                if (userpriv->empty())
+                                {
+                                    delete userpriv;
+                                    userpriv = NULL;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    chat->userpriv = userpriv;
+
+                    notifychat(chat);
+
+                    delete upnotif;
+                }
+                break;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
+#endif
+
 // scan notified nodes for
 // - name differences with an existing LocalNode
 // - appearance of new folders
@@ -4079,6 +4191,22 @@ void MegaClient::notifypurge(void)
 
         usernotify.clear();
     }
+
+#ifdef ENABLE_CHAT
+    if ((t = chatnotify.size()))
+    {
+        if (!fetchingnodes)
+        {
+            app->chats_updated(&chatnotify);
+        }
+
+        for (i = 0; i < t; i++)
+        {
+            delete chatnotify[i];
+        }
+        chatnotify.clear();
+    }
+#endif
 }
 
 // return node pointer derived from node handle
@@ -5655,10 +5783,6 @@ User* MegaClient::finduser(handle uh, int add)
         return NULL;
     }
 
-    char uid1[12];
-    Base64::btoa((byte*)&uh, sizeof uh, uid1);
-    uid1[11] = 0;
-
     User* u;
     uh_map::iterator it = uhindex.find(uh);
 
@@ -6254,6 +6378,14 @@ void MegaClient::notifypcr(PendingContactRequest* pcr)
     }
 }
 
+#ifdef ENABLE_CHAT
+void MegaClient::notifychat(TextChat *chat)
+{
+    chatnotify.push_back(chat);
+}
+
+#endif
+
 // process request for share node keys
 // builds & emits k/cr command
 // returns 1 in case of a valid response, 0 otherwise
@@ -6658,6 +6790,14 @@ error MegaClient::openfilelink(const char* link, int op)
                     reqs.add(new CommandGetFile(NULL, key, ph, false));
                 }
 
+                return API_OK;
+            }
+        }
+        else if (*ptr == '\0')    // no key provided, check only the existence of the node
+        {
+            if (op)
+            {
+                reqs.add(new CommandGetPH(this, ph, NULL, op));
                 return API_OK;
             }
         }
@@ -7113,12 +7253,25 @@ bool MegaClient::execdirectreads()
     // perform slot I/O
     for (drs_list::iterator it = drss.begin(); it != drss.end(); )
     {
-        if ((*(it++))->doio() && !r) r = true;
+        if ((*(it++))->doio())
+        {
+            r = true;
+            break;
+        }
     }
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
     {
-        dsdrns.begin()->second->dispatch();
+        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurl.size() || dsdrns.begin()->second->pendingcmd))
+        {
+            LOG_warn << "DirectRead scheduled retry";
+            dsdrns.begin()->second->retry(API_EAGAIN);
+        }
+        else
+        {
+            LOG_debug << "Dispatching scheduled streaming";
+            dsdrns.begin()->second->dispatch();
+        }
     }
 
     return r;
@@ -8754,5 +8907,89 @@ void MegaClient::cleanrubbishbin()
     reqs.add(new CommandCleanRubbishBin(this));
 }
 
+#ifdef ENABLE_CHAT
+void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
+{
+    reqs.add(new CommandChatCreate(this, group, userpriv));
+}
+
+void MegaClient::fetchChats()
+{
+    reqs.add(new CommandChatFetch(this));
+}
+
+void MegaClient::inviteToChat(handle chatid, const char *uid, int priv)
+{
+    reqs.add(new CommandChatInvite(this, chatid, uid, (privilege_t) priv));
+}
+
+void MegaClient::removeFromChat(handle chatid, const char *uid)
+{
+    reqs.add(new CommandChatRemove(this, chatid, uid));
+}
+
+void MegaClient::getUrlChat(handle chatid)
+{
+    reqs.add(new CommandChatURL(this, chatid));
+}
+
+userpriv_vector *MegaClient::readuserpriv(JSON *j)
+{
+    userpriv_vector *userpriv = NULL;
+
+    if (j->enterarray())
+    {
+        while(j->enterobject())
+        {
+            handle uh = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+
+            bool readingUsers = true;
+            while(readingUsers)
+            {
+                switch (j->getnameid())
+                {
+                    case 'u':
+                        uh = j->gethandle(MegaClient::USERHANDLE);
+                        break;
+
+                    case 'p':
+                        priv = (privilege_t) j->getint();
+                        break;
+
+                    case EOO:
+                        if(uh == UNDEF || priv == PRIV_UNKNOWN)
+                        {
+                            delete userpriv;
+                            return NULL;
+                        }
+
+                        if (!userpriv)
+                        {
+                            userpriv = new userpriv_vector;
+                        }
+
+                        userpriv->push_back(userpriv_pair(uh, priv));
+                        readingUsers = false;
+                        break;
+
+                    default:
+                        if (!j->storeobject())
+                        {
+                            delete userpriv;
+                            return NULL;
+                        }
+                        break;
+                    }
+            }
+            j->leaveobject();
+        }
+        j->leavearray();
+    }
+
+    return userpriv;
+}
+
+#endif
 
 } // namespace
