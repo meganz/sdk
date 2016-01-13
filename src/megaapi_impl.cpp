@@ -2251,7 +2251,7 @@ int MegaFile::nextseqno = 0;
 
 bool MegaFile::failed(error e)
 {
-    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 10;
+    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16;
 }
 
 MegaFile::MegaFile() : File()
