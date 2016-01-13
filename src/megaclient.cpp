@@ -6712,7 +6712,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle#key or publichandle#key
+// formats supported: ...#!publichandle!key or publichandle!key or #F!publichandle!key
 error MegaClient::openfilelink(const char* link, int op)
 {
     const char* ptr;
@@ -6722,6 +6722,10 @@ error MegaClient::openfilelink(const char* link, int op)
     if ((ptr = strstr(link, "#!")))
     {
         ptr += 2;
+    }
+    else if ((ptr = strstr(link, "#F!")))
+    {
+        ptr += 3;
     }
     else
     {
