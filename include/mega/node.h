@@ -208,6 +208,8 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
     // handle of public link for the node
     PublicLink *plink;
 
+    void setpubliclink(handle, m_time_t, bool);
+
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 

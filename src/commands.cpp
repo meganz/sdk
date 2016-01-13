@@ -2687,6 +2687,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
     }
 
     this->h = n->nodehandle;
+    this->ets = ets;
     this->tag = client->reqtag;
 }
 
@@ -2702,6 +2703,13 @@ void CommandSetPH::procresult()
     if (ISUNDEF(ph))
     {
         return client->app->exportnode_result(API_EINTERNAL);
+    }
+
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        n->setpubliclink(ph, ets, false);
+        client->notifynode(n);
     }
 
     client->app->exportnode_result(h, ph);

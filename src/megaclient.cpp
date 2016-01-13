@@ -3904,16 +3904,7 @@ void MegaClient::sc_ph()
                 }
                 else
                 {
-                    if (!n->plink)  // creation
-                    {
-                        n->plink = new PublicLink(ph, ets, takendown);
-                    }
-                    else            // update
-                    {
-                        n->plink->ph = ph;
-                        n->plink->ets = ets;
-                        n->plink->takendown = takendown;
-                    }
+                    n->setpubliclink(ph, ets, takendown);
                 }
 
                 notifynode(n);
@@ -5289,17 +5280,7 @@ void MegaClient::procph(JSON *j)
                         n = nodebyhandle(h);
                         if (n)
                         {
-                            if (!n->plink)
-                            {
-                                n->plink = new PublicLink(ph, ets, takendown);
-                            }
-                            else
-                            {
-                                n->plink->ph = ph;
-                                n->plink->ets = ets;
-                                n->plink->takendown = takendown;
-                            }
-
+                            n->setpubliclink(ph, ets, takendown);
                             notifynode(n);
                         }
                         else
