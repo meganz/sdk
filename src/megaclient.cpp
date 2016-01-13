@@ -644,6 +644,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
 
+    signkey = NULL;
+    chatkey = NULL;
+
     init();
 
     f->client = this;
