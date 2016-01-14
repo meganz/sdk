@@ -6737,8 +6737,10 @@ error MegaClient::openfilelink(const char* link, int op)
     {
         ptr += 8;
 
-        if (*ptr++ == '!')
+        if (*ptr == '!')
         {
+            ptr++;
+
             byte key[keyLength];
             if (Base64::atob(ptr, key, sizeof key) == sizeof key)
             {

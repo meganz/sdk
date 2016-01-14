@@ -8652,12 +8652,29 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 const char* ptr;
-                if (!((ptr = strstr(megaFolderLink,"#F!")) && (strlen(ptr)>12) && ptr[11] == '!'))
+                if (!((ptr = strstr(megaFolderLink, "#F!")) && (strlen(ptr)>=11)))
                 {
                     e = API_EARGS;
                     break;
                 }
-                e = client->folderaccess(ptr+3,ptr+12);
+
+                const char *ph = ptr + 3;
+                ptr += 11;
+
+                if (*ptr == '\0')    // no key provided, check only the existence of the node
+                {
+                    e = API_EINCOMPLETE;
+                    break;
+                }
+                else if (*ptr != '!')
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                const char *key = ptr + 1;
+
+                e = client->folderaccess(ph, key);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, MegaError(e));
