@@ -6717,7 +6717,7 @@ error MegaClient::openfilelink(const char* link, int op)
 {
     const char* ptr;
     handle ph = 0;
-    byte key[FILENODEKEYLENGTH];
+    unsigned keyLength = FILENODEKEYLENGTH;
 
     if ((ptr = strstr(link, "#!")))
     {
@@ -6726,6 +6726,7 @@ error MegaClient::openfilelink(const char* link, int op)
     else if ((ptr = strstr(link, "#F!")))
     {
         ptr += 3;
+        keyLength = FOLDERNODEKEYLENGTH;
     }
     else
     {
@@ -6738,11 +6739,12 @@ error MegaClient::openfilelink(const char* link, int op)
 
         if (*ptr++ == '!')
         {
+            byte key[keyLength];
             if (Base64::atob(ptr, key, sizeof key) == sizeof key)
             {
                 if (op)
                 {
-                    reqs.add(new CommandGetPH(this, ph, key, op));
+                    reqs.add(new CommandGetPH(this, ph, key, keyLength, op));
                 }
                 else
                 {
@@ -6756,7 +6758,7 @@ error MegaClient::openfilelink(const char* link, int op)
         {
             if (op)
             {
-                reqs.add(new CommandGetPH(this, ph, NULL, op));
+                reqs.add(new CommandGetPH(this, ph, NULL, 0, op));
                 return API_OK;
             }
         }

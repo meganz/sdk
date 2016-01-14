@@ -2715,16 +2715,21 @@ void CommandSetPH::procresult()
     client->app->exportnode_result(h, ph);
 }
 
-CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int cop)
+CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, unsigned ckeylen, int cop)
 {
     cmd("g");
     arg("p", (byte*)&cph, MegaClient::NODEHANDLE);
 
     ph = cph;
-    havekey = ckey ? true : false;
-    if (havekey)
+
+    if (ckey)
     {
+        key = new byte[ckeylen];
         memcpy(key, ckey, sizeof key);
+    }
+    else
+    {
+        key = NULL;
     }
     tag = client->reqtag;
     op = cop;
@@ -2734,6 +2739,8 @@ void CommandGetPH::procresult()
 {
     if (client->json.isnumeric())
     {
+        delete [] key;
+        key = NULL;
         return client->app->openfilelink_result((error)client->json.getint());
     }
 
@@ -2761,19 +2768,21 @@ void CommandGetPH::procresult()
                 if (s >= 0)
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
-                    if (havekey)
+                    if (key)
                     {
-                        client->app->openfilelink_result(ph, key, s, &a, &fa, op);
+                        client->app->openfilelink_result(ph, key, sizeof key, s, &a, &fa, op);
                     }
                     else
                     {
-                        client->app->openfilelink_result(ph, NULL, s, &a, &fa, op);
+                        client->app->openfilelink_result(ph, NULL, 0, s, &a, &fa, op);
                     }
                 }
                 else
                 {
                     client->app->openfilelink_result(API_EINTERNAL);
                 }
+                delete [] key;
+                key = NULL;
                 return;
 
             default:
@@ -2783,6 +2792,9 @@ void CommandGetPH::procresult()
                 }
         }
     }
+
+    delete [] key;
+    key = NULL;
 }
 
 CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* oldkey, const byte* newkey, uint64_t hash)

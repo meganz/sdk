@@ -1508,7 +1508,7 @@ protected:
 
         // exported link access result
         virtual void openfilelink_result(error);
-        virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int);
+        virtual void openfilelink_result(handle, const byte*, unsigned, m_off_t, string*, string*, int);
 
         // global transfer queue updates (separate signaling towards the queued objects)
         virtual void transfer_added(Transfer*);
