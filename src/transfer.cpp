@@ -680,7 +680,6 @@ bool DirectReadSlot::doio()
             {
                 // app-requested abort
                 delete dr;
-                dr = NULL;
                 return true;
             }
         }
@@ -691,7 +690,6 @@ bool DirectReadSlot::doio()
 
             // remove and delete completed read request, then remove slot
             delete dr;
-            dr = NULL;
             return true;
         }
     }
