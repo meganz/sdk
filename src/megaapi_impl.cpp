@@ -4470,11 +4470,15 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     bool result = httpServer->start(port, localOnly);
     if (!result)
     {
-        delete httpServer;
+        MegaHTTPServer *server = httpServer;
         httpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
     }
-
-    sdkMutex.unlock();
+    else
+    {
+        sdkMutex.unlock();
+    }
     return result;
 }
 
@@ -4483,10 +4487,15 @@ void MegaApiImpl::httpServerStop()
     sdkMutex.lock();
     if (httpServer)
     {
-        delete httpServer;
+        MegaHTTPServer *server = httpServer;
         httpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
     }
-    sdkMutex.unlock();
+    else
+    {
+        sdkMutex.unlock();
+    }
 }
 
 int MegaApiImpl::httpServerIsRunning()
@@ -10050,8 +10059,11 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef HAVE_LIBUV
             if (httpServer)
             {
-                delete httpServer;
+                MegaHTTPServer *server = httpServer;
                 httpServer = NULL;
+                sdkMutex.unlock();
+                delete server;
+                sdkMutex.lock();
             }
 #endif
             threadExit = 1;
