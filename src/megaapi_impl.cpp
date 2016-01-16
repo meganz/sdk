@@ -12670,10 +12670,30 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 {
     std::ostringstream response;
     MegaNode *node = httpctx->node;
+
+    string name;
+    const char *extension = NULL;
+    const char *nodeName = httpctx->node->getName();
+    if (nodeName)
+    {
+        name = nodeName;
+    }
+
+    string::size_type dotindex = name.find_last_of('.');
+    if (dotindex != string::npos)
+    {
+        extension = name.c_str() + dotindex;
+    }
+
+    char *mimeType = MegaApi::getMimeType(extension);
+    if (!mimeType)
+    {
+        mimeType = MegaApi::strdup("application/octet-stream");
+    }
+
     m_off_t totalSize = node->getSize();
     m_off_t start = 0;
     m_off_t end = totalSize - 1;
-
     if (httpctx->rangeStart >= 0)
     {
         start = httpctx->rangeStart;
@@ -12692,13 +12712,14 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     if (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize)
     {
         response << "HTTP/1.1 416 Requested Range Not Satisfiable\r\n"
-            << "Content-Type: application/octet-stream\r\n"
+            << "Content-Type: " << mimeType << "\r\n"
             << "Connection: close\r\n"
             << "Access-Control-Allow-Origin: *\r\n"
             << "Accept-Ranges: bytes\r\n"
             << "Content-Range: bytes 0-0/" << totalSize << "\r\n"
             << "\r\n";
 
+        delete [] mimeType;
         httpctx->resultCode = 416;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
@@ -12715,13 +12736,14 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         response << "HTTP/1.1 200 OK\r\n";
     }
 
-    response << "Content-Type: application/octet-stream\r\n"
+    response << "Content-Type: " << mimeType << "\r\n"
         << "Connection: close\r\n"
         << "Content-Length: " << len << "\r\n"
         << "Access-Control-Allow-Origin: *\r\n"
         << "Accept-Ranges: bytes\r\n"
         << "\r\n";
 
+    delete [] mimeType;
     httpctx->pause = false;
     httpctx->lastBuffer = NULL;
     httpctx->lastBufferLen = 0;
