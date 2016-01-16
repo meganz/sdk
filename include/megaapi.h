@@ -7071,6 +7071,16 @@ class MegaApi
          * @return Maximum size of the packets sent to clients (in bytes)
          */
         int httpServerGetMaxOutputSize();
+
+        /**
+         * @brief Get the MIME type associated with the extension
+         *
+         * You take the ownership of the returned value
+         *
+         * @param File extension (with or without a leading dot)
+         * @return MIME type associated with the extension
+         */
+        static char *getMimeType(const char* extension);
 #endif
 
 #ifdef ENABLE_CHAT
