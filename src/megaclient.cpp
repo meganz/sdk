@@ -3962,7 +3962,7 @@ void MegaClient::sc_chatupdate()
     handle chatid = UNDEF;
     userpriv_vector *userpriv = NULL;
     int shard = -1;
-    userpriv_vector *upnotif = NULL;
+    std::auto_ptr<userpriv_vector> upnotif;
     bool group = false;
     handle ou = UNDEF;
 
@@ -3984,7 +3984,7 @@ void MegaClient::sc_chatupdate()
                 break;
 
             case 'n':   // the new user, for notification purposes (not used)
-                upnotif = readuserpriv(&jsonsc);
+                upnotif.reset(readuserpriv(&jsonsc));
                 break;
 
             case 'g':
@@ -4023,10 +4023,12 @@ void MegaClient::sc_chatupdate()
                     {
                         // find 'me' in list of users, get privilege and remove user
                         userpriv_vector::iterator upvit;
+                        bool found = false;
                         for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                         {
                             if (upvit->first == me)
                             {
+                                found = true;
                                 chat->priv = upvit->second;
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
@@ -4037,12 +4039,21 @@ void MegaClient::sc_chatupdate()
                                 break;
                             }
                         }
+                        if (!found && upnotif.get())
+                        {
+                            for (upvit = upnotif->begin(); upvit!=upnotif->end(); upvit++)
+                            {
+                                if (upvit->first == me)
+                                {
+                                    chat->priv = upvit->second;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     chat->userpriv = userpriv;
 
                     notifychat(chat);
-
-                    delete upnotif;
                 }
                 break;
 
