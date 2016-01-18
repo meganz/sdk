@@ -3962,7 +3962,7 @@ void MegaClient::sc_chatupdate()
     handle chatid = UNDEF;
     userpriv_vector *userpriv = NULL;
     int shard = -1;
-    std::auto_ptr<userpriv_vector> upnotif;
+    userpriv_vector *upnotif;
     bool group = false;
     handle ou = UNDEF;
 
@@ -3984,7 +3984,7 @@ void MegaClient::sc_chatupdate()
                 break;
 
             case 'n':   // the new user, for notification purposes (not used)
-                upnotif.reset(readuserpriv(&jsonsc));
+                upnotif = readuserpriv(&jsonsc);
                 break;
 
             case 'g':
@@ -4021,7 +4021,7 @@ void MegaClient::sc_chatupdate()
 
                     if (userpriv)
                     {
-                        // find 'me' in list of users, get privilege and remove user
+                        // find 'me' in the list of participants, get my privilege and remove from peer's list
                         userpriv_vector::iterator upvit;
                         bool found = false;
                         for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
@@ -4039,8 +4039,10 @@ void MegaClient::sc_chatupdate()
                                 break;
                             }
                         }
-                        if (!found && upnotif.get())
+                        // if `me` is not found among participants list and there's a notification list...
+                        if (!found && upnotif)
                         {
+                            // ...then `me` may have been removed from the chat: get the privilege level=PRIV_RM
                             for (upvit = upnotif->begin(); upvit!=upnotif->end(); upvit++)
                             {
                                 if (upvit->first == me)
