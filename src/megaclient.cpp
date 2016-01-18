@@ -9037,6 +9037,16 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
     return userpriv;
 }
 
+void MegaClient::grantAccessInChat(handle chatid, handle h, const char *uid)
+{
+    reqs.add(new CommandChatGrantAccess(this, chatid, h, uid));
+}
+
+void MegaClient::removeAccessInChat(handle chatid, handle h, const char *uid)
+{
+    reqs.add(new CommandChatRemoveAccess(this, chatid, h, uid));
+}
+
 #endif
 
 } // namespace

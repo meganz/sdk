@@ -1541,7 +1541,7 @@ class MegaRequest
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
-            TYPE_CHAT_REMOVE, TYPE_CHAT_URL
+            TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS
         };
 
         virtual ~MegaRequest();
@@ -7182,6 +7182,8 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
 #endif
 
 private:

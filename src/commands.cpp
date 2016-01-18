@@ -3845,6 +3845,58 @@ void CommandChatURL::procresult()
         }
     }
 }
+
+CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
+{
+    this->client = client;
+
+    cmd("mcga");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
+    arg("u", uid);
+
+    tag = client->reqtag;
+}
+
+void CommandChatGrantAccess::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatgrantaccess_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatgrantaccess_result(API_EINTERNAL);
+    }
+}
+
+CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
+{
+    this->client = client;
+
+    cmd("mcra");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
+    arg("u", uid);
+
+    tag = client->reqtag;
+}
+
+void CommandChatRemoveAccess::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatremoveaccess_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatremoveaccess_result(API_EINTERNAL);
+    }
+}
 #endif
 
 

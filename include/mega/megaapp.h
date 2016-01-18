@@ -171,6 +171,9 @@ struct MEGA_API MegaApp
     virtual void chatinvite_result(error) { }
     virtual void chatremove_result(error) { }
     virtual void chaturl_result(string*, error) { }
+    virtual void chatgrantaccess_result(error) { }
+    virtual void chatremoveaccess_result(error) { }
+
     virtual void chats_updated(textchat_vector *) { }
 #endif
 

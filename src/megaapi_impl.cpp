@@ -1892,6 +1892,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_INVITE: return "CHAT_INVITE";
         case TYPE_CHAT_REMOVE: return "CHAT_REMOVE";
         case TYPE_CHAT_URL: return "CHAT_URL";
+        case TYPE_CHAT_GRANT_ACCESS: return "CHAT_GRANT_ACCESS";
+        case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
 	}
     return "UNKNOWN";
 }
@@ -4767,6 +4769,35 @@ void MegaApiImpl::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)
     requestQueue.push(request);
     waiter->notify();
 }
+
+void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_GRANT_ACCESS, listener);
+    request->setParentHandle(chatid);
+    request->setNodeHandle(n->getHandle());
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, sizeof uh, uid);
+    uid[11] = 0;
+
+    request->setEmail(uid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE_ACCESS, listener);
+    request->setParentHandle(chatid);
+    request->setNodeHandle(n->getHandle());
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, sizeof uh, uid);
+    uid[11] = 0;
+
+    request->setEmail(uid);
+    waiter->notify();
+}
 #endif
 
 MegaUserList* MegaApiImpl::getContacts()
@@ -5933,6 +5964,26 @@ void MegaApiImpl::chaturl_result(string *url, error e)
     {
         request->setLink(url->c_str());
     }
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatgrantaccess_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_GRANT_ACCESS)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatremoveaccess_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE_ACCESS)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10319,6 +10370,36 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->getUrlChat(chatid);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_GRANT_ACCESS:
+        {
+            handle chatid = request->getParentHandle();
+            handle h = request->getNodeHandle();
+            const char *uid = request->getEmail();
+
+            if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->grantAccessInChat(chatid, h, uid);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_REMOVE_ACCESS:
+        {
+            handle chatid = request->getParentHandle();
+            handle h = request->getNodeHandle();
+            const char *uid = request->getEmail();
+
+            if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->removeAccessInChat(chatid, h, uid);
             break;
         }
 #endif
