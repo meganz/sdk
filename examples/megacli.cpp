@@ -839,6 +839,11 @@ void DemoApp::getua_result(byte* data, unsigned l)
     cout << endl;
 }
 
+void DemoApp::getua_result(TLVstore *tlv)
+{
+    cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+}
+
 void DemoApp::notify_retry(dstime dsdelta)
 {
     if (dsdelta)

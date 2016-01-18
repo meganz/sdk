@@ -644,6 +644,11 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
 
+#ifdef USE_SODIUM
+    signkey = NULL;
+    chatkey = NULL;
+#endif
+
     init();
 
     f->client = this;
@@ -3504,16 +3509,28 @@ void MegaClient::sc_userattr()
                                 }
                                 else if (ua == "*keyring")
                                 {
-                                    // keyring has changed, get values and refresh
-                                    getua(u, "*keyring");
+                                    // keyring has changed, get values inmediately and refresh
+                                    getua(u, ua.c_str());
+
+                                    // TODO: send an event for statistics (why is it changed?)
                                 }
                                 else if (ua == "+puEd255")
                                 {
-                                    getua(u, "+puEd255");
+                                    u->changed.puEd255 = true;
+                                    notifyuser(u);
+                                    if (u->userhandle == me)
+                                    {
+                                        getua(u, ua.c_str());
+                                    }
                                 }
                                 else if (ua == "+puCu255")
                                 {
-                                    getua(u, "+puCu255");
+                                    u->changed.puCu255 = true;
+                                    notifyuser(u);
+                                    if (u->userhandle == me)
+                                    {
+                                        getua(u, ua.c_str());
+                                    }
                                 }
                                 else
                                 {
@@ -6181,40 +6198,20 @@ error MegaClient::invite(const char* email, visibility_t show)
  */
 void MegaClient::putua(const char* an, const byte* av, unsigned avl)
 {
-    string data;
-
-    if (!strcmp(an, "*!lstint") || !strcmp(an, "*!authring"))
+    if (!av)
     {
-        if (av)
+        string data;
+
+        if (!strcmp(an, "+a"))  // remove avatar
         {
-            data.assign((const char*)av, avl);
+            data = "none";
         }
 
-        string iv;
-
-        PaddedCBC::encrypt(&data, &key, &iv);
-
-        // Now prepend the data with the (8 byte) IV.
-        iv.append(data);
-        data = iv;
-
-        reqs.add(new CommandPutUA(this, an, (const byte*)data.data(), data.size()));
+        av = (const byte*) data.data();
+        avl = data.size();
     }
-    else
-    {
-        if (!av)
-        {
-            if (!strcmp(an, "+a"))  // remove avatar
-            {
-                data = "none";
-            }
 
-            av = (const byte*) data.data();
-            avl = data.size();
-        }
-
-        reqs.add(new CommandPutUA(this, an, av, avl));
-    }
+    reqs.add(new CommandPutUA(this, an, av, avl));
 }
 
 /**
@@ -6241,6 +6238,39 @@ void MegaClient::getua(User* u, const char* an)
             app->getua_result((byte*) u->lastname->data(), u->lastname->size());
             return;
         }
+#ifdef USE_SODIUM
+        // own chat and signing keys are retrieved right after login and kept updated
+        else if (!strcmp(an, "+puEd255") && u->userhandle == me  && signkey)
+        {
+            restag = reqtag;
+            app->getua_result((byte*) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+            return;
+        }
+        else if (!strcmp(an, "+puCu255") && u->userhandle == me  && chatkey)
+        {
+            restag = reqtag;
+            app->getua_result((byte*) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+            return;
+        }
+        else if (!strcmp(an, "*keyring") && (signkey || chatkey))
+        {
+            TLVstore *tlv = new TLVstore;
+
+            if (signkey)
+            {
+                tlv->set("*prEd255", string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+            }
+
+            if (chatkey)
+            {
+                tlv->set("*prCu255", string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+            }
+
+            app->getua_result(tlv);
+            delete tlv;
+            return;
+        }
+#endif
 
         reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
     }

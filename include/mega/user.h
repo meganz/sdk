@@ -58,6 +58,8 @@ struct MEGA_API User : public Cachable
 
     struct
     {
+        bool puEd255 : 1;   // public key for Ed25519
+        bool puCu255 : 1;   // public key for Cu25519
         bool auth : 1;      // authentication information of the contact
         bool lstint : 1;    // last interaction with the contact
         bool avatar : 1;    // avatar image

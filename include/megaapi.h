@@ -1278,6 +1278,54 @@ public:
 #endif
 
 /**
+ * @brief Map of string values with string keys (map<string,string>)
+ *
+ * A MegaStringMap has the ownership of the strings that it contains, so they will be
+ * only valid until the MegaStringMap is deleted. If you want to retain a string returned by
+ * a MegaStringMap, copy it.
+ *
+ * Objects of this class are immutable.
+ */
+
+class MegaStringMap
+{
+public:
+    virtual ~MegaStringMap();
+
+    virtual MegaStringMap *copy() const;
+
+    /**
+     * @brief Returns the string at the position key in the MegaStringMap
+     *
+     * The returned value is a Base64-encoded string
+     *
+     * The MegaStringMap retains the ownership of the returned string. It will be only valid until
+     * the MegaStringMap is deleted.
+     *
+     * If the key is not found in the map, this function returns NULL.
+     *
+     * @param key Key of the string that you want to get from the map
+     * @return string at the position key in the map, in Base64 encoding
+     */
+    virtual const char* get(string key) const;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringMap
+     */
+    virtual MegaStringList *getKeys() const;
+
+    /**
+     * @brief Returns the number of strings in the map
+     * @return Number of strings in the map
+     */
+    virtual int size() const;
+};
+
+/**
  * @brief List of strings
  *
  * A MegaStringList has the ownership of the strings that it contains, so they will be
@@ -1304,7 +1352,7 @@ public:
      * @param i Position of the string that we want to get for the list
      * @return string at the position i in the list
      */
-    virtual const char* get(int i);
+    virtual const char* get(int);
 
     /**
      * @brief Returns the number of strings in the list
@@ -2052,6 +2100,20 @@ class MegaRequest
          */
         virtual MegaTextChatList *getMegaTextChatList() const;
 #endif
+
+        /**
+         * @brief Returns the hash map
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getUserAttribute - Returns the attribute value
+         *
+         * @return Hash map including the key-value pairs of the attribute
+         */
+        virtual MegaStringMap* getMegaStringMap() const;
 };
 
 /**
@@ -3535,7 +3597,14 @@ class MegaApi
             USER_ATTR_FIRSTNAME = 1,
             USER_ATTR_LASTNAME = 2,
             USER_ATTR_AUTHRING = 3,
-            USER_ATTR_LAST_INTERACTION = 4
+            USER_ATTR_LAST_INTERACTION = 4,
+            USER_ATTR_ED25519_PUBLIC_KEY = 5,
+            USER_ATTR_CU25519_PUBLIC_KEY = 6,
+            USER_ATTR_KEYRING = 7
+//            USER_ATTR_AUTHRSA = 8,
+//            USER_ATTR_AUTHCU255 = 9,
+//            USER_ATTR_RSA_PUBLIC_KEY_SIGNATURE = 10,
+//            USER_ATTR_ED25519_PUBLIC_KEY_SIGNATURE = 11
         };
 
         enum {

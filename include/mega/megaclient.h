@@ -77,12 +77,6 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
-    // initialises the Ed25519 EdDSA key user properties
-    int inited25519();
-
-    // initialises the x25519 key user properties
-    int initx25519();
-
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 

@@ -445,6 +445,11 @@ string TLVstore::get(string type)
     return tlv.at(type);
 }
 
+const TLV_map * TLVstore::getMap() const
+{
+    return &tlv;
+}
+
 bool TLVstore::find(string type)
 {
     return (tlv.find(type) != tlv.end());

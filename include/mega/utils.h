@@ -268,6 +268,16 @@ private:
     string get(string type);
 
     /**
+     * @brief Get a reference to the TLV_map associated to this TLVstore
+     *
+     * The TLVstore object retains the ownership of the returned object. It will be
+     * valid until this TLVstore object is deleted.
+     *
+     * @return The TLV_map associated to this TLVstore
+     */
+    const TLV_map *getMap() const;
+
+    /**
      * @brief find Checks whether a type of value is available in the TLV container.
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return True if the type of value is found, false otherwise.

@@ -389,9 +389,11 @@ struct TextChat
 typedef vector<TextChat*> textchat_vector;
 #endif
 
+typedef map<string, string> string_map;
+
 // Type-Value (for user attributes)
 typedef pair<byte *, unsigned> TLVvalue;
-typedef map<string, string> TLV_map;
+typedef string_map TLV_map;
 
 typedef enum {
 

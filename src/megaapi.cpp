@@ -100,7 +100,7 @@ MegaStringList *MegaStringList::copy()
     return NULL;
 }
 
-const char *MegaStringList::get(int i)
+const char *MegaStringList::get(int)
 {
     return NULL;
 }
@@ -615,6 +615,11 @@ MegaTextChatList *MegaRequest::getMegaTextChatList() const
     return NULL;
 }
 #endif
+
+MegaStringMap *MegaRequest::getMegaStringMap() const
+{
+    return NULL;
+}
 
 MegaTransfer::~MegaTransfer() { }
 
@@ -2910,3 +2915,29 @@ int MegaTextChatList::size() const
 }
 
 #endif  // ENABLE_CHAT
+
+
+MegaStringMap::~MegaStringMap()
+{
+
+}
+
+MegaStringMap *MegaStringMap::copy() const
+{
+    return NULL;
+}
+
+const char *MegaStringMap::get(string) const
+{
+    return NULL;
+}
+
+MegaStringList *MegaStringMap::getKeys() const
+{
+    return NULL;
+}
+
+int MegaStringMap::size() const
+{
+    return 0;
+}
