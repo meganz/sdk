@@ -13255,6 +13255,18 @@ const MegaTextChat *MegaTextChatListPrivate::get(int i) const
     }
 }
 
+MegaTextChat *MegaTextChatListPrivate::get(int i)
+{
+    if (i > size())
+    {
+        return NULL;
+    }
+    else
+    {
+        return list.at(i);
+    }
+}
+
 int MegaTextChatListPrivate::size() const
 {
     return list.size();

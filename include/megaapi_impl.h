@@ -814,6 +814,7 @@ public:
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
     virtual const MegaTextChat *get(int i) const;
+    virtual MegaTextChat *get(int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
