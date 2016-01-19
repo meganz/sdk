@@ -3507,6 +3507,11 @@ const MegaTextChat *MegaTextChatList::get(int) const
     return NULL;
 }
 
+MegaTextChat *MegaTextChatList::get(int)
+{
+    return NULL;
+}
+
 int MegaTextChatList::size() const
 {
     return 0;
