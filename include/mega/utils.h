@@ -278,6 +278,15 @@ private:
     const TLV_map *getMap() const;
 
     /**
+     * @brief Get a list of the keys contained in the TLV
+     *
+     * You take ownership of the returned value.
+     *
+     * @return A new vector with the keys included in the TLV
+     */
+    vector<string> *getKeys() const;
+
+    /**
      * @brief find Checks whether a type of value is available in the TLV container.
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return True if the type of value is found, false otherwise.

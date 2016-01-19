@@ -450,6 +450,16 @@ const TLV_map * TLVstore::getMap() const
     return &tlv;
 }
 
+vector<string> *TLVstore::getKeys() const
+{
+    vector<string> *keys = new vector<string>;
+    for (string_map::const_iterator it = tlv.begin(); it != tlv.end(); it++)
+    {
+        keys->push_back(it->first);
+    }
+    return keys;
+}
+
 bool TLVstore::find(string type)
 {
     return (tlv.find(type) != tlv.end());

@@ -842,6 +842,22 @@ void DemoApp::getua_result(byte* data, unsigned l)
 void DemoApp::getua_result(TLVstore *tlv)
 {
     cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+
+    vector<string> *keys = tlv->getKeys();
+    vector<string>::const_iterator it;
+    unsigned valuelen;
+    string value, key;
+    for (it=keys->begin(); it != keys->end(); it++)
+    {
+        key = (*it).empty() ? "(no key)" : *it;
+        value = tlv->get(*it);
+        valuelen = value.length();
+        value.resize(valuelen * 4 / 3 + 4);
+        Base64::btoa((const byte *) value.data(), valuelen, (char *)value.data());
+
+        cout << "\t" << key << "\t" << value << endl;
+    }
+    delete keys;
 }
 
 void DemoApp::notify_retry(dstime dsdelta)
