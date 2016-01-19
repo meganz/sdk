@@ -2072,7 +2072,7 @@ void CommandGetUA::procresult()
                     // check if received private key seed is different from existing one
                     if (client->signkey && memcmp(client->signkey->keySeed, tmpstr.data(), EdDSA::SEED_KEY_LENGTH))
                     {
-                        LOG_info << "Private key for Ed25519 doesn't match. Updating...";
+                        LOG_warn << "Private key for Ed25519 doesn't match. Updating...";
                         delete client->signkey; // discard existing keypair
                         client->signkey = NULL;
                     }
@@ -2105,7 +2105,7 @@ void CommandGetUA::procresult()
                     // check if received private key seed is different from existing one
                     if (client->chatkey && memcmp(client->chatkey->privKey, tmpstr.data(), ECDH::PRIVATE_KEY_LENGTH))
                     {
-                        LOG_info << "Private key for x25519 doesn't match. Updating...";
+                        LOG_warn << "Private key for x25519 doesn't match. Updating...";
                         delete client->chatkey; // discard existing keypair
                         client->chatkey = NULL;
                     }
@@ -2133,7 +2133,8 @@ void CommandGetUA::procresult()
                 // healing procedure for private keys
                 if (keyringSet && (signkeyUpdated || chatkeyUpdated))
                 {
-                    LOG_info << "Updating keyring...";
+                    LOG_warn << "Updating keyring...";
+                    client->sendevent(99405, "Existing keyring overwritten");
 
                     tlvRecords->set(EdDSA::TLV_KEY, string((char *) client->signkey->keySeed));
                     tlvRecords->set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
