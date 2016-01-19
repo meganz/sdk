@@ -13210,6 +13210,11 @@ const char *MegaTextChatPrivate::getUrl() const
     return url.c_str();
 }
 
+void MegaTextChatPrivate::setUrl(const char *url)
+{
+    this->url.assign(url);
+}
+
 int MegaTextChatPrivate::getShard() const
 {
     return shard;

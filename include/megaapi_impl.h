@@ -791,6 +791,7 @@ public:
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
     virtual const char *getUrl() const;
+    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;

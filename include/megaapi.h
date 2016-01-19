@@ -1215,6 +1215,13 @@ public:
     virtual const char *getUrl() const;
 
     /**
+     * @brief setUrl Establish the URL to connect to chatd for this chat
+     *
+     * @param url The new URL for the MegaTextChat
+     */
+    virtual void setUrl(const char *url);
+
+    /**
      * @brief getShard Returns the chat shard
      * @return
      */
