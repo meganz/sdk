@@ -11926,7 +11926,6 @@ void MegaHTTPServer::run()
 
     uv_loop_close(uv_loop);
     LOG_debug << "HTTP server thread exit";
-    uv_sem_post(&semaphore);
 }
 
 void MegaHTTPServer::stop()
@@ -11936,10 +11935,8 @@ void MegaHTTPServer::stop()
         return;
     }
 
-    uv_sem_init(&semaphore, 0);
     uv_async_send(&exit_handle);
-    uv_sem_wait(&semaphore);
-    uv_sem_destroy(&semaphore);
+    thread.join();
     started = 0;
     port = 0;
 }
