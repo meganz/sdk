@@ -64,8 +64,8 @@
 #include <windows.h>
 
 #ifndef WINDOWS_PHONE
- #include <Wincrypt.h>
- #include <Winhttp.h>
+ #include <wincrypt.h>
+ #include <winhttp.h>
 #endif
 
 #include <shellapi.h>
