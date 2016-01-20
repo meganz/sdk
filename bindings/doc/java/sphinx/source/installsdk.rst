@@ -26,7 +26,7 @@ Installing the Mega SDK Java API
 
 .. code:: bash
 
-    sudo apt-get install libcrypto++-dev zlib1g-dev libsqlite3-dev libssl-dev libc-ares-dev libcurl4-openssl-dev libfreeimage-dev libreaadline6-dev swig2.0 default-jdk
+    sudo apt-get install libcrypto++-dev zlib1g-dev libsqlite3-dev libssl-dev libc-ares-dev libcurl4-openssl-dev libfreeimage-dev libreadline6-dev swig2.0 default-jdk
    
 ----------------------
 4. Configure SDK 
