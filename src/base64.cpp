@@ -332,7 +332,7 @@ void URLCodec::escape(string *plain, string *escaped)
     int escapedIndex = 0;
     for (int i = 0; i < len; i++)
     {
-        char c = plain->at(i);
+        unsigned char c = (unsigned char)plain->at(i);
         if (issafe(c))
         {
             escaped->push_back(c);
