@@ -2870,6 +2870,17 @@ void MegaApi::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)
 {
     pImpl->getUrlChat(chatid, listener);
 }
+
+void MegaApi::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener)
+{
+    pImpl->grantAccessInChat(chatid, n, uh, listener);
+}
+
+void MegaApi::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener)
+{
+    pImpl->removeAccessInChat(chatid, n, uh, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
@@ -3461,6 +3472,11 @@ const char *MegaTextChat::getUrl() const
     return NULL;
 }
 
+void MegaTextChat::setUrl(const char *)
+{
+
+}
+
 int MegaTextChat::getShard() const
 {
     return -1;
@@ -3487,6 +3503,11 @@ MegaTextChatList *MegaTextChatList::copy() const
 }
 
 const MegaTextChat *MegaTextChatList::get(int) const
+{
+    return NULL;
+}
+
+MegaTextChat *MegaTextChatList::get(int)
 {
     return NULL;
 }
