@@ -62,11 +62,7 @@ void DelegateMEGALogerListener::log(const char *time, int logLevel, const char *
         
         output = [output stringByAppendingString:[NSString stringWithUTF8String:message]];
         output = [output stringByAppendingString:@" ("];
-#ifdef DEBUG
-        output = [output stringByAppendingString:[NSString stringWithUTF8String:source]];
-#else
         output = [output stringByAppendingString:[[NSString stringWithUTF8String:source] lastPathComponent]];
-#endif
         output = [output stringByAppendingString:@")"];
         NSLog(@"%@", output);
     }
