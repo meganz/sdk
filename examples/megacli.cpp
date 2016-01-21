@@ -3418,7 +3418,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "       chatra chatid nodehandle uid" << endl;
+                            cout << "       chatga chatid nodehandle uid" << endl;
                             return;
                         }
 

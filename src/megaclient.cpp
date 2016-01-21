@@ -2585,7 +2585,7 @@ bool MegaClient::procsc()
                                 break;
 
                             case MAKENAMEID2('u', 'a'):
-                                // user attribtue update
+                                // user attribute update
                                 sc_userattr();
                                 break;
 
@@ -3962,7 +3962,7 @@ void MegaClient::sc_chatupdate()
     handle chatid = UNDEF;
     userpriv_vector *userpriv = NULL;
     int shard = -1;
-    userpriv_vector *upnotif;
+    userpriv_vector *upnotif = NULL;
     bool group = false;
     handle ou = UNDEF;
 
@@ -4043,7 +4043,7 @@ void MegaClient::sc_chatupdate()
                         if (!found && upnotif)
                         {
                             // ...then `me` may have been removed from the chat: get the privilege level=PRIV_RM
-                            for (upvit = upnotif->begin(); upvit!=upnotif->end(); upvit++)
+                            for (upvit = upnotif->begin(); upvit != upnotif->end(); upvit++)
                             {
                                 if (upvit->first == me)
                                 {
@@ -4057,11 +4057,14 @@ void MegaClient::sc_chatupdate()
 
                     notifychat(chat);
                 }
+
+                delete upnotif;
                 break;
 
             default:
                 if (!jsonsc.storeobject())
-                {
+                {                    
+                    delete upnotif;
                     return;
                 }
         }

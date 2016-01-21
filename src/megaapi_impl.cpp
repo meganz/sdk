@@ -4777,7 +4777,7 @@ void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle u
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, sizeof uh, uid);
+    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -4792,7 +4792,7 @@ void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle 
     request->setNodeHandle(n->getHandle());
 
     char uid[12];
-    Base64::btoa((byte*)&uh, sizeof uh, uid);
+    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
     uid[11] = 0;
 
     request->setEmail(uid);
@@ -13212,7 +13212,14 @@ const char *MegaTextChatPrivate::getUrl() const
 
 void MegaTextChatPrivate::setUrl(const char *url)
 {
-    this->url.assign(url);
+    if (url)
+    {
+        this->url.assign(url);
+    }
+    else
+    {
+        this->url.clear();
+    }
 }
 
 int MegaTextChatPrivate::getShard() const
@@ -13245,7 +13252,7 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 
 const MegaTextChat *MegaTextChatListPrivate::get(int i) const
 {
-    if (i > size())
+    if (i >= size())
     {
         return NULL;
     }
@@ -13257,7 +13264,7 @@ const MegaTextChat *MegaTextChatListPrivate::get(int i) const
 
 MegaTextChat *MegaTextChatListPrivate::get(int i)
 {
-    if (i > size())
+    if (i >= size())
     {
         return NULL;
     }
