@@ -34,44 +34,40 @@ void DelegateMEGALogerListener::log(const char *time, int logLevel, const char *
         [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(NSInteger)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];
     }
     else {
-        std::ostringstream oss;
-        oss << time;
-        switch (logLevel)
-        {
+        NSString *output = [[NSString alloc] init];
+        
+        switch (logLevel) {
             case MEGALogLevelDebug:
-                oss << " (debug): ";
+                output = [output stringByAppendingString:@" (debug) "];
                 break;
             case MEGALogLevelError:
-                oss << " (error): ";
+                output = [output stringByAppendingString:@" (error) "];
                 break;
             case MEGALogLevelFatal:
-                oss << " (fatal): ";
+                output = [output stringByAppendingString:@" (fatal) "];
                 break;
             case MEGALogLevelInfo:
-                oss << " (info):  ";
+                output = [output stringByAppendingString:@" (info) "];
                 break;
             case MEGALogLevelMax:
-                oss << " (verb):  ";
+                output = [output stringByAppendingString:@" (verb) "];
                 break;
             case MEGALogLevelWarning:
-                oss << " (warn):  ";
+                output = [output stringByAppendingString:@" (warn) "];
+                break;
+                
+            default:
                 break;
         }
         
-        oss << message;
-        std::string filename = source;
-        if (filename.size())
-        {
-            int index = filename.find_last_of('\\');
-            if (index != std::string::npos && filename.size() > (index + 1))
-            {
-                filename = filename.substr(index + 1);
-            }
-            oss << " (" << filename << ")";
-        }
-        
-        oss << std::endl;
-        NSString *output = [NSString stringWithUTF8String:oss.str().c_str()];
+        output = [output stringByAppendingString:[NSString stringWithUTF8String:message]];
+        output = [output stringByAppendingString:@" ("];
+#ifdef DEBUG
+        output = [output stringByAppendingString:[NSString stringWithUTF8String:source]];
+#else
+        output = [output stringByAppendingString:[[NSString stringWithUTF8String:source] lastPathComponent]];
+#endif
+        output = [output stringByAppendingString:@")"];
         NSLog(@"%@", output);
     }
 }
