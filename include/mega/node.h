@@ -161,6 +161,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint
         bool outshares : 1;
         bool pendingshares : 1;
         bool parent : 1;
+        bool publiclink : 1;
     } changed;
     
     void setkey(const byte* = NULL);

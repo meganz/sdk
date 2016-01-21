@@ -3907,6 +3907,7 @@ void MegaClient::sc_ph()
                     n->setpubliclink(ph, ets, takendown);
                 }
 
+                n->changed.publiclink = true;
                 notifynode(n);
             }
             else
@@ -5281,7 +5282,6 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, ets, takendown);
-                            notifynode(n);
                         }
                         else
                         {
@@ -6222,6 +6222,7 @@ void MegaClient::notifynode(Node* n)
         changed |= n->changed.inshare << 5;
         changed |= n->changed.outshares << 6;
         changed |= n->changed.parent << 7;
+        changed |= n->changed.publiclink << 8;
 
         int attrlen = n->attrstring->size();
         string base64attrstring;

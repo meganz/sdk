@@ -391,7 +391,8 @@ class MegaNode
             CHANGE_TYPE_INSHARE         = 0x20,
             CHANGE_TYPE_OUTSHARE        = 0x40,
             CHANGE_TYPE_PARENT          = 0x80,
-            CHANGE_TYPE_PENDINGSHARE    = 0x100
+            CHANGE_TYPE_PENDINGSHARE    = 0x100,
+            CHANGE_TYPE_PUBLIC_LINK     = 0x200
         };
 
         virtual ~MegaNode();
@@ -678,6 +679,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
          * Check if the parent of the node has changed
          *
+         * - MegaNode::CHANGE_TYPE_PENDINGSHARE    = 0x100
+         * Check if the pending share of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
+         * Check if the public link of the node has changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -713,6 +720,13 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
          * The parent of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PENDINGSHARE    = 0x100
+         * Check if the pending share of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
+         * Check if the public link of the node has changed
+         *
          */
         virtual int getChanges();
 

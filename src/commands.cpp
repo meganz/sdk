@@ -2709,6 +2709,7 @@ void CommandSetPH::procresult()
     if (n)
     {
         n->setpubliclink(ph, ets, false);
+        n->changed.publiclink = true;
         client->notifynode(n);
     }
 
