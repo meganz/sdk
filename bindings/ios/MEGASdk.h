@@ -1769,6 +1769,9 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  *
  * @param email Email of the new contact.
  * @param delegate Delegate to track this request.
+ *
+ * @deprecated: This way to add contacts will be removed in future updates. Please use 
+ * [MEGASdk inviteContactWithEmail:message:action:].
  */
 - (void)addContactWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -1780,6 +1783,9 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * - [MEGARequest email] - Returns the email of the contact
  *
  * @param email Email of the new contact.
+ *
+ * @deprecated: This way to add contacts will be removed in future updates. Please use
+ * [MEGASdk inviteContactWithEmail:message:action:].
  */
 - (void)addContactWithEmail:(NSString *)email;
 
