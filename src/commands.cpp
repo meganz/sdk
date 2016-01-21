@@ -62,7 +62,7 @@ void HttpReqCommandPutFA::procresult()
     {
         e = (error)client->json.getint();
 
-        if (e == API_EAGAIN)
+        if (e == API_EAGAIN || e == API_ERATELIMIT)
         {
             status = REQ_FAILURE;
         }
