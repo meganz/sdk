@@ -19,7 +19,6 @@
  * program.
  */
 
-#ifdef USE_SODIUM
 #ifndef SODIUM_H
 #define SODIUM_H 1
 
@@ -160,5 +159,4 @@ private:
 
 } // namespace
 
-#endif
 #endif

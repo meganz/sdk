@@ -53,9 +53,7 @@ typedef uint64_t fsfp_t;
 #include "megacrypto.h"
 #endif
 
-#ifdef USE_SODIUM
 #include "mega/crypto/sodium.h"
-#endif
 
 namespace mega {
 using namespace std;
