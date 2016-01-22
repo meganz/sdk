@@ -304,6 +304,11 @@ public:
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);
 
+    // grant access to a chat peer to one specific node
+    void grantAccessInChat(handle chatid, handle h, const char *uid);
+
+    // revoke access to a chat peer to one specific node
+    void removeAccessInChat(handle chatid, handle h, const char *uid);
 #endif
 
     // toggle global debug flag

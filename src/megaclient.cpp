@@ -2585,7 +2585,7 @@ bool MegaClient::procsc()
                                 break;
 
                             case MAKENAMEID2('u', 'a'):
-                                // user attribtue update
+                                // user attribute update
                                 sc_userattr();
                                 break;
 
@@ -4021,12 +4021,14 @@ void MegaClient::sc_chatupdate()
 
                     if (userpriv)
                     {
-                        // find 'me' in list of users, get privilege and remove user
+                        // find 'me' in the list of participants, get my privilege and remove from peer's list
                         userpriv_vector::iterator upvit;
+                        bool found = false;
                         for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                         {
                             if (upvit->first == me)
                             {
+                                found = true;
                                 chat->priv = upvit->second;
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
@@ -4037,18 +4039,32 @@ void MegaClient::sc_chatupdate()
                                 break;
                             }
                         }
+                        // if `me` is not found among participants list and there's a notification list...
+                        if (!found && upnotif)
+                        {
+                            // ...then `me` may have been removed from the chat: get the privilege level=PRIV_RM
+                            for (upvit = upnotif->begin(); upvit != upnotif->end(); upvit++)
+                            {
+                                if (upvit->first == me)
+                                {
+                                    chat->priv = upvit->second;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     chat->userpriv = userpriv;
 
                     notifychat(chat);
-
-                    delete upnotif;
                 }
+
+                delete upnotif;
                 break;
 
             default:
                 if (!jsonsc.storeobject())
-                {
+                {                    
+                    delete upnotif;
                     return;
                 }
         }
@@ -9022,6 +9038,16 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
     }
 
     return userpriv;
+}
+
+void MegaClient::grantAccessInChat(handle chatid, handle h, const char *uid)
+{
+    reqs.add(new CommandChatGrantAccess(this, chatid, h, uid));
+}
+
+void MegaClient::removeAccessInChat(handle chatid, handle h, const char *uid)
+{
+    reqs.add(new CommandChatRemoveAccess(this, chatid, h, uid));
 }
 
 #endif

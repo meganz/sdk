@@ -1215,6 +1215,13 @@ public:
     virtual const char *getUrl() const;
 
     /**
+     * @brief setUrl Establish the URL to connect to chatd for this chat
+     *
+     * @param url The new URL for the MegaTextChat
+     */
+    virtual void setUrl(const char *url);
+
+    /**
      * @brief getShard Returns the chat shard
      * @return
      */
@@ -1267,6 +1274,7 @@ public:
      * @return MegaTextChat at the position i in the list
      */
     virtual const MegaTextChat *get(int i)  const;
+    virtual MegaTextChat *get(int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -1541,7 +1549,7 @@ class MegaRequest
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
-            TYPE_CHAT_REMOVE, TYPE_CHAT_URL
+            TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS
         };
 
         virtual ~MegaRequest();
@@ -1632,6 +1640,8 @@ class MegaRequest
          * - MegaApi::inviteToChat - Returns the handle of the chat
          * - MegaApi::removeFromChat - Returns the handle of the chat
          * - MegaApi::getUrlChat - Returns the handle of the chat
+         * - MegaApi::grantAccessInChat - Returns the handle of the node
+         * - MegaApi::removeAccessInChat - Returns the handle of the node
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1677,6 +1687,8 @@ class MegaRequest
          * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
          * - MegaApi::inviteToChat - Returns the handle of the user to be invited
          * - MegaApi::removeFromChat - Returns the handle of the user to be removed
+         * - MegaApi::grantAccessInchat - Returns the chat identifier
+         * - MegaApi::removeAccessInchat - Returns the chat identifier
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1739,6 +1751,8 @@ class MegaRequest
          * - MegaApi::removeContact - Returns the email of the contact
          * - MegaApi::getUserData - Returns the email of the contact
          * - MegaApi::inviteContact - Returns the email of the contact
+         * - MegaApi::grantAccessInChat -Returns the MegaHandle of the user in Base64 enconding
+         * - MegaApi::removeAccessInChat -Returns the MegaHandle of the user in Base64 enconding
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -7182,6 +7196,41 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Grants another user access to download a file using MegaApi::startDownload like
+         * a user would do so for their own file, rather than a public link.
+         *
+         * Currently, this method only supports files, not folders.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_GRANT_ACCESS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the node handle
+         * - MegaRequest::getParentHandle - Returns the chat identifier
+         * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param n MegaNode that wants to be shared
+         * @param uh MegaHandle that identifies the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Removes access to a node from a user you previously granted access to.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_REMOVE_ACCESS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the node handle
+         * - MegaRequest::getParentHandle - Returns the chat identifier
+         * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param n MegaNode whose access wants to be revokesd
+         * @param uh MegaHandle that identifies the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
 #endif
 
 private:

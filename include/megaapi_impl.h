@@ -791,6 +791,7 @@ public:
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
     virtual const char *getUrl() const;
+    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;
@@ -813,6 +814,7 @@ public:
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
     virtual const MegaTextChat *get(int i) const;
+    virtual MegaTextChat *get(int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
@@ -1360,6 +1362,8 @@ class MegaApiImpl : public MegaApp
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1589,6 +1593,9 @@ protected:
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
         virtual void chaturl_result(string*, error);
+        virtual void chatgrantaccess_result(error);
+        virtual void chatremoveaccess_result(error);
+
         virtual void chats_updated(textchat_vector *);
 #endif
 
