@@ -797,6 +797,19 @@ void MegaClient::exec()
                     else
                     {
                         LOG_warn << "Error attaching attribute";
+
+                        // check if the failed attribute belongs to an active upload
+                        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+                        {
+                            Transfer *transfer = it->second;
+                            if (transfer->uploadhandle == fa->th)
+                            {
+                                // reduce the number of required attributes to let the upload continue
+                                transfer->minfa--;
+                                checkfacompletion(fa->th);
+                                break;
+                            }
+                        }
                     }
 
                     delete fa;
