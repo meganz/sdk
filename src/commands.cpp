@@ -72,6 +72,7 @@ void HttpReqCommandPutFA::procresult()
         }
         else
         {
+            status = REQ_SUCCESS;
             return client->app->putfa_result(th, type, e);
         }
     }
@@ -103,6 +104,7 @@ void HttpReqCommandPutFA::procresult()
                 default:
                     if (!client->json.storeobject())
                     {
+                        status = REQ_SUCCESS;
                         return client->app->putfa_result(th, type, API_EINTERNAL);
                     }
             }

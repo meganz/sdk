@@ -793,15 +793,15 @@ void MegaClient::exec()
                             LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
                             checkfacompletion(fa->th);
                         }
-
-                        delete fa;
-                        newfa.erase(curfa);
-                        LOG_debug << "Remaining file attributes in upload queue: " << newfa.size();
                     }
                     else
                     {
-                        LOG_warn << "Wrong attribute response: " << fa->in.size();
+                        LOG_warn << "Error attaching attribute";
                     }
+
+                    delete fa;
+                    newfa.erase(curfa);
+                    LOG_debug << "Remaining file attributes in upload queue: " << newfa.size();
 
                     btpfa.reset();
                     curfa = newfa.end();
