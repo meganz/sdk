@@ -35,7 +35,11 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 {
     cmd("ufa");
     arg("s", cdata->size());
-    arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+
+    if (client->nodebyhandle(cth))
+    {
+        arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+    }
 
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
