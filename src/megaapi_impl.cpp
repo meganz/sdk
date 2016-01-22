@@ -6730,7 +6730,7 @@ void MegaApiImpl::openfilelink_result(error result)
 
 // the requested link was opened successfully
 // (it is the application's responsibility to delete n!)
-void MegaApiImpl::openfilelink_result(handle ph, const byte* key, unsigned keylen, m_off_t size, string* a, string *, int)
+void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, string*, int)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -6760,11 +6760,9 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, unsigned keyle
 
     m_time_t mtime = 0;
 
-    nodetype_t nodetype = (keylen == FILENODEKEYLENGTH) ? FILENODE : FOLDERNODE;
-
     SymmCipher nodeKey;
-    keystring.assign((char*)key, keylen);
-    nodeKey.setkey(key, nodetype);
+    keystring.assign((char*)key,FILENODEKEYLENGTH);
+    nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
     if(buf)
@@ -6816,10 +6814,10 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, unsigned keyle
 
 		// set up new node as folder node
 		newnode->source = NEW_PUBLIC;
-        newnode->type = nodetype;
+		newnode->type = FILENODE;
 		newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
-        newnode->nodekey.assign((char*)key, keylen);
+		newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
         newnode->attrstring = new string(*a);
 
 		// add node
@@ -6831,7 +6829,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, unsigned keyle
 	}
 	else
 	{
-        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), nodetype, size, 0, mtime, ph, &keystring, a,
+        request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
                                                    fingerprint.size() ? fingerprint.c_str() : NULL));
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
 	}

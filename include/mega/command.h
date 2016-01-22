@@ -467,14 +467,14 @@ public:
 class MEGA_API CommandGetPH : public Command
 {
     handle ph;
-    byte *key;
+    byte key[FILENODEKEYLENGTH];
     int op;
     bool havekey;
 
 public:
     void procresult();
 
-    CommandGetPH(MegaClient*, handle, const byte*, unsigned, int);
+    CommandGetPH(MegaClient*, handle, const byte*, int);
 };
 
 class MEGA_API CommandPurchaseAddItem : public Command

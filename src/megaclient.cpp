@@ -6713,21 +6713,16 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle!key or publichandle!key or #F!publichandle!key
+// formats supported: ...#!publichandle!key or publichandle!key
 error MegaClient::openfilelink(const char* link, int op)
 {
     const char* ptr;
     handle ph = 0;
-    unsigned keyLength = FILENODEKEYLENGTH;
+    byte key[FILENODEKEYLENGTH];
 
     if ((ptr = strstr(link, "#!")))
     {
         ptr += 2;
-    }
-    else if ((ptr = strstr(link, "#F!")))
-    {
-        ptr += 3;
-        keyLength = FOLDERNODEKEYLENGTH;
     }
     else
     {
@@ -6742,12 +6737,11 @@ error MegaClient::openfilelink(const char* link, int op)
         {
             ptr++;
 
-            byte key[keyLength];
             if (Base64::atob(ptr, key, sizeof key) == sizeof key)
             {
                 if (op)
                 {
-                    reqs.add(new CommandGetPH(this, ph, key, keyLength, op));
+                    reqs.add(new CommandGetPH(this, ph, key, op));
                 }
                 else
                 {
@@ -6761,7 +6755,7 @@ error MegaClient::openfilelink(const char* link, int op)
         {
             if (op)
             {
-                reqs.add(new CommandGetPH(this, ph, NULL, 0, op));
+                reqs.add(new CommandGetPH(this, ph, NULL, op));
                 return API_OK;
             }
         }
