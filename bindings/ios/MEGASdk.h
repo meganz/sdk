@@ -92,6 +92,13 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
     MEGAPaymentMethodCentili      = 9
 };
 
+typedef NS_ENUM(NSInteger, HTTPServer) {
+    HTTPServerDenyAll                = -1,
+    HTTPServerAllowAll               = 0,
+    HTTPServerAllowCreatedLocalLinks = 1,
+    HTTPServerAllowLastLocalLink     = 2
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -945,7 +952,7 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * The associated request type with this request is MEGARequestTypeCleanRubbishBin. This
  * request returns MEGAErrorTypeApiENoent if the Rubbish bin is already empty.
  *
- * @param delegate MEGARequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)cleanRubbishBinWithDelegate:(id<MEGARequestDelegate>)delegate;
 
@@ -2865,6 +2872,332 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
  * @return YES if the preview was successfully created, otherwise NO.
  */
 - (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
+
+#ifdef HAVE_LIBUV
+
+#pragma mark - HTTP Proxy Server
+
+/**
+ * @brief Start an HTTP proxy server in specified port
+ *
+ * If this function returns YES, that means that the server is
+ * ready to accept connections. The initialization is synchronous.
+ *
+ * The server will serve files using this URL format:
+ * http://127.0.0.1/<NodeHandle>/<NodeName>
+ *
+ * The node name must be URL encoded and must match with the node handle.
+ * You can generate a correct link for a MEGANode using [MEGASdk httpServerGetLocalLink]
+ *
+ * If the node handle belongs to a folder node, a web with the list of files
+ * inside the folder is returned.
+ *
+ * It's important to know that the HTTP proxy server has several configuration options
+ * that can restrict the nodes that will be served and the connections that will be accepted.
+ *
+ * These are the default options:
+ * - The restricted mode of the server is set to HTTPServerAllowCreatedLocalLinks
+ * (see [MEGASdk httServerSetRestrictedMode])
+ *
+ * - Folder nodes are NOT allowed to be served (see [MEGASdk httpServerEnableFolderServer])
+ * - File nodes are allowed to be served (see [MEGASdk httpServerEnableFileServer])
+ * - Subtitles support is disabled (see [MEGASdk httpServerEnableSubtitlesSupport])
+ *
+ * The HTTP server will only stream a node if it's allowed by all configuration options.
+ *
+ * @param localOnly YES to listen on 127.0.0.1 only, NO to listen on all network interfaces
+ * @param port Port in which the server must accept connections
+ * @return YES is the server is ready, NO if the initialization failed
+ */
+- (BOOL)httpServerStart:(BOOL)localOnly port:(NSInteger)port;
+
+/**
+ * @brief Stop the HTTP proxy server
+ *
+ * When this function returns, the server is already shutdown.
+ * If the HTTP proxy server isn't running, this functions does nothing
+ */
+- (void)httpServerStop;
+
+/**
+ * @brief Check if the HTTP proxy server is running
+ * @return 0 if the server is not running. Otherwise the port in which it's listening to
+ */
+- (NSInteger)httpServerIsRunning;
+
+/**
+ * @brief Check if the HTTP proxy server is listening on all network interfaces
+ * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
+ * If it's started and listening on all network interfaces, this function returns false
+ */
+- (BOOL)httpServerIsLocalOnly;
+
+/**
+ * @brief Allow/forbid to serve files
+ *
+ * By default, files are served (when the server is running)
+ *
+ * Even if files are allowed to be served by this function, restrictions related to
+ * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
+ *
+ * @param YES to allow to server files, NO to forbid it
+ */
+- (void)httpServerEnableFileServer:(BOOL)enable;
+
+/**
+ * @brief Check if it's allowed to serve files
+ *
+ * This function can return YES even if the HTTP proxy server is not running
+ *
+ * Even if files are allowed to be served by this function, restrictions related to
+ * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
+ *
+ * @return YES if it's allowed to serve files, otherwise NO
+ */
+- (BOOL)httpServerIsFileServerEnabled;
+
+/**
+ * @brief Allow/forbid to serve folders
+ *
+ * By default, folders are NOT served
+ *
+ * Even if folders are allowed to be served by this function, restrictions related to
+ * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
+ *
+ * @param YES to allow to server folders, NO to forbid it
+ */
+- (void)httpServerEnableFolderServer:(BOOL)enable;
+
+/**
+ * @brief Check if it's allowed to serve folders
+ *
+ * This function can return true even if the HTTP proxy server is not running
+ *
+ * Even if folders are allowed to be served by this function, restrictions related to
+ * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
+ *
+ * @return YES if it's allowed to serve folders, otherwise NO
+ */
+- (BOOL)httpServerIsFolderServerEnabled;
+
+/**
+ * @brief Enable/disable the restricted mode of the HTTP server
+ *
+ * This function allows to restrict the nodes that are allowed to be served.
+ * For not allowed links, the server will return "407 Forbidden".
+ *
+ * Possible values are:
+ * - HTTPServerDenyAll = -1
+ * All nodes are forbidden
+ *
+ * - HTTPServerAllowAll = 0
+ * All nodes are allowed to be served
+ *
+ * - HTTPServerAllowCreatedLocalLinks = 1 (default)
+ * Only links created with [MEGASdk httpServerGetLocalLink] are allowed to be served
+ *
+ * - HTTPServerAllowLastLocalLink = 2
+ * Only the last link created with [MEGASdk httpServerGetLocalLink] is allowed to be served
+ *
+ * If a different value from the list above is passed to this function, it won't have any effect and the previous
+ * state of this option will be preserved.
+ *
+ * The default value of this property is HTTPServerAllowCreatedLocalLinks
+ *
+ * The state of this option is preserved even if the HTTP server is restarted, but the
+ * the HTTP proxy server only remembers the generated links since the last call to
+ * [MEGASdk httpServerStart]
+ *
+ * Even if nodes are allowed to be served by this function, restrictions related to
+ * other configuration options ([MEGASdk httpServerEnableFileServer],
+ * [MEGASdk httpServerEnableFolderServer]) are still applied.
+ *
+ * @param Required state for the restricted mode of the HTTP proxy server
+ */
+- (void)httpServerSetRestrictedMode:(NSInteger)mode;
+
+/**
+ * @brief Check if the HTTP proxy server is working in restricted mode
+ *
+ * Possible return values are:
+ * - HTTPServerDenyAll = -1
+ * All nodes are forbidden
+ *
+ * - HTTPServerAllowAll = 0
+ * All nodes are allowed to be served
+ *
+ * - HTTPServerAllowCreatedLocalLinks = 1 (default)
+ * Only links created with [MEGASdk httpServerGetLocalLink] are allowed to be served
+ *
+ * - HTTPServerAllowLastLocalLink = 2
+ * Only the last link created with [MEGASdk httpServerGetLocalLink] is allowed to be served
+ *
+ * The default value of this property is HTTPServerAllowCreatedLocalLinks
+ *
+ * See [MEGASdk httpServerEnableRestrictedMode] and [MEGASdk httpServerStart]
+ *
+ * Even if nodes are allowed to be served by this function, restrictions related to
+ * other configuration options ([MEGASdk httpServerEnableFileServer],
+ * [MEGASdk httpServerEnableFolderServer]) are still applied.
+ *
+ * @return State of the restricted mode of the HTTP proxy server
+ */
+- (NSInteger)httpServerGetRestrictedMode;
+
+#endif
+
+/**
+ * @brief Enable/disable the support for subtitles
+ *
+ * Subtitles support allows to stream some special links that otherwise wouldn't be valid.
+ * For example, let's suppose that the server is streaming this video:
+ * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.avi
+ *
+ * Some media players scan HTTP servers looking for subtitle files and request links like these ones:
+ * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.txt
+ * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.srt
+ *
+ * Even if a file with that name is in the same folder of the MEGA account, the node wouldn't be served because
+ * the node handle wouldn't match.
+ *
+ * When this feature is enabled, the HTTP proxy server will check if there are files with that name
+ * in the same folder as the node corresponding to the handle in the link.
+ *
+ * If a matching file is found, the name is exactly the same as the the node with the specified handle
+ * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
+ * the HTTP proxy server will serve that file.
+ *
+ * This feature is disabled by default.
+ *
+ * @param enable YES to enable subtitles support, NO to disable it
+ */
+- (void)httpServerEnableSubtitlesSupport:(BOOL)enable;
+
+/**
+ * @brief Check if the support for subtitles is enabled
+ *
+ * See [MEGASdk httpServerEnableSubtitlesSupport].
+ *
+ * This feature is disabled by default.
+ *
+ * @return YES of the support for subtibles is enables, otherwise NO
+ */
+- (BOOL)httpServerIsSubtitlesSupportEnabled;
+
+/**
+ * @brief Add a delegate to receive information about the HTTP proxy server
+ *
+ * This is the valid data that will be provided on callbacks:
+ * - [MEGATransfer type] - It will be MEGATransferTypeLocalHTTPDownload
+ * - [MEGATransfer path] - URL requested to the HTTP proxy server
+ * - [MEGATransfer fileName] - Name of the requested file (if any, otherwise nil)
+ * - [MEGATransfer nodeHandle] - Handle of the requested file (if any, otherwise nil)
+ * - [MEGATransfer totalBytes] - Total bytes of the response (response headers + file, if required)
+ * - [MEGATransfer startPos] - Start position (for range requests only, otherwise -1)
+ * - [MEGATransfer endPos] - End position (for range requests only, otherwise -1)
+ *
+ * On the onTransferFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEIncomplete - If the whole response wasn't sent
+ * (it's normal to get this error code sometimes because media players close connections when they have
+ * the data that they need)
+ *
+ * - MEGAErrorTypeApiERead - If the connection with MEGA storage servers failed
+ * - MEGAErrorTypeApiEAgain - If the download speed is too slow for streaming
+ * - A number > 0 means an HTTP error code returned to the client
+ *
+ * @param delegate Delegate to receive information about the HTTP proxy server
+ */
+- (void)httpServerAddDelegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Stop the reception of callbacks related to the HTTP proxy server on this delegate
+ * @param delegate Delegate that won't continue receiving information
+ */
+- (void)httpServerRemoveDelegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Returns a URL to a node in the local HTTP proxy server
+ *
+ * The HTTP proxy server must be running before using this function, otherwise
+ * it will return nil.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param node Node to generate the local HTTP link
+ * @return URL to the node in the local HTTP proxy server, otherwise nil
+ */
+- (NSURL *)httpServerGetLocalLink:(MEGANode *)node;
+
+/**
+ * @brief Set the maximum buffer size for the internal buffer
+ *
+ * The HTTP proxy server has an internal buffer to store the data received from MEGA
+ * while it's being sent to clients. When the buffer is full, the connection with
+ * the MEGA storage server is closed, when the buffer has few data, the connection
+ * with the MEGA storage server is started again.
+ *
+ * Even with very fast connections, due to the possible latency starting new connections,
+ * if this buffer is small the streaming can have problems due to the overhead caused by
+ * the excessive number of POST requests.
+ *
+ * It's recommended to set this buffer at least to 1MB
+ *
+ * For connections that request less data than the buffer size, the HTTP proxy server
+ * will only allocate the required memory to complete the request to minimize the
+ * memory usage.
+ *
+ * The new value will be taken into account since the next request received by
+ * the HTTP proxy server, not for ongoing requests. It's possible and effective
+ * to call this function even before the server has been started, and the value
+ * will be still active even if the server is stopped and started again.
+ *
+ * @param bufferSize Maximum buffer size (in bytes) or a number <= 0 to use the
+ * internal default value
+ */
+- (void)httpServerSetMaxBufferSize:(NSInteger)bufferSize;
+/**
+ * @brief Get the maximum size of the internal buffer size
+ *
+ * See [MEGASdk httpServerSetMaxBufferSize]
+ *
+ * @return Maximum size of the internal buffer size (in bytes)
+ */
+- (NSInteger)httpServerGetMaxBufferSize;
+
+/**
+ * @brief Set the maximum size of packets sent to clients
+ *
+ * For each connection, the HTTP proxy server only sends one write to the underlying
+ * socket at once. This parameter allows to set the size of that write.
+ *
+ * A small value could cause a lot of writes and would lower the performance.
+ *
+ * A big value could send too much data to the output buffer of the socket. That could
+ * keep the internal buffer full of data that hasn't been sent to the client yet,
+ * preventing the retrieval of additional data from the MEGA storage server. In that
+ * circumstances, the client could read a lot of data at once and the HTTP server
+ * could not have enough time to get more data fast enough.
+ *
+ * It's recommended to set this value to at least 8192 and no more than the 25% of
+ * the maximum buffer size ([MEGASdk httpServerSetMaxBufferSize]).
+ *
+ * The new value will be takein into account since the next request received by
+ * the HTTP proxy server, not for ongoing requests. It's possible and effective
+ * to call this function even before the server has been started, and the value
+ * will be still active even if the server is stopped and started again.
+ *
+ * @param outputSize Maximun size of data packets sent to clients (in bytes) or
+ * a number <= 0 to use the internal default value
+ */
+- (void)httpServerSetMaxOutputSize:(NSInteger)outputSize;
+/**
+ * @brief Get the maximum size of the packets sent to clients
+ *
+ * See [MEGASdk httpServerSetMaxOutputSize]
+ *
+ * @return Maximum size of the packets sent to clients (in bytes)
+ */
+- (NSInteger)httpServerGetMaxOutputSize;
 
 #pragma mark - Debug log messages
 
