@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e "libuv-v${UV_VERSION}.tar.gz" ]
 then
-curl -O "http://dist.libuv.org/dist/v1.8.0/libuv-v${UV_VERSION}.tar.gz"
+curl -O "http://dist.libuv.org/dist/v${UV_VERSION}/libuv-v${UV_VERSION}.tar.gz"
 fi
 
 for ARCH in ${ARCHS}
