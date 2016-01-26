@@ -4018,6 +4018,7 @@ void MegaClient::sc_chatupdate()
                     chat->group = group;
                     chat->priv = PRIV_UNKNOWN;
                     chat->url = ""; // not received in action packets
+                    chat->ou = ou;
 
                     if (userpriv)
                     {

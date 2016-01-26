@@ -3492,6 +3492,11 @@ bool MegaTextChat::isGroup() const
     return false;
 }
 
+MegaHandle MegaTextChat::getOriginatingUser() const
+{
+    return INVALID_HANDLE;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
