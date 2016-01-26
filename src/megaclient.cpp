@@ -5452,8 +5452,30 @@ bool MegaClient::readusers(JSON* j)
     return j->leavearray();
 }
 
-error MegaClient::folderaccess(const char* f, const char* k)
+error MegaClient::folderaccess(const char *folderlink)
 {
+    // structure of public folder links: https://mega.nz/#F!<handle>!<key>
+
+    const char* ptr;
+    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr)>=11)))
+    {
+        return API_EARGS;
+    }
+
+    const char *f = ptr + 3;
+    ptr += 11;
+
+    if (*ptr == '\0')    // no key provided, link is incomplete
+    {
+        return API_EINCOMPLETE;
+    }
+    else if (*ptr != '!')
+    {
+        return API_EARGS;
+    }
+
+    const char *k = ptr + 1;
+
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 

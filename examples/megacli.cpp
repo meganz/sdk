@@ -2428,14 +2428,9 @@ static void process_line(char* l)
                                 else
                                 {
                                     const char* ptr;
-
-                                    if ((ptr = strchr(words[1].c_str(), '#')))
+                                    if ((ptr = strchr(words[1].c_str(), '#')))  // folder link indicator
                                     {
-                                        if (ptr[1] == 'F' && ptr[2] == '!' && ptr[11] == '!')
-                                        {
-                                            // folder link login
-                                            return client->app->login_result(client->folderaccess(ptr + 3, ptr + 12));
-                                        }
+                                        return client->app->login_result(client->folderaccess(words[1].c_str()));
                                     }
                                     else
                                     {

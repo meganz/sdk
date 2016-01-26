@@ -120,7 +120,7 @@ public:
     void killallsessions();
 
     // set folder link: node, key
-    error folderaccess(const char*, const char*);
+    error folderaccess(const char*folderlink);
 
     // open exported file link
     error openfilelink(const char*, int);
