@@ -818,6 +818,9 @@ public:
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
 
+    // returns the handle of the authentication context
+    handle getrootfolder();
+
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false);
 

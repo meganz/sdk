@@ -6056,6 +6056,20 @@ void MegaApiImpl::fetchnodes_result(error e)
         return;
     }
 
+    if (e == API_OK)
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = client->getrootfolder();
+        if (h != UNDEF)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') != n->attrs.map.end()))
+            {
+                request->setFlag(true);
+            }
+        }
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 

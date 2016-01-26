@@ -431,6 +431,19 @@ void MegaClient::setrootnode(handle h)
     auth.append(buf);
 }
 
+handle MegaClient::getrootfolder()
+{
+    // if we logged into a folder...
+    if (auth.find("&n=") != auth.npos)
+    {
+        return rootnodes[0];
+    }
+    else
+    {
+        return UNDEF;
+    }
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {

@@ -708,6 +708,19 @@ void DemoApp::fetchnodes_result(error e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
     }
+    else
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = client->getrootfolder();
+        if (h != UNDEF)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
+        }
+    }
 }
 
 void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
@@ -3569,7 +3582,7 @@ static void process_line(char* l)
 // this can occur e.g. with syntactically malformed requests (due to a bug), an invalid application key
 void DemoApp::request_error(error e)
 {
-    if (e == API_ESID)
+    if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
         client->logout();

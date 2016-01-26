@@ -4882,6 +4882,10 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Return true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void fetchNodes(MegaRequestListener *listener = NULL);
