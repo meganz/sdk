@@ -193,7 +193,7 @@ public:
     void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, string*);
+    void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(Node*, fatype, int = 0);

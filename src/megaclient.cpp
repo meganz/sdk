@@ -2079,7 +2079,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (gfx->isgfx(&nextit->second->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key);
+                            nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key, false);
                         }
                     }
                 }
@@ -2933,13 +2933,13 @@ void MegaClient::pendingattrstring(handle h, string* fa)
 
 // attach file attribute to a file (th can be upload or node handle)
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data)
+void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool checkAccess)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    newfa.push_back(new HttpReqCommandPutFA(this, th, t, data));
+    newfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
     LOG_debug << "File attribute added to queue - " << th << " : " << newfa.size();
 
     // no other file attribute storage request currently in progress? POST this one.

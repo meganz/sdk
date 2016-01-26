@@ -31,12 +31,12 @@
 #include "mega.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
 {
     cmd("ufa");
     arg("s", cdata->size());
 
-    if (client->nodebyhandle(cth))
+    if (checkAccess)
     {
         arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
     }
