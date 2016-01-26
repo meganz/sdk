@@ -2098,6 +2098,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (nextit->second->size)
                         {
                             nextit->second->pos = ChunkedHash::chunkceil(nextit->second->pos);
+                            nextit->second->progresscompleted = nextit->second->pos;
                         }
                     }
 

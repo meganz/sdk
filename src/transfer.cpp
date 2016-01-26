@@ -40,7 +40,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
-    
+    progresscompleted = 0;
+
     faputcompletion_it = client->faputcompletion.end();
 }
 
@@ -457,6 +458,19 @@ void Transfer::completefiles()
         (*it)->completed(this, NULL);
         files.erase(it++);
     }
+}
+
+m_off_t Transfer::nextpos()
+{
+    while (chunkmacs.find(pos) != chunkmacs.end())
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(pos);
+        m_off_t chunksize =  chunkceil - ChunkedHash::chunkfloor(pos);
+        progresscompleted += chunksize;
+        pos = chunkceil;
+    }
+
+    return pos;
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv)

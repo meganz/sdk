@@ -47,6 +47,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // representative local filename for this transfer
     string localfilename;
 
+    // progress completed
+    m_off_t progresscompleted;
+
     m_off_t pos;
 
     byte filekey[FILENODEKEYLENGTH];
@@ -89,6 +92,9 @@ struct MEGA_API Transfer : public FileFingerprint
     
     // execute completion
     void completefiles();
+
+    // next position to download/upload
+    m_off_t nextpos();
 
     // previous wrong fingerprint
     FileFingerprint badfp;

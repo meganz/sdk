@@ -34,7 +34,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
     progressreported = 0;
-    progresscompleted = 0;
     lastdata = Waiter::ds;
     errorcount = 0;
 
@@ -194,7 +193,7 @@ void TransferSlot::doio(MegaClient* client)
                 case REQ_SUCCESS:
                     lastdata = Waiter::ds;
 
-                    progresscompleted += reqs[i]->size;
+                    transfer->progresscompleted += reqs[i]->size;
 
                     if (transfer->type == PUT)
                     {
@@ -219,7 +218,7 @@ void TransferSlot::doio(MegaClient* client)
                                 }
                             }
 
-                            progresscompleted -= reqs[i]->size;
+                            transfer->progresscompleted -= reqs[i]->size;
 
                             // fail with returned error
                             return transfer->failed((error)atoi(reqs[i]->in.c_str()));
@@ -234,23 +233,23 @@ void TransferSlot::doio(MegaClient* client)
 
                             reqs[i]->finalize(fa, &transfer->key, &transfer->chunkmacs, transfer->ctriv, 0, -1);
 
-                            if (progresscompleted == transfer->size)
+                            if (transfer->progresscompleted == transfer->size)
                             {
                                 // verify meta MAC
-                                if (!progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
+                                if (!transfer->progresscompleted || (macsmac(&transfer->chunkmacs) == transfer->metamac))
                                 {
                                     return transfer->complete();
                                 }
                                 else
                                 {
-                                    progresscompleted -= reqs[i]->size;
+                                    transfer->progresscompleted -= reqs[i]->size;
                                     return transfer->failed(API_EKEY);
                                 }
                             }
                         }
                         else
                         {
-                            progresscompleted -= reqs[i]->size;
+                            transfer->progresscompleted -= reqs[i]->size;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
                             break;
@@ -316,7 +315,7 @@ void TransferSlot::doio(MegaClient* client)
         {
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
-                m_off_t npos = ChunkedHash::chunkceil(transfer->pos);
+                m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos());
 
                 if (npos > transfer->size)
                 {
@@ -383,7 +382,7 @@ void TransferSlot::doio(MegaClient* client)
         }
     }
 
-    p += progresscompleted;
+    p += transfer->progresscompleted;
 
     if (p != progressreported)
     {
