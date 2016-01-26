@@ -413,6 +413,12 @@ void CurlHttpIO::disconnect()
     {
         filterDNSservers();
     }
+
+    if (proxyurl.size() && !proxyip.size())
+    {
+        LOG_debug << "Unresolved proxy name. Resolving...";
+        request_proxy_ip();
+    }
 }
 
 // wake up from cURL I/O
@@ -528,6 +534,10 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             httpctx->hostip.append("]");
         }
     }
+    else if (status != ARES_SUCCESS)
+    {
+        LOG_warn << "c-ares error (proxy) " << status;
+    }
 
     if (!httpctx->ares_pending)
     {
@@ -556,8 +566,11 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             // name resolutions for proxies. Abort requests.
             httpio->drop_pending_requests();
 
-            // reinitialize c-ares to prevent persistent hangs
-            httpio->reset = true;
+            if (status != ARES_EDESTRUCTION)
+            {
+                // reinitialize c-ares to prevent persistent hangs
+                httpio->reset = true;
+            }
         }
         else
         {
@@ -623,7 +636,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             httpctx->hostip = oss.str();
         }
     }
-    else if(status != ARES_SUCCESS)
+    else if (status != ARES_SUCCESS)
     {
         LOG_verbose << "c-ares error. code: " << status;
     }
@@ -665,8 +678,11 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
                 // unable to get the IP.
                 httpio->inetstatus(false);
 
-                // reinitialize c-ares to prevent permanent hangs
-                httpio->reset = true;
+                if (status != ARES_EDESTRUCTION)
+                {
+                    // reinitialize c-ares to prevent permanent hangs
+                    httpio->reset = true;
+                }
             }
 
             req->httpiohandle = NULL;
@@ -1141,6 +1157,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
+
+        if (proxyurl.size() && !proxyip.size())
+        {
+            LOG_debug << "Unresolved proxy name. Resolving...";
+            request_proxy_ip();
+        }
     }
 
     // purge DNS cache if needed
@@ -1181,11 +1203,19 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->in.clear();
     req->status = REQ_INFLIGHT;
 
-    if(proxyip.size())
+    if (proxyip.size())
     {
-        //If we are using a proxy, don't resolve the IP
+        // we are using a proxy, don't resolve the IP
         LOG_debug << "Sending the request through the proxy";
         send_request(httpctx);
+        return;
+    }
+
+    if (proxyurl.size() && proxyinflight)
+    {
+        // we are waiting for a proxy, queue the request
+        pendingrequests.push(httpctx);
+        LOG_debug << "Queueing request for the proxy";
         return;
     }
 
