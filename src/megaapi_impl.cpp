@@ -6820,7 +6820,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             }
         }
     }
-    else fileName = "CRYPTO_ERROR";
+    else
+    {
+        fileName = "CRYPTO_ERROR";
+        request->setFlag(true);
+    }
 
 	if(request->getType() == MegaRequest::TYPE_IMPORT_LINK)
 	{

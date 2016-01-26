@@ -3777,7 +3777,29 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 {
     Node* n;
 
-    if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
+    if (!key)
+    {
+        cout << "File is valid, but no key was provided." << endl;
+        return;
+    }
+
+    // check if the file is decryptable
+    string attrstring;
+    string keystring;
+
+    attrstring.resize(a->length()*4/3+4);
+    attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
+
+    SymmCipher nodeKey;
+    keystring.assign((char*)key,FILENODEKEYLENGTH);
+    nodeKey.setkey(key, FILENODE);
+
+    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
+    if(!buf)
+    {
+        cout << "The file won't be imported, the provided key is invalid." << endl;
+    }
+    else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
         NewNode* newnode = new NewNode[1];
 
@@ -3797,6 +3819,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         cout << "Need to be logged in to import file links." << endl;
     }
+
+    delete [] buf;
 }
 
 void DemoApp::checkfile_result(handle h, error e)
