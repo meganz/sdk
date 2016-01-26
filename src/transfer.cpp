@@ -70,6 +70,141 @@ Transfer::~Transfer()
     }
 }
 
+bool Transfer::serialize(string *d)
+{
+    unsigned short ll;
+
+    d->append((const char*)&type, sizeof(type));
+
+    ll = localfilename.size();
+    d->append((char*)&ll, sizeof(ll));
+
+    d->append(localfilename.data(), ll);
+    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&ctriv, sizeof(ctriv));
+    d->append((const char*)&metamac, sizeof(metamac));
+    d->append((const char*)key.key, sizeof (key.key));
+
+    ll = chunkmacs.size();
+    d->append((char*)&ll, sizeof(ll));
+    for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
+    {
+        d->append((char*)&it->first, sizeof(it->first));
+        d->append((char*)&it->second, sizeof(it->second));
+    }
+
+    string fp;
+    (*files.begin())->serializefingerprint(&fp);
+    ll = fp.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(fp.data(), ll);
+
+    d->append((const char*)&size, sizeof(size));
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    return true;
+}
+
+Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
+{
+    unsigned short ll;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(direction_t) + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - serialized string too short (direction)";
+        return NULL;
+    }
+
+    direction_t type;
+    type = MemAccess::get<direction_t>(ptr);
+    ptr += sizeof(direction_t);
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + FILENODEKEYLENGTH + sizeof(int64_t)
+            + sizeof(int64_t) + SymmCipher::KEYLENGTH
+            + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - serialized string too short (filepath)";
+        return NULL;
+    }
+
+    const char *filepath = ptr;
+    ptr += ll;
+
+    Transfer *t = new Transfer(client, type);
+
+    memcpy(t->filekey, ptr, sizeof t->filekey);
+    ptr += sizeof(t->filekey);
+
+    t->ctriv = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    t->metamac = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    byte key[SymmCipher::KEYLENGTH];
+    memcpy(key, ptr, SymmCipher::KEYLENGTH);
+    ptr += SymmCipher::KEYLENGTH;
+
+    t->key.setkey(key);
+    t->localfilename.assign(filepath, ll);
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - chunkmacs too long";
+        delete t;
+        return NULL;
+    }
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(t->chunkmacs[pos].mac, ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + sizeof(m_off_t) + 8 > end)
+    {
+        LOG_err << "Transfer unserialization failed - fingerprint too long";
+        delete t;
+        return NULL;
+    }
+
+    string fingerprint;
+    fingerprint.assign(ptr, ll);
+    ptr += ll;
+
+    FileFingerprint *fp = new FileFingerprint();
+    fp->unserializefingerprint(&fingerprint);
+
+    t->size = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(m_off_t);
+
+    fp->size = t->size;
+    transfers[type].insert(pair<FileFingerprint*, Transfer*>(fp, t));
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    {
+        LOG_err << "Transfer unserialization failed - invalid version";
+        delete t;
+        return NULL;
+    }
+
+    return t;
+}
+
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
 void Transfer::failed(error e, dstime timeleft)

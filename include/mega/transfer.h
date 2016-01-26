@@ -28,7 +28,7 @@
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
-struct MEGA_API Transfer : public FileFingerprint
+struct MEGA_API Transfer : public FileFingerprint, Cachable
 {
     // PUT or GET
     direction_t type;
@@ -101,6 +101,12 @@ struct MEGA_API Transfer : public FileFingerprint
    
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
+
+    // serialize the Transfer object
+    virtual bool serialize(string*);
+
+    // unserialize a Transfer and add it to the transfer map
+    static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 };
 
 struct MEGA_API DirectReadSlot
