@@ -4019,11 +4019,11 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->url = ""; // not received in action packets
 
+                    bool found = false;
+                    userpriv_vector::iterator upvit;
                     if (userpriv)
                     {
                         // find 'me' in the list of participants, get my privilege and remove from peer's list
-                        userpriv_vector::iterator upvit;
-                        bool found = false;
                         for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                         {
                             if (upvit->first == me)
@@ -4039,17 +4039,17 @@ void MegaClient::sc_chatupdate()
                                 break;
                             }
                         }
-                        // if `me` is not found among participants list and there's a notification list...
-                        if (!found && upnotif)
+                    }
+                    // if `me` is not found among participants list and there's a notification list...
+                    if (!found && upnotif)
+                    {
+                        // ...then `me` may have been removed from the chat: get the privilege level=PRIV_RM
+                        for (upvit = upnotif->begin(); upvit != upnotif->end(); upvit++)
                         {
-                            // ...then `me` may have been removed from the chat: get the privilege level=PRIV_RM
-                            for (upvit = upnotif->begin(); upvit != upnotif->end(); upvit++)
+                            if (upvit->first == me)
                             {
-                                if (upvit->first == me)
-                                {
-                                    chat->priv = upvit->second;
-                                    break;
-                                }
+                                chat->priv = upvit->second;
+                                break;
                             }
                         }
                     }
