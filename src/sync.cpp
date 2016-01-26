@@ -1018,7 +1018,7 @@ bool Sync::movetolocaldebris(string* localpath)
         if (i > -3)
         {
             LOG_verbose << "Creating daily local debris folder";
-            havedir = client->fsaccess->mkdirlocal(&localdebris, true) || client->fsaccess->target_exists;
+            havedir = client->fsaccess->mkdirlocal(&localdebris, false) || client->fsaccess->target_exists;
         }
 
         localdebris.append(client->fsaccess->localseparator);

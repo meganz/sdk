@@ -90,6 +90,10 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         dataProvider = CGDataProviderCreateWithFilename(name->c_str());
     }
     
+    if (fileUTI) {
+        CFRelease(fileUTI);
+    }
+    
     if (!dataProvider) {
         return false;
     }
@@ -178,10 +182,13 @@ bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
     }
     CFMutableDataRef data = CFDataCreateMutable(kCFAllocatorDefault, 0);
     if (!data) {
+        CGImageRelease(image);
         return false;
     }
     CGImageDestinationRef destination = CGImageDestinationCreateWithData(data, kUTTypeJPEG, 1, NULL);
     if (!destination) {
+        CGImageRelease(image);
+        CFRelease(data);
         return false;
     }
     CGImageDestinationAddImage(destination, image, imageParams);
