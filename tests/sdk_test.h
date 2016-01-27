@@ -41,6 +41,8 @@ static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
+static const string AVATARSRC   = "logo.png";
+static const string AVATARDST   = "deleteme.png";
 
 // Fixture class with common code for most of tests
 class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener {
@@ -78,9 +80,20 @@ public:
     bool nodeUpdated;
     bool nodeUpdatedAux;
 
+    bool userUpdated;
+    bool userUpdatedAux;
+    bool userAttributeReceived;
+    string attributeValue;
+
     string link;
     MegaNode *publicNode;
     int number;
+
+#ifdef ENABLE_CHAT
+    bool chatUpdated;
+    bool chatUpdatedAux;
+    MegaTextChatList *chats;
+#endif
 
 private:
 
@@ -108,6 +121,9 @@ protected:
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
     void onGlobalSyncStateChanged(MegaApi* api) {}
 #endif
+#ifdef ENABLE_CHAT
+    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats);
+#endif
 
 public:
     void login(int timeout = maxTimeout);
@@ -130,6 +146,8 @@ public:
     void inviteContact(string email, string message, int action, int timeout = maxTimeout);
     void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
     void removeContact(string email, int timeout = maxTimeout);
+    void setUserAttribute(int type, string value, int timeout = maxTimeout);
+    void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout);
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
@@ -139,4 +157,10 @@ public:
     void removePublicLink(MegaNode *n, int timeout = maxTimeout);
 
     void getContactRequest(bool outgoing, int expectedSize = 1);
+
+#ifdef ENABLE_CHAT
+    void fetchChats(int timeout = maxTimeout);
+    void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
+#endif
+
 };

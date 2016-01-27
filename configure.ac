@@ -265,6 +265,14 @@ if test x$enable_megaapi = xyes; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
 
+# Chat
+AC_ARG_ENABLE(chat,
+    AS_HELP_STRING([--enable-chat], [enable chat support]),
+    [], [enable_chat=no])
+if test "x$enable_chat" = "xyes" ; then
+    AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
+fi
+
 
 SAVE_LDFLAGS=$LDFLAGS
 SAVE_CXXFLAGS=$CXXFLAGS
@@ -1465,7 +1473,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   SQLite3:          $DB_CXXFLAGS $DB_LDFLAGS $DB_LIBS
   c-ares:           $CARES_FLAGS $CARES_LDFLAGS $CARES_LIBS
   cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
-  FreeeImage:       $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
 ])

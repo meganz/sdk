@@ -61,6 +61,7 @@ struct MEGA_API Waiter
     // specified number of deciseconds
     virtual int wait() = 0;
 
+    // force a wakeup
     virtual void notify() = 0;
 
     static const int NEEDEXEC = 1;

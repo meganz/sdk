@@ -35,7 +35,11 @@
 #endif
 
 // platform-specific includes and defines
-#include "megasys.h"
+#ifdef _WIN32
+#include "mega/win32/megasys.h"
+#else
+#include "mega/posix/megasys.h"
+#endif
 
 // signed 64-bit generic offset
 typedef int64_t m_off_t;
@@ -388,6 +392,36 @@ typedef map<handle, node_list::iterator> hnode_map;
 
 // maps fingerprints to cache entries in double-linked list
 typedef map<string, node_list::iterator> fpnode_map;
+
+#ifdef ENABLE_CHAT
+typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
+typedef pair<handle, privilege_t> userpriv_pair;
+typedef vector< userpriv_pair > userpriv_vector;
+struct TextChat
+{
+    handle id;
+    privilege_t priv;
+    string url;
+    int shard;
+    userpriv_vector *userpriv;
+    bool group;
+
+    TextChat()
+    {
+        id = UNDEF;
+        priv = PRIV_UNKNOWN;
+        shard = -1;
+        userpriv = NULL;
+        group = false;
+    }
+
+    ~TextChat()
+    {
+        delete userpriv;
+    }
+};
+typedef vector<TextChat*> textchat_vector;
+#endif
 
 } // namespace
 

@@ -36,7 +36,7 @@ unsigned AttrMap::storagesize(int perrecord) const
     return t;
 }
 
-int AttrMap::nameid2string(nameid id, char* buf) const
+int AttrMap::nameid2string(nameid id, char* buf)
 {
     char* ptr = buf;
 
@@ -49,6 +49,44 @@ int AttrMap::nameid2string(nameid id, char* buf) const
     }
 
     return ptr - buf;
+}
+
+nameid AttrMap::string2nameid(const char *a)
+{
+    int len;
+    if (!a)
+    {
+        return 0;
+    }
+
+    len = strlen(a);
+    if (len > 8)
+    {
+        return 0;
+    }
+
+    switch (len)
+    {
+        case 1:
+            return *a;
+        case 2:
+            return MAKENAMEID2(a[0], a[1]);
+        case 3:
+            return MAKENAMEID3(a[0], a[1], a[2]);
+        case 4:
+            return MAKENAMEID4(a[0], a[1], a[2], a[3]);
+        case 5:
+            return MAKENAMEID5(a[0], a[1], a[2], a[3], a[4]);
+        case 6:
+            return MAKENAMEID6(a[0], a[1], a[2], a[3], a[4], a[5]);
+        case 7:
+            return MAKENAMEID7(a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
+        case 8:
+            return MAKENAMEID8(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+        default:
+            break;
+    }
+    return 0;
 }
 
 // generate binary serialize of attr_map name-value pairs

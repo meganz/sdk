@@ -480,6 +480,186 @@ void DemoApp::users_updated(User** u, int count)
     }
 }
 
+#ifdef ENABLE_CHAT
+
+void DemoApp::chatcreate_result(TextChat *chat, error e)
+{
+    if (e)
+    {
+        cout << "Chat creation failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Chat created successfully" << endl;
+        printChatInformation(chat);
+        cout << endl;
+    }
+}
+
+void DemoApp::chatfetch_result(textchat_vector *chats, error e)
+{
+    if (e)
+    {
+        cout << "Chat fetching failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (chats->size() == 1)
+        {
+            cout << "1 chat received or updated" << endl;
+        }
+        else
+        {
+            cout << chats->size() << " chats received or updated" << endl;
+        }
+
+        for (textchat_vector::iterator it = chats->begin(); it < chats->end(); it++)
+        {
+            printChatInformation(*it);
+            cout << endl;
+        }
+    }
+}
+
+void DemoApp::chatinvite_result(error e)
+{
+    if (e)
+    {
+        cout << "Chat invitation failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Chat invitation successful" << endl;
+    }
+}
+
+void DemoApp::chatremove_result(error e)
+{
+    if (e)
+    {
+        cout << "Peer removal failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Peer removal successful" << endl;
+    }
+}
+
+void DemoApp::chaturl_result(string *url, error e)
+{
+    if (e)
+    {
+        cout << "Chat URL retrieval failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Chat URL: " << *url << endl;
+    }
+
+}
+
+void DemoApp::chatgrantaccess_result(error e)
+{
+    if (e)
+    {
+        cout << "Grant access to node failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Access to node granted successfully" << endl;
+    }
+}
+
+void DemoApp::chatremoveaccess_result(error e)
+{
+    if (e)
+    {
+        cout << "Revoke access to node failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Access to node removed successfully" << endl;
+    }
+}
+
+void DemoApp::chats_updated(textchat_vector *chats)
+{
+    if (chats)
+    {
+        if (chats->size() == 1)
+        {
+            cout << "1 chat updated or created" << endl;
+        }
+        else
+        {
+            cout << chats->size() << " chats updated or created" << endl;
+        }
+    }
+}
+
+void DemoApp::printChatInformation(TextChat *chat)
+{
+    if (!chat)
+    {
+        return;
+    }
+
+    char hstr[sizeof(handle) * 4 / 3 + 4];
+    Base64::btoa((const byte *)&chat->id, sizeof(handle), hstr);
+
+    cout << "Chat ID: " << hstr << endl;
+    cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    cout << "\tChat shard: " << chat->shard << endl;
+    cout << "\tURL: " << chat->url << endl;
+    if (chat->group)
+    {
+        cout << "\tGroup chat: yes" << endl;
+    }
+    else
+    {
+        cout << "\tGroup chat: no" << endl;
+    }
+    cout << "\tPeers:";
+
+    if (chat->userpriv)
+    {
+        cout << "\t\t(userhandle)\t(privilege level)" << endl;
+        for (unsigned i = 0; i < chat->userpriv->size(); i++)
+        {
+            Base64::btoa((const byte *)&chat->userpriv->at(i).first, sizeof(handle), hstr);
+            cout << "\t\t\t" << hstr;
+            cout << "\t" << getPrivilegeString(chat->userpriv->at(i).second) << endl;
+        }
+    }
+    else
+    {
+        cout << " no peers (only you as participant)" << endl;
+    }
+}
+
+string DemoApp::getPrivilegeString(privilege_t priv)
+{
+    switch (priv)
+    {
+    case PRIV_FULL:
+        return "PRIV_FULL (full access)";
+    case PRIV_OPERATOR:
+        return "PRIV_OPERATOR (operator)";
+    case PRIV_RO:
+        return "PRIV_RO (read-only)";
+    case PRIV_RW:
+        return "PRIV_RW (read-write)";
+    case PRIV_RM:
+        return "PRIV_RM (removed)";
+    case PRIV_UNKNOWN:
+    default:
+        return "PRIV_UNKNOWN";
+    }
+}
+
+#endif
+
+
 void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
 {
     int deletecount = 0;
@@ -1563,8 +1743,8 @@ static void process_line(char* l)
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
                 cout << "      users" << endl;
-                cout << "      getua attrname [email|private]" << endl;
-                cout << "      putua attrname [del|set string|load file] [private]" << endl;
+                cout << "      getua attrname [email]" << endl;
+                cout << "      putua attrname [del|set string|load file]" << endl;
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
@@ -1577,6 +1757,15 @@ static void process_line(char* l)
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
+#ifdef ENABLE_CHAT
+                cout << "      chatf " << endl;
+                cout << "      chatc group [email ro|rw|full|op]*" << endl;
+                cout << "      chati chatid email ro|rw|full|op" << endl;
+                cout << "      chatr chatid [email]" << endl;
+                cout << "      chatu chatid" << endl;
+                cout << "      chatga chatid nodehandle uid" << endl;
+                cout << "      chatra chatid nodehandle uid" << endl;
+#endif
                 cout << "      quit" << endl;
 
                 return;
@@ -2603,28 +2792,19 @@ static void process_line(char* l)
                     else if (words[0] == "getua")
                     {
                         User* u = NULL;
-                        int priv = 0;
 
                         if (words.size() == 3)
                         {
-                            if (words[2] == "private")
+                            // get other user's attribute
+                            if (!(u = client->finduser(words[2].c_str())))
                             {
-                                priv = 1;
-                            }
-                            else
-                            {
-                                // get other user's attribute
-                                if (!(u = client->finduser(words[2].c_str())))
-                                {
-                                    cout << words[2] << ": Unknown user." << endl;
-                                    return;
-                                }
+                                cout << words[2] << ": Unknown user." << endl;
+                                return;
                             }
                         }
                         else if (words.size() != 2)
                         {
-                            cout << "      getua attrname [email|private]" << endl;
-
+                            cout << "      getua attrname [email]" << endl;
                             return;
                         }
 
@@ -2634,12 +2814,11 @@ static void process_line(char* l)
                             if (!(u = client->finduser(client->me)))
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
-
                                 return;
                             }
                         }
 
-                        client->getua(u, words[1].c_str(), priv);
+                        client->getua(u, words[1].c_str());
 
                         return;
                     }
@@ -2652,23 +2831,24 @@ static void process_line(char* l)
 
                             return;
                         }
-                        else if (words.size() > 3)
+                        else if (words.size() == 3)
                         {
-                            int priv = words.size() == 5 && words[4] == "private";
-
                             if (words[2] == "del")
                             {
                                 client->putua(words[1].c_str());
 
                                 return;
                             }
-                            else if (words[2] == "set" && (words.size() == 4 || priv))
+                        }
+                        else if (words.size() == 4)
+                        {
+                            if (words[2] == "set")
                             {
-                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size(), priv);
+                                client->putua(words[1].c_str(), (const byte*) words[3].c_str(), words[3].size());
 
                                 return;
                             }
-                            else if (words[2] == "load" && (words.size() == 4 || priv))
+                            else if (words[2] == "load")
                             {
                                 string data, localpath;
 
@@ -2676,7 +2856,7 @@ static void process_line(char* l)
 
                                 if (loadfile(&localpath, &data))
                                 {
-                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size(), priv);
+                                    client->putua(words[1].c_str(), (const byte*) data.data(), data.size());
                                 }
                                 else
                                 {
@@ -2687,7 +2867,7 @@ static void process_line(char* l)
                             }
                         }
 
-                        cout << "      putua attrname [del|set string|load file] [private]" << endl;
+                        cout << "      putua attrname [del|set string|load file]" << endl;
 
                         return;
                     }
@@ -2804,6 +2984,174 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef ENABLE_CHAT
+                    else if (words[0] == "chatf")
+                    {
+                        client->fetchChats();
+                        return;
+                    }
+                    else if (words[0] == "chatc")
+                    {
+                        unsigned wordscount = words.size();
+                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
+                        {
+                            int group = atoi(words[1].c_str());
+                            userpriv_vector *userpriv = new userpriv_vector;
+
+                            unsigned numUsers = 0;
+                            while ((numUsers+1)*2 + 2 <= wordscount)
+                            {
+                                string email = words[numUsers*2 + 2];
+                                User *u = client->finduser(email.c_str(), 0);
+                                if (!u)
+                                {
+                                    cout << "User not found: " << email << endl;
+                                    delete userpriv;
+                                    return;
+                                }
+
+                                string privstr = words[numUsers*2 + 2 + 1];
+                                privilege_t priv;
+                                if (privstr ==  "ro")
+                                {
+                                    priv = PRIV_RO;
+                                }
+                                else if (privstr == "rw")
+                                {
+                                    priv = PRIV_RW;
+                                }
+                                else if (privstr == "full")
+                                {
+                                    priv = PRIV_FULL;
+                                }
+                                else if (privstr == "op")
+                                {
+                                    priv = PRIV_OPERATOR;
+                                }
+                                else
+                                {
+                                    cout << "Unknown privilege for " << email << endl;
+                                    delete userpriv;
+                                    return;
+                                }
+
+                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
+                                numUsers++;
+                            }
+
+                            client->createChat(group, userpriv);
+                            delete userpriv;
+                            return;
+                        }
+                        else
+                        {
+                            cout << "      chatc group [email ro|rw|full|op]*" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chati")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            string email = words[2];
+                            User *u = client->finduser(email.c_str(), 0);
+                            if (!u)
+                            {
+                                cout << "User not found: " << email << endl;
+                                return;
+                            }
+
+                            string privstr = words[3];
+                            privilege_t priv;
+                            if (privstr ==  "ro")
+                            {
+                                priv = PRIV_RO;
+                            }
+                            else if (privstr == "rw")
+                            {
+                                priv = PRIV_RW;
+                            }
+                            else if (privstr == "full")
+                            {
+                                priv = PRIV_FULL;
+                            }
+                            else if (privstr == "op")
+                            {
+                                priv = PRIV_OPERATOR;
+                            }
+                            else
+                            {
+                                cout << "Unknown privilege for " << email << endl;
+                                return;
+                            }
+
+                            client->inviteToChat(chatid, u->uid.c_str(), priv);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "      chati chatid email ro|rw|full|op" << endl;
+                            return;
+
+                        }
+                    }
+                    else if (words[0] == "chatr")
+                    {
+                        if (words.size() > 1)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            if (words.size() == 2)
+                            {
+                                client->removeFromChat(chatid);
+                            }
+                            else if (words.size() == 3)
+                            {
+                                string email = words[2];
+                                User *u = client->finduser(email.c_str(), 0);
+                                if (!u)
+                                {
+                                    cout << "User not found: " << email << endl;
+                                    return;
+                                }
+
+                                client->removeFromChat(chatid, u->uid.c_str());
+                                return;
+                            }
+                            else
+                            {
+                                cout << "      chatr chatid [email]" << endl;
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      chatr chatid [email]" << endl;
+                            return;
+                        }
+
+                    }
+                    else if (words[0] == "chatu")
+                    {
+                        if (words.size() == 2)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            client->getUrlChat(chatid);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "      chatu chatid" << endl;
+                            return;
+                        }
+                    }
+#endif
                     break;
 
                 case 6:
@@ -3052,6 +3400,51 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef ENABLE_CHAT
+                    else if (words[0] == "chatga")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            handle nodehandle;
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+
+                            const char *uid = words[3].c_str();
+
+                            client->grantAccessInChat(chatid, nodehandle, uid);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatga chatid nodehandle uid" << endl;
+                            return;
+                        }
+
+                    }
+                    else if (words[0] == "chatra")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            handle nodehandle;
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+
+                            const char *uid = words[3].c_str();
+
+                            client->removeAccessInChat(chatid, nodehandle, uid);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatra chatid nodehandle uid" << endl;
+                            return;
+                        }
+                    }
+#endif
                     break;
 
                 case 7:

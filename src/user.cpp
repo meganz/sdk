@@ -34,6 +34,8 @@ User::User(const char* cemail)
     {
         email = cemail;
     }
+
+    firstname = lastname = NULL;
 }
 
 bool User::serialize(string* d)

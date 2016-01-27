@@ -422,6 +422,7 @@ void CommandGetFile::procresult()
     const char* at = NULL;
     error e = API_EINTERNAL;
     m_off_t s = -1;
+    dstime tl = 0;
     int d = 0;
     byte* buf;
     time_t ts = 0, tm = 0;
@@ -480,6 +481,10 @@ void CommandGetFile::procresult()
 
             case 'e':
                 e = (error)client->json.getint();
+                break;
+
+            case MAKENAMEID2('t', 'l'):
+                tl = client->json.getint();
                 break;
 
             case EOO:
@@ -558,7 +563,7 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        return tslot->transfer->failed(e);
+                                        return tslot->transfer->failed(e, tl * 10);
                                     }
                                     else
                                     {
@@ -1134,6 +1139,14 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
         arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
     }
+    else
+    {
+        if (client->sctable && client->dbaccess->currentDbVersion == DbAccess::LEGACY_DB_VERSION)
+        {
+            LOG_debug << "Requesting a local cache upgrade";
+            arg("fa", 1);
+        }
+    }
 
     if (sessionkey)
     {
@@ -1162,6 +1175,7 @@ void CommandLogin::procresult()
     byte sek[SymmCipher::KEYLENGTH];
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0, len_sek = 0;
     handle me = UNDEF;
+    bool fa = false;
 
     for (;;)
     {
@@ -1191,6 +1205,10 @@ void CommandLogin::procresult()
                 len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
                 break;
 
+            case MAKENAMEID2('f', 'a'):
+                fa = client->json.getint();
+                break;
+
             case MAKENAMEID2('s', 'n'):
                 if (!client->json.getint())
                 {
@@ -1211,6 +1229,22 @@ void CommandLogin::procresult()
                     // decrypt and set master key
                     client->key.ecb_decrypt(hash);
                     client->key.setkey(hash);
+                }
+                else
+                {
+                    if (fa && client->sctable)
+                    {
+                        client->sctable->remove();
+                        delete client->sctable;
+                        client->sctable = NULL;
+                        client->cachedscsn = UNDEF;
+                        client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
+
+                        int creqtag = client->reqtag;
+                        client->reqtag = 0;
+                        client->sendevent(99404, "Local DB upgrade granted");
+                        client->reqtag = creqtag;
+                    }
                 }
 
                 if (len_sek)
@@ -1884,7 +1918,16 @@ void CommandUserRequest::procresult()
 CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)
 {
     cmd("up");
-    arg(an, av, avl);
+
+    // if removing avatar, do not Base64 encode the attribute value
+    if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
+    {
+        arg(an,(const char *)av, avl);
+    }
+    else
+    {
+        arg(an, av, avl);
+    }
 
     tag = client->reqtag;
 }
@@ -1906,9 +1949,8 @@ void CommandPutUA::procresult()
     client->app->putua_result(e);
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, int p)
+CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
 {
-    priv = p;
     user = client->finduser((char*)uid);
     attributename = an;
 
@@ -1961,7 +2003,6 @@ void CommandGetUA::procresult()
     }
     else
     {
-        string d;
         const char* ptr;
         const char* end;
 
@@ -1970,14 +2011,38 @@ void CommandGetUA::procresult()
             return(client->app->getua_result(API_EINTERNAL));
         }
 
-        int l = (end - ptr) / 4 * 3 + 3;
+        // if there's no avatar, the value is "none" (not Base64 encoded)
+        if (attributename == "+a" && !strncmp(ptr, "none", 4))
+        {
+            return(client->app->getua_result(API_ENOENT));
+        }
 
-        byte* data = new byte[l];
-
+        int l;
+        byte* data;
+        l = (end - ptr) / 4 * 3 + 3;
+        data = new byte[l];
         l = Base64::atob(ptr, data, l);
 
-        if (priv == 1)
+        if (attributename == "firstname")
         {
+            if (!user->firstname)
+            {
+                user->firstname = new string;
+            }
+            user->firstname->assign((char*) data, l);
+        }
+        else if (attributename == "lastname")
+        {
+            if (!user->lastname)
+            {
+                user->lastname = new string;
+            }
+            user->lastname->assign((char*) data, l);
+        }
+
+        if (attributename == "*!lstint" || attributename == "*!authring")
+        {
+            string d;
             d.assign((char*)data, l);
 
             // Is the data a multiple of the cipher blocksize, then we're using
@@ -2008,13 +2073,9 @@ void CommandGetUA::procresult()
             }
             client->app->getua_result((byte*)d.data(), d.size());
         }
-        else if (!priv || priv == 2)
-        {
-            client->app->getua_result(data, l);
-        }
         else
         {
-            client->app->getua_result(API_EARGS);
+            client->app->getua_result(data, l);
         }
 
         delete[] data;
@@ -2645,7 +2706,11 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
     arg("p", (byte*)&cph, MegaClient::NODEHANDLE);
 
     ph = cph;
-    memcpy(key, ckey, sizeof key);
+    havekey = ckey ? true : false;
+    if (havekey)
+    {
+        memcpy(key, ckey, sizeof key);
+    }
     tag = client->reqtag;
     op = cop;
 }
@@ -2681,7 +2746,14 @@ void CommandGetPH::procresult()
                 if (s >= 0)
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
-                    client->app->openfilelink_result(ph, key, s, &a, &fa, op);
+                    if (havekey)
+                    {
+                        client->app->openfilelink_result(ph, key, s, &a, &fa, op);
+                    }
+                    else
+                    {
+                        client->app->openfilelink_result(ph, NULL, s, &a, &fa, op);
+                    }
                 }
                 else
                 {
@@ -3472,6 +3544,408 @@ void CommandCleanRubbishBin::procresult()
         client->app->cleanrubbishbin_result(API_EINTERNAL);
     }
 }
+
+#ifdef ENABLE_CHAT
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
+{
+    this->client = client;
+    this->chatPeers = new userpriv_vector(*upl);
+
+    cmd("mcc");
+    arg("g", (group) ? 1 : 0);
+
+    beginarray("u");
+
+    userpriv_vector::iterator itupl;
+    for (itupl = chatPeers->begin(); itupl != chatPeers->end(); itupl++)
+    {
+        beginobject();
+
+        handle uh = itupl->first;
+        char uid[12];
+        Base64::btoa((byte*)&uh, sizeof uh, uid);
+        uid[11] = 0;
+
+        privilege_t priv = itupl->second;
+
+        arg("u", uid);
+        arg("p", priv);
+
+        endobject();
+    }
+
+    endarray();
+
+    tag = client->reqtag;
+}
+
+void CommandChatCreate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatcreate_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        string url;
+        handle chatid = UNDEF;
+        int shard = -1;
+        bool group = false;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID3('u','r','l'):
+                    client->json.storeobject(&url);
+                    break;
+
+                case MAKENAMEID2('i','d'):
+                    chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = client->json.getint();
+                    break;
+
+                case 'g':
+                    group = client->json.getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && !url.empty() && shard != -1)
+                    {
+                        TextChat *chat = new TextChat();
+                        chat->id = chatid;
+                        chat->priv = PRIV_OPERATOR;
+                        chat->url = url;
+                        chat->shard = shard;
+                        chat->userpriv = this->chatPeers;
+                        chat->group = group;
+
+                        client->app->chatcreate_result(chat, API_OK);
+
+                        delete chat;
+                    }
+                    else
+                    {
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers;   // unused, but might be set at creation
+                    }
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers;   // unused, but might be set at creation
+                        return;
+                    }
+            }
+        }
+    }
+}
+
+CommandChatFetch::CommandChatFetch(MegaClient *client)
+{
+    this->client = client;
+
+    cmd("mcf");
+
+    tag = client->reqtag;
+}
+
+void CommandChatFetch::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatfetch_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        if(client->json.getnameid() != 'c')
+        {
+            client->app->chatfetch_result(NULL, API_EINTERNAL);
+            return;
+        }
+
+        if(!client->json.enterarray())
+        {
+            client->app->chatfetch_result(NULL, API_EINTERNAL);
+            return;
+        }
+
+        // list of chats
+        textchat_vector *chatlist = new textchat_vector;
+        error e = API_OK;
+
+        while(client->json.enterobject() && !e)   // while there are more chats to read...
+        {
+            handle chatid = UNDEF;
+            privilege_t priv = PRIV_UNKNOWN;
+            string url;
+            int shard = -1;
+            userpriv_vector *userpriv = NULL;
+            bool group = false;
+
+            bool readingChat = true;
+            while(readingChat) // read the chat information
+            {
+                switch (client->json.getnameid())
+                {
+                    case MAKENAMEID2('i','d'):
+                        chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                        break;
+
+                    case 'p':
+                        priv = (privilege_t) client->json.getint();
+                        break;
+
+                    case MAKENAMEID3('u','r','l'):
+                        client->json.storeobject(&url);
+                        break;
+
+                    case MAKENAMEID2('c','s'):
+                        shard = client->json.getint();
+                        break;
+
+                    case 'u':   // list of users participating in the chat (+privileges)
+                        userpriv = client->readuserpriv(&client->json);
+                        break;
+
+                    case 'g':
+                        group = client->json.getint();
+                        break;
+
+                    case EOO:
+                        if (chatid != UNDEF && priv != PRIV_UNKNOWN && !url.empty()
+                                && shard != -1 && userpriv)
+                        {
+                            TextChat *chat = new TextChat();
+                            chat->id = chatid;
+                            chat->priv = priv;
+                            chat->url = url;
+                            chat->shard = shard;
+                            chat->group = group;
+
+                            // remove yourself from the list of users (only peers matter)
+                            userpriv_vector::iterator upvit;
+                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            {
+                                if (upvit->first == client->me)
+                                {
+                                    userpriv->erase(upvit);
+                                    if (userpriv->empty())
+                                    {
+                                        delete userpriv;
+                                        userpriv = NULL;
+                                    }
+                                    break;
+                                }
+                            }
+                            chat->userpriv = userpriv;
+
+                            chatlist->push_back(chat);
+                        }
+                        else
+                        {
+                            e = API_EINTERNAL;
+                        }
+                        readingChat = false;
+                        break;
+
+                    default:
+                        if (!client->json.storeobject())
+                        {
+                            e = API_EINTERNAL;
+                            readingChat = false;
+                            delete userpriv;
+                            userpriv = NULL;
+                        }
+                        break;
+                }
+            }
+            client->json.leaveobject();
+        }
+        client->json.leavearray();
+
+        if(client->json.getnameid() != MAKENAMEID2('s','n'))
+        {
+            e = API_EINTERNAL;
+        }
+        else    // sequence number received
+        {
+            handle t;
+
+            if (client->json.storebinary((byte*)&t, sizeof t) != sizeof t)
+            {
+                e = API_EINTERNAL;
+            }
+
+            // the 'scsn' should be discarded if alrready have one from fetchnodes
+            if (!*client->scsn)
+            {
+                Base64::btoa((byte*)&t, sizeof t, client->scsn);
+            }
+        }
+
+        if (!e)
+        {
+            client->app->chatfetch_result(chatlist, API_OK);
+        }
+        else
+        {
+            client->app->chatfetch_result(NULL, e);
+        }
+
+        // clean allocated memory for individual chats and the list
+        textchat_vector::iterator it;
+        for(it = chatlist->begin(); it != chatlist->end(); it++)
+        {
+            delete *it;
+        }
+        delete chatlist;
+    }
+}
+
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, const char *uid, privilege_t priv)
+{
+    this->client = client;
+
+    cmd("mci");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("u", uid);
+    arg("p", priv);
+
+    tag = client->reqtag;
+}
+
+void CommandChatInvite::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatinvite_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatinvite_result(API_EINTERNAL);
+    }
+}
+
+CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, const char *uid)
+{
+    this->client = client;
+
+    cmd("mcr");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (uid)
+    {
+        arg("u", uid);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandChatRemove::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatremove_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatremove_result(API_EINTERNAL);
+    }
+}
+
+CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
+{
+    this->client = client;
+
+    cmd("mcurl");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandChatURL::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chaturl_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        string url;
+        if (!client->json.storeobject(&url))
+        {
+            client->app->chaturl_result(NULL, API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chaturl_result(&url, API_OK);
+        }
+    }
+}
+
+CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
+{
+    this->client = client;
+
+    cmd("mcga");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
+    arg("u", uid);
+
+    tag = client->reqtag;
+}
+
+void CommandChatGrantAccess::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatgrantaccess_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatgrantaccess_result(API_EINTERNAL);
+    }
+}
+
+CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
+{
+    this->client = client;
+
+    cmd("mcra");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
+    arg("u", uid);
+
+    tag = client->reqtag;
+}
+
+void CommandChatRemoveAccess::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatremoveaccess_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatremoveaccess_result(API_EINTERNAL);
+    }
+}
+#endif
 
 
 } // namespace

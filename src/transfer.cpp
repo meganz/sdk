@@ -71,15 +71,23 @@ Transfer::~Transfer()
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e)
+void Transfer::failed(error e, dstime timeleft)
 {
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
 
-    bt.backoff();
+    if (!timeleft)
+    {
+        bt.backoff();
+    }
+    else
+    {
+        bt.backoff(timeleft);
+        client->overquotauntil = Waiter::ds + timeleft;
+    }
 
-    client->app->transfer_failed(this, e);
+    client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
@@ -89,7 +97,7 @@ void Transfer::failed(error e)
         }
     }
 
-    if (defer)
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
     {
         failcount++;
         delete slot;
@@ -109,10 +117,10 @@ void Transfer::failed(error e)
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
-    LOG_debug << "Transfer complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
-
     if (type == GET)
     {
+        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
+
         bool transient_error = false;
         string tmplocalname;
         string localname;
@@ -425,6 +433,8 @@ void Transfer::complete()
     }
     else
     {
+        LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+
         // files must not change during a PUT transfer
         if (genfingerprint(slot->fa, true))
         {
@@ -485,17 +495,10 @@ DirectReadNode::~DirectReadNode()
 }
 
 void DirectReadNode::dispatch()
-{
-    schedule(NEVER);
-
-    if (pendingcmd)
-    {
-        pendingcmd->cancel();
-        pendingcmd = NULL;
-    }
-    
+{    
     if (reads.empty())
     {
+        LOG_debug << "Removing DirectReadNode";
         delete this;
     }
     else
@@ -506,33 +509,54 @@ void DirectReadNode::dispatch()
             assert(!(*it)->drs);
         }
 
-        pendingcmd = new CommandDirectRead(this);
-
-        client->reqs.add(pendingcmd);
+        schedule(DirectReadSlot::TIMEOUT_DS);
+        if (!pendingcmd)
+        {
+            pendingcmd = new CommandDirectRead(this);
+            client->reqs.add(pendingcmd);
+        }
     }
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
 void DirectReadNode::retry(error e)
 {
-    dstime retryds, minretryds = NEVER;
+    if (reads.empty())
+    {
+        LOG_warn << "Removing DirectReadNode. No reads to retry.";
+        delete this;
+        return;
+    }
+
+    dstime minretryds = NEVER;
 
     retries++;
+
+    LOG_warn << "Streaming transfer retry due to error " << e;
+    if (client->autodownport)
+    {
+        client->usealtdownport = !client->usealtdownport;
+    }
 
     // signal failure to app , obtain minimum desired retry time
     for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
     {
         (*it)->abort();
 
-        retryds = client->app->pread_failure(e, retries, (*it)->appdata);
-
-        if (retryds < minretryds)
+        if (e)
         {
-            minretryds = retryds;
+            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata);
+
+            if (retryds < minretryds)
+            {
+                minretryds = retryds;
+            }
         }
     }
 
-    if (!minretryds)
+    tempurl.clear();
+
+    if (!e || !minretryds)
     {
         // immediate retry desired
         dispatch();        
@@ -547,6 +571,7 @@ void DirectReadNode::retry(error e)
         else
         {
             // cancellation desired
+            LOG_debug << "Removing DirectReadNode. Too many errors.";
             delete this;
         }
     }
@@ -561,10 +586,11 @@ void DirectReadNode::cmdresult(error e)
         // feed all pending reads to the global read queue
         for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
         {
+            assert((*it)->drq_it == client->drq.end());
             (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
         }
 
-        schedule(NEVER);
+        schedule(DirectReadSlot::TIMEOUT_DS);
     }
     else
     {
@@ -574,6 +600,7 @@ void DirectReadNode::cmdresult(error e)
 
 void DirectReadNode::schedule(dstime deltads)
 {            
+    WAIT_CLASS::bumpds();
     if (dsdrn_it != client->dsdrns.end())
     {
         client->dsdrns.erase(dsdrn_it);
@@ -607,7 +634,7 @@ bool DirectReadSlot::doio()
             r = pos & (sizeof buf - 1);
             t = req->in.size();
 
-            dr->drn->schedule(1800);
+            dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
 
             if (r)
             {
@@ -634,9 +661,16 @@ bool DirectReadSlot::doio()
                 dr->drn->symmcipher.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
             }
 
+            if (req->httpio)
+            {
+                req->httpio->lastdata = Waiter::ds;
+            }
+
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
             {
                 pos += t;
+                dr->drn->partiallen += t;
+                dr->progress += t;
 
                 req->in.clear();
                 req->contentlength -= t;
@@ -646,13 +680,13 @@ bool DirectReadSlot::doio()
             {
                 // app-requested abort
                 delete dr;
-                return false;
+                return true;
             }
         }
 
         if (req->status == REQ_SUCCESS)
         {
-            dr->drn->schedule(3000);
+            dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
 
             // remove and delete completed read request, then remove slot
             delete dr;
@@ -663,6 +697,25 @@ bool DirectReadSlot::doio()
     {
         // a failure triggers a complete abort and retry of all pending reads for this node
         dr->drn->retry(API_EREAD);
+        return true;
+    }
+
+    if (Waiter::ds - dr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
+    {
+        m_off_t meanspeed = (10 * dr->drn->partiallen) / (Waiter::ds - dr->drn->partialstarttime);
+
+        LOG_debug << "Mean speed (B/s): " << meanspeed;
+        if (meanspeed < MIN_BYTES_PER_SECOND)
+        {
+            LOG_warn << "Transfer speed too low for streaming. Retrying";
+            dr->drn->retry(API_EAGAIN);
+            return true;
+        }
+        else
+        {
+            dr->drn->partiallen = 0;
+            dr->drn->partialstarttime = Waiter::ds;
+        }
     }
 
     return false;
@@ -687,6 +740,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
     count = ccount;
     offset = coffset;
+    progress = 0;
     reqtag = creqtag;
     appdata = cappdata;
 
@@ -701,7 +755,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
     }
     else
     {
-        // no tempurl yet
+        // no tempurl yet or waiting for a retry
         drq_it = drn->client->drq.end();
     }
 }
@@ -723,21 +777,50 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     dr = cdr;
 
-    pos = dr->offset;
+    pos = dr->offset + dr->progress;
 
     req = new HttpReq(true);
 
-    sprintf(buf,"/%" PRIu64 "-", dr->offset);
+    sprintf(buf,"/%" PRIu64 "-", pos);
 
     if (dr->count)
     {
         sprintf(strchr(buf, 0), "%" PRIu64, dr->offset + dr->count - 1);
     }
 
+    dr->drn->partiallen = 0;
+    dr->drn->partialstarttime = Waiter::ds;
     req->posturl = dr->drn->tempurl;
+    if (!memcmp(req->posturl.c_str(), "http:", 5))
+    {
+        size_t portendindex = req->posturl.find("/", 8);
+        size_t portstartindex = req->posturl.find(":", 8);
+
+        if (portendindex != string::npos)
+        {
+            if (portstartindex == string::npos)
+            {
+                if (dr->drn->client->usealtdownport)
+                {
+                    LOG_debug << "Enabling alternative port for streaming transfer";
+                    req->posturl.insert(portendindex, ":8080");
+                }
+            }
+            else
+            {
+                if (!dr->drn->client->usealtdownport)
+                {
+                    LOG_debug << "Disabling alternative port for streaming transfer";
+                    req->posturl.erase(portstartindex, portendindex - portstartindex);
+                }
+            }
+        }
+    }
+
     req->posturl.append(buf);
     req->type = REQ_BINARY;
 
+    LOG_debug << "POST URL: " << req->posturl;
     req->post(dr->drn->client);
 
     drs_it = dr->drn->client->drss.insert(dr->drn->client->drss.end(), this);
@@ -747,6 +830,7 @@ DirectReadSlot::~DirectReadSlot()
 {
     dr->drn->client->drss.erase(drs_it);
 
+    LOG_debug << "Deleting DirectReadSlot";
     delete req;
 }
 } // namespace

@@ -80,18 +80,33 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
         switch request.type {
         case MEGARequestType.Logout:
             SSKeychain.deletePasswordForService("MEGA", account: "session")
-            let cacheDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0].stringByAppendingPathComponent("thumbs")
+            
+            let thumbsURL = NSFileManager.defaultManager().URLsForDirectory(.CachesDirectory, inDomains: .UserDomainMask)[0]
+            let thumbsDirectory = thumbsURL.URLByAppendingPathComponent("thumbs")
             
             var error : NSError?
-            var success = NSFileManager.defaultManager().removeItemAtPath(cacheDirectory, error: &error)
+            var success: Bool
+            do {
+                try NSFileManager.defaultManager().removeItemAtPath(thumbsDirectory.path!)
+                success = true
+            } catch let error1 as NSError {
+                error = error1
+                success = false
+            }
             if (!success || error != nil) {
-                println("(Cache) Remove file error: \(error)")
+                print("(Cache) Remove file error: \(error)")
             }
             
-            let documentDirectory : String = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
-            success = NSFileManager.defaultManager().removeItemAtPath(documentDirectory, error: &error)
+            let documentDirectory : String = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] 
+            do {
+                try NSFileManager.defaultManager().removeItemAtPath(documentDirectory)
+                success = true
+            } catch let error1 as NSError {
+                error = error1
+                success = false
+            }
             if (!success || error != nil) {
-                println("(Document) Remove file error: \(error)")
+                print("(Document) Remove file error: \(error)")
             }
             
             SVProgressHUD.dismiss()

@@ -878,6 +878,10 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares() cMemoryOwn:YES];
 }
 
+- (MEGAShareList *)inSharesList {
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList() cMemoryOwn:YES];
+}
+
 - (BOOL)isSharedNode:(MEGANode *)node {
     if (!node) return NO;
     
@@ -1049,6 +1053,90 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     
     return self.megaApi->createPreview([imagePath UTF8String], [destinationPath UTF8String]);
 }
+
+#ifdef HAVE_LIBUV
+
+#pragma mark - HTTP Proxy Server
+
+- (BOOL)httpServerStart:(BOOL)localOnly port:(NSInteger)port {
+    return self.megaApi->httpServerStart();
+}
+
+- (void)httpServerStop {
+    self.megaApi->httpServerStop();
+}
+
+- (NSInteger)httpServerIsRunning {
+    return (NSInteger)self.megaApi->httpServerIsRunning();
+}
+
+- (BOOL)httpServerIsLocalOnly {
+    return self.megaApi->httpServerIsLocalOnly();
+}
+
+- (void)httpServerEnableFileServer:(BOOL)enable {
+    self.megaApi->httpServerEnableFileServer(enable);
+}
+
+- (BOOL)httpServerIsFileServerEnabled {
+    return self.megaApi->httpServerIsFileServerEnabled();
+}
+
+- (void)httpServerEnableFolderServer:(BOOL)enable {
+    self.megaApi->httpServerEnableFolderServer(enable);
+}
+
+- (BOOL)httpServerIsFolderServerEnabled {
+    return self.megaApi->httpServerIsFolderServerEnabled();
+}
+
+- (void)httpServerSetRestrictedMode:(NSInteger)mode {
+    self.megaApi->httpServerSetRestrictedMode((int)mode);
+}
+
+- (NSInteger)httpServerGetRestrictedMode {
+    return (NSInteger)self.megaApi->httpServerGetRestrictedMode();
+}
+
+- (void)httpServerEnableSubtitlesSupport:(BOOL)enable {
+    self.megaApi->httpServerEnableSubtitlesSupport(enable);
+}
+
+- (BOOL)httpServerIsSubtitlesSupportEnabled {
+    return self.megaApi->httpServerIsSubtitlesSupportEnabled();
+}
+
+- (void)httpServerAddDelegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->httpServerAddListener([self createDelegateMEGATransferListener:delegate singleListener:NO]);
+}
+
+- (void)httpServerRemoveDelegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->httpServerRemoveListener([self createDelegateMEGATransferListener:delegate singleListener:NO]);
+}
+
+- (NSURL *)httpServerGetLocalLink:(MEGANode *)node {
+    char *localLink = self.megaApi->httpServerGetLocalLink([node getCPtr]);
+    
+    return localLink ? [NSURL URLWithString:[NSString stringWithUTF8String:localLink]] : nil;
+}
+
+- (void)httpServerSetMaxBufferSize:(NSInteger)bufferSize {
+    self.megaApi->httpServerSetMaxBufferSize((int)bufferSize);
+}
+
+- (NSInteger)httpServerGetMaxBufferSize {
+    return (NSInteger)self.megaApi->httpServerGetMaxBufferSize();
+}
+
+- (void)httpServerSetMaxOutputSize:(NSInteger)outputSize {
+    self.megaApi->httpServerSetMaxOutputSize((int)outputSize);
+}
+
+- (NSInteger)httpServerGetMaxOutputSize {
+    return (NSInteger)self.megaApi->httpServerGetMaxOutputSize();
+}
+
+#endif
 
 #pragma mark - Debug log messages
 

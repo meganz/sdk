@@ -111,11 +111,25 @@ public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
 
+typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
+typedef vector<std::ostream *> OutputStreams;
+
+class MEGA_API OutputMap : public std::map<enum LogLevel, OutputStreams>
+{
+public:
+    OutputMap() : std::map<enum LogLevel, OutputStreams>()
+    {
+        for (int i = logFatal; i <= logMax; i++)
+        {
+            (*this)[static_cast<LogLevel>(i)];
+        }
+    }
+};
+
 class MEGA_API SimpleLogger {
     enum LogLevel level;
     bool lineBreak;
     std::ostringstream ostr;
-    typedef vector<std::ostream *> OutputStreams;
     std::string t;
     std::string fname;
 
@@ -127,11 +141,9 @@ class MEGA_API SimpleLogger {
     string getTime();
 
 public:
-    typedef std::map<enum LogLevel, OutputStreams> OutputMap;
     static OutputMap outputs;
     static Logger *logger;
-
-    typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
+    static char base64Handle[14];
     static OutputSettingsMap outputSettings;
 
     static enum LogLevel logCurrentLevel;
@@ -151,6 +163,12 @@ public:
             default: return "";
         }
         return "";
+    }
+
+    static const char *toNodeHandle(handle nodeHandle)
+    {
+        Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
+        return base64Handle;
     }
 
     template <typename T>
@@ -194,7 +212,7 @@ public:
     // register output stream for all log levels
     static void setAllOutputs(std::ostream *os)
     {
-        for (int i = logFatal; i < logMax; i++)
+        for (int i = logFatal; i <= logMax; i++)
             outputs[static_cast<LogLevel>(i)].push_back(os);
     }
 
@@ -272,6 +290,8 @@ public:
     SimpleLogger(logFatal, __FILE__, __LINE__)
 #define LOGn_fatal \
     SimpleLogger(logFatal, __FILE__, __LINE__, false)
+
+#define LOG_NODEHANDLE(x) SimpleLogger::toNodeHandle(x)
 
 } // namespace
 

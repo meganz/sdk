@@ -38,6 +38,12 @@ struct MEGA_API User : public Cachable
     // e-mail address
     string email;
 
+    // first name (initialized on first request, invalidated if updated)
+    string *firstname;
+
+    // last name (initialized on first request, invalidated if updated)
+    string *lastname;
+
     // persistent attributes (n = name, a = avatar)
     AttrMap attrs;
 
@@ -49,6 +55,15 @@ struct MEGA_API User : public Cachable
 
     // contact establishment timestamp
     m_time_t ctime;
+
+    struct
+    {
+        bool auth : 1;      // authentication information of the contact
+        bool lstint : 1;    // last interaction with the contact
+        bool avatar : 1;    // avatar image
+        bool firstname : 1;
+        bool lastname : 1;
+    } changed;
 
     // user's public key
     AsymmCipher pubk;

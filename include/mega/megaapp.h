@@ -167,13 +167,25 @@ struct MEGA_API MegaApp
     virtual void getnumchildfiles_result(int, int, error) {}
     virtual void getnumchildfolders_result(int, int, error) {}
 
+#ifdef ENABLE_CHAT
+    // chat-related command's result
+    virtual void chatcreate_result(TextChat *, error) { }
+    virtual void chatfetch_result(textchat_vector *, error) { }
+    virtual void chatinvite_result(error) { }
+    virtual void chatremove_result(error) { }
+    virtual void chaturl_result(string*, error) { }
+    virtual void chatgrantaccess_result(error) { }
+    virtual void chatremoveaccess_result(error) { }
+
+    virtual void chats_updated(textchat_vector *) { }
+#endif
+
     // global transfer queue updates (separate signaling towards the queued objects)
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error) { }
+    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
-    virtual void transfer_limit(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events

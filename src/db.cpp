@@ -394,7 +394,6 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
     return false;
 }
 
-
 DbQuery::DbQuery(QueryType type, int tag)
 {
     this->type = type;
@@ -566,6 +565,11 @@ void * DbThread::loop(void *param)
     }
 
     return 0;
+}
+
+DbAccess::DbAccess()
+{
+    currentDbVersion = LEGACY_DB_VERSION;
 }
 
 } // namespace

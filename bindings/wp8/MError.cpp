@@ -51,6 +51,11 @@ MErrorType MError::getErrorCode()
     return (MErrorType) (megaError ? megaError->getErrorCode() : 0);
 }
 
+uint64 MError::getValue()
+{
+    return megaError ? megaError->getValue() : 0;
+}
+
 String^ MError::getErrorString()
 {
     std::string utf16error;

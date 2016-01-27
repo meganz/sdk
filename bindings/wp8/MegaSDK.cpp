@@ -2009,6 +2009,17 @@ MNode^ MegaSDK::getNodeByHandle(uint64 handle)
     return node ? ref new MNode(node, true) : nullptr;
 }
 
+MNode^ MegaSDK::getNodeByBase64Handle(String^ base64Handle)
+{
+    if (base64Handle == nullptr) return nullptr;
+
+    std::string utf8base64Handle;
+    MegaApi::utf16ToUtf8(base64Handle->Data(), base64Handle->Length(), &utf8base64Handle);    
+
+    MegaNode *node = megaApi->getNodeByHandle(MegaApi::base64ToHandle(utf8base64Handle.c_str()));
+    return node ? ref new MNode(node, true) : nullptr;
+}
+
 MContactRequest^ MegaSDK::getContactRequestByHandle(MegaHandle handle)
 {
     if (handle == ::mega::INVALID_HANDLE) return nullptr;

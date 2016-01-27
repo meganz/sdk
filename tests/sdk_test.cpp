@@ -55,6 +55,7 @@ void SdkTest::TearDown()
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
+    deleteFile(AVATARDST);
 
     releaseMegaApiAux();
 
@@ -189,6 +190,62 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             number = request->getNumber();
         responseReceived = true;
         break;
+    case MegaRequest::TYPE_SET_ATTR_USER:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_GET_ATTR_USER:
+        if ( (lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
+            attributeValue = request->getText();
+
+        if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
+        {
+            if (lastError == API_OK)
+                attributeValue = "Avatar changed";
+
+            if (lastError == API_ENOENT)
+                attributeValue = "Avatar not found";
+        }
+
+        responseReceived = true;
+        break;
+
+#ifdef ENABLE_CHAT
+    case MegaRequest::TYPE_CHAT_FETCH:
+        if (lastError == API_OK)
+        {
+            chats = request->getMegaTextChatList()->copy();
+        }
+
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_CREATE:
+        if (lastError == API_OK)
+        {
+            chats = request->getMegaTextChatList()->copy();
+        }
+
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_INVITE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_REMOVE:
+        responseReceived = true;
+        break;
+
+    case MegaRequest::TYPE_CHAT_URL:
+        if (lastError == API_OK)
+        {
+            link.assign(request->getLink());
+        }
+        responseReceived = true;
+        break;
+#endif
+
     }
 }
 
@@ -213,10 +270,26 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
-    // Main testing account
-    if (api == megaApi)
+    if (!users)
+        return;
+
+    for (int i = 0; i < users->size(); i++)
     {
-        contactRemoved = true;
+        MegaUser *u = users->get(i);
+
+        if (u->hasChanged(MegaUser::CHANGE_TYPE_AVATAR)
+                || u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME)
+                || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
+        {
+            if (api == megaApi) userUpdated = true;
+
+            if (api == megaApiAux) userUpdatedAux = true;
+        }
+        else
+        {
+            // Contact is removed from main account
+            contactRemoved = (api == megaApi);
+        }
     }
 }
 
@@ -249,6 +322,54 @@ void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requ
         contactRequestUpdatedAux = true;
     }
 }
+
+#ifdef ENABLE_CHAT
+void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
+{
+    // Main testing account
+    if (api == megaApi)
+    {
+        chatUpdated = true;
+    }
+
+    // Auxiliar testing account
+    if (api == megaApiAux)
+    {
+        chatUpdatedAux = true;
+    }
+}
+
+void SdkTest::fetchChats(int timeout)
+{
+    responseReceived = false;
+
+    megaApi->fetchChats();
+
+    waitForResponse(&responseReceived, timeout);
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "Fetching chats not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Fetching list of chats failed (error: " << lastError << ")";
+}
+
+void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
+{
+    responseReceived = false;
+
+    megaApi->createChat(group, peers);
+
+    waitForResponse(&responseReceived, timeout);
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "Chat creation not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Chat creation failed (error: " << lastError << ")";
+}
+
+#endif
 
 void SdkTest::login(int timeout)
 {
@@ -616,6 +737,53 @@ void SdkTest::getContactRequest(bool outgoing, int expectedSize)
     delete crl;
 }
 
+void SdkTest::setUserAttribute(int type, string value, int timeout)
+{
+    responseReceived = false;
+
+    if (type == MegaApi::USER_ATTR_AVATAR)
+    {
+        megaApi->setAvatar(value.empty() ? NULL : value.c_str());
+    }
+    else
+    {
+        megaApi->setUserAttribute(type, value.c_str());
+    }
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "User attribute setup not finished after " << timeout  << " seconds";
+    }
+
+    ASSERT_EQ(MegaError::API_OK, lastError) << "User attribute setup failed (error: " << lastError << ")";
+}
+
+void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
+{
+    responseReceived = false;
+
+    if (type == MegaApi::USER_ATTR_AVATAR)
+    {
+        megaApiAux->getUserAvatar(u, AVATARDST.data());
+    }
+    else
+    {
+        megaApiAux->getUserAttribute(u, type);
+    }
+
+    waitForResponse(&responseReceived, timeout);
+
+    if (timeout)
+    {
+        ASSERT_TRUE(responseReceived) << "User attribute retrieval not finished after " << timeout  << " seconds";
+    }
+
+    bool result = (lastError == MegaError::API_OK) || (lastError == MegaError::API_ENOENT);
+    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError << ")";
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -898,6 +1066,13 @@ TEST_F(SdkTest, SdkTestTransfers)
  * - Invite a contact
  * = Accept the invitation
  *
+ * - Modify firstname
+ * = Check firstname of a contact
+ * - Load avatar
+ * = Check avatar of a contact
+ * - Delete avatar
+ * = Check non-existing avatar of a contact
+ *
  * - Remove contact
  *
  * TODO:
@@ -1055,14 +1230,103 @@ TEST_F(SdkTest, SdkTestContacts)
     delete craux;   craux = NULL;
 
 
+    // --- Modify firstname ---
+
+    string firstname = "My firstname";
+
+    userUpdated = false;
+    userUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
+
+    waitForResponse(&userUpdatedAux); // at the target side (auxiliar account) --> action packet notification
+    waitForResponse(&userUpdated);    // at the source side (main account)
+
+
+    // --- Check firstname of a contact
+
+    MegaUser *u = megaApi->getContact(email.c_str());
+
+    bool null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+
+    userAttributeReceived = false;
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
+    ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
+
+    delete u;
+
+    // --- Load avatar ---
+
+    userUpdated = false;
+    userUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
+
+    waitForResponse(&userUpdatedAux); // at the target side (auxiliar account) --> action packet notification
+    waitForResponse(&userUpdated);    // at the source side (main account)
+
+
+    // --- Get avatar of a contact ---
+
+    u = megaApi->getContact(email.c_str());
+
+    null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+
+    userAttributeReceived = false;
+    attributeValue = "";
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
+    ASSERT_STREQ( "Avatar changed", attributeValue.data()) << "Failed to change avatar";
+
+    int filesizeSrc = getFilesize(AVATARSRC);
+    int filesizeDst = getFilesize(AVATARDST);
+    ASSERT_EQ(filesizeDst, filesizeSrc) << "Received avatar differs from uploaded avatar";
+
+    delete u;
+
+
+    // --- Delete avatar ---
+
+    userUpdated = false;
+    userUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
+
+    waitForResponse(&userUpdatedAux); // at the target side (auxiliar account) --> action packet notification
+    waitForResponse(&userUpdated);    // at the source side (main account)
+
+
+    // --- Get non-existing avatar of a contact ---
+
+    u = megaApi->getContact(email.c_str());
+
+    null_pointer = (u == NULL);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
+
+    userAttributeReceived = false;
+    attributeValue = "";
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
+    ASSERT_STREQ("Avatar not found", attributeValue.data()) << "Failed to remove avatar";
+
+    delete u;
+
+
     // --- Delete an existing contact ---
 
     contactRemoved = false;
     ASSERT_NO_FATAL_FAILURE( removeContact(emailaux) );
     waitForResponse(&contactRemoved);
 
-    MegaUser *u = megaApi->getContact(emailaux.data());
+    u = megaApi->getContact(emailaux.data());
+    null_pointer = (u == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact still visible";
+
     delete u;
 }
 
@@ -1196,6 +1460,9 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Check the incoming share ---
+
+    sl = megaApiAux->getInSharesList();
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
     nl = megaApiAux->getInShares(megaApiAux->getContact(email.data()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
@@ -1386,3 +1653,117 @@ TEST_F(SdkTest, SdkTestChildCount)
     ASSERT_EQ(1, number) << "Wrong number of child files (error: " << lastError << ")";
 
 }
+
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief TEST_F SdkTestChat
+ *
+ * Initialize a test scenario by:
+ *
+ * - Setting a new contact to chat with
+ *
+ * Performs different operations related to chats:
+ *
+ * - Fetch the list of available chats
+ * - Create a group chat
+ * - Remove a peer from the chat
+ * - Invite a contact to a chat
+ * - Get the user-specific URL for the chat
+ */
+TEST_F(SdkTest, SdkTestChat)
+{
+    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+
+    // --- Send a new contact request ---
+
+    string message = "Hi contact. This is a testing message";
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( inviteContact(emailaux, message, MegaContactRequest::INVITE_ACTION_ADD) );
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+
+    // --- Accept a contact invitation ---
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(false) );
+
+    contactRequestUpdated = false;
+    contactRequestUpdatedAux = false;
+
+    ASSERT_NO_FATAL_FAILURE( replyContact(craux, MegaContactRequest::REPLY_ACTION_ACCEPT) );
+
+    waitForResponse(&contactRequestUpdatedAux); // at the target side (auxiliar account)
+    waitForResponse(&contactRequestUpdated);    // at the source side (main account)
+
+    delete craux;   craux = NULL;
+
+
+    // --- Fetch list of available chats ---
+
+    ASSERT_NO_FATAL_FAILURE( fetchChats() );
+    uint numChats = chats->size();      // permanent chats cannot be deleted, so they're kept forever
+
+
+    // --- Create a group chat ---
+
+    MegaTextChatPeerList *peers;
+    handle h;
+    bool group;
+
+    h = megaApiAux->getContact(emailaux.c_str())->getHandle();
+    peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
+    peers->addPeer(h, PRIV_RW);
+    group = true;
+
+    chatUpdatedAux = false;
+    ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );
+    waitForResponse(&chatUpdatedAux);
+
+    delete peers;
+
+    // check the new chat information
+    ASSERT_NO_FATAL_FAILURE( fetchChats() );
+    ASSERT_EQ(chats->size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_TRUE(chatUpdatedAux) << "The peer didn't receive notification of the chat creation";
+
+
+    // --- Remove a peer from the chat ---
+
+    handle chatid = chats->get(numChats - 1)->getHandle();
+
+    chatUpdated = false;
+    responseReceived = false;
+    megaApi->removeFromChat(chatid, h);
+    waitForResponse(&responseReceived);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Removal of chat peer failed (error: " << lastError << ")";
+
+    waitForResponse(&chatUpdated);
+    ASSERT_TRUE(chatUpdated) << "Didn't receive notification of the peer removal";
+
+
+    // --- Invite a contact to a chat ---
+
+    chatUpdatedAux = false;
+    responseReceived = false;
+    megaApi->inviteToChat(chatid, h, PRIV_FULL);
+    waitForResponse(&responseReceived);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Invitation of chat peer failed (error: " << lastError << ")";
+
+    waitForResponse(&chatUpdated);
+    ASSERT_TRUE(chatUpdatedAux) << "The peer didn't receive notification of the invitation";
+
+
+    // --- Get the user-specific URL for the chat ---
+
+    responseReceived = false;
+    megaApi->getUrlChat(chatid);
+    waitForResponse(&responseReceived);
+    ASSERT_EQ(MegaError::API_OK, lastError) << "Retrieval of chat URL failed (error: " << lastError << ")";
+}
+
+#endif

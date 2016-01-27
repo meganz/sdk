@@ -102,6 +102,21 @@ struct DemoApp : public MegaApp
 
     int prepare_download(pnode_t);
 
+#ifdef ENABLE_CHAT
+    void chatcreate_result(TextChat *, error);
+    void chatfetch_result(textchat_vector *chats, error);
+    void chatinvite_result(error);
+    void chatremove_result(error);
+    void chaturl_result(string *, error);
+    void chatgrantaccess_result(error);
+    void chatremoveaccess_result(error);
+
+    void chats_updated(textchat_vector *);
+
+    void printChatInformation(TextChat *);
+    string getPrivilegeString(privilege_t priv);
+#endif
+
     void setattr_result(handle, error);
     void rename_result(handle, error);
     void unlink_result(handle, error);

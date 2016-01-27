@@ -206,26 +206,11 @@ public:
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
 
-    /**
-     * @brief Attach/update/delete a user attribute.
-     *
-     * @param an Attribute name.
-     * @param av Attribute value.
-     * @param avl Attribute value length.
-     * @param priv 1 for a private, 0 for a public attribute.
-     * @return Void.
-     */
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int priv = 0);
+    // attach/update/delete a user attribute
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
 
-    /**
-     * @brief Queue a user attribute retrieval.
-     *
-     * @param u User.
-     * @param an Attribute name.
-     * @param p 1 for a private, 0 for a public attribute.
-     * @return Void.
-     */
-    void getua(User* u, const char* an = NULL, int p = 0);
+    // queue a user attribute retrieval
+    void getua(User* u, const char* an = NULL);
 
     // add new contact (by e-mail address)
     error invite(const char*, visibility_t = VISIBLE);
@@ -304,6 +289,33 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+#ifdef ENABLE_CHAT
+
+    // create a new chat with multiple users and different privileges
+    void createChat(bool group, const userpriv_vector *userpriv);
+
+    // fetch the list of chats
+    void fetchChats();
+
+    // invite a user to a chat
+    void inviteToChat(handle chatid, const char *uid, int priv);
+
+    // remove a user from a chat
+    void removeFromChat(handle chatid, const char *uid = NULL);
+
+    // get the URL of a chat
+    void getUrlChat(handle chatid);
+
+    // process object arrays by the API server (users + privileges)
+    userpriv_vector * readuserpriv(JSON* j);
+
+    // grant access to a chat peer to one specific node
+    void grantAccessInChat(handle chatid, handle h, const char *uid);
+
+    // revoke access to a chat peer to one specific node
+    void removeAccessInChat(handle chatid, handle h, const char *uid);
+#endif
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -326,6 +338,9 @@ public:
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
+
+    // time left for bandwidth overquota
+    m_time_t overquotauntil;
 
     // root URL for API requests
     static string APIURL;
@@ -411,6 +426,9 @@ private:
     void sc_ipc();
     void sc_upc();
     void sc_ph();
+#ifdef ENABLE_CHAT
+    void sc_chatupdate();
+#endif
 
     void init();
 
@@ -598,7 +616,12 @@ public:
     node_vector nodenotify;
     void notifynode(pnode_t);
 
-    // write changed/added/deleted nodes/users to the DB cache and notify the
+#ifdef ENABLE_CHAT
+    textchat_vector chatnotify;
+    void notifychat(TextChat *);
+#endif
+
+    // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();
 
@@ -776,6 +799,7 @@ public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
+    static const int CHATHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
