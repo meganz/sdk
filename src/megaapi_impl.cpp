@@ -6421,7 +6421,7 @@ void MegaApiImpl::fetchnodes_result(error e)
         if (h != UNDEF)
         {
             Node *n = client->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') != n->attrs.map.end()))
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
             {
                 request->setFlag(true);
             }
