@@ -1229,6 +1229,13 @@ public:
     virtual const char *getUrl() const;
 
     /**
+     * @brief setUrl Establish the URL to connect to chatd for this chat
+     *
+     * @param url The new URL for the MegaTextChat
+     */
+    virtual void setUrl(const char *url);
+
+    /**
      * @brief getShard Returns the chat shard
      * @return
      */
@@ -1281,6 +1288,7 @@ public:
      * @return MegaTextChat at the position i in the list
      */
     virtual const MegaTextChat *get(int i)  const;
+    virtual MegaTextChat *get(int i);
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -1555,7 +1563,7 @@ class MegaRequest
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
-            TYPE_CHAT_REMOVE, TYPE_CHAT_URL
+            TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS
         };
 
         virtual ~MegaRequest();
@@ -1646,6 +1654,8 @@ class MegaRequest
          * - MegaApi::inviteToChat - Returns the handle of the chat
          * - MegaApi::removeFromChat - Returns the handle of the chat
          * - MegaApi::getUrlChat - Returns the handle of the chat
+         * - MegaApi::grantAccessInChat - Returns the handle of the node
+         * - MegaApi::removeAccessInChat - Returns the handle of the node
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1691,6 +1701,8 @@ class MegaRequest
          * - MegaApi::importFileLink - Returns the handle of the node that receives the imported file
          * - MegaApi::inviteToChat - Returns the handle of the user to be invited
          * - MegaApi::removeFromChat - Returns the handle of the user to be removed
+         * - MegaApi::grantAccessInchat - Returns the chat identifier
+         * - MegaApi::removeAccessInchat - Returns the chat identifier
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -1753,6 +1765,8 @@ class MegaRequest
          * - MegaApi::removeContact - Returns the email of the contact
          * - MegaApi::getUserData - Returns the email of the contact
          * - MegaApi::inviteContact - Returns the email of the contact
+         * - MegaApi::grantAccessInChat -Returns the MegaHandle of the user in Base64 enconding
+         * - MegaApi::removeAccessInChat -Returns the MegaHandle of the user in Base64 enconding
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2085,8 +2099,11 @@ class MegaRequest
 class MegaTransfer
 {
 	public:
-        enum {TYPE_DOWNLOAD = 0,
-              TYPE_UPLOAD};
+        enum {
+            TYPE_DOWNLOAD = 0,
+            TYPE_UPLOAD,
+            TYPE_LOCAL_HTTP_DOWNLOAD
+        };
         
         virtual ~MegaTransfer();
 
@@ -6759,6 +6776,348 @@ class MegaApi
          */
         bool isOnline();
 
+#ifdef HAVE_LIBUV
+
+        enum {
+            HTTP_SERVER_DENY_ALL = -1,
+            HTTP_SERVER_ALLOW_ALL = 0,
+            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+        };
+
+        /**
+         * @brief Start an HTTP proxy server in specified port
+         *
+         * If this function returns true, that means that the server is
+         * ready to accept connections. The initialization is synchronous.
+         *
+         * The server will serve files using this URL format:
+         * http://127.0.0.1/<NodeHandle>/<NodeName>
+         *
+         * The node name must be URL encoded and must match with the node handle.
+         * You can generate a correct link for a MegaNode using MegaApi::httpServerGetLocalLink
+         *
+         * If the node handle belongs to a folder node, a web with the list of files
+         * inside the folder is returned.
+         *
+         * It's important to know that the HTTP proxy server has several configuration options
+         * that can restrict the nodes that will be served and the connections that will be accepted.
+         *
+         * These are the default options:
+         * - The restricted mode of the server is set to MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * (see MegaApi::httpServerSetRestrictedMode)
+         *
+         * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
+         * - File nodes are allowed to be served (see MegaApi::httpServerEnableFileServer)
+         * - Subtitles support is disabled (see MegaApi::httpServerEnableSubtitlesSupport)
+         *
+         * The HTTP server will only stream a node if it's allowed by all configuration options.
+         *
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
+         * @param port Port in which the server must accept connections
+         * @return True is the server is ready, false if the initialization failed
+         */
+        bool httpServerStart(bool localOnly = true, int port = 4443);
+
+        /**
+         * @brief Stop the HTTP proxy server
+         *
+         * When this function returns, the server is already shutdown.
+         * If the HTTP proxy server isn't running, this functions does nothing
+         */
+        void httpServerStop();
+
+        /**
+         * @brief Check if the HTTP proxy server is running
+         * @return 0 if the server is not running. Otherwise the port in which it's listening to
+         */
+        int httpServerIsRunning();
+
+        /**
+         * @brief Check if the HTTP proxy server is listening on all network interfaces
+         * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
+         * If it's started and listening on all network interfaces, this function returns false
+         */
+        bool httpServerIsLocalOnly();
+
+        /**
+         * @brief Allow/forbid to serve files
+         *
+         * By default, files are served (when the server is running)
+         *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @param true to allow to server files, false to forbid it
+         */
+        void httpServerEnableFileServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve files
+         *
+         * This function can return true even if the HTTP proxy server is not running
+         *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @return true if it's allowed to serve files, otherwise false
+         */
+        bool httpServerIsFileServerEnabled();
+
+        /**
+         * @brief Allow/forbid to serve folders
+         *
+         * By default, folders are NOT served
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @param true to allow to server folders, false to forbid it
+         */
+        void httpServerEnableFolderServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve folders
+         *
+         * This function can return true even if the HTTP proxy server is not running
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerSetRestrictedMode) are still applied.
+         *
+         * @return true if it's allowed to serve folders, otherwise false
+         */
+        bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Enable/disable the restricted mode of the HTTP server
+         *
+         * This function allows to restrict the nodes that are allowed to be served.
+         * For not allowed links, the server will return "407 Forbidden".
+         *
+         * Possible values are:
+         * - HTTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - HTTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1 (default)
+         * Only links created with MegaApi::httpServerGetLocalLink are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
+         *
+         * If a different value from the list above is passed to this function, it won't have any effect and the previous
+         * state of this option will be preserved.
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * The state of this option is preserved even if the HTTP server is restarted, but the
+         * the HTTP proxy server only remembers the generated links since the last call to
+         * MegaApi::httpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerEnableFileServer,
+         * MegaApi::httpServerEnableFolderServer) are still applied.
+         *
+         * @param Required state for the restricted mode of the HTTP proxy server
+         */
+        void httpServerSetRestrictedMode(int mode);
+
+        /**
+         * @brief Check if the HTTP proxy server is working in restricted mode
+         *
+         * Possible return values are:
+         * - HTTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - HTTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1
+         * Only links created with MegaApi::httpServerGetLocalLink are allowed to be served
+         *
+         * - HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::httpServerGetLocalLink is allowed to be served
+         *
+         * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * See MegaApi::httpServerEnableRestrictedMode and MegaApi::httpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::httpServerEnableFileServer,
+         * MegaApi::httpServerEnableFolderServer) are still applied.
+         *
+         * @return State of the restricted mode of the HTTP proxy server
+         */
+        int httpServerGetRestrictedMode();
+
+        /**
+         * @brief Enable/disable the support for subtitles
+         *
+         * Subtitles support allows to stream some special links that otherwise wouldn't be valid.
+         * For example, let's suppose that the server is streaming this video:
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.avi
+         *
+         * Some media players scan HTTP servers looking for subtitle files and request links like these ones:
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.txt
+         * http://120.0.0.1:4443/<Base64Handle>/MyHolidays.srt
+         *
+         * Even if a file with that name is in the same folder of the MEGA account, the node wouldn't be served because
+         * the node handle wouldn't match.
+         *
+         * When this feature is enabled, the HTTP proxy server will check if there are files with that name
+         * in the same folder as the node corresponding to the handle in the link.
+         *
+         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
+         * the HTTP proxy server will serve that file.
+         *
+         * This feature is disabled by default.
+         *
+         * @param enable True to enable subtitles support, false to disable it
+         */
+        void httpServerEnableSubtitlesSupport(bool enable);
+
+        /**
+         * @brief Check if the support for subtitles is enabled
+         *
+         * See MegaApi::httpServerEnableSubtitlesSupport.
+         *
+         * This feature is disabled by default.
+         *
+         * @return true of the support for subtibles is enables, otherwise false
+         */
+        bool httpServerIsSubtitlesSupportEnabled();
+
+        /**
+         * @brief Add a listener to receive information about the HTTP proxy server
+         *
+         * This is the valid data that will be provided on callbacks:
+         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD
+         * - MegaTransfer::getPath - URL requested to the HTTP proxy server
+         * - MegaTransfer::getFileName - Name of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getNodeHandle - Handle of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getTotalBytes - Total bytes of the response (response headers + file, if required)
+         * - MegaTransfer::getStartPos - Start position (for range requests only, otherwise -1)
+         * - MegaTransfer::getEndPos - End position (for range requests only, otherwise -1)
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINCOMPLETE - If the whole response wasn't sent
+         * (it's normal to get this error code sometimes because media players close connections when they have
+         * the data that they need)
+         *
+         * - MegaError::API_EREAD - If the connection with MEGA storage servers failed
+         * - MegaError::API_EAGAIN - If the download speed is too slow for streaming
+         * - A number > 0 means an HTTP error code returned to the client
+         *
+         * @param listener Listener to receive information about the HTTP proxy server
+         */
+        void httpServerAddListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Stop the reception of callbacks related to the HTTP proxy server on this listener
+         * @param listener Listener that won't continue receiving information
+         */
+        void httpServerRemoveListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Returns a URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Set the maximum buffer size for the internal buffer
+         *
+         * The HTTP proxy server has an internal buffer to store the data received from MEGA
+         * while it's being sent to clients. When the buffer is full, the connection with
+         * the MEGA storage server is closed, when the buffer has few data, the connection
+         * with the MEGA storage server is started again.
+         *
+         * Even with very fast connections, due to the possible latency starting new connections,
+         * if this buffer is small the streaming can have problems due to the overhead caused by
+         * the excessive number of POST requests.
+         *
+         * It's recommended to set this buffer at least to 1MB
+         *
+         * For connections that request less data than the buffer size, the HTTP proxy server
+         * will only allocate the required memory to complete the request to minimize the
+         * memory usage.
+         *
+         * The new value will be taken into account since the next request received by
+         * the HTTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param bufferSize Maximum buffer size (in bytes) or a number <= 0 to use the
+         * internal default value
+         */
+        void httpServerSetMaxBufferSize(int bufferSize);
+
+        /**
+         * @brief Get the maximum size of the internal buffer size
+         *
+         * See MegaApi::httpServerSetMaxBufferSize
+         *
+         * @return Maximum size of the internal buffer size (in bytes)
+         */
+        int httpServerGetMaxBufferSize();
+
+        /**
+         * @brief Set the maximum size of packets sent to clients
+         *
+         * For each connection, the HTTP proxy server only sends one write to the underlying
+         * socket at once. This parameter allows to set the size of that write.
+         *
+         * A small value could cause a lot of writes and would lower the performance.
+         *
+         * A big value could send too much data to the output buffer of the socket. That could
+         * keep the internal buffer full of data that hasn't been sent to the client yet,
+         * preventing the retrieval of additional data from the MEGA storage server. In that
+         * circumstances, the client could read a lot of data at once and the HTTP server
+         * could not have enough time to get more data fast enough.
+         *
+         * It's recommended to set this value to at least 8192 and no more than the 25% of
+         * the maximum buffer size (MegaApi::httpServerSetMaxBufferSize).
+         *
+         * The new value will be takein into account since the next request received by
+         * the HTTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param outputSize Maximun size of data packets sent to clients (in bytes) or
+         * a number <= 0 to use the internal default value
+         */
+        void httpServerSetMaxOutputSize(int outputSize);
+
+        /**
+         * @brief Get the maximum size of the packets sent to clients
+         *
+         * See MegaApi::httpServerSetMaxOutputSize
+         *
+         * @return Maximum size of the packets sent to clients (in bytes)
+         */
+        int httpServerGetMaxOutputSize();
+
+        /**
+         * @brief Get the MIME type associated with the extension
+         *
+         * You take the ownership of the returned value
+         *
+         * @param File extension (with or without a leading dot)
+         * @return MIME type associated with the extension
+         */
+        static char *getMimeType(const char* extension);
+#endif
+
 #ifdef ENABLE_CHAT
         /**
          * @brief Creates a chat for one or participants, allowing you to specify their
@@ -6858,6 +7217,41 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Grants another user access to download a file using MegaApi::startDownload like
+         * a user would do so for their own file, rather than a public link.
+         *
+         * Currently, this method only supports files, not folders.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_GRANT_ACCESS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the node handle
+         * - MegaRequest::getParentHandle - Returns the chat identifier
+         * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param n MegaNode that wants to be shared
+         * @param uh MegaHandle that identifies the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Removes access to a node from a user you previously granted access to.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_REMOVE_ACCESS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the node handle
+         * - MegaRequest::getParentHandle - Returns the chat identifier
+         * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param n MegaNode whose access wants to be revokesd
+         * @param uh MegaHandle that identifies the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
 #endif
 
 private:

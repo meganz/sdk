@@ -556,6 +556,30 @@ void DemoApp::chaturl_result(string *url, error e)
 
 }
 
+void DemoApp::chatgrantaccess_result(error e)
+{
+    if (e)
+    {
+        cout << "Grant access to node failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Access to node granted successfully" << endl;
+    }
+}
+
+void DemoApp::chatremoveaccess_result(error e)
+{
+    if (e)
+    {
+        cout << "Revoke access to node failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Access to node removed successfully" << endl;
+    }
+}
+
 void DemoApp::chats_updated(textchat_vector *chats)
 {
     if (chats)
@@ -1749,6 +1773,8 @@ static void process_line(char* l)
                 cout << "      chati chatid email ro|rw|full|op" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
+                cout << "      chatga chatid nodehandle uid" << endl;
+                cout << "      chatra chatid nodehandle uid" << endl;
 #endif
                 cout << "      quit" << endl;
 
@@ -3382,6 +3408,51 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef ENABLE_CHAT
+                    else if (words[0] == "chatga")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            handle nodehandle;
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+
+                            const char *uid = words[3].c_str();
+
+                            client->grantAccessInChat(chatid, nodehandle, uid);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatga chatid nodehandle uid" << endl;
+                            return;
+                        }
+
+                    }
+                    else if (words[0] == "chatra")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            handle nodehandle;
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+
+                            const char *uid = words[3].c_str();
+
+                            client->removeAccessInChat(chatid, nodehandle, uid);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "       chatra chatid nodehandle uid" << endl;
+                            return;
+                        }
+                    }
+#endif
                     break;
 
                 case 7:

@@ -171,6 +171,9 @@ struct MEGA_API MegaApp
     virtual void chatinvite_result(error) { }
     virtual void chatremove_result(error) { }
     virtual void chaturl_result(string*, error) { }
+    virtual void chatgrantaccess_result(error) { }
+    virtual void chatremoveaccess_result(error) { }
+
     virtual void chats_updated(textchat_vector *) { }
 #endif
 
@@ -178,9 +181,8 @@ struct MEGA_API MegaApp
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error) { }
+    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
-    virtual void transfer_limit(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events

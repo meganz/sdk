@@ -649,6 +649,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
+    overquotauntil = 0;
 
     init();
 
@@ -733,10 +734,15 @@ void MegaClient::exec()
 {
     WAIT_CLASS::bumpds();
 
+    if (overquotauntil && overquotauntil < Waiter::ds)
+    {
+        overquotauntil = 0;
+    }
+
     if (httpio->inetisback())
     {
         LOG_info << "Internet connectivity returned - resetting all backoff timers";
-        abortbackoff();
+        abortbackoff(overquotauntil <= Waiter::ds);
     }
 
     if (EVER(httpio->lastdata) && !pendingcs && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT)
@@ -1910,6 +1916,7 @@ bool MegaClient::abortbackoff(bool includexfers)
 
     if (includexfers)
     {
+        overquotauntil = 0;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
@@ -1917,6 +1924,14 @@ bool MegaClient::abortbackoff(bool includexfers)
                 if (it->second->failcount)
                 {
                     if (it->second->bt.arm())
+                    {
+                        r = true;
+                    }
+                }
+
+                if (it->second->slot && it->second->slot->retrying)
+                {
+                    if (it->second->slot->retrybt.arm())
                     {
                         r = true;
                     }
@@ -2268,6 +2283,11 @@ void MegaClient::disconnect()
         (*it)->disconnect();
     }
 
+    for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
+    {
+        (it++)->second->retry(API_OK);
+    }
+
     for (putfa_list::iterator it = newfa.begin(); it != newfa.end(); it++)
     {
         (*it)->disconnect();
@@ -2344,6 +2364,7 @@ void MegaClient::locallogout()
     xferpaused[GET] = false;
     putmbpscap = 0;
     fetchingnodes = false;
+    overquotauntil = 0;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -2591,7 +2612,7 @@ bool MegaClient::procsc()
                                 break;
 
                             case MAKENAMEID2('u', 'a'):
-                                // user attribtue update
+                                // user attribute update
                                 sc_userattr();
                                 break;
 
@@ -2599,6 +2620,7 @@ bool MegaClient::procsc()
                                 if (sc_upgrade())
                                 {
                                     app->account_updated();
+                                    abortbackoff(true);
                                 }
                                 break;
 
@@ -4018,12 +4040,14 @@ void MegaClient::sc_chatupdate()
 
                     if (userpriv)
                     {
-                        // find 'me' in list of users, get privilege and remove user
+                        // find 'me' in the list of participants, get my privilege and remove from peer's list
                         userpriv_vector::iterator upvit;
+                        bool found = false;
                         for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                         {
                             if (upvit->first == me)
                             {
+                                found = true;
                                 chat->priv = upvit->second;
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
@@ -4034,18 +4058,32 @@ void MegaClient::sc_chatupdate()
                                 break;
                             }
                         }
+                        // if `me` is not found among participants list and there's a notification list...
+                        if (!found && upnotif)
+                        {
+                            // ...then `me` may have been removed from the chat: get the privilege level=PRIV_RM
+                            for (upvit = upnotif->begin(); upvit != upnotif->end(); upvit++)
+                            {
+                                if (upvit->first == me)
+                                {
+                                    chat->priv = upvit->second;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     chat->userpriv = userpriv;
 
                     notifychat(chat);
-
-                    delete upnotif;
                 }
+
+                delete upnotif;
                 break;
 
             default:
                 if (!jsonsc.storeobject())
-                {
+                {                    
+                    delete upnotif;
                     return;
                 }
         }
@@ -7293,12 +7331,25 @@ bool MegaClient::execdirectreads()
     // perform slot I/O
     for (drs_list::iterator it = drss.begin(); it != drss.end(); )
     {
-        if ((*(it++))->doio() && !r) r = true;
+        if ((*(it++))->doio())
+        {
+            r = true;
+            break;
+        }
     }
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
     {
-        dsdrns.begin()->second->dispatch();
+        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurl.size() || dsdrns.begin()->second->pendingcmd))
+        {
+            LOG_warn << "DirectRead scheduled retry";
+            dsdrns.begin()->second->retry(API_EAGAIN);
+        }
+        else
+        {
+            LOG_debug << "Dispatching scheduled streaming";
+            dsdrns.begin()->second->dispatch();
+        }
     }
 
     return r;
@@ -8782,6 +8833,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             app->transfer_added(t);
+
+            if (overquotauntil && overquotauntil > Waiter::ds)
+            {
+                t->bt.backoff(overquotauntil - Waiter::ds);
+            }
         }
 
         f->file_it = t->files.insert(t->files.begin(), f);
@@ -9015,6 +9071,16 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
     }
 
     return userpriv;
+}
+
+void MegaClient::grantAccessInChat(handle chatid, handle h, const char *uid)
+{
+    reqs.add(new CommandChatGrantAccess(this, chatid, h, uid));
+}
+
+void MegaClient::removeAccessInChat(handle chatid, handle h, const char *uid)
+{
+    reqs.add(new CommandChatRemoveAccess(this, chatid, h, uid));
 }
 
 #endif

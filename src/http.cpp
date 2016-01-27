@@ -263,8 +263,8 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 
     if (!getfromnetwork || !dnsservers->size())
     {
-        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
         *dnsservers = MEGA_DNS_SERVERS;
+        LOG_info << "Using hardcoded MEGA DNS servers: " << *dnsservers;
     }
     else
     {
@@ -278,6 +278,7 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     {
         LOG_warn << "Ensuring that the request is finished before sending it again";
         httpio->cancel(this);
+        init();
     }
 
     httpio = client->httpio;
@@ -311,6 +312,7 @@ void HttpReq::disconnect()
     {
         httpio->cancel(this);
         httpio = NULL;
+        init();
     }
 
     chunked = false;
@@ -319,25 +321,16 @@ void HttpReq::disconnect()
 HttpReq::HttpReq(bool b)
 {
     binary = b;
-
     status = REQ_READY;
-    httpstatus = 0;
     buf = NULL;
-
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
-
-    inpurge = 0;
-    
     chunked = false;
-    sslcheckfailed = false;
-
     type = REQ_JSON;
     buflen = 0;
-    bufpos = 0;
-    contentlength = 0;
-    lastdata = 0;
+
+    init();
 }
 
 HttpReq::~HttpReq()
@@ -348,6 +341,17 @@ HttpReq::~HttpReq()
     }
 
     delete[] buf;
+}
+
+void HttpReq::init()
+{
+    httpstatus = 0;
+    inpurge = 0;
+    sslcheckfailed = false;
+    bufpos = 0;
+    contentlength = 0;
+    timeleft = 0;
+    lastdata = 0;
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)

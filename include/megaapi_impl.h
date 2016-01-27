@@ -34,6 +34,11 @@
 #include "mega/proxy.h"
 #include "megaapi.h"
 
+#ifdef HAVE_LIBUV
+#include "uv.h"
+#include "mega/mega_http_parser.h"
+#endif
+
 #ifndef _WIN32
     #if (!defined(USE_CURL_PUBLIC_KEY_PINNING)) || defined(WINDOWS_PHONE)
     #include <openssl/ssl.h>
@@ -115,6 +120,10 @@ class MegaGfxProc : public GfxProcExternal {};
     class MegaFileSystemAccess : public PosixFileSystemAccess {};
     class MegaWaiter : public PosixWaiter {};
     #endif
+#endif
+
+#ifdef HAVE_LIBUV
+class MegaHTTPServer;
 #endif
 
 class MegaDbAccess : public SqliteDbAccess
@@ -329,8 +338,9 @@ class MegaTransferPrivate : public MegaTransfer
         void setPublicNode(MegaNode *publicNode);
         void setSyncTransfer(bool syncTransfer);
         void setLastBytes(char *lastBytes);
-        void setLastErrorCode(error errorCode);
+        void setLastError(MegaError e);
         void setFolderTransferTag(int tag);
+        void setListener(MegaTransferListener *listener);
 
 		virtual int getType() const;
 		virtual const char * getTransferString() const;
@@ -360,7 +370,7 @@ class MegaTransferPrivate : public MegaTransfer
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
         virtual char *getLastBytes() const;
-        virtual error getLastErrorCode() const;
+        virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
 
@@ -389,7 +399,7 @@ class MegaTransferPrivate : public MegaTransfer
 
 		MegaTransferListener *listener;
         Transfer *transfer;
-        error lastError;
+        MegaError lastError;
         int folderTransferTag;
 };
 
@@ -781,6 +791,7 @@ public:
     virtual MegaHandle getHandle() const;
     virtual int getOwnPrivilege() const;
     virtual const char *getUrl() const;
+    virtual void setUrl(const char *);
     virtual int getShard() const;
     virtual const MegaTextChatPeerList *getPeerList() const;
     virtual bool isGroup() const;
@@ -803,6 +814,7 @@ public:
     virtual ~MegaTextChatListPrivate();
     virtual MegaTextChatList *copy() const;
     virtual const MegaTextChat *get(int i) const;
+    virtual MegaTextChat *get(int i);
     virtual int size() const;
 
     void addChat(MegaTextChatPrivate*);
@@ -1042,6 +1054,7 @@ class TransferQueue
         void push(MegaTransferPrivate *transfer);
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
+        void removeListener(MegaTransferListener *listener);
 };
 
 class MegaApiImpl : public MegaApp
@@ -1311,12 +1324,46 @@ class MegaApiImpl : public MegaApp
 
         bool isOnline();
 
+#ifdef HAVE_LIBUV
+        // start/stop
+        bool httpServerStart(bool localOnly = true, int port = 4443);
+        void httpServerStop();
+        int httpServerIsRunning();
+
+        // management
+        char *httpServerGetLocalLink(MegaNode *node);
+        void httpServerSetMaxBufferSize(int bufferSize);
+        int httpServerGetMaxBufferSize();
+        void httpServerSetMaxOutputSize(int outputSize);
+        int httpServerGetMaxOutputSize();
+
+        // permissions
+        void httpServerEnableFileServer(bool enable);
+        bool httpServerIsFileServerEnabled();
+        void httpServerEnableFolderServer(bool enable);
+        bool httpServerIsFolderServerEnabled();
+        void httpServerSetRestrictedMode(int mode);
+        int httpServerGetRestrictedMode();
+        void httpServerEnableSubtitlesSupport(bool enable);
+        bool httpServerIsSubtitlesSupportEnabled();
+        bool httpServerIsLocalOnly();
+
+        void httpServerAddListener(MegaTransferListener *listener);
+        void httpServerRemoveListener(MegaTransferListener *listener);
+
+        void fireOnStreamingStart(MegaTransferPrivate *transfer);
+        void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+#endif
+
 #ifdef ENABLE_CHAT
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
         void fetchChats(MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
 #endif
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -1365,6 +1412,17 @@ protected:
         MegaFileSystemAccess *fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
+
+#ifdef HAVE_LIBUV
+        MegaHTTPServer *httpServer;
+        int httpServerMaxBufferSize;
+        int httpServerMaxOutputSize;
+        bool httpServerEnableFiles;
+        bool httpServerEnableFolders;
+        int httpServerRestrictedMode;
+        bool httpServerSubtitlesSupportEnabled;
+        set<MegaTransferListener *> httpServerListeners;
+#endif
 		
         RequestQueue requestQueue;
         TransferQueue transferQueue;
@@ -1514,9 +1572,8 @@ protected:
         virtual void transfer_added(Transfer*);
         virtual void transfer_removed(Transfer*);
         virtual void transfer_prepare(Transfer*);
-        virtual void transfer_failed(Transfer*, error error);
+        virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
-        virtual void transfer_limit(Transfer*);
         virtual void transfer_complete(Transfer*);
 
         virtual dstime pread_failure(error, int, void*);
@@ -1536,6 +1593,9 @@ protected:
         virtual void chatremove_result(error);
         virtual void chaturl_result(error);
         virtual void chaturl_result(string*, error);
+        virtual void chatgrantaccess_result(error);
+        virtual void chatremoveaccess_result(error);
+
         virtual void chats_updated(textchat_vector *);
 #endif
 
@@ -1626,6 +1686,150 @@ public:
     virtual bool read(byte *buffer, unsigned size);
     virtual ~FileInputStream();
 };
+
+#ifdef HAVE_LIBUV
+class StreamingBuffer
+{
+public:
+    StreamingBuffer();
+    ~StreamingBuffer();
+    void init(unsigned int capacity);
+    unsigned int append(const char *buf, unsigned int len);
+    unsigned int availableData();
+    unsigned int availableSpace();
+    unsigned int availableCapacity();
+    uv_buf_t nextBuffer();
+    void freeData(unsigned int len);
+    void setMaxBufferSize(unsigned int bufferSize);
+    void setMaxOutputSize(unsigned int outputSize);
+
+    static const unsigned int MAX_BUFFER_SIZE = 2097152;
+    static const unsigned int MAX_OUTPUT_SIZE = 16384;
+
+protected:
+    char *buffer;
+    unsigned int capacity;
+    unsigned int size;
+    unsigned int free;
+    unsigned int inpos;
+    unsigned int outpos;
+    unsigned int maxBufferSize;
+    unsigned int maxOutputSize;
+};
+
+class MegaHTTPServer;
+class MegaHTTPContext : public MegaTransferListener, public MegaRequestListener
+{
+public:
+    MegaHTTPContext();
+
+    // Connection management
+    MegaHTTPServer *server;
+    StreamingBuffer streamingBuffer;
+    MegaTransferPrivate *transfer;
+    uv_tcp_t tcphandle;
+    uv_async_t asynchandle;
+    http_parser parser;
+    uv_mutex_t mutex;
+    MegaApiImpl *megaApi;
+    m_off_t bytesWritten;
+    m_off_t size;
+    char *lastBuffer;
+    int lastBufferLen;
+    bool nodereceived;
+    bool finished;
+    bool failed;
+    bool pause;
+
+    // Request information
+    bool range;
+    m_off_t rangeStart;
+    m_off_t rangeEnd;
+    m_off_t rangeWritten;
+    MegaNode *node;
+    std::string path;
+    std::string nodehandle;
+    std::string nodekey;
+    std::string nodename;
+    int resultCode;
+
+    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
+class MegaHTTPServer
+{
+protected:
+    static void *threadEntryPoint(void *param);
+    static http_parser_settings parsercfg;
+
+    set<handle> allowedHandles;
+    handle lastHandle;
+    list<MegaHTTPContext*> connections;
+    uv_async_t exit_handle;
+    MegaApiImpl *megaApi;
+    uv_sem_t semaphore;
+    MegaThread thread;
+    uv_tcp_t server;
+    int maxBufferSize;
+    int maxOutputSize;
+    bool fileServerEnabled;
+    bool folderServerEnabled;
+    bool subtitlesSupportEnabled;
+    int restrictedMode;
+    bool localOnly;
+    bool started;
+    int port;
+
+    // libuv callbacks
+    static void onNewClient(uv_stream_t* server_handle, int status);
+    static void onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf);
+    static void allocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf);
+    static void onClose(uv_handle_t* handle);
+    static void onAsyncEventClose(uv_handle_t* handle);
+    static void onAsyncEvent(uv_async_t* handle);
+    static void onCloseRequested(uv_async_t* handle);
+    static void onWriteFinished(uv_write_t* req, int status);
+
+    // HTTP parser callback
+    static int onMessageBegin(http_parser* parser);
+    static int onHeadersComplete(http_parser* parser);
+    static int onUrlReceived(http_parser* parser, const char* url, size_t length);
+    static int onHeaderField(http_parser* parser, const char* at, size_t length);
+    static int onHeaderValue(http_parser* parser, const char* at, size_t length);
+    static int onBody(http_parser* parser, const char* at, size_t length);
+    static int onMessageComplete(http_parser* parser);
+
+    void run();
+    static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
+    static void sendNextBytes(MegaHTTPContext *httpctx);
+    static int streamNode(MegaHTTPContext *httpctx);
+
+public:
+    MegaHTTPServer(MegaApiImpl *megaApi);
+    virtual ~MegaHTTPServer();
+    bool start(int port, bool localOnly = true);
+    void stop();
+    int getPort();
+    bool isLocalOnly();
+    void setMaxBufferSize(int bufferSize);
+    void setMaxOutputSize(int outputSize);
+    int getMaxBufferSize();
+    int getMaxOutputSize();
+    void enableFileServer(bool enable);
+    void enableFolderServer(bool enable);
+    void setRestrictedMode(int mode);
+    bool isFileServerEnabled();
+    bool isFolderServerEnabled();
+    int getRestrictedMode();
+    bool isHandleAllowed(handle h);
+    void clearAllowedHandles();
+    char* getLink(MegaNode *node);
+    bool isSubtitlesSupportEnabled();
+    void enableSubtitlesSupport(bool enable);
+};
+#endif
 
 }
 

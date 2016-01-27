@@ -172,6 +172,9 @@ struct MEGA_API HttpReq
     // we assume that API responses are smaller than 4 GB
     m_off_t contentlength;
 
+    // time left related to a bandwidth overquota
+    m_time_t timeleft;
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 
@@ -216,6 +219,7 @@ struct MEGA_API HttpReq
 
     HttpReq(bool = false);
     virtual ~HttpReq();
+    void init();
 };
 
 // file chunk I/O

@@ -64,8 +64,8 @@
 #include <windows.h>
 
 #ifndef WINDOWS_PHONE
- #include <Wincrypt.h>
- #include <Winhttp.h>
+ #include <wincrypt.h>
+ #include <winhttp.h>
 #endif
 
 #include <shellapi.h>
@@ -74,6 +74,7 @@
 #define snprintf mega_snprintf
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#define strtoull _strtoui64
 #define _CRT_SECURE_NO_WARNINGS
 
 // FIXME: move to auto-generated file

@@ -82,7 +82,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int tag;
 
     // signal failure
-    void failed(error);
+    void failed(error, dstime = 0);
 
     // signal completion
     void complete();
@@ -101,6 +101,12 @@ struct MEGA_API DirectReadSlot
 {
     m_off_t pos;
 
+    // values to calculate the transfer speed
+    static const int MEAN_SPEED_INTERVAL_DS = 100;
+    static const int MIN_BYTES_PER_SECOND = 1024 * 15;
+    static const int TIMEOUT_DS = 100;
+    static const int TEMPURL_TIMEOUT_DS = 3000;
+
     DirectRead* dr;
     HttpReq* req;
 
@@ -116,6 +122,7 @@ struct MEGA_API DirectRead
 {
     m_off_t count;
     m_off_t offset;
+    m_off_t progress;
 
     DirectReadNode* drn;
     DirectReadSlot* drs;
@@ -137,6 +144,8 @@ struct MEGA_API DirectReadNode
 {
     handle h;
     bool p;
+    m_off_t partiallen;
+    dstime partialstarttime;
 
     string tempurl;
 
