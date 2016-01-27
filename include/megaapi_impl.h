@@ -1291,6 +1291,12 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();
+
+        void setDefaultFilePermissions(int permissions);
+        int getDefaultFilePermissions();
+        void setDefaultFolderPermissions(int permissions);
+        int getDefaultFolderPermissions();
+
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 

@@ -67,6 +67,8 @@ public:
 #endif
 
     bool notifyerr;
+    int defaultfilepermissions;
+    int defaultfolderpermissions;
 
     FileAccess* newfileaccess();
     DirAccess* newdiraccess();
@@ -96,6 +98,11 @@ public:
     void osversion(string*) const;
 
     static void emptydirlocal(string*, dev_t = 0);
+
+    int getdefaultfilepermissions();
+    void setdefaultfilepermissions(int);
+    int getdefaultfolderpermissions();
+    void setdefaultfolderpermissions(int);
 
     PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();

@@ -4369,7 +4369,27 @@ MegaNode* MegaApiImpl::getRubbishNode()
     sdkMutex.lock();
     MegaNode *result = MegaNodePrivate::fromNode(client->nodebyhandle(client->rootnodes[2]));
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::setDefaultFilePermissions(int permissions)
+{
+    fsAccess->setdefaultfilepermissions(permissions);
+}
+
+int MegaApiImpl::getDefaultFilePermissions()
+{
+    return fsAccess->getdefaultfilepermissions();
+}
+
+void MegaApiImpl::setDefaultFolderPermissions(int permissions)
+{
+    fsAccess->setdefaultfolderpermissions(permissions);
+}
+
+int MegaApiImpl::getDefaultFolderPermissions()
+{
+    return fsAccess->getdefaultfolderpermissions();
 }
 
 bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)

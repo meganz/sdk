@@ -152,7 +152,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
-    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY, 0600)) >= 0)
+    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY, defaultfilepermissions)) >= 0)
     {
         if (!fstat(fd, &statbuf))
         {
@@ -190,6 +190,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     notifyerr = false;
     notifyfailed = true;
     notifyfd = -1;
+
+    defaultfilepermissions = 0600;
+    defaultfolderpermissions = 0700;
 
     localseparator = "/";
 
@@ -624,7 +627,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
     if ((sfd = open(oldname->c_str(), O_RDONLY | O_DIRECT)) >= 0)
     {
         LOG_verbose << "Copying via sendfile";
-        if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0600)) >= 0)
+        if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, defaultfilepermissions)) >= 0)
         {
             while ((t = sendfile(tfd, sfd, NULL, 1024 * 1024 * 1024)) > 0);
 #else
@@ -633,7 +636,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
     if ((sfd = open(oldname->c_str(), O_RDONLY)) >= 0)
     {
         LOG_verbose << "Copying via read/write";
-        if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600)) >= 0)
+        if ((tfd = open(newname->c_str(), O_WRONLY | O_CREAT | O_TRUNC, defaultfilepermissions)) >= 0)
         {
             while (((t = read(sfd, buf, sizeof buf)) > 0) && write(tfd, buf, t) == t);
 #endif
@@ -745,6 +748,26 @@ void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
     }
 }
 
+int PosixFileSystemAccess::getdefaultfilepermissions()
+{
+    return defaultfilepermissions;
+}
+
+void PosixFileSystemAccess::setdefaultfilepermissions(int permissions)
+{
+    defaultfilepermissions = permissions | 0600;
+}
+
+int PosixFileSystemAccess::getdefaultfolderpermissions()
+{
+    return defaultfolderpermissions;
+}
+
+void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
+{
+    defaultfolderpermissions = permissions | 0700;
+}
+
 bool PosixFileSystemAccess::rmdirlocal(string* name)
 {
     emptydirlocal(name);
@@ -758,7 +781,7 @@ bool PosixFileSystemAccess::rmdirlocal(string* name)
 
 bool PosixFileSystemAccess::mkdirlocal(string* name, bool)
 {
-    bool r = !mkdir(name->c_str(), 0700);
+    bool r = !mkdir(name->c_str(), defaultfolderpermissions);
 
     if (!r)
     {
