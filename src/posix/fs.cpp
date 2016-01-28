@@ -28,9 +28,10 @@
 #include <sys/ioctl.h>
 
 namespace mega {
-PosixFileAccess::PosixFileAccess()
+PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
 {
     fd = -1;
+    this->defaultfilepermissions = defaultfilepermissions;
 
 #ifndef HAVE_FDOPENDIR
     dp = NULL;
@@ -931,7 +932,7 @@ fsfp_t PosixDirNotify::fsfingerprint()
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {
-    return new PosixFileAccess();
+    return new PosixFileAccess(defaultfilepermissions);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

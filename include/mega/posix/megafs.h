@@ -112,6 +112,7 @@ class MEGA_API PosixFileAccess : public FileAccess
 {
 public:
     int fd;
+    int defaultfilepermissions;
 
 #ifndef HAVE_FDOPENDIR
     DIR* dp;
@@ -128,7 +129,7 @@ public:
     bool sysopen();
     void sysclose();
 
-    PosixFileAccess();
+    PosixFileAccess(int defaultfilepermissions = 0600);
     ~PosixFileAccess();
 };
 
