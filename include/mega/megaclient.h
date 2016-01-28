@@ -404,7 +404,7 @@ private:
     bool legacydb();
 
     // open/create state cache database table
-    DbTable *opensctablev7();
+    DbTable *opensctablelegacy();
 
     // open/create state cache database table
     bool converttable();

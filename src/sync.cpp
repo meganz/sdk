@@ -101,7 +101,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->openv7(client->fsaccess, &dbname);
+            statecachetable = client->dbaccess->openlegacy(client->fsaccess, &dbname);
 
             readstatecache();
         }

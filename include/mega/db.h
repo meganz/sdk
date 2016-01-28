@@ -177,11 +177,12 @@ public:
 
 struct MEGA_API DbAccess
 {
-    static const int LEGACY_DB_VERSION = 7;
-    static const int DB_VERSION = 8;
+    static const int LEGACY_DB_VERSION = 8;
+    static const int DB_VERSION = 9;
 
     DbAccess();
-    virtual DbTable* openv7(FileSystemAccess*, string*) = 0;
+    virtual DbTable* openlegacy(FileSystemAccess*, string*) = 0;
+    virtual DbTable* open(FileSystemAccess*, string*, SymmCipher *key) = 0;
     virtual bool legacydb(FileSystemAccess *fsaccess, string*) = 0;
 
     virtual ~DbAccess() { }

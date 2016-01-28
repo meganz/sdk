@@ -5772,7 +5772,7 @@ void MegaClient::login(const byte* session, int size)
 
         if (legacydb()) // if working with a legacy DB, read 'scsn' from it
         {
-            sctablev7 = opensctablev7();
+            sctablev7 = opensctablelegacy();
             if (sctablev7 && sctablev7->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
             {
                 cachedscsn = MemAccess::get<handle>(t.data());
@@ -5949,7 +5949,7 @@ bool MegaClient::legacydb()
     return false;
 }
 
-DbTable* MegaClient::opensctablev7()
+DbTable* MegaClient::opensctablelegacy()
 {
     DbTable *sctable = NULL;
 
@@ -5960,7 +5960,7 @@ DbTable* MegaClient::opensctablev7()
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
-        sctable = dbaccess->openv7(fsaccess, &dbname);
+        sctable = dbaccess->openlegacy(fsaccess, &dbname);
     }
 
     return sctable;

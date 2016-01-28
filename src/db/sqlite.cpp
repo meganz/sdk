@@ -40,69 +40,48 @@ bool SqliteDbAccess::legacydb(FileSystemAccess *fsaccess, string* name)
 {
     bool result = false;
 
-    string dbdirv7 = dbpath + "megaclient_statecache7_" + *name + ".db";
-    string dbdirv8 = dbpath + "megaclient_statecache8_" + *name + ".db";
+    ostringstream oss;
+    oss << dbpath;
+    oss << "megaclient_statecache";
+    oss << LEGACY_DB_VERSION;
+    oss << "_" << *name << ".db";
+
+    string dbfileOld = oss.str();
+
+    oss.flush();
+    oss << dbpath;
+    oss << "megaclient_statecache";
+    oss << DB_VERSION;
+    oss << "_" << *name << ".db";
+
+    string dbfileNew = oss.str();
 
     FileAccess *fa = fsaccess->newfileaccess();
-    if (!fa->fopen(&dbdirv8))
+    if (!fa->fopen(&dbfileNew))
     {
         fa->closef();
 
         // if current version not available, check previous version
-        result = fa->fopen(&dbdirv7);
+        result = fa->fopen(&dbfileOld);
     }
 
     delete fa;
     return result;
 }
 
-DbTable* SqliteDbAccess::openv7(FileSystemAccess* fsaccess, string* name)
+DbTable* SqliteDbAccess::openlegacy(FileSystemAccess* fsaccess, string* name)
 {
-    //Each table will use its own database object and its own file
     sqlite3* db;
-    string dbfile;
+
     ostringstream legacyoss;
     legacyoss << dbpath;
     legacyoss << "megaclient_statecache";
     legacyoss << LEGACY_DB_VERSION;
     legacyoss << "_" << *name << ".db";
-    string legacydbpath = legacyoss.str();
 
-    string locallegacydbpath;
-    FileAccess *fa = fsaccess->newfileaccess();
-    fsaccess->path2local(&legacydbpath, &locallegacydbpath);
-    bool legacydbavailable = fa->fopen(&locallegacydbpath);
-    delete fa;
-
-    if (legacydbavailable)
-    {
-        if (currentDbVersion == LEGACY_DB_VERSION)
-        {
-            LOG_debug << "Using a legacy DB";
-            dbfile = legacydbpath;
-        }
-        else
-        {
-            LOG_debug << "Legacy DB is outdated. Deleting.";
-            fsaccess->unlinklocal(&locallegacydbpath);
-        }
-    }
-
-    if (!dbfile.size())
-    {
-        ostringstream newoss;
-        newoss << dbpath;
-        newoss << "megaclient_statecache";
-        newoss << DB_VERSION;
-        newoss << "_" << *name << ".db";
-
-        LOG_debug << "Using an upgraded DB";
-        dbfile = newoss.str();
-        currentDbVersion = DB_VERSION;
-    }
+    string dbfile = legacyoss.str();
 
     int rc;
-
     rc = sqlite3_open(dbfile.c_str(), &db);
 
     if (rc)
@@ -123,7 +102,7 @@ DbTable* SqliteDbAccess::openv7(FileSystemAccess* fsaccess, string* name)
         return NULL;
     }
 
-    return new SqliteDbTable(db, fsaccess, &dbdir, NULL);
+    return new SqliteDbTable(db, fsaccess, &dbfile, NULL);
 }
 
 DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCipher *key)
@@ -138,10 +117,16 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
         LOG_warn << "Cannot establish multithread mode for Sqlite";
     }
 
-    string dbdir = dbpath + "megaclient_statecache8_" + *name + ".db";
+    ostringstream oss;
+    oss << dbpath;
+    oss << "megaclient_statecache";
+    oss << DB_VERSION;
+    oss << "_" << *name << ".db";
+
+    string dbfile = oss.str();
 
     int rc;
-    rc = sqlite3_open(dbdir.c_str(), &db);
+    rc = sqlite3_open(dbfile.c_str(), &db);
 
     if (rc)
     {
@@ -259,7 +244,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
             return NULL;
     }
 
-    return new SqliteDbTable(db, fsaccess, &dbdir, key);
+    return new SqliteDbTable(db, fsaccess, &dbfile, key);
 }
 
 SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepath, SymmCipher *key)
