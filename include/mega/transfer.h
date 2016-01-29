@@ -28,7 +28,7 @@
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
-struct MEGA_API Transfer : public FileFingerprint, Cachable
+struct MEGA_API Transfer : public FileFingerprint
 {
     // PUT or GET
     direction_t type;

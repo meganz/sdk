@@ -83,6 +83,11 @@ struct MEGA_API File: public FileFingerprint
 
     File();
     virtual ~File();
+
+    // serialize the File object
+    virtual bool serialize(string*);
+
+    static File* unserialize(string*);
 };
 
 struct MEGA_API SyncFileGet: public File

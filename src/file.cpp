@@ -45,6 +45,103 @@ File::~File()
     }
 }
 
+bool File::serialize(string *d)
+{
+    if (!FileFingerprint::serialize(d))
+    {
+        LOG_err << "Error serializing File: Unable to serialize FileFingerprint";
+        return false;
+    }
+
+    unsigned short ll;
+
+    ll = name.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(name.data(), ll);
+
+    ll = localname.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(localname.data(), ll);
+
+    ll = auth.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(auth.data(), ll);
+
+    d->append((const char*)&h, sizeof(h));
+    d->append((const char*)&hprivate, sizeof(hprivate));
+    d->append((const char*)filekey, sizeof(filekey));
+
+    return true;
+}
+
+File *File::unserialize(string *d)
+{
+    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    if (!fp)
+    {
+        LOG_err << "Error unserializing File: Unable to unserialize FileFingerprint";
+        return NULL;
+    }
+
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - serialized string too short";
+        return NULL;
+    }
+
+    // read name
+    unsigned short namelen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(namelen);
+    if (ptr + namelen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - name too long";
+        return NULL;
+    }
+    const char *name = ptr;
+    ptr += namelen;
+
+    // read localname
+    unsigned short localnamelen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(localnamelen);
+    if (ptr + localnamelen + sizeof(unsigned short) > end)
+    {
+        LOG_err << "File unserialization failed - localname too long";
+        return NULL;
+    }
+    const char *localname = ptr;
+    ptr += localnamelen;
+
+    // read auth
+    unsigned short authlen = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(authlen);
+    if (ptr + authlen + sizeof(handle) + sizeof(bool) + FILENODEKEYLENGTH > end)
+    {
+        LOG_err << "File unserialization failed - auth too long";
+        return NULL;
+    }
+    const char *auth = ptr;
+    ptr += authlen;
+
+    File *file = new File();
+    *(FileFingerprint *)file = *(FileFingerprint *)fp;
+
+    file->name.assign(name, namelen);
+    file->localname.assign(localname, localnamelen);
+    file->auth.assign(auth, authlen);
+
+    file->h = MemAccess::get<handle>(ptr);
+    ptr += sizeof(handle);
+
+    file->hprivate = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
+    return file;
+}
+
 void File::prepare()
 {
     transfer->localfilename = localname;
