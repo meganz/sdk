@@ -398,13 +398,13 @@ private:
     void opensctable();
 
     // legacy local cache
-    DbTable *sctablev7;
+    DbTable *legacysctable;
 
     // check existence of legacy db to convert
     bool legacydb();
 
     // open/create state cache database table
-    DbTable *opensctablelegacy();
+    DbTable *openlegacysctable();
 
     // open/create state cache database table
     bool converttable();

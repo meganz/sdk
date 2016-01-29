@@ -689,7 +689,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
 {
     sctable = NULL;
-    sctablev7 = NULL;
+    legacysctable = NULL;
     cachednodes = NULL;
     me = UNDEF;
     followsymlinks = false;
@@ -792,7 +792,7 @@ MegaClient::~MegaClient()
     delete loadbalancingcs;
     delete dbthread;
     delete sctable;
-    delete sctablev7;
+    delete legacysctable;
     delete cachednodes;
     delete dbaccess;
 }
@@ -5168,7 +5168,7 @@ void MegaClient::readokelement(JSON* j)
 
                 if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
                 {
-                    newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                    newshares.push_back(new NewShare((h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
                 }
                 return;
 
@@ -5772,8 +5772,8 @@ void MegaClient::login(const byte* session, int size)
 
         if (legacydb()) // if working with a legacy DB, read 'scsn' from it
         {
-            sctablev7 = opensctablelegacy();
-            if (sctablev7 && sctablev7->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
+            legacysctable = openlegacysctable();
+            if (legacysctable && legacysctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
             {
                 cachedscsn = MemAccess::get<handle>(t.data());
             }
@@ -5949,7 +5949,7 @@ bool MegaClient::legacydb()
     return false;
 }
 
-DbTable* MegaClient::opensctablelegacy()
+DbTable* MegaClient::openlegacysctable()
 {
     DbTable *sctable = NULL;
 
@@ -5977,10 +5977,10 @@ bool MegaClient::converttable()
 
     LOG_info << "Converting database v7 to v8...";
 
-    sctablev7->begin();
-    sctablev7->rewind();
+    legacysctable->begin();
+    legacysctable->rewind();
 
-    while (sctablev7->next(&id, &data, &key))
+    while (legacysctable->next(&id, &data, &key))
     {
         switch (id & 15)
         {
@@ -6661,7 +6661,10 @@ void MegaClient::notifynode(pnode_t n)
             n->localnode->deleted = n->changed.removed;
         }
 
-        if (n->parenthandle != UNDEF && nodebyhandle(n->parenthandle)->localnode && (!n->localnode || (n->localnode->parent != nodebyhandle(n->parenthandle)->localnode)))
+        pnode_t pn;
+
+        if ((n->parenthandle != UNDEF) && (pn = nodebyhandle(n->parenthandle)) && pn->localnode && (!n->localnode || (n->localnode->parent != pn->localnode)))
+//        if (n->parenthandle != UNDEF && nodebyhandle(n->parenthandle)->localnode && (!n->localnode || (n->localnode->parent != nodebyhandle(n->parenthandle)->localnode)))
         {
             if (n->localnode)
             {
@@ -6674,11 +6677,11 @@ void MegaClient::notifynode(pnode_t n)
                 {
                     if (n->type == FOLDERNODE)
                     {
-                        app->syncupdate_remote_folder_addition(nodebyhandle(n->parenthandle)->localnode->sync, n);
+                        app->syncupdate_remote_folder_addition(pn->localnode->sync, n);
                     }
                     else
                     {
-                        app->syncupdate_remote_file_addition(nodebyhandle(n->parenthandle)->localnode->sync, n);
+                        app->syncupdate_remote_file_addition(pn->localnode->sync, n);
                     }
                 }
                 else
@@ -7367,14 +7370,14 @@ void MegaClient::fetchnodes()
         cachednodes->clear();
     }
 
-    if (loggedin() == FULLACCOUNT && sctable && sctablev7 && !ISUNDEF(cachedscsn))
+    if (loggedin() == FULLACCOUNT && sctable && legacysctable && !ISUNDEF(cachedscsn))
     {
         converttable();
 
-        // rename the table v7 to avoid conversion next time
-        sctablev7->remove();
-        delete sctablev7;
-        sctablev7 = NULL;
+        // rename the legacy table to avoid conversion next time
+        legacysctable->remove();
+        delete legacysctable;
+        legacysctable = NULL;
     }
 
     // only initial load from local cache

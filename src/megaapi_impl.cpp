@@ -4889,11 +4889,11 @@ MegaShareList* MegaApiImpl::getInSharesList()
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         User *user = &(it->second);
-        Node *n;
+        pnode_t n;
 
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
-            if ((n = client->nodebyhandle(*sit)) && !n->parent)
+            if ((n = client->nodebyhandle(*sit)) && !client->nodebyhandle(n->parenthandle))
             {
                 vShares.push_back(n->inshare);
                 vHandles.push_back(n->nodehandle);
@@ -9627,7 +9627,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SET_ATTR_NODE:
         {
-            Node *node = client->nodebyhandle(request->getNodeHandle());
+            pnode_t node = client->nodebyhandle(request->getNodeHandle());
             const char* attrName = request->getName();
             const char* attrValue = request->getText();
 
@@ -13365,7 +13365,7 @@ PublicLinkProcessor::PublicLinkProcessor()
 
 }
 
-bool PublicLinkProcessor::processNode(Node *node)
+bool PublicLinkProcessor::processNode(pnode_t node)
 {
     if(!node->outshares)
     {
@@ -13386,7 +13386,7 @@ bool PublicLinkProcessor::processNode(Node *node)
 
 PublicLinkProcessor::~PublicLinkProcessor() {}
 
-vector<Node *> &PublicLinkProcessor::getNodes()
+node_vector &PublicLinkProcessor::getNodes()
 {
     return nodes;
 }

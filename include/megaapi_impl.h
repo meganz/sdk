@@ -991,12 +991,12 @@ class PublicLinkProcessor : public TreeProcessor
 {
     public:
         PublicLinkProcessor();
-        virtual bool processNode(Node* node);
+        virtual bool processNode(pnode_t node);
         virtual ~PublicLinkProcessor();
-        vector<Node *> &getNodes();
+        node_vector &getNodes();
 
     protected:
-        vector<Node *> nodes;
+        node_vector nodes;
 };
 
 class SizeProcessor : public TreeProcessor
