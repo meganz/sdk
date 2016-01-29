@@ -938,7 +938,12 @@ struct MegaFileGet : public MegaFile
     void terminated();
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
-	~MegaFileGet() {}
+    ~MegaFileGet() {}
+
+    static MegaFileGet* unserialize(string*);
+
+private:
+    MegaFileGet() {}
 };
 
 struct MegaFilePut : public MegaFile

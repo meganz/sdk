@@ -2317,6 +2317,20 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     }
 }
 
+MegaFileGet *MegaFileGet::unserialize(string *d)
+{
+    File *file = File::unserialize(d);
+    if (!file)
+    {
+        LOG_err << "Error unserializing MegaFileGet: Unable to unserialize File";
+        return NULL;
+    }
+
+    MegaFileGet *megaFile = new MegaFileGet();
+    *(File *)megaFile = *(File *)file;
+    return megaFile;
+}
+
 void MegaFileGet::prepare()
 {
     if (!transfer->localfilename.size())
