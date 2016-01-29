@@ -5168,7 +5168,7 @@ void MegaClient::readokelement(JSON* j)
 
                 if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
                 {
-                    newshares.push_back(new NewShare((h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                    newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
                 }
                 return;
 
