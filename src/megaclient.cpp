@@ -5975,7 +5975,7 @@ bool MegaClient::converttable()
     PendingContactRequest* pcr;
     node_vector dp;
 
-    LOG_info << "Converting database v7 to v8...";
+    LOG_info << "Converting legacy database to the new format...";
 
     legacysctable->begin();
     legacysctable->rewind();

@@ -1754,11 +1754,11 @@ void NodesCache::add(pnode_t n)
     }
 }
 
-// try to free unused references until the size is less than `maxsize`
+// try to free unused references from the back until the size is less than `maxsize`
 void NodesCache::freespace()
 {
     // if cache is full, discard the less recently used node
-    for (itn = nodes.end(); ((nodes.size() > maxsize) && (itn != nodes.begin())); itn--)
+    for (itn = --nodes.end(); ((nodes.size() > maxsize) && (itn != nodes.begin())); itn--)
     {
         if (itn->unique())   // if there aren't pending references out there...
         {
