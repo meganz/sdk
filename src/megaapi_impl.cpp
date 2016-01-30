@@ -4229,7 +4229,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(localPath, parent, fileName, -1, 0, listener); }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long startPos, long endPos, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -4253,16 +4253,12 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
         if(node->isPublic())
             transfer->setPublicNode(node);
     }
-	transfer->setStartPos(startPos);
-	transfer->setEndPos(endPos);
+
 	transfer->setMaxRetries(maxRetries);
 
 	transferQueue.push(transfer);
 	waiter->notify();
 }
-
-void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(node, localFolder, 0, 0, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
