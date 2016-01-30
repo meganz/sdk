@@ -139,6 +139,9 @@ File *File::unserialize(string *d)
     ptr += sizeof(bool);
 
     memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
+    ptr += FILENODEKEYLENGTH;
+
+    d->erase(0, ptr - d->data());
     return file;
 }
 

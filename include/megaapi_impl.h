@@ -177,7 +177,7 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 };
 
-class MegaNodePrivate : public MegaNode
+class MegaNodePrivate : public MegaNode, public Cachable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
@@ -228,6 +228,9 @@ class MegaNodePrivate : public MegaNode
 
         static MegaNode *fromNode(Node *node);
         virtual MegaNode *copy();
+
+        virtual bool serialize(string*);
+        static MegaNodePrivate* unserialize(string*);
 
     protected:
         MegaNodePrivate(Node *node);
@@ -306,7 +309,7 @@ class MegaSharePrivate : public MegaShare
 		int64_t ts;
 };
 
-class MegaTransferPrivate : public MegaTransfer
+class MegaTransferPrivate : public MegaTransfer, public Cachable
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
@@ -373,6 +376,9 @@ class MegaTransferPrivate : public MegaTransfer
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
         virtual int getFolderTransferTag() const;
+
+        virtual bool serialize(string*);
+        static MegaTransferPrivate* unserialize(string*);
 
 	protected:		
 		int type;
@@ -927,6 +933,15 @@ struct MegaFile : public File
     static int nextseqno;
     bool failed(error e);
     MegaFile();
+
+    void setTransfer(MegaTransferPrivate *transfer);
+    MegaTransferPrivate *getTransfer();
+    virtual bool serialize(string*);
+
+    static MegaFile* unserialize(string*);
+
+protected:
+    MegaTransferPrivate *megaTransfer;
 };
 
 struct MegaFileGet : public MegaFile
