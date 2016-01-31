@@ -7098,6 +7098,111 @@ bool MegaClient::fetchsc(DbTable* sctable)
     return true;
 }
 
+void MegaClient::enabletransferresumption(const char *loggedoutid)
+{
+    if (!dbaccess)
+    {
+        return;
+    }
+
+    if (!loggedoutid)
+    {
+        return;
+    }
+
+    string lok;
+    Hash hash;
+    hash.add((const byte *)loggedoutid, strlen(loggedoutid) + 1);
+    hash.get(&lok);
+    loggedOutKey.setkey((const byte*)lok.data());
+
+    string dbname = "transfercache_";
+    dbname.append(loggedoutid);
+    if (tctable)
+    {
+        delete tctable;
+    }
+    tctable = dbaccess->open(fsaccess, &dbname);
+    if (!tctable)
+    {
+        return;
+    }
+
+    uint32_t id;
+    string data;
+    Transfer* t;
+    vector<string> cachedfiles;
+
+    LOG_info << "Loading transfers from local cache";
+    tctable->rewind();
+    while (tctable->next(&id, &data, &loggedOutKey))
+    {
+        switch (id & 15)
+        {
+            case CACHEDTRANSFER:
+                if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
+                {
+                    t->dbid = id;
+                }
+                else
+                {
+                    LOG_err << "Failed - transfer record read error";
+                }
+                break;
+            case CACHEDFILE:
+                cachedfiles.push_back(data);
+                break;
+        }
+    }
+    tctable->truncate();
+
+    for (unsigned int i = 0; i < cachedfiles.size(); i++)
+    {
+        app->transfer_resume(&cachedfiles.at(i));
+    }
+
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        while (cachedtransfers[d].size())
+        {
+            transfer_map::iterator it = cachedtransfers[d].begin();
+            delete it->first;
+            delete it->second;
+            cachedtransfers[d].erase(it);
+        }
+    }
+}
+
+void MegaClient::disabletransferresumption(const char *loggedoutid)
+{
+    if (!dbaccess)
+    {
+        return;
+    }
+
+    if (tctable)
+    {
+        tctable->remove();
+        delete tctable;
+        tctable = NULL;
+    }
+
+    if (loggedoutid)
+    {
+        string dbname = "transfercache_";
+        dbname.append(loggedoutid);
+        tctable = dbaccess->open(fsaccess, &dbname);
+        if (!tctable)
+        {
+            return;
+        }
+
+        tctable->remove();
+        delete tctable;
+        tctable = NULL;
+    }
+}
+
 void MegaClient::fetchnodes()
 {
     opensctable();
@@ -8805,7 +8910,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             }
         }
 
-        Transfer* t;
+        Transfer* t = NULL;
         transfer_map::iterator it = transfers[d].find(f);
 
         if (it != transfers[d].end())
@@ -8830,9 +8935,33 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
         }
         else
         {
-            t = new Transfer(this, d);
-            *(FileFingerprint*)t = *(FileFingerprint*)f;
-            t->size = f->size;
+            it = cachedtransfers[d].find(f);
+            if (it != cachedtransfers[d].end())
+            {
+                LOG_debug << "Resumable transfer detected";
+                FileAccess* fa = fsaccess->newfileaccess();
+                if(fa->fopen(&it->second->localfilename))
+                {
+                    LOG_debug << "Resuming transfer";
+                    t = it->second;
+                }
+                else
+                {
+                    LOG_warn << "Temporary file not found";
+                    delete it->second;
+                }
+
+                delete it->first;
+                cachedtransfers[d].erase(it);
+            }
+
+            if (!t)
+            {
+                t = new Transfer(this, d);
+                *(FileFingerprint*)t = *(FileFingerprint*)f;
+                t->size = f->size;
+            }
+
             t->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
             app->transfer_added(t);

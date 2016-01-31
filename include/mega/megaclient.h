@@ -455,6 +455,9 @@ private:
     static const char PAYMENT_PUBKEY[];
 
 public:
+    void enabletransferresumption(const char *loggedoutid);
+    void disabletransferresumption(const char *loggedoutid);
+
     // application callbacks
     struct MegaApp* app;
 
@@ -556,6 +559,9 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+
+    // cached transfers (PUT/GET)
+    transfer_map cachedtransfers[2];
 
     // transfer tslots
     transferslot_list tslots;
