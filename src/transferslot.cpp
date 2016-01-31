@@ -82,11 +82,6 @@ TransferSlot::~TransferSlot()
     if (fa)
     {
         delete fa;
-
-        if ((transfer->type == GET) && transfer->localfilename.size())
-        {
-            transfer->client->fsaccess->unlinklocal(&transfer->localfilename);
-        }
     }
 
     while (connections--)
@@ -256,6 +251,7 @@ void TransferSlot::doio(MegaClient* client)
                         }
                     }
 
+                    client->transfercacheadd(transfer);
                     reqs[i]->status = REQ_READY;
                     break;
 

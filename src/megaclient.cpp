@@ -615,6 +615,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
 {
     sctable = NULL;
+    tctable = NULL;
     me = UNDEF;
     followsymlinks = false;
     usealtdownport = false;
@@ -713,6 +714,7 @@ MegaClient::~MegaClient()
     delete badhostcs;
     delete loadbalancingcs;
     delete sctable;
+    delete tctable;
     delete dbaccess;
 }
 
@@ -2207,6 +2209,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
     }
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;
+    t->finished = true;
     t->completefiles();
     app->transfer_complete(t);
     delete t;
@@ -6371,6 +6374,38 @@ void MegaClient::notifynode(Node* n)
     }
 }
 
+void MegaClient::transfercacheadd(Transfer *transfer)
+{
+    if (tctable)
+    {
+        tctable->put(MegaClient::CACHEDTRANSFER, transfer, &loggedOutKey);
+    }
+}
+
+void MegaClient::transfercachedel(Transfer *transfer)
+{
+    if (tctable)
+    {
+        tctable->del(transfer->dbid);
+    }
+}
+
+void MegaClient::filecacheadd(File *file)
+{
+    if (tctable)
+    {
+        tctable->put(MegaClient::CACHEDFILE, file, &loggedOutKey);
+    }
+}
+
+void MegaClient::filecachedel(File *file)
+{
+    if (tctable)
+    {
+        tctable->del(file->dbid);
+    }
+}
+
 // queue user for notification
 void MegaClient::notifyuser(User* u)
 {
@@ -8810,6 +8845,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
         f->file_it = t->files.insert(t->files.begin(), f);
         f->transfer = t;
+        filecacheadd(f);
     }
 
     return true;
@@ -8824,12 +8860,14 @@ void MegaClient::stopxfer(File* f)
 
         Transfer *transfer = f->transfer;
         transfer->files.erase(f->file_it);
+        filecachedel(f);
         f->transfer = NULL;
         f->terminated();
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            transfer->finished = true;
             app->transfer_removed(transfer);
             delete transfer;
         }

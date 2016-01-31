@@ -476,6 +476,8 @@ public:
     // state cache table for logged in user
     DbTable* sctable;
 
+    // transfer cache table
+    DbTable* tctable;
     // scsn as read from sctable
     handle cachedscsn;
 
@@ -494,7 +496,7 @@ public:
     HttpReq* pendingcs;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
 
     // initialize/update state cache referenced sctable
     void initsc();
@@ -594,6 +596,18 @@ public:
 
     node_vector nodenotify;
     void notifynode(Node*);
+
+    // update transfer in the persistent cache
+    void transfercacheadd(Transfer*);
+
+    // remove a transfer from the persistent cache
+    void transfercachedel(Transfer*);
+
+    // add a file to the persistent cache
+    void filecacheadd(File*);
+
+    // remove a file from the persistent cache
+    void filecachedel(File*);
 
 #ifdef ENABLE_CHAT
     textchat_vector chatnotify;
@@ -786,6 +800,9 @@ public:
     // account access: master key
     // folder link access: folder key
     SymmCipher key;
+
+    // dummy key to obfuscate non protected cache
+    SymmCipher loggedOutKey;
 
     // account access (full account): RSA key
     AsymmCipher asymkey;

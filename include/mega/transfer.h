@@ -98,6 +98,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // previous wrong fingerprint
     FileFingerprint badfp;
+
+    // transfer state
+    bool finished;
    
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();

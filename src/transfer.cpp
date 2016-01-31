@@ -41,6 +41,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     tag = 0;
     slot = NULL;
     progresscompleted = 0;
+    finished = false;
 
     faputcompletion_it = client->faputcompletion.end();
 }
@@ -55,6 +56,11 @@ Transfer::~Transfer()
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
+        if (finished)
+        {
+            client->filecachedel(*it);
+        }
+
         (*it)->transfer = NULL;
         (*it)->terminated();
     }
@@ -67,6 +73,15 @@ Transfer::~Transfer()
     if (slot)
     {
         delete slot;
+    }
+
+    if (finished)
+    {
+        if(type == GET && localfilename.size())
+        {
+            client->fsaccess->unlinklocal(&localfilename);
+        }
+        client->transfercachedel(this);
     }
 }
 
@@ -243,7 +258,7 @@ void Transfer::failed(error e, dstime timeleft)
     else
     {
         LOG_debug << "Removing transfer";
-
+        finished = true;
         client->app->transfer_removed(this);
         delete this;
     }
@@ -513,6 +528,7 @@ void Transfer::complete()
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
+                        client->filecachedel(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
                     }
@@ -524,7 +540,7 @@ void Transfer::complete()
                         if(!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
-
+                            client->filecachedel(f);
                             f->transfer = NULL;
                             f->terminated();
                         }
@@ -551,7 +567,9 @@ void Transfer::complete()
         if (!files.size())
         {
             localfilename = localname;
+            finished = true;
             client->app->transfer_complete(this);
+            localfilename.clear();
             delete this;
         }
         else
@@ -589,6 +607,7 @@ void Transfer::completefiles()
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
         // prevent deletion of associated Transfer object in completed()
+        client->filecachedel(*it);
         (*it)->transfer = NULL;
         (*it)->completed(this, NULL);
         files.erase(it++);
