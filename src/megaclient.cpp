@@ -6392,7 +6392,7 @@ void MegaClient::transfercachedel(Transfer *transfer)
 
 void MegaClient::filecacheadd(File *file)
 {
-    if (tctable)
+    if (tctable && !file->syncxfer)
     {
         tctable->put(MegaClient::CACHEDFILE, file, &loggedOutKey);
     }
@@ -6400,7 +6400,7 @@ void MegaClient::filecacheadd(File *file)
 
 void MegaClient::filecachedel(File *file)
 {
-    if (tctable)
+    if (tctable && !file->syncxfer)
     {
         tctable->del(file->dbid);
     }
