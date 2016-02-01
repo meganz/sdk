@@ -47,6 +47,9 @@ File::~File()
 
 bool File::serialize(string *d)
 {
+    char type = transfer->type;
+    d->append((const char*)&type, sizeof(type));
+
     if (!FileFingerprint::serialize(d))
     {
         LOG_err << "Error serializing File: Unable to serialize FileFingerprint";
@@ -76,6 +79,8 @@ bool File::serialize(string *d)
 
 File *File::unserialize(string *d)
 {
+    d->erase(0, 1);
+
     FileFingerprint *fp = FileFingerprint::unserialize(d);
     if (!fp)
     {
