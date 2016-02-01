@@ -4326,7 +4326,7 @@ void MegaClient::notifypurge(void)
 // return node pointer derived from node handle
 pnode_t MegaClient::nodebyhandle(handle h)
 {
-    if(h == UNDEF)
+    if(h == UNDEF || !sctable)
     {
         return NULL;
     }
