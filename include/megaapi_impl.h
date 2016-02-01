@@ -1214,6 +1214,8 @@ class MegaApiImpl : public MegaApp
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
+        void enableTransferResumption(const char* loggedOutKey);
+        void disableTransferResumption(const char* loggedOutKey);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setDownloadMethod(int method);
@@ -1595,6 +1597,7 @@ protected:
         virtual void transfer_failed(Transfer*, error error, dstime timeleft);
         virtual void transfer_update(Transfer*);
         virtual void transfer_complete(Transfer*);
+        virtual void transfer_resume(string*);
 
         virtual dstime pread_failure(error, int, void*);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);

@@ -3956,6 +3956,20 @@ void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener*
     waiter->notify();
 }
 
+void MegaApiImpl::enableTransferResumption(const char *loggedOutKey)
+{
+    sdkMutex.lock();
+    client->enabletransferresumption(loggedOutKey);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::disableTransferResumption(const char *loggedOutKey)
+{
+    sdkMutex.lock();
+    client->disabletransferresumption(loggedOutKey);
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::areTransfersPaused(int direction)
 {
     if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
@@ -6060,6 +6074,21 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     }
 }
 
+void MegaApiImpl::transfer_resume(string *d)
+{
+    MegaFileGet *file = MegaFileGet::unserialize(d);
+    if (!file)
+    {
+        return;
+    }
+
+    MegaTransferPrivate* transfer = file->getTransfer();
+    currentTransfer = transfer;
+    client->nextreqtag();
+    client->startxfer(GET, file);
+    waiter->notify();
+}
+
 dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
@@ -6656,7 +6685,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
 }
 
 void MegaApiImpl::fetchnodes_result(error e)
-{
+{    
     MegaError megaError(e);
     MegaRequestPrivate* request;
     if (!client->restag)
@@ -9103,6 +9132,7 @@ void MegaApiImpl::sendPendingTransfers()
 					}
 
 					transfer->setPath(path.c_str());
+                    f->setTransfer(transfer);
                     bool ok = client->startxfer(GET, f, true);
                     if(transfer->getTag() == -1)
                     {

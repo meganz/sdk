@@ -5396,6 +5396,9 @@ class MegaApi
          */
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener = NULL);
 
+        void enableTransferResumption(const char* loggedOutKey);
+        void disableTransferResumption(const char* loggedOutKey);
+
         /**
          * @brief Returns the state (paused/unpaused) of transfers
          * @param direction Direction of transfers to check
