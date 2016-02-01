@@ -968,8 +968,13 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1);
     ~MegaFilePut() {}
 
+    static MegaFilePut* unserialize(string*);
+
 protected:
     int64_t customMtime;
+
+private:
+    MegaFilePut() {}
 };
 
 class TreeProcessor

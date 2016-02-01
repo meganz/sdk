@@ -2667,6 +2667,22 @@ MegaFilePut::MegaFilePut(MegaClient *client, string* clocalname, string *filenam
     customMtime = mtime;
 }
 
+MegaFilePut *MegaFilePut::unserialize(string *d)
+{
+    MegaFile *file = MegaFile::unserialize(d);
+    if (!file)
+    {
+        LOG_err << "Error unserializing MegaFilePut: Unable to unserialize File";
+        return NULL;
+    }
+
+    MegaFilePut *megaFile = new MegaFilePut();
+    *(MegaFile *)megaFile = *(MegaFile *)file;
+    delete file;
+
+    return megaFile;
+}
+
 void MegaFilePut::completed(Transfer* t, LocalNode*)
 {
     if(customMtime >= 0)
