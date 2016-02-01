@@ -1981,7 +1981,10 @@ void CommandPutUA::procresult()
             delete client->chatkey;
             client->chatkey = NULL;
 
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
             client->sendevent(99406, "Failed to set keypairs");
+            client->reqtag = creqtag;
 
             client->initkeys.keypairsInitializing = false;
         }
@@ -2208,6 +2211,8 @@ void CommandGetUA::procresult()
                 }
 
                 // healing procedure for private keys
+                int creqtag = reqtag;
+                reqtag = 0;
                 if (keyringSet && (signkeyUpdated || chatkeyUpdated))
                 {
                     LOG_warn << "Updating keyring...";
@@ -2224,6 +2229,7 @@ void CommandGetUA::procresult()
                 if (!keyringSet)    // first time we see keyring, check public keys
                 {
                     LOG_info << "Keyring successufully initialized";
+
                     client->getua(user, "+puEd255");
                     client->getua(user, "+puCu255");
                 }
@@ -2241,6 +2247,8 @@ void CommandGetUA::procresult()
                     LOG_info << "Updating public key for x25519";
                     client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
                 }
+
+                reqtag = creqtag;
             }
 #endif
 
