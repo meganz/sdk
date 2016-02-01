@@ -1451,6 +1451,11 @@ bool CurlHttpIO::doio()
                 {
                     lastdata = Waiter::ds;
                 }
+                else
+                {
+                    LOG_warn << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
+                             << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
+                }
 
                 success = true;
             }
@@ -1662,6 +1667,11 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 // set contentlength according to Original-Content-Length header
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
+    if (size * nmemb > 2)
+    {
+        LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
+    }
+
     if (!memcmp(ptr, "Content-Length:", 15))
     {
         if (((HttpReq*)target)->contentlength < 0)
