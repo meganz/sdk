@@ -1141,7 +1141,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     }
     else
     {
-        if (client->sctable && client->dbaccess->currentDbVersion == DbAccess::LEGACY_DB_VERSION)
+        if (client->sctable && client->dbaccess->currentDbVersion == DbAccess::BROKEN_DB_VERSION)
         {
             LOG_debug << "Requesting a local cache upgrade";
             arg("fa", 1);

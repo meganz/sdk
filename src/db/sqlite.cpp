@@ -48,7 +48,7 @@ bool SqliteDbAccess::legacydb(FileSystemAccess *fsaccess, string* name)
 
     string dbfileOld = oss.str();
 
-    oss.flush();
+    oss.str("");
     oss << dbpath;
     oss << "megaclient_statecache";
     oss << DB_VERSION;

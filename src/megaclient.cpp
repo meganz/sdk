@@ -5780,6 +5780,8 @@ void MegaClient::login(const byte* session, int size)
         }
         else
         {
+            dbaccess->currentDbVersion = DbAccess::DB_VERSION;
+
             opensctable();
 
             if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
@@ -5933,7 +5935,7 @@ void MegaClient::opensctable()
     }
 }
 
-// v7 does exist, but v8 is not created yet
+// legacy version does exist, but current version is not created yet
 bool MegaClient::legacydb()
 {
     if (dbaccess)
@@ -6050,6 +6052,8 @@ bool MegaClient::converttable()
 
     sctable->putrootnodes(rootnodes);
     sctable->commit();
+
+    LOG_info << "DB converssion successfull!";
 
     return true;
 }
@@ -7378,6 +7382,8 @@ void MegaClient::fetchnodes()
         legacysctable->remove();
         delete legacysctable;
         legacysctable = NULL;
+
+        dbaccess->currentDbVersion = DbAccess::DB_VERSION;
     }
 
     // only initial load from local cache

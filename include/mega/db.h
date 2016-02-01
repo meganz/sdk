@@ -177,6 +177,7 @@ public:
 
 struct MEGA_API DbAccess
 {
+    static const int BROKEN_DB_VERSION = 7;
     static const int LEGACY_DB_VERSION = 8;
     static const int DB_VERSION = 9;
 
