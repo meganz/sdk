@@ -101,6 +101,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // transfer state
     bool finished;
+
+    // cached temp URL for upload/download data
+    string cachedtempurl;
    
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();

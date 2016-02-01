@@ -2118,9 +2118,17 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                reqs.add((ts->pendingcmd = (d == PUT)
+                if (nextit->second->cachedtempurl.size())
+                {
+                    ts->tempurl =  nextit->second->cachedtempurl;
+                    nextit->second->cachedtempurl.clear();
+                }
+                else
+                {
+                    reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(ts, putmbpscap)
                           : (Command*)new CommandGetFile(ts, NULL, h, hprivate, auth)));
+                }
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 

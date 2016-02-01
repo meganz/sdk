@@ -87,14 +87,19 @@ Transfer::~Transfer()
 
 bool Transfer::serialize(string *d)
 {
+    if (!slot)
+    {
+        return false;
+    }
+
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));
 
     ll = localfilename.size();
     d->append((char*)&ll, sizeof(ll));
-
     d->append(localfilename.data(), ll);
+
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
@@ -115,6 +120,11 @@ bool Transfer::serialize(string *d)
     d->append(fp.data(), ll);
 
     d->append((const char*)&size, sizeof(size));
+
+    ll = slot->tempurl.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(slot->tempurl.data(), ll);
+
     d->append("\0\0\0\0\0\0\0", 8);
 
     return true;
@@ -190,7 +200,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
-    if (ptr + ll + sizeof(m_off_t) + 8 > end)
+    if (ptr + ll + sizeof(m_off_t) + sizeof(unsigned short) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
         delete t;
@@ -209,6 +219,19 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     fp->size = t->size;
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(fp, t));
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + 8 > end)
+    {
+        LOG_err << "Transfer unserialization failed - temp URL too long";
+        delete t;
+        return NULL;
+    }
+
+    t->cachedtempurl.assign(ptr, ll);
+    ptr += ll;
 
     if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {
