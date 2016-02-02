@@ -6299,6 +6299,7 @@ void MegaClient::getua(User* u, const char* an)
                 tlv->set("*prCu255", string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
             }
 
+            restag = reqtag;
             app->getua_result(tlv);
             delete tlv;
             return;
