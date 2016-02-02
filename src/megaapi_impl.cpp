@@ -12006,6 +12006,9 @@ void MegaHTTPServer::run()
     uv_run(uv_loop, UV_RUN_DEFAULT);
 
     uv_loop_close(uv_loop);
+    started = false;
+    port = 0;
+
     LOG_debug << "HTTP server thread exit";
 }
 
@@ -12018,8 +12021,6 @@ void MegaHTTPServer::stop()
 
     uv_async_send(&exit_handle);
     thread.join();
-    started = 0;
-    port = 0;
 }
 
 int MegaHTTPServer::getPort()
@@ -12229,6 +12230,10 @@ void MegaHTTPServer::onClose(uv_handle_t* handle)
     // streaming transfers are automatically stopped when their listener is removed
     httpctx->megaApi->removeTransferListener(httpctx);
     httpctx->megaApi->removeRequestListener(httpctx);
+
+    httpctx->server->connections.remove(httpctx);
+    LOG_debug << "Connection closed: " << httpctx->server->connections.size();
+
     uv_close((uv_handle_t *)&httpctx->asynchandle, onAsyncEventClose);
 }
 
@@ -12246,10 +12251,9 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
     }
 
-    httpctx->server->connections.remove(httpctx);
-    LOG_debug << "Connection closed: " << httpctx->server->connections.size();
     delete httpctx->node;
     delete httpctx;
+    LOG_debug << "Connection deleted";
 }
 
 int MegaHTTPServer::onMessageBegin(http_parser *)
@@ -12921,7 +12925,10 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
     {
         MegaHTTPContext *httpctx = (*it);
         httpctx->finished = true;
-        uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
+        }
     }
 
     uv_close((uv_handle_t *)&httpServer->server, NULL);
@@ -13079,6 +13086,7 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
+        finished = true;
         uv_async_send(&asynchandle);
     }
 }
