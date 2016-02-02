@@ -20,7 +20,7 @@
  */
 
 #include "mega/utils.h"
-#include "logging.h"
+#include "mega/logging.h"
 
 namespace mega {
 Cachable::Cachable()
