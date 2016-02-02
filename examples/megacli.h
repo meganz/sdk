@@ -106,6 +106,9 @@ struct DemoApp : public MegaApp
     void chatinvite_result(error);
     void chatremove_result(error);
     void chaturl_result(string *, error);
+    void chatgrantaccess_result(error);
+    void chatremoveaccess_result(error);
+
     void chats_updated(textchat_vector *);
 
     void printChatInformation(TextChat *);

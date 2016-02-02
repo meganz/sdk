@@ -1470,7 +1470,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   SQLite3:          $DB_CXXFLAGS $DB_LDFLAGS $DB_LIBS
   c-ares:           $CARES_FLAGS $CARES_LDFLAGS $CARES_LIBS
   cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
-  FreeeImage:       $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
 ])

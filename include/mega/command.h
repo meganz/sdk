@@ -650,6 +650,26 @@ public:
 
     CommandChatURL(MegaClient*, handle);
 };
+
+class MEGA_API CommandChatGrantAccess : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatGrantAccess(MegaClient*, handle, handle, const char *);
+};
+
+class MEGA_API CommandChatRemoveAccess : public Command
+{
+    MegaClient *client;
+
+public:
+    void procresult();
+
+    CommandChatRemoveAccess(MegaClient*, handle, handle, const char *);
+};
 #endif
 
 

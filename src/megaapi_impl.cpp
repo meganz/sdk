@@ -898,7 +898,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setPublicNode(transfer->getPublicNode());
     this->setTransfer(transfer->getTransfer());
     this->setSyncTransfer(transfer->isSyncTransfer());
-    this->setLastErrorCode(transfer->getLastErrorCode());
+    this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
 }
 
@@ -1037,7 +1037,7 @@ char * MegaTransferPrivate::getLastBytes() const
     return lastBytes;
 }
 
-error MegaTransferPrivate::getLastErrorCode() const
+MegaError MegaTransferPrivate::getLastError() const
 {
     return this->lastError;
 }
@@ -1107,9 +1107,9 @@ void MegaTransferPrivate::setLastBytes(char *lastBytes)
     this->lastBytes = lastBytes;
 }
 
-void MegaTransferPrivate::setLastErrorCode(error errorCode)
+void MegaTransferPrivate::setLastError(MegaError e)
 {
-    this->lastError = errorCode;
+    this->lastError = e;
 }
 
 void MegaTransferPrivate::setFolderTransferTag(int tag)
@@ -1910,6 +1910,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_INVITE: return "CHAT_INVITE";
         case TYPE_CHAT_REMOVE: return "CHAT_REMOVE";
         case TYPE_CHAT_URL: return "CHAT_URL";
+        case TYPE_CHAT_GRANT_ACCESS: return "CHAT_GRANT_ACCESS";
+        case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
 	}
     return "UNKNOWN";
 }
@@ -2351,7 +2353,7 @@ int MegaFile::nextseqno = 0;
 
 bool MegaFile::failed(error e)
 {
-    return e != API_EKEY && e != API_EBLOCKED && e != API_EOVERQUOTA && transfer->failcount < 10;
+    return e != API_EKEY && e != API_EBLOCKED && transfer->failcount < 16;
 }
 
 MegaFile::MegaFile() : File()
@@ -4633,11 +4635,15 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     bool result = httpServer->start(port, localOnly);
     if (!result)
     {
-        delete httpServer;
+        MegaHTTPServer *server = httpServer;
         httpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
     }
-
-    sdkMutex.unlock();
+    else
+    {
+        sdkMutex.unlock();
+    }
     return result;
 }
 
@@ -4646,10 +4652,15 @@ void MegaApiImpl::httpServerStop()
     sdkMutex.lock();
     if (httpServer)
     {
-        delete httpServer;
+        MegaHTTPServer *server = httpServer;
         httpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
     }
-    sdkMutex.unlock();
+    else
+    {
+        sdkMutex.unlock();
+    }
 }
 
 int MegaApiImpl::httpServerIsRunning()
@@ -4919,6 +4930,35 @@ void MegaApiImpl::getUrlChat(MegaHandle chatid, MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_URL, listener);
     request->setNodeHandle(chatid);
     requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_GRANT_ACCESS, listener);
+    request->setParentHandle(chatid);
+    request->setNodeHandle(n->getHandle());
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    uid[11] = 0;
+
+    request->setEmail(uid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE_ACCESS, listener);
+    request->setParentHandle(chatid);
+    request->setNodeHandle(n->getHandle());
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::CHATHANDLE, uid);
+    uid[11] = 0;
+
+    request->setEmail(uid);
     waiter->notify();
 }
 #endif
@@ -5312,6 +5352,7 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
     {
         MegaClient::disablepkp = true;
     }
+
     client->abortbackoff();
     client->disconnect();
     sdkMutex.unlock();
@@ -5441,6 +5482,37 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     if(!n) return NULL;
 
     return MegaApi::strdup(n->getFingerprint());
+}
+
+void MegaApiImpl::transfer_failed(Transfer* tr, error e, dstime timeleft)
+{
+    if(transferMap.find(tr->tag) == transferMap.end()) return;
+    MegaError megaError(e, timeleft / 10);
+    MegaTransferPrivate* transfer = transferMap.at(tr->tag);
+    transfer->setUpdateTime(Waiter::ds);
+    transfer->setDeltaSize(0);
+    transfer->setSpeed(0);
+    transfer->setLastError(megaError);
+
+    if (e == API_EOVERQUOTA && timeleft)
+    {
+        LOG_warn << "Bandwidth overquota";
+        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+        {
+            for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+            {
+                Transfer *t = it->second;
+                t->bt.backoff(timeleft);
+                if (t->slot)
+                {
+                    t->slot->retrybt.backoff(timeleft);
+                    t->slot->retrying = true;
+                }
+            }
+        }
+    }
+
+    fireOnTransferTemporaryError(transfer, megaError);
 }
 
 char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
@@ -5729,7 +5801,7 @@ void MegaApiImpl::transfer_removed(Transfer *t)
             totalUploads--;
     }
 
-    fireOnTransferFinish(transfer, MegaError(transfer->getLastErrorCode()));
+    fireOnTransferFinish(transfer, transfer->getLastError());
 }
 
 void MegaApiImpl::transfer_prepare(Transfer *t)
@@ -5831,29 +5903,6 @@ void MegaApiImpl::transfer_update(Transfer *tr)
             fireOnTransferUpdate(transfer);
         }
 	}
-}
-
-void MegaApiImpl::transfer_failed(Transfer* tr, error e)
-{
-    if(transferMap.find(tr->tag) == transferMap.end()) return;
-    MegaError megaError(e);
-    MegaTransferPrivate* transfer = transferMap.at(tr->tag);
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setDeltaSize(0);
-    transfer->setSpeed(0);
-    transfer->setLastErrorCode(e);
-    fireOnTransferTemporaryError(transfer, megaError);
-}
-
-void MegaApiImpl::transfer_limit(Transfer* t)
-{
-    LOG_warn << "Transfer limit";
-    if(transferMap.find(t->tag) == transferMap.end()) return;
-    MegaTransferPrivate* transfer = transferMap.at(t->tag);
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setDeltaSize(0);
-    transfer->setSpeed(0);
-    fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA));
 }
 
 void MegaApiImpl::transfer_complete(Transfer* tr)
@@ -6078,6 +6127,26 @@ void MegaApiImpl::chaturl_result(string *url, error e)
     {
         request->setLink(url->c_str());
     }
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatgrantaccess_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_GRANT_ACCESS)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatremoveaccess_result(error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE_ACCESS)) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -10029,7 +10098,7 @@ void MegaApiImpl::sendPendingRequests()
             #endif
 
             megaTransfer->setSyncTransfer(true);
-            megaTransfer->setLastErrorCode(API_EINCOMPLETE);
+            megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
 
             file_list files = transfer->files;
             file_list::iterator iterator = files.begin();
@@ -10055,7 +10124,7 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     MegaTransferPrivate* megaTransfer = transferMap.at(transfer->tag);
                     megaTransfer->setSyncTransfer(true);
-                    megaTransfer->setLastErrorCode(API_EINCOMPLETE);
+                    megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
                 }
 
                 it++;
@@ -10175,8 +10244,11 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef HAVE_LIBUV
             if (httpServer)
             {
-                delete httpServer;
+                MegaHTTPServer *server = httpServer;
                 httpServer = NULL;
+                sdkMutex.unlock();
+                delete server;
+                sdkMutex.lock();
             }
 #endif
             threadExit = 1;
@@ -10434,6 +10506,36 @@ void MegaApiImpl::sendPendingRequests()
             client->getUrlChat(chatid);
             break;
         }
+        case MegaRequest::TYPE_CHAT_GRANT_ACCESS:
+        {
+            handle chatid = request->getParentHandle();
+            handle h = request->getNodeHandle();
+            const char *uid = request->getEmail();
+
+            if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->grantAccessInChat(chatid, h, uid);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_REMOVE_ACCESS:
+        {
+            handle chatid = request->getParentHandle();
+            handle h = request->getNodeHandle();
+            const char *uid = request->getEmail();
+
+            if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->removeAccessInChat(chatid, h, uid);
+            break;
+        }
 #endif
         default:
         {
@@ -10461,34 +10563,9 @@ char* MegaApiImpl::stringToArray(string &buffer)
 
 void MegaApiImpl::updateStats()
 {
-    transfer_map::iterator it;
-    transfer_map::iterator end;
-    int downloadCount = 0;
-    int uploadCount = 0;
-
     sdkMutex.lock();
-    it = client->transfers[0].begin();
-    end = client->transfers[0].end();
-    while(it != end)
-    {
-        Transfer *transfer = it->second;
-        if((transfer->failcount<2) || (transfer->slot && (Waiter::ds - transfer->slot->lastdata) < TransferSlot::XFERTIMEOUT))
-            downloadCount++;
-        it++;
-    }
-
-    it = client->transfers[1].begin();
-    end = client->transfers[1].end();
-    while(it != end)
-    {
-        Transfer *transfer = it->second;
-        if((transfer->failcount<2) || (transfer->slot && (Waiter::ds - transfer->slot->lastdata) < TransferSlot::XFERTIMEOUT))
-            uploadCount++;
-        it++;
-    }
-
-    pendingDownloads = downloadCount;
-    pendingUploads = uploadCount;
+    pendingDownloads = client->transfers[0].size();
+    pendingUploads = client->transfers[1].size();
     sdkMutex.unlock();
 }
 
@@ -12064,7 +12141,6 @@ void MegaHTTPServer::run()
 
     uv_loop_close(uv_loop);
     LOG_debug << "HTTP server thread exit";
-    uv_sem_post(&semaphore);
 }
 
 void MegaHTTPServer::stop()
@@ -12074,10 +12150,8 @@ void MegaHTTPServer::stop()
         return;
     }
 
-    uv_sem_init(&semaphore, 0);
     uv_async_send(&exit_handle);
-    uv_sem_wait(&semaphore);
-    uv_sem_destroy(&semaphore);
+    thread.join();
     started = 0;
     port = 0;
 }
@@ -12808,10 +12882,30 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 {
     std::ostringstream response;
     MegaNode *node = httpctx->node;
+
+    string name;
+    const char *extension = NULL;
+    const char *nodeName = httpctx->node->getName();
+    if (nodeName)
+    {
+        name = nodeName;
+    }
+
+    string::size_type dotindex = name.find_last_of('.');
+    if (dotindex != string::npos)
+    {
+        extension = name.c_str() + dotindex;
+    }
+
+    char *mimeType = MegaApi::getMimeType(extension);
+    if (!mimeType)
+    {
+        mimeType = MegaApi::strdup("application/octet-stream");
+    }
+
     m_off_t totalSize = node->getSize();
     m_off_t start = 0;
     m_off_t end = totalSize - 1;
-
     if (httpctx->rangeStart >= 0)
     {
         start = httpctx->rangeStart;
@@ -12830,13 +12924,14 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     if (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize)
     {
         response << "HTTP/1.1 416 Requested Range Not Satisfiable\r\n"
-            << "Content-Type: application/octet-stream\r\n"
+            << "Content-Type: " << mimeType << "\r\n"
             << "Connection: close\r\n"
             << "Access-Control-Allow-Origin: *\r\n"
             << "Accept-Ranges: bytes\r\n"
             << "Content-Range: bytes 0-0/" << totalSize << "\r\n"
             << "\r\n";
 
+        delete [] mimeType;
         httpctx->resultCode = 416;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
@@ -12853,13 +12948,14 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         response << "HTTP/1.1 200 OK\r\n";
     }
 
-    response << "Content-Type: application/octet-stream\r\n"
+    response << "Content-Type: " << mimeType << "\r\n"
         << "Connection: close\r\n"
         << "Content-Length: " << len << "\r\n"
         << "Access-Control-Allow-Origin: *\r\n"
         << "Accept-Ranges: bytes\r\n"
         << "\r\n";
 
+    delete [] mimeType;
     httpctx->pause = false;
     httpctx->lastBuffer = NULL;
     httpctx->lastBufferLen = 0;
@@ -13245,6 +13341,18 @@ const char *MegaTextChatPrivate::getUrl() const
     return url.c_str();
 }
 
+void MegaTextChatPrivate::setUrl(const char *url)
+{
+    if (url)
+    {
+        this->url.assign(url);
+    }
+    else
+    {
+        this->url.clear();
+    }
+}
+
 int MegaTextChatPrivate::getShard() const
 {
     return shard;
@@ -13275,7 +13383,19 @@ MegaTextChatList *MegaTextChatListPrivate::copy() const
 
 const MegaTextChat *MegaTextChatListPrivate::get(int i) const
 {
-    if (i > size())
+    if (i >= size())
+    {
+        return NULL;
+    }
+    else
+    {
+        return list.at(i);
+    }
+}
+
+MegaTextChat *MegaTextChatListPrivate::get(int i)
+{
+    if (i >= size())
     {
         return NULL;
     }

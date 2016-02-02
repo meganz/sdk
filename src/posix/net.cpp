@@ -413,6 +413,12 @@ void CurlHttpIO::disconnect()
     {
         filterDNSservers();
     }
+
+    if (proxyurl.size() && !proxyip.size())
+    {
+        LOG_debug << "Unresolved proxy name. Resolving...";
+        request_proxy_ip();
+    }
 }
 
 // wake up from cURL I/O
@@ -528,6 +534,10 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             httpctx->hostip.append("]");
         }
     }
+    else if (status != ARES_SUCCESS)
+    {
+        LOG_warn << "c-ares error (proxy) " << status;
+    }
 
     if (!httpctx->ares_pending)
     {
@@ -556,8 +566,11 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             // name resolutions for proxies. Abort requests.
             httpio->drop_pending_requests();
 
-            // reinitialize c-ares to prevent persistent hangs
-            httpio->reset = true;
+            if (status != ARES_EDESTRUCTION)
+            {
+                // reinitialize c-ares to prevent persistent hangs
+                httpio->reset = true;
+            }
         }
         else
         {
@@ -623,7 +636,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             httpctx->hostip = oss.str();
         }
     }
-    else if(status != ARES_SUCCESS)
+    else if (status != ARES_SUCCESS)
     {
         LOG_verbose << "c-ares error. code: " << status;
     }
@@ -665,8 +678,11 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
                 // unable to get the IP.
                 httpio->inetstatus(false);
 
-                // reinitialize c-ares to prevent permanent hangs
-                httpio->reset = true;
+                if (status != ARES_EDESTRUCTION)
+                {
+                    // reinitialize c-ares to prevent permanent hangs
+                    httpio->reset = true;
+                }
             }
 
             req->httpiohandle = NULL;
@@ -1141,6 +1157,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             getMEGADNSservers(&dnsservers, false);
             ares_set_servers_csv(ares, dnsservers.c_str());
         }
+
+        if (proxyurl.size() && !proxyip.size())
+        {
+            LOG_debug << "Unresolved proxy name. Resolving...";
+            request_proxy_ip();
+        }
     }
 
     // purge DNS cache if needed
@@ -1181,11 +1203,19 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->in.clear();
     req->status = REQ_INFLIGHT;
 
-    if(proxyip.size())
+    if (proxyip.size())
     {
-        //If we are using a proxy, don't resolve the IP
+        // we are using a proxy, don't resolve the IP
         LOG_debug << "Sending the request through the proxy";
         send_request(httpctx);
+        return;
+    }
+
+    if (proxyurl.size() && proxyinflight)
+    {
+        // we are waiting for a proxy, queue the request
+        pendingrequests.push(httpctx);
+        LOG_debug << "Queueing request for the proxy";
         return;
     }
 
@@ -1421,6 +1451,11 @@ bool CurlHttpIO::doio()
                 {
                     lastdata = Waiter::ds;
                 }
+                else
+                {
+                    LOG_warn << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
+                             << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
+                }
 
                 success = true;
             }
@@ -1632,20 +1667,29 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 // set contentlength according to Original-Content-Length header
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
+    if (size * nmemb > 2)
+    {
+        LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
+    }
+
     if (!memcmp(ptr, "Content-Length:", 15))
     {
-        if (((HttpReq*)target)->contentlength < 0) ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+        if (((HttpReq*)target)->contentlength < 0)
+        {
+            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 15));
+        }
+    }
+    else if (!memcmp(ptr, "Original-Content-Length:", 24))
+    {
+        ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
+    }
+    else if (!memcmp(ptr, "X-MEGA-Time-Left:", 17))
+    {
+        ((HttpReq*)target)->timeleft = atol((char*)ptr + 17);
     }
     else
     {
-        if (!memcmp(ptr, "Original-Content-Length:", 24))
-        {
-            ((HttpReq*)target)->setcontentlength(atol((char*)ptr + 24));
-        }
-        else
-        {
-            return size * nmemb;
-        }
+        return size * nmemb;
     }
 
     if (((HttpReq*)target)->httpio)

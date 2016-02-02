@@ -295,6 +295,11 @@ public:
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);
 
+    // grant access to a chat peer to one specific node
+    void grantAccessInChat(handle chatid, handle h, const char *uid);
+
+    // revoke access to a chat peer to one specific node
+    void removeAccessInChat(handle chatid, handle h, const char *uid);
 #endif
 
     // toggle global debug flag
@@ -319,6 +324,9 @@ public:
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
+
+    // time left for bandwidth overquota
+    m_time_t overquotauntil;
 
     // root URL for API requests
     static string APIURL;

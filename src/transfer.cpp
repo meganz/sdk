@@ -71,15 +71,23 @@ Transfer::~Transfer()
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e)
+void Transfer::failed(error e, dstime timeleft)
 {
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
 
-    bt.backoff();
+    if (!timeleft)
+    {
+        bt.backoff();
+    }
+    else
+    {
+        bt.backoff(timeleft);
+        client->overquotauntil = Waiter::ds + timeleft;
+    }
 
-    client->app->transfer_failed(this, e);
+    client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
@@ -89,7 +97,7 @@ void Transfer::failed(error e)
         }
     }
 
-    if (defer)
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
     {
         failcount++;
         delete slot;
@@ -672,7 +680,6 @@ bool DirectReadSlot::doio()
             {
                 // app-requested abort
                 delete dr;
-                dr = NULL;
                 return true;
             }
         }
@@ -683,7 +690,6 @@ bool DirectReadSlot::doio()
 
             // remove and delete completed read request, then remove slot
             delete dr;
-            dr = NULL;
             return true;
         }
     }

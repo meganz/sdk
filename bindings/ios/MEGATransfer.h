@@ -23,7 +23,8 @@
 
 typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeDownload,
-    MEGATransferTypeUpload
+    MEGATransferTypeUpload,
+    MEGATransferTypeLocalHTTPDownload
 };
 
 /**
