@@ -6533,6 +6533,72 @@ class MegaApi
         MegaNode *getRubbishNode();
 
         /**
+         * @brief Set default permissions for new files
+         *
+         * This function allows to change the permissions that will be received
+         * by newly created files.
+         *
+         * It's possible to change group permissions, public permissions and the
+         * executable permission for the user. "rw" permissions for the user will
+         * be always granted to prevent synchronization problems.
+         *
+         * To check the effective permissions that will be applied, please use
+         * MegaApi::getDefaultFilePermissions
+         *
+         * Currently, this function only works for OS X and Linux (or any other
+         * platform using the Posix filesystem layer). On Windows, it doesn't have
+         * any effect.
+         *
+         * @param permissions Permissions for new files in the same format accepted by chmod() (0755, for example)
+         */
+        void setDefaultFilePermissions(int permissions);
+
+        /**
+         * @brief Get default permissions for new files
+         *
+         * This function returns the permissions that will be applied to new files.
+         *
+         * Currently, this function only works on OS X and Linux (or any other
+         * platform using the Posix filesystem layer). On Windows it returns 0600
+         *
+         * @return Permissions for new files in the same format accepted by chmod() (0755, for example)
+         */
+        int getDefaultFilePermissions();
+
+        /**
+         * @brief Set default permissions for new folders
+         *
+         * This function allows to change the permissions that will be received
+         * by newly created folders.
+         *
+         * It's possible to change group permissions and public permissions.
+         * "rwx" permissions for the user will be always granted to prevent
+         * synchronization problems.
+         *
+         * To check the effective permissions that will be applied, please use
+         * MegaApi::getDefaultFolderPermissions
+         *
+         * Currently, this function only works for OS X and Linux (or any other
+         * platform using the Posix filesystem layer). On Windows, it doesn't have
+         * any effect.
+         *
+         * @param permissions Permissions for new folders in the same format accepted by chmod() (0755, for example)
+         */
+        void setDefaultFolderPermissions(int permissions);
+
+        /**
+         * @brief Get default permissions for new folders
+         *
+         * This function returns the permissions that will be applied to new folders.
+         *
+         * Currently, this function only works on OS X and Linux (or any other
+         * platform using the Posix filesystem layer). On Windows, it returns 0700
+         *
+         * @return Permissions for new folders in the same format accepted by chmod() (0755, for example)
+         */
+        int getDefaultFolderPermissions();
+
+        /**
          * @brief Search nodes containing a search string in their name
          *
          * The search is case-insensitive.

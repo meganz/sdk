@@ -1746,6 +1746,26 @@ MegaNode* MegaApi::getRubbishNode()
     return pImpl->getRubbishNode();
 }
 
+void MegaApi::setDefaultFilePermissions(int permissions)
+{
+    pImpl->setDefaultFilePermissions(permissions);
+}
+
+int MegaApi::getDefaultFilePermissions()
+{
+    return pImpl->getDefaultFilePermissions();
+}
+
+void MegaApi::setDefaultFolderPermissions(int permissions)
+{
+    pImpl->setDefaultFolderPermissions(permissions);
+}
+
+int MegaApi::getDefaultFolderPermissions()
+{
+    return pImpl->getDefaultFolderPermissions();
+}
+
 MegaUserList* MegaApi::getContacts()
 {
     return pImpl->getContacts();

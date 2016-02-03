@@ -218,6 +218,14 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // delete notification
     virtual void delnotify(LocalNode*) { }
 
+    // default permissions for new files
+    int getdefaultfilepermissions() { return 0600; }
+    void setdefaultfilepermissions(int) { }
+
+    // default permissions for new folder
+    int getdefaultfolderpermissions() { return 0700; }
+    void setdefaultfolderpermissions(int) { }
+
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
     
