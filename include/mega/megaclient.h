@@ -198,6 +198,11 @@ public:
     // queue a user attribute retrieval
     void getua(User* u, const char* an = NULL);
 
+#ifdef DEBUG
+    // queue a user attribute removal
+    void delua(const char* an);
+#endif
+
     // add new contact (by e-mail address)
     error invite(const char*, visibility_t = VISIBLE);
 

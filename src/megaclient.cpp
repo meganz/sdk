@@ -6310,6 +6310,16 @@ void MegaClient::getua(User* u, const char* an)
     }
 }
 
+#ifdef DEBUG
+void MegaClient::delua(const char *an)
+{
+    if (an)
+    {
+        reqs.add(new CommandDelUA(this, an));
+    }
+}
+#endif
+
 // queue node for notification
 void MegaClient::notifynode(Node* n)
 {

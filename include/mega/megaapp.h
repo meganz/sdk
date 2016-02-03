@@ -142,6 +142,9 @@ struct MEGA_API MegaApp
     virtual void getua_result(error) { }
     virtual void getua_result(byte*, unsigned) { }
     virtual void getua_result(TLVstore *) { }
+#ifdef DEBUG
+    virtual void delua_result(error) { }
+#endif
 
     // file node export result
     virtual void exportnode_result(error) { }

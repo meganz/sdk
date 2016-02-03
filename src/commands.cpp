@@ -2239,6 +2239,39 @@ void CommandGetUA::procresult()
     }
 }
 
+#ifdef DEBUG
+CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
+{
+    cmd("upr");
+    arg("ua", an);
+}
+
+void CommandDelUA::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->delua_result((error)client->json.getint());
+    }
+    else
+    {
+        const char* attrvalue = client->json.getvalue();
+
+        handle uh = UNDEF;
+
+        if (Base64::atob(attrvalue, (byte*)&uh, MegaClient::USERHANDLE) != MegaClient::USERHANDLE)
+        {
+            client->json.storeobject();
+            client->app->delua_result(API_EINTERNAL);
+        }
+        else
+        {
+            client->app->delua_result(API_OK);
+        }
+    }
+}
+
+#endif
+
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
 CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 {

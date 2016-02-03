@@ -210,6 +210,16 @@ public:
     void procresult();
 };
 
+#ifdef DEBUG
+class MEGA_API CommandDelUA : public Command
+{
+public:
+    CommandDelUA(MegaClient*, const char*);
+
+    void procresult();
+};
+#endif
+
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command
 {

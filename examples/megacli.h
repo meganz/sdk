@@ -141,6 +141,9 @@ struct DemoApp : public MegaApp
     void getua_result(error);
     void getua_result(byte*, unsigned);
     void getua_result(TLVstore *);
+#ifdef DEBUG
+    void delua_result(error);
+#endif
 
     void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool);
     void account_details(AccountDetails*, error);

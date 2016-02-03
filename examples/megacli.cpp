@@ -884,6 +884,21 @@ void DemoApp::getua_result(TLVstore *tlv)
     delete keys;
 }
 
+#ifdef DEBUG
+void DemoApp::delua_result(error e)
+{
+    if (e)
+    {
+        cout << "User attribute removal failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Success." << endl;
+    }
+}
+#endif
+
+
 void DemoApp::notify_retry(dstime dsdelta)
 {
     if (dsdelta)
@@ -1763,6 +1778,9 @@ static void process_line(char* l)
                 cout << "      users" << endl;
                 cout << "      getua attrname [email]" << endl;
                 cout << "      putua attrname [del|set string|load file]" << endl;
+#ifdef DEBUG
+                cout << "      delua attrname" << endl;
+#endif
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
@@ -2892,6 +2910,20 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef DEBUG
+                    else if (words[0] == "delua")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->delua(words[1].c_str());
+                            return;
+                        }
+
+                        cout << "      delua attrname" << endl;
+
+                        return;
+                    }
+#endif
                     else if (words[0] == "pause")
                     {
                         bool getarg = false, putarg = false, hardarg = false, statusarg = false;
