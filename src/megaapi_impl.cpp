@@ -3536,6 +3536,16 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
     waiter->notify();
 }
 
+void MegaApiImpl::useHttpsOnly(bool usehttps)
+{
+    client->usehttps = usehttps;
+}
+
+bool MegaApiImpl::usingHttpsOnly()
+{
+    return client->usehttps;
+}
+
 void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_FILE, listener);

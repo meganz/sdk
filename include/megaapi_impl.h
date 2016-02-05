@@ -1182,6 +1182,9 @@ class MegaApiImpl : public MegaApp
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
+        void useHttpsOnly(bool httpsOnly);
+        bool usingHttpsOnly();
+
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
