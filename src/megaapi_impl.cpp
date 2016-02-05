@@ -3538,7 +3538,25 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
 
 void MegaApiImpl::useHttpsOnly(bool usehttps)
 {
+    if (client->usehttps == usehttps)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
     client->usehttps = usehttps;
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+        {
+            Transfer *t = it->second;
+            if (t->slot)
+            {
+                t->failed(API_EAGAIN);
+            }
+        }
+    }
+    sdkMutex.unlock();
 }
 
 bool MegaApiImpl::usingHttpsOnly()
