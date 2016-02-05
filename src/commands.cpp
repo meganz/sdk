@@ -303,6 +303,11 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 }
 
 void CommandDirectRead::cancel()
