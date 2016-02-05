@@ -1022,6 +1022,7 @@ void MegaClient::exec()
                 if (reqs.cmdspending())
                 {
                     pendingcs = new HttpReq();
+                    pendingcs->protect = true;
 
                     reqs.get(pendingcs->out);
 
@@ -1156,6 +1157,7 @@ void MegaClient::exec()
             }
             else
             {
+                pendingsc->protect = true;
                 pendingsc->posturl = APIURL;
                 pendingsc->posturl.append("sc?sn=");
                 pendingsc->posturl.append(scsn);
