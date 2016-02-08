@@ -319,6 +319,9 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // use HTTPS for all communications
+    bool usehttps;
+    
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
@@ -773,6 +776,8 @@ public:
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
     static const int CHATHANDLE = 8;
+    static const int SESSIONHANDLE = 8;
+    static const int PURCHASEHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;

@@ -1763,7 +1763,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     static int errors = 0;
     int ok = 0;
 
-    if(MegaClient::disablepkp)
+    if(MegaClient::disablepkp || !request->protect)
     {
         return 1;
     }

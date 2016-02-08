@@ -156,6 +156,8 @@ struct MEGA_API HttpReq
     string posturl;
 
     bool chunked;
+    bool protect;
+
     bool sslcheckfailed;
     string sslfakeissuer;
 

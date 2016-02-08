@@ -329,6 +329,7 @@ HttpReq::HttpReq(bool b)
     chunked = false;
     type = REQ_JSON;
     buflen = 0;
+    protect = false;
 
     init();
 }

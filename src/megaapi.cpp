@@ -1480,6 +1480,16 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
+void MegaApi::useHttpsOnly(bool httpsOnly)
+{
+    pImpl->useHttpsOnly(httpsOnly);
+}
+
+bool MegaApi::usingHttpsOnly()
+{
+    return pImpl->usingHttpsOnly();
+}
+
 void MegaApi::addContact(const char* email, MegaRequestListener* listener)
 {
     pImpl->addContact(email, listener);

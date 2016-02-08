@@ -39,6 +39,11 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
 
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
+
     th = cth;
     type = ctype;
     data = cdata;
@@ -94,12 +99,17 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(int p, handle fahref, bool chunked)
+CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunked)
 {
     part = p;
 
     cmd("ufa");
     arg("fah", (byte*)&fahref, sizeof fahref);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     if (chunked)
     {
@@ -207,11 +217,17 @@ void CommandAttachFA::procresult()
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(TransferSlot* ctslot, int ms)
+CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 {
     tslot = ctslot;
 
     cmd("u");
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
+
     arg("s", tslot->fa->size);
     arg("ms", ms);
 }
@@ -280,13 +296,18 @@ void CommandPutFile::procresult()
 }
 
 // request temporary source URL for DirectRead
-CommandDirectRead::CommandDirectRead(DirectReadNode* cdrn)
+CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 {
     drn = cdrn;
 
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 }
 
 void CommandDirectRead::cancel()
@@ -361,11 +382,16 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
 {
     cmd("g");
     arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     if(auth)
     {
