@@ -93,11 +93,12 @@ class DelegateMegaTransferListener extends MegaTransferListener {
             megaApi.runCallback(new Runnable() {
                 public void run() {
                     listener.onTransferFinish(megaApi, megaTransfer, megaError);
+                    
+                    if (singleListener) {
+                        megaApi.privateFreeTransferListener(DelegateMegaTransferListener.this);
+                    }
                 }
             });
-        }
-        if (singleListener) {
-            megaApi.privateFreeTransferListener(this);
         }
     }
 
