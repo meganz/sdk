@@ -6417,7 +6417,7 @@ void MegaApiImpl::fetchnodes_result(error e)
     if (e == API_OK)
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootfolder();
+        handle h = client->getrootpublicfolder();
         if (h != UNDEF)
         {
             Node *n = client->nodebyhandle(h);

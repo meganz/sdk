@@ -826,8 +826,8 @@ public:
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
 
-    // returns the handle of the authentication context
-    handle getrootfolder();
+    // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
+    handle getrootpublicfolder();
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false);

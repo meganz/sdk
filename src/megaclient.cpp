@@ -431,7 +431,7 @@ void MegaClient::setrootnode(handle h)
     auth.append(buf);
 }
 
-handle MegaClient::getrootfolder()
+handle MegaClient::getrootpublicfolder()
 {
     // if we logged into a folder...
     if (auth.find("&n=") != auth.npos)

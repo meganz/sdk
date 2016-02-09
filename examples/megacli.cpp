@@ -735,7 +735,7 @@ void DemoApp::fetchnodes_result(error e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootfolder();
+        handle h = client->getrootpublicfolder();
         if (h != UNDEF)
         {
             Node *n = client->nodebyhandle(h);
