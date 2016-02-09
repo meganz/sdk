@@ -151,70 +151,110 @@ void MegaSDK::addGlobalListener(MGlobalListenerInterface^ listener)
 
 void MegaSDK::removeListener(MListenerInterface^ listener)
 {
-	EnterCriticalSection(&listenerMutex);
-	std::set<DelegateMListener *>::iterator it = activeMegaListeners.begin();
-	while (it != activeMegaListeners.end())
-	{
-		DelegateMListener *delegate = *it;
-		if (delegate->getUserListener() == listener)
-		{
-			megaApi->removeListener(delegate);
-			activeMegaListeners.erase(it++);
-		}
-		else it++;
-	}
-	LeaveCriticalSection(&listenerMutex);
+    std::vector<DelegateMListener *> listenersToRemove;
+
+    EnterCriticalSection(&listenerMutex);
+    std::set<DelegateMListener *>::iterator it = activeMegaListeners.begin();
+    while (it != activeMegaListeners.end())
+    {
+        DelegateMListener *delegate = *it;
+        if (delegate->getUserListener() == listener)
+        {
+            listenersToRemove.push_back(delegate);
+            activeMegaListeners.erase(it++);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    LeaveCriticalSection(&listenerMutex);
+
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        megaApi->removeListener(listenersToRemove[i]);
+    }
 }
 
 void MegaSDK::removeRequestListener(MRequestListenerInterface^ listener)
 {
-	EnterCriticalSection(&listenerMutex);
-	std::set<DelegateMRequestListener *>::iterator it = activeRequestListeners.begin();
-	while (it != activeRequestListeners.end())
-	{
-		DelegateMRequestListener *delegate = *it;
-		if (delegate->getUserListener() == listener)
-		{
-			megaApi->removeRequestListener(delegate);
-			activeRequestListeners.erase(it++);
-		}
-		else it++;
-	}
-	LeaveCriticalSection(&listenerMutex);
+    std::vector<DelegateMRequestListener *> listenersToRemove;
+
+    EnterCriticalSection(&listenerMutex);
+    std::set<DelegateMRequestListener *>::iterator it = activeRequestListeners.begin();
+    while (it != activeRequestListeners.end())
+    {
+        DelegateMRequestListener *delegate = *it;
+        if (delegate->getUserListener() == listener)
+        {
+            listenersToRemove.push_back(delegate);
+            activeRequestListeners.erase(it++);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    LeaveCriticalSection(&listenerMutex);
+
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        megaApi->removeRequestListener(listenersToRemove[i]);
+    }
 }
 
 void MegaSDK::removeTransferListener(MTransferListenerInterface^ listener)
 {
-	EnterCriticalSection(&listenerMutex);
-	std::set<DelegateMTransferListener *>::iterator it = activeTransferListeners.begin();
-	while (it != activeTransferListeners.end())
-	{
-		DelegateMTransferListener *delegate = *it;
-		if (delegate->getUserListener() == listener)
-		{
-			megaApi->removeTransferListener(delegate);
-			activeTransferListeners.erase(it++);
-		}
-		else it++;
-	}
-	LeaveCriticalSection(&listenerMutex);
+    std::vector<DelegateMTransferListener *> listenersToRemove;
+
+    EnterCriticalSection(&listenerMutex);
+    std::set<DelegateMTransferListener *>::iterator it = activeTransferListeners.begin();
+    while (it != activeTransferListeners.end())
+    {
+        DelegateMTransferListener *delegate = *it;
+        if (delegate->getUserListener() == listener)
+        {
+            listenersToRemove.push_back(delegate);
+            activeTransferListeners.erase(it++);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    LeaveCriticalSection(&listenerMutex);
+
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        megaApi->removeTransferListener(listenersToRemove[i]);
+    }
 }
 
 void MegaSDK::removeGlobalListener(MGlobalListenerInterface^ listener)
 {
-	EnterCriticalSection(&listenerMutex);
-	std::set<DelegateMGlobalListener *>::iterator it = activeGlobalListeners.begin();
-	while (it != activeGlobalListeners.end())
-	{
-		DelegateMGlobalListener *delegate = *it;
-		if (delegate->getUserListener() == listener)
-		{
-			megaApi->removeGlobalListener(delegate);
-			activeGlobalListeners.erase(it++);
-		}
-		else it++;
-	}
-	LeaveCriticalSection(&listenerMutex);
+    std::vector<DelegateMGlobalListener *> listenersToRemove;
+
+    EnterCriticalSection(&listenerMutex);
+    std::set<DelegateMGlobalListener *>::iterator it = activeGlobalListeners.begin();
+    while (it != activeGlobalListeners.end())
+    {
+        DelegateMGlobalListener *delegate = *it;
+        if (delegate->getUserListener() == listener)
+        {
+            listenersToRemove.push_back(delegate);
+            activeGlobalListeners.erase(it++);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    LeaveCriticalSection(&listenerMutex);
+
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        megaApi->removeGlobalListener(listenersToRemove[i]);
+    }
 }
 
 String^ MegaSDK::getBase64PwKey(String^ password)
