@@ -1672,7 +1672,20 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
         LOG_verbose << "Header: " << string((const char *)ptr, size * nmemb - 2);
     }
 
-    if (!memcmp(ptr, "Content-Length:", 15))
+    if (!memcmp(ptr, "HTTP/", 5))
+    {
+        if (((HttpReq*)target)->contentlength >= 0)
+        {
+            // For authentication with some proxies, cURL sends two requests in the context of a single one
+            // Content-Length is reset here to not take into account the header from the first response
+
+            LOG_warn << "Receiving a second response. Resetting Content-Length";
+            ((HttpReq*)target)->contentlength = -1;
+        }
+
+        return size * nmemb;
+    }
+    else if (!memcmp(ptr, "Content-Length:", 15))
     {
         if (((HttpReq*)target)->contentlength < 0)
         {
