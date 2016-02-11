@@ -190,20 +190,20 @@ win32 {
 
     contains(CONFIG, BUILDX64) {
 	release {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/static_x64"
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64"
 	}
 	else {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/staticd_x64"
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64d"
 	}
     }
 
     !contains(CONFIG, BUILDX64) {
 	release {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/static"
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32"
 	}
-	else {
-            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/staticd"
-	}
+        else {
+            LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32d"
+        }
     }
 
     LIBS += -lshlwapi -lws2_32 -luser32
