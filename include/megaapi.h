@@ -391,7 +391,8 @@ class MegaNode
             CHANGE_TYPE_INSHARE         = 0x20,
             CHANGE_TYPE_OUTSHARE        = 0x40,
             CHANGE_TYPE_PARENT          = 0x80,
-            CHANGE_TYPE_PENDINGSHARE    = 0x100
+            CHANGE_TYPE_PENDINGSHARE    = 0x100,
+            CHANGE_TYPE_PUBLIC_LINK     = 0x200
         };
 
         virtual ~MegaNode();
@@ -678,6 +679,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
          * Check if the parent of the node has changed
          *
+         * - MegaNode::CHANGE_TYPE_PENDINGSHARE    = 0x100
+         * Check if the pending share of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
+         * Check if the public link of the node has changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -713,6 +720,13 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PARENT          = 0x80
          * The parent of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PENDINGSHARE    = 0x100
+         * Check if the pending share of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
+         * Check if the public link of the node has changed
+         *
          */
         virtual int getChanges();
 
@@ -1963,6 +1977,8 @@ class MegaRequest
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
          * - MegaApi::createChat - Creates a chat for one or more participants
+         * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
+         * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
          *
          * @return Flag related to the request
          */
@@ -4530,6 +4546,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getPublicMegaNode - Public MegaNode corresponding to the public link
+         * - MegaRequest::getFlag - Return true if the provided key along the link is invalid.
          *
          * @param megaFileLink Public link to a file in MEGA
          * @param listener MegaRequestListener to track this request
@@ -4884,6 +4901,10 @@ class MegaApi
          * to successfully complete this request.
          *
          * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Return true if logged in into a folder and the provided key is invalid. Otherwise, false.
          *
          * @param listener MegaRequestListener to track this request
          */

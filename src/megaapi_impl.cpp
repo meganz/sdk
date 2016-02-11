@@ -243,6 +243,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_REMOVED;
     }
+    if(node->changed.publiclink)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PUBLIC_LINK;
+    }
 
 
 #ifdef ENABLE_SYNC
@@ -6458,6 +6462,20 @@ void MegaApiImpl::fetchnodes_result(error e)
         return;
     }
 
+    if (e == API_OK)
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = client->getrootpublicfolder();
+        if (h != UNDEF)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                request->setFlag(true);
+            }
+        }
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -7208,7 +7226,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             }
         }
     }
-    else fileName = "CRYPTO_ERROR";
+    else
+    {
+        fileName = "CRYPTO_ERROR";
+        request->setFlag(true);
+    }
 
 	if(request->getType() == MegaRequest::TYPE_IMPORT_LINK)
 	{
@@ -9069,13 +9091,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                const char* ptr;
-                if (!((ptr = strstr(megaFolderLink,"#F!")) && (strlen(ptr)>12) && ptr[11] == '!'))
-                {
-                    e = API_EARGS;
-                    break;
-                }
-                e = client->folderaccess(ptr+3,ptr+12);
+                e = client->folderaccess(megaFolderLink);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, MegaError(e));

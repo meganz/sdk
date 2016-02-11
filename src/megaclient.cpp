@@ -431,6 +431,19 @@ void MegaClient::setrootnode(handle h)
     auth.append(buf);
 }
 
+handle MegaClient::getrootpublicfolder()
+{
+    // if we logged into a folder...
+    if (auth.find("&n=") != auth.npos)
+    {
+        return rootnodes[0];
+    }
+    else
+    {
+        return UNDEF;
+    }
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
@@ -808,15 +821,29 @@ void MegaClient::exec()
                             LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
                             checkfacompletion(fa->th);
                         }
-
-                        delete fa;
-                        newfa.erase(curfa);
-                        LOG_debug << "Remaining file attributes in upload queue: " << newfa.size();
                     }
                     else
                     {
-                        LOG_warn << "Wrong attribute response: " << fa->in.size();
+                        LOG_warn << "Error attaching attribute";
+
+                        // check if the failed attribute belongs to an active upload
+                        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+                        {
+                            Transfer *transfer = it->second;
+                            if (transfer->uploadhandle == fa->th)
+                            {
+                                // reduce the number of required attributes to let the upload continue
+                                transfer->minfa--;
+                                checkfacompletion(fa->th);
+                                sendevent(99407,"Attribute attach failed during active upload");
+                                break;
+                            }
+                        }
                     }
+
+                    delete fa;
+                    newfa.erase(curfa);
+                    LOG_debug << "Remaining file attributes in upload queue: " << newfa.size();
 
                     btpfa.reset();
                     curfa = newfa.end();
@@ -2096,7 +2123,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (gfx->isgfx(&nextit->second->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key);
+                            nextit->second->minfa += gfx->gendimensionsputfa(ts->fa, &nextit->second->localfilename, nextit->second->uploadhandle, &nextit->second->key, -1, false);
                         }
                     }
                 }
@@ -2957,13 +2984,13 @@ void MegaClient::pendingattrstring(handle h, string* fa)
 
 // attach file attribute to a file (th can be upload or node handle)
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data)
+void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool checkAccess)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    newfa.push_back(new HttpReqCommandPutFA(this, th, t, data));
+    newfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
     LOG_debug << "File attribute added to queue - " << th << " : " << newfa.size();
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -3942,18 +3969,10 @@ void MegaClient::sc_ph()
                 }
                 else
                 {
-                    if (!n->plink)  // creation
-                    {
-                        n->plink = new PublicLink(ph, ets, takendown);
-                    }
-                    else            // update
-                    {
-                        n->plink->ph = ph;
-                        n->plink->ets = ets;
-                        n->plink->takendown = takendown;
-                    }
+                    n->setpubliclink(ph, ets, takendown);
                 }
 
+                n->changed.publiclink = true;
                 notifynode(n);
             }
             else
@@ -5343,18 +5362,7 @@ void MegaClient::procph(JSON *j)
                         n = nodebyhandle(h);
                         if (n)
                         {
-                            if (!n->plink)
-                            {
-                                n->plink = new PublicLink(ph, ets, takendown);
-                            }
-                            else
-                            {
-                                n->plink->ph = ph;
-                                n->plink->ets = ets;
-                                n->plink->takendown = takendown;
-                            }
-
-                            notifynode(n);
+                            n->setpubliclink(ph, ets, takendown);
                         }
                         else
                         {
@@ -5512,8 +5520,30 @@ bool MegaClient::readusers(JSON* j)
     return j->leavearray();
 }
 
-error MegaClient::folderaccess(const char* f, const char* k)
+error MegaClient::folderaccess(const char *folderlink)
 {
+    // structure of public folder links: https://mega.nz/#F!<handle>!<key>
+
+    const char* ptr;
+    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr)>=11)))
+    {
+        return API_EARGS;
+    }
+
+    const char *f = ptr + 3;
+    ptr += 11;
+
+    if (*ptr == '\0')    // no key provided, link is incomplete
+    {
+        return API_EINCOMPLETE;
+    }
+    else if (*ptr != '!')
+    {
+        return API_EARGS;
+    }
+
+    const char *k = ptr + 1;
+
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 
@@ -6295,6 +6325,7 @@ void MegaClient::notifynode(Node* n)
         changed |= n->changed.inshare << 5;
         changed |= n->changed.outshares << 6;
         changed |= n->changed.parent << 7;
+        changed |= n->changed.publiclink << 8;
 
         int attrlen = n->attrstring->size();
         string base64attrstring;
@@ -6785,7 +6816,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle#key or publichandle#key
+// formats supported: ...#!publichandle!key or publichandle!key
 error MegaClient::openfilelink(const char* link, int op)
 {
     const char* ptr;
@@ -6805,8 +6836,10 @@ error MegaClient::openfilelink(const char* link, int op)
     {
         ptr += 8;
 
-        if (*ptr++ == '!')
+        if (*ptr == '!')
         {
+            ptr++;
+
             if (Base64::atob(ptr, key, sizeof key) == sizeof key)
             {
                 if (op)

@@ -856,6 +856,20 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+void Node::setpubliclink(handle ph, m_time_t ets, bool takendown)
+{
+    if (!plink) // creation
+    {
+        plink = new PublicLink(ph, ets, takendown);
+    }
+    else            // update
+    {
+        plink->ph = ph;
+        plink->ets = ets;
+        plink->takendown = takendown;
+    }
+}
+
 NodeCore::NodeCore()
 {
     attrstring = NULL;

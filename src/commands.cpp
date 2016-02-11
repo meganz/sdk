@@ -31,10 +31,15 @@
 #include "mega.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
 {
     cmd("ufa");
     arg("s", cdata->size());
+
+    if (checkAccess)
+    {
+        arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+    }
 
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
@@ -60,9 +65,21 @@ HttpReqCommandPutFA::~HttpReqCommandPutFA()
 
 void HttpReqCommandPutFA::procresult()
 {
+    error e;
+
     if (client->json.isnumeric())
     {
-        status = REQ_FAILURE;
+        e = (error)client->json.getint();
+
+        if (e == API_EAGAIN || e == API_ERATELIMIT)
+        {
+            status = REQ_FAILURE;
+        }
+        else
+        {
+            status = REQ_SUCCESS;
+            return client->app->putfa_result(th, type, e);
+        }
     }
     else
     {
@@ -92,6 +109,7 @@ void HttpReqCommandPutFA::procresult()
                 default:
                     if (!client->json.storeobject())
                     {
+                        status = REQ_SUCCESS;
                         return client->app->putfa_result(th, type, API_EINTERNAL);
                     }
             }
@@ -2706,6 +2724,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
     }
 
     this->h = n->nodehandle;
+    this->ets = ets;
     this->tag = client->reqtag;
 }
 
@@ -2721,6 +2740,14 @@ void CommandSetPH::procresult()
     if (ISUNDEF(ph))
     {
         return client->app->exportnode_result(API_EINTERNAL);
+    }
+
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        n->setpubliclink(ph, ets, false);
+        n->changed.publiclink = true;
+        client->notifynode(n);
     }
 
     client->app->exportnode_result(h, ph);

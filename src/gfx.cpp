@@ -102,7 +102,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing)
+int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
     int numputs = 0;
 
@@ -133,7 +133,7 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
                 // the upload completes
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(th, (meta_t)i, key, jpeg);
+                client->putfa(th, (meta_t)i, key, jpeg, checkAccess);
                 client->reqtag = creqtag;
                 numputs++;
 
