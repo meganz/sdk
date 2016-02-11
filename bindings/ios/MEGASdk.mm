@@ -175,60 +175,96 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
 }
 
 - (void)removeMEGADelegate:(id<MEGADelegate>)delegate {
+    std::vector<DelegateMEGAListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGAListener *>::iterator it = _activeMegaListeners.begin();
     while (it != _activeMegaListeners.end()) {
         DelegateMEGAListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeMegaListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeListener(listenersToRemove[i]);
+    }
 }
 
 - (void)removeMEGARequestDelegate:(id<MEGARequestDelegate>)delegate {
+    std::vector<DelegateMEGARequestListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGARequestListener *>::iterator it = _activeRequestListeners.begin();
     while (it != _activeRequestListeners.end()) {
         DelegateMEGARequestListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeRequestListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeRequestListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeRequestListener(listenersToRemove[i]);
+    }
 }
 
 - (void)removeMEGATransferDelegate:(id<MEGATransferDelegate>)delegate {
+    std::vector<DelegateMEGATransferListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGATransferListener *>::iterator it = _activeTransferListeners.begin();
     while (it != _activeTransferListeners.end()) {
         DelegateMEGATransferListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeTransferListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeTransferListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
-
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeTransferListener(listenersToRemove[i]);
+    }
 }
 
 - (void)removeMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+    std::vector<DelegateMEGAGlobalListener *> listenersToRemove;
+    
     pthread_mutex_lock(&listenerMutex);
     std::set<DelegateMEGAGlobalListener *>::iterator it = _activeGlobalListeners.begin();
     while (it != _activeGlobalListeners.end()) {
         DelegateMEGAGlobalListener *delegateListener = *it;
         if (delegateListener->getUserListener() == delegate) {
-            self.megaApi->removeGlobalListener(delegateListener);
+            listenersToRemove.push_back(delegateListener);
             _activeGlobalListeners.erase(it++);
         }
-        else it++;
+        else {
+            it++;
+        }
     }
     pthread_mutex_unlock(&listenerMutex);
+    
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        self.megaApi->removeGlobalListener(listenersToRemove[i]);
+    }
 
 }
 
