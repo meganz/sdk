@@ -1976,7 +1976,7 @@ MegaStringMap *MegaStringMapPrivate::copy() const
     return new MegaStringMapPrivate(this);
 }
 
-const char *MegaStringMapPrivate::get(string key) const
+const char *MegaStringMapPrivate::get(const char *key) const
 {
     string_map::const_iterator it = strMap.find(key);
 
@@ -2011,7 +2011,8 @@ int MegaStringMapPrivate::size() const
 MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStringMap)
 {
     MegaStringList *keys = megaStringMap->getKeys();
-    string key, value;
+    const char *key = NULL;
+    const char *value = NULL;
     for (int i=0; i < keys->size(); i++)
     {
         key = keys->get(i);
@@ -9652,9 +9653,9 @@ void MegaApiImpl::sendPendingRequests()
 
                 // encode the MegaStringMap as a TLV container
                 TLVstore tlv;
-                string key, value;
+                string value;
                 unsigned len;
-                const char *buf;
+                const char *buf, *key;
                 MegaStringList *keys = stringMap->getKeys();
                 for (int i=0; i < keys->size(); i++)
                 {

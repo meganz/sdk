@@ -1315,7 +1315,7 @@ public:
      * @param key Key of the string that you want to get from the map
      * @return string at the position key in the map, in Base64 encoding
      */
-    virtual const char* get(std::string key) const;
+    virtual const char* get(const char* key) const;
 
     /**
      * @brief Returns the list of keys in the MegaStringMap

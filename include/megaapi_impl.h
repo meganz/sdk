@@ -836,7 +836,7 @@ public:
     MegaStringMapPrivate(const string_map *map, bool toBase64 = false);
     virtual ~MegaStringMapPrivate();
     virtual MegaStringMap *copy() const;
-    virtual const char *get(string key) const;
+    virtual const char *get(const char* key) const;
     virtual MegaStringList *getKeys() const;
     virtual int size() const;
 

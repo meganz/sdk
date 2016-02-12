@@ -3535,7 +3535,7 @@ MegaStringMap *MegaStringMap::copy() const
     return NULL;
 }
 
-const char *MegaStringMap::get(string) const
+const char *MegaStringMap::get(const char*) const
 {
     return NULL;
 }
