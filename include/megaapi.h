@@ -1305,7 +1305,8 @@ public:
     /**
      * @brief Returns the string at the position key in the MegaStringMap
      *
-     * The returned value is a Base64-encoded string
+     * The returned value is a null-terminated char array. If the value in the map is an array of
+     * bytes, then it will be a Base64-encoded string.
      *
      * The MegaStringMap retains the ownership of the returned string. It will be only valid until
      * the MegaStringMap is deleted.
@@ -1313,7 +1314,7 @@ public:
      * If the key is not found in the map, this function returns NULL.
      *
      * @param key Key of the string that you want to get from the map
-     * @return string at the position key in the map, in Base64 encoding
+     * @return String at the position key in the map
      */
     virtual const char* get(const char* key) const;
 
@@ -2116,7 +2117,7 @@ class MegaRequest
 #endif
 
         /**
-         * @brief Returns the hash map
+         * @brief Returns the string map
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -2125,7 +2126,7 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::getUserAttribute - Returns the attribute value
          *
-         * @return Hash map including the key-value pairs of the attribute
+         * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
 };
@@ -3607,13 +3608,13 @@ class MegaApi
         };
 
         enum {
-            USER_ATTR_AVATAR = 0,
-            USER_ATTR_FIRSTNAME = 1,
-            USER_ATTR_LASTNAME = 2,
-            USER_ATTR_AUTHRING = 3,
-            USER_ATTR_LAST_INTERACTION = 4,
-            USER_ATTR_ED25519_PUBLIC_KEY = 5,
-            USER_ATTR_CU25519_PUBLIC_KEY = 6,
+            USER_ATTR_AVATAR = 0,               // public - char array
+            USER_ATTR_FIRSTNAME = 1,            // public - char array
+            USER_ATTR_LASTNAME = 2,             // public - char array
+            USER_ATTR_AUTHRING = 3,             // private - byte array
+            USER_ATTR_LAST_INTERACTION = 4,     // private - byte array
+            USER_ATTR_ED25519_PUBLIC_KEY = 5,   // public - byte array
+            USER_ATTR_CU25519_PUBLIC_KEY = 6,   // public - byte array
             USER_ATTR_KEYRING = 7
 //            USER_ATTR_AUTHRSA = 8,
 //            USER_ATTR_AUTHCU255 = 9,

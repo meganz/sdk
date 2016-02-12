@@ -6285,19 +6285,11 @@ void MegaClient::getua(User* u, const char* an)
             app->getua_result((byte*) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
             return;
         }
-        else if (!strcmp(an, "*keyring") && (signkey || chatkey))
+        else if (!strcmp(an, "*keyring") && signkey && chatkey)
         {
             TLVstore *tlv = new TLVstore;
-
-            if (signkey)
-            {
-                tlv->set("*prEd255", string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            }
-
-            if (chatkey)
-            {
-                tlv->set("*prCu255", string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-            }
+            tlv->set("*prEd255", string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+            tlv->set("*prCu255", string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
 
             restag = reqtag;
             app->getua_result(tlv);

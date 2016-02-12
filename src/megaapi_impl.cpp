@@ -7447,10 +7447,14 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
-    if(request->getParamType() == MegaApi::USER_ATTR_AVATAR)
+    int attrType = request->getParamType();
+
+    switch (attrType)
     {
+    case MegaApi::USER_ATTR_AVATAR:
         if (len)
         {
+
             FileAccess *f = client->fsaccess->newfileaccess();
             string filePath(request->getFile());
             string localPath;
@@ -7480,12 +7484,31 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             fireOnRequestFinish(request, MegaError(API_ENOENT));
             return;
         }
+
+        break;
+
+    // null-terminated char arrays
+    case MegaApi::USER_ATTR_FIRSTNAME:
+    case MegaApi::USER_ATTR_LASTNAME:
+        {
+            string str((const char*)data,len);
+            request->setText(str.c_str());
+        }
+        break;
+
+    // byte arrays with possible nulls in the middle --> to Base64
+    case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
+    case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
+    default:
+        {
+            string str;
+            str.resize(len * 4 / 3 + 4);
+            str.resize(Base64::btoa(data, len, (char*)str.data()));
+            request->setText(str.c_str());
+        }
+        break;
     }
-    else
-    {
-        string str((const char*)data,len);
-        request->setText(str.c_str());
-    }
+
     fireOnRequestFinish(request, MegaError(API_OK));
 }
 
@@ -7495,6 +7518,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
+    // TLV data usually includes byte arrays with zeros in the middle, so values
+    // must be converted into Base64 strings to avoid problems
     MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
     request->setMegaStringMap(stringMap);
     delete stringMap;
