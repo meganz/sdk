@@ -1908,6 +1908,16 @@ void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
     pImpl->changeApiUrl(apiURL, disablepkp);
 }
 
+void MegaApi::retrySSLerrors(bool enable)
+{
+    pImpl->retrySSLerrors(enable);
+}
+
+void MegaApi::setPublicKeyPinning(bool enable)
+{
+    pImpl->setPublicKeyPinning(enable);
+}
+
 char *MegaApi::base64ToBase32(const char *base64)
 {
     if(!base64)

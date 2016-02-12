@@ -632,7 +632,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
-    
+    retryessl = false;
+
 #ifndef EMSCRIPTEN
     autodownport = true;
     autoupport = true;
@@ -1014,9 +1015,13 @@ void MegaClient::exec()
                             sslfakeissuer = pendingcs->sslfakeissuer;
                             app->request_error(API_ESSL);
                             sslfakeissuer.clear();
-                            delete pendingcs;
-                            pendingcs = NULL;
-                            break;
+
+                            if (!retryessl)
+                            {
+                                delete pendingcs;
+                                pendingcs = NULL;
+                                break;
+                            }
                         }
 
                         // failure, repeat with capped exponential backoff
@@ -1126,7 +1131,11 @@ void MegaClient::exec()
                             sslfakeissuer = pendingsc->sslfakeissuer;
                             app->request_error(API_ESSL);
                             sslfakeissuer.clear();
-                            *scsn = 0;
+
+                            if (!retryessl)
+                            {
+                                *scsn = 0;
+                            }
                         }
 
                         // failure, repeat with capped exponential backoff

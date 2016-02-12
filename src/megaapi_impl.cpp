@@ -5247,6 +5247,22 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::retrySSLerrors(bool enable)
+{
+    sdkMutex.lock();
+    client->retryessl = enable;
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::setPublicKeyPinning(bool enable)
+{
+    sdkMutex.lock();
+    client->disablepkp = !enable;
+    client->abortbackoff();
+    client->disconnect();
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
 	if(!node) return 1;
@@ -9011,7 +9027,7 @@ void MegaApiImpl::sendPendingRequests()
 
 	while((request = requestQueue.pop()))
 	{
-        if(!nextTag)
+        if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
             client->abortbackoff(false);
         }
@@ -9395,6 +9411,12 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_LOGOUT:
 		{
+            if (request->getParamType() == API_ESSL && client->retryessl)
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+
             if(request->getFlag())
             {
                 client->logout();

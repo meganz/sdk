@@ -1312,6 +1312,8 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+        void retrySSLerrors(bool enable);
+        void setPublicKeyPinning(bool enable);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
