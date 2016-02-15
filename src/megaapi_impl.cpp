@@ -1992,18 +1992,6 @@ const char *MegaStringMapPrivate::get(const char *key) const
     return it->second.data();
 }
 
-int MegaStringMapPrivate::getLength(const char *key) const
-{
-    string_map::const_iterator it = strMap.find(key);
-
-    if (it == strMap.end())
-    {
-        return -1;
-    }
-
-    return it->second.length();
-}
-
 MegaStringList *MegaStringMapPrivate::getKeys() const
 {
     vector<char*> keys;
@@ -2034,7 +2022,7 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
         key = keys->get(i);
         value = megaStringMap->get(key);
 
-        strMap[key] = string(value, megaStringMap->getLength(key));
+        strMap[key] = value;
     }
 
     delete keys;

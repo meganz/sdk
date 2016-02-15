@@ -837,7 +837,6 @@ public:
     virtual ~MegaStringMapPrivate();
     virtual MegaStringMap *copy() const;
     virtual const char *get(const char* key) const;
-    virtual int getLength(const char* key) const;
     virtual MegaStringList *getKeys() const;
     virtual int size() const;
 
