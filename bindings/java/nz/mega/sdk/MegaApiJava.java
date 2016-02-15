@@ -217,16 +217,22 @@ public class MegaApiJava {
      *            Object that is unregistered.
      */
     public void removeListener(MegaListenerInterface listener) {
+    	ArrayList<DelegateMegaListener> listenersToRemove = new ArrayList<DelegateMegaListener>();
+    	
         synchronized (activeMegaListeners) {
             Iterator<DelegateMegaListener> it = activeMegaListeners.iterator();
             while (it.hasNext()) {
                 DelegateMegaListener delegate = it.next();
                 if (delegate.getUserListener() == listener) {
-                    megaApi.removeListener(delegate);
+                	listenersToRemove.add(delegate);
                     it.remove();
                 }
             }
         }
+        
+        for (int i=0;i<listenersToRemove.size();i++){
+        	megaApi.removeListener(listenersToRemove.get(i));
+        }        	
     }
 
     /**
@@ -238,15 +244,20 @@ public class MegaApiJava {
      *            Object that is unregistered.
      */
     public void removeRequestListener(MegaRequestListenerInterface listener) {
+    	ArrayList<DelegateMegaRequestListener> listenersToRemove = new ArrayList<DelegateMegaRequestListener>();
         synchronized (activeRequestListeners) {
             Iterator<DelegateMegaRequestListener> it = activeRequestListeners.iterator();
             while (it.hasNext()) {
                 DelegateMegaRequestListener delegate = it.next();
                 if (delegate.getUserListener() == listener) {
-                    megaApi.removeRequestListener(delegate);
+                	listenersToRemove.add(delegate);
                     it.remove();
                 }
             }
+        }
+        
+        for (int i=0;i<listenersToRemove.size();i++){
+        	megaApi.removeRequestListener(listenersToRemove.get(i));
         }
     }
 
@@ -259,15 +270,21 @@ public class MegaApiJava {
      *            Object that is unregistered.
      */
     public void removeTransferListener(MegaTransferListenerInterface listener) {
+    	ArrayList<DelegateMegaTransferListener> listenersToRemove = new ArrayList<DelegateMegaTransferListener>();
+    	
         synchronized (activeTransferListeners) {
             Iterator<DelegateMegaTransferListener> it = activeTransferListeners.iterator();
             while (it.hasNext()) {
                 DelegateMegaTransferListener delegate = it.next();
                 if (delegate.getUserListener() == listener) {
-                    megaApi.removeTransferListener(delegate);
+                	listenersToRemove.add(delegate);
                     it.remove();
                 }
             }
+        }
+        
+        for (int i=0;i<listenersToRemove.size();i++){
+        	megaApi.removeTransferListener(listenersToRemove.get(i));
         }
     }
 
@@ -280,15 +297,21 @@ public class MegaApiJava {
      *            Object that is unregistered.
      */
     public void removeGlobalListener(MegaGlobalListenerInterface listener) {
+    	ArrayList<DelegateMegaGlobalListener> listenersToRemove = new ArrayList<DelegateMegaGlobalListener>();
+    	
         synchronized (activeGlobalListeners) {
             Iterator<DelegateMegaGlobalListener> it = activeGlobalListeners.iterator();
             while (it.hasNext()) {
                 DelegateMegaGlobalListener delegate = it.next();
                 if (delegate.getUserListener() == listener) {
-                    megaApi.removeGlobalListener(delegate);
+                	listenersToRemove.add(delegate);
                     it.remove();
                 }
             }
+        }
+        
+        for (int i=0;i<listenersToRemove.size();i++){
+            megaApi.removeGlobalListener(listenersToRemove.get(i));
         }
     }
 

@@ -512,7 +512,7 @@ void DirectReadNode::dispatch()
         schedule(DirectReadSlot::TIMEOUT_DS);
         if (!pendingcmd)
         {
-            pendingcmd = new CommandDirectRead(this);
+            pendingcmd = new CommandDirectRead(client, this);
             client->reqs.add(pendingcmd);
         }
     }

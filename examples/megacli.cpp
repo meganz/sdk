@@ -732,6 +732,19 @@ void DemoApp::fetchnodes_result(error e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
     }
+    else
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = client->getrootpublicfolder();
+        if (h != UNDEF)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
+        }
+    }
 }
 
 void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
@@ -2493,14 +2506,9 @@ static void process_line(char* l)
                                 else
                                 {
                                     const char* ptr;
-
-                                    if ((ptr = strchr(words[1].c_str(), '#')))
+                                    if ((ptr = strchr(words[1].c_str(), '#')))  // folder link indicator
                                     {
-                                        if (ptr[1] == 'F' && ptr[2] == '!' && ptr[11] == '!')
-                                        {
-                                            // folder link login
-                                            return client->app->login_result(client->folderaccess(ptr + 3, ptr + 12));
-                                        }
+                                        return client->app->login_result(client->folderaccess(words[1].c_str()));
                                     }
                                     else
                                     {
@@ -3698,7 +3706,7 @@ static void process_line(char* l)
 // this can occur e.g. with syntactically malformed requests (due to a bug), an invalid application key
 void DemoApp::request_error(error e)
 {
-    if (e == API_ESID)
+    if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
         client->logout();
@@ -3893,7 +3901,29 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 {
     Node* n;
 
-    if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
+    if (!key)
+    {
+        cout << "File is valid, but no key was provided." << endl;
+        return;
+    }
+
+    // check if the file is decryptable
+    string attrstring;
+    string keystring;
+
+    attrstring.resize(a->length()*4/3+4);
+    attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
+
+    SymmCipher nodeKey;
+    keystring.assign((char*)key,FILENODEKEYLENGTH);
+    nodeKey.setkey(key, FILENODE);
+
+    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
+    if(!buf)
+    {
+        cout << "The file won't be imported, the provided key is invalid." << endl;
+    }
+    else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
     {
         NewNode* newnode = new NewNode[1];
 
@@ -3913,6 +3943,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         cout << "Need to be logged in to import file links." << endl;
     }
+
+    delete [] buf;
 }
 
 void DemoApp::checkfile_result(handle h, error e)

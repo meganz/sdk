@@ -124,11 +124,12 @@ class DelegateMegaRequestListener extends MegaRequestListener {
             megaApi.runCallback(new Runnable() {
                 public void run() {
                     listener.onRequestFinish(megaApi, megaRequest, megaError);
+                    
+                    if (singleListener) {
+                        megaApi.privateFreeRequestListener(DelegateMegaRequestListener.this);
+                    }
                 }
             });
-        }
-        if (singleListener) {
-            megaApi.privateFreeRequestListener(this);
         }
     }
 

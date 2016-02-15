@@ -1204,6 +1204,9 @@ class MegaApiImpl : public MegaApp
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
+        void useHttpsOnly(bool httpsOnly);
+        bool usingHttpsOnly();
+
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
@@ -1313,6 +1316,12 @@ class MegaApiImpl : public MegaApp
         MegaNode *getRootNode();
         MegaNode* getInboxNode();
         MegaNode *getRubbishNode();
+
+        void setDefaultFilePermissions(int permissions);
+        int getDefaultFilePermissions();
+        void setDefaultFolderPermissions(int permissions);
+        int getDefaultFolderPermissions();
+
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
@@ -1325,6 +1334,8 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+        void retrySSLerrors(bool enable);
+        void setPublicKeyPinning(bool enable);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);

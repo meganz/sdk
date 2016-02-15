@@ -31,13 +31,23 @@
 #include "mega.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
 {
     cmd("ufa");
     arg("s", cdata->size());
 
+    if (checkAccess)
+    {
+        arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+    }
+
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     th = cth;
     type = ctype;
@@ -55,9 +65,21 @@ HttpReqCommandPutFA::~HttpReqCommandPutFA()
 
 void HttpReqCommandPutFA::procresult()
 {
+    error e;
+
     if (client->json.isnumeric())
     {
-        status = REQ_FAILURE;
+        e = (error)client->json.getint();
+
+        if (e == API_EAGAIN || e == API_ERATELIMIT)
+        {
+            status = REQ_FAILURE;
+        }
+        else
+        {
+            status = REQ_SUCCESS;
+            return client->app->putfa_result(th, type, e);
+        }
     }
     else
     {
@@ -87,6 +109,7 @@ void HttpReqCommandPutFA::procresult()
                 default:
                     if (!client->json.storeobject())
                     {
+                        status = REQ_SUCCESS;
                         return client->app->putfa_result(th, type, API_EINTERNAL);
                     }
             }
@@ -94,12 +117,17 @@ void HttpReqCommandPutFA::procresult()
     }
 }
 
-CommandGetFA::CommandGetFA(int p, handle fahref, bool chunked)
+CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref, bool chunked)
 {
     part = p;
 
     cmd("ufa");
     arg("fah", (byte*)&fahref, sizeof fahref);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     if (chunked)
     {
@@ -207,11 +235,17 @@ void CommandAttachFA::procresult()
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(TransferSlot* ctslot, int ms)
+CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 {
     tslot = ctslot;
 
     cmd("u");
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
+
     arg("s", tslot->fa->size);
     arg("ms", ms);
 }
@@ -280,13 +314,18 @@ void CommandPutFile::procresult()
 }
 
 // request temporary source URL for DirectRead
-CommandDirectRead::CommandDirectRead(DirectReadNode* cdrn)
+CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 {
     drn = cdrn;
 
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 }
 
 void CommandDirectRead::cancel()
@@ -361,11 +400,16 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
 {
     cmd("g");
     arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
+
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     if(auth)
     {
@@ -2870,6 +2914,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
     }
 
     this->h = n->nodehandle;
+    this->ets = ets;
     this->tag = client->reqtag;
 }
 
@@ -2885,6 +2930,14 @@ void CommandSetPH::procresult()
     if (ISUNDEF(ph))
     {
         return client->app->exportnode_result(API_EINTERNAL);
+    }
+
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        n->setpubliclink(ph, ets, false);
+        n->changed.publiclink = true;
+        client->notifynode(n);
     }
 
     client->app->exportnode_result(h, ph);

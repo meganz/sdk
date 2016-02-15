@@ -243,6 +243,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_REMOVED;
     }
+    if(node->changed.publiclink)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PUBLIC_LINK;
+    }
 
 
 #ifdef ENABLE_SYNC
@@ -3712,6 +3716,34 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
     waiter->notify();
 }
 
+void MegaApiImpl::useHttpsOnly(bool usehttps)
+{
+    if (client->usehttps == usehttps)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    client->usehttps = usehttps;
+    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+    {
+        for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+        {
+            Transfer *t = it->second;
+            if (t->slot)
+            {
+                t->failed(API_EAGAIN);
+            }
+        }
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::usingHttpsOnly()
+{
+    return client->usehttps;
+}
+
 void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFilePath, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_FILE, listener);
@@ -4545,7 +4577,27 @@ MegaNode* MegaApiImpl::getRubbishNode()
     sdkMutex.lock();
     MegaNode *result = MegaNodePrivate::fromNode(client->nodebyhandle(client->rootnodes[2]));
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::setDefaultFilePermissions(int permissions)
+{
+    fsAccess->setdefaultfilepermissions(permissions);
+}
+
+int MegaApiImpl::getDefaultFilePermissions()
+{
+    return fsAccess->getdefaultfilepermissions();
+}
+
+void MegaApiImpl::setDefaultFolderPermissions(int permissions)
+{
+    fsAccess->setdefaultfolderpermissions(permissions);
+}
+
+int MegaApiImpl::getDefaultFolderPermissions()
+{
+    return fsAccess->getdefaultfolderpermissions();
 }
 
 bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
@@ -5366,6 +5418,22 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
         MegaClient::disablepkp = true;
     }
 
+    client->abortbackoff();
+    client->disconnect();
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::retrySSLerrors(bool enable)
+{
+    sdkMutex.lock();
+    client->retryessl = enable;
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::setPublicKeyPinning(bool enable)
+{
+    sdkMutex.lock();
+    client->disablepkp = !enable;
     client->abortbackoff();
     client->disconnect();
     sdkMutex.unlock();
@@ -6586,6 +6654,20 @@ void MegaApiImpl::fetchnodes_result(error e)
         return;
     }
 
+    if (e == API_OK)
+    {
+        // check if we fetched a folder link and the key is invalid
+        handle h = client->getrootpublicfolder();
+        if (h != UNDEF)
+        {
+            Node *n = client->nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            {
+                request->setFlag(true);
+            }
+        }
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -7336,7 +7418,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             }
         }
     }
-    else fileName = "CRYPTO_ERROR";
+    else
+    {
+        fileName = "CRYPTO_ERROR";
+        request->setFlag(true);
+    }
 
 	if(request->getType() == MegaRequest::TYPE_IMPORT_LINK)
 	{
@@ -9155,7 +9241,7 @@ void MegaApiImpl::sendPendingRequests()
 
 	while((request = requestQueue.pop()))
 	{
-        if(!nextTag)
+        if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
             client->abortbackoff(false);
         }
@@ -9235,13 +9321,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                const char* ptr;
-                if (!((ptr = strstr(megaFolderLink,"#F!")) && (strlen(ptr)>12) && ptr[11] == '!'))
-                {
-                    e = API_EARGS;
-                    break;
-                }
-                e = client->folderaccess(ptr+3,ptr+12);
+                e = client->folderaccess(megaFolderLink);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, MegaError(e));
@@ -9545,6 +9625,12 @@ void MegaApiImpl::sendPendingRequests()
 		}
 		case MegaRequest::TYPE_LOGOUT:
 		{
+            if (request->getParamType() == API_ESSL && client->retryessl)
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+
             if(request->getFlag())
             {
                 client->logout();
@@ -12178,6 +12264,9 @@ void MegaHTTPServer::run()
     uv_run(uv_loop, UV_RUN_DEFAULT);
 
     uv_loop_close(uv_loop);
+    started = false;
+    port = 0;
+
     LOG_debug << "HTTP server thread exit";
 }
 
@@ -12190,8 +12279,6 @@ void MegaHTTPServer::stop()
 
     uv_async_send(&exit_handle);
     thread.join();
-    started = 0;
-    port = 0;
 }
 
 int MegaHTTPServer::getPort()
@@ -12401,6 +12488,10 @@ void MegaHTTPServer::onClose(uv_handle_t* handle)
     // streaming transfers are automatically stopped when their listener is removed
     httpctx->megaApi->removeTransferListener(httpctx);
     httpctx->megaApi->removeRequestListener(httpctx);
+
+    httpctx->server->connections.remove(httpctx);
+    LOG_debug << "Connection closed: " << httpctx->server->connections.size();
+
     uv_close((uv_handle_t *)&httpctx->asynchandle, onAsyncEventClose);
 }
 
@@ -12418,10 +12509,9 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
     }
 
-    httpctx->server->connections.remove(httpctx);
-    LOG_debug << "Connection closed: " << httpctx->server->connections.size();
     delete httpctx->node;
     delete httpctx;
+    LOG_debug << "Connection deleted";
 }
 
 int MegaHTTPServer::onMessageBegin(http_parser *)
@@ -13093,7 +13183,10 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
     {
         MegaHTTPContext *httpctx = (*it);
         httpctx->finished = true;
-        uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
+        }
     }
 
     uv_close((uv_handle_t *)&httpServer->server, NULL);
@@ -13251,6 +13344,7 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
+        finished = true;
         uv_async_send(&asynchandle);
     }
 }

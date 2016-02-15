@@ -283,13 +283,13 @@ void TransferSlot::doio(MegaClient* client)
                             failure = true;
                             bool changeport = false;
 
-                            if (transfer->type == GET && client->autodownport)
+                            if (transfer->type == GET && client->autodownport && !memcmp(tempurl.c_str(), "http:", 5))
                             {
                                 LOG_debug << "Automatically changing download port";
                                 client->usealtdownport = !client->usealtdownport;
                                 changeport = true;
                             }
-                            else if (transfer->type == PUT && client->autoupport)
+                            else if (transfer->type == PUT && client->autoupport && !memcmp(tempurl.c_str(), "http:", 5))
                             {
                                 LOG_debug << "Automatically changing upload port";
                                 client->usealtupport = !client->usealtupport;
@@ -398,13 +398,13 @@ void TransferSlot::doio(MegaClient* client)
         failure = true;
         bool changeport = false;
 
-        if (transfer->type == GET && client->autodownport)
+        if (transfer->type == GET && client->autodownport && !memcmp(tempurl.c_str(), "http:", 5))
         {
             LOG_debug << "Automatically changing download port due to a timeout";
             client->usealtdownport = !client->usealtdownport;
             changeport = true;
         }
-        else if (transfer->type == PUT && client->autoupport)
+        else if (transfer->type == PUT && client->autoupport && !memcmp(tempurl.c_str(), "http:", 5))
         {
             LOG_debug << "Automatically changing upload port due to a timeout";
             client->usealtupport = !client->usealtupport;

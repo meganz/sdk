@@ -111,7 +111,7 @@ public:
     void killallsessions();
 
     // set folder link: node, key
-    error folderaccess(const char*, const char*);
+    error folderaccess(const char*folderlink);
 
     // open exported file link
     error openfilelink(const char*, int);
@@ -184,7 +184,7 @@ public:
     void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, string*);
+    void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(Node*, fatype, int = 0);
@@ -315,6 +315,9 @@ public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
 
+    // use HTTPS for all communications
+    bool usehttps;
+    
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
@@ -329,6 +332,9 @@ public:
 
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
+
+    // retry API_ESSL errors
+    bool retryessl;
 
     // time left for bandwidth overquota
     m_time_t overquotauntil;
@@ -769,6 +775,8 @@ public:
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;
     static const int CHATHANDLE = 8;
+    static const int SESSIONHANDLE = 8;
+    static const int PURCHASEHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -825,6 +833,9 @@ public:
     // set authentication context, either a session ID or a exported folder node handle
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
+
+    // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
+    handle getrootpublicfolder();
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false);

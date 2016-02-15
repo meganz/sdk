@@ -1485,6 +1485,16 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
+void MegaApi::useHttpsOnly(bool httpsOnly)
+{
+    pImpl->useHttpsOnly(httpsOnly);
+}
+
+bool MegaApi::usingHttpsOnly()
+{
+    return pImpl->usingHttpsOnly();
+}
+
 void MegaApi::addContact(const char* email, MegaRequestListener* listener)
 {
     pImpl->addContact(email, listener);
@@ -1751,6 +1761,26 @@ MegaNode* MegaApi::getRubbishNode()
     return pImpl->getRubbishNode();
 }
 
+void MegaApi::setDefaultFilePermissions(int permissions)
+{
+    pImpl->setDefaultFilePermissions(permissions);
+}
+
+int MegaApi::getDefaultFilePermissions()
+{
+    return pImpl->getDefaultFilePermissions();
+}
+
+void MegaApi::setDefaultFolderPermissions(int permissions)
+{
+    pImpl->setDefaultFolderPermissions(permissions);
+}
+
+int MegaApi::getDefaultFolderPermissions()
+{
+    return pImpl->getDefaultFolderPermissions();
+}
+
 MegaUserList* MegaApi::getContacts()
 {
     return pImpl->getContacts();
@@ -1881,6 +1911,16 @@ const char *MegaApi::getUserAgent()
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 {
     pImpl->changeApiUrl(apiURL, disablepkp);
+}
+
+void MegaApi::retrySSLerrors(bool enable)
+{
+    pImpl->retrySSLerrors(enable);
+}
+
+void MegaApi::setPublicKeyPinning(bool enable)
+{
+    pImpl->setPublicKeyPinning(enable);
 }
 
 char *MegaApi::base64ToBase32(const char *base64)
