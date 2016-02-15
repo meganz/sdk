@@ -6756,7 +6756,7 @@ class MegaApi
          * be sent. However, logout won't be really executed and in onRequestFinish the error code
          * for the request will be MegaError::API_EINCOMPLETE
          *
-         * @param enable true to keep retrying failed requests due to a fail checking the MEGA public kek
+         * @param enable true to keep retrying failed requests due to a fail checking the MEGA public key
          * or false to perform an automatic logout in that case
          */
         void retrySSLerrors(bool enable);
