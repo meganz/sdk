@@ -1319,6 +1319,19 @@ public:
     virtual const char* get(const char* key) const;
 
     /**
+     * @brief Returns the length of the string at the position key in the MegaStringMap
+     *
+     * If the key is not found in the map, this function returns -1.
+     *
+     * You may want to use this fuction is the string is used to store byte arrays that
+     * might include NULLs, so the array's length cannot be checked by looking for `\0`.
+     *
+     * @param key Key of the string whose length you want to get
+     * @return Length of the string at the position key in the map
+     */
+    virtual int getLength(const char* key) const;
+
+    /**
      * @brief Returns the list of keys in the MegaStringMap
      *
      * You take the ownership of the returned value

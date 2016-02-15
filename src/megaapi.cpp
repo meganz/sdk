@@ -3540,6 +3540,11 @@ const char *MegaStringMap::get(const char*) const
     return NULL;
 }
 
+int MegaStringMap::getLength(const char *) const
+{
+    return 0;
+}
+
 MegaStringList *MegaStringMap::getKeys() const
 {
     return NULL;
