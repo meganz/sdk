@@ -6733,7 +6733,43 @@ class MegaApi
          */
         const char *getUserAgent();
 
+        /**
+         * @brief Change the API URL
+         *
+         * This function allows to change the API URL.
+         * It's only useful for testing or debugging purposes.
+         *
+         * @param apiURL New API URL
+         * @param disablepkp true to disable public key pinning for this URL
+         */
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
+        /**
+         * @brief Keep retrying when public key pinning fails
+         *
+         * By default, when the check of the MEGA public key fails, it causes an automatic
+         * logout. Pass false to this function to disable that automatic logout and
+         * keep the SDK retrying the request.
+         *
+         * Even if the automatic logout is disabled, a request of the type MegaRequest::TYPE_LOGOUT
+         * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
+         * be sent. However, logout won't be really executed and in onRequestFinish the error code
+         * for the request will be MegaError::API_EINCOMPLETE
+         *
+         * @param enable true to keep retrying failed requests due to a fail checking the MEGA public key
+         * or false to perform an automatic logout in that case
+         */
+        void retrySSLerrors(bool enable);
+
+        /**
+         * @brief Enable / disable the public key pinning
+         *
+         * Public key pinning is enabled by default for all sensible communications.
+         * It is strongly discouraged to disable this feature.
+         *
+         * @param enable true to keep public key pinning enabled, false to disable it
+         */
+        void setPublicKeyPinning(bool enable);
 
 	#ifdef _WIN32
 		/**
