@@ -8533,6 +8533,12 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
                 app->syncupdate_remote_file_addition(nn[nni].localnode->sync, n);
             }
         }
+
+        if (e && nn[nni].localnode && nn[nni].localnode->sync)
+        {
+            nn[nni].localnode->sync->errorcode = e;
+            nn[nni].localnode->sync->changestate(SYNC_FAILED);
+        }
     }
 
     delete[] nn;
@@ -8773,9 +8779,11 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
 {
     sync->changestate(SYNC_CANCELED);
 
-    if (deletecache)
+    if (deletecache && sync->statecachetable)
     {
         sync->statecachetable->remove();
+        delete sync->statecachetable;
+        sync->statecachetable = NULL;
     }
 
     syncactivity = true;

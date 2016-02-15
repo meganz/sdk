@@ -871,7 +871,7 @@ void CommandPutNodes::procresult()
                 }
             }
 
-            return client->putnodes_sync_result(e, nn, 0);
+            return client->putnodes_sync_result(e, nn, nnsize);
         }
         else
 #endif
