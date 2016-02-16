@@ -2298,19 +2298,8 @@ void CommandDelUA::procresult()
     }
     else
     {
-        const char* attrvalue = client->json.getvalue();
-
-        handle uh = UNDEF;
-
-        if (Base64::atob(attrvalue, (byte*)&uh, MegaClient::USERHANDLE) != MegaClient::USERHANDLE)
-        {
-            client->json.storeobject();
-            client->app->delua_result(API_EINTERNAL);
-        }
-        else
-        {
-            client->app->delua_result(API_OK);
-        }
+        client->json.storeobject();
+        client->app->delua_result(API_EINTERNAL);
     }
 }
 
