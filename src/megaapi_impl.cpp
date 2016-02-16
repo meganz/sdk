@@ -9782,7 +9782,7 @@ void MegaApiImpl::sendPendingRequests()
                 delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.TLVrecordsToContainer(&client->key);
+                string *container = tlv.tlvRecordsToContainer(&client->key);
 
                 client->putua(attrname.c_str(), (byte *)container->data(), container->size());
                 delete container;

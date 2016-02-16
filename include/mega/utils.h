@@ -249,16 +249,16 @@ private:
     /**
      * @brief Converts the TLV records into an encrypted byte array
      * @param key Master key to decrypt the container
-     * @param mode Block encryption mode to be used by AES
+     * @param encSetting Block encryption mode to be used by AES
      * @return A new string holding the encrypted byte array. You take the ownership of the string.
      */
-    string *TLVrecordsToContainer(SymmCipher *key, encryptionmode_t mode = AES_GCM_12_16);
+    string *tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
 
     /**
      * @brief Converts the TLV records into a byte array
      * @return A new string holding the encrypted byte array. You take the ownership of the string.
      */
-    string *TLVrecordsToContainer();
+    string *tlvRecordsToContainer();
 
     /**
      * @brief get Get the value for a given key
@@ -305,8 +305,7 @@ private:
 
     static unsigned getTaglen(int mode);
     static unsigned getIvlen(int mode);
-    static unsigned getMode(int mode);
-
+    static encryptionmode_t getMode(int mode);
 
     ~TLVstore();
 };

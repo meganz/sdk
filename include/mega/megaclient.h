@@ -794,14 +794,25 @@ public:
     // account access (full account): RSA key
     AsymmCipher asymkey;
 
-#ifdef USE_SODIUM
-
-    /// EdDSA signing key (Ed25519 private key seed).
+    // EdDSA signing key (Ed25519 private key seed).
     EdDSA *signkey;
 
-    /// ECDH key (x25519 private key).
+    // ECDH key (x25519 private key).
     ECDH *chatkey;
-#endif
+
+    struct {
+        bool keypairsInitializing : 1;
+        bool keyringSetOK : 1;
+        bool puCu255SetOK : 1;
+        bool puEd255SetOK : 1;
+        bool keypairsInitialized : 1;
+    } initkeys;
+
+    // start the intialization of Ed25519 and x25519 keypairs
+    void initkeyring();
+
+    // start the intialization of public keys of Ed25519 and x25519
+    void initpubkeys();
 
     // binary session ID
     string sid;

@@ -22,7 +22,6 @@
 
 #include "mega.h"
 
-#ifdef USE_SODIUM
 namespace mega
 {
 
@@ -264,4 +263,3 @@ int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
 }
 
 } // namespace
-#endif

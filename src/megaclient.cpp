@@ -614,13 +614,11 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-#ifdef USE_SODIUM
     delete signkey;
     signkey = NULL;
 
     delete chatkey;
     chatkey = NULL;
-#endif
 
     btcs.reset();
     btsc.reset();
@@ -672,6 +670,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     signkey = NULL;
     chatkey = NULL;
 #endif
+
+    signkey = NULL;
+    chatkey = NULL;
 
     init();
 
@@ -6022,6 +6023,31 @@ void MegaClient::procsr(JSON* j)
     j->leavearray();
 }
 
+
+void MegaClient::initkeyring()
+{
+    memset(&initkeys, 0, sizeof initkeys);
+    initkeys.keypairsInitializing = true;
+
+    int creqtag = reqtag;
+    reqtag = 0;
+
+    getua(finduser(me), "*keyring");
+
+    reqtag = creqtag;
+}
+
+void MegaClient::initpubkeys()
+{
+    int creqtag = reqtag;
+    reqtag = 0;
+
+    getua(finduser(me), "+puEd255");
+    getua(finduser(me), "+puCu255");
+
+    reqtag = creqtag;
+}
+
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
 {
@@ -7169,7 +7195,7 @@ void MegaClient::fetchnodes()
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
         // initialize signing and chat keys
-        getua(finduser(me), "*keyring");
+        initkeyring();
     }
     else if (!fetchingnodes)
     {
