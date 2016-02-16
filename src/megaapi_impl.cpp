@@ -2964,6 +2964,7 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
         string localProxyURL = localProxySettings->getProxyURL();
         string proxyURL;
         fsAccess->local2path(&localProxyURL, &proxyURL);
+        LOG_debug << "Autodetected proxy: " << proxyURL;
         proxySettings->setProxyURL(proxyURL.c_str());
     }
 

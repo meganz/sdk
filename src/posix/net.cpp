@@ -877,11 +877,17 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         {
             if(!httpio->proxyscheme.size() || !httpio->proxyscheme.compare(0, 4, "http"))
             {
+                LOG_debug << "Using HTTP proxy";
                 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
             }
             else if(!httpio->proxyscheme.compare(0, 5, "socks"))
             {
+                LOG_debug << "Using SOCKS proxy";
                 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
+            }
+            else
+            {
+                LOG_warn << "Unknown proxy type";
             }
 
             curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
@@ -889,8 +895,13 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
             if (httpio->proxyusername.size())
             {
+                LOG_debug << "Using proxy authentication " << httpio->proxyusername.size() << " " << httpio->proxypassword.size();
                 curl_easy_setopt(curl, CURLOPT_PROXYUSERNAME, httpio->proxyusername.c_str());
                 curl_easy_setopt(curl, CURLOPT_PROXYPASSWORD, httpio->proxypassword.c_str());
+            }
+            else
+            {
+                LOG_debug << "NOT using proxy authentication";
             }
 
             if(httpctx->port == 443)
@@ -1289,9 +1300,12 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
 
+    LOG_debug << "Setting proxy" << proxyurl;
+
     if (!crackurl(&proxyurl, &proxyscheme, &proxyhost, &proxyport))
     {
-        // malformed proxy string
+        LOG_err << "Malformed proxy string: " << proxyurl;
+
         // invalidate inflight proxy changes
 
         // mark the proxy as invalid (proxyurl set but proxyhost not set)
