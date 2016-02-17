@@ -6352,7 +6352,7 @@ void MegaClient::getua(User* u, const char* an)
             app->getua_result((byte*) u->lastname->data(), u->lastname->size());
             return;
         }
-#ifdef USE_SODIUM
+#ifdef ENABLE_CHAT
         // own chat and signing keys are retrieved right after login and kept updated
         else if (!strcmp(an, "+puEd255") && u->userhandle == me  && signkey)
         {
