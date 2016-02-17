@@ -884,15 +884,19 @@ void DemoApp::getua_result(TLVstore *tlv)
     vector<string>::const_iterator it;
     unsigned valuelen;
     string value, key;
+    char *buf;
     for (it=keys->begin(); it != keys->end(); it++)
     {
         key = (*it).empty() ? "(no key)" : *it;
         value = tlv->get(*it);
         valuelen = value.length();
-        value.resize(valuelen * 4 / 3 + 4);
-        Base64::btoa((const byte *) value.data(), valuelen, (char *)value.data());
 
-        cout << "\t" << key << "\t" << value << endl;
+        buf = new char[valuelen * 4 / 3 + 4];
+        Base64::btoa((const byte *) value.data(), valuelen, buf);
+
+        cout << "\t" << key << "\t" << buf << endl;
+
+        delete [] buf;
     }
     delete keys;
 }
