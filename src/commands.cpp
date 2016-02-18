@@ -1993,55 +1993,57 @@ void CommandPutUA::procresult()
         e = API_OK;
     }
 
-    if (client->initkeys.keypairsInitializing)
+    if (!e)
     {
-        if (!e)
+        if (attributename == "*keyring")
         {
-            if (attributename == "*keyring")
-            {
-                client->initkeys.keyringSetOK = true;
-            }
-            else if (attributename == "+puCu255")
-            {
-                client->initkeys.puCu255SetOK = true;
-            }
-            else if (attributename == "+puEd255")
-            {
-                client->initkeys.puEd255SetOK = true;
-            }
-
-            // if all related attributes are set...
-            if (client->initkeys.keyringSetOK &&
-                    client->initkeys.puCu255SetOK &&
-                    client->initkeys.puEd255SetOK)
-            {
-                client->initkeys.keypairsInitializing = false;
-                client->initkeys.keypairsInitialized = true;
-
-                // TODO: dump keypairs to local cache
-
-                LOG_debug << "Ed25519 and x25519 keypairs successfully created and stored.";
-            }
+            client->initkeys.keyringSetOK = true;
         }
-        else if (attributename == "*keyring" ||
-                 attributename == "+puCu255" ||
-                 attributename == "+puEd255")
+        else if (attributename == "+puCu255")
         {
-            delete client->signkey;
-            client->signkey = NULL;
-
-            delete client->chatkey;
-            client->chatkey = NULL;
-
-            int creqtag = client->reqtag;
-            client->reqtag = 0;
-            client->sendevent(99406, "Failed to set keypairs");
-            client->reqtag = creqtag;
-
-            memset(&client->initkeys, 0, sizeof client->initkeys);
-
-            LOG_err << "Failed to set attribute: " << attributename;
+            client->initkeys.puCu255SetOK = true;
         }
+        else if (attributename == "+puEd255")
+        {
+            client->initkeys.puEd255SetOK = true;
+        }
+
+        // invalidate the stored value, it is outdated now
+        User *user = client->finduser(client->me);
+        user->setChanged(attributename.c_str());
+        user->optattrs.erase(attributename);
+        client->notifyuser(user);
+
+        // if all keys-related attributes are set...
+        if (client->initkeys.keypairsInitializing &&
+                client->initkeys.keyringSetOK &&
+                client->initkeys.puCu255SetOK &&
+                client->initkeys.puEd255SetOK)
+        {
+            client->initkeys.keypairsInitializing = false;
+            client->initkeys.keypairsInitialized = true;
+
+            LOG_debug << "Ed25519 and x25519 keypairs successfully created and stored.";
+        }
+    }
+    else if (attributename == "*keyring" ||
+             attributename == "+puCu255" ||
+             attributename == "+puEd255")
+    {
+        delete client->signkey;
+        client->signkey = NULL;
+
+        delete client->chatkey;
+        client->chatkey = NULL;
+
+        int creqtag = client->reqtag;
+        client->reqtag = 0;
+        client->sendevent(99406, "Failed to set keypairs");
+        client->reqtag = creqtag;
+
+        memset(&client->initkeys, 0, sizeof client->initkeys);
+
+        LOG_err << "Failed to set attribute: " << attributename;
     }
 
     client->app->putua_result(e);
@@ -2145,6 +2147,9 @@ void CommandGetUA::procresult()
         // if there's no avatar, the value is "none" (not Base64 encoded)
         if (attributename == "+a" && !strncmp(ptr, "none", 4))
         {
+            user->changed.avatar = true;
+            client->notifyuser(user);
+
             client->app->getua_result(API_ENOENT);
             return;
         }
@@ -2301,6 +2306,11 @@ void CommandGetUA::procresult()
                 }
             }
 #endif
+            string *tlvSerialized = tlvRecords->tlvRecordsToContainer();
+            user->optattrs[attributename].assign(tlvSerialized->data(), tlvSerialized->size());
+            delete tlvSerialized;
+            client->notifyuser(user);
+
             client->app->getua_result(tlvRecords);
             delete tlvRecords;
         }
@@ -2309,7 +2319,7 @@ void CommandGetUA::procresult()
 
 #ifdef ENABLE_CHAT
             // if own user's attribute and it's a public key, check against derived pubKey
-            if (user->userhandle == client->me)
+            if (user->userhandle == client->me && client->initkeys.keyringSetOK)
             {
                 if (attributename == "+puEd255")
                 {
@@ -2331,6 +2341,7 @@ void CommandGetUA::procresult()
                         client->initkeys.puEd255SetOK = true;
                         LOG_debug << "Public key for Ed25519 matches derived public key.";
                     }
+
                 }
                 else if (attributename == "+puCu255")
                 {
@@ -2352,13 +2363,23 @@ void CommandGetUA::procresult()
                         client->initkeys.puCu255SetOK = true;
                         LOG_debug << "Public key for x25519 matches derived public key.";
                     }
+
                 }
             }
 #endif
+            if (attributename != "+a")      // avatar is saved to disc
+            {
+                user->optattrs[attributename].assign((const char *) data, datalen);
+                client->notifyuser(user);
+            }
+
             client->app->getua_result(data, datalen);
             break;
 
         case '#':   // protected
+            user->optattrs[attributename].assign((const char *) data, datalen);
+            client->notifyuser(user);
+
             client->app->getua_result(data, datalen);
             break;
 
@@ -2370,6 +2391,9 @@ void CommandGetUA::procresult()
                     attributename == "birthmonth" ||    // private
                     attributename == "birthyear")       // private
             {
+                user->optattrs[attributename].assign((const char*) data, datalen);
+                client->notifyuser(user);
+
                 client->app->getua_result(data, datalen);
             }
             else
@@ -2400,6 +2424,8 @@ void CommandGetUA::procresult()
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
+    attributename = an;
+
     cmd("upr");
     arg("ua", an);
 }
@@ -2408,7 +2434,16 @@ void CommandDelUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->delua_result((error)client->json.getint());
+        error e = (error)client->json.getint();
+        if (e == API_OK)
+        {
+            User *u = client->finduser(client->me);
+            u->optattrs.erase(attributename);
+            u->setChanged(attributename.c_str());
+            client->notifyuser(u);
+        }
+
+        client->app->delua_result(e);
     }
     else
     {

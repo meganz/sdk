@@ -256,7 +256,7 @@ private:
 
     /**
      * @brief Converts the TLV records into a byte array
-     * @return A new string holding the encrypted byte array. You take the ownership of the string.
+     * @return A new string holding the byte array. You take the ownership of the string.
      */
     string *tlvRecordsToContainer();
 

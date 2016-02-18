@@ -34,15 +34,14 @@ User::User(const char* cemail)
     {
         email = cemail;
     }
-
-    firstname = lastname = NULL;
 }
 
 bool User::serialize(string* d)
 {
     unsigned char l;
-    attr_map::iterator it;
+    unsigned short ll;
     time_t ts;
+    AttrMap attrs;
 
     d->reserve(d->size() + 100 + attrs.storagesize(10));
 
@@ -57,9 +56,22 @@ bool User::serialize(string* d)
     d->append((char*)&l, sizeof l);
     d->append(email.c_str(), l);
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    d->append("1", 1);
+    d->append("\0\0\0\0\0\0\0", 7);
 
-    attrs.serialize(d);
+    // serialization of attributes
+    for (string_map::iterator it = optattrs.begin(); it != optattrs.end(); it++)
+    {
+        l = it->first.size();
+        d->append((char*)&l, sizeof l);
+        d->append(it->first.data(), l);
+
+        ll = it->second.size();
+        d->append((char*)&ll, sizeof ll);
+        d->append(it->second.data(), ll);
+    }
+
+    d->append("", 1);
 
     if (pubk.isvalid())
     {
@@ -75,11 +87,13 @@ User* User::unserialize(MegaClient* client, string* d)
     time_t ts;
     visibility_t v;
     unsigned char l;
+    unsigned short ll;
     string m;
     User* u;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     int i;
+    char attrVersion = '\0';
 
     if (ptr + sizeof(handle) + sizeof(time_t) + sizeof(visibility_t) + 2 > end)
     {
@@ -103,7 +117,10 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     ptr += l;
 
-    for (i = 8; i--;)
+    attrVersion = MemAccess::get<char>(ptr);
+    ptr += sizeof(attrVersion);
+
+    for (i = 7; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -124,9 +141,29 @@ User* User::unserialize(MegaClient* client, string* d)
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
 
-    if ((ptr < end) && !(ptr = u->attrs.unserialize(ptr)))
+
+    if (attrVersion == '\0')
     {
-        return NULL;
+        AttrMap attrs;
+        if ((ptr < end) && !(ptr = attrs.unserialize(ptr)))
+        {
+            return NULL;
+        }
+    }
+    else if (attrVersion == '1')
+    {
+        string key;
+        while ((l = *ptr++))
+        {
+            key.assign(ptr, l);
+            ptr++;
+
+            ll = MemAccess::get<short>(ptr);
+            ptr += sizeof ll;
+
+            u->optattrs[key].assign(ptr, ll);
+            ptr += ll;
+        }
     }
 
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
@@ -135,6 +172,58 @@ User* User::unserialize(MegaClient* client, string* d)
     }
 
     return u;
+}
+
+bool User::setChanged(const char *an)
+{
+    if (!strcmp(an, "*keyring"))
+    {
+        changed.keyring = true;
+    }
+    else if (!strcmp(an, "*!authring"))
+    {
+        changed.authring = true;
+    }
+    else if (!strcmp(an, "*!lstint"))
+    {
+        changed.lstint = true;
+    }
+    else if (!strcmp(an, "+puCu255"))
+    {
+        changed.puCu255 = true;
+    }
+    else if (!strcmp(an, "+puEd255"))
+    {
+        changed.puEd255 = true;
+    }
+    else if (!strcmp(an, "+a"))
+    {
+        changed.avatar = true;
+    }
+    else if (!strcmp(an, "firstname"))
+    {
+        changed.firstname = true;
+    }
+    else if (!strcmp(an, "lastname"))
+    {
+        changed.lastname = true;
+    }
+    else if (!strcmp(an, "country"))
+    {
+        changed.country = true;
+    }
+    else if (!strcmp(an, "birthday")   ||
+             !strcmp(an, "birthmonth") ||
+             !strcmp(an, "birthyear"))
+    {
+        changed.birthday = true;
+    }
+    else
+    {
+        return false;   // attribute not recognized
+    }
+
+    return true;
 }
 
 // update user attributes

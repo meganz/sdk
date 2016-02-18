@@ -968,11 +968,16 @@ class MegaUser
 
         enum
         {
-            CHANGE_TYPE_AUTH            = 0x01,
+            CHANGE_TYPE_AUTHRING        = 0x01,
             CHANGE_TYPE_LSTINT          = 0x02,
             CHANGE_TYPE_AVATAR          = 0x04,
             CHANGE_TYPE_FIRSTNAME       = 0x08,
-            CHANGE_TYPE_LASTNAME        = 0x10
+            CHANGE_TYPE_LASTNAME        = 0x10,
+            CHANGE_TYPE_KEYRING         = 0x20,
+            CHANGE_TYPE_COUNTRY         = 0x40,
+            CHANGE_TYPE_BIRTHDAY        = 0x80,
+            CHANGE_TYPE_PUBKEY_CU255    = 0x100,
+            CHANGE_TYPE_PUBKEY_ED255    = 0x200
         };
 
         /**
@@ -992,13 +997,28 @@ class MegaUser
          * Check if the last interaction timestamp is modified
          *
          * - MegaUser::CHANGE_TYPE_AVATAR          = 0x04
-         * Check if the user has a new or modified avatar image
+         * Check if the user has a new or modified avatar image, or if the avatar was removed
          *
          * - MegaUser::CHANGE_TYPE_FIRSTNAME       = 0x08
          * Check if the user has new or modified firstname
          *
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
+         *
+         * - MegaUser::CHANGE_TYPE_KEYRING        = 0x20
+         * Check if the user has new or modified keyring
+         *
+         * - MegaUser::CHANGE_TYPE_COUNTRY        = 0x40
+         * Check if the user has new or modified country
+         *
+         * - MegaUser::CHANGE_TYPE_BIRTHDAY        = 0x80
+         * Check if the user has new or modified birthday, birthmonth or birthyear
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_CU255    = 0x100
+         * Check if the user has new or modified public key for chat
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x200
+         * Check if the user has new or modified public key for signing
          *
          * @return true if this user has an specific change
          */
@@ -1026,6 +1046,21 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
+         *
+         * - MegaUser::CHANGE_TYPE_KEYRING        = 0x20
+         * Check if the user has new or modified keyring
+         *
+         * - MegaUser::CHANGE_TYPE_COUNTRY        = 0x40
+         * Check if the user has new or modified country
+         *
+         * - MegaUser::CHANGE_TYPE_BIRTHDAY        = 0x80
+         * Check if the user has new or modified birthday, birthmonth or birthyear
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_CU255    = 0x100
+         * Check if the user has new or modified public key for chat
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x200
+         * Check if the user has new or modified public key for signing
          */
         virtual int getChanges();
 };

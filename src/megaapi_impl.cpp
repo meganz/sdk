@@ -703,9 +703,9 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
 	visibility = user->show;
 	ctime = user->ctime;
     changed = 0;
-    if (user->changed.auth)
+    if (user->changed.authring)
     {
-        changed |= MegaUser::CHANGE_TYPE_AUTH;
+        changed |= MegaUser::CHANGE_TYPE_AUTHRING;
     }
     if(user->changed.avatar)
     {
@@ -722,6 +722,26 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if(user->changed.lastname)
     {
         changed |= MegaUser::CHANGE_TYPE_LASTNAME;
+    }
+    if(user->changed.keyring)
+    {
+        changed |= MegaUser::CHANGE_TYPE_KEYRING;
+    }
+    if(user->changed.country)
+    {
+        changed |= MegaUser::CHANGE_TYPE_COUNTRY;
+    }
+    if(user->changed.birthday)
+    {
+        changed |= MegaUser::CHANGE_TYPE_BIRTHDAY;
+    }
+    if(user->changed.puCu255)
+    {
+        changed |= MegaUser::CHANGE_TYPE_PUBKEY_CU255;
+    }
+    if(user->changed.puEd255)
+    {
+        changed |= MegaUser::CHANGE_TYPE_PUBKEY_ED255;
     }
 }
 

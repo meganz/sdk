@@ -38,14 +38,8 @@ struct MEGA_API User : public Cachable
     // e-mail address
     string email;
 
-    // first name (initialized on first request, invalidated if updated)
-    string *firstname;
-
-    // last name (initialized on first request, invalidated if updated)
-    string *lastname;
-
-    // persistent attributes (n = name, a = avatar)
-    AttrMap attrs;
+    // persistent attributes (keyring, firstname...)
+    string_map optattrs;
 
     // visibility status
     visibility_t show;
@@ -58,13 +52,16 @@ struct MEGA_API User : public Cachable
 
     struct
     {
+        bool keyring : 1;   // private keys
+        bool authring : 1;  // authentication information of the contact
+        bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
         bool puCu255 : 1;   // public key for Cu25519
-        bool auth : 1;      // authentication information of the contact
-        bool lstint : 1;    // last interaction with the contact
         bool avatar : 1;    // avatar image
         bool firstname : 1;
         bool lastname : 1;
+        bool country : 1;
+        bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
     } changed;
 
     // user's public key
@@ -78,6 +75,8 @@ struct MEGA_API User : public Cachable
 
     bool serialize(string*);
     static User* unserialize(class MegaClient *, string*);
+
+    bool setChanged(const char*);
 
     User(const char* = NULL);
 };

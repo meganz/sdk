@@ -215,6 +215,8 @@ public:
 #ifdef DEBUG
 class MEGA_API CommandDelUA : public Command
 {
+    string attributename;
+
 public:
     CommandDelUA(MegaClient*, const char*);
 

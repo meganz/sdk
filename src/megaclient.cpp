@@ -3548,63 +3548,14 @@ void MegaClient::sc_userattr()
                         {
                             while (jsonsc.storeobject(&ua))
                             {
-                                if (ua == "+a")     // avatar
+                                if (!u->setChanged(ua.c_str()))
                                 {
-                                    u->changed.avatar = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "firstname")
-                                {
-                                    delete u->firstname;
-                                    u->firstname = NULL;
-                                    u->changed.firstname = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "lastname")
-                                {                                    
-                                    delete u->lastname;
-                                    u->lastname = NULL;
-                                    u->changed.lastname = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "*!authring")    // authentication information
-                                {
-                                    u->changed.auth = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "*!lstint")  // timestamp of last interaction
-                                {
-                                    u->changed.lstint = true;
-                                    notifyuser(u);
-                                }
-                                else if (ua == "*keyring")
-                                {
-                                    // keyring has changed, get values inmediately and refresh
-                                    getua(u, ua.c_str());
-
-                                    // TODO: send an event for statistics (why is it changed?)
-                                }
-                                else if (ua == "+puEd255")
-                                {
-                                    u->changed.puEd255 = true;
-                                    notifyuser(u);
-                                    if (u->userhandle == me)
-                                    {
-                                        getua(u, ua.c_str());
-                                    }
-                                }
-                                else if (ua == "+puCu255")
-                                {
-                                    u->changed.puCu255 = true;
-                                    notifyuser(u);
-                                    if (u->userhandle == me)
-                                    {
-                                        getua(u, ua.c_str());
-                                    }
+                                    LOG_debug << "User attribute not recognized: " << ua;
                                 }
                                 else
                                 {
-                                    LOG_debug << "User attribute not recognized: " << ua;
+                                    u->optattrs.erase(ua);
+                                    notifyuser(u);
                                 }
                             }
 
@@ -6337,49 +6288,33 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
  */
 void MegaClient::getua(User* u, const char* an)
 {
+    string_map::iterator it;
+
     if (an)
     {
-        // if we can solve those requests locally (runtime cached values)...
-        if (!strcmp(an, "firstname") && u->firstname)
+        // if we can solve those requests locally (cached values)...
+        it = u->optattrs.find(an);
+        if (it != u->optattrs.end())
         {
-            restag = reqtag;
-            app->getua_result((byte*) u->firstname->data(), u->firstname->size());
-            return;
+            if (*an == '*') // private attribute, TLV encoding
+            {
+                TLVstore *tlv = TLVstore::containerToTLVrecords(&it->second);
+                restag = reqtag;
+                app->getua_result(tlv);
+                delete tlv;
+                return;
+            }
+            else
+            {
+                restag = reqtag;
+                app->getua_result((byte*) it->second.data(), it->second.size());
+                return;
+            }
         }
-        else if (!strcmp(an, "lastname") && u->lastname)
+        else
         {
-            restag = reqtag;
-            app->getua_result((byte*) u->lastname->data(), u->lastname->size());
-            return;
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
         }
-#ifdef ENABLE_CHAT
-        // own chat and signing keys are retrieved right after login and kept updated
-        else if (!strcmp(an, "+puEd255") && u->userhandle == me  && signkey)
-        {
-            restag = reqtag;
-            app->getua_result((byte*) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-            return;
-        }
-        else if (!strcmp(an, "+puCu255") && u->userhandle == me  && chatkey)
-        {
-            restag = reqtag;
-            app->getua_result((byte*) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
-            return;
-        }
-        else if (!strcmp(an, "*keyring") && signkey && chatkey)
-        {
-            TLVstore *tlv = new TLVstore;
-            tlv->set("*prEd255", string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            tlv->set("*prCu255", string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-
-            restag = reqtag;
-            app->getua_result(tlv);
-            delete tlv;
-            return;
-        }
-#endif
-
-        reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
     }
 }
 
