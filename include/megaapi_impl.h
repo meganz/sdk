@@ -535,6 +535,9 @@ class MegaRequestPrivate : public MegaRequest
         void addProduct(handle product, int proLevel, int gbStorage, int gbTransfer,
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
 
+        void setProxy(Proxy *proxy);
+        Proxy *getProxy();
+
 		virtual int getType() const;
 		virtual const char *getRequestString() const;
 		virtual const char* toString() const;
@@ -609,6 +612,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaNode* publicNode;
 		int numRetry;
         int tag;
+        Proxy *proxy;
+
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;

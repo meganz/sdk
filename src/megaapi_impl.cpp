@@ -1824,6 +1824,16 @@ void MegaRequestPrivate::addProduct(handle product, int proLevel, int gbStorage,
     }
 }
 
+void MegaRequestPrivate::setProxy(Proxy *proxy)
+{
+    this->proxy = proxy;
+}
+
+Proxy *MegaRequestPrivate::getProxy()
+{
+    return proxy;
+}
+
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode)
 {
     if(this->publicNode)
@@ -2901,8 +2911,8 @@ void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, 
 
 void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 {
-    Proxy localProxySettings;
-    localProxySettings.setProxyType(proxySettings->getProxyType());
+    Proxy *localProxySettings = new Proxy();
+    localProxySettings->setProxyType(proxySettings->getProxyType());
 
     string url;
     if(proxySettings->getProxyURL())
@@ -2916,7 +2926,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
     fsAccess->path2local(&url, &localurl);
 #endif
 
-    localProxySettings.setProxyURL(&localurl);
+    localProxySettings->setProxyURL(&localurl);
 
     if(proxySettings->credentialsNeeded())
     {
@@ -2944,12 +2954,13 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
         fsAccess->path2local(&password, &localpassword);
 #endif
 
-        localProxySettings.setCredentials(&localusername, &localpassword);
+        localProxySettings->setCredentials(&localusername, &localpassword);
     }
 
-    sdkMutex.lock();
-    httpio->setproxy(&localProxySettings);
-    sdkMutex.unlock();
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY);
+    request->setProxy(localProxySettings);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 MegaProxy *MegaApiImpl::getAutoProxySettings()
@@ -3037,8 +3048,15 @@ void MegaApiImpl::loop()
 
     while(true)
 	{
-        int r = client->wait();
-        if(r & Waiter::NEEDEXEC)
+        sdkMutex.lock();
+        int r = client->preparewait();
+        sdkMutex.unlock();
+        if (!r)
+        {
+            r = client->dowait();
+        }
+
+        if (r & Waiter::NEEDEXEC)
         {
             sendPendingTransfers();
             sendPendingRequests();
@@ -3543,25 +3561,10 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
 
 void MegaApiImpl::useHttpsOnly(bool usehttps)
 {
-    if (client->usehttps == usehttps)
-    {
-        return;
-    }
-
-    sdkMutex.lock();
-    client->usehttps = usehttps;
-    for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-    {
-        for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
-        {
-            Transfer *t = it->second;
-            if (t->slot)
-            {
-                t->failed(API_EAGAIN);
-            }
-        }
-    }
-    sdkMutex.unlock();
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY);
+    request->setFlag(usehttps);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 bool MegaApiImpl::usingHttpsOnly()
@@ -5259,8 +5262,6 @@ void MegaApiImpl::setPublicKeyPinning(bool enable)
 {
     sdkMutex.lock();
     client->disablepkp = !enable;
-    client->abortbackoff();
-    client->disconnect();
     sdkMutex.unlock();
 }
 
@@ -10374,6 +10375,35 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         {
             client->cleanrubbishbin();
+            break;
+        }
+        case MegaRequest::TYPE_USE_HTTPS_ONLY:
+        {
+            bool usehttps = request->getFlag();
+            if (client->usehttps != usehttps)
+            {
+                client->usehttps = usehttps;
+                for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+                {
+                    for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+                    {
+                        Transfer *t = it->second;
+                        if (t->slot)
+                        {
+                            t->failed(API_EAGAIN);
+                        }
+                    }
+                }
+            }
+            fireOnRequestFinish(request, MegaError(API_OK));
+            break;
+        }
+        case MegaRequest::TYPE_SET_PROXY:
+        {
+            Proxy *proxy = request->getProxy();
+            httpio->setproxy(proxy);
+            delete proxy;
+            fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
 #ifdef ENABLE_CHAT

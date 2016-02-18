@@ -1783,6 +1783,16 @@ void MegaClient::exec()
 // returns true if an engine-relevant event has occurred, false otherwise
 int MegaClient::wait()
 {
+    int x = preparewait();
+    if (x)
+    {
+        return x;
+    }
+    return dowait();
+}
+
+int MegaClient::preparewait()
+{
     dstime nds;
 
     // get current dstime and clear wait events
@@ -1923,6 +1933,11 @@ int MegaClient::wait()
     waiter->wakeupby(httpio, Waiter::NEEDEXEC);
     waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
 
+    return 0;
+}
+
+int MegaClient::dowait()
+{
     int r = waiter->wait();
 
     // process results

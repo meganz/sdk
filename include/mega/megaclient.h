@@ -58,6 +58,10 @@ public:
     // wait for I/O or other events
     int wait();
 
+    // splitted implementation of wait() for a better thread management
+    int preparewait();
+    int dowait();
+
     // abort exponential backoff
     bool abortbackoff(bool = true);
 
