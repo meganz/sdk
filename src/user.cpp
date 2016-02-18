@@ -42,6 +42,7 @@ bool User::serialize(string* d)
     unsigned short ll;
     time_t ts;
     AttrMap attrs;
+    char attrVersion = '1';
 
     d->reserve(d->size() + 100 + attrs.storagesize(10));
 
@@ -56,8 +57,8 @@ bool User::serialize(string* d)
     d->append((char*)&l, sizeof l);
     d->append(email.c_str(), l);
 
-    d->append("1", 1);
-    d->append("\0\0\0\0\0\0\0", 7);
+    d->append((char*)&attrVersion, 1);
+    d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
     for (string_map::iterator it = optattrs.begin(); it != optattrs.end(); it++)
@@ -93,7 +94,7 @@ User* User::unserialize(MegaClient* client, string* d)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     int i;
-    char attrVersion = '\0';
+    char attrVersion;
 
     if (ptr + sizeof(handle) + sizeof(time_t) + sizeof(visibility_t) + 2 > end)
     {
@@ -156,7 +157,7 @@ User* User::unserialize(MegaClient* client, string* d)
         while ((l = *ptr++))
         {
             key.assign(ptr, l);
-            ptr++;
+            ptr += l;
 
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
