@@ -167,6 +167,23 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
+    if (u->optattrs.find("*keyring") != u->optattrs.end())
+    {
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&u->optattrs["*keyring"]);
+
+        if (tlvRecords->find(EdDSA::TLV_KEY))
+        {
+            client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+        }
+
+        if (tlvRecords->find(ECDH::TLV_KEY))
+        {
+            client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+        }
+
+        delete tlvRecords;
+    }
+
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
     {
         return NULL;

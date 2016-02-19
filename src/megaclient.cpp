@@ -3556,6 +3556,15 @@ void MegaClient::sc_userattr()
                                 {
                                     u->optattrs.erase(ua);
                                     notifyuser(u);
+
+                                    if (ua == "*keyring")
+                                    {
+                                        delete signkey;
+                                        signkey = NULL;
+
+                                        delete chatkey;
+                                        chatkey = NULL;
+                                    }
                                 }
                             }
 
@@ -5972,31 +5981,6 @@ void MegaClient::procsr(JSON* j)
     }
 
     j->leavearray();
-}
-
-
-void MegaClient::initkeyring()
-{
-    memset(&initkeys, 0, sizeof initkeys);
-    initkeys.keypairsInitializing = true;
-
-    int creqtag = reqtag;
-    reqtag = 0;
-
-    getua(finduser(me), "*keyring");
-
-    reqtag = creqtag;
-}
-
-void MegaClient::initpubkeys()
-{
-    int creqtag = reqtag;
-    reqtag = 0;
-
-    getua(finduser(me), "+puEd255");
-    getua(finduser(me), "+puCu255");
-
-    reqtag = creqtag;
 }
 
 // process node tree (bottom up)
