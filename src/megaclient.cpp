@@ -6263,10 +6263,10 @@ error MegaClient::invite(const char* email, visibility_t show)
  */
 void MegaClient::putua(const char* an, const byte* av, unsigned avl)
 {
+    string data;
+
     if (!av)
     {
-        string data;
-
         if (!strcmp(an, "+a"))  // remove avatar
         {
             data = "none";
