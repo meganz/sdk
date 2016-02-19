@@ -1962,6 +1962,7 @@ void CommandUserRequest::procresult()
 CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)
 {
     attributename = an;
+    attributevalue.assign((const char*)av, avl);
 
     cmd("up");
     notself(client);
@@ -2008,10 +2009,12 @@ void CommandPutUA::procresult()
             client->initkeys.puEd255SetOK = true;
         }
 
-        // invalidate the stored value, it is outdated now
         User *user = client->finduser(client->me);
         user->setChanged(attributename.c_str());
-        user->optattrs.erase(attributename);
+        if (attributename != "+a")
+        {
+            user->optattrs[attributename] = attributevalue;
+        }
         client->notifyuser(user);
 
         // if all keys-related attributes are set...
@@ -2043,7 +2046,7 @@ void CommandPutUA::procresult()
 
         memset(&client->initkeys, 0, sizeof client->initkeys);
 
-        LOG_err << "Failed to set attribute: " << attributename;
+        LOG_err << "Failed to set attribute: " << attributename << " (error: " << e << ")";
     }
 
     client->app->putua_result(e);
@@ -2147,9 +2150,6 @@ void CommandGetUA::procresult()
         // if there's no avatar, the value is "none" (not Base64 encoded)
         if (attributename == "+a" && !strncmp(ptr, "none", 4))
         {
-            user->changed.avatar = true;
-            client->notifyuser(user);
-
             client->app->getua_result(API_ENOENT);
             return;
         }
@@ -2160,6 +2160,8 @@ void CommandGetUA::procresult()
         datalen = (end - ptr) / 4 * 3 + 3;
         data = new byte[datalen];
         datalen = Base64::atob(ptr, data, datalen);
+
+        bool notify = false;
 
 //        bool nonHistoric = (attributename.at(1) == '!');
 
@@ -2307,9 +2309,8 @@ void CommandGetUA::procresult()
             }
 #endif
             string *tlvSerialized = tlvRecords->tlvRecordsToContainer();
-            user->optattrs[attributename].assign(tlvSerialized->data(), tlvSerialized->size());
+            user->optattrs[attributename] = *tlvSerialized;
             delete tlvSerialized;
-            client->notifyuser(user);
 
             client->app->getua_result(tlvRecords);
             delete tlvRecords;
@@ -2367,19 +2368,16 @@ void CommandGetUA::procresult()
                 }
             }
 #endif
-            if (attributename != "+a")      // avatar is saved to disc
+            if (attributename != "+a")      // avatar will be saved to disc
             {
-                user->optattrs[attributename].assign((const char *) data, datalen);
-                client->notifyuser(user);
-            }
+                user->optattrs[attributename] = string((const char *) data, datalen);
+            }            
 
             client->app->getua_result(data, datalen);
             break;
 
         case '#':   // protected
-            user->optattrs[attributename].assign((const char *) data, datalen);
-            client->notifyuser(user);
-
+            user->optattrs[attributename] = string((const char *) data, datalen);
             client->app->getua_result(data, datalen);
             break;
 
@@ -2391,9 +2389,7 @@ void CommandGetUA::procresult()
                     attributename == "birthmonth" ||    // private
                     attributename == "birthyear")       // private
             {
-                user->optattrs[attributename].assign((const char*) data, datalen);
-                client->notifyuser(user);
-
+                user->optattrs[attributename] = string((const char *) data, datalen);
                 client->app->getua_result(data, datalen);
             }
             else
@@ -2407,6 +2403,9 @@ void CommandGetUA::procresult()
         }
 
         delete [] data;
+
+        user->setChanged(attributename.c_str());
+        client->notifyuser(user);
 
         if (client->initkeys.keypairsInitializing &&
                 client->initkeys.keyringSetOK &&

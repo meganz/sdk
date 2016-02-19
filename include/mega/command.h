@@ -194,6 +194,7 @@ public:
 class MEGA_API CommandPutUA : public Command
 {
     string attributename;
+    string attributevalue;
 
 public:
     CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
