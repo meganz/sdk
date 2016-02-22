@@ -7624,11 +7624,14 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
 
-    // TLV data usually includes byte arrays with zeros in the middle, so values
-    // must be converted into Base64 strings to avoid problems
-    MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
-    request->setMegaStringMap(stringMap);
-    delete stringMap;
+    if (tlv)
+    {
+        // TLV data usually includes byte arrays with zeros in the middle, so values
+        // must be converted into Base64 strings to avoid problems
+        MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
+        request->setMegaStringMap(stringMap);
+        delete stringMap;
+    }
 
     fireOnRequestFinish(request, MegaError(API_OK));
 }
