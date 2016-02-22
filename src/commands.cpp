@@ -3390,11 +3390,6 @@ void CommandFetchNodes::procresult()
                 client->initsc();
                 client->fetchnodestag = tag;
 
-                // initialize keyrpairs
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->getua(client->finduser(client->me), "*keyring");
-                client->reqtag = creqtag;
                 return;
             }
             default:

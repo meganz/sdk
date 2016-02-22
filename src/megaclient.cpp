@@ -2489,6 +2489,12 @@ bool MegaClient::procsc()
                             {
                                 memset(&(it->second->changed), 0, sizeof it->second->changed);
                             }
+
+                            // initialize keyrpairs
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            getua(finduser(me), "*keyring");
+                            reqtag = creqtag;
                         }
 
                         app->nodes_current();
@@ -7112,6 +7118,16 @@ void MegaClient::fetchnodes()
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
+
+        User *u = finduser(me);
+        if (u->optattrs.find("*keyring") == u->optattrs.end())
+        {
+            // initialize keyrpairs
+            int creqtag = reqtag;
+            reqtag = 0;
+            getua(u, "*keyring");
+            reqtag = creqtag;
+        }
     }
     else if (!fetchingnodes)
     {
