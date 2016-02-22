@@ -2001,6 +2001,15 @@ void CommandPutUA::procresult()
         if (attributename != "+a")
         {
             user->optattrs[attributename] = attributevalue;
+
+            if (attributename == "*keyring")
+            {
+                user->optattrs.erase("+puEd255");
+                user->setChanged("+puEd255");
+
+                user->optattrs.erase("+puCu255");
+                user->setChanged("+puCu255");
+            }
         }
         client->notifyuser(user);
     }
