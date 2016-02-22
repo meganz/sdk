@@ -370,6 +370,7 @@ struct TextChat
     int shard;
     userpriv_vector *userpriv;
     bool group;
+    handle ou;
 
     TextChat()
     {
@@ -378,6 +379,7 @@ struct TextChat
         shard = -1;
         userpriv = NULL;
         group = false;
+        ou = UNDEF;
     }
 
     ~TextChat()

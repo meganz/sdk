@@ -1247,7 +1247,7 @@ public:
      * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
      * be only valid until the MegaTextChat is deleted.
      *
-     * @return
+     * @return The list of peers in the chat.
      */
     virtual const MegaTextChatPeerList *getPeerList() const;
 
@@ -1256,6 +1256,16 @@ public:
      * @return True if this chat is a group chat. Only chats with more than 2 peers are groupal chats.
      */
     virtual bool isGroup() const;
+
+    /**
+     * @brief getOriginatingUser Returns the user that originated the chat notification
+     *
+     * @note This value is only relevant for new or updated chats notified by MegaGlobalListener::onChatsUpdate or
+     * MegaListener::onChatsUpdate.
+     *
+     * @return The handle of the user who originated the chat notification.
+     */
+    virtual MegaHandle getOriginatingUser() const;
 
 };
 
