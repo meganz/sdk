@@ -1466,7 +1466,9 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     beginarray("s");
     beginobject();
 
-    arg("u", u ? ((u->show == VISIBILITY_UNKNOWN) ? u->email.c_str() : u->uid.c_str()) : MegaClient::EXPORTEDLINK);
+    arg("u", u ? ((u->show == VISIBLE) ? u->uid.c_str() : u->email.c_str()) : MegaClient::EXPORTEDLINK);
+    // if the email is registered, the pubk request has returned the userhandle -->
+    // sending the userhandle instead of the email makes the API to assume the user is already a contact
 
     if (a != ACCESS_UNKNOWN)
     {
