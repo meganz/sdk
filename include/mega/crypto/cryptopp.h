@@ -72,11 +72,6 @@ public:
 class MEGA_API SymmCipher
 {
 public:
-    /**
-     * Size of the authentication digest for encryption in CCM mode.
-     * Valid values: 4, 6, 8, 10, 12, 14, and 16.
-     */
-    static const int TAG_SIZE = 12;
 
 private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
@@ -85,8 +80,11 @@ private:
     CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption aescbc_e;
     CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption aescbc_d;
 
-    CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Encryption aesccm_e;
-    CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Decryption aesccm_d;
+    CryptoPP::CCM<CryptoPP::AES, 16>::Encryption aesccm16_e;
+    CryptoPP::CCM<CryptoPP::AES, 16>::Decryption aesccm16_d;
+
+    CryptoPP::CCM<CryptoPP::AES, 8>::Encryption aesccm8_e;
+    CryptoPP::CCM<CryptoPP::AES, 8>::Decryption aesccm8_d;
 
     CryptoPP::GCM<CryptoPP::AES>::Encryption aesgcm_e;
     CryptoPP::GCM<CryptoPP::AES>::Decryption aesgcm_d;
@@ -174,44 +172,35 @@ public:
     void cbc_decrypt_pkcs_padding(const string *data, const byte* iv, string *result);
 
     /**
-     * @brief Authenticated symmetric encryption using AES in CCM mode
-     *        (counter with CBC-MAC).
+     * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * Note: Due to in-place encryption, the buffer `data` must be large enough
-     *       to accept the cipher text in multiples of the block size as well as
-     *       the authentication tag (SymmCipher::TAG_SIZE bytes).
-     *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector or nonce to use for encryption. Choose
-     *     randomly and never re-use. See note on size above.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
-     * @return Void.
+     * @param data Data to be encrypted.
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param result Encrypted data, including the authentication tag.
      */
-    void ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
-     * @brief Authenticated symmetric decryption using AES in CCM mode
-     *        (counter with CBC-MAC).
+     * @brief Authenticated symmetric decryption using AES in CCM mode (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of cipher text to be decrypted in bytes (includes length
-     *     of authentication tag: SymmCipher::TAG_SIZE).
+     * @param data Data to be decrypted.
      * @param iv Initialisation vector or nonce.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
-     * @return Void.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
      */
-    void ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.
@@ -220,19 +209,14 @@ public:
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * Note: Due to in-place encryption, the buffer `data` must be large enough
-     *       to accept the cipher text in multiples of the block size as well as
-     *       the authentication tag (16 bytes).
-     *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector or nonce to use for encryption. Choose
-     *     randomly and never re-use. See note on size above.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
-     * @return Void.
+     * @param data Data to be encrypted.
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag.
+     * @param result Encrypted data, including the authentication tag.
      */
-    void gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
@@ -241,14 +225,13 @@ public:
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of cipher text to be decrypted in bytes (includes length
-     *     of authentication tag: SymmCipher::TAG_SIZE).
+     * @param data Data to be decrypted.
      * @param iv Initialisation vector or nonce.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
      */
-    void gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Serialize key for compatibility with the webclient

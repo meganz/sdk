@@ -222,6 +222,90 @@ struct MEGA_API MemAccess
 int mega_snprintf(char *s, size_t n, const char *format, ...);
 #endif
 
+struct MEGA_API TLVstore
+{
+private:
+    TLV_map tlv;
+
+ public:
+
+    /**
+     * @brief containerToTLVrecords Builds a TLV object with records from an encrypted container
+     * @param data Binary byte array representing the encrypted container
+     * @param datalen Length of the byte array.
+     * @param key Master key to decrypt the container
+     * @return A new TLVstore object. You take the ownership of the object.
+     */
+    static TLVstore * containerToTLVrecords(const string *data, SymmCipher *key);
+
+    /**
+     * @brief Builds a TLV object with records from a container
+     * @param data Binary byte array representing the TLV records
+     * @param datalen Length of the byte array.
+     * @return A new TLVstore object. You take the ownership of the object.
+     */
+    static TLVstore * containerToTLVrecords(const string *data);
+
+    /**
+     * @brief Converts the TLV records into an encrypted byte array
+     * @param key Master key to decrypt the container
+     * @param mode Block encryption mode to be used by AES
+     * @return A new string holding the encrypted byte array. You take the ownership of the string.
+     */
+    string *tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
+
+    /**
+     * @brief Converts the TLV records into a byte array
+     * @return A new string holding the encrypted byte array. You take the ownership of the string.
+     */
+    string *tlvRecordsToContainer();
+
+    /**
+     * @brief get Get the value for a given key
+     * @param type Type of the value (without scope nor non-historic modifiers).
+     * @return String containing the array with the value, or NULL if error.
+     */
+    string get(string type);
+
+    /**
+     * @brief find Checks whether a type of value is available in the TLV container.
+     * @param type Type of the value (without scope nor non-historic modifiers).
+     * @return True if the type of value is found, false otherwise.
+     */
+    bool find(string type);
+
+    /**
+     * @brief add Adds a new record to the container
+     * @param type Type for the new value (without scope nor non-historic modifiers).
+     * @param value New value to be set.
+     * @return
+     */
+    void set(string type, string value);
+
+    size_t size();
+
+    static unsigned getTaglen(int mode);
+    static unsigned getIvlen(int mode);
+    static encryptionmode_t getMode(int mode);
+
+
+    ~TLVstore();
+};
+
+class Utils {
+public:
+    /**
+     * @brief Converts a character string from UTF-8 to Unicode
+     * @note The UTF-8 string should only contain characters encoded as 1 or 2 bytes.
+     * @param src Characters string encoded in UTF-8
+     * @param srclen Length of the string (in bytes)
+     * @param result String holding the byte array of Unicode characters
+     * @return True if success, false if the byte 'src' is not a valid UTF-8 string
+     */
+    static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
+};
+
+
 } // namespace
 
 #endif

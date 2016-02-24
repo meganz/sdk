@@ -614,6 +614,11 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
+    delete signkey;
+    signkey = NULL;
+
+    delete chatkey;
+    chatkey = NULL;
 
     btcs.reset();
     btsc.reset();
@@ -660,6 +665,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+
+    signkey = NULL;
+    chatkey = NULL;
 
     init();
 
@@ -3579,6 +3587,19 @@ void MegaClient::sc_userattr()
                                     u->changed.lstint = true;
                                     notifyuser(u);
                                 }
+                                else if (ua == "*keyring")
+                                {
+                                    // keyring has changed, get values and refresh
+                                    getua(u, "*keyring");
+                                }
+                                else if (ua == "+puEd255")
+                                {
+                                    getua(u, "+puEd255");
+                                }
+                                else if (ua == "+puCu255")
+                                {
+                                    getua(u, "+puCu255");
+                                }
                                 else
                                 {
                                     LOG_debug << "User attribute not recognized: " << ua;
@@ -6001,6 +6022,31 @@ void MegaClient::procsr(JSON* j)
     j->leavearray();
 }
 
+
+void MegaClient::initkeyring()
+{
+    memset(&initkeys, 0, sizeof initkeys);
+    initkeys.keypairsInitializing = true;
+
+    int creqtag = reqtag;
+    reqtag = 0;
+
+    getua(finduser(me), "*keyring");
+
+    reqtag = creqtag;
+}
+
+void MegaClient::initpubkeys()
+{
+    int creqtag = reqtag;
+    reqtag = 0;
+
+    getua(finduser(me), "+puEd255");
+    getua(finduser(me), "+puCu255");
+
+    reqtag = creqtag;
+}
+
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares)
 {
@@ -6254,8 +6300,9 @@ error MegaClient::invite(const char* email, visibility_t show)
  * Attributes are stored as base64-encoded binary blobs. They use internal
  * attribute name prefixes:
  *
- * "*" - Private and CBC-encrypted.
- * "+" - Public and plain text.
+ * "*" - Private and encrypted. Use a TLV container (key-value)
+ * "#" - Protected and plain text, accessible only by contacts.
+ * "+" - Public and plain text, accessible by anyone knowing userhandle
  *
  * @param an Attribute name.
  * @param av Attribute value.
@@ -7025,42 +7072,6 @@ void MegaClient::setkeypair()
                                       pubks.size()));
 }
 
-#ifdef USE_SODIUM
-/**
- * @brief Initialises the Ed25519 EdDSA key user properties.
- *
- * A key pair will be added, if not present, yet.
- *
- * @return Error code (default: 1 on success).
- */
-int MegaClient::inited25519()
-{
-    signkey.init();
-
-    // Make the new key pair and their storage arrays.
-    if (!signkey.genKeySeed())
-    {
-        LOG_err << "Error generating an Ed25519 key seed.";
-        return(0);
-    }
-
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-
-    if (!signkey.publicKey(pubKey))
-    {
-        free(pubKey);
-        LOG_err << "Error deriving the Ed25519 public key.";
-        return(0);
-    }
-
-    // Store the key pair to user attributes.
-    putua("prEd255", (const byte*)signkey.keySeed, crypto_sign_SEEDBYTES, 1);
-    putua("puEd255", (const byte*)pubKey, crypto_sign_PUBLICKEYBYTES, 0);
-    free(pubKey);
-    return(1);
-}
-#endif
-
 bool MegaClient::fetchsc(DbTable* sctable)
 {
     uint32_t id;
@@ -7165,6 +7176,9 @@ void MegaClient::fetchnodes()
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
+
+        // initialize signing and chat keys
+        initkeyring();
     }
     else if (!fetchingnodes)
     {

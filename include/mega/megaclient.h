@@ -81,14 +81,11 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
-    /**
-     * @brief Initialises the Ed25519 EdDSA key user properties.
-     *
-     * A key pair will be added, if not present, yet.
-     *
-     * @return Error code (default: 1 on success).
-     */
+    // initialises the Ed25519 EdDSA key user properties
     int inited25519();
+
+    // initialises the x25519 key user properties
+    int initx25519();
 
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
@@ -802,10 +799,25 @@ public:
     // account access (full account): RSA key
     AsymmCipher asymkey;
 
-#ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
-    EdDSA signkey;
-#endif
+    // EdDSA signing key (Ed25519 private key seed).
+    EdDSA *signkey;
+
+    // ECDH key (x25519 private key).
+    ECDH *chatkey;
+
+    struct {
+        bool keypairsInitializing : 1;
+        bool keyringSetOK : 1;
+        bool puCu255SetOK : 1;
+        bool puEd255SetOK : 1;
+        bool keypairsInitialized : 1;
+    } initkeys;
+
+    // start the intialization of Ed25519 and x25519 keypairs
+    void initkeyring();
+
+    // start the intialization of public keys of Ed25519 and x25519
+    void initpubkeys();
 
     // binary session ID
     string sid;

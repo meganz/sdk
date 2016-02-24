@@ -193,6 +193,8 @@ public:
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
+    string attributename;
+
 public:
     CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
 
