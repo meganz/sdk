@@ -3581,24 +3581,39 @@ void MegaClient::sc_userattr()
                 else if (attrs.size() != attrsv.size())
                 {
                     LOG_err << "Mismatch between attributes and their version";
-                    // TODO: should it throw a API_EINTERNAL? it is a serious error, since
-                    // cache will lose integrity
+
+                    string_vector::iterator it;
+                    for (it = attrs.begin(); it != attrs.end(); it++)
+                    {
+                        u->invalidateattr(*it);
+
+                        // TODO: invalidation of certain critical attributes may imply
+                        // to trigger a refetch of them for a proper operation of SDK
+
+                        if (*it == "*keyring")
+                        {
+                            delete signkey;
+                            signkey = NULL;
+
+                            delete chatkey;
+                            chatkey = NULL;
+                        }
+                    }
                 }
                 else
                 {
-                    string_vector::iterator it, itv;
-                    for (it = attrs.begin(), itv = attrsv.begin(); it != attrs.end(); it++, itv++)
+                    string *cacheduav;
+                    string_vector::iterator itua, ituav;
+                    for (itua = attrs.begin(), ituav = attrsv.begin(); itua != attrs.end(); itua++, ituav++)
                     {
-                        ua = *it;
-                        uav = *itv;
-
-                        if ( (u->attrs.find(ua) != u->attrs.end()) &&
-                             (u->attrsv.find(ua) != u->attrsv.end()) &&
-                             (u->attrsv[ua] != uav) ) // process only outdated attributes
+                        if ( (cacheduav = u->getattrversion(*itua)) && (*cacheduav != *ituav) )
                         {
-                            u->invalidateattr(ua);
+                            u->invalidateattr(*itua);
 
-                            if (ua == "*keyring")
+                            // TODO: invalidation of certain critical attributes may imply
+                            // to trigger a refetch of them for a proper operation of SDK
+
+                            if (*itua == "*keyring")
                             {
                                 delete signkey;
                                 signkey = NULL;
@@ -3608,7 +3623,6 @@ void MegaClient::sc_userattr()
                             }
                         }
                     }
-
                     notifyuser(u);
                 }
                 return;
@@ -6308,17 +6322,15 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
  */
 void MegaClient::getua(User* u, const char* an)
 {
-    string_map::iterator it;
-
     if (an)
     {
         // if we can solve those requests locally (cached values)...
-        it = u->attrs.find(an);
-        if (it != u->attrs.end())
+        const string *cachedav = u->getattr(an);
+        if (cachedav)
         {
             if (*an == '*') // private attribute, TLV encoding
             {
-                TLVstore *tlv = TLVstore::containerToTLVrecords(&it->second);
+                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav);
                 restag = reqtag;
                 app->getua_result(tlv);
                 delete tlv;
@@ -6327,7 +6339,7 @@ void MegaClient::getua(User* u, const char* an)
             else
             {
                 restag = reqtag;
-                app->getua_result((byte*) it->second.data(), it->second.size());
+                app->getua_result((byte*) cachedav->data(), cachedav->size());
                 return;
             }
         }

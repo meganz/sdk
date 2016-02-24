@@ -61,7 +61,6 @@ bool User::serialize(string* d)
     d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
-    string tmp;
     for (string_map::iterator it = attrs.begin(); it != attrs.end(); it++)
     {
         l = it->first.size();
@@ -72,10 +71,17 @@ bool User::serialize(string* d)
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
 
-        tmp = attrsv[it->second];
-        ll = tmp.size();
-        d->append((char*)&ll, sizeof ll);
-        d->append(tmp.data(), ll);
+        if (attrsv.find(it->second) != attrsv.end())
+        {
+            ll = attrsv[it->second].size();
+            d->append((char*)&ll, sizeof ll);
+            d->append(attrsv[it->second].data(), ll);
+        }
+        else
+        {
+            ll = 0;
+            d->append((char*)&ll, sizeof ll);
+        }
     }
 
     d->append("", 1);
@@ -174,14 +180,18 @@ User* User::unserialize(MegaClient* client, string* d)
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
 
-            u->attrsv[key].assign(ptr,ll);
-            ptr += ll;
+            if (ll)
+            {
+                u->attrsv[key].assign(ptr,ll);
+                ptr += ll;
+            }
         }
     }
 
-    if (u->attrs.find("*keyring") != u->attrs.end())
+    const string *av = u->getattr("*keyring");
+    if (av)
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&u->attrs["*keyring"]);
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av);
 
         if (tlvRecords->find(EdDSA::TLV_KEY))
         {
@@ -218,8 +228,29 @@ void User::setattr(string an, string av, string v)
 void User::invalidateattr(string an)
 {
     setChanged(an.c_str());
-    attrs.erase(an);
     attrsv.erase(an);
+}
+
+const string * User::getattr(string an)
+{
+    string_map::iterator it = attrsv.find(an);
+    if (it != attrsv.end())
+    {
+        return &attrs[an];
+    }
+
+    return NULL;
+}
+
+string *User::getattrversion(string an)
+{
+    string_map::iterator it = attrsv.find(an);
+    if (it != attrsv.end())
+    {
+        return &attrsv[an];
+    }
+
+    return NULL;
 }
 
 bool User::setChanged(const char *an)

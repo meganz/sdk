@@ -1991,15 +1991,14 @@ void CommandPutUA::procresult()
         e = (error)client->json.getint();
         if (e == API_VEXPIRED)
         {
-            // TODO: filter the new error: ERR_SN_EXPIRED
-            // --> CommandGetUA() and then retry if the CommandPutUA() still makes sense
-
             client->ownuser()->invalidateattr(attributename);
 
             int creqtag = client->reqtag;
             client->reqtag = 0;
             client->getua(client->ownuser(), attributename.c_str());
             client->reqtag = creqtag;
+
+            // TODO: retry if the CommandPutUA() still makes sense
         }
         else
         {
@@ -2055,11 +2054,8 @@ void CommandPutUA::procresult()
 
                         if (attributename == "*keyring")
                         {
-                            u->attrs.erase("+puEd255");
-                            u->setChanged("+puEd255");
-
-                            u->attrs.erase("+puCu255");
-                            u->setChanged("+puCu255");
+                            u->invalidateattr("+puEd255");
+                            u->invalidateattr("+puCu255");
                         }
 
                         client->notifyuser(u);
@@ -2422,9 +2418,7 @@ void CommandDelUA::procresult()
         if (e == API_OK)
         {
             User *u = client->finduser(client->me);
-            u->attrs.erase(attributename);
-            u->setChanged(attributename.c_str());
-            client->notifyuser(u);
+            u->invalidateattr(attributename);
 
             if (attributename == "*keyring")
             {
@@ -2433,8 +2427,9 @@ void CommandDelUA::procresult()
 
                 delete client->chatkey;
                 client->chatkey = NULL;
-
             }
+
+            client->notifyuser(u);
         }
 
         client->app->delua_result(e);

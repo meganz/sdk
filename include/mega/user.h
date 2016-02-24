@@ -80,6 +80,8 @@ struct MEGA_API User : public Cachable
     static User* unserialize(class MegaClient *, string*);
 
     void setattr(string an, string av, string v);
+    const string *getattr(string an);
+    string *getattrversion(string an);
     void invalidateattr(string an);
 
     bool setChanged(const char*);
