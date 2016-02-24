@@ -841,6 +841,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, true);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
 
 #if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
         curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
