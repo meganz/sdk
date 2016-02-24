@@ -2,7 +2,7 @@
  * @file mega/wincurl/console.cpp
  * @brief Win32 console I/O
  *
- * (c) 2013-2015 by Mega Limited, Wellsford, New Zealand
+ * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
