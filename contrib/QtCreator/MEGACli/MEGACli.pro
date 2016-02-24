@@ -11,10 +11,20 @@ TARGET = MEGAcli
 TEMPLATE = app
 CONFIG += console
 
+win32 {
 DEFINES += USE_READLINE_STATIC
+}
+
 LIBS += -lreadline
 
-SOURCES += ../../../src/wincurl/console.cpp
-SOURCES += ../../../src/wincurl/consolewaiter.cpp
+win32 {
+    SOURCES += ../../../src/wincurl/console.cpp
+    SOURCES += ../../../src/wincurl/consolewaiter.cpp
+}
+else {
+    SOURCES += ../../../src/posix/console.cpp
+    SOURCES += ../../../src/posix/consolewaiter.cpp
+}
+
 SOURCES += ../../../examples/megacli.cpp
 include(../../../bindings/qt/sdk.pri)
