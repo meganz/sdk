@@ -3532,8 +3532,12 @@ void MegaClient::sc_fileattr()
 // server-client user attribute update notification
 void MegaClient::sc_userattr()
 {
-    string ua;
     handle uh = UNDEF;
+    User *u = NULL;
+
+    string ua, uav;
+    string_vector attrs;
+    string_vector attrsv;
 
     for (;;)
     {
@@ -3544,48 +3548,69 @@ void MegaClient::sc_userattr()
                 break;
 
             case MAKENAMEID2('u', 'a'):
-                if (!ISUNDEF(uh))
+                if (jsonsc.enterarray())
                 {
-                    User* u;
-
-                    if ((u = finduser(uh)))
+                    while (jsonsc.storeobject(&ua))
                     {
-                        if (jsonsc.enterarray())
-                        {
-                            while (jsonsc.storeobject(&ua))
-                            {
-                                if (!u->setChanged(ua.c_str()))
-                                {
-                                    LOG_debug << "User attribute not recognized: " << ua;
-                                }
-                                else
-                                {
-                                    u->optattrs.erase(ua);
-                                    notifyuser(u);
-
-                                    if (ua == "*keyring")
-                                    {
-                                        delete signkey;
-                                        signkey = NULL;
-
-                                        delete chatkey;
-                                        chatkey = NULL;
-                                    }
-                                }
-                            }
-
-                            jsonsc.leavearray();
-                            return;
-                        }
+                        attrs.push_back(ua);
                     }
-
-                    LOG_debug << "User attributes update for non-existing user";
+                    jsonsc.leavearray();
                 }
+                break;
 
-                jsonsc.storeobject();
+            case 'v':
+                if (jsonsc.enterarray())
+                {
+                    while (jsonsc.storeobject(&uav))
+                    {
+                        attrsv.push_back(uav);
+                    }
+                    jsonsc.leavearray();
+                }
                 break;
 
             case EOO:
+                if (ISUNDEF(uh))
+                {
+                    LOG_err << "Failed to parse the user :" << uh;
+                }
+                else if (!(u = finduser(uh)))
+                {
+                    LOG_debug << "User attributes update for non-existing user";
+                }
+                else if (attrs.size() != attrsv.size())
+                {
+                    LOG_err << "Mismatch between attributes and their version";
+                    // TODO: should it throw a API_EINTERNAL? it is a serious error, since
+                    // cache will lose integrity
+                }
+                else
+                {
+                    string_vector::iterator it, itv;
+                    for (it = attrs.begin(), itv = attrsv.begin(); it != attrs.end(); it++, itv++)
+                    {
+                        ua = *it;
+                        uav = *itv;
+
+                        if ( (u->attrs.find(ua) != u->attrs.end()) &&
+                             (u->attrsv.find(ua) != u->attrsv.end()) &&
+                             (u->attrsv[ua] != uav) ) // process only outdated attributes
+                        {
+                            u->invalidateattr(ua);
+
+                            if (ua == "*keyring")
+                            {
+                                delete signkey;
+                                signkey = NULL;
+
+                                delete chatkey;
+                                chatkey = NULL;
+                            }
+                        }
+                    }
+
+                    notifyuser(u);
+                }
                 return;
 
             default:
@@ -5883,6 +5908,11 @@ User* MegaClient::finduser(handle uh, int add)
     }
 }
 
+User *MegaClient::ownuser()
+{
+    return finduser(me);
+}
+
 // add missing mapping (handle or email)
 // reduce uid to ASCII uh if only known by email
 void MegaClient::mapuser(handle uh, const char* email)
@@ -6283,8 +6313,8 @@ void MegaClient::getua(User* u, const char* an)
     if (an)
     {
         // if we can solve those requests locally (cached values)...
-        it = u->optattrs.find(an);
-        if (it != u->optattrs.end())
+        it = u->attrs.find(an);
+        if (it != u->attrs.end())
         {
             if (*an == '*') // private attribute, TLV encoding
             {
@@ -7120,7 +7150,7 @@ void MegaClient::fetchnodes()
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
         User *u = finduser(me);
-        if (u->optattrs.find("*keyring") == u->optattrs.end())
+        if (u->attrs.find("*keyring") == u->attrs.end())
         {
             // initialize keyrpairs
             int creqtag = reqtag;

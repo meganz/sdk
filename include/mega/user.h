@@ -39,7 +39,10 @@ struct MEGA_API User : public Cachable
     string email;
 
     // persistent attributes (keyring, firstname...)
-    string_map optattrs;
+    string_map attrs;
+
+    // version of each attribute
+    string_map attrsv;
 
     // visibility status
     visibility_t show;
@@ -75,6 +78,9 @@ struct MEGA_API User : public Cachable
 
     bool serialize(string*);
     static User* unserialize(class MegaClient *, string*);
+
+    void setattr(string an, string av, string v);
+    void invalidateattr(string an);
 
     bool setChanged(const char*);
 

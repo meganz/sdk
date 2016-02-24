@@ -812,6 +812,7 @@ public:
     // locate user by e-mail address or by handle
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
+    User* ownuser();
     void mapuser(handle, const char*);
     void mappcr(handle, PendingContactRequest*);
 

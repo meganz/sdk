@@ -150,7 +150,8 @@ typedef enum ErrorCodes
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
-    API_ESSL = -23                  ///< SSL verification failed
+    API_ESSL = -23,                 ///< SSL verification failed
+    API_VEXPIRED = -24              ///< Version of attribute is too old
 } error;
 
 // returned by loggedin()
@@ -357,6 +358,7 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
 // Type-Value (for user attributes)
+typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef string_map TLV_map;
 
@@ -395,7 +397,6 @@ struct TextChat
         userpriv = NULL;
         group = false;
     }
-//typedef pair<byte *, unsigned> TLVcontainer;
 
     ~TextChat()
     {
@@ -404,8 +405,6 @@ struct TextChat
 };
 typedef vector<TextChat*> textchat_vector;
 #endif
-
-typedef map<string, string> string_map;
 
 } // namespace
 

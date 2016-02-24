@@ -41,10 +41,10 @@ bool User::serialize(string* d)
     unsigned char l;
     unsigned short ll;
     time_t ts;
-    AttrMap attrs;
+    AttrMap attrmap;
     char attrVersion = '1';
 
-    d->reserve(d->size() + 100 + attrs.storagesize(10));
+    d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
     d->append((char*)&userhandle, sizeof userhandle);
     
@@ -61,7 +61,8 @@ bool User::serialize(string* d)
     d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
-    for (string_map::iterator it = optattrs.begin(); it != optattrs.end(); it++)
+    string tmp;
+    for (string_map::iterator it = attrs.begin(); it != attrs.end(); it++)
     {
         l = it->first.size();
         d->append((char*)&l, sizeof l);
@@ -70,6 +71,11 @@ bool User::serialize(string* d)
         ll = it->second.size();
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
+
+        tmp = attrsv[it->second];
+        ll = tmp.size();
+        d->append((char*)&ll, sizeof ll);
+        d->append(tmp.data(), ll);
     }
 
     d->append("", 1);
@@ -145,8 +151,8 @@ User* User::unserialize(MegaClient* client, string* d)
 
     if (attrVersion == '\0')
     {
-        AttrMap attrs;
-        if ((ptr < end) && !(ptr = attrs.unserialize(ptr)))
+        AttrMap attrmap;
+        if ((ptr < end) && !(ptr = attrmap.unserialize(ptr)))
         {
             return NULL;
         }
@@ -162,14 +168,20 @@ User* User::unserialize(MegaClient* client, string* d)
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
 
-            u->optattrs[key].assign(ptr, ll);
+            u->attrs[key].assign(ptr, ll);
+            ptr += ll;
+
+            ll = MemAccess::get<short>(ptr);
+            ptr += sizeof ll;
+
+            u->attrsv[key].assign(ptr,ll);
             ptr += ll;
         }
     }
 
-    if (u->optattrs.find("*keyring") != u->optattrs.end())
+    if (u->attrs.find("*keyring") != u->attrs.end())
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&u->optattrs["*keyring"]);
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&u->attrs["*keyring"]);
 
         if (tlvRecords->find(EdDSA::TLV_KEY))
         {
@@ -190,6 +202,24 @@ User* User::unserialize(MegaClient* client, string* d)
     }
 
     return u;
+}
+
+void User::setattr(string an, string av, string v)
+{
+    setChanged(an.c_str());
+
+    if (an != "+a")
+    {
+        attrs[an] = av;
+        attrsv[an] = v;
+    }
+}
+
+void User::invalidateattr(string an)
+{
+    setChanged(an.c_str());
+    attrs.erase(an);
+    attrsv.erase(an);
 }
 
 bool User::setChanged(const char *an)
