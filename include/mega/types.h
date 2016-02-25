@@ -150,8 +150,7 @@ typedef enum ErrorCodes
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
-    API_ESSL = -23,                 ///< SSL verification failed
-    API_VEXPIRED = -24              ///< Version of attribute is too old
+    API_ESSL = -23                  ///< SSL verification failed
 } error;
 
 // returned by loggedin()

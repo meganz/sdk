@@ -1964,20 +1964,24 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
     attributename = an;
     attributevalue.assign((const char*)av, avl);
 
+    User *u = client->ownuser();
+    string attrv = (u->attrs.find(an) != u->attrsv.end()) ? u->attrsv[an] : 0;
+
     cmd("up");
 
-    string attrv = client->finduser(client->me)->attrsv[an];
-    arg("v", attrv.c_str());
-
-    // if removing avatar, do not Base64 encode the attribute value
-    if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
+    beginarray(an);
     {
-        arg(an,(const char *)av, avl);
+        // if removing avatar, do not Base64 encode the attribute value
+        if (!strcmp(an, "+a") && !strcmp((const char *)av, "none"))
+        {
+            arg(an,(const char *)av, avl);
+        }
+        else
+        {
+            arg(av, avl, attrv.c_str());
+        }
     }
-    else
-    {
-        arg(an, av, avl);
-    }
+    endarray();
 
     tag = client->reqtag;
 }
@@ -1989,42 +1993,30 @@ void CommandPutUA::procresult()
     if (client->json.isnumeric())
     {
         e = (error)client->json.getint();
-        if (e == API_VEXPIRED)
+
+        if (attributename == "*keyring"     ||
+                attributename == "+puCu255" ||
+                attributename == "+puEd255")
         {
-            client->ownuser()->invalidateattr(attributename);
+            LOG_debug << "Failed to set attribute: " << attributename << " (error: " << e << ")";
 
             int creqtag = client->reqtag;
             client->reqtag = 0;
-            client->getua(client->ownuser(), attributename.c_str());
+            client->sendevent(99406, "Failed to set keypairs");
             client->reqtag = creqtag;
 
-            // TODO: retry if the CommandPutUA() still makes sense
-        }
-        else
-        {
-            if (attributename == "*keyring"     ||
-                    attributename == "+puCu255" ||
-                    attributename == "+puEd255")
-            {
-                LOG_debug << "Failed to set attribute: " << attributename << " (error: " << e << ")";
+            delete client->signkey;
+            client->signkey = NULL;
 
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99406, "Failed to set keypairs");
-                client->reqtag = creqtag;
-
-                delete client->signkey;
-                client->signkey = NULL;
-
-                delete client->chatkey;
-                client->chatkey = NULL;
-            }
+            delete client->chatkey;
+            client->chatkey = NULL;
         }
     }
     else
     {
-        handle v = UNDEF;
         handle u = UNDEF;
+        const char *an = NULL;
+        const char *v = NULL;
         for (;;)
         {
             switch (client->json.getnameid())
@@ -2033,24 +2025,56 @@ void CommandPutUA::procresult()
                     u = client->json.gethandle(MegaClient::USERHANDLE);
                     break;
                 case 'v':
-                    client->json.storebinary((byte*)&v, sizeof v);
+                    client->json.enterobject();
+                    {
+                        an = client->json.getvalue();
+
+                        if (client->json.isnumeric())
+                        {
+                            int e = client->json.getint();
+                            if (e != API_EEXPIRED)
+                            {
+                                // TODO: decide what to do in this case
+                            }
+                            else    // existing version of the attribute is too old
+                            {
+                                client->ownuser()->invalidateattr(attributename);
+
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->getua(client->ownuser(), attributename.c_str());
+                                client->reqtag = creqtag;
+
+                                // TODO: retry if the CommandPutUA() still makes sense
+
+                                client->app->putua_result(API_EEXPIRED);
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            v = client->json.getvalue();
+                        }
+                    }
+                    client->json.leaveobject();
                     break;
 
                 case EOO:
-                    if (ISUNDEF(u) || ISUNDEF(v))
+                    if (ISUNDEF(u))
                     {
-                        LOG_err << "Error in CommandPutUA. Undefined handle";
+                        LOG_err << "Error in CommandPutUA. Undefined user";
+                        client->app->putua_result(API_EINTERNAL);
+                    }
+                    else if (!an || !v || (attributename != an))
+                    {
+                        LOG_err << "Error in CommandPutUA. Undefined attribute or version";
                         client->app->putua_result(API_EINTERNAL);
                     }
                     else
                     {
                         User *u = client->ownuser();
 
-                        string attrv;
-                        attrv.resize(12);
-                        attrv.resize(Base64::btoa((byte*)&v, sizeof v, (char*)attrv.data()));
-
-                        u->setattr(attributename, attributevalue, attrv);
+                        u->setattr(attributename, attributevalue, v);
 
                         if (attributename == "*keyring")
                         {
@@ -2082,6 +2106,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
     cmd("uga");
     arg("u", uid);
     arg("ua", an);
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -2160,7 +2185,7 @@ void CommandGetUA::procresult()
     }
     else
     {
-        handle v = UNDEF;
+        const char* v = NULL;
         const char* ptr;
         const char* end;
         for (;;)
@@ -2176,21 +2201,17 @@ void CommandGetUA::procresult()
                     break;
 
                 case 'v':
-                    client->json.storebinary((byte*)&v, sizeof v);
+                    v = client->json.getvalue();
                     break;
 
                 case EOO:
                 {
-                    if (ISUNDEF(v))
+                    if (!v)
                     {
                         LOG_err << "Error in CommandGetUA. Undefined version of attribute";
                         client->app->getua_result(API_EINTERNAL);
                         return;
                     }
-
-                    string attrv;
-                    attrv.resize(12);
-                    attrv.resize(Base64::btoa((byte*)&v, sizeof v, (char*)attrv.data()));
 
                     // if there's no avatar, the value is "none" (not Base64 encoded)
                     if (attributename == "+a" && !strncmp(ptr, "none", 4))
@@ -2206,7 +2227,10 @@ void CommandGetUA::procresult()
                     data = new byte[datalen];
                     datalen = Base64::atob(ptr, data, datalen);
 
-                //        bool nonHistoric = (attributename.at(1) == '!');
+                    string *tlvString = NULL;
+                    TLVstore *tlvRecords = NULL;
+
+                    // bool nonHistoric = (attributename.at(1) == '!');
 
                     // handle the attribute data depending on the scope
                     char scope = attributename.at(0);
@@ -2216,7 +2240,7 @@ void CommandGetUA::procresult()
                         {
                             // decrypt the data and build the TLV records
                             string datastr((const char *)data, datalen);
-                            TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&datastr, &client->key);
+                            tlvRecords = TLVstore::containerToTLVrecords(&datastr, &client->key);
                             if (!tlvRecords)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute " << attributename;
@@ -2307,12 +2331,8 @@ void CommandGetUA::procresult()
                                 client->reqtag = creqtag;
                             }
                     #endif
-                            string *tlvSerialized = tlvRecords->tlvRecordsToContainer();
-                            user->attrs[attributename] = *tlvSerialized;
-                            delete tlvSerialized;
-
-                            client->app->getua_result(tlvRecords);
-                            delete tlvRecords;
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            tlvString = tlvRecords->tlvRecordsToContainer();
                         }
                             break;
                         case '+':   // public
@@ -2348,31 +2368,18 @@ void CommandGetUA::procresult()
                                 }
                             }
                     #endif
-                            if (attributename != "+a")      // avatar will be saved to disc
-                            {
-                                user->attrs[attributename] = string((const char *) data, datalen);
-                            }
-
-                            client->app->getua_result(data, datalen);
                             break;
 
                         case '#':   // protected
-                            user->attrs[attributename] = string((const char *) data, datalen);
-                            client->app->getua_result(data, datalen);
                             break;
 
                         default:    // legacy attributes or unknown attribute
-                            if (attributename == "firstname"    ||      // protected
-                                    attributename == "lastname" ||      // protected
-                                    attributename == "country"  ||      // private
-                                    attributename == "birthday" ||      // private
-                                    attributename == "birthmonth" ||    // private
-                                    attributename == "birthyear")       // private
-                            {
-                                user->attrs[attributename] = string((const char *) data, datalen);
-                                client->app->getua_result(data, datalen);
-                            }
-                            else
+                            if (attributename != "firstname"    &&      // protected
+                                    attributename != "lastname" &&      // protected
+                                    attributename != "country"  &&      // private
+                                    attributename != "birthday" &&      // private
+                                    attributename != "birthmonth" &&    // private
+                                    attributename != "birthyear")       // private
                             {
                                 LOG_err << "Unknown received attribute: " << attributename;
                                 client->app->getua_result(API_EINTERNAL);
@@ -2382,10 +2389,23 @@ void CommandGetUA::procresult()
                             break;
                     }
 
-                    delete [] data;
-
-                    user->setChanged(attributename.c_str());
+                    if (scope == '*')
+                    {
+                        user->setattr(attributename, *tlvString, v);
+                        client->app->getua_result(tlvRecords);
+                        delete tlvString;
+                        delete tlvRecords;
+                    }
+                    else
+                    {
+                        if (attributename != "+a")      // avatar will be saved to disc
+                        {
+                            user->setattr(attributename, string((const char *) data, datalen), v);
+                        }
+                        client->app->getua_result(data, datalen);
+                    }
                     client->notifyuser(user);
+                    delete [] data;
                     return;
                 }
 

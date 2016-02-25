@@ -56,6 +56,7 @@ public:
     virtual void cancel(void);
 
     void arg(const char*, const char*, int = 1);
+    void arg(const byte*, int, const char*);
     void arg(const char*, const byte*, int);
     void arg(const char*, m_off_t);
     void addcomma();
