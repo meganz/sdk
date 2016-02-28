@@ -3602,7 +3602,7 @@ void MegaClient::sc_userattr()
                 }
                 else
                 {
-                    string *cacheduav;
+                    const string *cacheduav;
                     string_vector::iterator itua, ituav;
                     for (itua = attrs.begin(), ituav = attrsv.begin(); itua != attrs.end(); itua++, ituav++)
                     {
@@ -6326,11 +6326,11 @@ void MegaClient::getua(User* u, const char* an)
     {
         // if we can solve those requests locally (cached values)...
         const string *cachedav = u->getattr(an);
-        if (cachedav)
+        if (cachedav && u->isattrvalid(an))
         {
             if (*an == '*') // private attribute, TLV encoding
             {
-                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav);
+                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = reqtag;
                 app->getua_result(tlv);
                 delete tlv;
@@ -7161,13 +7161,12 @@ void MegaClient::fetchnodes()
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
-        User *u = finduser(me);
-        if (u->attrs.find("*keyring") == u->attrs.end())
+        if (!ownuser()->getattr("*keyring"))
         {
             // initialize keyrpairs
             int creqtag = reqtag;
             reqtag = 0;
-            getua(u, "*keyring");
+            getua(ownuser(), "*keyring");
             reqtag = creqtag;
         }
     }

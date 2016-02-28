@@ -194,8 +194,9 @@ public:
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
-    string attributename;
-    string attributevalue;
+    string an;
+    string av;
+    User *u;
 
 public:
     CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
@@ -205,8 +206,8 @@ public:
 
 class MEGA_API CommandGetUA : public Command
 {
-    User* user;
-    string attributename;
+    User* u;
+    string an;
 
 public:
     CommandGetUA(MegaClient*, const char*, const char*);

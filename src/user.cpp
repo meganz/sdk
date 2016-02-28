@@ -71,11 +71,11 @@ bool User::serialize(string* d)
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
 
-        if (attrsv.find(it->second) != attrsv.end())
+        if (attrsv.find(it->first) != attrsv.end())
         {
-            ll = attrsv[it->second].size();
+            ll = attrsv[it->first].size();
             d->append((char*)&ll, sizeof ll);
-            d->append(attrsv[it->second].data(), ll);
+            d->append(attrsv[it->first].data(), ll);
         }
         else
         {
@@ -188,10 +188,10 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
-    const string *av = u->getattr("*keyring");
+    const string *av = (u->isattrvalid("*keyring")) ? u->getattr("*keyring") : NULL;
     if (av)
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av);
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
 
         if (tlvRecords->find(EdDSA::TLV_KEY))
         {
@@ -214,15 +214,16 @@ User* User::unserialize(MegaClient* client, string* d)
     return u;
 }
 
-void User::setattr(string an, string av, string v)
+void User::setattr(string *an, string *av, string *v)
 {
-    setChanged(an.c_str());
+    setChanged(an->c_str());
 
-    if (an != "+a")
+    if (*an != "+a") // avatar is saved to disc
     {
-        attrs[an] = av;
-        attrsv[an] = v;
+        attrs[*an] = *av;
     }
+
+    attrsv[*an] = *v;
 }
 
 void User::invalidateattr(string an)
@@ -231,10 +232,11 @@ void User::invalidateattr(string an)
     attrsv.erase(an);
 }
 
+// returns the value if there is value AND version for it
 const string * User::getattr(string an)
 {
-    string_map::iterator it = attrsv.find(an);
-    if (it != attrsv.end())
+    string_map::const_iterator it = attrs.find(an);
+    if (it != attrs.end())
     {
         return &attrs[an];
     }
@@ -242,7 +244,12 @@ const string * User::getattr(string an)
     return NULL;
 }
 
-string *User::getattrversion(string an)
+bool User::isattrvalid(string an)
+{
+    return (attrsv.find(an) != attrsv.end());
+}
+
+const string *User::getattrversion(string an)
 {
     string_map::iterator it = attrsv.find(an);
     if (it != attrsv.end())
