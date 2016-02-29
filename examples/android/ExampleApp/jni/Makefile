@@ -31,7 +31,7 @@ SQLITE_DOWNLOAD_URL=http://www.sqlite.org/$(SQLITE_YEAR)/$(SQLITE_SOURCE_FILE)
 SQLITE_VERIFIED_SOURCES=$(SQLITE)/$(SQLITE_SOURCE_FILE)_verified
 
 CURL=curl
-CURL_VERSION=7.37.0
+CURL_VERSION=7.45.0
 C_ARES_VERSION=1.10.0
 CURL_EXTRA=--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi
 CURL_SOURCE_FILE=curl-$(CURL_VERSION).tar.gz
@@ -56,7 +56,7 @@ OPENSSL_CONFIGURED=openssl/openssl/lib/libcrypto.a
 OPENSSL_PREFIX=$(JNI_PATH)/$(OPENSSL)/$(OPENSSL_SOURCE_FOLDER)
 
 SODIUM=sodium
-SODIUM_VERSION=0.6.0
+SODIUM_VERSION=1.0.1
 SODIUM_SOURCE_FILE=libsodium-$(SODIUM_VERSION).tar.gz
 SODIUM_SOURCE_FOLDER=libsodium-$(SODIUM_VERSION)
 SODIUM_DOWNLOAD_URL=https://download.libsodium.org/libsodium/releases/$(SODIUM_SOURCE_FILE)
@@ -66,9 +66,9 @@ SODIUM_BUILT=$(SODIUM)/$(SODIUM_SOURCE_FILE)_built
 MEGA=mega
 MEGA_JAVA_OUTPUT_PATH=$(JNI_PATH)/../src
 MEGA_CONFIGURED=java_wrap.cxx
-MEGA_WRAPPER=megaapi.i
+MEGA_WRAPPER=sdk/bindings/megaapi.i
 
-all: $(SODIUM) $(CRYPTOPP) $(CURL) $(SQLITE) $(MEGA)
+all: $(CRYPTOPP) $(CURL) $(SQLITE) $(MEGA)
 	$(NDK_BUILD)
 
 $(OPENSSL): $(OPENSSL_CONFIGURED)
@@ -112,21 +112,25 @@ $(CURL_VERIFIED_SOURCES):
 $(MEGA): $(MEGA)/$(MEGA_CONFIGURED)
 
 $(MEGA)/$(MEGA_CONFIGURED): $(MEGA)/$(MEGA_WRAPPER)
+	make -C $(MEGA) -f MakefileBindings $(MEGA_CONFIGURED) JAVA_BASE_OUTPUT_PATH=$(MEGA_JAVA_OUTPUT_PATH)
+
+$(MEGA)/$(MEGA_WRAPPER):
 	make clean_mega
 	-mkdir $(MEGA)/sdk
 	-rm $(MEGA)/sdk/src
 	-ln -s $(MEGASDK_ROOT)/src $(MEGA)/sdk/src
 	-rm $(MEGA)/sdk/include
 	-ln -s $(MEGASDK_ROOT)/include $(MEGA)/sdk/include
+	-rm $(MEGA)/sdk/bindings
+	-ln -s $(MEGASDK_ROOT)/bindings $(MEGA)/sdk/bindings
 	-rm $(MEGA)/sdk/third_party
 	-ln -s $(MEGASDK_ROOT)/third_party $(MEGA)/sdk/third_party
-	make -C $(MEGA) -f MakefileBindings $(MEGA_CONFIGURED) JAVA_BASE_OUTPUT_PATH=$(MEGA_JAVA_OUTPUT_PATH)
 
 $(CRYPTOPP): $(CRYPTOPP_SOURCE_FOLDER)
 
 $(CRYPTOPP_SOURCE_FOLDER): $(CRYPTOPP_VERIFIED_SOURCES)
-	unzip -o $(CRYPTOPP)/$(CRYPTOPP_SOURCE_FILE) -d $(CRYPTOPP_SOURCE_FOLDER)
-
+	unzip $(CRYPTOPP)/$(CRYPTOPP_SOURCE_FILE) -d $(CRYPTOPP_SOURCE_FOLDER)
+	patch $(CRYPTOPP)/cryptopp/wait.h < $(CRYPTOPP)/include.patch
 
 $(CRYPTOPP_VERIFIED_SOURCES):
 	wget -O $(CRYPTOPP)/$(CRYPTOPP_SOURCE_FILE) $(CRYPTOPP_DOWNLOAD_URL)

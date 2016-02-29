@@ -5,6 +5,5 @@ NDK_PROJECT_PATH := $(TOP_PATH)
 include $(TOP_PATH)/curl/Android.mk
 include $(TOP_PATH)/cryptopp/Android.mk
 include $(TOP_PATH)/sqlite/Android.mk
-include $(TOP_PATH)/sodium/Android.mk
 include $(TOP_PATH)/mega/Android.mk
 
