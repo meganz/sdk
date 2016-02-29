@@ -2,7 +2,7 @@
 /* include/mega/config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define to 1 if you have the <glob.h> header file. */
-#define HAVE_GLOB_H 1
+#undef HAVE_GLOB_H
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
@@ -162,6 +162,7 @@
 /* Define to use SQLite */
 #define USE_SQLITE 1
 
+#define USE_PTHREAD 1
 /* Version number of package */
 #define VERSION "0.2.3"
 
