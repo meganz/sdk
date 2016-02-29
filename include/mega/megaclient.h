@@ -193,10 +193,10 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const char* an = NULL);
+    void getua(User* u, const char* an = NULL, int ctag = -1);
 
 #ifdef DEBUG
     // queue a user attribute removal

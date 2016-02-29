@@ -199,7 +199,7 @@ class MEGA_API CommandPutUA : public Command
     User *u;
 
 public:
-    CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
+    CommandPutUA(MegaClient*, const char*, const byte*, unsigned, int);
 
     void procresult();
 };
@@ -210,7 +210,7 @@ class MEGA_API CommandGetUA : public Command
     string an;
 
 public:
-    CommandGetUA(MegaClient*, const char*, const char*);
+    CommandGetUA(MegaClient*, const char*, const char*, int);
 
     void procresult();
 };

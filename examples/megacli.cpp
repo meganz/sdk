@@ -2862,7 +2862,7 @@ static void process_line(char* l)
                         if (!u)
                         {
                             // get logged in user's attribute
-                            if (!(u = client->finduser(client->me)))
+                            if (!(u = client->ownuser())
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
                                 return;
@@ -3280,7 +3280,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        if (client->finduser(client->me)->email.compare(words[1]))
+                        if (client->ownuser()->email.compare(words[1]))
                         {
                             int del = words.size() == 3 && words[2] == "del";
                             int rmd = words.size() == 3 && words[2] == "rmd";

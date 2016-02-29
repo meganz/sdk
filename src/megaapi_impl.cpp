@@ -7534,6 +7534,18 @@ void MegaApiImpl::putua_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
+    // if need to update value/version of attribute, retry
+    if (e == API_EEXPIRED)
+    {
+        User *u = client->ownuser();
+        int type = request->getParamType();
+        string an = MegaApiImpl::userAttributeToString(type);
+
+        u->invalidateattr(an);
+        client->getua(u, an.c_str(), request->getTag());
+        return;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -7541,8 +7553,9 @@ void MegaApiImpl::getua_result(error e)
 {
 	MegaError megaError(e);
 	if(requestMap.find(client->restag) == requestMap.end()) return;
-	MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
+                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -7551,89 +7564,194 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 {
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
+                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
-    int attrType = request->getParamType();
-
-    switch (attrType)
+    if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
     {
-    case MegaApi::USER_ATTR_AVATAR:
-        if (len)
+        int attrType = request->getParamType();
+
+        switch (attrType)
         {
+            case MegaApi::USER_ATTR_AVATAR:
+                if (len)
+                {
 
-            FileAccess *f = client->fsaccess->newfileaccess();
-            string filePath(request->getFile());
-            string localPath;
-            fsAccess->path2local(&filePath, &localPath);
+                    FileAccess *f = client->fsaccess->newfileaccess();
+                    string filePath(request->getFile());
+                    string localPath;
+                    fsAccess->path2local(&filePath, &localPath);
 
-            totalDownloadedBytes += len;
+                    totalDownloadedBytes += len;
 
-            fsAccess->unlinklocal(&localPath);
-            if(!f->fopen(&localPath, false, true))
-            {
-                delete f;
-                fireOnRequestFinish(request, MegaError(API_EWRITE));
-                return;
-            }
+                    fsAccess->unlinklocal(&localPath);
+                    if(!f->fopen(&localPath, false, true))
+                    {
+                        delete f;
+                        fireOnRequestFinish(request, MegaError(API_EWRITE));
+                        return;
+                    }
 
-            if(!f->fwrite((const byte*)data, len, 0))
-            {
-                delete f;
-                fireOnRequestFinish(request, MegaError(API_EWRITE));
-                return;
-            }
+                    if(!f->fwrite((const byte*)data, len, 0))
+                    {
+                        delete f;
+                        fireOnRequestFinish(request, MegaError(API_EWRITE));
+                        return;
+                    }
 
-            delete f;
+                    delete f;
+                }
+                else    // no data for the avatar
+                {
+                    fireOnRequestFinish(request, MegaError(API_ENOENT));
+                    return;
+                }
+
+                break;
+
+            // null-terminated char arrays
+            case MegaApi::USER_ATTR_FIRSTNAME:
+            case MegaApi::USER_ATTR_LASTNAME:
+                {
+                    string str((const char*)data,len);
+                    request->setText(str.c_str());
+                }
+                break;
+
+            // byte arrays with possible nulls in the middle --> to Base64
+            case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
+            case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
+            default:
+                {
+                    string str;
+                    str.resize(len * 4 / 3 + 4);
+                    str.resize(Base64::btoa(data, len, (char*)str.data()));
+                    request->setText(str.c_str());
+                }
+                break;
         }
-        else    // no data for the avatar
+
+        fireOnRequestFinish(request, MegaError(API_OK));
+        return;
+    }
+    else    // type == TYPE_SET_ATTR_USER
+    {
+        // putua failed with API_EEXPIRED, so this is the update of the value/version
+
+        const char* file = request->getFile();
+        const char* value = request->getText();
+        int type = request->getParamType();
+        string attrname = MegaApiImpl::userAttributeToString(type);
+
+        if (type == MegaApi::USER_ATTR_AVATAR)
         {
-            fireOnRequestFinish(request, MegaError(API_ENOENT));
+
+            // read the attribute value from file
+            if (file)
+            {
+                string path = file;
+                string localpath;
+                fsAccess->path2local(&path, &localpath);
+
+                FileAccess *f = fsAccess->newfileaccess();
+                if (!f->fopen(&localpath, 1, 0))
+                {
+                    delete f;
+                    fireOnRequestFinish(request, MegaError(API_EREAD));
+                    return;
+                }
+
+                string attrvalue;
+                if (!f->fread(&attrvalue, f->size, 0, 0))
+                {
+                    delete f;
+                    fireOnRequestFinish(request, MegaError(API_EREAD));
+                    return;
+                }
+                delete f;
+
+                client->putua(attrname.c_str(), (byte *)attrvalue.data(), attrvalue.size(), request->getTag());
+                return;
+            }
+            else    // removing current attribute's value
+            {
+                client->putua(attrname.c_str(), NULL, 0, request->getTag());
+                return;
+            }
+        }
+        else    // any other type of attribute
+        {
+            if (!value)
+            {
+                fireOnRequestFinish(request, MegaError(API_EARGS));
+                return;
+            }
+
+            client->putua(attrname.c_str(), (byte *)value, strlen(value), request->getTag());
             return;
         }
-
-        break;
-
-    // null-terminated char arrays
-    case MegaApi::USER_ATTR_FIRSTNAME:
-    case MegaApi::USER_ATTR_LASTNAME:
-        {
-            string str((const char*)data,len);
-            request->setText(str.c_str());
-        }
-        break;
-
-    // byte arrays with possible nulls in the middle --> to Base64
-    case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-    case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-    default:
-        {
-            string str;
-            str.resize(len * 4 / 3 + 4);
-            str.resize(Base64::btoa(data, len, (char*)str.data()));
-            request->setText(str.c_str());
-        }
-        break;
     }
-
-    fireOnRequestFinish(request, MegaError(API_OK));
 }
 
 void MegaApiImpl::getua_result(TLVstore *tlv)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
+                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
-    if (tlv)
+    if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
     {
-        // TLV data usually includes byte arrays with zeros in the middle, so values
-        // must be converted into Base64 strings to avoid problems
-        MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
-        request->setMegaStringMap(stringMap);
-        delete stringMap;
-    }
+        if (tlv)
+        {
+            // TLV data usually includes byte arrays with zeros in the middle, so values
+            // must be converted into Base64 strings to avoid problems
+            MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
+            request->setMegaStringMap(stringMap);
+            delete stringMap;
+        }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+        fireOnRequestFinish(request, MegaError(API_OK));
+        return;
+    }
+    else    // type == TYPE_SET_ATTR_USER
+    {
+        // putua failed with API_EEXPIRED, so this is the update of the value/version
+
+        int type = request->getParamType();
+        string attrname = MegaApiImpl::userAttributeToString(type);
+
+        MegaStringMap *stringMap = request->getMegaStringMap();
+        if (!stringMap)
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
+
+        // encode the MegaStringMap as a TLV container
+        TLVstore tlv;
+        string value;
+        unsigned len;
+        const char *buf, *key;
+        MegaStringList *keys = stringMap->getKeys();
+        for (int i=0; i < keys->size(); i++)
+        {
+            key = keys->get(i);
+            buf = stringMap->get(key);
+
+            len = strlen(buf)/4*3+3;
+            value.resize(len);
+            value.resize(Base64::atob(buf, (byte *)value.data(), len));
+
+            tlv.set(key, value);
+        }
+        delete keys;
+
+        // serialize and encrypt the TLV container
+        string *container = tlv.tlvRecordsToContainer(&client->key);
+        client->putua(attrname.c_str(), (byte *)container->data(), container->size(), request->getTag());
+        delete container;
+    }
 }
 
 // user attribute update notification

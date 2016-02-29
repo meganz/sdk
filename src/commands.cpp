@@ -1959,18 +1959,11 @@ void CommandUserRequest::procresult()
     client->app->invite_result(e);
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl)
+CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, unsigned avl, int ctag)
 {
     this->an = an;
     this->av.assign((const char*)av, avl);
     this->u = client->ownuser();
-
-    // TODO: prevent getting -8 due to outdated versions
-    // if the cached value is outdated...
-    if (u->getattr(an) && !u->isattrvalid(an))
-    {
-        // TODO: get the value first, then check if modification is needed
-    }
 
     cmd("upv");
 
@@ -1994,49 +1987,14 @@ CommandPutUA::CommandPutUA(MegaClient* client, const char *an, const byte* av, u
     }
     endarray();
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 void CommandPutUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EEXPIRED)
-        {
-            u->invalidateattr(an);
-
-            int creqtag = client->reqtag;
-            client->reqtag = 0;
-            client->getua(u, an.c_str());
-            client->reqtag = creqtag;
-
-            // TODO: check if modification is still needed after getting the fresh value
-            // client->updatingUserAttr = true;
-
-            client->app->putua_result(API_EEXPIRED);
-            return;
-        }
-        else
-        {
-            if (an == "*keyring"     ||
-                    an == "+puCu255" ||
-                    an == "+puEd255")
-            {
-                LOG_debug << "Failed to set attribute: " << an << " (error: " << e << ")";
-
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99406, "Failed to set keypairs");
-                client->reqtag = creqtag;
-
-                delete client->signkey;
-                client->signkey = NULL;
-
-                delete client->chatkey;
-                client->chatkey = NULL;
-            }
-        }
+        client->app->putua_result((error)client->json.getint());
     }
     else
     {
@@ -2045,14 +2003,14 @@ void CommandPutUA::procresult()
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->getua_result(API_EINTERNAL);
+            client->app->putua_result(API_EINTERNAL);
             return;
         }
         string an = string(ptr, (end-ptr));
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->getua_result(API_EINTERNAL);
+            client->app->putua_result(API_EINTERNAL);
             return;
         }
         string v = string(ptr, (end-ptr));
@@ -2071,7 +2029,7 @@ void CommandPutUA::procresult()
     }
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
+CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an, int ctag)
 {
     this->u = client->finduser((char*)uid);
     this->an = an;
@@ -2081,7 +2039,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, const char* an)
     arg("ua", an);
     arg("v", 1);
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 void CommandGetUA::procresult()
@@ -2107,19 +2065,14 @@ void CommandGetUA::procresult()
                 string *tlvContainer = tlvRecords.tlvRecordsToContainer(&client->key);
 
                 // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-
-                client->putua(an.c_str(), (byte *) tlvContainer->data(), tlvContainer->length());
-                client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-                client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+                client->putua(an.c_str(), (byte *) tlvContainer->data(), tlvContainer->length(), 0);
+                client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
+                client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
 
                 // TODO: compute signatures for RSA and Chat keys
                 // TODO: store signatures into user attributes (skipping the procresult() too)
                 //                client->putua("+sigCu255", );
                 //                client->putua("+sigPubk", );
-
-                client->reqtag = creqtag;
 
                 delete tlvContainer;
             }
@@ -2128,10 +2081,7 @@ void CommandGetUA::procresult()
                 LOG_warn << "Public key for signing not found. Restoring from private key...";
 
                 // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->putua(an.c_str(), (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-                client->reqtag = creqtag;
+                client->putua(an.c_str(), (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
 
                 // and return the derived result directly (keyring is already set in MEGA, so it must be safe)
                 client->app->getua_result(client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
@@ -2142,10 +2092,7 @@ void CommandGetUA::procresult()
                 LOG_warn << "Public key for chat not found. Restoring from private key...";
 
                 // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->putua(an.c_str(), (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
-                client->reqtag = creqtag;
+                client->putua(an.c_str(), (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
 
                 // and return the derived result directly (keyring is already set in MEGA, so it must be safe)
                 client->app->getua_result(client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
@@ -2264,14 +2211,10 @@ void CommandGetUA::procresult()
                                     chatkeyMissing = true;
                                 }
 
-
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-
                                 if (!signkeyMissing && !chatkeyMissing)   // everything is OK
                                 {
-                                    client->getua(u, "+puEd255");
-                                    client->getua(u, "+puCu255");
+                                    client->getua(u, "+puEd255", 0);
+                                    client->getua(u, "+puCu255", 0);
                                 }
                                 else
                                 {
@@ -2284,24 +2227,23 @@ void CommandGetUA::procresult()
                                     tlv.set(ECDH::TLV_KEY, string((char *) client->chatkey->privKey));
                                     string *tlvContainer = tlv.tlvRecordsToContainer(&client->key);
 
-                                    client->putua(an.c_str(), (byte *) tlvContainer->data(), tlvContainer->length());
+                                    client->putua(an.c_str(), (byte *) tlvContainer->data(), tlvContainer->length(), 0);
 
                                     delete tlvContainer;
 
                                     if (signkeyMissing)
                                     {
                                         LOG_info << "Updating public key for Ed25519...";
-                                        client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-                                        client->getua(u, "+puCu255");
+                                        client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
+                                        client->getua(u, "+puCu255", 0);
                                     }
                                     else if (chatkeyMissing)
                                     {
                                         LOG_info << "Updating public key for x25519";
-                                        client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
-                                        client->getua(u, "+puEd255");
+                                        client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
+                                        client->getua(u, "+puEd255", 0);
                                     }
                                 }
-                                client->reqtag = creqtag;
                             }
                     #endif
                             client->app->getua_result(tlvRecords);
@@ -2321,11 +2263,7 @@ void CommandGetUA::procresult()
                                     if ((av.size() != EdDSA::PUBLIC_KEY_LENGTH) || memcmp(av.data(), client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
                                     {
                                         LOG_warn << "Public key for Ed25519 doesn't match. Updating...";
-
-                                        int creqtag = client->reqtag;
-                                        client->reqtag = 0;
-                                        client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-                                        client->reqtag = creqtag;
+                                        client->putua("+puEd255", (byte *) client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH, 0);
                                     }
 
                                 }
@@ -2334,11 +2272,7 @@ void CommandGetUA::procresult()
                                     if ((av.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(av.data(), client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
                                     {
                                         LOG_warn << "Public key for x25519 doesn't match. Updating...";
-
-                                        int creqtag = client->reqtag;
-                                        client->reqtag = 0;
-                                        client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
-                                        client->reqtag = creqtag;
+                                        client->putua("+puCu255", (byte *) client->chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, 0);
                                     }
                                 }
                             }
@@ -2392,6 +2326,8 @@ CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 
     cmd("upr");
     arg("ua", an);
+
+    tag = client->reqtag;
 }
 
 void CommandDelUA::procresult()

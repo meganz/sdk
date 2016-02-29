@@ -2491,10 +2491,7 @@ bool MegaClient::procsc()
                             }
 
                             // initialize keyrpairs
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            getua(finduser(me), "*keyring");
-                            reqtag = creqtag;
+                            getua(ownuser(), "*keyring", 0);
                         }
 
                         app->nodes_current();
@@ -3587,9 +3584,6 @@ void MegaClient::sc_userattr()
                     {
                         u->invalidateattr(*it);
 
-                        // TODO: invalidation of certain critical attributes may imply
-                        // to trigger a refetch of them for a proper operation of SDK
-
                         if (*it == "*keyring")
                         {
                             delete signkey;
@@ -3597,6 +3591,8 @@ void MegaClient::sc_userattr()
 
                             delete chatkey;
                             chatkey = NULL;
+
+                            getua(ownuser(), "*keyring", 0);
                         }
                     }
                 }
@@ -6293,9 +6289,10 @@ error MegaClient::invite(const char* email, visibility_t show)
  * @param an Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
+ * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::putua(const char* an, const byte* av, unsigned avl)
+void MegaClient::putua(const char* an, const byte* av, unsigned avl, int ctag)
 {
     string data;
 
@@ -6310,7 +6307,16 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
         avl = data.size();
     }
 
-    reqs.add(new CommandPutUA(this, an, av, avl));
+    // if the cached value is outdated, first get latest version
+    User *u = ownuser();
+    if (u->getattr(an) && !u->isattrvalid(an))
+    {
+        restag = reqtag;
+        app->putua_result(API_EEXPIRED);
+        return;
+    }
+
+    reqs.add(new CommandPutUA(this, an, av, avl, (ctag != -1) ? ctag : reqtag));
 }
 
 /**
@@ -6318,9 +6324,10 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
  *
  * @param u User.
  * @param an Attribute name.
+ * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::getua(User* u, const char* an)
+void MegaClient::getua(User* u, const char* an, int ctag)
 {
     if (an)
     {
@@ -6345,7 +6352,7 @@ void MegaClient::getua(User* u, const char* an)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), an, (ctag != -1) ? ctag : reqtag));
         }
     }
 }
@@ -7164,10 +7171,7 @@ void MegaClient::fetchnodes()
         if (!ownuser()->getattr("*keyring"))
         {
             // initialize keyrpairs
-            int creqtag = reqtag;
-            reqtag = 0;
-            getua(ownuser(), "*keyring");
-            reqtag = creqtag;
+            getua(ownuser(), "*keyring", 0);
         }
     }
     else if (!fetchingnodes)
