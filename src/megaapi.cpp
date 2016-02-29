@@ -1365,6 +1365,11 @@ void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener 
     pImpl->setUserAttribute(type, value, listener);
 }
 
+void MegaApi::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener)
+{
+    pImpl->setUserAttribute(type, value, listener);
+}
+
 void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
 {
     pImpl->setCustomNodeAttribute(node, attrName, value, listener);
