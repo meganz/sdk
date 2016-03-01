@@ -188,6 +188,7 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
+#ifdef ENABLE_CHAT
     const string *av = (u->isattrvalid("*keyring")) ? u->getattr("*keyring") : NULL;
     if (av)
     {
@@ -205,6 +206,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
         delete tlvRecords;
     }
+#endif
 
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
     {

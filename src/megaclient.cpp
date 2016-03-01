@@ -614,11 +614,7 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-    delete signkey;
-    signkey = NULL;
-
-    delete chatkey;
-    chatkey = NULL;
+    resetKeyring();
 
     btcs.reset();
     btsc.reset();
@@ -665,11 +661,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
-
-#ifdef USE_SODIUM
-    signkey = NULL;
-    chatkey = NULL;
-#endif
 
     signkey = NULL;
     chatkey = NULL;
@@ -3533,8 +3524,9 @@ void MegaClient::sc_userattr()
     User *u = NULL;
 
     string ua, uav;
-    string_vector attrs;
-    string_vector attrsv;
+    string_vector ualist;    // stores attribute names
+    string_vector uavlist;   // stores attribute versions
+    string_vector::const_iterator itua, ituav;
 
     for (;;)
     {
@@ -3549,7 +3541,7 @@ void MegaClient::sc_userattr()
                 {
                     while (jsonsc.storeobject(&ua))
                     {
-                        attrs.push_back(ua);
+                        ualist.push_back(ua);
                     }
                     jsonsc.leavearray();
                 }
@@ -3560,7 +3552,7 @@ void MegaClient::sc_userattr()
                 {
                     while (jsonsc.storeobject(&uav))
                     {
-                        attrsv.push_back(uav);
+                        uavlist.push_back(uav);
                     }
                     jsonsc.leavearray();
                 }
@@ -3575,47 +3567,35 @@ void MegaClient::sc_userattr()
                 {
                     LOG_debug << "User attributes update for non-existing user";
                 }
-                else if (attrs.size() != attrsv.size())
+                // if no version received, or not for every attribute...
+                else if ( !uavlist.size() ||
+                          (uavlist.size() && (ualist.size() != uavlist.size())) )
                 {
-                    LOG_err << "Mismatch between attributes and their version";
-
-                    string_vector::iterator it;
-                    for (it = attrs.begin(); it != attrs.end(); it++)
+                    // ...invalidate all of the notified user attributes
+                    for (itua = ualist.begin(); itua != ualist.end(); itua++)
                     {
-                        u->invalidateattr(*it);
-
-                        if (*it == "*keyring")
+                        u->invalidateattr(*itua);
+                        if (*itua == "*keyring")
                         {
-                            delete signkey;
-                            signkey = NULL;
-
-                            delete chatkey;
-                            chatkey = NULL;
-
-                            getua(ownuser(), "*keyring", 0);
+                            resetKeyring();
                         }
                     }
+                    notifyuser(u);
                 }
                 else
                 {
+                    // invalidate only out-of-date attributes
                     const string *cacheduav;
-                    string_vector::iterator itua, ituav;
-                    for (itua = attrs.begin(), ituav = attrsv.begin(); itua != attrs.end(); itua++, ituav++)
+                    for (itua = ualist.begin(), ituav = uavlist.begin();
+                         itua != ualist.end();
+                         itua++, ituav++)
                     {
-                        if ( (cacheduav = u->getattrversion(*itua)) && (*cacheduav != *ituav) )
+                        if ((cacheduav = u->getattrversion(*itua)) && (*cacheduav != *ituav))
                         {
                             u->invalidateattr(*itua);
-
-                            // TODO: invalidation of certain critical attributes may imply
-                            // to trigger a refetch of them for a proper operation of SDK
-
                             if (*itua == "*keyring")
                             {
-                                delete signkey;
-                                signkey = NULL;
-
-                                delete chatkey;
-                                chatkey = NULL;
+                                resetKeyring();
                             }
                         }
                     }
@@ -6027,6 +6007,15 @@ void MegaClient::procsr(JSON* j)
     }
 
     j->leavearray();
+}
+
+void MegaClient::resetKeyring()
+{
+    delete signkey;
+    signkey = NULL;
+
+    delete chatkey;
+    chatkey = NULL;
 }
 
 // process node tree (bottom up)
