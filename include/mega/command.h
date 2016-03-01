@@ -193,9 +193,9 @@ public:
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
-    string an;
-    string av;
     User *u;
+    string an;  // attribute name
+    string av;  // attribute value
 
 public:
     CommandPutUA(MegaClient*, const char*, const byte*, unsigned, int);
@@ -206,7 +206,7 @@ public:
 class MEGA_API CommandGetUA : public Command
 {
     User* u;
-    string an;
+    string an;  // attribute name
 
 public:
     CommandGetUA(MegaClient*, const char*, const char*, int);
@@ -217,7 +217,7 @@ public:
 #ifdef DEBUG
 class MEGA_API CommandDelUA : public Command
 {
-    string attributename;
+    string an;
 
 public:
     CommandDelUA(MegaClient*, const char*);

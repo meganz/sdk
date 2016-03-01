@@ -800,6 +800,9 @@ public:
     // ECDH key (x25519 private key).
     ECDH *chatkey;
 
+    // delete chatkey and signing key
+    void resetKeyring();
+
     // binary session ID
     string sid;
 

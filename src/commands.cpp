@@ -2048,6 +2048,7 @@ void CommandGetUA::procresult()
     {
         error e = (error)client->json.getint();
 
+#ifdef ENABLE_CHAT
         // If keyring is not found, create keypairs and send them to MEGA
         if ((e == API_ENOENT) && (u->userhandle == client->me))
         {
@@ -2099,6 +2100,7 @@ void CommandGetUA::procresult()
                 return;
             }
         }
+#endif
 
         client->app->getua_result(e);
         return;
@@ -2170,7 +2172,8 @@ void CommandGetUA::procresult()
                             u->setattr(&an, tlvString, &v);   // update version, needed for healing
                             delete tlvString;
 
-                    #ifdef ENABLE_CHAT
+#ifdef ENABLE_CHAT
+                            // Sanity checkups during initialization of keyring
                             if (an == "*keyring")
                             {
                                 string prEd255;
@@ -2188,27 +2191,26 @@ void CommandGetUA::procresult()
                                 bool chatkeyMissing = false;
                                 bool signkeyMissing = false;
 
-                                // Sanity checkups during initialization: if a private key is missing, generate it
-                                if (prEd255.length() == EdDSA::SEED_KEY_LENGTH)
-                                {
-                                    client->signkey = new EdDSA((unsigned char *) prEd255.data());
-                                }
-                                else
+                                if (prEd255.length() != EdDSA::SEED_KEY_LENGTH)
                                 {
                                     LOG_warn << "Private key for Ed25519 not found or invalid length.";
                                     client->signkey = new EdDSA();
                                     signkeyMissing = true;
                                 }
-
-                                if (prCu255.length() == ECDH::PRIVATE_KEY_LENGTH)
+                                else    // length is correct
                                 {
-                                    client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                                    client->signkey = new EdDSA((unsigned char *) prEd255.data());
                                 }
-                                else
+
+                                if (prCu255.length() != ECDH::PRIVATE_KEY_LENGTH)
                                 {
                                     LOG_warn << "Private key for x25519 not found or invalid length.";
                                     client->chatkey = new ECDH();
                                     chatkeyMissing = true;
+                                }
+                                else    // length is correct
+                                {
+                                    client->chatkey = new ECDH((unsigned char *) prCu255.data());
                                 }
 
                                 if (!signkeyMissing && !chatkeyMissing)   // everything is OK
@@ -2220,7 +2222,10 @@ void CommandGetUA::procresult()
                                 {
                                     LOG_warn << "Updating keyring...";
 
+                                    int creqtag = client->reqtag;
+                                    client->reqtag = 0;
                                     client->sendevent(99405, "Updating existing keyring");
+                                    client->reqtag = creqtag;
 
                                     TLVstore tlv;
                                     tlv.set(EdDSA::TLV_KEY, string((char *) client->signkey->keySeed));
@@ -2245,7 +2250,7 @@ void CommandGetUA::procresult()
                                     }
                                 }
                             }
-                    #endif
+#endif
                             client->app->getua_result(tlvRecords);
                             delete tlvRecords;
                         }
@@ -2254,8 +2259,8 @@ void CommandGetUA::procresult()
                         case '+':   // public
                             u->setattr(&an, &av, &v);
 
-                    #ifdef ENABLE_CHAT
-                            // if own user's attribute and it's a public key, check against derived pubKey
+#ifdef ENABLE_CHAT
+                            // Sanity checkups during initialization of public keys (check against derived pubKey)
                             if (u->userhandle == client->me)
                             {
                                 if (an == "+puEd255" && client->signkey)
@@ -2276,7 +2281,7 @@ void CommandGetUA::procresult()
                                     }
                                 }
                             }
-                    #endif
+#endif
                             client->app->getua_result((byte*) av.data(), av.size());
                             break;
 
@@ -2322,7 +2327,7 @@ void CommandGetUA::procresult()
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
-    attributename = an;
+    this->an = an;
 
     cmd("upr");
     arg("ua", an);
@@ -2338,15 +2343,11 @@ void CommandDelUA::procresult()
         if (e == API_OK)
         {
             User *u = client->ownuser();
-            u->invalidateattr(attributename);
+            u->invalidateattr(an);
 
-            if (attributename == "*keyring")
+            if (an == "*keyring")
             {
-                delete client->signkey;
-                client->signkey = NULL;
-
-                delete client->chatkey;
-                client->chatkey = NULL;
+                client->resetKeyring();
             }
 
             client->notifyuser(u);

@@ -2862,7 +2862,7 @@ static void process_line(char* l)
                         if (!u)
                         {
                             // get logged in user's attribute
-                            if (!(u = client->ownuser())
+                            if (!(u = client->ownuser()))
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
                                 return;

@@ -7560,6 +7560,12 @@ void MegaApiImpl::putua_result(error e)
         string an = MegaApiImpl::userAttributeToString(type);
 
         u->invalidateattr(an);
+
+        if (an == "*keyring")
+        {
+            client->resetKeyring();
+        }
+
         client->getua(u, an.c_str(), request->getTag());
         return;
     }
@@ -7654,8 +7660,9 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
     }
     else    // type == TYPE_SET_ATTR_USER
     {
-        // putua failed with API_EEXPIRED, so this is the update of the value/version
+        // putua failed with API_EEXPIRED, this is the update of the value/version
 
+        // prepare the input data to retry putua()
         const char* file = request->getFile();
         const char* value = request->getText();
         int type = request->getParamType();
@@ -7663,7 +7670,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
         if (type == MegaApi::USER_ATTR_AVATAR)
         {
-
             // read the attribute value from file
             if (file)
             {
@@ -7771,6 +7777,12 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         delete container;
     }
 }
+
+#ifdef DEBUG
+void MegaApiImpl::delua_result(error)
+{
+}
+#endif
 
 // user attribute update notification
 void MegaApiImpl::userattr_update(User*, int, const char*)
