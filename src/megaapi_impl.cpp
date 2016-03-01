@@ -2027,6 +2027,11 @@ MegaStringList *MegaStringMapPrivate::getKeys() const
     return new MegaStringListPrivate(keys.data(), keys.size());
 }
 
+void MegaStringMapPrivate::set(const char *key, const char *value)
+{
+    strMap[key] = value;
+}
+
 int MegaStringMapPrivate::size() const
 {
     return strMap.size();

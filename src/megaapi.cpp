@@ -3590,6 +3590,11 @@ MegaStringList *MegaStringMap::getKeys() const
     return NULL;
 }
 
+void MegaStringMap::set(const char *, const char *)
+{
+
+}
+
 int MegaStringMap::size() const
 {
     return 0;
