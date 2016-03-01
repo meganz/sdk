@@ -2481,8 +2481,10 @@ bool MegaClient::procsc()
                                 memset(&(it->second->changed), 0, sizeof it->second->changed);
                             }
 
+#ifdef ENABLE_CHAT
                             // initialize keyrpairs
                             getua(ownuser(), "*keyring", 0);
+#endif
                         }
 
                         app->nodes_current();
@@ -7157,11 +7159,13 @@ void MegaClient::fetchnodes()
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
+#ifdef ENABLE_CHAT
         if (!ownuser()->getattr("*keyring"))
         {
             // initialize keyrpairs
             getua(ownuser(), "*keyring", 0);
         }
+#endif
     }
     else if (!fetchingnodes)
     {
