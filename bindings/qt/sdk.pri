@@ -161,7 +161,7 @@ unix {
             include/mega/config.h
 }
 
-DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT USE_SODIUM
+DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT
 LIBS += -lcryptopp
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
@@ -208,7 +208,7 @@ win32 {
         }
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium
 }
 
 unix:!macx {
@@ -238,5 +238,5 @@ macx {
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
-   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto
+   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lsodium
 }
