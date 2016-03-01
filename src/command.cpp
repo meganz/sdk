@@ -82,17 +82,6 @@ void Command::arg(const char* name, const char* value, int quotes)
     }
 }
 
-// binary name
-void Command::arg(const byte* name, int len, const char* value)
-{
-    char* buf = new char[len * 4 / 3 + 4];
-    Base64::btoa(name, len, buf);
-
-    arg(buf, value);
-
-    delete [] buf;
-}
-
 // binary data
 void Command::arg(const char* name, const byte* value, int len)
 {
