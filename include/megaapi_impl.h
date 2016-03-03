@@ -1660,6 +1660,7 @@ protected:
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
+        FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);

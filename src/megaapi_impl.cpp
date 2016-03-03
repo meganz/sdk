@@ -5466,34 +5466,16 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
 
 MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
 {
-    if(!fingerprint || !fingerprint[0]) return new MegaNodeListPrivate();
-
-    MegaNodeList *result = NULL;
-    m_off_t size = 0;
-    unsigned int fsize = strlen(fingerprint);
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
-        return NULL;
-
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
+    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    if (!fp)
+    {
         return new MegaNodeListPrivate();
-
-    string sfingerprint = fingerprint + ssize + 1;
-
-    FileFingerprint fp;
-    if(!fp.unserializefingerprint(&sfingerprint))
-        return new MegaNodeListPrivate();
-
-    fp.size = size;
+    }
 
     sdkMutex.lock();
-    node_vector *nodes = client->nodesbyfingerprint(&fp);
-    result = new MegaNodeListPrivate(nodes->data(), nodes->size());
+    node_vector *nodes = client->nodesbyfingerprint(fp);
+    MegaNodeList *result = new MegaNodeListPrivate(nodes->data(), nodes->size());
+    delete fp;
     delete nodes;
     sdkMutex.unlock();
     return result;
@@ -5501,33 +5483,16 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
 
 MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
 {
-    if(!fingerprint || !fingerprint[0]) return NULL;
-
     MegaNode *result = NULL;
-    m_off_t size = 0;
-    unsigned int fsize = strlen(fingerprint);
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+
+    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    if (!fp)
+    {
         return NULL;
-
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-        return NULL;
-
-    string sfingerprint = fingerprint + ssize + 1;
-
-    FileFingerprint fp;
-    if(!fp.unserializefingerprint(&sfingerprint))
-        return NULL;
-
-    fp.size = size;
+    }
 
     sdkMutex.lock();
-    node_vector *nodes = client->nodesbyfingerprint(&fp);
+    node_vector *nodes = client->nodesbyfingerprint(fp);
     for (unsigned int i = 0; i < nodes->size(); i++)
     {
         Node *node = nodes->at(i);
@@ -5555,6 +5520,7 @@ MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, c
         }
     }
 
+    delete fp;
     delete nodes;
     sdkMutex.unlock();
     return result;
@@ -5607,34 +5573,18 @@ char *MegaApiImpl::getCRC(const char *filePath)
 }
 
 char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
-{
-    if(!fingerprint || !fingerprint[0]) return NULL;
-    
-    m_off_t size = 0;
-    unsigned int fsize = strlen(fingerprint);
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
-        return NULL;
-    
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-        return NULL;
-    
-    string sfingerprint = fingerprint + ssize + 1;
-    
-    FileFingerprint fp;
-    if(!fp.unserializefingerprint(&sfingerprint))
+{    
+    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    if (!fp)
     {
         return NULL;
     }
     
     string result;
-    result.resize((sizeof fp.crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc,(char*)result.c_str()));
+    result.resize((sizeof fp->crc) * 4 / 3 + 4);
+    result.resize(Base64::btoa((const byte *)fp->crc, sizeof fp->crc,(char*)result.c_str()));
+    delete fp;
+
     return MegaApi::strdup(result.c_str());
 }
 
@@ -8465,66 +8415,32 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 {
-    if(!fingerprint || !fingerprint[0]) return NULL;
-
-    m_off_t size = 0;
-    unsigned int fsize = strlen(fingerprint);
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    if (!fp)
+    {
         return NULL;
-
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-        return NULL;
-
-    string sfingerprint = fingerprint + ssize + 1;
-
-    FileFingerprint fp;
-    if(!fp.unserializefingerprint(&sfingerprint))
-        return NULL;
-
-    fp.size = size;
+    }
 
     sdkMutex.lock();
-    Node *n  = client->nodebyfingerprint(&fp);
+    Node *n  = client->nodebyfingerprint(fp);
     sdkMutex.unlock();
 
+    delete fp;
     return n;
 }
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *parent)
 {
-    if(!fingerprint || !fingerprint[0]) return NULL;
 
-    m_off_t size = 0;
-    unsigned int fsize = strlen(fingerprint);
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+    FileFingerprint *fp = getFileFingerprintInternal(fingerprint);
+    if (!fp)
+    {
         return NULL;
-
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-        return NULL;
-
-    string sfingerprint = fingerprint + ssize + 1;
-
-    FileFingerprint fp;
-    if(!fp.unserializefingerprint(&sfingerprint))
-        return NULL;
-
-    fp.size = size;
+    }
 
     Node *n = NULL;
     sdkMutex.lock();
-    node_vector *nodes = client->nodesbyfingerprint(&fp);
+    node_vector *nodes = client->nodesbyfingerprint(fp);
     if (nodes->size())
     {
         n = nodes->at(0);
@@ -8542,10 +8458,50 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
             }
         }
     }
+    delete fp;
     delete nodes;
     sdkMutex.unlock();
 
     return n;
+}
+
+FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint)
+{
+    if(!fingerprint || !fingerprint[0])
+    {
+        return NULL;
+    }
+
+    m_off_t size = 0;
+    unsigned int fsize = strlen(fingerprint);
+    unsigned int ssize = fingerprint[0] - 'A';
+    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+    {
+        return NULL;
+    }
+
+    int len =  sizeof(size) + 1;
+    byte *buf = new byte[len];
+    Base64::atob(fingerprint + 1, buf, len);
+    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+    delete [] buf;
+    if(l <= 0)
+    {
+        return NULL;
+    }
+
+    string sfingerprint = fingerprint + ssize + 1;
+
+    FileFingerprint *fp = new FileFingerprint;
+    if(!fp->unserializefingerprint(&sfingerprint))
+    {
+        delete fp;
+        return NULL;
+    }
+
+    fp->size = size;
+
+    return fp;
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
