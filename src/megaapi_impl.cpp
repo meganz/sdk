@@ -8446,7 +8446,7 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
         n = nodes->at(0);
     }
 
-    if (parent && n->parent != parent)
+    if (n && parent && n->parent != parent)
     {
         for (unsigned int i = 1; i < nodes->size(); i++)
         {
