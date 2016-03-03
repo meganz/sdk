@@ -8461,20 +8461,27 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
 
     fp.size = size;
 
+    Node *n = NULL;
     sdkMutex.lock();
-    Node *n  = client->nodebyfingerprint(&fp);
-    if(n && parent && n->parent != parent)
+    node_vector *nodes = client->nodesbyfingerprint(&fp);
+    if (nodes->size())
     {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+        n = nodes->at(0);
+    }
+
+    if (parent && n->parent != parent)
+    {
+        for (unsigned int i = 1; i < nodes->size(); i++)
         {
-            Node* node = (*it);
-            if(*((FileFingerprint *)node) == *((FileFingerprint *)n))
+            Node* node = nodes->at(i);
+            if (node->parent == parent)
             {
                 n = node;
                 break;
             }
         }
     }
+    delete nodes;
     sdkMutex.unlock();
 
     return n;
