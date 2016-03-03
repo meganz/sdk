@@ -1994,6 +1994,11 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *paren
     return pImpl->getNodeByFingerprint(fingerprint, parent);
 }
 
+MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
+{
+    return pImpl->getNodesByFingerprint(fingerprint);
+}
+
 bool MegaApi::hasFingerprint(const char *fingerprint)
 {
     return pImpl->hasFingerprint(fingerprint);
