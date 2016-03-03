@@ -1285,6 +1285,7 @@ class MegaApiImpl : public MegaApp
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
+        MegaNode *getExportableNodeByFingerprint(const char *fingerprint, const char *name = NULL);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
 

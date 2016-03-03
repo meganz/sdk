@@ -6464,6 +6464,23 @@ class MegaApi
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
 
         /**
+         * @brief Returns a node with the provided fingerprint that can be exported
+         *
+         * If there isn't any node in the account with that fingerprint, this function returns NULL.
+         * If a file name is passed in the second parameter, it's also checked if nodes with a matching
+         * fingerprint has that name. If there isn't any matching node, this function returns NULL.
+         * This function ignores nodes that are inside the Rubbish Bin because public links to those nodes
+         * can't be downloaded.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param fingerprint Fingerprint to check
+         * @param name Name that the node should have (optional)
+         * @return Exportable node that meet the requirements
+         */
+        MegaNode *getExportableNodeByFingerprint(const char *fingerprint, const char *name = NULL);
+
+        /**
          * @brief Check if the account already has a node with the provided fingerprint
          *
          * A fingerprint for a local file can be generated using MegaApi::getFingerprint

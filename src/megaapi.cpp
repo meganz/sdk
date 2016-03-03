@@ -1999,6 +1999,11 @@ MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
     return pImpl->getNodesByFingerprint(fingerprint);
 }
 
+MegaNode *MegaApi::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
+{
+    return pImpl->getExportableNodeByFingerprint(fingerprint, name);
+}
+
 bool MegaApi::hasFingerprint(const char *fingerprint)
 {
     return pImpl->hasFingerprint(fingerprint);

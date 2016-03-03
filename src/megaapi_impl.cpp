@@ -5499,6 +5499,67 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
     return result;
 }
 
+MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
+{
+    if(!fingerprint || !fingerprint[0]) return NULL;
+
+    MegaNode *result = NULL;
+    m_off_t size = 0;
+    unsigned int fsize = strlen(fingerprint);
+    unsigned int ssize = fingerprint[0] - 'A';
+    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
+        return NULL;
+
+    int len =  sizeof(size) + 1;
+    byte *buf = new byte[len];
+    Base64::atob(fingerprint + 1, buf, len);
+    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
+    delete [] buf;
+    if(l <= 0)
+        return NULL;
+
+    string sfingerprint = fingerprint + ssize + 1;
+
+    FileFingerprint fp;
+    if(!fp.unserializefingerprint(&sfingerprint))
+        return NULL;
+
+    fp.size = size;
+
+    sdkMutex.lock();
+    node_vector *nodes = client->nodesbyfingerprint(&fp);
+    for (unsigned int i = 0; i < nodes->size(); i++)
+    {
+        Node *node = nodes->at(i);
+        if ((!name || !strcmp(name, node->displayname())) &&
+                client->checkaccess(node, OWNER))
+        {
+            Node *n = node;
+            while (n)
+            {
+                if (n->type == RUBBISHNODE)
+                {
+                    node = NULL;
+                    break;
+                }
+                n = n->parent;
+            }
+
+            if (!node)
+            {
+                continue;
+            }
+
+            result = MegaNodePrivate::fromNode(node);
+            break;
+        }
+    }
+
+    delete nodes;
+    sdkMutex.unlock();
+    return result;
+}
+
 MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint, MegaNode* parent)
 {
     if(!fingerprint) return NULL;
