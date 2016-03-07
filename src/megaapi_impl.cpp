@@ -6453,8 +6453,8 @@ void MegaApiImpl::unlink_result(handle h, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_REMOVE)) &&
-                    (request->getType() != MegaRequest::TYPE_MOVE))
+    if(!request || ((request->getType() != MegaRequest::TYPE_REMOVE) &&
+                    (request->getType() != MegaRequest::TYPE_MOVE)))
     {
         return;
     }
@@ -6549,8 +6549,8 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
-                    (request->getType() != MegaRequest::TYPE_COPY)) &&
-                    (request->getType() != MegaRequest::TYPE_MOVE)) return;
+                    (request->getType() != MegaRequest::TYPE_COPY) &&
+                    (request->getType() != MegaRequest::TYPE_MOVE))) return;
 
     delete [] nn;
 
