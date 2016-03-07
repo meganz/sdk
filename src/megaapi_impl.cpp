@@ -6453,9 +6453,17 @@ void MegaApiImpl::unlink_result(handle h, error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_REMOVE)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_REMOVE)) &&
+                    (request->getType() != MegaRequest::TYPE_MOVE))
+    {
+        return;
+    }
 
-    request->setNodeHandle(h);
+    if (request->getType() != MegaRequest::TYPE_MOVE)
+    {
+        request->setNodeHandle(h);
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -6541,11 +6549,40 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
-                    (request->getType() != MegaRequest::TYPE_COPY))) return;
+                    (request->getType() != MegaRequest::TYPE_COPY)) &&
+                    (request->getType() != MegaRequest::TYPE_MOVE)) return;
 
-	request->setNodeHandle(h);
-    fireOnRequestFinish(request, megaError);
-	delete [] nn;
+    delete [] nn;
+
+    if (request->getType() != MegaRequest::TYPE_MOVE)
+    {
+        request->setNodeHandle(h);
+        fireOnRequestFinish(request, megaError);
+    }
+    else
+    {
+        if (!e)
+        {
+            Node * node = client->nodebyhandle(request->getNodeHandle());
+            if (!node)
+            {
+                e = API_ENOENT;
+            }
+            else
+            {
+                request->setNodeHandle(h);
+                int creqtag = client->reqtag;
+                client->reqtag = request->getTag();
+                e = client->unlink(node);
+                client->reqtag = creqtag;
+            }
+        }
+
+        if (e)
+        {
+            fireOnRequestFinish(request, MegaError(e));
+        }
+    }
 }
 
 void MegaApiImpl::share_result(error e)
@@ -9166,7 +9203,35 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
-			if((e = client->checkmove(node,newParent))) break;
+
+            if ((e = client->checkmove(node, newParent)))
+            {
+                if (!client->checkaccess(newParent, RDWR))
+                {
+                    break;
+                }
+
+                unsigned nc;
+                TreeProcCopy tc;
+
+                // determine number of nodes to be copied
+                client->proctree(node, &tc);
+                tc.allocnodes();
+                nc = tc.nc;
+
+                // build new nodes array
+                client->proctree(node, &tc);
+                if (!nc)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                tc.nn->parenthandle = UNDEF;
+                client->putnodes(newParent->nodehandle, tc.nn, nc);
+                e = API_OK;
+                break;
+            }
 
 			e = client->rename(node, newParent);
 			break;
