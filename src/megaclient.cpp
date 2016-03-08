@@ -8971,6 +8971,18 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return NULL;
 }
 
+node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
+{
+    node_vector *nodes = new node_vector();
+    pair<fingerprint_set::iterator, fingerprint_set::iterator> p = fingerprints.equal_range(fingerprint);
+    for (fingerprint_set::iterator it = p.first; it != p.second; it++)
+    {
+        nodes->push_back((Node*)*it);
+    }
+    return nodes;
+}
+
+
 // a chunk transfer request failed: record failed protocol & host
 void MegaClient::setchunkfailed(string* url)
 {

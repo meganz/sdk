@@ -619,6 +619,7 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
 
     // generate & return upload handle
     handle getuploadhandle();

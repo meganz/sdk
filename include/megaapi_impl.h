@@ -1284,6 +1284,8 @@ class MegaApiImpl : public MegaApp
         char *getFingerprint(MegaNode *node);
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
+        MegaNodeList *getNodesByFingerprint(const char* fingerprint);
+        MegaNode *getExportableNodeByFingerprint(const char *fingerprint, const char *name = NULL);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
 
@@ -1658,6 +1660,7 @@ protected:
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
+        FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
