@@ -574,7 +574,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
         virtual MegaStringMap *getMegaStringMap() const;
-        void setMegaStringMap(MegaStringMap *);
+        void setMegaStringMap(const MegaStringMap *);
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -838,6 +838,7 @@ public:
     virtual MegaStringMap *copy() const;
     virtual const char *get(const char* key) const;
     virtual MegaStringList *getKeys() const;
+    virtual void set(const char *key, const char *value);
     virtual int size() const;
 
 protected:
@@ -1170,6 +1171,7 @@ class MegaApiImpl : public MegaApp
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+        void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -1592,6 +1594,9 @@ protected:
         virtual void getua_result(error);
         virtual void getua_result(byte*, unsigned);
         virtual void getua_result(TLVstore *);
+#ifdef DEBUG
+        virtual void delua_result(error);
+#endif
 
         // file node export result
         virtual void exportnode_result(error);
@@ -1680,7 +1685,7 @@ protected:
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void setUserAttr(int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         void startDownload(MegaNode *node, const char* target, long startPos, long endPos, MegaTransferListener *listener);
 };
 

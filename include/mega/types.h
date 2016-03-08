@@ -357,6 +357,7 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
 // Type-Value (for user attributes)
+typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef string_map TLV_map;
 
@@ -395,7 +396,6 @@ struct TextChat
         userpriv = NULL;
         group = false;
     }
-//typedef pair<byte *, unsigned> TLVcontainer;
 
     ~TextChat()
     {
@@ -404,8 +404,6 @@ struct TextChat
 };
 typedef vector<TextChat*> textchat_vector;
 #endif
-
-typedef map<string, string> string_map;
 
 } // namespace
 

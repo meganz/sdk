@@ -41,10 +41,10 @@ bool User::serialize(string* d)
     unsigned char l;
     unsigned short ll;
     time_t ts;
-    AttrMap attrs;
+    AttrMap attrmap;
     char attrVersion = '1';
 
-    d->reserve(d->size() + 100 + attrs.storagesize(10));
+    d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
     d->append((char*)&userhandle, sizeof userhandle);
     
@@ -61,7 +61,7 @@ bool User::serialize(string* d)
     d->append("\0\0\0\0\0\0", 7);
 
     // serialization of attributes
-    for (string_map::iterator it = optattrs.begin(); it != optattrs.end(); it++)
+    for (string_map::iterator it = attrs.begin(); it != attrs.end(); it++)
     {
         l = it->first.size();
         d->append((char*)&l, sizeof l);
@@ -70,6 +70,18 @@ bool User::serialize(string* d)
         ll = it->second.size();
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
+
+        if (attrsv.find(it->first) != attrsv.end())
+        {
+            ll = attrsv[it->first].size();
+            d->append((char*)&ll, sizeof ll);
+            d->append(attrsv[it->first].data(), ll);
+        }
+        else
+        {
+            ll = 0;
+            d->append((char*)&ll, sizeof ll);
+        }
     }
 
     d->append("", 1);
@@ -145,8 +157,8 @@ User* User::unserialize(MegaClient* client, string* d)
 
     if (attrVersion == '\0')
     {
-        AttrMap attrs;
-        if ((ptr < end) && !(ptr = attrs.unserialize(ptr)))
+        AttrMap attrmap;
+        if ((ptr < end) && !(ptr = attrmap.unserialize(ptr)))
         {
             return NULL;
         }
@@ -162,14 +174,25 @@ User* User::unserialize(MegaClient* client, string* d)
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
 
-            u->optattrs[key].assign(ptr, ll);
+            u->attrs[key].assign(ptr, ll);
             ptr += ll;
+
+            ll = MemAccess::get<short>(ptr);
+            ptr += sizeof ll;
+
+            if (ll)
+            {
+                u->attrsv[key].assign(ptr,ll);
+                ptr += ll;
+            }
         }
     }
 
-    if (u->optattrs.find("*keyring") != u->optattrs.end())
+#ifdef ENABLE_CHAT
+    const string *av = (u->isattrvalid("*keyring")) ? u->getattr("*keyring") : NULL;
+    if (av)
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&u->optattrs["*keyring"]);
+        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
 
         if (tlvRecords->find(EdDSA::TLV_KEY))
         {
@@ -183,6 +206,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
         delete tlvRecords;
     }
+#endif
 
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
     {
@@ -190,6 +214,52 @@ User* User::unserialize(MegaClient* client, string* d)
     }
 
     return u;
+}
+
+void User::setattr(string *an, string *av, string *v)
+{
+    setChanged(an->c_str());
+
+    if (*an != "+a") // avatar is saved to disc
+    {
+        attrs[*an] = *av;
+    }
+
+    attrsv[*an] = *v;
+}
+
+void User::invalidateattr(string an)
+{
+    setChanged(an.c_str());
+    attrsv.erase(an);
+}
+
+// returns the value if there is value AND version for it
+const string * User::getattr(string an)
+{
+    string_map::const_iterator it = attrs.find(an);
+    if (it != attrs.end())
+    {
+        return &attrs[an];
+    }
+
+    return NULL;
+}
+
+bool User::isattrvalid(string an)
+{
+    return (attrsv.find(an) != attrsv.end());
+}
+
+const string *User::getattrversion(string an)
+{
+    string_map::iterator it = attrsv.find(an);
+    if (it != attrsv.end())
+    {
+        return &attrsv[an];
+    }
+
+    return NULL;
 }
 
 bool User::setChanged(const char *an)

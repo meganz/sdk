@@ -193,10 +193,10 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const char* an = NULL);
+    void getua(User* u, const char* an = NULL, int ctag = -1);
 
 #ifdef DEBUG
     // queue a user attribute removal
@@ -800,6 +800,9 @@ public:
     // ECDH key (x25519 private key).
     ECDH *chatkey;
 
+    // delete chatkey and signing key
+    void resetKeyring();
+
     // binary session ID
     string sid;
 
@@ -812,6 +815,7 @@ public:
     // locate user by e-mail address or by handle
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
+    User* ownuser();
     void mapuser(handle, const char*);
     void mappcr(handle, PendingContactRequest*);
 

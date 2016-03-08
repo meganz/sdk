@@ -614,11 +614,7 @@ void MegaClient::init()
     delete pendingsc;
     pendingsc = NULL;
 
-    delete signkey;
-    signkey = NULL;
-
-    delete chatkey;
-    chatkey = NULL;
+    resetKeyring();
 
     btcs.reset();
     btsc.reset();
@@ -665,11 +661,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
-
-#ifdef USE_SODIUM
-    signkey = NULL;
-    chatkey = NULL;
-#endif
 
     signkey = NULL;
     chatkey = NULL;
@@ -2490,11 +2481,10 @@ bool MegaClient::procsc()
                                 memset(&(it->second->changed), 0, sizeof it->second->changed);
                             }
 
+#ifdef ENABLE_CHAT
                             // initialize keyrpairs
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            getua(finduser(me), "*keyring");
-                            reqtag = creqtag;
+                            getua(ownuser(), "*keyring", 0);
+#endif
                         }
 
                         app->nodes_current();
@@ -3532,8 +3522,13 @@ void MegaClient::sc_fileattr()
 // server-client user attribute update notification
 void MegaClient::sc_userattr()
 {
-    string ua;
     handle uh = UNDEF;
+    User *u = NULL;
+
+    string ua, uav;
+    string_vector ualist;    // stores attribute names
+    string_vector uavlist;   // stores attribute versions
+    string_vector::const_iterator itua, ituav;
 
     for (;;)
     {
@@ -3544,48 +3539,70 @@ void MegaClient::sc_userattr()
                 break;
 
             case MAKENAMEID2('u', 'a'):
-                if (!ISUNDEF(uh))
+                if (jsonsc.enterarray())
                 {
-                    User* u;
-
-                    if ((u = finduser(uh)))
+                    while (jsonsc.storeobject(&ua))
                     {
-                        if (jsonsc.enterarray())
-                        {
-                            while (jsonsc.storeobject(&ua))
-                            {
-                                if (!u->setChanged(ua.c_str()))
-                                {
-                                    LOG_debug << "User attribute not recognized: " << ua;
-                                }
-                                else
-                                {
-                                    u->optattrs.erase(ua);
-                                    notifyuser(u);
-
-                                    if (ua == "*keyring")
-                                    {
-                                        delete signkey;
-                                        signkey = NULL;
-
-                                        delete chatkey;
-                                        chatkey = NULL;
-                                    }
-                                }
-                            }
-
-                            jsonsc.leavearray();
-                            return;
-                        }
+                        ualist.push_back(ua);
                     }
-
-                    LOG_debug << "User attributes update for non-existing user";
+                    jsonsc.leavearray();
                 }
+                break;
 
-                jsonsc.storeobject();
+            case 'v':
+                if (jsonsc.enterarray())
+                {
+                    while (jsonsc.storeobject(&uav))
+                    {
+                        uavlist.push_back(uav);
+                    }
+                    jsonsc.leavearray();
+                }
                 break;
 
             case EOO:
+                if (ISUNDEF(uh))
+                {
+                    LOG_err << "Failed to parse the user :" << uh;
+                }
+                else if (!(u = finduser(uh)))
+                {
+                    LOG_debug << "User attributes update for non-existing user";
+                }
+                // if no version received, or not for every attribute...
+                else if ( !uavlist.size() ||
+                          (uavlist.size() && (ualist.size() != uavlist.size())) )
+                {
+                    // ...invalidate all of the notified user attributes
+                    for (itua = ualist.begin(); itua != ualist.end(); itua++)
+                    {
+                        u->invalidateattr(*itua);
+                        if (*itua == "*keyring")
+                        {
+                            resetKeyring();
+                        }
+                    }
+                    notifyuser(u);
+                }
+                else
+                {
+                    // invalidate only out-of-date attributes
+                    const string *cacheduav;
+                    for (itua = ualist.begin(), ituav = uavlist.begin();
+                         itua != ualist.end();
+                         itua++, ituav++)
+                    {
+                        if ((cacheduav = u->getattrversion(*itua)) && (*cacheduav != *ituav))
+                        {
+                            u->invalidateattr(*itua);
+                            if (*itua == "*keyring")
+                            {
+                                resetKeyring();
+                            }
+                        }
+                    }
+                    notifyuser(u);
+                }
                 return;
 
             default:
@@ -5883,6 +5900,11 @@ User* MegaClient::finduser(handle uh, int add)
     }
 }
 
+User *MegaClient::ownuser()
+{
+    return finduser(me);
+}
+
 // add missing mapping (handle or email)
 // reduce uid to ASCII uh if only known by email
 void MegaClient::mapuser(handle uh, const char* email)
@@ -5987,6 +6009,15 @@ void MegaClient::procsr(JSON* j)
     }
 
     j->leavearray();
+}
+
+void MegaClient::resetKeyring()
+{
+    delete signkey;
+    signkey = NULL;
+
+    delete chatkey;
+    chatkey = NULL;
 }
 
 // process node tree (bottom up)
@@ -6249,9 +6280,10 @@ error MegaClient::invite(const char* email, visibility_t show)
  * @param an Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
+ * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::putua(const char* an, const byte* av, unsigned avl)
+void MegaClient::putua(const char* an, const byte* av, unsigned avl, int ctag)
 {
     string data;
 
@@ -6266,7 +6298,16 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
         avl = data.size();
     }
 
-    reqs.add(new CommandPutUA(this, an, av, avl));
+    // if the cached value is outdated, first get latest version
+    User *u = ownuser();
+    if (u->getattr(an) && !u->isattrvalid(an))
+    {
+        restag = reqtag;
+        app->putua_result(API_EEXPIRED);
+        return;
+    }
+
+    reqs.add(new CommandPutUA(this, an, av, avl, (ctag != -1) ? ctag : reqtag));
 }
 
 /**
@@ -6274,21 +6315,20 @@ void MegaClient::putua(const char* an, const byte* av, unsigned avl)
  *
  * @param u User.
  * @param an Attribute name.
+ * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::getua(User* u, const char* an)
+void MegaClient::getua(User* u, const char* an, int ctag)
 {
-    string_map::iterator it;
-
     if (an)
     {
         // if we can solve those requests locally (cached values)...
-        it = u->optattrs.find(an);
-        if (it != u->optattrs.end())
+        const string *cachedav = u->getattr(an);
+        if (cachedav && u->isattrvalid(an))
         {
             if (*an == '*') // private attribute, TLV encoding
             {
-                TLVstore *tlv = TLVstore::containerToTLVrecords(&it->second);
+                TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = reqtag;
                 app->getua_result(tlv);
                 delete tlv;
@@ -6297,13 +6337,13 @@ void MegaClient::getua(User* u, const char* an)
             else
             {
                 restag = reqtag;
-                app->getua_result((byte*) it->second.data(), it->second.size());
+                app->getua_result((byte*) cachedav->data(), cachedav->size());
                 return;
             }
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), an));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), an, (ctag != -1) ? ctag : reqtag));
         }
     }
 }
@@ -7119,15 +7159,13 @@ void MegaClient::fetchnodes()
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
-        User *u = finduser(me);
-        if (u->optattrs.find("*keyring") == u->optattrs.end())
+#ifdef ENABLE_CHAT
+        if (!ownuser()->getattr("*keyring"))
         {
             // initialize keyrpairs
-            int creqtag = reqtag;
-            reqtag = 0;
-            getua(u, "*keyring");
-            reqtag = creqtag;
+            getua(ownuser(), "*keyring", 0);
         }
+#endif
     }
     else if (!fetchingnodes)
     {
