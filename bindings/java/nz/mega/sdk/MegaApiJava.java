@@ -3407,6 +3407,17 @@ public class MegaApiJava {
     public ArrayList<MegaNode> getInShares() {
         return nodeListToArray(megaApi.getInShares());
     }
+    
+    /**
+     * Get a list with all active inboud sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaShare objects that other users are sharing with this account
+     */
+    public ArrayList<MegaShare> getInSharesList() {
+    	return shareListToArray(megaApi.getInSharesList());
+    }
 
     /**
      * Check if a MegaNode is being shared.
