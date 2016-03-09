@@ -41,6 +41,7 @@ disable_posix_threads=""
 enable_sodium=0
 enable_libuv=0
 android_build=0
+enable_cryptopp=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -109,7 +110,14 @@ package_download() {
         rm -f $file || true
     fi
 
-    wget --no-check-certificate -c $url -O $file --progress=bar:force || exit 1
+	# use packages previously downloaded in obs server(linux). if not present, download from URL specified
+	cp /srv/dependencies_manually_downloaded/$3 $file || \
+	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || exit 1
+
+    
+    
+    
+    
 }
 
 package_extract() {
@@ -729,7 +737,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y]"
+    echo " $app [-a] [-c] [-h] [-d] [-f] [-l] [-m opts] [-n] [-o path] [-p path] [-r] [-s] [-t] [-w] [-x opts] [-y] [-q]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -752,6 +760,7 @@ display_help() {
     echo " -x [opts]: configure options"
     echo " -o [path]: Directory to store and look for downloaded archives"
     echo " -p [path]: Installation directory"
+    echo " -q : Use Crypto++"
     echo ""
 }
 
@@ -764,7 +773,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":hacdflm:no:p:rstuvyx:w" opt; do
+    while getopts ":hacdflm:no:p:rstuvyx:wq" opt; do
         case $opt in
             h)
                 display_help $0
@@ -806,6 +815,10 @@ main() {
             p)
                 install_dir=$(readlink -f $OPTARG)
                 echo "* Installing into $install_dir"
+                ;;
+            q)
+                echo "* Enabling Crypto++"
+                enable_cryptopp=1
                 ;;
             r)
                 echo "* Building for Android"
@@ -890,7 +903,11 @@ main() {
             openssl_pkg $build_dir $install_dir
         fi
     fi
-    cryptopp_pkg $build_dir $install_dir
+    
+    if [ $enable_cryptopp -eq 1 ]; then
+        cryptopp_pkg $build_dir $install_dir
+    fi
+	
     if [ $enable_sodium -eq 1 ]; then
         sodium_pkg $build_dir $install_dir
     fi
