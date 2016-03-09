@@ -792,7 +792,7 @@ main() {
                 debug="--enable-debug"
                 ;;
             f)
-                echo "* Disabling FreeImage"
+                echo "* Disabling external FreeImage"
                 disable_freeimage=1
                 ;;
             l)
@@ -817,7 +817,7 @@ main() {
                 echo "* Installing into $install_dir"
                 ;;
             q)
-                echo "* Enabling Crypto++"
+                echo "* Enabling external Crypto++"
                 enable_cryptopp=1
                 ;;
             r)
@@ -833,11 +833,11 @@ main() {
                 ;;
             u)
                 enable_sodium=1
-                echo "* Enabling Sodium."
+                echo "* Enabling external Sodium."
                 ;;
             v)
                 enable_libuv=1
-                echo "* Enabling libuv."
+                echo "* Enabling external libuv."
                 ;;
             w)
                 download_only=1
