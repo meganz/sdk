@@ -786,7 +786,7 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
     responseReceived = false;
-    megaApi->createAccount("sdk137@yopmail.com", "sdk137??", "MyFirstname", "MyLastname");
+    megaApi->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
     waitForResponse(&responseReceived);
 
     ASSERT_TRUE(responseReceived) << "Account creation has failed after " << maxTimeout << " seconds";
