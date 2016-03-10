@@ -4134,6 +4134,9 @@ class MegaApi
          * @param password Password for the account
          * @param name Name of the user
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated and will eventually be removed. Instead,
+         * use the new version with firstname and lastname.
          */
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
 
@@ -4153,7 +4156,7 @@ class MegaApi
          *
          * @param email Email for the account
          * @param password Password for the account
-         * @param firstname Name of the user, also used as firstname
+         * @param firstname Firstname of the user
          * @param lastname Lastname of the user
          * @param listener MegaRequestListener to track this request
          */
