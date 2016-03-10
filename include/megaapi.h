@@ -1740,7 +1740,7 @@ class MegaRequest
          * @brief Returns a name related to the request
          *
          * This value is valid for these requests:
-         * - MegaApi::createAccount - Returns the name of the user
+         * - MegaApi::createAccount - Returns the name or the firstname of the user
          * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
@@ -1948,6 +1948,7 @@ class MegaRequest
          * - MegaApi::setUserAttribute - Returns the new value for the attribute
          * - MegaApi::inviteContact - Returns the message appended to the contact invitation
          * - MegaApi::sendEvent - Returns the event message
+         * - MegaApi::createAccount - Returns the lastname for the new account
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4133,8 +4134,33 @@ class MegaApi
          * @param password Password for the account
          * @param name Name of the user
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated and will eventually be removed. Instead,
+         * use the new version with firstname and lastname.
          */
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getPassword - Returns the password for the account
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
+         *
+         * If this request succeed, a confirmation email will be sent to the users.
+         * If an account with the same email already exists, you will get the error code
+         * MegaError::API_EEXIST in onRequestFinish
+         *
+         * @param email Email for the account
+         * @param password Password for the account
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the creation of a new MEGA account with precomputed keys

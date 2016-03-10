@@ -2873,6 +2873,17 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     waiter->notify();
 }
 
+void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setEmail(email);
+    request->setPassword(password);
+    request->setName(firstname);
+    request->setText(lastname);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
@@ -7529,6 +7540,20 @@ void MegaApiImpl::ephemeral_result(handle, const byte*)
 		Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
 
     client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+
+    int creqtag = client->reqtag;
+    client->reqtag = 0;
+
+    if (request->getName())
+    {
+        client->putua("firstname", (const byte*) request->getName(), strlen(request->getName()));
+    }
+    if (request->getText())
+    {
+        client->putua("lastname", (const byte*) request->getText(), strlen(request->getText()));
+    }
+
+    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -10003,8 +10028,8 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char *email = request->getEmail();
 			const char *password = request->getPassword();
-			const char *name = request->getName();
-			const char *pwkey = request->getPrivateKey();
+            const char *name = request->getName();
+            const char *pwkey = request->getPrivateKey();
 
             if(!email || !name || (!password && !pwkey))
 			{
