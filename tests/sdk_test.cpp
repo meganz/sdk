@@ -235,6 +235,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 #endif
 
+    case MegaRequest::TYPE_CREATE_ACCOUNT:
+        responseReceived = true;
+        break;
     }
 }
 
@@ -774,6 +777,23 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
 }
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
+
+/**
+ * @brief TEST_F SdkTestCreateAccount
+ *
+ * It tests the creation of a new account for a random user.
+ */
+TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
+{
+    responseReceived = false;
+    megaApi->createAccount("sdk137@yopmail.com", "sdk137??", "MyFirstname", "MyLastname");
+    waitForResponse(&responseReceived);
+
+    ASSERT_TRUE(responseReceived) << "Account creation has failed after " << maxTimeout << " seconds";
+
+    bool result = (lastError == MegaError::API_OK);
+    ASSERT_TRUE(result) << "Account creation failed (error: " << lastError << ")";
+}
 
 /**
  * @brief TEST_F SdkTestResumeSession
