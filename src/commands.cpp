@@ -820,6 +820,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             {
                 switch (nn[i].source)
                 {
+                    case NEW_PUBLIC:
                     case NEW_NODE:
                         snk.add((NodeCore*)(nn + i), tn, 0);
                         break;
@@ -827,13 +828,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                     case NEW_UPLOAD:
                         snk.add((NodeCore*)(nn + i), tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
                         break;
-
-                    case NEW_PUBLIC:
-                        break;
                 }
             }
 
-            snk.get(this);
+            snk.get(this, true);
         }
     }
 
