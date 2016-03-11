@@ -764,6 +764,31 @@ public class MegaApiJava {
     public void createAccount(String email, String password, String name) {
         megaApi.createAccount(email, password, name);
     }
+    
+    /**
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     *
+     * If this request succeed, a confirmation email will be sent to the users.
+     * If an account with the same email already exists, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param listener MegaRequestListenerInterface to track this request
+     */
+    public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
+    	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
+    }
+    
 
     /**
      * Initialize the creation of a new MEGA account with precomputed keys.
