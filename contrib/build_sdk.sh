@@ -312,6 +312,8 @@ cryptopp_pkg() {
         local file=$local_dir/$cryptopp_mobile_file
         unzip -o $file -d $cryptopp_dir || exit 1
     fi
+    #modify Makefile so that it does not use specific cpu architecture optimizations
+    sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GnuMakefile
     package_build $name $cryptopp_dir static
     package_install $name $cryptopp_dir $install_dir
 }
