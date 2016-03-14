@@ -187,22 +187,22 @@ win32 {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
 
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
+  #  INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
     DEFINES += PCRE_STATIC
 
     contains(CONFIG, BUILDX64) {
-	release {
+       release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64"
-	}
-	else {
+        }
+        else {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64d"
-	}
+        }
     }
 
     !contains(CONFIG, BUILDX64) {
-	release {
+        release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32"
-	}
+        }
         else {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32d"
         }
@@ -213,12 +213,12 @@ win32 {
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   INCLUDEPATH += /usr/include/cryptopp
+ #  INCLUDEPATH += /usr/include/cryptopp
 
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
+    #INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
     LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
    }
    else {
@@ -228,7 +228,7 @@ unix:!macx {
 
 macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
+   #INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cryptopp
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
