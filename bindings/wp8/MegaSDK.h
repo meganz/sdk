@@ -162,7 +162,9 @@ namespace mega
         void getUserDataById(String^ user, MRequestListenerInterface^ listener);
         void getUserDataById(String^ user);
         void createAccount(String^ email, String^ password, String^ name, MRequestListenerInterface^ listener);
-        void createAccount(String^ email, String^ password, String^ name);        
+        void createAccount(String^ email, String^ password, String^ name);
+        void createAccount(String^ email, String^ password, String^ firstname, String^ lastname, MRequestListenerInterface^ listener);
+        void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
@@ -378,6 +380,9 @@ namespace mega
         String^ getNodeFingerprint(MNode^ node);
         MNode^ getNodeByFingerprint(String^ fingerprint);
         MNode^ getNodeByFingerprint(String^ fingerprint, MNode^ parent);
+        MNodeList^ getNodesByFingerprint(String^ fingerprint);
+        MNode^ getExportableNodeByFingerprint(String^ fingerprint);
+        MNode^ getExportableNodeByFingerprint(String^ fingerprint, String^ name);
         bool hasFingerprint(String^ fingerprint);
         
         //CRC
