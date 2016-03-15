@@ -607,6 +607,12 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
+                                        if (e == API_EOVERQUOTA && !tl)
+                                        {
+                                            // Fixed one hour retry interval
+                                            tl = 3600;
+                                        }
+
                                         return tslot->transfer->failed(e, tl * 10);
                                     }
                                     else

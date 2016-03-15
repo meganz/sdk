@@ -84,6 +84,7 @@ void Transfer::failed(error e, dstime timeleft)
     else
     {
         bt.backoff(timeleft);
+        LOG_debug << "backoff: " << timeleft;
         client->overquotauntil = Waiter::ds + timeleft;
     }
 
