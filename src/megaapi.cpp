@@ -1781,6 +1781,11 @@ int MegaApi::getDefaultFolderPermissions()
     return pImpl->getDefaultFolderPermissions();
 }
 
+long long MegaApi::getBandwidthOverquotaDelay()
+{
+    return pImpl->getBandwidthOverquotaDelay();
+}
+
 MegaUserList* MegaApi::getContacts()
 {
     return pImpl->getContacts();

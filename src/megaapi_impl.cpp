@@ -4439,6 +4439,12 @@ int MegaApiImpl::getDefaultFolderPermissions()
     return fsAccess->getdefaultfolderpermissions();
 }
 
+long long MegaApiImpl::getBandwidthOverquotaDelay()
+{
+    long long result = client->overquotauntil;
+    return result > Waiter::ds ? (result - Waiter::ds) / 10 : 0;
+}
+
 bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
 {
 	if(strcasecmp(i->email.c_str(), j->email.c_str())<=0) return 1;

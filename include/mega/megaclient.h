@@ -344,7 +344,7 @@ public:
     // retry API_ESSL errors
     bool retryessl;
 
-    // time left for bandwidth overquota
+    // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
     // root URL for API requests

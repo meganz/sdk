@@ -6716,6 +6716,12 @@ class MegaApi
         int getDefaultFolderPermissions();
 
         /**
+         * @brief Get the time (in seconds) during which transfers will be stopped due to a bandwidth overquota
+         * @return Time (in seconds) during which transfers will be stopped, otherwise 0
+         */
+        long long getBandwidthOverquotaDelay();
+
+        /**
          * @brief Search nodes containing a search string in their name
          *
          * The search is case-insensitive.

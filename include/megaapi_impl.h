@@ -1310,6 +1310,8 @@ class MegaApiImpl : public MegaApp
         void setDefaultFolderPermissions(int permissions);
         int getDefaultFolderPermissions();
 
+        long long getBandwidthOverquotaDelay();
+
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
