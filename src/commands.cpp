@@ -2422,7 +2422,7 @@ void CommandGetUserQuota::procresult()
                 {
                     m_off_t t;
 
-                    while ((t = client->json.getint()) >= 0)
+                    while ((t = client->json.getint()) != -1)
                     {
                         details->transfer_hist.push_back(t);
                     }
