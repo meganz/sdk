@@ -7950,6 +7950,25 @@ public:
      * @return MegaAccountTransaction object
      */
     virtual MegaAccountTransaction* getTransaction(int i) const;
+
+    /**
+     * @brief Get the number of hours that are taken into account to calculate the free bandwidth quota
+     *
+     * The number of bytes transferred in that time is provided using MegaAccountDetails::getTemporalBandwidth
+     *
+     * @return Number of hours taken into account to calculate the free bandwidth quota
+     */
+    virtual int getTemporalBandwidthInterval();
+
+    /**
+     * @brief Get the number of bytes that were recently transferred
+     *
+     * The time interval in which those bytes were transferred
+     * is provided (in hours) using MegaAccountDetails::getTemporalBandwidthInterval
+     *
+     * @return Number of bytes that were recently transferred
+     */
+    virtual long long getTemporalBandwidth();
 };
 
 /**

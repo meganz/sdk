@@ -728,6 +728,9 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual int getNumTransactions() const;
         virtual MegaAccountTransaction* getTransaction(int i) const;
 
+        virtual int getTemporalBandwidthInterval();
+        virtual long long getTemporalBandwidth();
+
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);
         AccountDetails details;

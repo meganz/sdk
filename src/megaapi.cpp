@@ -3158,6 +3158,16 @@ MegaAccountTransaction *MegaAccountDetails::getTransaction(int i) const
     return NULL;
 }
 
+int MegaAccountDetails::getTemporalBandwidthInterval()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTemporalBandwidth()
+{
+    return 0;
+}
+
 void MegaLogger::log(const char *time, int loglevel, const char *source, const char *message)
 {
 

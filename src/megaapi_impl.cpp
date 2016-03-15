@@ -11108,6 +11108,21 @@ MegaAccountTransaction *MegaAccountDetailsPrivate::getTransaction(int i) const
     return NULL;
 }
 
+int MegaAccountDetailsPrivate::getTemporalBandwidthInterval()
+{
+    return details.transfer_hist.size();
+}
+
+long long MegaAccountDetailsPrivate::getTemporalBandwidth()
+{
+    long long result = 0;
+    for (int i=0; i < details.transfer_hist.size(); i++)
+    {
+        result += details.transfer_hist[i];
+    }
+    return result;
+}
+
 ExternalLogger::ExternalLogger()
 {
 	mutex.init(true);
