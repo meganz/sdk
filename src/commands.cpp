@@ -2361,7 +2361,7 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
 
 void CommandGetUserQuota::procresult()
 {
-    short td;
+    m_off_t td;
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
@@ -2400,10 +2400,10 @@ void CommandGetUserQuota::procresult()
         {
             case MAKENAMEID2('b', 't'):                  // age of transfer
                                                          // window start
-                td = (short)client->json.getint();
+                td = client->json.getint();
                 if (td != -1)
                 {
-                    details->transfer_hist_starttime = time(NULL) - (unsigned short)td;
+                    details->transfer_hist_starttime = time(NULL) - td;
                 }
                 break;
 
