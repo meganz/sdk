@@ -8139,7 +8139,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         missingattr |= 1 << GfxProc::PREVIEW1000x1000;
                                     }
 
-                                    if (missingattr)
+                                    if (missingattr && checkaccess(ll->node, OWNER))
                                     {
                                         LOG_debug << "Restoring missing attributes: " << ll->name;
                                         string localpath;
