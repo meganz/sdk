@@ -2895,7 +2895,9 @@ char *MegaApi::getMimeType(const char *extension)
         (*mimeMap)["zip"]="application/x-zip-compressed";
     }
 
-    map<string, string>::iterator it = mimeMap->find(extension);
+    string key = extension;
+    std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+    map<string, string>::iterator it = mimeMap->find(key);
     if (it == mimeMap->end())
     {
         return NULL;
