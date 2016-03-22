@@ -1308,6 +1308,21 @@ public class MegaApiJava {
     public void sendFileToUser(MegaNode node, MegaUser user) {
         megaApi.sendFileToUser(node, user);
     }
+    
+    /**
+    * 
+    * The associated request type with this request is MegaRequest::TYPE_COPY
+    * Valid data in the MegaRequest object received on callbacks:
+    * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+    * - MegaRequest::getEmail - Returns the email of the user that receives the node
+    *
+    * @param node Node to send
+    * @param email Email of the user that receives the node        
+    * @param listener MegaRequestListener to track this request
+    */
+    public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener){
+    	megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
+    }
 
     /**
      * Share or stop sharing a folder in MEGA with another user using a MegaUser.
