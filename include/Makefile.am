@@ -48,7 +48,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/external.h \
 	mega/gfx/qt.h \
 	mega/mega_utf8proc.h \
-	mega/gfx/freeimage.h
+	mega/gfx/freeimage.h \
+	mega/gfx/GfxProcCG.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
