@@ -89,6 +89,7 @@ COMMON_SRC=\
 		src/waiterbase.cpp  \
 		src/megaclient.cpp  \
 		src/proxy.cpp  \
+		src/pendingcontactrequest.cpp \
 		src/crypto/cryptopp.cpp \
 		src/crypto/sodium.cpp \
 		src/gfx.cpp \
