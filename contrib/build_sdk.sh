@@ -640,7 +640,7 @@ build_sdk() {
     local freeimage_flags=""
     local megaapi_flags=""
     local openssl_flags=""
-    local sodium_flags=""
+    local sodium_flags="--without-sodium"
     local cwd=$(pwd)
 
     echo "Configuring MEGA SDK"
