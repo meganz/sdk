@@ -56,7 +56,7 @@ You have two options, using a prebuilt native library or building it by yourself
 Instead of downloading the prebuilt library, you can build it directly from the sources.
 
 1. Download and extract the SDK to a folder in your computer ([link](https://github.com/meganz/sdk/archive/master.zip)).
-2. Follow the instructions in [this guide](https://github.com/meganz/sdk/bindings/java/contrib/vs2010/README.md).
+2. Follow the instructions in [this guide](https://github.com/meganz/sdk/blob/master/bindings/java/contrib/vs2010/README.md).
 3. Copy the new file `mega.dll` from `sdk/bindings/java/contrib/vs2010/Debug` into `sdk/examples/java/libs`.
 4. Copy the Java classes from `sdk/bindings/java/nz/mega/sdk` into `sdk/bindings/java/src/nz/mega/sdk`.
 
