@@ -70,7 +70,9 @@
 
 using namespace mega;
 
-MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
+MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
+                                 string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle,
+                                 const char *privateauth, const char *publicauth, bool ispublic)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -88,7 +90,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->thumbnailAvailable = false;
     this->previewAvailable = false;
     this->tag = 0;
-    this->isPublicNode = true;
+    this->isPublicNode = ispublic;
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
@@ -5285,13 +5287,13 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 }
 
 MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth)
+                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth, bool isPublicNode)
 {
     string nodekey;
     string attrstring;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), nodekey.size()));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle, privateauth, publicauth);
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle, privateauth, publicauth, isPublicNode);
 }
 
 MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)

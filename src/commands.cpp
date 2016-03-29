@@ -403,7 +403,7 @@ void CommandDirectRead::procresult()
 CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth)
 {
     cmd("g");
-    arg(p || privateauth || publicauth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
     if (client->usehttps)
