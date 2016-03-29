@@ -2863,6 +2863,41 @@ char *MegaApiImpl::dumpXMPPSession()
     return buf;
 }
 
+char *MegaApiImpl::getAccountAuth()
+{
+    sdkMutex.lock();
+    char* buf = NULL;
+
+    if (client->loggedin())
+    {
+        buf = new char[MAX_SESSION_LENGTH * 4 / 3 + 4];
+        Base64::btoa((const byte *)client->sid.data(), client->sid.size(), buf);
+    }
+
+    sdkMutex.unlock();
+    return buf;
+}
+
+void MegaApiImpl::setAccountAuth(const char *auth)
+{
+    sdkMutex.lock();
+    if (!auth)
+    {
+        client->accountauth.clear();
+    }
+    else
+    {
+        client->accountauth = auth;
+    }
+
+    handle h = client->getrootpublicfolder();
+    if (h != UNDEF)
+    {
+        client->setrootnode(h);
+    }
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);

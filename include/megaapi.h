@@ -4118,6 +4118,38 @@ class MegaApi
         char *dumpXMPPSession();
 
         /**
+         * @brief Get an authentication token that can be used to identify the user account
+         *
+         * If this MegaApi object is not logged into an account, this function will return NULL
+         *
+         * The value returned by this function can be used in other instances of MegaApi
+         * thanks to the function MegaApi::setAccountAuth.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Authentication token
+         */
+        char *getAccountAuth();
+
+        /**
+         * @brief Use an authentication token to identify an account while accessing public folders
+         *
+         * This function is useful to preserve the PRO status when a public folder is being
+         * used. The identifier will be sent in all API requests made after the call to this function.
+         *
+         * To stop using the current authentication token, it's needed to explicitly call
+         * this function with NULL as parameter. Otherwise, the value set would continue
+         * being used despite this MegaApi object is logged in or logged out.
+         *
+         * It's recommended to call this function before the usage of MegaApi::loginToFolder
+         *
+         * @param auth Authentication token used to identify the account of the user.
+         * You can get it using MegaApi::getAccountAuth with an instance of MegaApi logged into
+         * an account.
+         */
+        void setAccountAuth(const char* auth);
+
+        /**
          * @brief Initialize the creation of a new MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.

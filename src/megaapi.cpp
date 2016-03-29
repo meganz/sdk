@@ -1185,6 +1185,16 @@ char *MegaApi::dumpXMPPSession()
     return pImpl->dumpXMPPSession();
 }
 
+char *MegaApi::getAccountAuth()
+{
+    return pImpl->getAccountAuth();
+}
+
+void MegaApi::setAccountAuth(const char *auth)
+{
+    pImpl->setAccountAuth(auth);
+}
+
 void MegaApi::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
 {
     pImpl->createAccount(email, password, name, listener);
