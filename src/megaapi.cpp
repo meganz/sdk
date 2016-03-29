@@ -362,7 +362,12 @@ string *MegaNode::getAttrString()
     return NULL;
 }
 
-string *MegaNode::getAuth()
+string *MegaNode::getPrivateAuth()
+{
+    return NULL;
+}
+
+string *MegaNode::getPublicAuth()
 {
     return NULL;
 }
@@ -1903,14 +1908,14 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 
 MegaNode *MegaApi::createPublicFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
-                                        MegaHandle parentHandle, const char *auth)
+                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, auth);
+    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
 }
 
-MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFolderNode(handle, name, parentHandle, auth);
+    return pImpl->createPublicFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
 }
 
 const char *MegaApi::getVersion()

@@ -70,7 +70,7 @@
 
 using namespace mega;
 
-MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle, const char*auth)
+MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle, string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -93,9 +93,14 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->inShare = false;
     this->plink = NULL;
 
-    if(auth)
+    if (privateauth)
     {
-        this->auth = auth;
+        this->privateAuth = privateauth;
+    }
+
+    if (publicauth)
+    {
+        this->publicAuth = publicauth;
     }
 
 #ifdef ENABLE_SYNC
@@ -124,7 +129,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->previewAvailable = node->hasPreview();
     this->tag = node->getTag();
     this->isPublicNode = node->isPublic();
-    this->auth = *node->getAuth();
+    this->privateAuth = *node->getPrivateAuth();
+    this->publicAuth = *node->getPublicAuth();
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     if (node->isExported())
@@ -431,7 +437,8 @@ MegaNode* MegaNodePrivate::getPublicNode()
 
     MegaNode *node = new MegaNodePrivate(
                 name, type, size, ctime, mtime,
-                plink->ph, &key, &attrstring, fingerprint);
+                plink->ph, &key, &attrstring, fingerprint,
+                INVALID_HANDLE);
 
     delete [] skey;
 
@@ -683,9 +690,14 @@ bool MegaNodePrivate::isTakenDown()
     return plink ? plink->takendown : false;
 }
 
-string *MegaNodePrivate::getAuth()
+string *MegaNodePrivate::getPrivateAuth()
 {
-    return &auth;
+    return &privateAuth;
+}
+
+string *MegaNodePrivate::getPublicAuth()
+{
+    return &publicAuth;
 }
 
 MegaNodePrivate::~MegaNodePrivate()
@@ -2325,9 +2337,14 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     client->fsaccess->path2local(&finalPath, &localname);
     hprivate = !n->isPublic();
 
-    if(n->getAuth()->size())
+    if(n->getPrivateAuth()->size())
     {
-        auth = *n->getAuth();
+        privauth = *n->getPrivateAuth();
+    }
+
+    if(n->getPublicAuth()->size())
+    {
+        pubauth = *n->getPublicAuth();
     }
 }
 
@@ -5255,20 +5272,21 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, MegaHandle parentHandle, const char* auth)
+MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth)
 {
     string nodekey;
     string attrstring;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), nodekey.size()));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle, auth);
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle, privateauth, publicauth);
 }
 
-MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth)
+MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
 {
     string nodekey;
     string attrstring;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, NULL, parentHandle, auth);
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, NULL, parentHandle, privateauth, publicauth);
 }
 
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)
@@ -7407,7 +7425,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 	else
 	{
         request->setPublicNode(new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
-                                                   fingerprint.size() ? fingerprint.c_str() : NULL));
+                                                   fingerprint.size() ? fingerprint.c_str() : NULL,
+                                                   INVALID_HANDLE));
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
 	}
 }

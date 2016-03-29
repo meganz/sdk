@@ -845,15 +845,26 @@ class MegaNode
         virtual std::string* getAttrString();
 
         /**
-         * @brief Return the special auth token to access this node
+         * @brief Return the private auth token to access this node
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
          * of the MegaNode object.
          *
-         * @return Auth token to access the node
+         * @return Private auth token to access the node
          * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
          */
-        virtual std::string* getAuth();
+        virtual std::string* getPrivateAuth();
+
+        /**
+         * @brief Return the public auth token to access this node
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Public auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual std::string* getPublicAuth();
 
 #ifdef ENABLE_SYNC
         /**
@@ -6795,11 +6806,12 @@ class MegaApi
          * @param size Size of the node
          * @param mtime Modification time of the node
          * @param parentHandle Handle of the parent node
-         * @param auth Authentication token to access the node
+         * @param privateAuth Private authentication token to access the node
+         * @param publicAuth Public authentication token to access the node
          * @return MegaNode object
          */
         MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *auth);
+                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
@@ -6812,10 +6824,11 @@ class MegaApi
          * @param handle Handle of the node
          * @param name Name of the node (Base64 encoded)
          * @param parentHandle Handle of the parent node
-         * @param auth Authentication token to access the node
+         * @param privateAuth Private authentication token to access the node
+         * @param publicAuth Public authentication token to access the node
          * @return MegaNode object
          */
-        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth);
+        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
 
         /**
          * @brief Get the SDK version

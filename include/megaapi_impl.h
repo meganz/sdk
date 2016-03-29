@@ -182,7 +182,8 @@ class MegaNodePrivate : public MegaNode
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
-                        const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE, const char*auth = NULL);
+                        const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
+                        const char *privateauth = NULL, const char *publicauth = NULL);
         MegaNodePrivate(MegaNode *node);
         virtual ~MegaNodePrivate();
         virtual int getType();
@@ -216,7 +217,8 @@ class MegaNodePrivate : public MegaNode
         virtual bool isExported();
         virtual bool isExpired();
         virtual bool isTakenDown();
-        virtual std::string* getAuth();
+        virtual std::string* getPrivateAuth();
+        virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
@@ -242,7 +244,8 @@ class MegaNodePrivate : public MegaNode
         MegaHandle parenthandle;
         std::string nodekey;
         std::string attrstring;
-        std::string auth;
+        std::string privateAuth;
+        std::string publicAuth;
         int tag;
         int changed;
         struct {
@@ -1321,8 +1324,10 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
-        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, MegaHandle parentHandle, const char *auth);
-        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *auth);
+        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth);
+        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
+                                         const char *privateauth, const char *publicauth);
 
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);
 

@@ -2135,7 +2135,8 @@ bool MegaClient::dispatch(direction_t d)
             {
                 handle h = UNDEF;
                 bool hprivate = true;
-                const char *auth = NULL;
+                const char *privauth = NULL;
+                const char *pubauth = NULL;
 
                 nextit->second->pos = 0;
 
@@ -2181,7 +2182,8 @@ bool MegaClient::dispatch(direction_t d)
                         {
                             h = (*it)->h;
                             hprivate = (*it)->hprivate;
-                            auth = (*it)->auth.size() ? (*it)->auth.c_str() : NULL;
+                            privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
+                            pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
                             break;
                         }
                     }
@@ -2190,7 +2192,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, auth)));
+                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
