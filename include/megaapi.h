@@ -3873,6 +3873,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - URL to open the desired page with the same account
          *
+         * You take the ownership of the returned value.
+         *
          * @param path Path inside https://mega.nz/# that we want to open with the current session
          *
          * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
@@ -6534,6 +6536,8 @@ class MegaApi
         /**
          * @brief Get the CRC from a fingerprint
          *
+         * You take the ownership of the returned value.
+         *
          * @param fingerprint fingerprint from which we want to get the CRC
          * @return Base64-encoded CRC from the fingerprint
          */
@@ -6725,6 +6729,8 @@ class MegaApi
          * @brief Search nodes containing a search string in their name
          *
          * The search is case-insensitive.
+         *
+         * You take the ownership of the returned value.
          *
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
