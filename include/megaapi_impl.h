@@ -218,6 +218,7 @@ class MegaNodePrivate : public MegaNode
         virtual bool isExpired();
         virtual bool isTakenDown();
         virtual std::string* getPrivateAuth();
+        virtual void setPrivateAuth(const char *privateAuth);
         virtual std::string* getPublicAuth();
         virtual bool isShared();
         virtual bool isOutShare();

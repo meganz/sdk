@@ -856,6 +856,13 @@ class MegaNode
         virtual std::string* getPrivateAuth();
 
         /**
+         * @brief Set an auth token to access this node
+         * @param Auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual void setPrivateAuth(const char *privateAuth);
+
+        /**
          * @brief Return the public auth token to access this node
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion

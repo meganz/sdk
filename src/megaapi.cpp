@@ -367,6 +367,11 @@ string *MegaNode::getPrivateAuth()
     return NULL;
 }
 
+void MegaNode::setPrivateAuth(const char *)
+{
+    return;
+}
+
 string *MegaNode::getPublicAuth()
 {
     return NULL;
