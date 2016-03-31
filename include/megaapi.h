@@ -817,6 +817,16 @@ class MegaNode
         virtual bool isTakenDown();
 
         /**
+         * @brief Returns true if this MegaNode is not related to a local account
+         *
+         * Only MegaNodes created with MegaApi::createPublicFileNode and MegaApi::createPublicFolderNode
+         * returns true in this function.
+         *
+         * @return true if this node is not related to a local account
+         */
+        virtual bool isForeing();
+
+        /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
          *
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion

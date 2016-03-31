@@ -349,7 +349,12 @@ bool MegaNode::isExpired()
 
 bool MegaNode::isTakenDown()
 {
-  return false;
+    return false;
+}
+
+bool MegaNode::isForeing()
+{
+    return false;
 }
 
 string *MegaNode::getNodeKey()

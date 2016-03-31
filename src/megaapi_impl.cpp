@@ -72,7 +72,7 @@ using namespace mega;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic)
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeing)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -94,6 +94,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
+    this->foreing = isForeing;
 
     if (privateauth)
     {
@@ -135,6 +136,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->publicAuth = *node->getPublicAuth();
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
+    this->foreing = node->isForeing();
+
     if (node->isExported())
     {
         this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
@@ -270,6 +273,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
+    this->foreing = false;
+
     // if there's only one share and it has no user --> public link
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
     this->inShare = (node->inshare != NULL) && !node->parent;
@@ -690,6 +695,11 @@ bool MegaNodePrivate::isExpired()
 bool MegaNodePrivate::isTakenDown()
 {
     return plink ? plink->takendown : false;
+}
+
+bool MegaNodePrivate::isForeing()
+{
+    return foreing;
 }
 
 string *MegaNodePrivate::getPrivateAuth()
@@ -5287,20 +5297,22 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 }
 
 MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth, bool isPublicNode)
+                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth)
 {
     string nodekey;
     string attrstring;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), nodekey.size()));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle, privateauth, publicauth, isPublicNode);
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, NULL, parentHandle,
+                               privateauth, publicauth, false, true);
 }
 
 MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
 {
     string nodekey;
     string attrstring;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, NULL, parentHandle, privateauth, publicauth);
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, NULL, parentHandle,
+                               privateauth, publicauth, false, true);
 }
 
 void MegaApiImpl::loadBalancing(const char* service, MegaRequestListener *listener)

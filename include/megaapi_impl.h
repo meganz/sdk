@@ -183,7 +183,9 @@ class MegaNodePrivate : public MegaNode
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
                         const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
-                        const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true);
+                        const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
+                        bool isForeing = false);
+
         MegaNodePrivate(MegaNode *node);
         virtual ~MegaNodePrivate();
         virtual int getType();
@@ -217,6 +219,7 @@ class MegaNodePrivate : public MegaNode
         virtual bool isExported();
         virtual bool isExpired();
         virtual bool isTakenDown();
+        virtual bool isForeing();
         virtual std::string* getPrivateAuth();
         virtual void setPrivateAuth(const char *privateAuth);
         virtual std::string* getPublicAuth();
@@ -255,6 +258,7 @@ class MegaNodePrivate : public MegaNode
             bool isPublicNode : 1;
             bool outShares : 1;
             bool inShare : 1;
+            bool foreing;
         };
         PublicLink *plink;
 
@@ -1326,7 +1330,7 @@ class MegaApiImpl : public MegaApp
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth, bool isPublicNode = false);
+                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth);
         MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
 
