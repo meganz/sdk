@@ -1,4 +1,4 @@
-# Android Example App
+# Android Example App for Eclipse + ADT
 
 Eclipse project for developing a MEGA app for Android
 
@@ -11,13 +11,11 @@ To use a prebuilt library (the easy way), follow these steps:
 2. On Eclipse, click "New Project" -> "Android Project from Existing code"
 3. Select the folder `examples/Android/ExampleApp`
 4. Check the "Copy project into workspace" option
-5. Download the prebuilt native libraries from this link:
-https://mega.co.nz/#!xk9RwTwJ!zacek1l_2wXw4XUeuKzV2QXO4CR0sf2ZofEieBhSGm8
-
-6. Uncompress the libraries in a `libs` folder in your project.
-You should end with `[Eclipse workspace]/[MEGA project folder]/libs/armeabi/libmega.so` and `[Eclipse workspace]/[MEGA project folder]/libs/x86/libmega.so`
-
-7. Build and run the project in Eclipse
+5. Download the prebuilt native libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!HlNBACRL!vwTpURcDKqhG0GO4volmrJiTy7PoN_y7ZX1NFlg8zbs).
+6. Extract the content into the root folder of the project, keeping the folder structure.
+You should end with `[Eclipse workspace]/[MEGA project folder]/libs/armeabi/libmega.so`, `[Eclipse workspace]/[MEGA project folder]/libs/x86/libmega.so` and all the auto-generated Java bindings under `[Eclipse workspace]/[MEGA project folder]/src/nz/mega/sdk/`.
+7. Copy the static Java bindings from the SDK folder (`[sdk folder]/bindings/java/nz/mega/sdk`) into the project source path (`[Eclipse workspace]/[MEGA project folder]/src/nz/mega/sdk`). Remove the unnecessary `MegaApiSwing.java` from the added sources.
+8. Build and run the project in Eclipse
 
 If you want to build the native library by yourself, the process is a 
 bit different:
@@ -32,6 +30,8 @@ the path of your Android NDK and, if you changed the structure of the repo, the 
 
 * Open a terminal on `examples/Android/ExampleApp/jni` and type `make`
 You will need some packages (`wget, swig, sha1sum, unzip`)
+
+* Copy the static Java bindings from the SDK folder (`[sdk folder]/bindings/java/nz/mega/sdk`) into the project source path (`[MEGA project folder]/src/nz/mega/sdk`). Remove the unnecessary `MegaApiSwing.java` from the added sources.
 
 * After a successful build, run the app in Eclipse
 
