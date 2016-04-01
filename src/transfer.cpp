@@ -191,7 +191,7 @@ void Transfer::complete()
             // set FileFingerprint on source node(s) if missing
             for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                if ((*it)->hprivate && (n = client->nodebyhandle((*it)->h)))
+                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
                     if (client->gfx && client->gfx->isgfx(&(*it)->localname))
                     {

@@ -184,7 +184,7 @@ class MegaNodePrivate : public MegaNode
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring,
                         const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeing = false);
+                        bool isForeign = false);
 
         MegaNodePrivate(MegaNode *node);
         virtual ~MegaNodePrivate();
@@ -219,7 +219,7 @@ class MegaNodePrivate : public MegaNode
         virtual bool isExported();
         virtual bool isExpired();
         virtual bool isTakenDown();
-        virtual bool isForeing();
+        virtual bool isForeign();
         virtual std::string* getPrivateAuth();
         virtual void setPrivateAuth(const char *privateAuth);
         virtual std::string* getPublicAuth();
@@ -258,7 +258,7 @@ class MegaNodePrivate : public MegaNode
             bool isPublicNode : 1;
             bool outShares : 1;
             bool inShare : 1;
-            bool foreing;
+            bool foreign;
         };
         PublicLink *plink;
 
@@ -1329,9 +1329,9 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
-        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth);
-        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
+        MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
 
         void loadBalancing(const char* service, MegaRequestListener *listener = NULL);

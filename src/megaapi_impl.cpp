@@ -72,7 +72,7 @@ using namespace mega;
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, const char *fingerprint, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeing)
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -94,7 +94,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
-    this->foreing = isForeing;
+    this->foreign = isForeign;
 
     if (privateauth)
     {
@@ -136,7 +136,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->publicAuth = *node->getPublicAuth();
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
-    this->foreing = node->isForeing();
+    this->foreign = node->isForeign();
 
     if (node->isExported())
     {
@@ -273,7 +273,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->tag = node->tag;
     this->isPublicNode = false;
-    this->foreing = false;
+    this->foreign = false;
 
     // if there's only one share and it has no user --> public link
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
@@ -697,9 +697,9 @@ bool MegaNodePrivate::isTakenDown()
     return plink ? plink->takendown : false;
 }
 
-bool MegaNodePrivate::isForeing()
+bool MegaNodePrivate::isForeign()
 {
-    return foreing;
+    return foreign;
 }
 
 string *MegaNodePrivate::getPrivateAuth()
@@ -2337,6 +2337,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
 
     client->fsaccess->path2local(&finalPath, &localname);
     hprivate = true;
+    hforeign = false;
 }
 
 MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : MegaFile()
@@ -2360,6 +2361,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
 
     client->fsaccess->path2local(&finalPath, &localname);
     hprivate = !n->isPublic();
+    hforeign = n->isForeign();
 
     if(n->getPrivateAuth()->size())
     {
@@ -4103,8 +4105,10 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long star
     if(node)
     {
         transfer->setNodeHandle(node->getHandle());
-        if(node->isPublic())
+        if (node->isPublic() || node->isForeign())
+        {
             transfer->setPublicNode(node);
+        }
     }
 	transfer->setStartPos(startPos);
 	transfer->setEndPos(endPos);
@@ -4147,7 +4151,7 @@ void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener *listener)
 void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
-	if(node && !node->isPublic())
+    if(node && !node->isPublic() && !node->isForeign())
 	{
 		transfer->setNodeHandle(node->getHandle());
 	}
@@ -5296,7 +5300,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                             MegaHandle parentHandle, const char* privateauth, const char *publicauth)
 {
     string nodekey;
@@ -5307,7 +5311,7 @@ MegaNode *MegaApiImpl::createPublicFileNode(MegaHandle handle, const char *key, 
                                privateauth, publicauth, false, true);
 }
 
-MegaNode *MegaApiImpl::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
+MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
 {
     string nodekey;
     string attrstring;

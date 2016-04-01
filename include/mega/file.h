@@ -62,17 +62,23 @@ struct MEGA_API File: public FileFingerprint
     // source/target node handle
     handle h;
 
-    // source handle private?
-    bool hprivate;
+    struct
+    {
+        // source handle private?
+        bool hprivate;
+
+        // source handle foreign?
+        bool hforeign;
+
+        // is this part of a sync transfer?
+        bool syncxfer;
+    };
 
     // private auth to access the node
     string privauth;
 
     // public auth to access the node
     string pubauth;
-
-    // is this part of a sync transfer?
-    bool syncxfer;
 
     // if !hprivate, filekey and size must be valid
     byte filekey[FILENODEKEYLENGTH];

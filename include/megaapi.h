@@ -817,14 +817,14 @@ class MegaNode
         virtual bool isTakenDown();
 
         /**
-         * @brief Returns true if this MegaNode is not related to a local account
+         * @brief Returns true if this MegaNode is a private node from a foreign account
          *
          * Only MegaNodes created with MegaApi::createPublicFileNode and MegaApi::createPublicFolderNode
          * returns true in this function.
          *
-         * @return true if this node is not related to a local account
+         * @return true if this node is a private node from a foreign account
          */
-        virtual bool isForeing();
+        virtual bool isForeign();
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
@@ -6827,7 +6827,7 @@ class MegaApi
          * @param publicAuth Public authentication token to access the node
          * @return MegaNode object
          */
-        MegaNode *createPublicFileNode(MegaHandle handle, const char *key, const char *name,
+        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
                                        int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
 
         /**
@@ -6845,7 +6845,7 @@ class MegaApi
          * @param publicAuth Public authentication token to access the node
          * @return MegaNode object
          */
-        MegaNode *createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
+        MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
 
         /**
          * @brief Get the SDK version

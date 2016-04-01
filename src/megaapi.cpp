@@ -352,7 +352,7 @@ bool MegaNode::isTakenDown()
     return false;
 }
 
-bool MegaNode::isForeing()
+bool MegaNode::isForeign()
 {
     return false;
 }
@@ -1916,16 +1916,16 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
     return pImpl->processMegaTree(n, processor, recursive);
 }
 
-MegaNode *MegaApi::createPublicFileNode(MegaHandle handle, const char *key,
+MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
                                         MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
 }
 
-MegaNode *MegaApi::createPublicFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
+MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
 {
-    return pImpl->createPublicFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
+    return pImpl->createForeignFolderNode(handle, name, parentHandle, privateAuth, publicAuth);
 }
 
 const char *MegaApi::getVersion()
