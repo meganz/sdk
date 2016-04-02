@@ -5606,8 +5606,19 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @return List with all active transfers
+         * @see MegaApi::startUpload, MegaApi::startDownload
          */
         MegaTransferList *getTransfers();
+
+        /**
+         * @brief Get all active streaming transfers
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List with all active streaming transfers
+         * @see MegaApi::startStreaming
+         */
+        MegaTransferList *getStreamingTransfers();
 
         /**
          * @brief Get the transfer with a transfer tag
