@@ -30,7 +30,8 @@ examples/linux/megafuse
 
 # Autotool stuff
 .deps
-Makefile
+/Makefile
+/include/Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache
