@@ -5,6 +5,9 @@ include Application.mk
 ##################################################
 NDK_ROOT=$(HOME)/MEGA/dev/android-ndk-r10e
 ##################################################
+# AND THE PATH OF THE MEGA SDK RELATIVE TO jni/mega/sdk OR ABSOLUTE
+MEGASDK_ROOT=../../../../../../../../..
+##################################################
 
 NDK_BUILD=$(NDK_ROOT)/ndk-build
 JNI_PATH=$(shell pwd)
@@ -109,8 +112,19 @@ $(CURL_VERIFIED_SOURCES):
 $(MEGA): $(MEGA)/$(MEGA_CONFIGURED)
 
 $(MEGA)/$(MEGA_CONFIGURED): $(MEGA)/$(MEGA_WRAPPER)
-	make clean_mega
 	make -C $(MEGA) -f MakefileBindings $(MEGA_CONFIGURED) JAVA_BASE_OUTPUT_PATH=$(MEGA_JAVA_OUTPUT_PATH)
+
+$(MEGA)/$(MEGA_WRAPPER):
+	make clean_mega
+	-mkdir $(MEGA)/sdk
+	-rm $(MEGA)/sdk/src
+	-ln -s $(MEGASDK_ROOT)/src $(MEGA)/sdk/src
+	-rm $(MEGA)/sdk/include
+	-ln -s $(MEGASDK_ROOT)/include $(MEGA)/sdk/include
+	-rm $(MEGA)/sdk/bindings
+	-ln -s $(MEGASDK_ROOT)/bindings $(MEGA)/sdk/bindings
+	-rm $(MEGA)/sdk/third_party
+	-ln -s $(MEGASDK_ROOT)/third_party $(MEGA)/sdk/third_party
 
 $(CRYPTOPP): $(CRYPTOPP_SOURCE_FOLDER)
 
