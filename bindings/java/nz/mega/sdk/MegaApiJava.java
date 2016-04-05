@@ -73,33 +73,48 @@ public class MegaApiJava {
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
     public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
+    
+    public final static int ATTR_TYPE_THUMBNAIL = MegaApi.ATTR_TYPE_THUMBNAIL;
+    public final static int ATTR_TYPE_PREVIEW = MegaApi.ATTR_TYPE_PREVIEW;
+    
+    public final static int USER_ATTR_AVATAR = MegaApi.USER_ATTR_AVATAR;
+    public final static int USER_ATTR_FIRSTNAME = MegaApi.USER_ATTR_FIRSTNAME;
+    public final static int USER_ATTR_LASTNAME = MegaApi.USER_ATTR_LASTNAME;
+    public final static int USER_ATTR_AUTHRING = MegaApi.USER_ATTR_AUTHRING;
+    public final static int USER_ATTR_LAST_INTERACTION = MegaApi.USER_ATTR_LAST_INTERACTION;
 
     // Very severe error event that will presumably lead the application to abort.
-    public final static int LOG_LEVEL_FATAL = 0;
+    public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
     // Error information but application will continue run.
-    public final static int LOG_LEVEL_ERROR = LOG_LEVEL_FATAL + 1;
+    public final static int LOG_LEVEL_ERROR = MegaApi.LOG_LEVEL_ERROR;
     // Information representing errors in application but application will keep running
-    public final static int LOG_LEVEL_WARNING = LOG_LEVEL_ERROR + 1;
+    public final static int LOG_LEVEL_WARNING = MegaApi.LOG_LEVEL_WARNING;
     // Mainly useful to represent current progress of application.
-    public final static int LOG_LEVEL_INFO = LOG_LEVEL_WARNING + 1;
+    public final static int LOG_LEVEL_INFO = MegaApi.LOG_LEVEL_INFO;
     // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-    public final static int LOG_LEVEL_DEBUG = LOG_LEVEL_INFO + 1;
-    public final static int LOG_LEVEL_MAX = LOG_LEVEL_DEBUG + 1;
+    public final static int LOG_LEVEL_DEBUG = MegaApi.LOG_LEVEL_DEBUG;
+    public final static int LOG_LEVEL_MAX = MegaApi.LOG_LEVEL_MAX;
 
     public final static int EVENT_FEEDBACK = 0;
     public final static int EVENT_DEBUG = EVENT_FEEDBACK + 1;
     public final static int EVENT_INVALID = EVENT_DEBUG + 1;
 
     public final static int PAYMENT_METHOD_BALANCE = MegaApi.PAYMENT_METHOD_BALANCE;
-    public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
+    public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
-    public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
 	
+    public final static int TRANSFER_METHOD_NORMAL = MegaApi.TRANSFER_METHOD_NORMAL;
+    public final static int TRANSFER_METHOD_ALTERNATIVE_PORT = MegaApi.TRANSFER_METHOD_ALTERNATIVE_PORT;
+    public final static int TRANSFER_METHOD_AUTO = MegaApi.TRANSFER_METHOD_AUTO;
+    public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
+    public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
+    
     /**
      * Constructor suitable for most applications.
      * 
