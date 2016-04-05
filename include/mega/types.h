@@ -219,7 +219,7 @@ typedef vector<struct Node*> node_vector;
 // contact visibility:
 // HIDDEN - not shown
 // VISIBLE - shown
-typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE, ME } visibility_t;
+typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE = 1, INACTIVE = 2, BLOCKED = 3, ME } visibility_t;
 
 typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 

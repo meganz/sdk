@@ -1075,6 +1075,11 @@ char *MegaApi::getMyUserHandle()
     return pImpl->getMyUserHandle();
 }
 
+MegaUser *MegaApi::getMyUser()
+{
+    return pImpl->getMyUser();
+}
+
 char *MegaApi::getMyXMPPJid()
 {
     return pImpl->getMyXMPPJid();

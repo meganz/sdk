@@ -116,12 +116,14 @@ User* User::unserialize(MegaClient* client, string* d)
         return NULL;
     }
 
-    if (v == ME)
-    {
-        client->me = uh;
-    }
-
     client->mapuser(uh, m.c_str());
+
+    // FIXME: the API sends '2' for your own user AND for inactive users
+    // Until it's changed in the API, the SDK will amend the visibility status
+    if (v == INACTIVE && uh == client->me)
+    {
+        v = ME;
+    }
     u->set(v, ts);
 
     if ((ptr < end) && !(ptr = u->attrs.unserialize(ptr)))

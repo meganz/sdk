@@ -2655,6 +2655,14 @@ static void process_line(char* l)
                                 {
                                     cout << ", hidden";
                                 }
+                                else if (it->second.show == INACTIVE)
+                                {
+                                    cout << ", inactive";
+                                }
+                                else if (it->second.show == BLOCKED)
+                                {
+                                    cout << ", blocked";
+                                }
                                 else if (it->second.show == ME)
                                 {
                                     cout << ", session user";
