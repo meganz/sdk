@@ -903,8 +903,7 @@ class MegaUser
             VISIBILITY_HIDDEN = 0,
             VISIBILITY_VISIBLE = 1,
             VISIBILITY_INACTIVE = 2,
-            VISIBILITY_BLOCKED = 3,
-			VISIBILITY_ME
+            VISIBILITY_BLOCKED = 3
 		};
 
 		virtual ~MegaUser();
@@ -961,9 +960,7 @@ class MegaUser
          * - VISIBILITY_BLOCKED = 3
          * The contact is currently blocked
          *
-         * - VISIBILITY_ME = 4
-         * The contact is the owner of the account being used by the SDK
-         *
+         * @note The visibility of your own user is undefined and shouldn't be used.
          * @return Current visibility of the contact
          */
         virtual int getVisibility();
@@ -4303,11 +4300,11 @@ class MegaApi
         /**
          * @brief Get the MegaUser of the currently open account
          *
-         * If the MegaApi object isn't logged in,
-         * this function returns NULL
+         * If the MegaApi object isn't logged in, this function returns NULL.
          *
          * You take the ownership of the returned value
          *
+         * @note The visibility of your own user is unhdefined and shouldn't be used.
          * @return MegaUser of the currently open account, otherwise NULL
          */
         MegaUser* getMyUser();

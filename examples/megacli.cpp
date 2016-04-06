@@ -2647,7 +2647,11 @@ static void process_line(char* l)
                             {
                                 cout << "\t" << it->second.email;
 
-                                if (it->second.show == VISIBLE)
+                                if (it->second.userhandle == client->me)
+                                {
+                                    cout << ", session user";
+                                }
+                                else if (it->second.show == VISIBLE)
                                 {
                                     cout << ", visible";
                                 }
@@ -2662,10 +2666,6 @@ static void process_line(char* l)
                                 else if (it->second.show == BLOCKED)
                                 {
                                     cout << ", blocked";
-                                }
-                                else if (it->second.show == ME)
-                                {
-                                    cout << ", session user";
                                 }
                                 else
                                 {
