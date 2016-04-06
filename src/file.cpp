@@ -32,6 +32,7 @@ File::File()
 {
     transfer = NULL;
     hprivate = true;
+    hforeign = false;
     syncxfer = false;
     h = UNDEF;
 }
