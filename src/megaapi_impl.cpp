@@ -4909,8 +4909,9 @@ MegaUser* MegaApiImpl::getContact(const char* email)
     sdkMutex.lock();
 	MegaUser *user = MegaUserPrivate::fromUser(client->finduser(email, 0));
 
-    if (user->getHandle() == client->me)
+    if (user && user->getHandle() == client->me)
     {
+        delete user;
         user = NULL;    // it's not a contact
     }
 
