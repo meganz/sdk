@@ -2603,6 +2603,14 @@ char *MegaApiImpl::getMyUserHandle()
     return result;
 }
 
+MegaUser *MegaApiImpl::getMyUser()
+{
+    sdkMutex.lock();
+    MegaUser *user = MegaUserPrivate::fromUser(client->finduser(client->me));
+    sdkMutex.unlock();
+    return user;
+}
+
 char *MegaApiImpl::getMyXMPPJid()
 {
     sdkMutex.lock();
@@ -4900,6 +4908,10 @@ MegaUserList* MegaApiImpl::getContacts()
 	for (user_map::iterator it = client->users.begin() ; it != client->users.end() ; it++ )
 	{
 		User *u = &(it->second);
+        if (u->userhandle == client->me)
+        {
+            continue;
+        }
         vector<User *>::iterator i = std::lower_bound(vUsers.begin(), vUsers.end(), u, MegaApiImpl::userComparatorDefaultASC);
 		vUsers.insert(i, u);
 	}
@@ -4915,6 +4927,13 @@ MegaUser* MegaApiImpl::getContact(const char* email)
 {
     sdkMutex.lock();
 	MegaUser *user = MegaUserPrivate::fromUser(client->finduser(email, 0));
+
+    if (user && user->getHandle() == client->me)
+    {
+        delete user;
+        user = NULL;    // it's not a contact
+    }
+
     sdkMutex.unlock();
 	return user;
 }

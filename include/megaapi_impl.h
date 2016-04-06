@@ -1129,6 +1129,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         char* getMyEmail();
         char* getMyUserHandle();
+        MegaUser *getMyUser();
         char* getMyXMPPJid();
         static void setLogLevel(int logLevel);
         static void setLoggerClass(MegaLogger *megaLogger);

@@ -5493,33 +5493,7 @@ bool MegaClient::readusers(JSON* j)
 
         if (!warnlevel())
         {
-            User* u;
-
-            if (v == ME)
-            {
-                if (me != UNDEF && uh != me)
-                {
-                    char mehandle[sizeof me * 4 / 3 + 4];
-                    char uhhandle[sizeof uh * 4 / 3 + 4];
-
-                    Base64::btoa((const byte *)&me, sizeof me, mehandle);
-                    Base64::btoa((const byte *)&uh, sizeof uh, uhhandle);
-
-                    char report[256];
-                    sprintf(report, "Own user handle mismatch: %s - %s (%d)", mehandle, uhhandle, fetchingnodes);
-
-                    int creqtag = reqtag;
-                    reqtag = 0;
-                    sendevent(99403, report);
-                    reqtag = creqtag;
-                }
-                else
-                {
-                    me = uh;
-                }
-            }
-
-            u = finduser(uh, 0);
+            User* u = finduser(uh, 0);
             bool notify = !u;
             if (u || (u = finduser(uh, 1)))
             {

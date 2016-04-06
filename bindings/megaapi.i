@@ -166,6 +166,7 @@
 %newobject mega::MegaApi::dumpXMPPSession;
 %newobject mega::MegaApi::getMyEmail;
 %newobject mega::MegaApi::getMyUserHandle;
+%newobject mega::MegaApi::getMyUser;
 %newobject mega::MegaApi::getMyXMPPJid;
 %newobject mega::MegaApi::exportMasterKey;
 %newobject mega::MegaApi::getTransfers;

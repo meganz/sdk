@@ -900,9 +900,10 @@ class MegaUser
 	public:
 		enum {
 			VISIBILITY_UNKNOWN = -1,
-			VISIBILITY_HIDDEN = 0,
-			VISIBILITY_VISIBLE,
-			VISIBILITY_ME
+            VISIBILITY_HIDDEN = 0,
+            VISIBILITY_VISIBLE = 1,
+            VISIBILITY_INACTIVE = 2,
+            VISIBILITY_BLOCKED = 3
 		};
 
 		virtual ~MegaUser();
@@ -953,9 +954,13 @@ class MegaUser
          * - VISIBILITY_VISIBLE = 1
          * The contact is currently visible
          *
-         * - VISIBILITY_ME = 2
-         * The contact is the owner of the account being used by the SDK
+         * - VISIBILITY_INACTIVE = 2
+         * The contact is currently inactive
          *
+         * - VISIBILITY_BLOCKED = 3
+         * The contact is currently blocked
+         *
+         * @note The visibility of your own user is undefined and shouldn't be used.
          * @return Current visibility of the contact
          */
         virtual int getVisibility();
@@ -4291,6 +4296,18 @@ class MegaApi
          * @return User handle of the account
          */
         char* getMyUserHandle();
+
+        /**
+         * @brief Get the MegaUser of the currently open account
+         *
+         * If the MegaApi object isn't logged in, this function returns NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @note The visibility of your own user is unhdefined and shouldn't be used.
+         * @return MegaUser of the currently open account, otherwise NULL
+         */
+        MegaUser* getMyUser();
 
         /**
          * @brief Returns the XMPP JID of the currently open account
