@@ -54,7 +54,8 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/gfx.cpp \
     sdk/src/gfx/external.cpp \
     sdk/src/thread/posixthread.cpp \
-    sdk/src/logging.cpp
+    sdk/src/logging.cpp \
+    sdk/src/mega_http_parser.cpp
     
 C_SOURCES = sdk/third_party/glob/glob.c
 

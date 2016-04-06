@@ -1,4 +1,5 @@
 TOP_PATH := $(call my-dir)
+include $(TOP_PATH)/libuv/Android.mk
 NDK_PROJECT_PATH := $(TOP_PATH)/openssl
 include $(TOP_PATH)/openssl/Android.mk
 NDK_PROJECT_PATH := $(TOP_PATH)

@@ -1,5 +1,6 @@
 #ifdef SWIGJAVA
 #define __ANDROID__
+#define HAVE_LIBUV
 #endif
 
 %module(directors="1") mega
