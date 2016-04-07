@@ -33,5 +33,4 @@ Instead of downloading the prebuilt library, you can build it directly from the 
 git clone --recursive https://github.com/meganz/sdk.git
 ```
 * Configure the variable `NDK_ROOT` to point to your Android NDK installation path at `app/src/main/jni/Makefile`.
-* Run the previous `Makefile` in order to build the MEGA SDK, its dependencies and the required bindings for Java.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
