@@ -1617,7 +1617,7 @@ protected:
         virtual void transfer_update(Transfer*);
         virtual void transfer_complete(Transfer*);
 
-        virtual dstime pread_failure(error, int, void*);
+        virtual dstime pread_failure(error, int, void*, dstime);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);
@@ -1795,6 +1795,7 @@ public:
     std::string nodename;
     int resultCode;
 
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);

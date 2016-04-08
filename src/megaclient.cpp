@@ -53,6 +53,9 @@ const char MegaClient::PAYMENT_PUBKEY[] =
         "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
         "TpPvuz-oZABEBAAE";
 
+// default number of seconds to wait after a bandwidth overquota
+dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
+
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
@@ -1983,6 +1986,11 @@ bool MegaClient::abortbackoff(bool includexfers)
                     }
                 }
             }
+        }
+
+        for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
+        {
+            (it++)->second->retry(API_OK);
         }
     }
 
@@ -7289,7 +7297,17 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
         it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv)));
         it->second->hdrn_it = it;
         it->second->enqueue(offset, count, reqtag, appdata);
-        it->second->dispatch();
+
+        if (overquotauntil && overquotauntil > Waiter::ds)
+        {
+            dstime timeleft = overquotauntil - Waiter::ds;
+            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            it->second->schedule(timeleft);
+        }
+        else
+        {
+            it->second->dispatch();
+        }
     }
     else
     {
@@ -7324,7 +7342,7 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
         {
             if ((offset < 0 || offset == (*it)->offset) && (count < 0 || count == (*it)->count))
             {
-                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata);
+                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata, 0);
 
                 delete *(it++);
             }
@@ -8871,7 +8889,9 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
-                t->bt.backoff(overquotauntil - Waiter::ds);
+                dstime timeleft = overquotauntil - Waiter::ds;
+                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                t->bt.backoff(timeleft);
             }
         }
 

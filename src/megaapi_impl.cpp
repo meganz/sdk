@@ -6048,7 +6048,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     }
 }
 
-dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
+dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLeft)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
     transfer->setUpdateTime(Waiter::ds);
@@ -6058,7 +6058,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
     transfer->setNumRetry(retry);
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
     {	
-        fireOnTransferTemporaryError(transfer, MegaError(e));
+        fireOnTransferTemporaryError(transfer, MegaError(e, timeLeft / 10));
         LOG_debug << "Streaming temporarily failed " << retry;
         if (retry <= 1)
         {
@@ -12718,6 +12718,7 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
 
     if (httpctx->transfer)
     {
+        httpctx->megaApi->cancelTransfer(httpctx->transfer);
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
     }
 
@@ -13517,6 +13518,11 @@ MegaHTTPContext::MegaHTTPContext()
     resultCode = API_EINTERNAL;
     node = NULL;
     transfer = NULL;
+}
+
+void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
+{
+    this->transfer->setTag(transfer->getTag());
 }
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
