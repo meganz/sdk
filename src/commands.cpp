@@ -386,8 +386,8 @@ void CommandDirectRead::procresult()
                     {
                         if (e == API_EOVERQUOTA && !tl)
                         {
-                            // Fixed one hour retry interval
-                            tl = 3600;
+                            // default retry interval
+                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                         }
 
                         drn->cmdresult(e, tl * 10);
@@ -618,8 +618,8 @@ void CommandGetFile::procresult()
 
                                         if (e == API_EOVERQUOTA && !tl)
                                         {
-                                            // Fixed one hour retry interval
-                                            tl = 3600;
+                                            // default retry interval
+                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
 
                                         return tslot->transfer->failed(e, tl * 10);

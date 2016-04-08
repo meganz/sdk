@@ -717,8 +717,8 @@ bool DirectReadSlot::doio()
             }
             else
             {
-                // fixed one hour retry intervals
-                backoff = 36000;
+                // default retry interval
+                backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
             }
 
             dr->drn->retry(API_EOVERQUOTA, backoff);

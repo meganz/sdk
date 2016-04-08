@@ -586,6 +586,9 @@ public:
     // minimum number of bytes in transit for upload/download pipelining
     static const int MINPIPELINE = 65536;
 
+    // default number of seconds to wait after a bandwidth overquota
+    static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+
     // initial state load in progress?
     bool fetchingnodes;
     int fetchnodestag;

@@ -53,6 +53,9 @@ const char MegaClient::PAYMENT_PUBKEY[] =
         "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
         "TpPvuz-oZABEBAAE";
 
+// default number of seconds to wait after a bandwidth overquota
+dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
+
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
