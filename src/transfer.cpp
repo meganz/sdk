@@ -520,7 +520,7 @@ void DirectReadNode::dispatch()
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
-void DirectReadNode::retry(error e)
+void DirectReadNode::retry(error e, dstime timeleft)
 {
     if (reads.empty())
     {
@@ -546,12 +546,22 @@ void DirectReadNode::retry(error e)
 
         if (e)
         {
-            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata);
+            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
             if (retryds < minretryds)
             {
                 minretryds = retryds;
             }
+        }
+    }
+
+    if (timeleft)
+    {
+        // don't retry at least until the end of the overquota state
+        client->overquotauntil = Waiter::ds + timeleft;
+        if (minretryds < timeleft)
+        {
+            minretryds = timeleft;
         }
     }
 
@@ -578,7 +588,7 @@ void DirectReadNode::retry(error e)
     }
 }
 
-void DirectReadNode::cmdresult(error e)
+void DirectReadNode::cmdresult(error e, dstime timeleft)
 {
     pendingcmd = NULL;
 
@@ -595,7 +605,7 @@ void DirectReadNode::cmdresult(error e)
     }
     else
     {
-        retry(e);
+        retry(e, timeleft);
     }
 }
 

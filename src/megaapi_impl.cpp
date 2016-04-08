@@ -6048,7 +6048,7 @@ void MegaApiImpl::transfer_complete(Transfer* tr)
     }
 }
 
-dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
+dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLeft)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
     transfer->setUpdateTime(Waiter::ds);
@@ -6058,7 +6058,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param)
     transfer->setNumRetry(retry);
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
     {	
-        fireOnTransferTemporaryError(transfer, MegaError(e));
+        fireOnTransferTemporaryError(transfer, MegaError(e, timeLeft / 10));
         LOG_debug << "Streaming temporarily failed " << retry;
         if (retry <= 1)
         {

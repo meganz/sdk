@@ -1617,7 +1617,7 @@ protected:
         virtual void transfer_update(Transfer*);
         virtual void transfer_complete(Transfer*);
 
-        virtual dstime pread_failure(error, int, void*);
+        virtual dstime pread_failure(error, int, void*, dstime);
         virtual bool pread_data(byte*, m_off_t, m_off_t, void*);
 
         virtual void reportevent_result(error);

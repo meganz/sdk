@@ -351,6 +351,7 @@ void CommandDirectRead::procresult()
     else
     {
         error e = API_EINTERNAL;
+        dstime tl = 0;
 
         for (;;)
         {
@@ -376,10 +377,20 @@ void CommandDirectRead::procresult()
                     e = (error)client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 'l'):
+                    tl = client->json.getint();
+                    break;
+
                 case EOO:
                     if (!canceled && drn)
                     {
-                        drn->cmdresult(e);
+                        if (e == API_EOVERQUOTA && !tl)
+                        {
+                            // Fixed one hour retry interval
+                            tl = 3600;
+                        }
+
+                        drn->cmdresult(e, tl * 10);
                     }
                     
                     return;
