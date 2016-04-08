@@ -429,6 +429,12 @@ void MegaClient::setrootnode(handle h)
 
     auth = "&n=";
     auth.append(buf);
+
+    if (accountauth.size())
+    {
+        auth.append("&sid=");
+        auth.append(accountauth);
+    }
 }
 
 handle MegaClient::getrootpublicfolder()
@@ -2069,7 +2075,7 @@ bool MegaClient::dispatch(direction_t d)
                 // locate suitable template file
                 for (file_list::iterator it = nextit->second->files.begin(); it != nextit->second->files.end(); it++)
                 {
-                    if ((*it)->hprivate)
+                    if ((*it)->hprivate && !(*it)->hforeign)
                     {
                         // the size field must be valid right away for
                         // MegaClient::moretransfers()
@@ -2129,7 +2135,8 @@ bool MegaClient::dispatch(direction_t d)
             {
                 handle h = UNDEF;
                 bool hprivate = true;
-                const char *auth = NULL;
+                const char *privauth = NULL;
+                const char *pubauth = NULL;
 
                 nextit->second->pos = 0;
 
@@ -2171,12 +2178,17 @@ bool MegaClient::dispatch(direction_t d)
                     for (file_list::iterator it = nextit->second->files.begin();
                          it != nextit->second->files.end(); it++)
                     {
-                        if (!(*it)->hprivate || nodebyhandle((*it)->h))
+                        if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
                         {
                             h = (*it)->h;
                             hprivate = (*it)->hprivate;
-                            auth = (*it)->auth.size() ? (*it)->auth.c_str() : NULL;
+                            privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
+                            pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
                             break;
+                        }
+                        else
+                        {
+                            LOG_err << "Unexpected node ownership";
                         }
                     }
                 }
@@ -2184,7 +2196,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, auth)));
+                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 

@@ -353,6 +353,9 @@ public:
     // root URL for load balancing requests
     static const char* const BALANCERURL;
 
+    // account auth for public folders
+    string accountauth;
+
 private:
     BackoffTimer btcs;
 

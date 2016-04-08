@@ -400,10 +400,10 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *auth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth)
 {
     cmd("g");
-    arg(p || auth ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+    arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
     if (client->usehttps)
@@ -411,16 +411,14 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
         arg("ssl", 2);
     }
 
-    if(auth)
+    if (privateauth)
     {
-        if(strlen(auth) == 8)
-        {
-            arg("en", auth);
-        }
-        else
-        {
-            arg("esid", auth);
-        }
+        arg("esid", privateauth);
+    }
+
+    if (publicauth)
+    {
+        arg("en", publicauth);
     }
 
     tslot = ctslot;
