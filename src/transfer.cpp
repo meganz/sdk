@@ -706,8 +706,28 @@ bool DirectReadSlot::doio()
     }
     else if (req->status == REQ_FAILURE)
     {
-        // a failure triggers a complete abort and retry of all pending reads for this node
-        dr->drn->retry(API_EREAD);
+        if (req->httpstatus == 509)
+        {
+            dstime backoff;
+
+            LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
+            if (req->timeleft)
+            {
+                backoff = req->timeleft * 10;
+            }
+            else
+            {
+                // fixed one hour retry intervals
+                backoff = 36000;
+            }
+
+            dr->drn->retry(API_EOVERQUOTA, backoff);
+        }
+        else
+        {
+            // a failure triggers a complete abort and retry of all pending reads for this node
+            dr->drn->retry(API_EREAD);
+        }
         return true;
     }
 
