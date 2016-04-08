@@ -723,6 +723,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_LASTNAME;
     }
+    if(user->changed.email)
+    {
+        changed |= MegaUser::CHANGE_TYPE_EMAIL;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()

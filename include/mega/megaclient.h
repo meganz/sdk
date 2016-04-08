@@ -419,6 +419,7 @@ private:
     void sc_ipc();
     void sc_upc();
     void sc_ph();
+    void sc_se();
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
 #endif

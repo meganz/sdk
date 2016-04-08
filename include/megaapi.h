@@ -977,7 +977,8 @@ class MegaUser
             CHANGE_TYPE_LSTINT          = 0x02,
             CHANGE_TYPE_AVATAR          = 0x04,
             CHANGE_TYPE_FIRSTNAME       = 0x08,
-            CHANGE_TYPE_LASTNAME        = 0x10
+            CHANGE_TYPE_LASTNAME        = 0x10,
+            CHANGE_TYPE_EMAIL           = 0x20
         };
 
         /**
@@ -1005,6 +1006,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
          *
+         * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
+         * Check if the user has modified email (only for your own user)
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1031,6 +1035,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
+         *
+         * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
+         * Check if the user has modified email (only for your own user)
          */
         virtual int getChanges();
 };

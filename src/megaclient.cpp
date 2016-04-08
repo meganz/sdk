@@ -2686,6 +2686,11 @@ bool MegaClient::procsc()
                                 // public links handles
                                 sc_ph();
                                 break;
+
+                            case MAKENAMEID2('s','e'):
+                                // set email
+                                sc_se();
+                                break;
 #ifdef ENABLE_CHAT
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
@@ -4002,6 +4007,68 @@ void MegaClient::sc_ph()
             else
             {
                 LOG_warn << "node for public link not found";
+            }
+
+            break;
+        default:
+            if (!jsonsc.storeobject())
+            {
+                return;
+            }
+        }
+    }
+}
+
+void MegaClient::sc_se()
+{
+    // fields: e, s
+    string email;
+    int status = -1;
+    User *u;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case 'e':
+            jsonsc.storeobject(&email);
+            break;
+        case 's':
+            status = jsonsc.getint();
+            break;
+        case EOO:
+            done = true;
+            if (email.empty())
+            {
+                LOG_err << "e element not provided";
+                break;
+            }
+            if (status == -1)
+            {
+                LOG_err << "s element not provided";
+                break;
+            }
+            if (status < 0 || status > 3)
+            {
+                LOG_err << "unknown value for s element: " << status;
+                break;
+            }
+
+            // `se` actionpackets are only sent for your own user
+            u = finduser(me);
+            if (!u)
+            {
+                LOG_warn << "user for email change not found";
+            }
+            // TODO: manage different status once multiple-emails is supported
+            else if (status == 3)
+            {
+                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
+
+                u->email = email;
+                u->changed.email = true;
+                notifyuser(u);
             }
 
             break;
