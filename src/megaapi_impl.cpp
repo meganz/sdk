@@ -12718,6 +12718,7 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
 
     if (httpctx->transfer)
     {
+        httpctx->megaApi->cancelTransfer(httpctx->transfer);
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
     }
 
@@ -13517,6 +13518,11 @@ MegaHTTPContext::MegaHTTPContext()
     resultCode = API_EINTERNAL;
     node = NULL;
     transfer = NULL;
+}
+
+void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
+{
+    this->transfer->setTag(transfer->getTag());
 }
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)

@@ -1795,6 +1795,7 @@ public:
     std::string nodename;
     int resultCode;
 
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
