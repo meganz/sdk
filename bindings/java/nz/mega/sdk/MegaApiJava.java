@@ -1008,6 +1008,21 @@ public class MegaApiJava {
     }
     
     /**
+     * Get the MegaUser of the currently open account
+     *
+     * If the MegaApi object isn't logged in, this function returns NULL.
+     *
+     * You take the ownership of the returned value
+     *
+     * @note The visibility of your own user is unhdefined and shouldn't be used.
+     * @return MegaUser of the currently open account, otherwise NULL
+     */
+    
+    public MegaUser getMyUser(){
+    	return megaApi.getMyUser();
+    }
+    
+    /**
      * Returns the XMPP JID of the currently open account
      *
      * If the MegaApi object isn't logged in,
