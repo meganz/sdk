@@ -1,6 +1,6 @@
 #!/bin/sh
 		
-CARES_VERSION="1.10.0"													      
+CARES_VERSION="1.11.0"													      
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`														  
 
 
