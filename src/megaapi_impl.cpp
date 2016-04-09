@@ -1944,6 +1944,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_URL: return "CHAT_URL";
         case TYPE_CHAT_GRANT_ACCESS: return "CHAT_GRANT_ACCESS";
         case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
+        case TYPE_USE_HTTPS_ONLY: return "USE_HTTPS_ONLY";
+        case TYPE_SET_PROXY: return "SET_PROXY";
 	}
     return "UNKNOWN";
 }
