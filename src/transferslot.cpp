@@ -270,8 +270,8 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         else
                         {
-                            // fixed one hour retry intervals
-                            backoff = 36000;
+                            // default retry intervals
+                            backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
                         }
 
                         return transfer->failed(API_EOVERQUOTA, backoff);

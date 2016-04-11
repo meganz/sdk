@@ -53,6 +53,9 @@ const char MegaClient::PAYMENT_PUBKEY[] =
         "ym1mA5iSSsMroGLypv9PueOTfZlG3UTpD83v6F3w8uGHY9phFZ-k2JbCd_-s-7gyfBE"
         "TpPvuz-oZABEBAAE";
 
+// default number of seconds to wait after a bandwidth overquota
+dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
+
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
@@ -429,6 +432,12 @@ void MegaClient::setrootnode(handle h)
 
     auth = "&n=";
     auth.append(buf);
+
+    if (accountauth.size())
+    {
+        auth.append("&sid=");
+        auth.append(accountauth);
+    }
 }
 
 handle MegaClient::getrootpublicfolder()
@@ -1978,6 +1987,11 @@ bool MegaClient::abortbackoff(bool includexfers)
                 }
             }
         }
+
+        for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
+        {
+            (it++)->second->retry(API_OK);
+        }
     }
 
     if (btcs.arm())
@@ -2069,7 +2083,7 @@ bool MegaClient::dispatch(direction_t d)
                 // locate suitable template file
                 for (file_list::iterator it = nextit->second->files.begin(); it != nextit->second->files.end(); it++)
                 {
-                    if ((*it)->hprivate)
+                    if ((*it)->hprivate && !(*it)->hforeign)
                     {
                         // the size field must be valid right away for
                         // MegaClient::moretransfers()
@@ -2129,7 +2143,8 @@ bool MegaClient::dispatch(direction_t d)
             {
                 handle h = UNDEF;
                 bool hprivate = true;
-                const char *auth = NULL;
+                const char *privauth = NULL;
+                const char *pubauth = NULL;
 
                 nextit->second->pos = 0;
 
@@ -2171,12 +2186,17 @@ bool MegaClient::dispatch(direction_t d)
                     for (file_list::iterator it = nextit->second->files.begin();
                          it != nextit->second->files.end(); it++)
                     {
-                        if (!(*it)->hprivate || nodebyhandle((*it)->h))
+                        if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
                         {
                             h = (*it)->h;
                             hprivate = (*it)->hprivate;
-                            auth = (*it)->auth.size() ? (*it)->auth.c_str() : NULL;
+                            privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
+                            pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
                             break;
+                        }
+                        else
+                        {
+                            LOG_err << "Unexpected node ownership";
                         }
                     }
                 }
@@ -2184,7 +2204,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, auth)));
+                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
 
                 ts->slots_it = tslots.insert(tslots.begin(), ts);
 
@@ -7277,7 +7297,17 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
         it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv)));
         it->second->hdrn_it = it;
         it->second->enqueue(offset, count, reqtag, appdata);
-        it->second->dispatch();
+
+        if (overquotauntil && overquotauntil > Waiter::ds)
+        {
+            dstime timeleft = overquotauntil - Waiter::ds;
+            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            it->second->schedule(timeleft);
+        }
+        else
+        {
+            it->second->dispatch();
+        }
     }
     else
     {
@@ -7312,7 +7342,7 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
         {
             if ((offset < 0 || offset == (*it)->offset) && (count < 0 || count == (*it)->count))
             {
-                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata);
+                app->pread_failure(API_EINCOMPLETE, (*it)->drn->retries, (*it)->appdata, 0);
 
                 delete *(it++);
             }
@@ -8859,7 +8889,9 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
-                t->bt.backoff(overquotauntil - Waiter::ds);
+                dstime timeleft = overquotauntil - Waiter::ds;
+                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                t->bt.backoff(timeleft);
             }
         }
 

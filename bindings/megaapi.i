@@ -136,7 +136,10 @@
 %ignore mega::MegaApi::MEGA_DEBRIS_FOLDER;
 %ignore mega::MegaNode::getNodeKey;
 %ignore mega::MegaNode::getAttrString;
-%ignore mega::MegaNode::getAuth;
+%ignore mega::MegaNode::getPrivateAuth;
+%ignore mega::MegaNode::getPublicAuth;
+%ignore mega::MegaApi::createForeignFileNode;
+%ignore mega::MegaApi::createForeignFolderNode;
 %ignore mega::MegaListener::onSyncStateChanged;
 %ignore mega::MegaListener::onSyncFileStateChanged;
 %ignore mega::MegaTransfer::getListener;
@@ -204,6 +207,7 @@
 %newobject mega::MegaApi::search;
 %newobject mega::MegaApi::getCRCFromFingerprint;
 %newobject mega::MegaApi::getSessionTransferURL;
+%newobject mega::MegaApi::getAccountAuth;
 
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
