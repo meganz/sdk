@@ -258,7 +258,7 @@ class MegaNodePrivate : public MegaNode
             bool isPublicNode : 1;
             bool outShares : 1;
             bool inShare : 1;
-            bool foreign;
+            bool foreign : 1;
         };
         PublicLink *plink;
 
