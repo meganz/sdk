@@ -9141,12 +9141,18 @@ void MegaApiImpl::sendPendingTransfers()
             }
             case MegaTransfer::TYPE_DOWNLOAD:
             {
-                handle nodehandle = transfer->getNodeHandle();
-				Node *node = client->nodebyhandle(nodehandle);
+                Node *node = NULL;
                 MegaNode *publicNode = transfer->getPublicNode();
                 const char *parentPath = transfer->getParentPath();
                 const char *fileName = transfer->getFileName();
-                if(!node && !publicNode) { e = API_EARGS; break; }
+
+                if (!publicNode)
+                {
+                    handle nodehandle = transfer->getNodeHandle();
+                    node = client->nodebyhandle(nodehandle);
+                }
+
+                if (!node && !publicNode) { e = API_EARGS; break; }
 
                 currentTransfer=transfer;
                 if(parentPath || fileName)
