@@ -30,10 +30,11 @@ namespace mega
 
 	public enum class MUserVisibility
 	{
-		VISIBILITY_UNKNOWN = -1,
-		VISIBILITY_HIDDEN = 0,
-		VISIBILITY_VISIBLE,
-		VISIBILITY_ME
+        VISIBILITY_UNKNOWN = -1,
+        VISIBILITY_HIDDEN = 0,
+        VISIBILITY_VISIBLE = 1,
+        VISIBILITY_INACTIVE = 2,
+        VISIBILITY_BLOCKED = 3
 	};
 
 	public ref class MUser sealed

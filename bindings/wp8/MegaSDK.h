@@ -176,6 +176,7 @@ namespace mega
         int isLoggedIn();
         String^ getMyEmail();
         String^ getMyUserHandle();
+        MUser^ getMyUser();
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
@@ -359,6 +360,7 @@ namespace mega
         MUser^ getContact(String^ email);
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
+        MShareList^ getInSharesList();
         bool isShared(MNode^ node);
         bool isOutShare(MNode^ node);
         bool isInShare(MNode^ node);
@@ -366,7 +368,8 @@ namespace mega
         MShareList^ getOutShares();
         MShareList^ getOutShares(MNode^ node);
         MShareList^ getPendingOutShares();
-        MShareList ^getPendingOutShares(MNode^ megaNode);
+        MShareList^ getPendingOutShares(MNode^ megaNode);
+        MNodeList^ getPublicLinks();
         MContactRequestList^ getIncomingContactRequests();
         MContactRequestList^ getOutgoingContactRequests();
 

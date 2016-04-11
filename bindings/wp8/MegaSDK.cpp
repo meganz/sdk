@@ -780,6 +780,11 @@ String^ MegaSDK::getMyUserHandle()
     return ref new String((wchar_t *)utf16userHandle.c_str());
 }
 
+MUser^ MegaSDK::getMyUser()
+{
+    return ref new MUser(megaApi->getMyUser(), true);
+}
+
 void MegaSDK::setLogLevel(MLogLevel logLevel)
 {
     MegaApi::setLogLevel((int)logLevel);
@@ -2143,6 +2148,11 @@ MNodeList^ MegaSDK::getInShares()
     return ref new MNodeList(megaApi->getInShares(), true);
 }
 
+MShareList^ MegaSDK::getInSharesList()
+{
+    return ref new MShareList(megaApi->getInSharesList(), true);
+}
+
 bool MegaSDK::isShared(MNode^ node)
 {
     return megaApi->isShared(node->getCPtr());
@@ -2181,6 +2191,11 @@ MShareList^ MegaSDK::getPendingOutShares()
 MShareList^ MegaSDK::getPendingOutShares(MNode^ megaNode)
 {
     return ref new MShareList(megaApi->getPendingOutShares((megaNode != nullptr) ? megaNode->getCPtr() : NULL), true);
+}
+
+MNodeList^ MegaSDK::getPublicLinks()
+{
+    return ref new MNodeList(megaApi->getPublicLinks(), true);
 }
 
 MContactRequestList^ MegaSDK::getIncomingContactRequests()
