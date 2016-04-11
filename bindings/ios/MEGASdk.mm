@@ -964,6 +964,18 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
+- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
+    if (data == nil) return nil;
+    
+    MEGAInputStream mis = MEGAInputStream(data);
+    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (NSString *)fingerprintForNode:(MEGANode *)node {
     if (node == nil) return nil;
     

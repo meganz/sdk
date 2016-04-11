@@ -2658,6 +2658,17 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
 
 /**
+ * @brief Get a Base64-encoded fingerprint from a NSData and a modification time
+ *
+ * If the input stream is nil, has a negative size or can't be read, this function returns nil
+ *
+ * @param data NSData that provides the data to create the fingerprint
+ * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
+ * @return Base64-encoded fingerprint
+ */
+- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime;
+
+/**
  * @brief Get a Base64-encoded fingerprint for a node.
  *
  * If the node doesn't exist or doesn't have a fingerprint, this function returns nil.
