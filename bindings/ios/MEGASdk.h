@@ -201,6 +201,13 @@ typedef NS_ENUM(NSInteger, HTTPServer) {
  */
 @property (readonly, nonatomic) NSString *userAgent;
 
+/**
+ * @brief MEGAUser of the currently open account
+ *
+ * If the MEGASdk object isn't logged in, this property is nil.
+ */
+@property (readonly, nonatomic) MEGAUser *myUser;
+
 #pragma mark - Init
 
 /**

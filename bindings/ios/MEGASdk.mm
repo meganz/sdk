@@ -125,6 +125,11 @@ static DelegateMEGALogerListener *externalLogger = new DelegateMEGALogerListener
     return ret;
 }
 
+- (MEGAUser *)myUser {
+    MegaUser *user = self.megaApi->getMyUser();
+    return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
