@@ -161,8 +161,6 @@ namespace mega
         void getUserData(MUser^ user);
         void getUserDataById(String^ user, MRequestListenerInterface^ listener);
         void getUserDataById(String^ user);
-        void createAccount(String^ email, String^ password, String^ name, MRequestListenerInterface^ listener);
-        void createAccount(String^ email, String^ password, String^ name);
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname, MRequestListenerInterface^ listener);
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
         void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
