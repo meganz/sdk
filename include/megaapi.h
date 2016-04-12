@@ -1001,11 +1001,16 @@ class MegaUser
 
         enum
         {
-            CHANGE_TYPE_AUTH            = 0x01,
+            CHANGE_TYPE_AUTHRING        = 0x01,
             CHANGE_TYPE_LSTINT          = 0x02,
             CHANGE_TYPE_AVATAR          = 0x04,
             CHANGE_TYPE_FIRSTNAME       = 0x08,
-            CHANGE_TYPE_LASTNAME        = 0x10
+            CHANGE_TYPE_LASTNAME        = 0x10,
+            CHANGE_TYPE_KEYRING         = 0x20,
+            CHANGE_TYPE_COUNTRY         = 0x40,
+            CHANGE_TYPE_BIRTHDAY        = 0x80,
+            CHANGE_TYPE_PUBKEY_CU255    = 0x100,
+            CHANGE_TYPE_PUBKEY_ED255    = 0x200
         };
 
         /**
@@ -1025,13 +1030,28 @@ class MegaUser
          * Check if the last interaction timestamp is modified
          *
          * - MegaUser::CHANGE_TYPE_AVATAR          = 0x04
-         * Check if the user has a new or modified avatar image
+         * Check if the user has a new or modified avatar image, or if the avatar was removed
          *
          * - MegaUser::CHANGE_TYPE_FIRSTNAME       = 0x08
          * Check if the user has new or modified firstname
          *
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
+         *
+         * - MegaUser::CHANGE_TYPE_KEYRING        = 0x20
+         * Check if the user has new or modified keyring
+         *
+         * - MegaUser::CHANGE_TYPE_COUNTRY        = 0x40
+         * Check if the user has new or modified country
+         *
+         * - MegaUser::CHANGE_TYPE_BIRTHDAY        = 0x80
+         * Check if the user has new or modified birthday, birthmonth or birthyear
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_CU255    = 0x100
+         * Check if the user has new or modified public key for chat
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x200
+         * Check if the user has new or modified public key for signing
          *
          * @return true if this user has an specific change
          */
@@ -1059,6 +1079,21 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_LASTNAME        = 0x10
          * Check if the user has new or modified lastname
+         *
+         * - MegaUser::CHANGE_TYPE_KEYRING        = 0x20
+         * Check if the user has new or modified keyring
+         *
+         * - MegaUser::CHANGE_TYPE_COUNTRY        = 0x40
+         * Check if the user has new or modified country
+         *
+         * - MegaUser::CHANGE_TYPE_BIRTHDAY        = 0x80
+         * Check if the user has new or modified birthday, birthmonth or birthyear
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_CU255    = 0x100
+         * Check if the user has new or modified public key for chat
+         *
+         * - MegaUser::CHANGE_TYPE_PUBKEY_ED255    = 0x200
+         * Check if the user has new or modified public key for signing
          */
         virtual int getChanges();
 };
@@ -1343,6 +1378,69 @@ public:
 #endif
 
 /**
+ * @brief Map of string values with string keys (map<string,string>)
+ *
+ * A MegaStringMap has the ownership of the strings that it contains, so they will be
+ * only valid until the MegaStringMap is deleted. If you want to retain a string returned by
+ * a MegaStringMap, copy it.
+ *
+ * Objects of this class are immutable.
+ */
+
+class MegaStringMap
+{
+public:
+    virtual ~MegaStringMap();
+
+    virtual MegaStringMap *copy() const;
+
+    /**
+     * @brief Returns the string at the position key in the MegaStringMap
+     *
+     * The returned value is a null-terminated char array. If the value in the map is an array of
+     * bytes, then it will be a Base64-encoded string.
+     *
+     * The MegaStringMap retains the ownership of the returned string. It will be only valid until
+     * the MegaStringMap is deleted.
+     *
+     * If the key is not found in the map, this function returns NULL.
+     *
+     * @param key Key of the string that you want to get from the map
+     * @return String at the position key in the map
+     */
+    virtual const char* get(const char* key) const;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringMap
+     */
+    virtual MegaStringList *getKeys() const;
+
+    /**
+     * @brief Sets a value in the MegaStringMap for the given key.
+     *
+     * If the key already exists in the MegaStringMap, the value will be overwritten by the
+     * new value.
+     *
+     * The MegaStringMap does not take ownership of the strings passed as parameter, it makes
+     * a local copy.
+     *
+     * @param key Key for the new value in the map. It must be a NULL-terminated string.
+     * @param value The new value for the key in the map. It must be a NULL-terminated string.
+     */
+    virtual void set(const char* key, const char *value);
+
+    /**
+     * @brief Returns the number of strings in the map
+     * @return Number of strings in the map
+     */
+    virtual int size() const;
+};
+
+/**
  * @brief List of strings
  *
  * A MegaStringList has the ownership of the strings that it contains, so they will be
@@ -1369,7 +1467,7 @@ public:
      * @param i Position of the string that we want to get for the list
      * @return string at the position i in the list
      */
-    virtual const char* get(int i);
+    virtual const char* get(int);
 
     /**
      * @brief Returns the number of strings in the list
@@ -2127,6 +2225,20 @@ class MegaRequest
          */
         virtual MegaTextChatList *getMegaTextChatList() const;
 #endif
+
+        /**
+         * @brief Returns the string map
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getUserAttribute - Returns the attribute value
+         *
+         * @return String map including the key-value pairs of the attribute
+         */
+        virtual MegaStringMap* getMegaStringMap() const;
 };
 
 /**
@@ -3606,11 +3718,18 @@ class MegaApi
         };
 
         enum {
-            USER_ATTR_AVATAR = 0,
-            USER_ATTR_FIRSTNAME = 1,
-            USER_ATTR_LASTNAME = 2,
-            USER_ATTR_AUTHRING = 3,
-            USER_ATTR_LAST_INTERACTION = 4
+            USER_ATTR_AVATAR = 0,               // public - char array
+            USER_ATTR_FIRSTNAME = 1,            // public - char array
+            USER_ATTR_LASTNAME = 2,             // public - char array
+            USER_ATTR_AUTHRING = 3,             // private - byte array
+            USER_ATTR_LAST_INTERACTION = 4,     // private - byte array
+            USER_ATTR_ED25519_PUBLIC_KEY = 5,   // public - byte array
+            USER_ATTR_CU25519_PUBLIC_KEY = 6,   // public - byte array
+            USER_ATTR_KEYRING = 7               // private - byte array
+//            USER_ATTR_AUTHRSA = 8,
+//            USER_ATTR_AUTHCU255 = 9,
+//            USER_ATTR_RSA_PUBLIC_KEY_SIGNATURE = 10,
+//            USER_ATTR_ED25519_PUBLIC_KEY_SIGNATURE = 11
         };
 
         enum {
@@ -4771,13 +4890,17 @@ class MegaApi
         /**
          * @brief Get an attribute of a MegaUser.
          *
+         * User attributes can be private or public. Private attributes are accessible only by
+         * your own user, while public ones are retrievable by any of your contacts.
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the value of the attribute
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
          * is obtained for the active account
@@ -4786,9 +4909,19 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user
+         * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4797,6 +4930,9 @@ class MegaApi
         /**
          * @brief Get an attribute of any user in MEGA.
          *
+         * User attributes can be private or public. Private attributes are accessible only by
+         * your own user, while public ones are retrievable by any of your contacts.
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
@@ -4804,7 +4940,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the value of the attribute
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
          * If this parameter is set to NULL, the attribute is obtained for the active account.
@@ -4813,9 +4950,19 @@ class MegaApi
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user
+         * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4824,22 +4971,36 @@ class MegaApi
         /**
          * @brief Get an attribute of the current account.
          *
+         * User attributes can be private or public. Private attributes are accessible only by
+         * your own user, while public ones are retrievable by any of your contacts.
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the value of the attribute
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param type Attribute type
          *
          * Valid values are:
          *
          * MegaApi::USER_ATTR_FIRSTNAME = 1
-         * Get the firstname of the user
+         * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2
-         * Get the lastname of the user
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -4918,7 +5079,7 @@ class MegaApi
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set an attribute of the current user
+         * @brief Set a public attribute of the current user
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -4929,15 +5090,43 @@ class MegaApi
          *
          * Valid values are:
          *
-         * USER_ATTR_FIRSTNAME = 1
-         * Change the firstname of the user
-         * USER_ATTR_LASTNAME = 2
-         * Change the lastname of the user
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
          */
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a private attribute of the current user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+         *
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_AUTHRING = 3
+         * Get the authentication ring of the user (private)
+         * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+         * Get the last interaction of the contacts of the user (private)
+         * MegaApi::USER_ATTR_KEYRING = 7
+         * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         *
+         * @param value New attribute value
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set a custom attribute for the node

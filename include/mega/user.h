@@ -38,15 +38,6 @@ struct MEGA_API User : public Cachable
     // e-mail address
     string email;
 
-    // first name (initialized on first request, invalidated if updated)
-    string *firstname;
-
-    // last name (initialized on first request, invalidated if updated)
-    string *lastname;
-
-    // persistent attributes (n = name, a = avatar)
-    AttrMap attrs;
-
     // visibility status
     visibility_t show;
 
@@ -58,11 +49,16 @@ struct MEGA_API User : public Cachable
 
     struct
     {
-        bool auth : 1;      // authentication information of the contact
+        bool keyring : 1;   // private keys
+        bool authring : 1;  // authentication information of the contact
         bool lstint : 1;    // last interaction with the contact
+        bool puEd255 : 1;   // public key for Ed25519
+        bool puCu255 : 1;   // public key for Cu25519
         bool avatar : 1;    // avatar image
         bool firstname : 1;
         bool lastname : 1;
+        bool country : 1;
+        bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
     } changed;
 
     // user's public key
@@ -72,10 +68,27 @@ struct MEGA_API User : public Cachable
     // actions to take after arrival of the public key
     deque<class PubKeyAction*> pkrs;
 
+private:
+    // persistent attributes (keyring, firstname...)
+    string_map attrs;
+
+    // version of each attribute
+    string_map attrsv;
+
+public:
     void set(visibility_t, m_time_t);
 
     bool serialize(string*);
     static User* unserialize(class MegaClient *, string*);
+
+    // attribute methods: set/get/invalidate...
+    void setattr(string *an, string *av, string *v);
+    const string *getattr(string an);
+    const string *getattrversion(string an);
+    void invalidateattr(string an);
+    bool isattrvalid(string an);
+
+    bool setChanged(const char*);
 
     User(const char* = NULL);
 };

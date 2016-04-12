@@ -33,6 +33,7 @@ SOURCES += src/attrmap.cpp \
     src/proxy.cpp \
     src/pendingcontactrequest.cpp \
     src/crypto/cryptopp.cpp  \
+    src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
@@ -127,6 +128,7 @@ HEADERS  += include/mega.h \
             include/mega/proxy.h \
             include/mega/pendingcontactrequest.h \
             include/mega/crypto/cryptopp.h  \
+            include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \
             include/mega/gfx/external.h \
@@ -161,7 +163,7 @@ unix {
             include/mega/config.h
 }
 
-DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC
+DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT
 LIBS += -lcryptopp
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
@@ -207,7 +209,7 @@ win32 {
         }
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium
 }
 
 unix:!macx {
@@ -221,6 +223,13 @@ unix:!macx {
    else {
     LIBS += -lcurl -lz -lssl -lcrypto -lcares
    }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a
+   }
+   else {
+    LIBS += -lsodium
+   }
 }
 
 macx {
@@ -228,5 +237,5 @@ macx {
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
-   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto
+   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lsodium
 }

@@ -100,7 +100,7 @@ MegaStringList *MegaStringList::copy()
     return NULL;
 }
 
-const char *MegaStringList::get(int i)
+const char *MegaStringList::get(int)
 {
     return NULL;
 }
@@ -630,6 +630,11 @@ MegaTextChatList *MegaRequest::getMegaTextChatList() const
     return NULL;
 }
 #endif
+
+MegaStringMap *MegaRequest::getMegaStringMap() const
+{
+    return NULL;
+}
 
 MegaTransfer::~MegaTransfer() { }
 
@@ -1391,6 +1396,11 @@ void MegaApi::getUserAttribute(const char *email_or_handle, int type, MegaReques
 }
 
 void MegaApi::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setUserAttribute(type, value, listener);
+}
+
+void MegaApi::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener)
 {
     pImpl->setUserAttribute(type, value, listener);
 }
@@ -3630,3 +3640,34 @@ int MegaTextChatList::size() const
 }
 
 #endif  // ENABLE_CHAT
+
+
+MegaStringMap::~MegaStringMap()
+{
+
+}
+
+MegaStringMap *MegaStringMap::copy() const
+{
+    return NULL;
+}
+
+const char *MegaStringMap::get(const char*) const
+{
+    return NULL;
+}
+
+MegaStringList *MegaStringMap::getKeys() const
+{
+    return NULL;
+}
+
+void MegaStringMap::set(const char *, const char *)
+{
+
+}
+
+int MegaStringMap::size() const
+{
+    return 0;
+}

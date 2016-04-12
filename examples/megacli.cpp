@@ -876,6 +876,46 @@ void DemoApp::getua_result(byte* data, unsigned l)
     cout << endl;
 }
 
+void DemoApp::getua_result(TLVstore *tlv)
+{
+    cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+
+    vector<string> *keys = tlv->getKeys();
+    vector<string>::const_iterator it;
+    unsigned valuelen;
+    string value, key;
+    char *buf;
+    for (it=keys->begin(); it != keys->end(); it++)
+    {
+        key = (*it).empty() ? "(no key)" : *it;
+        value = tlv->get(*it);
+        valuelen = value.length();
+
+        buf = new char[valuelen * 4 / 3 + 4];
+        Base64::btoa((const byte *) value.data(), valuelen, buf);
+
+        cout << "\t" << key << "\t" << buf << endl;
+
+        delete [] buf;
+    }
+    delete keys;
+}
+
+#ifdef DEBUG
+void DemoApp::delua_result(error e)
+{
+    if (e)
+    {
+        cout << "User attribute removal failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Success." << endl;
+    }
+}
+#endif
+
+
 void DemoApp::notify_retry(dstime dsdelta)
 {
     if (dsdelta)
@@ -1755,6 +1795,9 @@ static void process_line(char* l)
                 cout << "      users" << endl;
                 cout << "      getua attrname [email]" << endl;
                 cout << "      putua attrname [del|set string|load file]" << endl;
+#ifdef DEBUG
+                cout << "      delua attrname" << endl;
+#endif
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
@@ -2827,7 +2870,7 @@ static void process_line(char* l)
                         if (!u)
                         {
                             // get logged in user's attribute
-                            if (!(u = client->finduser(client->me)))
+                            if (!(u = client->ownuser()))
                             {
                                 cout << "Must be logged in to query own attributes." << endl;
                                 return;
@@ -2887,6 +2930,20 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef DEBUG
+                    else if (words[0] == "delua")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->delua(words[1].c_str());
+                            return;
+                        }
+
+                        cout << "      delua attrname" << endl;
+
+                        return;
+                    }
+#endif
                     else if (words[0] == "pause")
                     {
                         bool getarg = false, putarg = false, hardarg = false, statusarg = false;
@@ -3231,7 +3288,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "invite")
                     {
-                        if (client->finduser(client->me)->email.compare(words[1]))
+                        if (client->ownuser()->email.compare(words[1]))
                         {
                             int del = words.size() == 3 && words[2] == "del";
                             int rmd = words.size() == 3 && words[2] == "rmd";

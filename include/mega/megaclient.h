@@ -81,15 +81,6 @@ public:
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();
 
-    /**
-     * @brief Initialises the Ed25519 EdDSA key user properties.
-     *
-     * A key pair will be added, if not present, yet.
-     *
-     * @return Error code (default: 1 on success).
-     */
-    int inited25519();
-
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
 
@@ -206,10 +197,15 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(const char* an, const byte* av = NULL, unsigned avl = 0);
+    void putua(const char* an, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const char* an = NULL);
+    void getua(User* u, const char* an = NULL, int ctag = -1);
+
+#ifdef DEBUG
+    // queue a user attribute removal
+    void delua(const char* an);
+#endif
 
     // add new contact (by e-mail address)
     error invite(const char*, visibility_t = VISIBLE);
@@ -809,10 +805,14 @@ public:
     // account access (full account): RSA key
     AsymmCipher asymkey;
 
-#ifdef USE_SODIUM
-    /// EdDSA signing key (Ed25519 privte key seed).
-    EdDSA signkey;
-#endif
+    // EdDSA signing key (Ed25519 private key seed).
+    EdDSA *signkey;
+
+    // ECDH key (x25519 private key).
+    ECDH *chatkey;
+
+    // delete chatkey and signing key
+    void resetKeyring();
 
     // binary session ID
     string sid;
@@ -826,6 +826,7 @@ public:
     // locate user by e-mail address or by handle
     User* finduser(const char*, int = 0);
     User* finduser(handle, int = 0);
+    User* ownuser();
     void mapuser(handle, const char*);
     void mappcr(handle, PendingContactRequest*);
 

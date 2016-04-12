@@ -193,22 +193,38 @@ public:
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
+    User *u;
+    string an;  // attribute name
+    string av;  // attribute value
+
 public:
-    CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
+    CommandPutUA(MegaClient*, const char*, const byte*, unsigned, int);
 
     void procresult();
 };
 
 class MEGA_API CommandGetUA : public Command
 {
-    User* user;
-    string attributename;
+    User* u;
+    string an;  // attribute name
 
 public:
-    CommandGetUA(MegaClient*, const char*, const char*);
+    CommandGetUA(MegaClient*, const char*, const char*, int);
 
     void procresult();
 };
+
+#ifdef DEBUG
+class MEGA_API CommandDelUA : public Command
+{
+    string an;
+
+public:
+    CommandDelUA(MegaClient*, const char*);
+
+    void procresult();
+};
+#endif
 
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command

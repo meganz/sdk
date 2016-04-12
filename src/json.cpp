@@ -361,7 +361,7 @@ const char* JSON::getvalue()
         r = pos;
     }
 
-            storeobject();
+    storeobject();
 
     return r;
 }
