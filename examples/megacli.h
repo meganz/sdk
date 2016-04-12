@@ -95,6 +95,10 @@ struct DemoApp : public MegaApp
     void confirmsignuplink_result(error);
     void setkeypair_result(error);
 
+    virtual void getrecoverylink_result(error);
+    virtual void queryrecoverylink_result(error);
+    virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);
+
     void users_updated(User**, int);
     void nodes_updated(Node**, int);
     void pcrs_updated(PendingContactRequest**, int);

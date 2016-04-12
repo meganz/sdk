@@ -1760,6 +1760,7 @@ static void process_line(char* l)
                 cout << "      whoami" << endl;
                 cout << "      passwd" << endl;
                 cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
+                cout << "      recover recoverylink [password [masterkey]]" << endl;   // mk in base64
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -3172,17 +3173,21 @@ static void process_line(char* l)
                     else if (words[0] == "reset")
                     {
                         bool hasMasterKey = false;
-                        if ( words.size() == 2 ||
+
+                        if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You're logged in. Please, logout first." << endl;
+                        }
+                        else if (words.size() == 2 ||
                             (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
                         {
                             client->getrecoverylink(words[1].c_str(), hasMasterKey);
-                            return;
                         }
                         else
                         {
                             cout << "      reset email [mk]" << endl;
-                            return;
                         }
+                        return;
                     }
 
                     break;
@@ -3495,6 +3500,22 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "recover")
+                    {
+                        if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You're logged in. Please, logout first." << endl;
+                        }
+                        else if (words.size() == 2)  // query recovery link
+                        {
+                            client->queryrecoverylink(words[1].c_str());
+                        }
+                        else
+                        {
+                            cout << "      recover recoverylink [password [masterkey]]" << endl;
+                        }
+                        return;
+                    }
                     else if (words[0] == "session")
                     {
                         byte session[64];
@@ -3782,6 +3803,39 @@ void DemoApp::setkeypair_result(error e)
     {
         cout << "RSA keypair added. Account setup complete." << endl;
     }
+}
+
+void DemoApp::getrecoverylink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to send recovery link (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Please check your e-mail and enter the command recover followed by the recovery link." << endl;
+    }
+}
+
+void DemoApp::queryrecoverylink_result(error e)
+{
+    cout << "Recovery link is invalid (" << errorstring(e) << ")." << endl;
+}
+
+void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
+{
+    cout << "Recovery link is valid";
+
+    if (type == 9)
+    {
+        cout <<  " for " << email << " with masterkey";
+    }
+    else if (type == 10)
+    {
+        cout <<  " for " << email << " without masterkey";
+    }
+
+    cout << "." << endl;
 }
 
 void DemoApp::ephemeral_result(handle uh, const byte* pw)

@@ -1579,7 +1579,7 @@ class MegaRequest
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY, TYPE_GET_RECOVERY_LINK, TYPE_CHECK_RECOVERY_LINK
+            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY, TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK
         };
 
         virtual ~MegaRequest();
@@ -4258,8 +4258,26 @@ class MegaApi
          *
          * @param email Email used to register the account whose password wants to be reset.
          * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+         * @param listener MegaRequestListener to track this request
          */
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a recovery link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link Recovery link (#recover)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
 
          * @brief Set proxy settings
          *

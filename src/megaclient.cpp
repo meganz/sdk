@@ -560,6 +560,24 @@ error MegaClient::getrecoverylink(const char *email, bool masterkey)
     return API_OK;
 }
 
+error MegaClient::queryrecoverylink(const char *link)
+{
+    const char* ptr;
+
+    if ((ptr = strstr(link, "#recover")))
+    {
+        ptr += 8;
+    }
+    else
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandQueryRecoveryLink(this, ptr));
+
+    return API_OK;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

@@ -2937,6 +2937,14 @@ void MegaApiImpl::resetPassword(const char *email, bool hasMasterKey, MegaReques
     waiter->notify();
 }
 
+void MegaApiImpl::queryResetPasswordLink(const char *link, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_RECOVERY_LINK, listener);
+    request->setLink(link);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 {
     Proxy *localProxySettings = new Proxy();
@@ -6099,6 +6107,45 @@ void MegaApiImpl::cleanrubbishbin_result(error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CLEAN_RUBBISH_BIN)) return;
 
     fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::getrecoverylink_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_GET_RECOVERY_LINK)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::queryrecoverylink_result(error e)
+{
+    MegaError megaError(e);
+
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const char *ip, time_t, handle uh, const vector<string> *)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK)) return;
+
+    // public for MegaApi (documented)
+    request->setEmail(email);
+    request->setFlag(type == 9);
+
+    request->setNumber(type);
+    request->setText(ip);
+    request->setNodeHandle(uh);
+
+    fireOnRequestFinish(request, MegaError());
 }
 
 #ifdef ENABLE_CHAT
@@ -10249,6 +10296,13 @@ void MegaApiImpl::sendPendingRequests()
             e = client->getrecoverylink(email, hasMasterKey);
 			break;
 		}
+        case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
+        {
+            const char *link = request->getLink();
+
+            e = client->queryrecoverylink(link);
+            break;
+        }
         case MegaRequest::TYPE_PAUSE_TRANSFERS:
         {
             bool pause = request->getFlag();

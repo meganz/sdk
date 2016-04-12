@@ -167,6 +167,10 @@ struct MEGA_API MegaApp
     // get account recovery link result
     virtual void getrecoverylink_result(error) {}
 
+    // check account recovery link result
+    virtual void queryrecoverylink_result(error) {}
+    virtual void queryrecoverylink_result(int, const char *, const char *, time_t, handle, const vector<string> *) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }

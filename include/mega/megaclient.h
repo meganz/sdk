@@ -862,6 +862,9 @@ public:
     // request a link to recover account
     error getrecoverylink(const char *email, bool masterkey);
 
+    // query information about recovery link
+    error queryrecoverylink(const char *link);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

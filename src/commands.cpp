@@ -3578,6 +3578,64 @@ void CommandGetRecoveryLink::procresult()
     }
 }
 
+CommandQueryRecoveryLink::CommandQueryRecoveryLink(MegaClient *client, const char *linkcode)
+{
+    cmd("erv");
+    arg("c", linkcode);
+
+    tag = client->reqtag;
+}
+
+void CommandQueryRecoveryLink::procresult()
+{
+    // [<code>,"<email>","<ip_address>",<timestamp>,"<user_handle>",["<email>"]]
+
+    client->json.enterarray();
+
+    int type;
+    string email;
+    string ip;
+    time_t ts;
+    handle uh;
+
+    if (!client->json.isnumeric() || ((type = client->json.getint()) < 0))   // error
+    {
+        return client->app->queryrecoverylink_result((error)type);
+    }
+
+    if ( !client->json.storeobject(&email)  ||
+         !client->json.storeobject(&ip)     ||
+         ((ts = client->json.getint()) == -1) ||
+         !(uh = client->json.gethandle(MegaClient::USERHANDLE)) )
+    {
+        return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    string tmp;
+    vector<string> emails;
+
+    // read emails registered for this account
+    client->json.enterarray();
+    while (client->json.storeobject(&tmp))
+    {
+        emails.push_back(tmp);
+        if (*client->json.pos == ']')
+        {
+            break;
+        }
+    }
+    client->json.leavearray();  // emails array
+    client->json.leavearray();  // response array
+
+    if (!emails.size()) // there should be at least one email
+    {
+        return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+
+    return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), ts, uh, &emails);
+}
+
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {
