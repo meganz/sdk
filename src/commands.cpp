@@ -3556,6 +3556,28 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
+CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type)
+{
+    cmd("erm");
+    arg("m", email);
+    arg("t", type);
+
+    tag = client->reqtag;
+}
+
+void CommandGetRecoveryLink::procresult()
+{    
+    if (client->json.isnumeric())
+    {
+        client->app->getrecoverylink_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->getrecoverylink_result(API_EINTERNAL);
+    }
+}
+
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {

@@ -548,6 +548,18 @@ bool MegaClient::compareDatabases(string filename1, string filename2)
     return true;
 }
 
+error MegaClient::getrecoverylink(const char *email, bool masterkey)
+{
+    if (!email || !email[0])
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandGetRecoveryLink(this, email, masterkey ? 9 : 10));
+
+    return API_OK;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

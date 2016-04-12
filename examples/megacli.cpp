@@ -1759,6 +1759,7 @@ static void process_line(char* l)
                 cout << "      killsession [all|sessionid]" << endl;
                 cout << "      whoami" << endl;
                 cout << "      passwd" << endl;
+                cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -3168,6 +3169,22 @@ static void process_line(char* l)
                         }
                     }
 #endif
+                    else if (words[0] == "reset")
+                    {
+                        bool hasMasterKey = false;
+                        if ( words.size() == 2 ||
+                            (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
+                        {
+                            client->getrecoverylink(words[1].c_str(), hasMasterKey);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "      reset email [mk]" << endl;
+                            return;
+                        }
+                    }
+
                     break;
 
                 case 6:

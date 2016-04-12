@@ -1220,6 +1220,11 @@ void MegaApi::fastConfirmAccount(const char* link, const char *base64pwkey, Mega
     pImpl->fastConfirmAccount(link, base64pwkey, listener);
 }
 
+void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
+{
+    pImpl->resetPassword(email, hasMasterKey, listener);
+}
+
 void MegaApi::setProxySettings(MegaProxy *proxySettings)
 {
     pImpl->setProxySettings(proxySettings);

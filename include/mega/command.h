@@ -601,6 +601,14 @@ public:
     CommandCleanRubbishBin(MegaClient*);
 };
 
+class MEGA_API CommandGetRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandGetRecoveryLink(MegaClient*, const char *, int);
+};
+
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command

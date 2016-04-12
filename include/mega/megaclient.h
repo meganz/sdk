@@ -859,6 +859,9 @@ public:
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);
 
+    // request a link to recover account
+    error getrecoverylink(const char *email, bool masterkey);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

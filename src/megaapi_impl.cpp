@@ -2928,6 +2928,15 @@ void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, 
     waiter->notify();
 }
 
+void MegaApiImpl::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOVERY_LINK, listener);
+    request->setEmail(email);
+    request->setFlag(hasMasterKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 {
     Proxy *localProxySettings = new Proxy();
@@ -10230,6 +10239,14 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
             }
 			delete[] c;
+			break;
+		}
+        case MegaRequest::TYPE_GET_RECOVERY_LINK:
+        {
+			const char *email = request->getEmail();
+            bool hasMasterKey = request->getFlag();
+
+            e = client->getrecoverylink(email, hasMasterKey);
 			break;
 		}
         case MegaRequest::TYPE_PAUSE_TRANSFERS:

@@ -1579,7 +1579,7 @@ class MegaRequest
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
             TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY
+            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY, TYPE_GET_RECOVERY_LINK, TYPE_CHECK_RECOVERY_LINK
         };
 
         virtual ~MegaRequest();
@@ -4245,6 +4245,22 @@ class MegaApi
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Initialize the reset of the existing password, with and without the Master Key.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOVERY_LINK.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getFlag - Returns whether the user has a backup of the master key or not.
+         *
+         * If this request succeed, a recovery link will be sent to the user.
+         * If no account is registered uner the provided email, you will get the error code
+         * MegaError::API_EEXIST in onRequestFinish
+         *
+         * @param email Email used to register the account whose password wants to be reset.
+         * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+         */
+        void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
+
          * @brief Set proxy settings
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.
@@ -5159,6 +5175,7 @@ class MegaApi
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
          * - https://mega.nz/#recovery
+         * - MegaApi::resetPassword()
          *
          * You take the ownership of the returned value.
          *

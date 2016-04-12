@@ -164,6 +164,9 @@ struct MEGA_API MegaApp
     // clean rubbish bin result
     virtual void cleanrubbishbin_result(error) { }
 
+    // get account recovery link result
+    virtual void getrecoverylink_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
