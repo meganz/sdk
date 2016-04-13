@@ -4024,6 +4024,7 @@ void MegaClient::sc_se()
     // fields: e, s
     string email;
     int status = -1;
+    handle uh = UNDEF;
     User *u;
 
     bool done = false;
@@ -4034,6 +4035,9 @@ void MegaClient::sc_se()
         case 'e':
             jsonsc.storeobject(&email);
             break;
+        case 'u':
+            uh = jsonsc.gethandle(USERHANDLE);
+            break;
         case 's':
             status = jsonsc.getint();
             break;
@@ -4042,6 +4046,11 @@ void MegaClient::sc_se()
             if (email.empty())
             {
                 LOG_err << "e element not provided";
+                break;
+            }
+            if (uh == UNDEF)
+            {
+                LOG_err << "u element not provided";
                 break;
             }
             if (status == -1)
@@ -4056,10 +4065,10 @@ void MegaClient::sc_se()
             }
 
             // `se` actionpackets are only sent for your own user
-            u = finduser(me);
+            u = finduser(uh);
             if (!u)
             {
-                LOG_warn << "user for email change not found";
+                LOG_warn << "user for email change not found. Not a contact?";
             }
             // TODO: manage different status once multiple-emails is supported
             else if (status == 3)
