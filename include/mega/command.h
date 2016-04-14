@@ -609,6 +609,16 @@ public:
     CommandGetRecoveryLink(MegaClient*, const char *, int);
 };
 
+class MEGA_API CommandQueryRecoveryLink : public Command
+{
+    string linkcode;
+
+public:
+    void procresult();
+
+    CommandQueryRecoveryLink(MegaClient*, const char*);
+};
+
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
