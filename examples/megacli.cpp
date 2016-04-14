@@ -44,6 +44,15 @@ static string signupcode;
 // signup password challenge and encrypted master key
 static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
 
+// password recovery e-mail address and code being confirmed
+static string recoveryemail, recoverycode;
+
+// password recovery code requires MK or not
+static bool hasMasterKey;
+
+// master key for password recovery
+static byte masterkey[SymmCipher::KEYLENGTH];
+
 // local console
 Console* console;
 
@@ -1371,12 +1380,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:"
+    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY
 };
 
 static prompttype prompt = COMMAND;
@@ -1629,6 +1638,22 @@ static void process_line(char* l)
                 {
                     client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
                 }
+                else if (recoveryemail.size() && recoverycode.size())
+                {
+                    cout << endl << "Reseting password..." << endl;
+
+                    if (hasMasterKey)
+                    {
+                    }
+                    else
+                    {
+                    }
+
+                    recoverycode.clear();
+                    recoveryemail.clear();
+                    hasMasterKey = false;
+                    memset(masterkey, 0, sizeof masterkey);
+                }
                 else
                 {
                     if ((e = client->changepw(pwkey, newpwkey)) == API_OK)
@@ -1645,6 +1670,13 @@ static void process_line(char* l)
 
             setprompt(COMMAND);
             signupemail.clear();
+            return;
+
+        case MASTERKEY:
+            cout << endl << "Retrieving private RSA key for checking integrity of the Master Key...";
+
+            Base64::atob(l, masterkey, sizeof masterkey);
+            client->getprivatekey(recoverycode.c_str());
             return;
 
         case COMMAND:
@@ -1760,7 +1792,7 @@ static void process_line(char* l)
                 cout << "      whoami" << endl;
                 cout << "      passwd" << endl;
                 cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
-                cout << "      recover recoverylink [password [masterkey]]" << endl;   // mk in base64
+                cout << "      recover recoverylink" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
                 cout << "      reload" << endl;
@@ -3172,7 +3204,7 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "reset")
                     {
-                        bool hasMasterKey = false;
+                        recoveryemail = words[1];
 
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
@@ -3181,7 +3213,7 @@ static void process_line(char* l)
                         else if (words.size() == 2 ||
                             (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
                         {
-                            client->getrecoverylink(words[1].c_str(), hasMasterKey);
+                            client->getrecoverylink(recoveryemail.c_str(), hasMasterKey);
                         }
                         else
                         {
@@ -3508,11 +3540,20 @@ static void process_line(char* l)
                         }
                         else if (words.size() == 2)  // query recovery link
                         {
-                            client->queryrecoverylink(words[1].c_str());
+                            string link = words[1];
+
+                            int pos = link.find("#recover");
+                            if (pos == link.npos)
+                            {
+                                cout << "Invalid recovery link." << endl;
+                            }
+
+                            recoverycode.assign(link.substr(pos+strlen("#recover")));
+                            client->queryrecoverylink(link.c_str());
                         }
                         else
                         {
-                            cout << "      recover recoverylink [password [masterkey]]" << endl;
+                            cout << "      recover recoverylink" << endl;
                         }
                         return;
                     }
@@ -3813,7 +3854,7 @@ void DemoApp::getrecoverylink_result(error e)
     }
     else
     {
-        cout << "Please check your e-mail and enter the command recover followed by the recovery link." << endl;
+        cout << "Please check your e-mail and enter the command \"recover\" followed by the recovery link." << endl;
     }
 }
 
@@ -3824,18 +3865,39 @@ void DemoApp::queryrecoverylink_result(error e)
 
 void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
 {
+    recoveryemail = email ? email : "";
+
     cout << "Recovery link is valid";
 
     if (type == 9)
     {
-        cout <<  " for " << email << " with masterkey";
+        cout <<  " for " << email << " with masterkey." << endl;
+
+        setprompt(MASTERKEY);
     }
     else if (type == 10)
     {
-        cout <<  " for " << email << " without masterkey";
-    }
+        cout <<  " for " << email << " without masterkey." << endl;
 
-    cout << "." << endl;
+        setprompt(NEWPASSWORD);
+    }
+    else if (type == 21)
+    {
+        cout << " for " << email << " to cancel the account." << endl;
+    }
+}
+
+void DemoApp::getprivatekey_result(error e, const char *ukpriv)
+{
+    if (e)
+    {
+        cout << "Unable to get private key (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Private key successfully retrieved for integrity check masterkey." << endl;
+        setprompt(NEWPASSWORD);
+    }
 }
 
 void DemoApp::ephemeral_result(handle uh, const byte* pw)

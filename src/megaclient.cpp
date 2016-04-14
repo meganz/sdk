@@ -578,6 +578,11 @@ error MegaClient::queryrecoverylink(const char *link)
     return API_OK;
 }
 
+error MegaClient::getprivatekey(const char *code)
+{
+    reqs.add(new CommandGetPrivateKey(this, code));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

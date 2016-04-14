@@ -6126,7 +6126,8 @@ void MegaApiImpl::queryrecoverylink_result(error e)
 
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK))) return;
 
     fireOnRequestFinish(request, megaError);
 }
@@ -6135,7 +6136,8 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK)) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK) &&
+                    (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK))) return;
 
     // public for MegaApi (documented)
     request->setEmail(email);
@@ -6145,7 +6147,41 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     request->setText(ip);
     request->setNodeHandle(uh);
 
-    fireOnRequestFinish(request, MegaError());
+    if (request->getType() == MegaRequest::TYPE_QUERY_RECOVERY_LINK)
+    {
+        fireOnRequestFinish(request, MegaError());
+        return;
+    }
+
+    // check if link requires masterkey to be provided
+    const char *mk64 = request->getPrivateKey();
+    if ((type == 9) && !mk64)
+    {
+        fireOnRequestFinish(request, MegaError(API_EARGS));
+        return;
+    }
+
+    byte mk[SymmCipher::KEYLENGTH];
+    Base64::atob(mk64, mk, sizeof mk);
+
+    client->getprivatekey(request->getLink());
+}
+
+void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+
+    if (e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+    }
+    else
+    {
+        // compute the password key, the login_hash, encrypt the masterkey
+        //client->confirmrecoverylink(request->getLink(), request->getPassword(), request->getPrivateKey());
+    }
 }
 
 #ifdef ENABLE_CHAT
@@ -10299,7 +10335,27 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
         {
             const char *link = request->getLink();
+            if(!link)
+            {
+                e = API_EARGS;
+                break;
+            }
 
+            e = client->queryrecoverylink(link);
+            break;
+        }
+        case MegaRequest::TYPE_CONFIRM_RECOVERY_LINK:
+        {
+            const char *link = request->getLink();
+            const char *newPwd = request->getPassword();
+
+            if(!link || !newPwd)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // concatenate query + confirm requests
             e = client->queryrecoverylink(link);
             break;
         }

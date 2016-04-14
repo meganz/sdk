@@ -865,6 +865,12 @@ public:
     // query information about recovery link
     error queryrecoverylink(const char *link);
 
+    // request private key for integrity checking the masterkey
+    error getprivatekey(const char *code);
+
+    // confirm a recovery link to restore the account
+    error confirmrecoverylink(const char *code, const char *pwd, const byte *masterkey = NULL);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

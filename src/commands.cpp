@@ -3632,8 +3632,37 @@ void CommandQueryRecoveryLink::procresult()
         return client->app->queryrecoverylink_result(API_EINTERNAL);
     }
 
-
     return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), ts, uh, &emails);
+}
+
+CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *link)
+{
+    cmd("erx");
+    arg("r", "gk");
+    arg("c", link);
+
+    tag = client->reqtag;
+}
+
+void CommandGetPrivateKey::procresult()
+{
+    if (client->json.isnumeric())   // error
+    {
+        return client->app->getprivatekey_result((error)client->json.getint());
+    }
+    else
+    {
+        string RSApriv;
+        client->json.storeobject(&RSApriv);
+        if (RSApriv.empty())
+        {
+            return client->app->getprivatekey_result((error)API_EINTERNAL);
+        }
+        else
+        {
+            return client->app->getprivatekey_result((error)API_OK, RSApriv.c_str());
+        }
+    }
 }
 
 #ifdef ENABLE_CHAT

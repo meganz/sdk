@@ -611,12 +611,18 @@ public:
 
 class MEGA_API CommandQueryRecoveryLink : public Command
 {
-    string linkcode;
-
 public:
     void procresult();
 
     CommandQueryRecoveryLink(MegaClient*, const char*);
+};
+
+class MEGA_API CommandGetPrivateKey : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPrivateKey(MegaClient*, const char*);
 };
 
 
