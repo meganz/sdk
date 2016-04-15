@@ -1007,7 +1007,7 @@ class MegaUser
          * Check if the user has new or modified lastname
          *
          * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
-         * Check if the user has modified email (only for your own user)
+         * Check if the user has modified email
          *
          * @return true if this user has an specific change
          */
@@ -1037,7 +1037,7 @@ class MegaUser
          * Check if the user has new or modified lastname
          *
          * - MegaUser::CHANGE_TYPE_EMAIL           = 0x20
-         * Check if the user has modified email (only for your own user)
+         * Check if the user has modified email
          */
         virtual int getChanges();
 };
@@ -4311,7 +4311,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @note The visibility of your own user is unhdefined and shouldn't be used.
+         * @note The visibility of your own user is undefined and shouldn't be used.
          * @return MegaUser of the currently open account, otherwise NULL
          */
         MegaUser* getMyUser();
