@@ -4058,7 +4058,10 @@ void MegaClient::sc_se()
                 LOG_err << "s element not provided";
                 break;
             }
-            if (status < 0 || status > 3)
+            if (status != EMAIL_REMOVED &&
+                    status != EMAIL_PENDING_REMOVED &&
+                    status != EMAIL_PENDING_ADDED &&
+                    status != EMAIL_FULLY_ACCEPTED)
             {
                 LOG_err << "unknown value for s element: " << status;
                 break;
@@ -4069,7 +4072,7 @@ void MegaClient::sc_se()
             {
                 LOG_warn << "user for email change not found. Not a contact?";
             }
-            else if (status == 3)
+            else if (status == EMAIL_FULLY_ACCEPTED)
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
