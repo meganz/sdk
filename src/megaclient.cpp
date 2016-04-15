@@ -583,6 +583,22 @@ error MegaClient::getprivatekey(const char *code)
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
+error MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+{
+    if (masterkey)
+    {
+        // encrypt masterkey using new password
+        SymmCipher pwcipher(pwkey);
+        byte encryptedmasterkey[SymmCipher::KEYLENGTH];
+        memcpy(encryptedmasterkey, masterkey, sizeof encryptedmasterkey);
+        pwcipher.ecb_encrypt(encryptedmasterkey);
+
+        u_int64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedmasterkey, NULL));
+    }
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

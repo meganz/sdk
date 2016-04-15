@@ -1626,7 +1626,7 @@ static void process_line(char* l)
         case PASSWORDCONFIRM:
             client->pw_key(l, pwkeybuf);
 
-            if (memcmp(pwkeybuf, newpwkey, sizeof pwkey))
+            if (memcmp(pwkeybuf, newpwkey, sizeof pwkeybuf))
             {
                 cout << endl << "Mismatch, please try again" << endl;
             }
@@ -1644,9 +1644,11 @@ static void process_line(char* l)
 
                     if (hasMasterKey)
                     {
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, masterkey);
                     }
                     else
                     {
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, NULL);
                     }
 
                     recoverycode.clear();
@@ -3866,6 +3868,7 @@ void DemoApp::queryrecoverylink_result(error e)
 void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
 {
     recoveryemail = email ? email : "";
+    hasMasterKey = (type == 9);
 
     cout << "Recovery link is valid";
 
@@ -3897,6 +3900,18 @@ void DemoApp::getprivatekey_result(error e, const char *ukpriv)
     {
         cout << "Private key successfully retrieved for integrity check masterkey." << endl;
         setprompt(NEWPASSWORD);
+    }
+}
+
+void DemoApp::confirmrecoverylink_result(error e)
+{
+    if (e)
+    {
+        cout << "Unable to reset the password (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Password changed successfully." << endl;
     }
 }
 

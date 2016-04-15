@@ -2945,6 +2945,16 @@ void MegaApiImpl::queryResetPasswordLink(const char *link, MegaRequestListener *
     waiter->notify();
 }
 
+void MegaApiImpl::confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_RECOVERY_LINK, listener);
+    request->setLink(link);
+    request->setPassword(newPwd);
+    request->setPrivateKey(masterKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
 {
     Proxy *localProxySettings = new Proxy();
@@ -6180,8 +6190,34 @@ void MegaApiImpl::getprivatekey_result(error e, const char *ukpriv)
     else
     {
         // compute the password key, the login_hash, encrypt the masterkey
-        //client->confirmrecoverylink(request->getLink(), request->getPassword(), request->getPrivateKey());
+        string link = request->getLink();
+        int pos = link.find("#recover");
+        if (pos == link.npos)
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+        }
+        else
+        {
+            const char *code = link.substr(pos+strlen("#recover")).c_str();
+
+            byte pwkey[SymmCipher::KEYLENGTH];
+            client->pw_key(request->getPassword(), pwkey);
+
+            byte mk[SymmCipher::KEYLENGTH];
+            Base64::atob(request->getPrivateKey(), mk, sizeof mk);
+
+            client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
+        }
     }
+}
+
+void MegaApiImpl::confirmrecoverylink_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 #ifdef ENABLE_CHAT

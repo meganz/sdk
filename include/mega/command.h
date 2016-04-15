@@ -625,6 +625,14 @@ public:
     CommandGetPrivateKey(MegaClient*, const char*);
 };
 
+class MEGA_API CommandConfirmRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmRecoveryLink(MegaClient*, const char*, uint64_t, const byte*, const byte*);
+};
+
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command

@@ -99,6 +99,7 @@ struct DemoApp : public MegaApp
     virtual void queryrecoverylink_result(error);
     virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);    
     virtual void getprivatekey_result(error, const char *ukpriv);
+    virtual void confirmrecoverylink_result(error);
 
     void users_updated(User**, int);
     void nodes_updated(Node**, int);

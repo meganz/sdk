@@ -174,6 +174,9 @@ struct MEGA_API MegaApp
     // get private key from recovery link result
     virtual void getprivatekey_result(error, const char * = NULL) {}
 
+    // confirm recovery link result
+    virtual void confirmrecoverylink_result(error) {}
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }

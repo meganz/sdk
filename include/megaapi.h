@@ -4280,6 +4280,33 @@ class MegaApi
          */
         void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Set a new password for the account pointed by the recovery link.
+         *
+         * Recovery links are created by calling MegaApi::resetPassword and may or may not
+         * require to provide the Master Key or not.
+         *
+         * @see The flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in MegaApi::queryResetPasswordLink.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the recovery link
+         * - MegaRequest::getPassword - Returns the new password
+         * - MegaRequest::getPrivateKey - Returns the Master Key, when provided
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param newPwd The new password to be set.
+         * @param masterKey Base64-encoded string containing the master key.
+         * @param listener MegaRequestListener to track this request
+         */
+        void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set proxy settings
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.

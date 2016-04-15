@@ -869,7 +869,7 @@ public:
     error getprivatekey(const char *code);
 
     // confirm a recovery link to restore the account
-    error confirmrecoverylink(const char *code, const char *pwd, const byte *masterkey = NULL);
+    error confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

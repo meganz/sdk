@@ -1230,6 +1230,11 @@ void MegaApi::queryResetPasswordLink(const char *link, MegaRequestListener *list
     pImpl->queryResetPasswordLink(link, listener);
 }
 
+void MegaApi::confirmResetPassword(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
+{
+    pImpl->confirmResetPasswordLink(link, newPwd, masterKey, listener);
+}
+
 void MegaApi::setProxySettings(MegaProxy *proxySettings)
 {
     pImpl->setProxySettings(proxySettings);

@@ -3665,6 +3665,43 @@ void CommandGetPrivateKey::procresult()
     }
 }
 
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, uint64_t newLoginHash, const byte *encMasterKey, const byte *initialSession)
+{
+    cmd("erx");
+
+    if (!initialSession)
+    {
+        arg("r", "sk");
+    }
+
+    arg("c", code);
+
+    arg("x", encMasterKey, SymmCipher::KEYLENGTH);
+    arg("y", (byte*)&newLoginHash, sizeof newLoginHash);
+
+    if (initialSession)
+    {
+        arg("z", initialSession, sizeof initialSession);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmRecoveryLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->confirmrecoverylink_result((error)client->json.getint());
+    }
+    else   // error
+    {
+        client->json.storeobject();
+        return client->app->confirmrecoverylink_result((error)API_EINTERNAL);
+    }
+}
+
+
+
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
 {
