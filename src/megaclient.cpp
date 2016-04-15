@@ -8131,6 +8131,9 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             // same fingerprint, if available): no action needed
                             if (!ll->checked)
                             {
+                                // Restoration of missing attributes temporarily disabled
+                                // on synced folders
+                                /*
                                 if (gfx && gfx->isgfx(&ll->localname))
                                 {
                                     int missingattr = 0;
@@ -8155,6 +8158,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
                                     }
                                 }
+                                */
 
                                 ll->checked = true;
                             }
