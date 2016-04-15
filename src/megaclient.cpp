@@ -844,8 +844,11 @@ void MegaClient::exec()
                             {
                                 // reduce the number of required attributes to let the upload continue
                                 transfer->minfa--;
-                                checkfacompletion(fa->th);
+                                checkfacompletion(fa->th);                                
+                                int creqtag = reqtag;
+                                reqtag = 0;
                                 sendevent(99407,"Attribute attach failed during active upload");
+                                reqtag = creqtag;
                                 break;
                             }
                         }
