@@ -390,6 +390,8 @@ struct TextChat
 typedef vector<TextChat*> textchat_vector;
 #endif
 
+typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
+
 } // namespace
 
 #endif

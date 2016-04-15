@@ -2709,6 +2709,11 @@ bool MegaClient::procsc()
                                 // public links handles
                                 sc_ph();
                                 break;
+
+                            case MAKENAMEID2('s','e'):
+                                // set email
+                                sc_se();
+                                break;
 #ifdef ENABLE_CHAT
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
@@ -4026,6 +4031,79 @@ void MegaClient::sc_ph()
             {
                 LOG_warn << "node for public link not found";
             }
+
+            break;
+        default:
+            if (!jsonsc.storeobject())
+            {
+                return;
+            }
+        }
+    }
+}
+
+void MegaClient::sc_se()
+{
+    // fields: e, s
+    string email;
+    int status = -1;
+    handle uh = UNDEF;
+    User *u;
+
+    bool done = false;
+    while (!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case 'e':
+            jsonsc.storeobject(&email);
+            break;
+        case 'u':
+            uh = jsonsc.gethandle(USERHANDLE);
+            break;
+        case 's':
+            status = jsonsc.getint();
+            break;
+        case EOO:
+            done = true;
+            if (email.empty())
+            {
+                LOG_err << "e element not provided";
+                break;
+            }
+            if (uh == UNDEF)
+            {
+                LOG_err << "u element not provided";
+                break;
+            }
+            if (status == -1)
+            {
+                LOG_err << "s element not provided";
+                break;
+            }
+            if (status != EMAIL_REMOVED &&
+                    status != EMAIL_PENDING_REMOVED &&
+                    status != EMAIL_PENDING_ADDED &&
+                    status != EMAIL_FULLY_ACCEPTED)
+            {
+                LOG_err << "unknown value for s element: " << status;
+                break;
+            }
+
+            u = finduser(uh);
+            if (!u)
+            {
+                LOG_warn << "user for email change not found. Not a contact?";
+            }
+            else if (status == EMAIL_FULLY_ACCEPTED)
+            {
+                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
+
+                u->email = email;
+                u->changed.email = true;
+                notifyuser(u);
+            }
+            // TODO: manage different status once multiple-emails is supported
 
             break;
         default:
